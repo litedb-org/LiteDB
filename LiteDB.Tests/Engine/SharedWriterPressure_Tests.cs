@@ -12,12 +12,12 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedWriterPressure_Tests
     {
-        [Theory]
+        [MappedTheory]
         [InlineData(null)]
         [InlineData("secret")]
         public void Dispose_finishes_while_a_reader_is_paused_before_admission(string password)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-pressure-dispose-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-pressure-dispose-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             var passed = false;
@@ -75,12 +75,12 @@ namespace LiteDB.Tests.Engine
             finally { if (passed) Directory.Delete(directory, true); }
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null)]
         [InlineData("secret")]
         public void Measured_streaming_reader_preserves_old_rows_and_releases_its_lease_on_another_thread(string password)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-pressure-stream-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-pressure-stream-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             var passed = false;
@@ -131,14 +131,14 @@ namespace LiteDB.Tests.Engine
             finally { if (passed) Directory.Delete(directory, true); }
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null, false)]
         [InlineData("secret", false)]
         [InlineData(null, true)]
         [InlineData("secret", true)]
         public void Scheduling_precedes_leases_but_an_admitted_reader_keeps_its_generation(string password, bool beforeAdmission)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-pressure-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-pressure-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             var passed = false;

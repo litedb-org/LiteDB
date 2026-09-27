@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using Xunit;
@@ -16,6 +17,32 @@ namespace LiteDB.Tests.Engine
         private string Page => SharedCoordinationFallback.PagePath(Filename);
         private string Marker => SharedCoordinationFallback.DisabledPath(Filename);
         public SharedCoordinationProtocol_Tests() => Directory.CreateDirectory(_directory);
+
+        [Fact]
+        public void Case_alias_attaches_to_one_authority_on_case_insensitive_filesystems()
+        {
+            var alias = Path.Combine(_directory, "TEST.DB");
+            using var first = SharedCoordinationPage.Open(Filename);
+            first.Opened(7);
+            if (!File.Exists(SharedCoordinationFallback.LivePath(alias))) return; // Case-sensitive volume.
+            var original = File.ReadAllBytes(Live);
+            using var second = SharedCoordinationPage.Open(alias);
+            second.Opened(7);
+            first.Committed(9);
+            second.TryRead(out var status).Should().BeTrue();
+            status.Version.Should().Be(9);
+            File.ReadAllBytes(Live).Should().Equal(original);
+        }
+
+        [Fact]
+        public void Binding_case_rules_match_supported_platform_namespaces()
+        {
+            var lower = SharedCoordinationProtocol.CreateParticipation(Filename).Skip(64).Take(32);
+            var upper = SharedCoordinationProtocol.CreateParticipation(Path.Combine(_directory, "TEST.DB")).Skip(64).Take(32);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                lower.Should().Equal(upper);
+            else lower.Should().NotEqual(upper);
+        }
 
         [Fact]
         public void Supported_protocol_attaches_to_the_same_live_authority()

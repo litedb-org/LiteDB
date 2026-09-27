@@ -75,7 +75,7 @@ namespace LiteDB
                 }
                 use = null;
             }
-            else use = this.OpenDatabase();
+            else use = this.OpenDatabase(writing: !reads);
 
             // Write queries and explicit transactions retain their writer ownership.
             if (_transactionRunning || !reads)

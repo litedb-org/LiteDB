@@ -17,6 +17,9 @@ requires one absolute path and mutex naming strategy: concurrent symbolic-link,
 hard-link or other physical-file aliases are unsupported. Database and WAL formats
 are unchanged; there is no database upgrade or rebuild for this transition.
 
+For opt-out, production fallback diagnostics, filesystem/container qualification,
+backup and deployment guidance, see [operating Shared mapped reads](shared-mapped-operations.md).
+
 ## Coordination ABI 1
 
 The immutable participation file (`-shared-live`, 128 bytes) and the mapped status
@@ -32,7 +35,7 @@ fields are 64 bits. The page's mutable atomic words start at byte 128.
 | 32 | Required capability bits | Zero; unknown requirements reject attachment and retirement |
 | 40 | Optional nonsemantic capability bits | May be ignored; cannot change safety or layout semantics |
 | 48–63 | Random 128-bit authority nonce | Nonzero and identical in both files |
-| 64–95 | SHA-256 canonical database path binding | Exact match to absolute path, invariant lowercase on Windows |
+| 64–95 | SHA-256 canonical database path binding | Exact match to absolute path, invariant lowercase on Windows/macOS |
 | 96–127 | Reserved | Zero; other values require a supported future ABI |
 
 The page stores sequence, committed version, structural epoch, reuse epoch, reset
@@ -127,12 +130,16 @@ recognized stale control files after proving all old handles are gone; unknown
 files are preserved. The page is never a durable commit record.
 New participation, status and revocation files are fully written and flushed in a unique temporary
 file, then renamed in the same directory without replacing an existing destination.
-Process death before publication can leave an ignored `.ldb-*` temporary
-file (at most 4 KiB per interrupted creation), but cannot publish a partial authority.
+Process death before publication can leave an attributed `.ldb-<path-tag>-<random>`
+temporary file (at most 4 KiB per interrupted creation), but cannot publish a partial
+authority. Publishers retain their sharing handle through rename. Under the database
+mutex, publication/retirement removes only empty or recognized matching temporaries
+whose exclusive handle proves the publisher is gone; unknown/old untagged files remain.
 Power-loss durability of directory entries remains filesystem-dependent; missing
 or unrecognized control files never authorize a snapshot.
 
-Before waiting for ownership, a writer can publish a short scheduling hint in a
+An already attached writer can publish before waiting for ownership; a fresh writer
+attaches under the mutex and announces before engine open/recovery. A writer publishes a short scheduling hint in a
 separate atomic word. A deadline, request sequence and active bit distinguish
 requests made within the same millisecond. A completed writable engine clears its
 own request with compare-exchange; it cannot clear a newer request. An abandoned

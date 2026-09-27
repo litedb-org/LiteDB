@@ -12,7 +12,7 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinatedReads_Tests
     {
-        [Theory]
+        [MappedTheory]
         [InlineData(false)]
         [InlineData(true)]
         public void Checkpoint_between_status_read_and_lease_publication_requires_revalidation(bool unsafeSkip)
@@ -51,7 +51,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Repeated_reads_use_protected_cache_and_a_peer_commit_invalidates_it()
         {
             WithFile(file =>
@@ -80,7 +80,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Revocation_preserves_open_snapshot_and_routes_new_queries_through_mutex()
         {
             WithFile(file =>
@@ -112,7 +112,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Alternating_writes_do_not_retain_idle_snapshot_handles_but_read_streaks_do()
         {
             WithFile(file =>
@@ -141,7 +141,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Warm_point_read_finishes_while_another_thread_owns_the_database_mutex()
         {
             WithFile(file =>
@@ -186,7 +186,7 @@ namespace LiteDB.Tests.Engine
 
         private static void WithFile(Action<string> test)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-mapped-reads-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-mapped-reads-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(Path.Combine(directory, "test.db")); }
             finally { Directory.Delete(directory, true); }

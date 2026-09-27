@@ -7,12 +7,13 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
     public class SharedMappedProcess_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-mapped-process-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-mapped-process-" + Guid.NewGuid().ToString("N"));
         private bool _passed;
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedMappedProcess_Tests() => Directory.CreateDirectory(_directory);
@@ -25,7 +26,7 @@ namespace LiteDB.Internals
                         yield return new object[] { suffix, stage, password };
         }
 
-        [Theory]
+        [MappedTheory]
         [MemberData(nameof(CreationBoundaries))]
         public async Task Death_during_control_creation_preserves_data_and_recovers_mapped_reads(string suffix, string stage, string password)
         {
@@ -47,12 +48,13 @@ namespace LiteDB.Internals
                 authority.Should().NotBeNull("a crash must not permanently disable the mapped path");
                 authority.TryRead(out _).Should().BeTrue();
             }
+            Directory.GetFiles(_directory, ".ldb-*-*").Should().BeEmpty("recognized crashed publications are cleaned under ownership");
             await MvccProcess.Run("write", Filename, password, "7");
             await MvccProcess.Run("checkpoint", Filename, password);
             VerifyCold(password, 7);
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null, "cached-status", false)]
         [InlineData(null, "lease-published", false)]
         [InlineData("secret", "cached-status", false)]
@@ -79,7 +81,7 @@ namespace LiteDB.Internals
             VerifyCold(password, 7);
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData("mapped-slot-half", null)]
         [InlineData("mapped-opening", null)]
         [InlineData("mapped-recovering", null)]

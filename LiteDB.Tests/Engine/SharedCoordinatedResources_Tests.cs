@@ -12,7 +12,7 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinatedResources_Tests
     {
-        [Fact]
+        [MappedFact]
         public void Failed_unchanged_open_preserves_storage_and_the_next_open_publishes_the_commit()
         {
             WithFile(file =>
@@ -50,7 +50,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Completed_spilling_sort_releases_its_cached_engine_while_connection_remains_alive()
         {
             WithFile(file =>
@@ -90,7 +90,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void First_read_skips_authority_attachment_but_a_later_write_still_joins_it()
         {
             WithFile(file =>
@@ -121,7 +121,7 @@ namespace LiteDB.Tests.Engine
 
         private static void WithFile(Action<string> test)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-coordinated-resources-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-coordinated-resources-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(Path.Combine(directory, "test.db")); }
             finally { Directory.Delete(directory, true); }

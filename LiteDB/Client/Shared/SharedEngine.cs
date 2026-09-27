@@ -94,10 +94,10 @@ namespace LiteDB
         /// Open for an operation. A <paramref name="scoped"/> caller closes on the same thread
         /// before it returns; its ownership then takes the OS mutex directly on this thread.
         /// </summary>
-        private SharedMutexPin OpenDatabase(bool scoped = false)
+        private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
-            // Retire idle read handles before taking _useLock, preserving lock order.
-            this.RetireCoordinatedReads();
+            // Writers retire idle read handles before _useLock, preserving lock order.
+            if (writing) this.RetireCoordinatedReads();
             var pin = _pin;
             if (pin != null)
             {
@@ -107,7 +107,7 @@ namespace LiteDB
             }
 
             // Acquire mutex for every call to open DB.
-            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing: true);
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
 
             try
             {
@@ -127,7 +127,7 @@ namespace LiteDB
                 {
                     try
                     {
-                        this.OpenEngine(recoveredAbandonedOwner);
+                        this.OpenEngine(recoveredAbandonedOwner, writing: writing);
                     }
                     catch
                     {

@@ -47,6 +47,18 @@ namespace LiteDB
             }
         }
 
+        private void StartWriterPressure()
+        {
+#if NET8_0_OR_GREATER
+            // Called only under ownership, including nested writes after a read-only
+            // BeginTrans. Page disposal serializes internally; avoid snapshotGate
+            // here because engine opening can already hold useLock.
+            if (Interlocked.Read(ref _writerRequest) == 0)
+                Interlocked.Exchange(ref _writerRequest,
+                    _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0);
+#endif
+        }
+
         private void EndWriterPressure()
         {
 #if NET8_0_OR_GREATER

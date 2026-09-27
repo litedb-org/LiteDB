@@ -10,6 +10,12 @@ namespace LiteDB.Engine
     {
         // Protected by the WAL writer lock, except during single-threaded open.
         private readonly Dictionary<uint, long> _lastLogPositions = new Dictionary<uint, long>();
+        // Only RestoreIndex's blank/already-retired slots and structurally fenced
+        // checkpoint reclamation may populate this set. Those paths already exclude
+        // every accepted snapshot that could reach the old contents. Allocation does
+        // not rescan leases: SlotReused before overwrite invalidates idle caches and
+        // admissions racing reclamation; idle caches themselves hold no lease.
+        // A new producer must preserve that reclamation fence, not merely add a slot.
         private readonly SortedSet<long> _freeLogPositions = new SortedSet<long>();
         private uint _lastWalTransactionID;
 

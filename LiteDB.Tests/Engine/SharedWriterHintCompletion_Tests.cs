@@ -11,7 +11,7 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedWriterHintCompletion_Tests
     {
-        [Theory]
+        [MappedTheory]
         [InlineData(null, false)]
         [InlineData(null, true)]
         [InlineData("secret", false)]
@@ -21,7 +21,7 @@ namespace LiteDB.Tests.Engine
             WithDatabase(password, (engine, db, hint) =>
             {
                 db.BeginTrans().Should().BeTrue();
-                hint().Should().BeTrue();
+                hint().Should().BeFalse("BeginTrans has not performed a write");
                 db.GetCollection("rows").Update(new BsonDocument { ["_id"] = 1, ["value"] = 7 });
                 hint().Should().BeTrue("nested operations must not complete the outer writer request");
                 if (rollback) db.Rollback().Should().BeTrue();
@@ -31,7 +31,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Failed_open_clears_its_request_and_preserves_committed_rows()
         {
             WithDatabase(null, (engine, db, hint) =>
@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Engine
 
         private static void WithDatabase(string password, Action<SharedEngine, LiteDatabase, Func<bool>> test)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-hint-completion-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-hint-completion-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             var passed = false;

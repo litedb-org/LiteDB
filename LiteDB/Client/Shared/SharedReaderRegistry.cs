@@ -26,6 +26,7 @@ namespace LiteDB.Client.Shared
 
         internal SharedReaderRegistry(string filename, Func<string, string, string[]> getFiles = null)
         {
+            SharedCoordinationPolicy.RequireFileLocking();
             _directory = Path.GetFullPath(filename) + "-readers";
             _getFiles = getFiles ?? Directory.GetFiles;
         }

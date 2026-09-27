@@ -131,12 +131,12 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                SharedCoordinationRevocation.IsRevoked(file).Should().BeFalse();
+                SharedCoordinationRevocation.ExistsOrUnknown(file).Should().BeFalse();
                 File.WriteAllBytes(file, new byte[] { 1 });
-                SharedCoordinationRevocation.IsRevoked(file).Should().BeTrue();
+                SharedCoordinationRevocation.ExistsOrUnknown(file).Should().BeTrue();
                 // A file used as a parent component is not a missing marker: resolving
                 // the supposed marker failed, so admission must be refused.
-                SharedCoordinationRevocation.IsRevoked(Path.Combine(file, "marker")).Should().BeTrue();
+                SharedCoordinationRevocation.ExistsOrUnknown(Path.Combine(file, "marker")).Should().BeTrue();
             });
         }
 

@@ -11,14 +11,14 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedOrdinaryOpen_Tests
     {
-        [Theory]
+        [MappedTheory]
         [InlineData(null, false)]
         [InlineData("secret", false)]
         [InlineData(null, true)]
         [InlineData("secret", true)]
         public void Warm_reader_runs_during_real_writable_open_and_observes_commit_or_rollback(string password, bool rollback)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-ordinary-open-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-ordinary-open-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             var success = false;

@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Threading;
 using LiteDB.Engine;
+using Protocol = LiteDB.Client.Shared.SharedCoordinationProtocol;
 
 namespace LiteDB.Client.Shared
 {
@@ -19,7 +20,6 @@ namespace LiteDB.Client.Shared
         private readonly FileStream _participation;
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
-        private readonly long* _fields;
         private readonly long* _header;
         private readonly long[] _expectedHeader;
         private readonly object _writeLock = new object();
@@ -44,8 +44,7 @@ namespace LiteDB.Client.Shared
                 _view.SafeMemoryMappedViewHandle.AcquirePointer(ref address);
                 _pointerAcquired = true;
                 _header = (long*)(address + _view.PointerOffset);
-                _fields = _header + _expectedHeader.Length - 1;
-                if (((long)_fields & 7) != 0) throw new IOException("Unaligned Shared status page.");
+                if (((long)_header & 7) != 0) throw new IOException("Unaligned Shared status page.");
             }
             catch
             {
@@ -93,7 +92,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal static void Revoke(string filename) => SharedCoordinationFallback.Revoke(filename);
 
-        private bool Revoked() => SharedCoordinationRevocation.IsRevoked(_revocationPath);
+        private bool Revoked() => SharedCoordinationRevocation.ExistsOrUnknown(_revocationPath);
 
         // A short scheduling hint, not a lock or a liveness proof. A killed requester
         // cannot strand readers: they merely yield, and the hint expires independently.
@@ -107,10 +106,10 @@ namespace LiteDB.Client.Shared
                 // in the same millisecond cannot clear each other's hints.
                 while (true)
                 {
-                    var previous = this.Load(7);
+                    var previous = this.Load(Protocol.WriterHintOffset);
                     var request = unchecked((long)(uint)(now + 100) << 32) |
                         (unchecked(previous + 2) & 0xfffffffeL) | 1;
-                    if (Interlocked.CompareExchange(ref _fields[7], request, previous) == previous) return request;
+                    if (Interlocked.CompareExchange(ref _header[Protocol.WriterHintOffset / sizeof(long)], request, previous) == previous) return request;
                 }
             }
         }
@@ -119,7 +118,7 @@ namespace LiteDB.Client.Shared
         {
             lock (_writeLock)
                 if (!_disposed && request != 0 && this.HeaderMatches())
-                    Interlocked.CompareExchange(ref _fields[7], request & ~1L, request);
+                    Interlocked.CompareExchange(ref _header[Protocol.WriterHintOffset / sizeof(long)], request & ~1L, request);
         }
 
         internal bool ShouldYieldToWriter(long now)
@@ -127,7 +126,7 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 if (_disposed) return false;
-                var request = this.Load(7);
+                var request = this.Load(Protocol.WriterHintOffset);
                 var remaining = unchecked((uint)(request >> 32) - (uint)now);
                 return (request & 1) != 0 && remaining > 0 && remaining <= 100;
             }
@@ -151,11 +150,11 @@ namespace LiteDB.Client.Shared
             if (_disposed || !_trusted || !this.HeaderMatches() || (checkRevocation && this.Revoked())) return false;
             for (var attempt = 0; attempt < 8; attempt++)
             {
-                var sequence = this.Load(1);
+                var sequence = this.Load(Protocol.SequenceOffset);
                 if ((sequence & 1) != 0) continue;
-                status = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4), this.Load(5), this.Load(6));
+                status = new SharedCoordinationStatus(this.Load(Protocol.VersionOffset), this.Load(Protocol.StructuralOffset), this.Load(Protocol.ReuseOffset), this.Load(Protocol.ResetOffset), this.Load(Protocol.EpochIdentityOffset));
                 Interlocked.MemoryBarrier();
-                if (sequence == this.Load(1)) return status.Quiet && this.HeaderMatches() && (!checkRevocation || !this.Revoked());
+                if (sequence == this.Load(Protocol.SequenceOffset)) return status.Quiet && this.HeaderMatches() && (!checkRevocation || !this.Revoked());
             }
             status = default;
             return false;
@@ -178,7 +177,7 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 this.EnsureWritable();
-                if ((this.Load(1) & 1) == 0 && (this.Load(3) & 1) == 0) return false;
+                if ((this.Load(Protocol.SequenceOffset) & 1) == 0 && (this.Load(Protocol.StructuralOffset) & 1) == 0) return false;
                 this.StructuralBegin();
                 return true;
             }
@@ -201,7 +200,7 @@ namespace LiteDB.Client.Shared
             {
                 if (_depth++ != 0) return;
                 var before = this.BeginChange();
-                this.Store(3, this.Load(3) | 1);
+                this.Store(Protocol.StructuralOffset, this.Load(Protocol.StructuralOffset) | 1);
                 this.EndChange(before);
             }
         }
@@ -214,7 +213,7 @@ namespace LiteDB.Client.Shared
                 if (--_depth != 0) return;
                 var before = this.BeginChange();
                 if (version >= 0) this.SetVersion(version);
-                this.Store(3, checked(this.Load(3) + 1));
+                this.Store(Protocol.StructuralOffset, checked(this.Load(Protocol.StructuralOffset) + 1));
                 this.EndChange(before);
             }
         }
@@ -224,7 +223,7 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 var before = this.BeginChange();
-                this.Store(4, checked(this.Load(4) + 1));
+                this.Store(Protocol.ReuseOffset, checked(this.Load(Protocol.ReuseOffset) + 1));
                 this.EndChange(before);
             }
         }
@@ -234,12 +233,12 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 this.EnsureWritable();
-                var current = this.Load(2);
-                if (version >= current && (this.Load(1) & 1) == 0)
+                var current = this.Load(Protocol.VersionOffset);
+                if (version >= current && (this.Load(Protocol.SequenceOffset) & 1) == 0)
                 {
                     // Append commits leave every earlier snapshot valid. One atomic
                     // publication suffices; destructive transitions retain sequencing.
-                    if (version != current) this.Store(2, version);
+                    if (version != current) this.Store(Protocol.VersionOffset, version);
                     return;
                 }
                 var before = this.BeginChange();
@@ -250,8 +249,8 @@ namespace LiteDB.Client.Shared
 
         private void SetVersion(int version)
         {
-            if (version < this.Load(2)) this.Store(5, checked(this.Load(5) + 1));
-            this.Store(2, version);
+            if (version < this.Load(Protocol.VersionOffset)) this.Store(Protocol.ResetOffset, checked(this.Load(Protocol.ResetOffset) + 1));
+            this.Store(Protocol.VersionOffset, version);
         }
 
         private void EnsureWritable()
@@ -263,33 +262,37 @@ namespace LiteDB.Client.Shared
         private long BeginChange()
         {
             this.EnsureWritable();
-            var before = this.Load(1);
+            var before = this.Load(Protocol.SequenceOffset);
             // An interrupted publisher leaves an odd sequence. The caller has recovered
             // ownership; every older snapshot fence must be invalidated before reuse.
             if ((before & 1) != 0)
             {
-                this.Store(6, NewIdentity());
+                this.Store(Protocol.EpochIdentityOffset, NewIdentity());
                 before = checked(before + 1);
             }
-            this.Store(1, checked(before + 1));
+            this.Store(Protocol.SequenceOffset, checked(before + 1));
             return before;
         }
 
         // A failed field update deliberately leaves an odd sequence for recovery.
-        private void EndChange(long before) => this.Store(1, checked(before + 2));
+        private void EndChange(long before) => this.Store(Protocol.SequenceOffset, checked(before + 2));
 
         // Aligned 64-bit acquire loads do not write the shared cache line on x64/ARM64.
         // Keep the conservative atomic read on x86. The seqlock validation fence and
         // the post-lease admission fence remain full barriers.
-        private long Load(int field) => IntPtr.Size == 8
-            ? Volatile.Read(ref _fields[field])
-            : Interlocked.CompareExchange(ref _fields[field], 0, 0);
-        private void Store(int field, long value) => Interlocked.Exchange(ref _fields[field], value);
+        private long Load(int offset) => IntPtr.Size == 8
+            ? Volatile.Read(ref _header[offset / sizeof(long)])
+            : Interlocked.CompareExchange(ref _header[offset / sizeof(long)], 0, 0);
+        private void Store(int offset, long value) => Interlocked.Exchange(ref _header[offset / sizeof(long)], value);
         private static long NewIdentity() => BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0) | 1;
 
         // AcquirePointer owns an extra SafeHandle reference. FileStream/view finalizers
         // cannot release it for us when a caller forgets to dispose the connection.
-        ~SharedCoordinationPage() { this.Dispose(); }
+        ~SharedCoordinationPage()
+        {
+            try { this.Dispose(); }
+            catch (Exception) { /* Finalization must not terminate the process. */ }
+        }
 
         public void Dispose()
         {
@@ -306,9 +309,12 @@ namespace LiteDB.Client.Shared
                 _view.SafeMemoryMappedViewHandle.ReleasePointer();
                 _pointerAcquired = false;
             }
-            this.CloseView();
-            _map?.Dispose();
-            _participation?.Dispose();
+            try { this.CloseView(); }
+            finally
+            {
+                try { _map?.Dispose(); }
+                finally { _participation?.Dispose(); }
+            }
         }
 
         private void CloseView()

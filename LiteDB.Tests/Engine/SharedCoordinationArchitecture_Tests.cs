@@ -11,10 +11,10 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinationArchitecture_Tests
     {
-        [Fact]
+        [MappedFact]
         public void Protected_fallback_reads_do_not_revoke_peers_but_a_later_write_does()
         {
-            using (var file = new TempFile())
+            using (var file = new MappedTestFile())
             using (var peerEngine = new SharedEngine(new EngineSettings { Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var peer = new LiteDatabase(peerEngine))
@@ -40,10 +40,10 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
+        [MappedFact]
         public void Unqualified_architecture_revokes_admission_and_preserves_an_active_cached_reader()
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-architecture-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-architecture-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             try

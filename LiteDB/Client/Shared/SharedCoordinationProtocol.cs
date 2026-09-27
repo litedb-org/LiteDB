@@ -17,6 +17,8 @@ namespace LiteDB.Client.Shared
         internal const int SequenceOffset = HeaderSize;
         internal const int VersionOffset = HeaderSize + 8;
         internal const int StructuralOffset = HeaderSize + 16;
+        internal const int ReuseOffset = HeaderSize + 24;
+        internal const int ResetOffset = HeaderSize + 32;
         internal const int EpochIdentityOffset = HeaderSize + 40;
         internal const int WriterHintOffset = HeaderSize + 48;
 
@@ -110,7 +112,7 @@ namespace LiteDB.Client.Shared
         private static byte[] DatabaseBinding(string filename)
         {
             var path = Path.GetFullPath(filename);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) path = path.ToLowerInvariant();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) path = path.ToLowerInvariant();
             using (var hash = SHA256.Create()) return hash.ComputeHash(Encoding.UTF8.GetBytes(path));
         }
 

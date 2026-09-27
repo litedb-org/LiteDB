@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -14,6 +13,7 @@ namespace LiteDB
         private readonly object _snapshotGate = new object();
         private SharedCoordinationPage _coordination;
         private bool _coordinationUnavailable;
+        private readonly bool _mappedReadsDisabled = SharedCoordinationPolicy.MappedReadsDisabled;
         private int _coordinationDemand;
         private int _readCacheDemand;
         private CachedSharedSnapshot _cachedSnapshot;
@@ -25,7 +25,6 @@ namespace LiteDB
         internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
         internal int CoordinatedReadHits;
         internal int MeasuredStreamingReaders;
-        internal string CoordinationFallbackReason;
         internal System.Runtime.InteropServices.Architecture? CoordinationArchitectureOverride;
         internal Action<string> CoordinationStage;
         internal bool UnsafeSkipCoordinationRecheck;
@@ -52,12 +51,18 @@ namespace LiteDB
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {
                 _coordinationUnavailable = true;
+                CoordinationFallbackReason = "names: control paths exceed the supported limit";
                 return;
             }
             // One-shot connections keep their existing lifecycle. Repeated operations
             // create an authority; every later writer must join one that already exists.
             if ((!allowCreate || ++_coordinationDemand < 2) &&
-                !SharedCoordinationRevocation.IsRevoked(SharedCoordinationPage.PagePath(_settings.Filename))) return;
+                !SharedCoordinationRevocation.ExistsOrUnknown(SharedCoordinationPage.PagePath(_settings.Filename))) return;
+            if (_mappedReadsDisabled)
+            {
+                _coordinationUnavailable = true;
+                CoordinationFallbackReason = "disabled: " + SharedCoordinationPolicy.DisableMappedSwitch;
+            }
             if (_coordinationUnavailable)
             {
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
@@ -71,9 +76,7 @@ namespace LiteDB
                 architecture != System.Runtime.InteropServices.Architecture.X86 &&
                 architecture != System.Runtime.InteropServices.Architecture.Arm64)
             {
-#if DEBUG || TESTING
                 CoordinationFallbackReason = "architecture: " + architecture;
-#endif
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
                 return;
@@ -82,9 +85,7 @@ namespace LiteDB
                 (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows) && _handles == null))
             {
-#if DEBUG || TESTING
                 CoordinationFallbackReason = "settings: " + this.CanScope + "/" + _settings.Filename;
-#endif
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
                 return;
@@ -93,29 +94,22 @@ namespace LiteDB
             {
                 // Unknown and remote volumes retain the existing protocol. The first
                 // prototype is deliberately narrow; platform qualification is separate.
-                var drive = DriveInfo.GetDrives().Where(d => _settings.Filename.StartsWith(d.RootDirectory.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
-                    System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
-                        ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)).OrderByDescending(d => d.RootDirectory.FullName.Length).FirstOrDefault();
-                if (drive == null || drive.DriveType != DriveType.Fixed ||
-                    !(new[] { "ext2", "ext3", "ext4", "xfs", "btrfs", "NTFS", "ReFS", "apfs" }).Contains(drive.DriveFormat))
+                var volumeFailure = SharedCoordinationPolicy.VolumeFailure(_settings.Filename);
+                if (volumeFailure != null)
                 {
-#if DEBUG || TESTING
-                    CoordinationFallbackReason = "volume: " + drive?.Name + "/" + drive?.DriveType + "/" + drive?.DriveFormat;
-#endif
+                    CoordinationFallbackReason = volumeFailure;
                     if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                     _coordinationUnavailable = true;
                     return;
                 }
-                _coordination = SharedCoordinationPage.Open(_settings.Filename);
+                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename));
                 _settings.CoordinationSignals = _coordination;
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
             {
                 // Existing participants must learn about this fallback before this
                 // connection is allowed to make a write they would otherwise miss.
-#if DEBUG || TESTING
                 CoordinationFallbackReason = error.ToString();
-#endif
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
             }
@@ -324,6 +318,14 @@ namespace LiteDB
 
         private void ExpireSnapshot()
         {
+            // Timer callbacks must never let cleanup errors escape onto the runtime
+            // thread. Explicit reader/connection disposal retains its error behavior.
+            try { this.ExpireSnapshotCore(); }
+            catch (Exception) { }
+        }
+
+        private void ExpireSnapshotCore()
+        {
             lock (_snapshotGate)
             {
                 var snapshot = _cachedSnapshot;
@@ -340,9 +342,17 @@ namespace LiteDB
                     return;
                 }
                 _cachedSnapshot = null;
-                RetireSnapshot(snapshot);
-                _snapshotIdle?.Dispose();
-                _snapshotIdle = null;
+                try
+                {
+#if DEBUG || TESTING
+                    this.CoordinationStage?.Invoke("expiring");
+#endif
+                }
+                finally
+                {
+                    try { RetireSnapshot(snapshot); }
+                    finally { _snapshotIdle?.Dispose(); _snapshotIdle = null; }
+                }
             }
             // Idle state owns no lease and cannot delay reclamation. Expiration only
             // closes the read-only engine; durability remains with ordinary closes.

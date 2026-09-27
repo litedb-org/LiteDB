@@ -13,7 +13,7 @@ namespace LiteDB.Internals
         private readonly Process _process;
         private readonly Task<string> _errors;
 
-        internal MvccProcess(string mode, string filename, string password, string value = null)
+        internal MvccProcess(string mode, string filename, string password, string value = null, bool disableFileLocking = false, bool disableMappedReads = false)
         {
             // Use the host beside the runtime executing this test, including
             // isolated CI installations and Windows x86. PATH may select x64
@@ -29,6 +29,8 @@ namespace LiteDB.Internals
                 RedirectStandardError = true
             };
             start.Environment["DOTNET_ROLL_FORWARD"] = "Disable";
+            if (disableFileLocking) start.Environment["DOTNET_SYSTEM_IO_DISABLEFILELOCKING"] = "1";
+            if (disableMappedReads) start.Environment["LITEDB_DISABLE_SHARED_MAPPED_READS"] = "1";
             start.Environment["LITEDB_MVCC_RUNTIME"] = Environment.Version.ToString();
             start.Environment["LITEDB_MVCC_ARCHITECTURE"] = RuntimeInformation.ProcessArchitecture.ToString();
             start.ArgumentList.Add("--fx-version");

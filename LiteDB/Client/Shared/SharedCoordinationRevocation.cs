@@ -11,7 +11,7 @@ namespace LiteDB.Client.Shared
     /// </summary>
     internal static class SharedCoordinationRevocation
     {
-        internal static bool IsRevoked(string path)
+        internal static bool ExistsOrUnknown(string path)
         {
             try
             {

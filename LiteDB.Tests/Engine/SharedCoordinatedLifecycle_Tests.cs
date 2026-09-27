@@ -12,7 +12,7 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinatedLifecycle_Tests
     {
-        [Theory]
+        [MappedTheory]
         [InlineData(false)]
         [InlineData(true)]
         public void Unavailable_new_authority_or_long_control_names_keep_existing_database_operations(bool longName)
@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void One_shot_read_does_not_create_coordination_files()
         {
             WithFile(file =>
@@ -63,7 +63,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData("cached-status")]
         [InlineData("lease-published")]
         public void Rebuild_orders_its_lease_scan_with_mapped_admission(string interleaving)
@@ -103,7 +103,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Idle_snapshot_expires_without_checkpointing_or_retaining_a_lease()
         {
             WithFile(file =>
@@ -133,7 +133,7 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
+        [MappedFact]
         public void Unknown_mapping_falls_back_without_altering_foreign_bytes()
         {
             WithFile(file =>
@@ -169,7 +169,7 @@ namespace LiteDB.Tests.Engine
 
         private static void WithFile(Action<string> test)
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-coordinated-lifecycle-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-coordinated-lifecycle-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(Path.Combine(directory, "test.db")); }
             finally { Directory.Delete(directory, true); }

@@ -8,12 +8,13 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
     public class SharedCoordinationUpgradeProcess_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-abi-process-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-abi-process-" + Guid.NewGuid().ToString("N"));
         private bool _passed;
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedCoordinationUpgradeProcess_Tests() => Directory.CreateDirectory(_directory);
@@ -30,7 +31,7 @@ namespace LiteDB.Internals
             }
         }
 
-        [Theory]
+        [MappedTheory]
         [MemberData(nameof(UpgradeBoundaries))]
         public async Task Repeated_death_during_upgrade_and_recovery_preserves_committed_data(string suffix, string stage, string password)
         {
@@ -54,7 +55,7 @@ namespace LiteDB.Internals
             }
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null)]
         [InlineData("secret")]
         public async Task A_live_legacy_participant_blocks_upgrade_until_native_death(string password)
@@ -81,7 +82,7 @@ namespace LiteDB.Internals
             VerifyCold(password, 7);
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null)]
         [InlineData("secret")]
         public async Task Newer_authority_falls_back_without_overwriting_its_files(string password)
@@ -101,7 +102,7 @@ namespace LiteDB.Internals
             VerifyCold(password, 7);
         }
 
-        [Theory]
+        [MappedTheory]
         [InlineData(null)]
         [InlineData("secret")]
         public async Task Cold_database_replacement_never_reuses_the_saved_authority(string password)

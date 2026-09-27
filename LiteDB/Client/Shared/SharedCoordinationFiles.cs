@@ -10,14 +10,15 @@ namespace LiteDB.Client.Shared
         {
             participation = null;
             page = null;
+            SharedCoordinationPolicy.RequireFileLocking();
             TryRetire(filename);
             var livePath = SharedCoordinationFallback.LivePath(filename);
             var pagePath = SharedCoordinationFallback.PagePath(filename);
-            if (!SharedCoordinationRevocation.IsRevoked(livePath))
+            if (!SharedCoordinationRevocation.ExistsOrUnknown(livePath))
             {
                 // Never manufacture liveness for an unpaired or unknown existing authority.
-                if (SharedCoordinationRevocation.IsRevoked(pagePath) ||
-                    SharedCoordinationRevocation.IsRevoked(SharedCoordinationFallback.DisabledPath(filename)))
+                if (SharedCoordinationRevocation.ExistsOrUnknown(pagePath) ||
+                    SharedCoordinationRevocation.ExistsOrUnknown(SharedCoordinationFallback.DisabledPath(filename)))
                     throw new IOException("Unpaired or unknown Shared coordination files: " + filename);
                 SharedCoordinationFile.Publish(livePath, SharedCoordinationProtocol.CreateParticipation(filename));
             }
@@ -25,7 +26,7 @@ namespace LiteDB.Client.Shared
             var liveHeader = SharedCoordinationProtocol.Inspect(participation, page: false, filename);
             if (liveHeader == null || liveHeader.Legacy)
                 throw new IOException("Unsupported Shared participation protocol or database identity: " + livePath);
-            if (!SharedCoordinationRevocation.IsRevoked(pagePath))
+            if (!SharedCoordinationRevocation.ExistsOrUnknown(pagePath))
                 SharedCoordinationFile.Publish(pagePath, SharedCoordinationProtocol.CreatePage(liveHeader));
             page = new FileStream(pagePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
             var pageHeader = SharedCoordinationProtocol.Inspect(page, page: true, filename);
@@ -37,6 +38,7 @@ namespace LiteDB.Client.Shared
         /// <summary>Retire only understood files after exclusive participation proves all old users gone.</summary>
         internal static void TryRetire(string filename)
         {
+            SharedCoordinationPolicy.RequireFileLocking();
             var livePath = SharedCoordinationFallback.LivePath(filename);
             var pagePath = SharedCoordinationFallback.PagePath(filename);
             var markerPath = SharedCoordinationFallback.DisabledPath(filename);
@@ -48,8 +50,11 @@ namespace LiteDB.Client.Shared
                 {
                     // A marker alone cannot name a mapped authority. An orphan page can;
                     // without its liveness proof, preserve it and refuse mapped attachment.
-                    if (!SharedCoordinationRevocation.IsRevoked(pagePath) && CanRetireMarker(markerPath, out var marker))
+                    if (!SharedCoordinationRevocation.ExistsOrUnknown(pagePath) && CanRetireMarker(markerPath, out var marker))
+                    {
+                        SharedCoordinationTemporaryFiles.CleanupDatabase(filename);
                         if (marker) Retire(markerPath);
+                    }
                     return;
                 }
                 using (live)
@@ -69,6 +74,7 @@ namespace LiteDB.Client.Shared
                     catch (FileNotFoundException) { }
                     // Validate the entire set before removing anything, including an unknown marker.
                     if (!CanRetireMarker(markerPath, out var markerPresent)) return;
+                    SharedCoordinationTemporaryFiles.CleanupDatabase(filename);
                     if (pagePresent) Retire(pagePath);
                     if (markerPresent) Retire(markerPath);
                 }

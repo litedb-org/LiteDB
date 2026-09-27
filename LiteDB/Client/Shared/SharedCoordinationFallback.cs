@@ -29,7 +29,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal static void RevokeIfPresent(string filename)
         {
-            if (!SupportsNames(filename) || !SharedCoordinationRevocation.IsRevoked(PagePath(filename))) return;
+            if (!SupportsNames(filename) || !SharedCoordinationRevocation.ExistsOrUnknown(PagePath(filename))) return;
             try { File.GetAttributes(PagePath(filename)); }
             catch (FileNotFoundException) { return; }
             catch (DirectoryNotFoundException) { return; }

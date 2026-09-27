@@ -13,10 +13,10 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCachedIdleTimer_Tests
     {
-        [Fact]
+        [MappedFact]
         public void Timer_visit_during_streaming_keeps_the_snapshot_and_cleanup_remains_bounded()
         {
-            using var file = new TempFile();
+            using var file = new MappedTestFile();
             using (var seed = new LiteDatabase(file.Filename))
                 seed.GetCollection("rows").InsertBulk(Enumerable.Range(0, 200).Select(id =>
                     new BsonDocument { ["_id"] = id, ["value"] = 7, ["payload"] = new string('p', 4000) }));
