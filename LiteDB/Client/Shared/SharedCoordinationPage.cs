@@ -8,29 +8,33 @@ using LiteDB.Engine;
 namespace LiteDB.Client.Shared
 {
     /// <summary>
-    /// Experimental same-version coordination. Attach/retire and storage publications require
+    /// Versioned coordination ABI. Attach/retire and storage publications require
     /// the database mutex. Scheduling hints do not authorize storage access. Readers serialize local access with disposal. No stored page is
     /// trusted until an engine has opened under that mutex in this process.
     /// </summary>
     internal sealed unsafe class SharedCoordinationPage : IBatchedCoordinationSignals, IDisposable
     {
-        private const int Size = 4096;
-        private const long Magic = SharedCoordinationFallback.Magic;
+        private const int Size = SharedCoordinationProtocol.PageSize;
         private readonly string _revocationPath;
         private readonly FileStream _participation;
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
         private readonly long* _fields;
+        private readonly long* _header;
+        private readonly long[] _expectedHeader;
         private readonly object _writeLock = new object();
         private int _depth;
         private bool _trusted;
         private bool _disposed;
         private bool _pointerAcquired;
 
-        private SharedCoordinationPage(string filename, FileStream participation, FileStream file)
+        private SharedCoordinationPage(string filename, FileStream participation, FileStream file, byte[] header)
         {
             _revocationPath = DisabledPath(filename);
             _participation = participation;
+            _expectedHeader = new long[SharedCoordinationProtocol.HeaderSize / sizeof(long)];
+            for (var i = 0; i < _expectedHeader.Length; i++)
+                _expectedHeader[i] = SharedCoordinationProtocol.Read(header, i * sizeof(long));
             _map = MemoryMappedFile.CreateFromFile(file, null, Size, MemoryMappedFileAccess.ReadWrite,
                 HandleInheritability.None, leaveOpen: false);
             try
@@ -39,7 +43,8 @@ namespace LiteDB.Client.Shared
                 byte* address = null;
                 _view.SafeMemoryMappedViewHandle.AcquirePointer(ref address);
                 _pointerAcquired = true;
-                _fields = (long*)(address + _view.PointerOffset);
+                _header = (long*)(address + _view.PointerOffset);
+                _fields = _header + _expectedHeader.Length - 1;
                 if (((long)_fields & 7) != 0) throw new IOException("Unaligned Shared status page.");
             }
             catch
@@ -57,7 +62,6 @@ namespace LiteDB.Client.Shared
 
         internal static string PagePath(string filename) => SharedCoordinationFallback.PagePath(filename);
         internal static string DisabledPath(string filename) => SharedCoordinationFallback.DisabledPath(filename);
-        private static string LivePath(string filename) => SharedCoordinationFallback.LivePath(filename);
 
         /// <summary>Caller owns the database mutex. Failure requires revocation before writable fallback.</summary>
         internal static SharedCoordinationPage Open(string filename)
@@ -66,31 +70,12 @@ namespace LiteDB.Client.Shared
             FileStream file = null;
             try
             {
-                // After process/machine restart, no participant retains a snapshot
-                // from this authority. Retire recognizable stale control files under
-                // the database mutex; a live participant's OS handle forbids this.
-                SharedCoordinationFallback.TryRetire(filename);
-                // The participation file is never written after creation. Shared read
-                // handles prove liveness without a PID, timestamp, or heartbeat.
-                if (!File.Exists(LivePath(filename)))
-                    SharedCoordinationFile.Publish(LivePath(filename), BitConverter.GetBytes(Magic));
-                participation = new FileStream(LivePath(filename), FileMode.Open, FileAccess.Read, FileShare.Read);
-                if (!SharedCoordinationFallback.IsOwned(participation)) throw new IOException("Unknown Shared participation file.");
-                if (!File.Exists(PagePath(filename)))
-                {
-                    var bytes = new byte[Size];
-                    BitConverter.GetBytes(Magic).CopyTo(bytes, 0);
-                    BitConverter.GetBytes(-1L).CopyTo(bytes, 16);
-                    BitConverter.GetBytes(NewIdentity()).CopyTo(bytes, 48);
-                    SharedCoordinationFile.Publish(PagePath(filename), bytes);
-                }
-                file = new FileStream(PagePath(filename), FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-                if (file.Length != Size) throw new IOException("Unknown Shared status page size.");
-                var page = new SharedCoordinationPage(filename, participation, file);
-                if (page.Load(0) != Magic)
+                var header = SharedCoordinationFiles.Open(filename, out participation, out file);
+                var page = new SharedCoordinationPage(filename, participation, file, header);
+                if (!page.HeaderMatches())
                 {
                     page.Dispose();
-                    throw new IOException("Unknown Shared status protocol.");
+                    throw new IOException("Shared coordination header changed during attachment: " + filename);
                 }
                 return page;
             }
@@ -116,7 +101,7 @@ namespace LiteDB.Client.Shared
         {
             lock (_writeLock)
             {
-                if (_disposed) return 0;
+                if (_disposed || !this.HeaderMatches()) return 0;
                 // One atomic word holds a wrapping deadline, a request sequence and
                 // the active bit. Completion retains the sequence, so requests made
                 // in the same millisecond cannot clear each other's hints.
@@ -133,7 +118,7 @@ namespace LiteDB.Client.Shared
         internal void EndWriterTurn(long request)
         {
             lock (_writeLock)
-                if (!_disposed && request != 0)
+                if (!_disposed && request != 0 && this.HeaderMatches())
                     Interlocked.CompareExchange(ref _fields[7], request & ~1L, request);
         }
 
@@ -163,17 +148,27 @@ namespace LiteDB.Client.Shared
         private bool TryReadCore(out SharedCoordinationStatus status, bool checkRevocation)
         {
             status = default;
-            if (_disposed || !_trusted || (checkRevocation && this.Revoked())) return false;
+            if (_disposed || !_trusted || !this.HeaderMatches() || (checkRevocation && this.Revoked())) return false;
             for (var attempt = 0; attempt < 8; attempt++)
             {
                 var sequence = this.Load(1);
-                if ((sequence & 1) != 0 || this.Load(0) != Magic) continue;
+                if ((sequence & 1) != 0) continue;
                 status = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4), this.Load(5), this.Load(6));
                 Interlocked.MemoryBarrier();
-                if (sequence == this.Load(1)) return status.Quiet && (!checkRevocation || !this.Revoked());
+                if (sequence == this.Load(1)) return status.Quiet && this.HeaderMatches() && (!checkRevocation || !this.Revoked());
             }
             status = default;
             return false;
+        }
+
+        // Immutable ABI and authority words must still match the validated attachment.
+        // No allocation, hashing or file I/O on the mapped admission path.
+        private bool HeaderMatches()
+        {
+            for (var i = 0; i < _expectedHeader.Length; i++)
+                if ((IntPtr.Size == 8 ? Volatile.Read(ref _header[i]) :
+                    Interlocked.CompareExchange(ref _header[i], 0, 0)) != _expectedHeader[i]) return false;
+            return true;
         }
 
         // Called under the database mutex. An interrupted publisher needs the old
@@ -182,7 +177,7 @@ namespace LiteDB.Client.Shared
         {
             lock (_writeLock)
             {
-                if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
+                this.EnsureWritable();
                 if ((this.Load(1) & 1) == 0 && (this.Load(3) & 1) == 0) return false;
                 this.StructuralBegin();
                 return true;
@@ -238,7 +233,7 @@ namespace LiteDB.Client.Shared
         {
             lock (_writeLock)
             {
-                if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
+                this.EnsureWritable();
                 var current = this.Load(2);
                 if (version >= current && (this.Load(1) & 1) == 0)
                 {
@@ -259,9 +254,15 @@ namespace LiteDB.Client.Shared
             this.Store(2, version);
         }
 
-        private long BeginChange()
+        private void EnsureWritable()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
+            if (!this.HeaderMatches()) throw new IOException("Shared coordination header changed after attachment.");
+        }
+
+        private long BeginChange()
+        {
+            this.EnsureWritable();
             var before = this.Load(1);
             // An interrupted publisher leaves an odd sequence. The caller has recovered
             // ownership; every older snapshot fence must be invalidated before reuse.

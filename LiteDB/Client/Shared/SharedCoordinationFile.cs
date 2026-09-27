@@ -47,7 +47,7 @@ namespace LiteDB.Client.Shared
         }
 
         [Conditional("DEBUG"), Conditional("TESTING")]
-        private static void Observe(string path, string stage)
+        internal static void Observe(string path, string stage)
         {
 #if DEBUG || TESTING
             CreationStage?.Invoke(path, stage);

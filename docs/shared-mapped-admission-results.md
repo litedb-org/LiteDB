@@ -16,7 +16,7 @@ production comparisons pass their correctness checks. Mapped admission has
 repeatable writer-throughput/tail costs described below; accepting those costs
 requires a tradeoff decision under the task's no-regression requirement.
 
-All concurrent Shared participants must use exactly the same LiteDB version.
+Historical prototype assumption (superseded by the current [versioned ABI contract](shared-coordination-prototype.md#coordination-abi-1)): all concurrent Shared participants use exactly the same LiteDB version.
 Concurrent mixed-version, Direct/Shared and cross-machine access are unsupported.
 This supersedes the original mixed-version objection to mapped admission and
 incremental reopen. Persisted compatibility and durability remain requirements.

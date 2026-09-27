@@ -8,13 +8,7 @@ namespace LiteDB.Client.Shared
     /// <summary>Writer participation on every target, including runtimes without the mapped fast path.</summary>
     internal static class SharedCoordinationFallback
     {
-        internal const long Magic = 0x314452485342444c;
-        internal static bool IsOwned(FileStream file)
-        {
-            if (file.Length < 8) return false;
-            var bytes = new byte[8];
-            return file.Read(bytes, 0, bytes.Length) == bytes.Length && BitConverter.ToInt64(bytes, 0) == Magic;
-        }
+        internal const long Magic = SharedCoordinationProtocol.Magic;
 
         // Every participant uses this same conservative name policy. Keeping the
         // longest suffix within a 255-byte component and ordinary Windows paths
@@ -49,27 +43,6 @@ namespace LiteDB.Client.Shared
         }
 
         /// <summary>Caller owns the database mutex and has closed its participation handle.</summary>
-        internal static void TryRetire(string filename)
-        {
-            try
-            {
-                using (var live = new FileStream(LivePath(filename), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-                {
-                    if (!IsOwned(live)) return;
-                    using (var page = new FileStream(PagePath(filename), FileMode.Open, FileAccess.Read, FileShare.Read))
-                        if (!IsOwned(page)) return;
-                    File.Delete(PagePath(filename));
-                    if (File.Exists(DisabledPath(filename)))
-                    {
-                        using (var marker = new FileStream(DisabledPath(filename), FileMode.Open, FileAccess.Read, FileShare.Read))
-                            if (!IsOwned(marker)) return;
-                        File.Delete(DisabledPath(filename));
-                    }
-                }
-                File.Delete(LivePath(filename));
-            }
-            catch (IOException) { }
-            catch (System.UnauthorizedAccessException) { }
-        }
+        internal static void TryRetire(string filename) => SharedCoordinationFiles.TryRetire(filename);
     }
 }

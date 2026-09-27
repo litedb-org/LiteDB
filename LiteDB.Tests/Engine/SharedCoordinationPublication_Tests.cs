@@ -17,15 +17,15 @@ namespace LiteDB.Tests.Engine
             {
                 page.Opened(7);
                 page.TryRead(out var before).Should().BeTrue();
-                var sequence = view.ReadInt64(8);
+                var sequence = view.ReadInt64(SharedCoordinationProtocol.SequenceOffset);
                 page.Committed(8);
                 page.TryRead(out var after).Should().BeTrue();
                 after.Version.Should().Be(8);
                 after.SameStorage(before).Should().BeTrue();
-                view.ReadInt64(8).Should().Be(sequence,
+                view.ReadInt64(SharedCoordinationProtocol.SequenceOffset).Should().Be(sequence,
                     "append publication must not write the structural sequence");
                 page.Opened(8);
-                view.ReadInt64(8).Should().Be(sequence);
+                view.ReadInt64(SharedCoordinationProtocol.SequenceOffset).Should().Be(sequence);
             });
         }
 
@@ -36,13 +36,13 @@ namespace LiteDB.Tests.Engine
             {
                 page.Opened(7);
                 page.TryRead(out var before).Should().BeTrue();
-                var sequence = view.ReadInt64(8);
+                var sequence = view.ReadInt64(SharedCoordinationProtocol.SequenceOffset);
                 page.Committed(0);
                 page.TryRead(out var after).Should().BeTrue();
                 after.Version.Should().Be(0);
                 after.Resets.Should().Be(before.Resets + 1);
                 after.SameStorage(before).Should().BeFalse();
-                view.ReadInt64(8).Should().Be(sequence + 2);
+                view.ReadInt64(SharedCoordinationProtocol.SequenceOffset).Should().Be(sequence + 2);
             });
         }
 
@@ -53,12 +53,12 @@ namespace LiteDB.Tests.Engine
             {
                 page.StructuralBegin();
                 page.TryRead(out _).Should().BeFalse();
-                var sequence = view.ReadInt64(8);
+                var sequence = view.ReadInt64(SharedCoordinationProtocol.SequenceOffset);
                 page.Opened(7, endStructural: true);
                 page.TryRead(out var after).Should().BeTrue();
                 after.Version.Should().Be(7);
                 after.Structural.Should().Be(2);
-                view.ReadInt64(8).Should().Be(sequence + 2);
+                view.ReadInt64(SharedCoordinationProtocol.SequenceOffset).Should().Be(sequence + 2);
                 page.StructuralBegin();
                 page.TryRead(out _).Should().BeFalse();
                 page.StructuralEnd(8);
@@ -74,14 +74,14 @@ namespace LiteDB.Tests.Engine
             {
                 page.Opened(7);
                 page.TryRead(out var before).Should().BeTrue();
-                view.Write(8, view.ReadInt64(8) + 1);
+                view.Write(SharedCoordinationProtocol.SequenceOffset, view.ReadInt64(SharedCoordinationProtocol.SequenceOffset) + 1);
                 page.TryRead(out _).Should().BeFalse();
                 page.Committed(7);
                 page.TryRead(out var after).Should().BeTrue();
                 after.Identity.Should().NotBe(before.Identity);
                 after.SameStorage(before).Should().BeFalse();
                 after.Version.Should().Be(7);
-                (view.ReadInt64(8) & 1).Should().Be(0);
+                (view.ReadInt64(SharedCoordinationProtocol.SequenceOffset) & 1).Should().Be(0);
             });
         }
 
@@ -109,8 +109,8 @@ namespace LiteDB.Tests.Engine
                 page.BeginOpenRecovery().Should().BeFalse();
                 // A different process died after publishing a structural begin,
                 // or part way through the seqlock publication itself.
-                if (tornSequence) view.Write(8, view.ReadInt64(8) + 1);
-                else view.Write(24, view.ReadInt64(24) | 1);
+                if (tornSequence) view.Write(SharedCoordinationProtocol.SequenceOffset, view.ReadInt64(SharedCoordinationProtocol.SequenceOffset) + 1);
+                else view.Write(SharedCoordinationProtocol.StructuralOffset, view.ReadInt64(SharedCoordinationProtocol.StructuralOffset) | 1);
                 page.BeginOpenRecovery().Should().BeTrue();
                 page.TryRead(out _).Should().BeFalse();
                 page.Opened(7, endStructural: true);
@@ -162,7 +162,7 @@ namespace LiteDB.Tests.Engine
             {
                 page.Opened(7);
                 page.TryRead(out var before).Should().BeTrue();
-                var sequence = view.ReadInt64(8);
+                var sequence = view.ReadInt64(SharedCoordinationProtocol.SequenceOffset);
                 page.RequestWriterTurn(1000);
                 page.ShouldYieldToWriter(1000).Should().BeTrue();
                 page.ShouldYieldToWriter(1099).Should().BeTrue();
@@ -171,7 +171,7 @@ namespace LiteDB.Tests.Engine
                 page.TryRead(out var after).Should().BeTrue();
                 after.Version.Should().Be(before.Version);
                 after.SameStorage(before).Should().BeTrue();
-                view.ReadInt64(8).Should().Be(sequence);
+                view.ReadInt64(SharedCoordinationProtocol.SequenceOffset).Should().Be(sequence);
                 page.Dispose();
                 page.RequestWriterTurn(2000);
                 page.ShouldYieldToWriter(2000).Should().BeFalse();

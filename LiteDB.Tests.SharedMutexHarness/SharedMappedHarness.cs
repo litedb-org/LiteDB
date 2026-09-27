@@ -9,7 +9,14 @@ internal static class SharedMappedHarness
     internal static bool TryRun(string mode, string filename, string? password, string[] args)
     {
         if (!mode.StartsWith("mapped-", StringComparison.Ordinal)) return false;
-        if (mode == "mapped-control-create")
+        if (mode == "mapped-legacy-holder")
+        {
+            using var live = new FileStream(filename + "-shared-live", FileMode.Open, FileAccess.Read, FileShare.Read);
+            Console.WriteLine("ready");
+            Console.ReadLine();
+            throw new IOException("The legacy participant must be killed by its parent");
+        }
+        if (mode == "mapped-control-create" || mode == "mapped-control-upgrade")
         {
             var boundary = args[4].Split(':');
             var publisher = typeof(SharedEngine).Assembly.GetType("LiteDB.Client.Shared.SharedCoordinationFile")!;

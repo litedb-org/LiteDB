@@ -5,16 +5,100 @@
 > publication, narrower mutation scopes, and bounded reader pacing. The
 > [controlled experiments](https://github.com/litedb-org/LiteDB-Artifacts/tree/cad4d5fc381ad8deffdc3d32b54513de5156b64e/investigations/shared-mmap-writer-cost-2026-09-27)
 > retain the measured tradeoffs and rejected alternatives. Historical results remain
-> in [the archived report](shared-mapped-admission-results.md). Same-version
-> concurrency remains the contract.
+> in [the archived report](shared-mapped-admission-results.md). The current
+> compatibility contract is the versioned coordination ABI below.
 
-PR #3014's candidate assumes every concurrent Shared participant uses exactly the
-same LiteDB version. Concurrent Direct/Shared, mixed-version and cross-machine
-access are outside this protocol. The existing [connection identity contract](shared-mode-safety.md#connection-identity-and-lifetime)
-also requires one absolute path and mutex naming strategy: concurrent symbolic-link,
-hard-link or other physical-file aliases are unsupported. Path normalization does
-not create an independent authority for a supported participant. Database and WAL
-formats are unchanged.
+Concurrent Shared participants must implement the same supported coordination ABI,
+including its mutex, reader leases and revocation rules. The ABI version is independent
+of the LiteDB package version; package-version equality is neither checked nor required.
+Concurrent Direct/Shared and cross-machine access remain outside this protocol.
+The existing [connection identity contract](shared-mode-safety.md#connection-identity-and-lifetime)
+requires one absolute path and mutex naming strategy: concurrent symbolic-link,
+hard-link or other physical-file aliases are unsupported. Database and WAL formats
+are unchanged; there is no database upgrade or rebuild for this transition.
+
+## Coordination ABI 1
+
+The immutable participation file (`-shared-live`, 128 bytes) and the mapped status
+file (`-shared-state`, 4096 bytes) share this little-endian header. All integer
+fields are 64 bits. The page's mutable atomic words start at byte 128.
+
+| Offset | Meaning | ABI 1 validation |
+| --- | --- | --- |
+| 0 | Stable envelope magic `LDBSHRD\0` | Exact match |
+| 8 | Coordination protocol/layout version | 1, independent of package and transaction versions |
+| 16 | Header size | 128 bytes |
+| 24 | Total layout size | 128 for participation, 4096 for status; exact file length |
+| 32 | Required capability bits | Zero; unknown requirements reject attachment and retirement |
+| 40 | Optional nonsemantic capability bits | May be ignored; cannot change safety or layout semantics |
+| 48–63 | Random 128-bit authority nonce | Nonzero and identical in both files |
+| 64–95 | SHA-256 canonical database path binding | Exact match to absolute path, invariant lowercase on Windows |
+| 96–127 | Reserved | Zero; other values require a supported future ABI |
+
+The page stores sequence, committed version, structural epoch, reuse epoch, reset
+epoch, mutable recovery identity and writer hint at offsets 128 through 176 in that
+order. The authority nonce never changes during a participation lifetime; the
+separate recovery identity can change after an interrupted publisher. Attachment
+validates both headers and captures the immutable page header. Admission rechecks
+that header before and after reading the epochs; publication also rejects a changed
+header. These comparisons allocate no objects and perform no header file I/O per commit.
+
+The path hash binds the database namespace, not an inode or persistent database UUID.
+The fresh authority nonce, OS participation handle, independently validated protected
+open and storage epochs together bind the usable authority to its lifetime. A copied
+pair at a different path, or a stale page with a different participation nonce, is
+rejected. Once all processes have exited, a saved pair at the same path is retired
+and replaced with a fresh nonce before use, including after a cold database replacement.
+External replacement or sidecar editing while participants remain alive is unsupported;
+internal rebuild/replacement continues to use the existing structural/reset fences.
+
+## Compatibility and retirement
+
+All attachment, creation and retirement runs under the existing database mutex.
+A shared read-only participation handle proves liveness; only an exclusive handle
+proves every previous participant is gone. Never use a PID, timestamp or header
+contents as a substitute for this OS-backed proof.
+
+| Encountered state | Behavior |
+| --- | --- |
+| Supported live ABI and matching identities | Attach; no admission until this process independently validates a protected database open |
+| Supported authority with no live participant | Validate the entire file set, retire and create a fresh authority |
+| Recognized unversioned prototype (`LDBSHRD1`, 8-byte participation, 4096-byte page with only its original eight words used) | Never attach; retire/recreate only after exclusive participation succeeds |
+| Newer/unknown version, capabilities, layout, magic or identity | Preserve all existing authority files; reject mapped attachment and use protected fallback |
+| Missing page with recognized participation | Retire/recreate after the old handles are gone, or finish page creation under the mutex for a live compatible authority |
+| Page without participation | Preserve it; refuse mapped attachment because liveness cannot be established |
+| Unknown revocation marker | Preserve it and the authority; marker presence continues to revoke admission |
+
+Retirement validates every present file before deleting any, then removes the page,
+revocation marker and participation file in that order. The database mutex closes
+the exclusive-handle close/delete gap. Interruption after any deletion leaves either
+a recognizable incomplete generation that can be retired again, or no authority.
+Creation uses flushed temporary files and non-replacing same-directory publication.
+Partial, truncated, mismatched or reordered files are preserved and fail closed;
+recovery does not infer committed database state from them.
+
+The stable rendezvous contract includes the database mutex, participation handle
+sharing and an eight-byte revocation marker whose **presence**, regardless of its
+contents, disables mapped admission before and after lease publication. A fallback
+writer must successfully publish that marker before mutation; existing accepted
+readers retain their leases. Future ABI versions must preserve this contract to mix
+safely with ABI 1. Changing it requires a separate compatibility negotiation, not
+merely incrementing the page version. The new magic differs from the unversioned
+prototype so that its magic-only cleanup cannot delete an ABI 1 authority.
+
+Focused safety evidence is in `SharedCoordinationAbiRegression_Tests`,
+`SharedCoordinationProtocol_Tests` and `SharedCoordinationUpgradeProcess_Tests`.
+They cover positive live attachment, unsupported headers and identity preservation,
+live old-participant exclusion, exceptions after each retirement deletion, native
+process death at every retirement/publication boundary, a second death during
+recovery, fallback writes, cold replacement and repeated cold reopen. Plain and
+encrypted file-backed oracles verify all 64 document IDs, payloads and primary-index
+lookups in both the modified and unrelated collection. Existing control-creation
+failure and mapped-admission tests cover failed publication and surviving readers.
+The fault model includes process termination, injected I/O exceptions, malformed
+control bytes and replayed sidecars. It relies on the qualified local filesystem's
+coherent mappings, OS handle sharing and atomic non-replacing rename; it does not
+claim to simulate arbitrary device cache loss. DB/WAL recovery remains authoritative.
 
 ## Admission and lifetime
 

@@ -64,7 +64,7 @@ namespace LiteDB.Tests.Engine
                     using var map = MemoryMappedFile.CreateFromFile(stream, null, 0, MemoryMappedFileAccess.ReadWrite,
                         HandleInheritability.None, leaveOpen: true);
                     using var view = map.CreateViewAccessor(0, 4096, MemoryMappedFileAccess.ReadWrite);
-                    test(engine, db, () => (view.ReadInt64(7 * sizeof(long)) & 1) != 0);
+                    test(engine, db, () => (view.ReadInt64(SharedCoordinationProtocol.WriterHintOffset) & 1) != 0);
                     expected = db.GetCollection("rows").FindById(1)["value"].AsInt32;
                 }
                 using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))

@@ -6,8 +6,10 @@ bounded reader-slot free list. Its library diff against the parent is confined t
 `SharedReaderSlots.cs`; query admission, writer ownership, WAL recovery,
 checkpointing and durability barriers use the parent's implementation.
 
-All concurrent Shared participants are assumed to use exactly the same LiteDB
-version. Mixed-version concurrency was not used to reject any experiment.
+Those experiments assumed identical LiteDB packages. The follow-up mapped approach
+now enforces a [coordination ABI](shared-coordination-prototype.md#coordination-abi-1),
+independent of package version. Mixed-version concurrency was not used to reject
+any historical experiment.
 Persisted compatibility and database safety remain requirements.
 
 ## Selection
