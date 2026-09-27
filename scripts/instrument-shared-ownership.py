@@ -57,8 +57,11 @@ for root in args.roots:
     relative = Path('LiteDB/Engine/Disk/DiskService.WalWrite.cs')
     before = (root / relative).read_text()
     record(root, relative, before, wrap(before, 'public int WriteLogDisk(IEnumerable<PageBuffer> pages, Action<uint, long> written = null,', 'Wal'))
+    relative = Path('LiteDB/Engine/Disk/DiskService.DurableFlush.cs')
+    before = (root / relative).read_text()
+    record(root, relative, before, wrap(before, 'private void FlushLogToDisk(Stream stream)', 'Flush'))
     helper = 'namespace LiteDB { internal static class SharedReaderProfile {\n'
-    for metric in ('Wait', 'Open', 'Native', 'Query', 'Retire', 'Send', 'Close', 'Wal'):
+    for metric in ('Wait', 'Open', 'Native', 'Query', 'Retire', 'Send', 'Close', 'Wal', 'Flush'):
         helper += (f'internal static long {metric}Ticks, {metric}Count;\n'
                    f'internal static void Record{metric}(long start) {{\n'
                    f'System.Threading.Interlocked.Add(ref {metric}Ticks, System.Diagnostics.Stopwatch.GetTimestamp() - start);\n'
