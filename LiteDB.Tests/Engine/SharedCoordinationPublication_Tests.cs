@@ -97,6 +97,29 @@ namespace LiteDB.Tests.Engine
             });
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Interrupted_publisher_requires_a_protected_open_before_readmission(bool tornSequence)
+        {
+            WithPage((page, view) =>
+            {
+                page.Opened(7);
+                page.TryRead(out var before).Should().BeTrue();
+                page.BeginOpenRecovery().Should().BeFalse();
+                // A different process died after publishing a structural begin,
+                // or part way through the seqlock publication itself.
+                if (tornSequence) view.Write(8, view.ReadInt64(8) + 1);
+                else view.Write(24, view.ReadInt64(24) | 1);
+                page.BeginOpenRecovery().Should().BeTrue();
+                page.TryRead(out _).Should().BeFalse();
+                page.Opened(7, endStructural: true);
+                page.TryRead(out var after).Should().BeTrue();
+                after.SameStorage(before).Should().BeFalse();
+                page.BeginOpenRecovery().Should().BeFalse();
+            });
+        }
+
         private static void WithPage(Action<SharedCoordinationPage, MemoryMappedViewAccessor> test)
         {
             var directory = Path.Combine(Path.GetTempPath(), "litedb-publication-" + Guid.NewGuid().ToString("N"));

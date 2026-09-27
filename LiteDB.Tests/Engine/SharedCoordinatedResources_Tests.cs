@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Engine
     public class SharedCoordinatedResources_Tests
     {
         [Fact]
-        public void Failed_open_balances_publication_and_the_next_open_marks_storage_change()
+        public void Failed_unchanged_open_preserves_storage_and_the_next_open_publishes_the_commit()
         {
             WithFile(file =>
             {
@@ -35,13 +35,14 @@ namespace LiteDB.Tests.Engine
                     {
                         if (stage != "opening") return;
                         observed++;
-                        page.TryRead(out _).Should().BeFalse("the next open must publish its own structural begin");
+                        page.TryRead(out _).Should().BeTrue("an unchanged open must leave cached storage usable");
                     };
                     rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = 21 }).Should().BeTrue();
                     engine.CoordinationStage = null;
                     observed.Should().Be(1);
                     page.TryRead(out var afterSuccess).Should().BeTrue();
-                    afterFailure.SameStorage(afterSuccess).Should().BeFalse();
+                    afterFailure.SameStorage(afterSuccess).Should().BeTrue();
+                    afterSuccess.Version.Should().BeGreaterThan(afterFailure.Version);
                     rows.FindById(1)["value"].AsInt32.Should().Be(21);
                 }
                 using (var cold = new LiteDatabase(file))

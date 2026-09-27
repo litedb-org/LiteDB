@@ -9,7 +9,9 @@ namespace LiteDB
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
             this.EnsureCoordination(allowCreate: !final, writing: true);
-            _coordination?.StructuralBegin();
+            // A valid open only reconstructs local state. Actual recovery/migration
+            // mutations announce their own structural regions before touching storage.
+            var recovering = _coordination?.BeginOpenRecovery() ?? false;
 #else
             SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
 #endif
@@ -23,14 +25,12 @@ namespace LiteDB
             catch
             {
 #if NET8_0_OR_GREATER
-                // Even a failed open invalidates older storage fences and must
-                // leave this participant able to publish its next transition.
-                _coordination?.StructuralEnd(-1);
+                if (recovering) _coordination.StructuralEnd(-1);
 #endif
                 throw;
             }
 #if NET8_0_OR_GREATER
-            _coordination?.Opened(_engine.ReadVersion, endStructural: true);
+            _coordination?.Opened(_engine.ReadVersion, endStructural: recovering);
 #endif
 #if DEBUG || TESTING
             this.EngineOpens++;

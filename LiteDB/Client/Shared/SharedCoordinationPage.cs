@@ -142,6 +142,19 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
+        // Called under the database mutex. An interrupted publisher needs the old
+        // broad recovery fence until an independent engine open has validated storage.
+        internal bool BeginOpenRecovery()
+        {
+            lock (_writeLock)
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
+                if ((this.Load(1) & 1) == 0 && (this.Load(3) & 1) == 0) return false;
+                this.StructuralBegin();
+                return true;
+            }
+        }
+
         /// <summary>Publish the result of an independently validated open under writer ownership.</summary>
         internal void Opened(int version, bool endStructural = false)
         {

@@ -19,6 +19,7 @@ namespace LiteDB.Engine
         {
             if (trailingLength == 0) return;
 
+            using var structural = new StructuralScope(_signals);
             var stream = pool.Writer.Value;
             stream.SetLength(length);
             stream.FlushToDisk();
