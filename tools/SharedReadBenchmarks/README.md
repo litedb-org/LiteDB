@@ -72,7 +72,8 @@ show whether selection cost scales with live readers. It reports fill allocation
 fill and close time as well as steady-state latency/CPU/allocation. This bypasses
 query execution; do not describe its speedup as application throughput.
 
-For five alternating pairs, including the existing point/scan/mixed workloads:
+For five alternating pairs, including the existing point/scan/mixed workloads and
+the slot helper when both production builds contain it:
 
 ```sh
 python3 scripts/measure-shared-slots.py \
@@ -83,6 +84,13 @@ python3 scripts/measure-shared-slots.py \
 Run once per runtime, serially and without competing tests/builds. Commands,
 `TMPDIR`, host, order, timing, failures and JSON results are preserved in an
 exclusively created output file; any failed process stops the comparison.
+When an older baseline predates the slot helper, select `--candidate-only` with
+`--scenarios slots` and use a separate output file. This retains five candidate
+runs, boundary validation and binary identity without presenting an unavailable
+baseline measurement as a pair. The hosted pull-request workflow pairs the
+public point/scan/mixed workloads against the actual PR base and records this
+candidate-only slot artifact separately. A paired slot-component comparison still
+requires a compatible predecessor build and must omit `--candidate-only`.
 
 `holder <count>` separately measures production pin acquire/ready/release cycles
 with no engine or durable I/O. Reflection overhead is included, and it is a
