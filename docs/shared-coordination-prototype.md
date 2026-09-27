@@ -1,9 +1,10 @@
 # Shared mapped reader admission
 
-> This branch re-evaluates the candidate archived at `130b339523cbe61efcef52b5d67252aee5a6cb53`,
-> which #3014 excluded because of measured writer regressions. The restored
-> implementation and cheaper publication protocol are being qualified in
-> [the writer-cost follow-up](shared-mmap-writer-cost.md). Historical results remain
+> This restores the candidate archived at `130b339523cbe61efcef52b5d67252aee5a6cb53`,
+> which #3014 excluded because of measured writer regressions, with cheaper
+> publication, narrower mutation scopes, and bounded reader pacing. The
+> [controlled experiments](https://github.com/litedb-org/LiteDB-Artifacts/tree/cad4d5fc381ad8deffdc3d32b54513de5156b64e/investigations/shared-mmap-writer-cost-2026-09-27)
+> retain the measured tradeoffs and rejected alternatives. Historical results remain
 > in [the archived report](shared-mapped-admission-results.md). Same-version
 > concurrency remains the contract.
 
@@ -40,6 +41,25 @@ an authority while any participant survives. An independently validated protecte
 open is required before each connection trusts a page. First participation retires
 recognized stale control files after proving all old handles are gone; unknown
 files are preserved. The page is never a durable commit record.
+
+Before waiting for ownership, a writer can publish a short scheduling hint in a
+separate atomic word. A deadline, request sequence and active bit distinguish
+requests made within the same millisecond. A completed writable engine clears its
+own request with compare-exchange; it cannot clear a newer request. An abandoned
+request expires after 100 ms without cleanup. The hint is advisory, not a count of
+all waiting writers or an authority to read, reclaim or acknowledge storage.
+
+While that hint is active, a connection charges a bounded local budget for cached
+query execution. Requested pauses are at most 10 ms, outside the snapshot gate
+and before lease publication; every admission check runs afterwards. OS delays
+may exceed the requested time and are credited against the budget. Debt and
+oversleep credit are bounded to 50 ms. Streaming execution is measured inside
+Read/Dispose, excluding caller time between rows. Accepted readers retain their
+leases normally. Inactive pressure clears the budget. The pacer charges seven
+milliseconds of delay budget per millisecond of measured
+work; it is a scheduling tradeoff, not a hard CPU quota or writer latency guarantee.
+Disposal can finish during a pre-admission pause; the resumed call must fail its
+ordinary disposed check without creating a lease.
 
 The initial protected open establishes the connection's slot file. Fast admission
 reuses that live file; it does not create or clean registry directories outside
@@ -98,13 +118,15 @@ checksum conversion, data/WAL tail truncation, and v7 upgrade have explicit
 scopes; automatic rebuild starts its scope before inspecting external leases.
 An odd sequence or structural marker from an interrupted publisher still requires
 a protected open, ending its structural scope and establishing trust together.
-These narrowed startup regions are under qualification in the writer-cost report.
+Opening-mutation tests observe the fence at actual stream writes and truncations;
+native recovery tests interrupt a writer inside a real protected tail repair.
 
 The bounded SC model in `scripts/model-shared-admission.py` covers modeled
 admission/checkpoint orders and interrupted publishers. Native controls detect
 skipped final validation with a reclaimed-address read failure and ignored leases
 with changed snapshot payloads. The structural control detects incorrect status
 visibility. These finite tests do not establish arbitrary device or filesystem
-fault behavior. The full platform, recovery and performance acceptance results
-belong in [the follow-up results note](shared-mmap-writer-cost.md); unresolved gates
-block completion. Incremental writer replay is a separate, excluded experiment.
+fault behavior. The linked experiment evidence records tested revisions, native
+architectures, fault models, and performance limits; throughput results alone do
+not establish database safety. Incremental writer replay is a separate, excluded
+experiment.
