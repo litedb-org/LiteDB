@@ -10,6 +10,8 @@ internal static class FuzzProcessRunner
     private static readonly object ConsoleLock = new();
     internal static readonly int MaxParallelism = Math.Max(1, Math.Min(Environment.ProcessorCount, 4));
     private static readonly SemaphoreSlim ProcessSlots = new(MaxParallelism);
+    // Workers merge into the shared corpus files under the artifact root one at a time.
+    private static readonly object CorpusLock = new();
 
     internal static async Task<IReadOnlyList<RunResult>> RunEpochsAsync(
         IFuzzTarget target, FuzzOptions options, int worker, TimeSpan? allocatedDuration = null)
@@ -19,6 +21,9 @@ internal static class FuzzProcessRunner
         {
             if (!allocatedDuration.HasValue)
             {
+                // A count-bound run is one epoch: the same budget gate, before it starts.
+                if (BudgetReached(options, target, worker))
+                    return new[] { BudgetStop(target, options) };
                 var result = await RunCoreAsync(target, options, worker, 0, null, options.InputFile);
                 if (options.DeterminismCheck && result.Passed)
                     result = await VerifyDeterminismAsync(target, options, worker, result);
@@ -32,14 +37,52 @@ internal static class FuzzProcessRunner
                 var remaining = deadline - DateTimeOffset.UtcNow;
                 var duration = remaining < options.EpochDuration ? remaining : options.EpochDuration;
                 if (duration < TimeSpan.FromMilliseconds(100)) break;
+                if (BudgetReached(options, target, worker))
+                {
+                    // A shard that never ran must not count as a passed campaign.
+                    if (epoch == 0) results.Add(BudgetStop(target, options));
+                    break;
+                }
                 var result = await RunCoreAsync(target, options, worker, epoch, duration, null);
                 if (!result.Passed) result = FuzzFindingRegistry.Classify(result);
+                else result = CompactPassedEpoch(result, options);
                 results.Add(result);
                 if (!ShouldContinueDiscovery(result)) break;
             }
             return results;
         }
         finally { ProcessSlots.Release(); }
+    }
+
+    /// <summary>
+    /// Fold a passed epoch into the retained corpora and drop its bulky files now rather than at
+    /// campaign end, so disk use stays proportional to one epoch instead of the whole campaign.
+    /// </summary>
+    private static RunResult CompactPassedEpoch(RunResult result, FuzzOptions options)
+    {
+        lock (CorpusLock)
+        {
+            FuzzArtifacts.MergeInterestingCorpus(new[] { result }, options.ArtifactDirectory);
+            if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(new[] { result }, options.ArtifactDirectory);
+            if (result.PruneSuccessfulArtifacts) FuzzArtifacts.PruneSuccessfulDurationRun(result.Directory);
+        }
+        return result with { Compacted = true };
+    }
+
+    private static RunResult BudgetStop(IFuzzTarget target, FuzzOptions options) =>
+        new(target.Name, options.Seed, options.ArtifactDirectory, Passed: false, BudgetStopped: true);
+
+    private static bool BudgetReached(FuzzOptions options, IFuzzTarget target, int worker)
+    {
+        if (options.MaxArtifactBytes <= 0) return false;
+        var used = FuzzArtifacts.DirectorySize(options.ArtifactDirectory);
+        if (used < options.MaxArtifactBytes) return false;
+        lock (ConsoleLock)
+        {
+            Console.WriteLine($"ARTIFACT BUDGET {options.MaxArtifactBytes / (1024 * 1024)} MB reached " +
+                $"({used / (1024 * 1024)} MB in {options.ArtifactDirectory}); no further epochs for {target.Name} worker {worker}.");
+        }
+        return true;
     }
 
     private static async Task<RunResult> VerifyDeterminismAsync(
@@ -96,9 +139,21 @@ internal static class FuzzProcessRunner
         var exitTask = process.WaitForExitAsync();
         var lastProgress = started;
         var hung = false;
+        long? overBudget = null;
         while (!exitTask.IsCompleted)
         {
             await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(2)));
+            if (options.MaxArtifactBytes > 0)
+            {
+                var size = FuzzArtifacts.DirectorySize(directory);
+                if (size > options.MaxArtifactBytes)
+                {
+                    overBudget = size;
+                    try { process.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) { }
+                    break;
+                }
+            }
             if (File.Exists(heartbeat)) lastProgress = File.GetLastWriteTimeUtc(heartbeat);
             if (DateTimeOffset.UtcNow - lastProgress <= options.HangTimeout) continue;
             hung = true;
@@ -116,6 +171,14 @@ internal static class FuzzProcessRunner
             if (error.Length != 0) Console.Error.Write(error);
         }
 
+        if (overBudget.HasValue)
+        {
+            // A single run outgrew the whole budget: keep its metadata and output, drop the bulk,
+            // and fail loudly so the offending target gets fixed instead of silently filling disks.
+            await FuzzArtifacts.WriteArtifactBudgetFailureAsync(directory, target.Name, seed, options.Count,
+                started, overBudget.Value, options.MaxArtifactBytes, output, error, input);
+            return new RunResult(target.Name, seed, directory, false, duration.HasValue);
+        }
         var passed = process.ExitCode == 0 && !hung;
         if (!File.Exists(Path.Combine(directory, "run.json")))
         {

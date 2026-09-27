@@ -13,7 +13,7 @@ internal sealed class ConflictFuzzer : IFuzzTarget
         while (context.Next())
         {
             var mode = Environment.GetEnvironmentVariable("LITEDB_CONFLICT_MODE") ?? "all";
-            var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"conflict-{context.Steps}.db"));
+            var file = context.StepFile($"conflict-{context.Steps}.db");
             var connection = new ConnectionString { Filename = file, TransactionPageLimit = 2, DurableCommits = true };
             var db = new LiteDatabase(connection);
             try

@@ -33,8 +33,25 @@ readers. Writes from the thread iterating a streamed result of the same connecti
 keep one engine open while that thread keeps writing, blocking other writers
 meanwhile, as before v13. Unlike before, an idle iteration, a result disposed on
 another thread (for example after an `await`), or an exited thread no longer
-keeps other threads and processes waiting. When the last streamed result closes,
-the connection checkpoints away the remaining WAL.
+keeps other threads and processes waiting. This also holds for results that
+stream under the mutex because no lease could be registered, and for disposing
+the connection on another thread; before, both threw `ApplicationException` and
+kept the mutex until the acquiring thread exited. When the last streamed result closes,
+the connection checkpoints away the remaining WAL. A shared operation's engine
+checkpoints on close only once the WAL holds 50 pages (or CHECKPOINT, if smaller);
+disposing the connection checkpoints the rest. This roughly halves the cost of a
+small shared write (about 9 ms to 4 ms per update on a local NVMe drive); the WAL
+file therefore usually exists while shared connections are open.
+On Windows a shared connection also keeps its data and WAL file handles open
+between operations (each operation still reads the files afresh), which roughly
+halves the cost again: about 4.8 to 3.3 ms per small update and 1.5 to 0.8 ms per
+`FindById`. **Behavior change:** while a shared connection is open, and no longer
+only during one of its operations, a direct connection or any other opener that
+denies write sharing (`FileShare.Read`, e.g. `File.OpenRead`/`File.ReadAllBytes`)
+is refused with a sharing violation. `File.Copy` shares write access and still
+works. Close shared connections before opening the file in direct mode. Volumes
+without POSIX delete semantics (FAT, exFAT, many network shares) keep opening the
+files per operation, with the previous sharing behavior.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).
@@ -178,7 +195,14 @@ commit returns, so acknowledged commits survive power loss on storage that can
 sync. Storage that rejects the sync (some network shares and virtual file
 systems, #2242) falls back to the earlier behaviour for commits, checkpoints and
 format conversion; `$database.durableLogFlush` reports which one is in effect. A
-sync that fails with an I/O error still stops the engine before data is overwritten. This costs about one
+sync that fails with an I/O error still stops the engine before data is overwritten.
+On Linux and macOS this requires LiteDB's own device sync: released .NET runtimes
+lose every `fsync` error in `FileStream.Flush(true)` (dotnet/runtime#124725), which
+had hidden EIO and unsupported-sync answers alike. File handles are now synced with
+`fsync` (`F_FULLFSYNC` on macOS, falling back to `fsync`), so such storage reports
+`durableLogFlush=false` and an EIO stops the checkpoint. Encrypted databases on
+such storage now fail when their WAL is created, as they already did on Windows:
+the encrypted preamble requires a successful sync and has no fallback. This costs about one
 device sync per commit (about 1 ms on NVMe, far more on hard disks and network
 volumes); batched transactions and `InsertBulk` are unaffected. Set
 `durable commits=false` (`DurableCommits = false`) to restore the earlier

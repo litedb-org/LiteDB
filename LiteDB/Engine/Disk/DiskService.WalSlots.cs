@@ -75,6 +75,7 @@ namespace LiteDB.Engine
                     if (eligible.MoveNext())
                     {
                         var position = eligible.Current;
+                        _signals?.SlotReused();
                         _freeLogPositions.Remove(position);
                         _cache.Invalidate(position, FileOrigin.Log);
                         return position;

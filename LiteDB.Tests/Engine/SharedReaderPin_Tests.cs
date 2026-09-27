@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -19,6 +21,7 @@ namespace LiteDB.Tests.Engine
     /// </summary>
     public class SharedReaderPin_Tests : IDisposable
     {
+        private readonly OpenReaders _open = new OpenReaders();
         private const int Count = 200;
         private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan Forever = TimeSpan.FromMinutes(10);
@@ -54,7 +57,7 @@ namespace LiteDB.Tests.Engine
         }
 
         /// <summary>Opens a reader and pins it with one write on a thread that then idles.</summary>
-        private static IBsonDataReader PinOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
+        private IBsonDataReader PinOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
         {
             IBsonDataReader reader = null;
             Exception error = null;
@@ -63,7 +66,7 @@ namespace LiteDB.Tests.Engine
             {
                 try
                 {
-                    reader = engine.Query("docs", new Query());
+                    reader = _open.Track(engine.Query("docs", new Query()));
                     reader.Read().Should().BeTrue();
                     engine.Update("docs", new[] { Doc(1, 1) });
                 }
@@ -160,28 +163,89 @@ namespace LiteDB.Tests.Engine
             engine.Update("docs", new[] { Doc(1, 1) });
 
             using var inserted = new ManualResetEventSlim();
+            Exception failure = null;
             var other = new Thread(() =>
             {
-                engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
-                inserted.Set();
+                // A failure here must fail the test, not crash the test host after cleanup.
+                try
+                {
+                    engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
+                    inserted.Set();
+                }
+                catch (Exception ex) { failure = ex; }
             }) { IsBackground = true };
             other.Start();
 
-            // The owner never pauses between writes; the holder must still let the other thread in.
-            var deadline = DateTime.UtcNow + Prompt;
-            var value = 2;
-            while (!inserted.IsSet && DateTime.UtcNow < deadline)
-                engine.Update("docs", new[] { Doc(1, value++) });
+            try
+            {
+                // The owner never pauses between writes; the holder must still let the other thread in.
+                var deadline = DateTime.UtcNow + Prompt;
+                var value = 2;
+                while (!inserted.IsSet && DateTime.UtcNow < deadline)
+                    engine.Update("docs", new[] { Doc(1, value++) });
 
-            inserted.IsSet.Should().BeTrue("a pin must not starve other threads of its instance");
-            other.Join(Prompt).Should().BeTrue();
+                inserted.IsSet.Should().BeTrue("a pin must not starve other threads of its instance");
+            }
+            finally
+            {
+                // Once the owner stops writing, the other thread gets in; wait for it before
+                // the engine and its files are disposed.
+                other.Join(Prompt).Should().BeTrue();
+            }
+            failure.Should().BeNull();
+        }
+
+        /// <summary>
+        /// With the production idle and hold limits, a thread of the same instance must not
+        /// wait for the pin's hold limit behind a tight write loop: a one-shot release request
+        /// is lost when the owner re-pins first, so the pin ends for any counted waiter.
+        /// </summary>
+        [Fact]
+        public void Tight_write_loop_bounds_another_threads_wait_under_production_limits()
+        {
+            using var engine = this.Open(expire: true);
+            engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
+            using var reader = engine.Query("docs", new Query());
+            reader.Read().Should().BeTrue();
+            engine.Update("docs", new[] { Doc(1, 1) });
+
+            var waits = new List<TimeSpan>();
+            Exception failure = null;
+            var other = new Thread(() =>
+            {
+                try
+                {
+                    var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+                    for (var id = 1; DateTime.UtcNow < until; id++)
+                    {
+                        var wait = Stopwatch.StartNew();
+                        engine.Insert("other", new[] { new BsonDocument { ["_id"] = id } }, BsonAutoId.Int32);
+                        waits.Add(wait.Elapsed);
+                    }
+                }
+                catch (Exception ex) { failure = ex; }
+            }) { IsBackground = true };
+            other.Start();
+
+            try
+            {
+                var value = 2;
+                while (other.IsAlive) engine.Update("docs", new[] { Doc(1, value++) });
+            }
+            finally
+            {
+                other.Join(Prompt).Should().BeTrue();
+            }
+            failure.Should().BeNull();
+            waits.Count.Should().BeGreaterThan(3);
+            waits.Max().Should().BeLessThan(TimeSpan.FromMilliseconds(900), "a waiting thread must not wait for the pin's hold limit");
         }
 
         [Fact]
         public async Task Reader_disposed_after_an_await_ends_the_pin()
         {
             using var engine = this.Seed();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
@@ -195,8 +259,8 @@ namespace LiteDB.Tests.Engine
         public void Nested_readers_share_one_pin_until_the_last_is_disposed()
         {
             using var engine = this.Seed();
-            var outer = engine.Query("docs", new Query());
-            var inner = engine.Query("docs", new Query());
+            var outer = _open.Track(engine.Query("docs", new Query()));
+            var inner = _open.Track(engine.Query("docs", new Query()));
             outer.Read().Should().BeTrue();
             inner.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
@@ -260,7 +324,7 @@ namespace LiteDB.Tests.Engine
         public void Pinned_transaction_rejects_completion_from_another_thread()
         {
             using var engine = this.Seed();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
             engine.BeginTrans().Should().BeTrue();
@@ -288,7 +352,7 @@ namespace LiteDB.Tests.Engine
         {
             using var engine = this.Open(expire: true);
             engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
@@ -327,6 +391,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
+            _open.Dispose();
             try { Directory.Delete(_directory, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }

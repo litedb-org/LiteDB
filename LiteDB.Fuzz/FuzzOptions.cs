@@ -28,6 +28,8 @@ internal sealed class FuzzOptions
     internal bool DeterminismCheck { get; private set; }
     internal string ExpectedInputHash { get; private set; }
     internal string ExpectedTraceHash { get; private set; }
+    /// <summary>Artifact-root budget; 0 disables it. Checked before each epoch and while a run executes.</summary>
+    internal long MaxArtifactBytes { get; private set; } = 512L * 1024 * 1024;
 
     internal static FuzzOptions Parse(string[] args)
     {
@@ -61,6 +63,7 @@ internal sealed class FuzzOptions
                 case "--determinism-check": options.DeterminismCheck = true; break;
                 case "--expected-input-hash": options.ExpectedInputHash = Value(); break;
                 case "--expected-trace-hash": options.ExpectedTraceHash = Value(); break;
+                case "--max-artifact-mb": options.MaxArtifactBytes = NonNegative(Value(), "max-artifact-mb") * 1024L * 1024; break;
                 case "--help": throw new HelpRequestedException();
                 default: throw new ArgumentException($"Unknown option: {args[i]}");
             }
@@ -78,7 +81,7 @@ internal sealed class FuzzOptions
             InputFile = replay.InputFile == null ? null : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(replayPath)!, replay.InputFile)),
             ExpectedInputHash = replay.InputHash,
             ExpectedTraceHash = replay.FailureId == null ? replay.TraceHash : null,
-            HangTimeout = hangTimeout, MinimizationTimeout = minimizationTimeout
+            HangTimeout = hangTimeout, MinimizationTimeout = minimizationTimeout, MaxArtifactBytes = 0
         };
     }
 
@@ -88,10 +91,16 @@ internal sealed class FuzzOptions
         {
             Targets = new[] { corpusCase.Target }, Seed = corpusCase.Seed, Count = corpusCase.Count,
             Workers = 1, ArtifactDirectory = artifactDirectory, ExpectedInputHash = corpusCase.InputHash,
-            ExpectedTraceHash = corpusCase.TraceHash, DurationReplay = corpusCase.DurationBound,
+            ExpectedTraceHash = corpusCase.TraceHash, DurationReplay = corpusCase.DurationBound, MaxArtifactBytes = 0,
             InputFile = corpusCase.InputFile == null ? null :
                 Path.GetFullPath(Path.Combine(artifactDirectory, corpusCase.InputFile))
         };
+    }
+
+    private static int NonNegative(string text, string name)
+    {
+        var value = int.Parse(text, CultureInfo.InvariantCulture);
+        return value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
     }
 
     private static int Positive(string text, string name)

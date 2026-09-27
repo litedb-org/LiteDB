@@ -18,16 +18,32 @@ dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
 Every run writes `run.json`, `summary.md`, `trace.jsonl`, `input.bin`,
 `input-offsets.jsonl`, and `replay.json`.
 
-Successful duration-bound epochs are compacted after the isolated process exits:
-their run metadata, hashes, seed replay, traces, novelty data, and coverage stay,
-while redundant `input.bin`, input-offset, and transient database files are removed.
-`retention.json` records the applied policy and byte count. Failed, crashed, and
-hung runs always retain their exact recorded input and database state.
+Successful duration-bound epochs are compacted as soon as their isolated process
+exits, not at campaign end: their novelty and coverage are merged into the retained
+corpora first, then `input.bin`, input offsets, `trace.jsonl`, `coverage.xml` and
+database files are removed. Run metadata, input/trace hashes, the seed replay and
+novelty data stay; the seed replay regenerates everything else. `retention.json`
+records the applied policy and byte count. Failed, crashed, and hung runs always
+retain their exact recorded input, trace and database state (including `state-*`
+copies of registered databases, which passing runs no longer make).
+
+Targets that create a database per step use `FuzzContext.StepFile`: the previous
+step's database and its `-log`/`-tmp`/`-backup` companions are deleted when the next
+step starts, so a failing step keeps its own files while a long run holds one step's.
+
+`--max-artifact-mb` (default 512, `0` disables) bounds the artifact root. Before each
+epoch the runner stops scheduling further epochs for that target/worker once the root
+exceeds the budget (`ARTIFACT BUDGET ... reached`). A single run whose own directory
+exceeds the budget is stopped, its databases are dropped, and it fails as
+`ARTIFACT_BUDGET_<TARGET>` with its seed replay, so an artifact regression is fixed
+rather than silently filling the disk. Replays and corpus cases are not budgeted.
 Novel state signatures and their replayable seeds are retained in
 `interesting.jsonl`; the parent runner deduplicates them across isolated target
 processes into `interesting-corpus.jsonl`. Existing entries are preserved and
 replayed automatically on the next campaign using the same artifact root, so
-new semantic coverage feeds future runs rather than being report-only. Retained
+new semantic coverage feeds future runs rather than being report-only. Only the
+entries a campaign replays are kept (the strongest per target/seed, at most eight per
+target), and input prefixes no longer referenced are deleted. Retained
 entries keep the longest interesting prefix for each target/seed together with
 duration mode, exact recorded input prefix, and input/trace hashes. Targets with persistent state also
 preserve database/WAL files. Replay a failure

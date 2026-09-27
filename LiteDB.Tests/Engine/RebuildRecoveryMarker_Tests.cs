@@ -61,9 +61,9 @@ namespace LiteDB.Tests.Engine
         public void Marker_creation_failure_does_not_move_the_original_files(bool conflictingMarker)
         {
             using var db = Seed();
-            var sourceBytes = File.ReadAllBytes(Filename);
+            var sourceBytes = TempFile.ReadAllBytesShared(Filename);
             var log = FileHelper.GetLogFile(Filename);
-            var logBytes = File.ReadAllBytes(log);
+            var logBytes = TempFile.ReadAllBytesShared(log);
             RebuildService.SimulateInstallFailure = phase =>
             {
                 if (phase != "before-recovery-marker") return;
@@ -73,8 +73,8 @@ namespace LiteDB.Tests.Engine
             Action rebuild = () => db.Rebuild();
             rebuild.Should().Throw<IOException>();
             RebuildService.SimulateInstallFailure = null;
-            File.ReadAllBytes(Filename).Should().Equal(sourceBytes);
-            File.ReadAllBytes(log).Should().Equal(logBytes);
+            TempFile.ReadAllBytesShared(Filename).Should().Equal(sourceBytes);
+            TempFile.ReadAllBytesShared(log).Should().Equal(logBytes);
             File.Exists(FileHelper.GetSuffixFile(Filename, "-backup", false)).Should().BeFalse();
             if (conflictingMarker)
             {
@@ -93,9 +93,9 @@ namespace LiteDB.Tests.Engine
         public void Marker_flush_failure_leaves_the_original_pair_untouched_and_access_blocked()
         {
             using var db = Seed();
-            var sourceBytes = File.ReadAllBytes(Filename);
+            var sourceBytes = TempFile.ReadAllBytesShared(Filename);
             var log = FileHelper.GetLogFile(Filename);
-            var logBytes = File.ReadAllBytes(log);
+            var logBytes = TempFile.ReadAllBytesShared(log);
             RebuildService.SimulateInstallFailure = phase =>
             {
                 if (phase == "before-recovery-marker-flush") throw new IOException("marker flush failure");
@@ -103,8 +103,8 @@ namespace LiteDB.Tests.Engine
             Action rebuild = () => db.Rebuild();
             rebuild.Should().Throw<IOException>().WithMessage("marker flush failure");
             RebuildService.SimulateInstallFailure = null;
-            File.ReadAllBytes(Filename).Should().Equal(sourceBytes);
-            File.ReadAllBytes(log).Should().Equal(logBytes);
+            TempFile.ReadAllBytesShared(Filename).Should().Equal(sourceBytes);
+            TempFile.ReadAllBytesShared(log).Should().Equal(logBytes);
             Action read = () => db.GetCollection("rows").Count();
             read.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.REBUILD_INCOMPLETE);
         }
@@ -152,6 +152,8 @@ namespace LiteDB.Tests.Engine
             scanner.Should().NotBeNull();
             File.Exists(Marker).Should().BeFalse();
             db.GetCollection("rows").Count().Should().Be(1);
+            // A shared connection keeps its writable handles, which exclude direct mode.
+            db.Dispose();
             using var fresh = new LiteDatabase(new ConnectionString { Filename = Filename, Password = "new-password" });
             fresh.GetCollection("rows").Count().Should().Be(1);
         }
