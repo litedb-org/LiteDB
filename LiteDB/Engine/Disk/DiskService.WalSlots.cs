@@ -26,7 +26,7 @@ namespace LiteDB.Engine
             }
         }
 
-        internal void RecordLogTransactionID(uint transactionID, ref bool reusePublished)
+        internal void RecordLogTransactionID(uint transactionID)
         {
             if (transactionID > _lastWalTransactionID)
             {
