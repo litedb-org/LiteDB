@@ -210,7 +210,7 @@ internal static class ReaderContentionBenchmarks
         }));
     }
 
-    private static Dictionary<string, long> ReadOwnershipProfile()
+    internal static Dictionary<string, long> ReadOwnershipProfile()
     {
         var profile = typeof(LiteDatabase).Assembly.GetType("LiteDB.SharedReaderProfile");
         return profile?.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)

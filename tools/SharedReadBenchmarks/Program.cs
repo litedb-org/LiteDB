@@ -199,6 +199,7 @@ internal static class Program
         var samples = new double[count];
         var allocated = GC.GetTotalAllocatedBytes(true);
         using var process = Process.GetCurrentProcess();
+        var ownershipBefore = ReaderContentionBenchmarks.ReadOwnershipProfile();
         var startCpu = process.TotalProcessorTime;
         for (var i = 0; i < count; i++)
         {
@@ -207,6 +208,9 @@ internal static class Program
             samples[i] = Milliseconds(Stopwatch.GetTimestamp() - start);
         }
         var cpuMs = (process.TotalProcessorTime - startCpu).TotalMilliseconds;
+        var ownershipProfile = ReaderContentionBenchmarks.ReadOwnershipProfile();
+        if (ownershipProfile != null)
+            foreach (var key in ownershipProfile.Keys.ToArray()) ownershipProfile[key] -= ownershipBefore[key];
         var bytes = GC.GetTotalAllocatedBytes(true) - allocated;
         // Preserve time order for checking that tiering or host load did not make
         // the measured interval drift, before sorting for percentiles.
@@ -246,6 +250,7 @@ internal static class Program
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
             mode, scenario, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
+            ownershipProfile, timestampFrequency = Stopwatch.Frequency,
             coldMs, meanMs = samples.Average(), windows,
             p50Ms = samples[count / 2], p95Ms = samples[Math.Min(count - 1, (int)(count * 0.95))], worstMs = samples[count - 1], p99Ms = samples[Math.Min(count - 1, (int)(count * 0.99))],
             bytesPerOperation = bytes / (double)count, cpuMsPerOperation = cpuMs / count,
