@@ -110,3 +110,34 @@ and the sibling `coordination-probe` directory.
 Local Shared/coordinator/WAL selection on .NET 10 passed 461 cases, including the
 new publication/reset, batch/failure and timer tests. Hosted CI and reader
 comparisons are running on `b2010e8bd`; their completion remains outstanding.
+
+Local .NET 8 also passed the same 461-case selection. Optimized x64 disassembly
+shows eight `lock cmpxchg` instructions per archived status scan and none in the
+acquire-load scan; its explicit full fence remains. Both disassemblies and the
+runtime memory-model source consulted are retained with the local evidence.
+
+| Changed invariant | Discriminating tests |
+| --- | --- |
+| Append publication preserves old storage while exposing the new version | `SharedCoordinationPublication_Tests.Append_commit_changes_only_the_visible_version`; existing native concurrent document/index oracles |
+| Reset or interrupted publication invalidates old cached state | `Version_reset_still_invalidates_old_snapshots`, `Interrupted_sequence_requires_recovery_even_for_an_unchanged_version`; mapped process-death tests |
+| Each destructive batch announces before mutation, including failed writes | `SharedWalBatchPublication_Tests` (batched/unbatched and success/failure); `SharedWalReusePublication_Tests`; `WalSlotReuse_Tests` partial-write rollback/recovery |
+| Idle expiry never drops an active lease or strands cleanup | `SharedCachedIdleTimer_Tests`; restored idle, spill, finalization and native reader-death tests |
+| Admission still protects every accepted generation | existing forced final-recheck negative control; Shared generation/reclamation tests; bounded snapshot/shared/MVCC-retirement campaign |
+
+The local selections used Release with `TestingEnabled=true`; production source
+is `ad7de069d` and new tests are in `e417f5884`. Later commits through `b2010e8bd`
+change benchmark support and documentation, not library behavior. The campaign and
+hosted matrices have not yet been recorded as completed qualification.
+
+The bounded local campaign passed 12 invocations (seeds 3012–3014, 32 steps each
+for snapshot/shared/MVCC-retirement/index): 384 primary steps plus six built-in
+replays. It recorded 288 held-generation validations, 672 between-generation
+checkpoints, 288 Shared child processes, 3,282 acknowledged rows, 78 crash-position
+observations (42 internal), and 96 Shared integrity checks. Counts are summed
+observations, not distinct faults. Each Shared seed reached all 26 configured
+crash positions, including 14 internal boundaries. All independent payload/index
+and integrity checks passed. Maximum invocation was 54.3 seconds, with about
+6.2 MB externally accounted artifacts. The campaign ran against unchanged library
+source; concurrent working-tree edits were documentation-only and their patch plus
+binary/source-tree hashes are retained. This is a three-seed follow-up, not a claim
+to have rerun the archived 16-seed campaign.

@@ -1,10 +1,11 @@
 # Shared mapped reader admission
 
-> Excluded experiment: this protocol is preserved on `codex/shared-mapped-admission-candidate`
-> (`130b339523cbe61efcef52b5d67252aee5a6cb53`). It is not enabled or compiled into
-> the final Shared library. See [results](shared-mapped-admission-results.md) for
-> the measured writer regressions that prevented selection. Same-version
-> concurrency was assumed throughout; mixed legacy compatibility is not the reason.
+> This branch re-evaluates the candidate archived at `130b339523cbe61efcef52b5d67252aee5a6cb53`,
+> which #3014 excluded because of measured writer regressions. The restored
+> implementation and cheaper publication protocol are being qualified in
+> [the writer-cost follow-up](shared-mmap-writer-cost.md). Historical results remain
+> in [the archived report](shared-mapped-admission-results.md). Same-version
+> concurrency remains the contract.
 
 PR #3014's candidate assumes every concurrent Shared participant uses exactly the
 same LiteDB version. Concurrent Direct/Shared, mixed-version and cross-machine
@@ -26,8 +27,11 @@ before that final check. A commit that races admission can leave the accepted
 reader at its earlier protected version; a later query observes the new version.
 
 The control page uses a 4 KiB read/write mapping beside the database, independent
-of TMPDIR. Fields are aligned 64-bit values accessed with Interlocked operations,
-including on 32-bit runtimes; accessor writes are not synchronization primitives.
+of TMPDIR. Aligned 64-bit fields use acquire loads on x64/ARM64, conservative
+Interlocked reads on x86, and Interlocked stores. Accessor writes are not
+synchronization primitives. Seqlock validation and the post-lease admission step
+retain full memory barriers. A monotonic append commit updates only the version;
+resets and interrupted publications retain structural sequencing.
 The database mutex serializes publishers. Odd seqlock/structural values refuse
 admission, and bounded retries fall back to mutex ownership. Creation and
 retirement require that mutex. OS-backed participation handles prevent unlinking
@@ -43,7 +47,10 @@ A scan that preceded publication is detected by the final epoch check. A reader
 that already passed admission keeps an OS-backed lease for every live generation;
 no minimum-version approximation is introduced. Process death releases liveness.
 
-An idle cache owns no lease. It expires after 100 ms using a monotonic clock and
+An idle cache owns no lease. The existing timer checks the monotonic last-use
+timestamp and rearms itself, including when it visits an active streaming reader.
+Reader completion updates that timestamp without changing the timer. The cache
+expires after 100 ms of inactivity and
 is discarded when its page cache or opening WAL exceeds 4 MiB, or when a query
 spills a sort to temporary disk. Spilled engines close after their last active
 reader, releasing the spill file while the connection remains alive. Those component
@@ -62,7 +69,7 @@ durability evidence and is never trusted on startup without a protected open.
 | Invariant | Responsible path | Discriminating evidence |
 | --- | --- | --- |
 | Destruction is announced before lease inspection | Shared writable opens and explicit rebuild; WalIndexService checkpoint structural scopes | Forced checkpoint between status read and lease publication; structural-marker negative control |
-| Every physical prefix overwrite invalidates cache authority | DiskService.WriteLogPage immediately before write, including safepoint rewrites; legacy transaction-ID rewrites; failed-append truncation | SharedWalReusePublication tests; three-generation native reclaim/reuse tests |
+| Every reuse batch invalidates cache authority before its first overwrite | DiskService.WriteLogPage before write, including safepoint rewrites, legacy transaction-ID rewrites and failed-append truncation; coalescing requires mutex exclusion of cold snapshot installation for the whole batch | SharedWalReusePublication and SharedWalBatchPublication tests; three-generation native reclaim/reuse tests |
 | Published commits name durable visible state | Existing ConfirmTransaction signal after the established commit barrier | Document/index oracles and native overlapping commits |
 | Failed mapping cannot create an invisible writer | RevokeIfPresent before fallback, checked before and after admission; revocation failure prevents the write | Unknown/unavailable control tests and active-reader fallback tests |
 | A blocked rebuild open creates no coordination files | RebuildRecovery guard before authority setup | Existing exhaustive rebuild install/rollback matrix |
@@ -81,11 +88,17 @@ the writable open; otherwise the write fails. Architecture-fallback tests verify
 post-acknowledgement visibility and preservation of an already accepted reader.
 Already accepted readers retain their leases through fallback.
 
+The separate coordinator continues to publish every physical reuse: it does not
+exclude cold snapshot installation for a complete WAL write batch. Only the Shared
+participant implements the batching contract. Every new batch, including each
+safepoint, must announce independently. A writable open ends its structural scope
+and establishes local trust through one publication.
+
 The bounded SC model in `scripts/model-shared-admission.py` covers modeled
 admission/checkpoint orders and interrupted publishers. Native controls detect
 skipped final validation with a reclaimed-address read failure and ignored leases
 with changed snapshot payloads. The structural control detects incorrect status
 visibility. These finite tests do not establish arbitrary device or filesystem
 fault behavior. The full platform, recovery and performance acceptance results
-belong in [the results note](shared-performance-next.md); unresolved gates keep the
-PR draft. Incremental writer replay is a separate, excluded experiment.
+belong in [the follow-up results note](shared-mmap-writer-cost.md); unresolved gates
+block completion. Incremental writer replay is a separate, excluded experiment.
