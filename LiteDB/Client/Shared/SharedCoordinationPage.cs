@@ -184,6 +184,15 @@ namespace LiteDB.Client.Shared
         {
             lock (_writeLock)
             {
+                if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
+                var current = this.Load(2);
+                if (version >= current && (this.Load(1) & 1) == 0)
+                {
+                    // Append commits leave every earlier snapshot valid. One atomic
+                    // publication suffices; destructive transitions retain sequencing.
+                    if (version != current) this.Store(2, version);
+                    return;
+                }
                 var before = this.BeginChange();
                 this.SetVersion(version);
                 this.EndChange(before);
