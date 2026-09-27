@@ -205,3 +205,7 @@ retains a single connection but forces each read through the protected inner-eng
 open/close path. The runner checks the production fallback reason after timing
 and includes it as `coordinationFallbackReason`; it fails if the requested opt-out
 was not honored. Compare fresh processes with the same warmup and data, as above.
+
+The `open-close` workload also supports `direct`: each measured operation creates
+a Direct connection, validates one point read, and closes it. Use this separately
+from retained-connection point reads when evaluating admission setup/teardown cost.
