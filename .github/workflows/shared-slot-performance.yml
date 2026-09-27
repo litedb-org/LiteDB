@@ -40,7 +40,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         framework: [net8.0, net10.0]
-        workload: [core, traffic]
+        workload: [traffic]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,16 +80,15 @@ jobs:
           git -C baseline rev-parse HEAD | Out-File evidence/base.txt
           git -C candidate rev-parse HEAD | Out-File evidence/head.txt
           dotnet --info | Out-File evidence/runtime.txt
-      - name: Five serial alternating production pairs
+      - name: Ten longer mixed production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }}
+          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix core --scenarios mixed --rounds 10
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
-      - name: Two and four writer contention with lifecycle accounting
-        if: matrix.workload == 'core'
+      - name: Ten longer writer-contention pairs with lifecycle accounting
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
+          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl --rounds 10
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
       - name: Same-version production state campaign with writer death and raw validation
         if: matrix.workload == 'core'
@@ -225,7 +224,7 @@ jobs:
             dotnet "runner-$variant/SharedReadBenchmarks.dll" scratch shared holder 2000 | Out-File "evidence/holder-$variant.json"
             if ($LASTEXITCODE) { throw "Holder diagnostic failed: $variant" }
           }
-          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl
+          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl --rounds 10
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()

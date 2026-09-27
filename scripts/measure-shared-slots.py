@@ -23,7 +23,7 @@ if args.rounds < 5:
 args.scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
 args.output.parent.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
-workloads = [('point', 20000, 10), ('scan', 1000, 10), ('mixed', 3000, 10)]
+workloads = [('point', 20000, 10), ('scan', 1000, 10), ('mixed', 20000, 10)]
 workloads += [('slots', 100000, active) for active in (1, 64, 4096, 65536)]
 if args.matrix == 'traffic':
     workloads = [(name, 1000, 10) for name in ('same-key', 'random', 'buffered', 'indexed',

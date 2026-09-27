@@ -44,7 +44,7 @@ with args.output.open('x') as output:
                                    text=True, capture_output=True, env=env, check=True, timeout=30)
                     for worker in range(writers):
                         command = ['dotnet', str(runner), 'contention', str(database), str(worker),
-                                   ('2000' if args.smoke else '10000'), str(worker * 5), str(signal)]
+                                   ('2000' if args.smoke else '30000'), str(worker * 5), str(signal)]
                         record['commands'].append(command)
                         children.append(subprocess.Popen(command, env=env, text=True,
                                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE))
