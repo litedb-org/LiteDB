@@ -12,7 +12,7 @@ namespace LiteDB.Client.Shared
     /// the database mutex. Readers serialize local access with disposal. No stored page is
     /// trusted until an engine has opened under that mutex in this process.
     /// </summary>
-    internal sealed unsafe class SharedCoordinationPage : ICoordinationSignals, IDisposable
+    internal sealed unsafe class SharedCoordinationPage : IBatchedCoordinationSignals, IDisposable
     {
         private const int Size = 4096;
         private const long Magic = SharedCoordinationFallback.Magic;

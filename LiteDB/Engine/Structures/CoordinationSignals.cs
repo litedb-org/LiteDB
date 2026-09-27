@@ -1,6 +1,13 @@
 namespace LiteDB.Engine
 {
     /// <summary>
+    /// Cold snapshot installation is excluded for the entire WAL write batch.
+    /// A single invalidation before its first overwrite therefore covers that batch.
+    /// Coordinators that admit new snapshots concurrently must not implement this.
+    /// </summary>
+    internal interface IBatchedCoordinationSignals : ICoordinationSignals { }
+
+    /// <summary>
     /// Experimental coordinator: the coordinator's engine reports the events that a
     /// client's direct snapshot open must not overlap (see docs/experimental-coordinator.md).
     /// Callbacks run on engine threads, possibly under engine locks; they must not call

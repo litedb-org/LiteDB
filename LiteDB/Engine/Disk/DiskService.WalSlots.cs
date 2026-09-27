@@ -54,7 +54,7 @@ namespace LiteDB.Engine
 
         private void PublishWalReuse(ref bool published)
         {
-            if (published) return;
+            if (published && _signals is IBatchedCoordinationSignals) return;
             _signals?.SlotReused();
             published = true;
         }
