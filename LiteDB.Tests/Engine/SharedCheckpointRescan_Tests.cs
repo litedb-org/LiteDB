@@ -54,6 +54,7 @@ namespace LiteDB.Tests.Engine
                     held = new LiteDatabase(new LiteEngine(new EngineSettings
                         { Filename = file.Filename, Password = password, ReadOnly = true, SharedReadSnapshot = true }));
                     held.GetCollection("rows").FindById(0)["value"].AsInt32.Should().Be(0);
+                    rows.Update(Enumerable.Range(0, 64).Select(id => Row(id, 3)));
                     rows.Update(Enumerable.Range(0, 64).Select(id => Row(id, 7)));
                     var data = File.ReadAllBytes(file.Filename);
                     var log = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));

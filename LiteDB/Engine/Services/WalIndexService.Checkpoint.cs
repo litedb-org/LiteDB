@@ -108,10 +108,11 @@ namespace LiteDB.Engine
                 // Scanning lease files is filesystem work; keep it outside the index
                 // lock. The database mutex already orders it with lease registration.
                 var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
-                if (_signals is IBatchedCoordinationSignals && shared?.Length > 0)
+                if (_signals is IBatchedCoordinationSignals && _confirmTransactions.Count > 1 && shared?.Length > 0)
                 {
                     // Shared ownership and the structural marker exclude new
-                    // admissions. Give short accepted readers one turn to finish,
+                    // admissions. Only retry when transactions already accumulated.
+                    // Give short accepted readers one turn to finish,
                     // then inspect the actual leases again; live leases still win.
                     System.Threading.Thread.Yield();
                     shared = _sharedReaders();
