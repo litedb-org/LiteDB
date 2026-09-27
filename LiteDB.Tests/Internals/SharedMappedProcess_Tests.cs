@@ -45,17 +45,19 @@ namespace LiteDB.Internals
         }
 
         [Theory]
-        [InlineData("mapped-slot-half")]
-        [InlineData("mapped-opening")]
-        public async Task Death_during_partial_lease_or_writer_open_recovers_without_lost_data(string mode)
+        [InlineData("mapped-slot-half", null)]
+        [InlineData("mapped-opening", null)]
+        [InlineData("mapped-recovering", null)]
+        [InlineData("mapped-recovering", "secret")]
+        public async Task Death_during_partial_lease_or_writer_open_recovers_without_lost_data(string mode, string password)
         {
-            await MvccProcess.Run("seed", Filename, null);
-            using var observerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            await MvccProcess.Run("seed", Filename, password);
+            using var observerEngine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password });
             using var observer = new LiteDatabase(observerEngine);
             for (var i = 0; i < 3; i++) observer.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
             var authority = (SharedCoordinationPage)typeof(SharedEngine).GetField("_coordination",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(observerEngine);
-            using (var child = new MvccProcess(mode, Filename, null))
+            using (var child = new MvccProcess(mode, Filename, password))
             {
                 await child.Expect("ready");
                 if (mode == "mapped-slot-half")
@@ -63,18 +65,19 @@ namespace LiteDB.Internals
                     using (var registry = new SharedReaderRegistry(Filename))
                         registry.LiveVersions().Should().BeNull("a half-written live slot must fail closed");
                 }
-                if (mode == "mapped-opening") authority.TryRead(out _).Should().BeFalse();
+                if (mode == "mapped-opening") authority.TryRead(out _).Should().BeTrue("a clean open has not invalidated storage");
+                if (mode == "mapped-recovering") authority.TryRead(out _).Should().BeFalse("tail repair must exclude new cached admissions");
                 // Preserve the pre-recovery durable files before opening any successor.
                 foreach (var path in Directory.GetFiles(_directory, "*.db"))
                     File.Copy(path, path + ".before-recovery");
                 await child.Kill();
             }
-            await MvccProcess.Run("write", Filename, null, "7");
-            await MvccProcess.Run("checkpoint", Filename, null);
+            await MvccProcess.Run("write", Filename, password, "7");
+            await MvccProcess.Run("checkpoint", Filename, password);
             authority.TryRead(out _).Should().BeTrue("the surviving mapping must observe recovered publication");
             observer.GetCollection("docs").FindById(63)["value"].AsInt32.Should().Be(7);
             observer.Dispose();
-            VerifyCold(null, 7);
+            VerifyCold(password, 7);
         }
 
         private void VerifyCold(string password, int revision)

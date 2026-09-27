@@ -29,6 +29,26 @@ internal static class SharedMappedHarness
                 throw new IOException("A half-published lease child must be killed by its parent");
             }));
         }
+        else if (mode == "mapped-recovering")
+        {
+            // Model an incomplete data tail, outside every valid page. Warm caches
+            // predate the repair, and the real opening DiskService must fence it.
+            using (var tail = new FileStream(filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+            {
+                tail.Position = tail.Length;
+                tail.WriteByte(42);
+                tail.Flush(true);
+            }
+            var state = typeof(LiteEngine).Assembly.GetType("LiteDB.Engine.EngineState")!;
+            state.GetField("SimulateProcessCrash", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null,
+                (Action<string>)(point =>
+                {
+                    if (point != "startup-before-tail-trim") return;
+                    Console.WriteLine("ready");
+                    Console.ReadLine();
+                    throw new IOException("A repairing child must be killed by its parent");
+                }));
+        }
         else
         {
             var stage = mode == "mapped-opening" ? "opening" : args[4];
@@ -41,7 +61,7 @@ internal static class SharedMappedHarness
                 Console.ReadLine();
             }));
         }
-        if (mode == "mapped-opening")
+        if (mode == "mapped-opening" || mode == "mapped-recovering")
             rows.Update(new BsonDocument { ["_id"] = 63, ["value"] = 99, ["payload"] = new string('x', 3000) });
         else
         {

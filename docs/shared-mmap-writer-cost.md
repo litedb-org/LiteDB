@@ -26,9 +26,15 @@ performance target is no repeatable writer throughput/p99 regression greater tha
 5. Update the last-use timestamp on reader completion. The existing timer checks
    activity and rearms itself; streaming readers retain leases, idle caches do not.
 
-Writable opens still conservatively bracket recovery. Filesystem revocation and
-lease publication are preserved. Narrowing open scopes or replacing leases would
-require additional evidence covering all recovery mutations and fallback writers.
+6. Treat the first status lookup as a hint, omitting its two revocation probes.
+   The final authoritative lookup after lease publication still performs both
+   filesystem probes and the full fence; no query runs on the hint alone.
+7. Experimentally fence actual startup mutations instead of every writable open.
+   Initialization, header repair, checksum conversion, tail truncation and v7
+   upgrade now have explicit structural scopes. Automatic rebuild fences before
+   scanning external leases. Existing checkpoint/format-promotion/reuse scopes
+   remain. An interrupted mapped publisher still requires a broad protected open.
+   Additional recovery qualification is in progress; this is not accepted yet.
 
 ## Evidence location and reproducibility
 
@@ -222,9 +228,57 @@ instrumented builds are not production performance evidence. Their exact source
 patch is retained in the workflow artifacts, and normal runners report no
 ownership profile.
 
-The next diagnostic distinguishes native mutex waiting from holder handoff and
-also measures the cold query while ownership is held. A separate production
-experiment at `9d85a8702`, on `codex/shared-spin-experiment`, changes the holder
-events' spin count from 1,000 to 35 without changing their ownership protocol.
-It is based on the first combined variant, excluding the rejected lease and
-retirement changes. Both its performance and suitability remain unqualified.
+The expanded diagnostic (`36311862394`) measured native waiting separately.
+Linux writer wait grew 1.03 → 3.64 ms/call: native wait 0.99 → 2.61 ms and
+holder handoff 0.043 → 1.06 ms. Windows native wait grew 1.25 → 2.45 ms and
+handoff 0.049 → 0.52 ms. Cold reader open/query work remained sub-millisecond.
+The production spin-count experiment (`36311998025`, variant `9d85a8702`)
+found no consistent writer recovery. Linux had variable durable-flush times;
+Windows point writer change was −0.96% [−4.08, +2.36]. It was not adopted.
+
+## Reduced hint probes and rejected continuous writer pressure
+
+Revision `640aaa1c4` removes only the provisional hint's two filesystem probes.
+The strengthened fallback tests prove a lease can still be published after
+revocation, while the final authoritative check rejects it and reads the new
+committed data through ownership. The broad 461-case .NET 10 selection passed.
+Hosted run `36312799557` compared it with the first combined variant: median idle
+point throughput rose 226,570 → 273,527 calls/s on Linux and 51,806 → 66,053 on
+Windows. Active-writer point reads rose 12,538 → 13,425 and 3,548 → 4,181;
+writer medians were approximately unchanged. This alone does not close the
+writer gap against the merged implementation.
+
+Revision `cfca6d460` added an expiring 100 ms scheduling hint before requesting
+writer ownership. Accepted cached queries yielded once while the hint was live.
+It changed no leases, durability or admission authority. Hosted run `36313054364`
+compared it directly with `640aaa1c4` using five alternating validated pairs:
+
+| Host / workload, four readers | Paired writer throughput change | Reader throughput change |
+| --- | ---: | ---: |
+| Linux point / writer | +17.13% [+16.15, +17.97] | −82.34% |
+| Linux point / checkpoint | +16.80% [+15.30, +18.28] | −77.11% |
+| Windows point / writer | +7.30% [+1.68, +14.08] | −55.74% |
+| Windows large / writer | +4.54% [−1.55, +11.79] | −39.96% |
+
+That reader cost is too high. The hint was reverted; the local branch
+`codex/shared-pressure-experiment` preserves the tested revision. All four jobs
+validated their data. Locally the same point experiment mainly reduced readers
+(−9.56%) while writers changed +0.24%; slow local durable flushes again limit
+how representative those measurements are.
+
+## Narrowing startup invalidation
+
+Revision `323b6c31e` moves structural fencing to actual startup mutations.
+Four deterministic plaintext/encrypted cases prove that a cached point reader
+finishes while a real writable transaction holds database ownership, and verify
+commit/rollback payloads, indexed results and cold reopen. Two publication cases
+cover interrupted seqlock/structural publishers. Native tests now distinguish
+an untouched writer open from a child killed inside actual tail repair.
+File-backed mutation guards cover clean open, initialization, legacy conversion,
+data/WAL tails, and repeated torn header repair with preserved redo. Rebuild
+coverage checks that its fence precedes the external lease scan.
+
+The first hosted dispatch (`36314066290`) failed before building because checkout
+requires a full SHA rather than the abbreviated baseline provided. It contains
+no performance results. Corrected run `36314228934` compares the same candidate
+with the full `640aaa1c43df36a95a83aefbd853561c99b79bec` baseline.

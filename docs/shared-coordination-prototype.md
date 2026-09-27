@@ -20,10 +20,11 @@ formats are unchanged.
 Cold snapshots still open under the existing named database mutex. The first
 protected read skips control-page probing and attachment. After two
 consecutive read-only opens, a connection may retain a read-only snapshot. A warm
-query checks a stable status, publishes its actual snapshot version through the
+query reads a provisional status hint, publishes its actual snapshot version through the
 existing reader-slot file, executes a full memory fence, then checks storage
 identity/structural/reuse/reset epochs again. No query or user callback executes
-before that final check. A commit that races admission can leave the accepted
+before that final check, including both authoritative filesystem revocation probes.
+The hint alone omits revocation probes and cannot authorize access. A commit that races admission can leave the accepted
 reader at its earlier protected version; a later query observes the new version.
 
 The control page uses a 4 KiB read/write mapping beside the database, independent
@@ -68,7 +69,7 @@ durability evidence and is never trusted on startup without a protected open.
 
 | Invariant | Responsible path | Discriminating evidence |
 | --- | --- | --- |
-| Destruction is announced before lease inspection | Shared writable opens and explicit rebuild; WalIndexService checkpoint structural scopes | Forced checkpoint between status read and lease publication; structural-marker negative control |
+| Destruction is announced before lease inspection | Actual startup mutations, automatic/explicit rebuild; WalIndexService checkpoint structural scopes | Forced checkpoint between status read and lease publication; structural-marker negative control |
 | Every reuse batch invalidates cache authority before its first overwrite | DiskService.WriteLogPage before write, including safepoint rewrites, legacy transaction-ID rewrites and failed-append truncation; coalescing requires mutex exclusion of cold snapshot installation for the whole batch | SharedWalReusePublication and SharedWalBatchPublication tests; three-generation native reclaim/reuse tests |
 | Published commits name durable visible state | Existing ConfirmTransaction signal after the established commit barrier | Document/index oracles and native overlapping commits |
 | Failed mapping cannot create an invisible writer | RevokeIfPresent before fallback, checked before and after admission; revocation failure prevents the write | Unknown/unavailable control tests and active-reader fallback tests |
@@ -91,8 +92,13 @@ Already accepted readers retain their leases through fallback.
 The separate coordinator continues to publish every physical reuse: it does not
 exclude cold snapshot installation for a complete WAL write batch. Only the Shared
 participant implements the batching contract. Every new batch, including each
-safepoint, must announce independently. A writable open ends its structural scope
-and establishes local trust through one publication.
+safepoint, must announce independently. Ordinary valid writable opens reconstruct
+local state without invalidating cached storage. Initialization, journal repair,
+checksum conversion, data/WAL tail truncation, and v7 upgrade have explicit
+scopes; automatic rebuild starts its scope before inspecting external leases.
+An odd sequence or structural marker from an interrupted publisher still requires
+a protected open, ending its structural scope and establishing trust together.
+These narrowed startup regions are under qualification in the writer-cost report.
 
 The bounded SC model in `scripts/model-shared-admission.py` covers modeled
 admission/checkpoint orders and interrupted publishers. Native controls detect
