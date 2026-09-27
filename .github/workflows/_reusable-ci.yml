@@ -19,6 +19,26 @@ on:
           ]
 
 jobs:
+  released-file-compatibility:
+    name: Released databases (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      DOTNET_SYSTEM_GLOBALIZATION_USENLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Verify every stable v5 and v4 database
+        run: python scripts/test-release-compatibility.py
+
   build-linux:
     name: Build (Linux)
     runs-on: ubuntu-latest
