@@ -72,6 +72,7 @@ internal static class ReaderContentionBenchmarks
         var checkpointCount = 0;
         var checkpointMs = 0.0;
         long beginTicks = 0, updateTicks = 0, commitTicks = 0;
+        var phases = new List<(long Begin, long Update, long Commit, long Checkpoint)>();
         void Operation()
         {
             if (role == "writer" || role == "checkpoint")
@@ -79,22 +80,28 @@ internal static class ReaderContentionBenchmarks
                 var next = revision + 1;
                 var phase = Stopwatch.GetTimestamp();
                 dbWorker.BeginTrans();
-                beginTicks += Stopwatch.GetTimestamp() - phase;
+                var began = Stopwatch.GetTimestamp() - phase;
+                beginTicks += began;
                 phase = Stopwatch.GetTimestamp();
                 for (var id = 0; id < Rows; id++)
                     if (!rows.Update(Row(id, next))) throw new InvalidOperationException("Missing update " + id);
-                updateTicks += Stopwatch.GetTimestamp() - phase;
+                var updated = Stopwatch.GetTimestamp() - phase;
+                updateTicks += updated;
                 phase = Stopwatch.GetTimestamp();
                 if (!dbWorker.Commit()) throw new InvalidOperationException("Missing commit");
-                commitTicks += Stopwatch.GetTimestamp() - phase;
+                var committed = Stopwatch.GetTimestamp() - phase;
+                commitTicks += committed;
                 revision = next;
+                long checkpointed = 0;
                 if (role == "checkpoint")
                 {
                     var before = Stopwatch.GetTimestamp();
                     dbWorker.Checkpoint();
-                    checkpointMs += (Stopwatch.GetTimestamp() - before) * 1000.0 / Stopwatch.Frequency;
+                    checkpointed = Stopwatch.GetTimestamp() - before;
+                    checkpointMs += checkpointed * 1000.0 / Stopwatch.Frequency;
                     checkpointCount++;
                 }
+                phases.Add((began, updated, committed, checkpointed));
             }
             else
             {
@@ -129,6 +136,7 @@ internal static class ReaderContentionBenchmarks
         checkpointCount = 0;
         checkpointMs = 0;
         beginTicks = updateTicks = commitTicks = 0;
+        phases.Clear();
         var ownershipBefore = ReadOwnershipProfile();
         var cpu = process.TotalProcessorTime;
         var allocation = GC.GetTotalAllocatedBytes(true);
@@ -164,6 +172,19 @@ internal static class ReaderContentionBenchmarks
         arrivals.Sort();
         if (samples.Count == 0) throw new InvalidOperationException("Worker made no progress");
         double Percentile(double p) => samples[Math.Min(samples.Count - 1, (int)(p * samples.Count))];
+        double PhaseP99(Func<(long Begin, long Update, long Commit, long Checkpoint), long> selector)
+        {
+            var sorted = phases.Select(selector).OrderBy(ticks => ticks).ToArray();
+            return sorted.Length == 0 ? 0 : sorted[Math.Min(sorted.Length - 1, (int)(.99 * sorted.Length))] * 1000.0 / Stopwatch.Frequency;
+        }
+        var slowestTransactions = phases.Select((p, index) => new
+        {
+            index, beginMs = p.Begin * 1000.0 / Stopwatch.Frequency,
+            updateMs = p.Update * 1000.0 / Stopwatch.Frequency,
+            commitMs = p.Commit * 1000.0 / Stopwatch.Frequency,
+            checkpointMs = p.Checkpoint * 1000.0 / Stopwatch.Frequency,
+            totalMs = (p.Begin + p.Update + p.Commit + p.Checkpoint) * 1000.0 / Stopwatch.Frequency
+        }).OrderByDescending(p => p.totalMs).Take(10).ToArray();
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
@@ -176,6 +197,9 @@ internal static class ReaderContentionBenchmarks
             beginMs = beginTicks * 1000.0 / Stopwatch.Frequency,
             updateMs = updateTicks * 1000.0 / Stopwatch.Frequency,
             commitMs = commitTicks * 1000.0 / Stopwatch.Frequency,
+            phaseP99Ms = new { begin = PhaseP99(p => p.Begin), update = PhaseP99(p => p.Update),
+                commit = PhaseP99(p => p.Commit), checkpoint = PhaseP99(p => p.Checkpoint) },
+            slowestTransactions,
             ownershipProfile, timestampFrequency = Stopwatch.Frequency,
             closeMs = close.Elapsed.TotalMilliseconds,
             peakWorkingSetBytes = process.PeakWorkingSet64, idleWorkingSetBytes = process.WorkingSet64,

@@ -180,3 +180,7 @@ differences for each measured worker. These builds explain time attribution;
 they are **not production acceptance measurements**. Normal runs report a null
 profile and contain no profiling code in the library. Saturation comparisons must
 be rerun without instrumentation before accepting a change.
+Concurrent writer output includes per-phase p99 latencies and the ten slowest
+transactions with their begin/update/commit/checkpoint breakdown. These use the
+existing phase timestamps and reset after warmup; inspect them before attributing
+a total-latency tail to ownership or durable I/O.
