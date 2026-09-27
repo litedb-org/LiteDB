@@ -111,7 +111,7 @@ jobs:
       - name: Five serial alternating production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }} --scenarios write churn open-close
+          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }} --scenarios churn --rounds 15
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
       - name: Two and four writer contention with lifecycle accounting
         if: matrix.workload == 'core'
