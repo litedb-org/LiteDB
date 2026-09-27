@@ -192,7 +192,14 @@ namespace LiteDB.Tests.Engine
             foreach (var replacementSettings in new[] { false, true })
             {
                 var opened = run.OpenLive(connection, replacementSettings);
-                if (!opened.StartsWith("THROWS:LiteException#" + LiteException.REBUILD_INCOMPLETE))
+                var platformRefused = false;
+#if NET8_0_OR_GREATER
+                // Unsupported Shared opens refuse access before reading the recovery marker.
+                platformRefused = connection == ConnectionType.Shared && !OperatingSystem.IsWindows() &&
+                    !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported &&
+                    opened == "THROWS:PlatformNotSupportedException:" + SharedMutexFactory.UnsupportedNativeAotMessage;
+#endif
+                if (!platformRefused && !opened.StartsWith("THROWS:LiteException#" + LiteException.REBUILD_INCOMPLETE))
                     yield return $"a fresh {connection} open was not refused: {opened}";
             }
 
