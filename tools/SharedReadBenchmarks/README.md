@@ -171,3 +171,12 @@ saturates the readers. Equal-load runs report offered and completed counts plus
 latency from each intended arrival, including queue delay. Compare these separately
 from saturation capacity; a worker that cannot keep up retains the missed work in
 its offered/completed accounting. The hosted reader workflow exposes the same input.
+# Ownership diagnostics
+
+The reader workflow's `profile_ownership` option instruments its disposable
+checkouts with mutex-wait, engine-open and cached-snapshot-retirement counters.
+It preserves the exact source patch and reports `ownershipProfile` tick/count
+differences for each measured worker. These builds explain time attribution;
+they are **not production acceptance measurements**. Normal runs report a null
+profile and contain no profiling code in the library. Saturation comparisons must
+be rerun without instrumentation before accepting a change.

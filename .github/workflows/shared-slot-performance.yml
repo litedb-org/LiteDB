@@ -35,6 +35,10 @@ on:
         description: 'Space-separated reader process counts'
         default: '1 4'
         type: string
+      profile_ownership:
+        description: 'DIAGNOSTIC ONLY: instrument mutex wait, engine open and cache retirement'
+        default: false
+        type: boolean
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
@@ -167,6 +171,10 @@ jobs:
           $baseSha = git -C baseline rev-parse HEAD
           git -C candidate merge-base --is-ancestor $baseSha HEAD
           if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
+          if ('${{ inputs.profile_ownership }}' -eq 'true') {
+            python candidate/scripts/instrument-shared-ownership.py baseline candidate --output ownership-profile.patch
+            if ($LASTEXITCODE) { throw 'Ownership instrumentation failed' }
+          }
           foreach ($variant in @('baseline', 'candidate')) {
             dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
@@ -175,6 +183,7 @@ jobs:
             if ($LASTEXITCODE) { throw "Runner build failed: $variant" }
           }
           New-Item -ItemType Directory evidence | Out-Null
+          if (Test-Path ownership-profile.patch) { Copy-Item ownership-profile.patch evidence/ownership-profile.patch }
           git -C baseline rev-parse HEAD | Out-File evidence/base.txt
           git -C candidate rev-parse HEAD | Out-File evidence/head.txt
           dotnet --info | Out-File evidence/runtime.txt

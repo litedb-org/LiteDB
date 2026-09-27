@@ -129,6 +129,7 @@ internal static class ReaderContentionBenchmarks
         checkpointCount = 0;
         checkpointMs = 0;
         beginTicks = updateTicks = commitTicks = 0;
+        var ownershipBefore = ReadOwnershipProfile();
         var cpu = process.TotalProcessorTime;
         var allocation = GC.GetTotalAllocatedBytes(true);
         var arrivals = new List<double>();
@@ -146,6 +147,9 @@ internal static class ReaderContentionBenchmarks
         var activeMs = active.Elapsed.TotalMilliseconds;
         var activeCpuMs = (process.TotalProcessorTime - cpu).TotalMilliseconds;
         var activeAllocated = GC.GetTotalAllocatedBytes(true) - allocation;
+        var ownershipProfile = ReadOwnershipProfile();
+        if (ownershipProfile != null)
+            foreach (var key in ownershipProfile.Keys.ToArray()) ownershipProfile[key] -= ownershipBefore[key];
         var close = Stopwatch.StartNew();
         dbWorker.Dispose();
         close.Stop();
@@ -172,12 +176,20 @@ internal static class ReaderContentionBenchmarks
             beginMs = beginTicks * 1000.0 / Stopwatch.Frequency,
             updateMs = updateTicks * 1000.0 / Stopwatch.Frequency,
             commitMs = commitTicks * 1000.0 / Stopwatch.Frequency,
+            ownershipProfile, timestampFrequency = Stopwatch.Frequency,
             closeMs = close.Elapsed.TotalMilliseconds,
             peakWorkingSetBytes = process.PeakWorkingSet64, idleWorkingSetBytes = process.WorkingSet64,
             idleThreads = process.Threads.Count, idleHandles = process.HandleCount, retainedManagedBytes = GC.GetTotalMemory(false),
             runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription,
             binary, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(binary)))
         }));
+    }
+
+    private static Dictionary<string, long> ReadOwnershipProfile()
+    {
+        var profile = typeof(LiteDatabase).Assembly.GetType("LiteDB.SharedReaderProfile");
+        return profile?.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            .ToDictionary(field => field.Name, field => (long)field.GetValue(null));
     }
 
     private static int Check(BsonDocument row, int id, int? revision)
