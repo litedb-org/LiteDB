@@ -65,15 +65,18 @@ namespace LiteDB.Client.Shared
         internal static string DisabledPath(string filename) => SharedCoordinationFallback.DisabledPath(filename);
 
         /// <summary>Caller owns the database mutex. Failure requires revocation before writable fallback.</summary>
-        internal static SharedCoordinationPage Open(string filename, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
+        internal static SharedCoordinationPage Open(string filename, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default, bool readOnly = false)
         {
-            SharedModeGuard guard = SharedModeGuard.Open(filename, shared: true, strategy);
+            SharedModeGuard guard = SharedModeGuard.Open(filename, shared: true, strategy, readOnly);
+            if (guard == null) throw new IOException("Read-only mapped attachment requires an existing matching mode identity.");
             FileStream participation = null;
             FileStream file = null;
             try
             {
                 var header = SharedCoordinationFiles.Open(filename, out participation, out file);
                 var page = new SharedCoordinationPage(filename, participation, file, header) { _modeGuard = guard };
+                // Ownership transfers to the page, including the header-failure path.
+                guard = null;
                 if (!page.HeaderMatches())
                 {
                     page.Dispose();

@@ -13,6 +13,38 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedModeAdmissionReview_Tests
     {
+#if NET8_0_OR_GREATER
+        [MappedTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Repeated_read_only_queries_do_not_initialize_or_replace_mode_identity(bool mismatched)
+        {
+            using var file = new MappedTestFile();
+            using (var db = new LiteDatabase(file))
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preserved" });
+            var path = file.Filename + "-shared-mode";
+            File.Delete(path);
+            if (mismatched)
+                using (SharedModeGuard.Open(file, true, SharedMutexNameStrategy.Sha1Hash)) { }
+            var identity = mismatched ? File.ReadAllBytes(path) : null;
+            var data = File.ReadAllBytes(file);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, ReadOnly = true }))
+            using (var db = new LiteDatabase(engine))
+            {
+                for (var i = 0; i < 5; i++)
+                    db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
+                if (mismatched) File.ReadAllBytes(path).Should().Equal(identity);
+                else File.Exists(path).Should().BeFalse();
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Protected);
+                engine.GetDiagnostics().CoordinatedReadHits.Should().Be(0);
+                File.Exists(SharedCoordinationFallback.PagePath(file)).Should().BeFalse();
+            }
+            File.ReadAllBytes(file).Should().Equal(data);
+            using var cold = new LiteDatabase(file);
+            cold.GetCollection("rows").Count().Should().Be(1);
+        }
+#endif
+
         [Fact]
         public void Unavailable_direct_guard_reports_public_exception_and_preserves_data()
         {
@@ -54,5 +86,30 @@ namespace LiteDB.Tests.Engine
             cold.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
         }
 
+#if NET8_0_OR_GREATER
+        [MappedFact]
+        public async Task Read_only_mapped_attachment_holds_admission_until_connection_disposal()
+        {
+            using var file = new MappedTestFile();
+            using (var db = new LiteDatabase(file))
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using (SharedModeGuard.Open(file, true, SharedMutexNameStrategy.Default)) { }
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, ReadOnly = true }))
+            using (var db = new LiteDatabase(engine))
+            {
+                for (var i = 0; i < 5; i++) db.GetCollection("rows").Count().Should().Be(1);
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
+                await MvccProcess.Run("mode-direct-rejected", file, null);
+                // Diagnostics may observe disposal concurrently, without touching a freed view.
+                await Task.WhenAll(Task.Run(() =>
+                {
+                    for (var i = 0; i < 500; i++) engine.GetDiagnostics();
+                }), Task.Run(() => engine.Dispose()));
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Disposed);
+            }
+            using var cold = new LiteDatabase(file);
+            cold.GetCollection("rows").Count().Should().Be(1);
+        }
+#endif
     }
 }

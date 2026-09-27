@@ -101,7 +101,7 @@ namespace LiteDB
                     _coordinationUnavailable = true;
                     return;
                 }
-                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename, _settings.SharedMutexNameStrategy));
+                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename, _settings.SharedMutexNameStrategy, _settings.ReadOnly));
                 _settings.CoordinationSignals = _coordination;
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
