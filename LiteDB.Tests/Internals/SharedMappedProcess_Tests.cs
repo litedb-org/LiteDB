@@ -128,7 +128,7 @@ namespace LiteDB.Internals
                         rows[id]["_id"].AsInt32.Should().Be(id);
                         rows[id]["value"].AsInt32.Should().Be(name == "docs" ? revision : 0);
                         rows[id]["payload"].AsString.Should().Be(new string('x', 3000));
-                        database.GetCollection(name).FindById(id).Should().BeEquivalentTo(rows[id]);
+                        database.GetCollection(name).FindById(id).ToString().Should().Be(rows[id].ToString());
                     }
                 }
             }
