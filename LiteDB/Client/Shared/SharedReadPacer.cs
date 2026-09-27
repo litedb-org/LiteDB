@@ -42,6 +42,7 @@ namespace LiteDB.Client.Shared
         private readonly Action<long> _record;
         private long _ticks;
         private int _disposed;
+        private int _reads;
 
         internal MeasuredSharedReader(IBsonDataReader reader, Action<long> record)
         { _reader = reader; _record = record; }
@@ -55,7 +56,13 @@ namespace LiteDB.Client.Shared
         {
             var start = Stopwatch.GetTimestamp();
             try { return _reader.Read(); }
-            finally { Interlocked.Add(ref _ticks, Stopwatch.GetTimestamp() - start); }
+            finally
+            {
+                Interlocked.Add(ref _ticks, Stopwatch.GetTimestamp() - start);
+                // Cooperate between small batches rather than running an entire
+                // streaming scan before another process gets a scheduling turn.
+                if (++_reads % 16 == 0) Thread.Yield();
+            }
         }
 
         public void Dispose()
