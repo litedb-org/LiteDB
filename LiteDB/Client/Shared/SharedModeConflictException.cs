@@ -13,6 +13,11 @@ namespace LiteDB
             : base("Cannot safely admit database access to '" + filename +
                 "': conflicting Direct/Shared access, Shared mutex identity, or unavailable mode guard. " +
                 "Close incompatible connections, use one database path and mutex strategy, and ensure " +
-                "the directory permits creating and opening the '-shared-mode' file. Cause: " + inner.Message, inner) { }
+                "the directory permits creating and opening the '-shared-mode' file. Cause: " + inner.Message, inner)
+        {
+            // Preserve the native cause so bounded sharing-violation retries can
+            // distinguish contention from permissions, malformed identity, or I/O.
+            HResult = inner.HResult;
+        }
     }
 }

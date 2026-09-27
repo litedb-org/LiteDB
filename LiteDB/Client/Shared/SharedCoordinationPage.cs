@@ -68,7 +68,7 @@ namespace LiteDB.Client.Shared
         internal static SharedCoordinationPage Open(string filename, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default, bool readOnly = false)
         {
             SharedModeGuard guard = SharedModeGuard.Open(filename, shared: true, strategy, readOnly);
-            if (guard == null) throw new IOException("Read-only mapped attachment requires an existing matching mode identity.");
+            if (guard == null) throw new IOException("Mapped attachment requires a mode admission lease.");
             FileStream participation = null;
             FileStream file = null;
             try
