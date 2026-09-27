@@ -113,11 +113,17 @@ public enum UnsignedWideState : ulong
     NearMaximum = ulong.MaxValue - 3
 }
 
+public enum WideUIntState : uint
+{
+    Maximum = uint.MaxValue
+}
+
 [BsonSourceGenerated]
 public sealed class WideEnumRecord
 {
     public int Id { get; set; }
     public SignedWideState Signed { get; set; }
+    public WideUIntState UInt { get; set; }
     public UnsignedWideState Unsigned { get; set; }
     public SignedWideState? NullableSigned { get; set; }
 }

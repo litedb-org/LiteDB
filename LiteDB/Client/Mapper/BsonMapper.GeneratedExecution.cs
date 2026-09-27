@@ -208,7 +208,11 @@ namespace LiteDB
                 case float number: return new BsonValue((double)number);
                 case char character: return new BsonValue(character.ToString());
                 case Enum enumeration:
-                    return EnumAsInteger ? new BsonValue(Convert.ToInt32(enumeration)) : new BsonValue(enumeration.ToString());
+                    if (!EnumAsInteger) return new BsonValue(enumeration.ToString());
+                    var underlying = Enum.GetUnderlyingType(enumeration.GetType());
+                    if (underlying == typeof(ulong)) return new BsonValue(unchecked((long)Convert.ToUInt64(enumeration)));
+                    if (underlying == typeof(long) || underlying == typeof(uint)) return new BsonValue(Convert.ToInt64(enumeration));
+                    return new BsonValue(Convert.ToInt32(enumeration));
             }
 
             var type = value.GetType();

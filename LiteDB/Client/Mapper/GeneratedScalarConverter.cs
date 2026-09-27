@@ -51,6 +51,8 @@ namespace LiteDB
             else if (target == typeof(DateTimeOffset)) result = new DateTimeOffset(value.AsDateTime.ToUniversalTime());
             else if (target == typeof(bool)) result = value.AsBoolean;
             else if (target == typeof(float[])) result = value.AsVector;
+            else if (target == typeof(ulong)) result = unchecked((ulong)value.AsInt64);
+            else if (target == typeof(uint)) result = (uint)value.AsInt64;
             else if (target.IsEnum) result = value.IsString ? Enum.Parse(target, value.AsString) : Enum.ToObject(target, value.RawValue);
             else result = System.Convert.ChangeType(value.RawValue, target);
 

@@ -10,7 +10,7 @@ internal static class Program
 {
     private static void Main()
     {
-        var mapper = new BsonMapper();
+        var mapper = new BsonMapper { EnumAsInteger = true };
         LiteDbGeneratedMappings.Register(mapper);
 
         using var stream = new MemoryStream();
@@ -31,6 +31,8 @@ internal static class Program
         {
             throw new InvalidOperationException("The packaged source generator did not complete a real LiteDB round trip.");
         }
+
+        WideNumericScenario.Run(database);
 
         Console.WriteLine("[PASS] Packaged LiteDB.SourceGenerator restore, generation, registration, Native AOT publish, and real LiteDB round trip succeeded.");
     }
