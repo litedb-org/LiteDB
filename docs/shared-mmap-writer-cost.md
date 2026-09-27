@@ -203,10 +203,28 @@ commit 6.75 → 6.75 ms. Windows point begins grow 1.10 → 3.19 ms; large begin
 3.10 → 4.99 ms, with large commits 8.43 → 8.41 ms. Begin includes ownership
 waiting and writable-engine opening; it does not by itself separate those costs.
 
-The next candidate retires an invalid cached snapshot before waiting for database
+The candidate at `46963eb9d` retired an invalid cached snapshot before waiting for database
 ownership. Previously its accumulated pages were released while installing the
 replacement under that mutex. Active streaming readers still retain their engine
 and lease until their own disposal. A targeted interleaving checks retirement
 while another connection holds a write transaction, then verifies both the new
-query's committed value and every older streaming value. Performance remains to
-be established independently.
+query's committed value and every older streaming value. Its 463-case local
+Shared/coordinator/WAL selection passed on .NET 10, but hosted run `36311367955`
+did not recover writer performance: Linux point writer throughput fell another
+2.02% [−3.14, −1.23] against the first combined variant. It was removed from the
+working candidate and retained on `codex/shared-cache-retirement-experiment`.
+
+An explicitly instrumented diagnostic run (`36311407545`) separates engine
+opening from ownership waiting. Linux writer open was 0.088 → 0.119 ms/call,
+but ownership wait 1.18 → 3.90 ms; Windows open 0.196 → 0.277 ms and wait
+1.29 → 5.20 ms. Reader cache retirement averaged about 0.01 ms/call. These
+instrumented builds are not production performance evidence. Their exact source
+patch is retained in the workflow artifacts, and normal runners report no
+ownership profile.
+
+The next diagnostic distinguishes native mutex waiting from holder handoff and
+also measures the cold query while ownership is held. A separate production
+experiment at `9d85a8702`, on `codex/shared-spin-experiment`, changes the holder
+events' spin count from 1,000 to 35 without changing their ownership protocol.
+It is based on the first combined variant, excluding the rejected lease and
+retirement changes. Both its performance and suitability remain unqualified.
