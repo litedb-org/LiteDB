@@ -49,8 +49,8 @@ namespace LiteDB
         {
             _settings = settings.Clone();
             _settings.SharedMode = true;
-            // Reopens must use the same path as the mutex and snapshot registry,
-            // even if the process changes its working directory between calls.
+            _settings.SharedModeReadOnly = settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
+            // Reopens bind to the same absolute path as the mutex and snapshot registry.
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
             _settings.SharedDurability = new SharedDurabilityState();

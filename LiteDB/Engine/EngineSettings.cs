@@ -30,6 +30,8 @@ namespace LiteDB.Engine
         // Private rebuild/upgrade output; the live engine retains admission through publication.
         internal bool RebuildCandidate { get; set; }
         internal bool SharedMode { get; set; }
+        // Preserve connection admission intent when a query clones read-only snapshot settings.
+        internal bool SharedModeReadOnly { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
         internal SharedDurabilityState SharedDurability { get; set; }

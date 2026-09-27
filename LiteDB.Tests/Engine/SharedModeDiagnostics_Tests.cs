@@ -75,15 +75,15 @@ namespace LiteDB.Tests.Engine
                 using var held = db.GetCollection("rows").FindAll().GetEnumerator();
                 held.MoveNext().Should().BeTrue();
                 engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
-                var data = File.ReadAllBytes(file);
+                var data = TempFile.ReadAllBytesShared(file);
                 var logPath = FileHelper.GetLogFile(file);
-                var log = File.Exists(logPath) ? File.ReadAllBytes(logPath) : null;
+                var log = File.Exists(logPath) ? TempFile.ReadAllBytesShared(logPath) : null;
                 Action direct = () => { using var other = new LiteEngine(new EngineSettings { Filename = file, Password = password }); };
                 direct.Should().Throw<IOException>().WithMessage("*Cannot safely admit*");
                 await MvccProcess.Run("mode-direct-rejected", file, password);
                 await MvccProcess.Run("mode-mutex-rejected", file, password);
-                File.ReadAllBytes(file).Should().Equal(data);
-                if (log != null) File.ReadAllBytes(logPath).Should().Equal(log);
+                TempFile.ReadAllBytesShared(file).Should().Equal(data);
+                if (log != null) TempFile.ReadAllBytesShared(logPath).Should().Equal(log);
                 var count = 1;
                 while (held.MoveNext()) { held.Current["value"].AsInt32.Should().Be(0); count++; }
                 count.Should().Be(150);

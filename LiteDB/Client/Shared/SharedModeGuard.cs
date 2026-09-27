@@ -23,7 +23,7 @@ namespace LiteDB.Client.Shared
             if (settings.RebuildCandidate || settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return null;
             var shared = settings.SharedMode;
-            var readOnly = settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
+            var readOnly = shared ? settings.SharedModeReadOnly : settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
             if (readOnly && !shared) return null;
             return Open(settings.Filename, shared, settings.SharedMutexNameStrategy, readOnly);
         }

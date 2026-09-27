@@ -101,9 +101,12 @@ namespace LiteDB
                     _coordinationUnavailable = true;
                     return;
                 }
-                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename, _settings.SharedMutexNameStrategy, _settings.ReadOnly));
+                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename, _settings.SharedMutexNameStrategy, _settings.SharedModeReadOnly));
                 _settings.CoordinationSignals = _coordination;
             }
+            // A rejected participant cannot change the authority or make this connection
+            // permanently fall back. A later operation must retry admission normally.
+            catch (SharedModeConflictException) { throw; }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
             {
                 // Existing participants must learn about this fallback before this
@@ -155,7 +158,10 @@ namespace LiteDB
                 if (addedLease)
                 {
                     try { snapshot.Lease = _readers.RegisterUnscanned(checked((int)status.Version)); }
-                    catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
+                    // A rejected participant cannot change the authority or make this connection
+            // permanently fall back. A later operation must retry admission normally.
+            catch (SharedModeConflictException) { throw; }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
                 }
                 Interlocked.MemoryBarrier();
 #if DEBUG || TESTING
