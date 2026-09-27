@@ -22,6 +22,23 @@ namespace LiteDB.Client.Shared
         private readonly Func<string, string, string[]> _getFiles;
         private readonly object _gate = new object();
         private SharedReaderSlots _slots;
+#if NET8_0_OR_GREATER
+        private SharedMappedReaderSlots _mappedSlots;
+
+        internal IDisposable RegisterMapped(int version, bool allowCreate)
+        {
+            lock (_gate)
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(SharedReaderRegistry));
+                if (_mappedSlots == null)
+                {
+                    if (!allowCreate) throw new IOException("No established mapped reader table.");
+                    _mappedSlots = SharedMappedReaderSlots.Create(_directory);
+                }
+                return _mappedSlots.Lease(version);
+            }
+        }
+#endif
         private bool _disposed;
 
         internal SharedReaderRegistry(string filename, Func<string, string, string[]> getFiles = null)
@@ -76,6 +93,9 @@ namespace LiteDB.Client.Shared
             {
                 _disposed = true;
                 _slots?.Dispose();
+#if NET8_0_OR_GREATER
+                _mappedSlots?.Dispose();
+#endif
             }
         }
 
@@ -125,6 +145,10 @@ namespace LiteDB.Client.Shared
             {
                 var name = Path.GetFileName(path);
                 var slots = name.StartsWith(SharedReaderSlots.Prefix, StringComparison.Ordinal);
+#if NET8_0_OR_GREATER
+                var mapped = name.StartsWith(SharedMappedReaderSlots.Prefix, StringComparison.Ordinal);
+                slots |= mapped;
+#endif
                 if (TryRemoveDeadLease(path))
                 {
                     // A dead or closed slot lease takes its content file with it.
@@ -133,7 +157,11 @@ namespace LiteDB.Client.Shared
                 }
                 if (slots)
                 {
-                    var held = SharedReaderSlots.ReadVersions(path);
+                    var held =
+#if NET8_0_OR_GREATER
+                        mapped ? SharedMappedReaderSlots.ReadVersions(path) :
+#endif
+                        SharedReaderSlots.ReadVersions(path);
                     if (held == null) return null;
                     versions.AddRange(held);
                     continue;
@@ -161,13 +189,17 @@ namespace LiteDB.Client.Shared
         private void TryRemoveOrphanContent()
         {
             string[] contents;
-            try { contents = _getFiles(_directory, SharedReaderSlots.Prefix + "*" + SharedReaderSlots.ContentExtension); }
+            try { contents = _getFiles(_directory, "*" + SharedReaderSlots.ContentExtension); }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return; }
             foreach (var content in contents)
             {
                 var name = Path.GetFileNameWithoutExtension(content);
-                if (!name.StartsWith(SharedReaderSlots.Prefix, StringComparison.Ordinal) ||
-                    !Guid.TryParseExact(name.Substring(SharedReaderSlots.Prefix.Length), "N", out _)) continue;
+                var prefix = SharedReaderSlots.Prefix;
+#if NET8_0_OR_GREATER
+                if (name.StartsWith(SharedMappedReaderSlots.Prefix, StringComparison.Ordinal)) prefix = SharedMappedReaderSlots.Prefix;
+#endif
+                if (!name.StartsWith(prefix, StringComparison.Ordinal) ||
+                    !Guid.TryParseExact(name.Substring(prefix.Length), "N", out _)) continue;
                 if (!File.Exists(Path.ChangeExtension(content, ".lease"))) TryRemoveUnheld(content);
             }
         }
