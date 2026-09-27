@@ -19,7 +19,7 @@ parser.add_argument('--rounds', type=int, default=5)
 parser.add_argument('--reader-interval-ms', type=float, default=0, help='Per-reader offered interval; zero saturates')
 parser.add_argument('--smoke', action='store_true', help='Short validation pair only; not performance evidence')
 parser.add_argument('--scenarios', nargs='+', choices=('point', 'medium', 'large'), default=('point', 'medium', 'large'))
-parser.add_argument('--activity', nargs='+', choices=('idle', 'writer', 'checkpoint'), default=('idle', 'writer', 'checkpoint'))
+parser.add_argument('--activity', nargs='+', choices=('idle', 'writer', 'checkpoint', 'churn'), default=('idle', 'writer', 'checkpoint'))
 parser.add_argument('--readers', nargs='+', type=int, choices=(1, 4), default=(1, 4))
 args = parser.parse_args()
 if not 0 <= args.reader_interval_ms < float('inf'):
@@ -69,7 +69,7 @@ with args.output.open('x') as output:
                             for worker, role in enumerate(roles):
                                 command = ['dotnet', str(runner), 'read-contention', str(database), str(worker), role,
                                            ('1000' if args.smoke else '10000'), ('2000' if args.smoke else '10000'),
-                                           str(signal), str(readers), str(0 if role in ('writer', 'checkpoint') else args.reader_interval_ms)]
+                                           str(signal), str(readers), str(0 if role in ('writer', 'checkpoint', 'churn') else args.reader_interval_ms)]
                                 record['commands'].append(command)
                                 children.append(subprocess.Popen(command, env=env, text=True,
                                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE))

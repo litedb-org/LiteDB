@@ -40,10 +40,10 @@ internal static class ReaderContentionBenchmarks
             return;
         }
         if (args[0] != "read-contention" || (args.Length != 8 && args.Length != 9))
-            throw new ArgumentException("read-contention <database> <worker> <point|medium|large|writer|checkpoint> <warmup-ms> <measure-ms> <signal> <readers> <interval-ms>");
+            throw new ArgumentException("read-contention <database> <worker> <point|medium|large|writer|checkpoint|churn> <warmup-ms> <measure-ms> <signal> <readers> <interval-ms>");
         var worker = int.Parse(args[2]);
         var role = args[3];
-        if (!new[] { "point", "medium", "large", "writer", "checkpoint" }.Contains(role)) throw new ArgumentException("role");
+        if (!new[] { "point", "medium", "large", "writer", "checkpoint", "churn" }.Contains(role)) throw new ArgumentException("role");
         var warmupMs = int.Parse(args[4]);
         var measureMs = int.Parse(args[5]);
         var signal = Path.GetFullPath(args[6]);
@@ -51,10 +51,15 @@ internal static class ReaderContentionBenchmarks
         var intervalMs = args.Length == 9 ? double.Parse(args[8], System.Globalization.CultureInfo.InvariantCulture) : 0;
         if (!double.IsFinite(intervalMs) || intervalMs < 0) throw new ArgumentOutOfRangeException(nameof(intervalMs));
         using var process = Process.GetCurrentProcess();
-        using var dbWorker = Open(filename);
-        var rows = dbWorker.GetCollection("rows");
-        // Precompile the exact operation before synchronized warmup.
-        Validate(rows.FindAll(), Rows, null);
+        using var dbWorker = role == "churn" ? null : Open(filename);
+        var rows = dbWorker?.GetCollection("rows");
+        // Churn keeps no connection alive between transactions.
+        if (rows == null)
+        {
+            using var prepare = Open(filename);
+            Validate(prepare.GetCollection("rows").FindAll(), Rows, null);
+        }
+        else Validate(rows.FindAll(), Rows, null);
         File.WriteAllText(signal + ".ready-" + worker, "ready");
         var waiting = Stopwatch.StartNew();
         while (!File.Exists(signal))
@@ -75,20 +80,25 @@ internal static class ReaderContentionBenchmarks
         var phases = new List<(long Begin, long Update, long Commit, long Checkpoint)>();
         void Operation()
         {
-            if (role == "writer" || role == "checkpoint")
+            if (role == "writer" || role == "checkpoint" || role == "churn")
             {
+                // Construction and final close/checkpoint are inside the operation
+                // sample for churn; phase counters describe only transaction calls.
+                using var request = role == "churn" ? Open(filename) : null;
+                var writer = request ?? dbWorker;
+                var writableRows = request?.GetCollection("rows") ?? rows;
                 var next = revision + 1;
                 var phase = Stopwatch.GetTimestamp();
-                dbWorker.BeginTrans();
+                writer.BeginTrans();
                 var began = Stopwatch.GetTimestamp() - phase;
                 beginTicks += began;
                 phase = Stopwatch.GetTimestamp();
                 for (var id = 0; id < Rows; id++)
-                    if (!rows.Update(Row(id, next))) throw new InvalidOperationException("Missing update " + id);
+                    if (!writableRows.Update(Row(id, next))) throw new InvalidOperationException("Missing update " + id);
                 var updated = Stopwatch.GetTimestamp() - phase;
                 updateTicks += updated;
                 phase = Stopwatch.GetTimestamp();
-                if (!dbWorker.Commit()) throw new InvalidOperationException("Missing commit");
+                if (!writer.Commit()) throw new InvalidOperationException("Missing commit");
                 var committed = Stopwatch.GetTimestamp() - phase;
                 commitTicks += committed;
                 revision = next;
@@ -96,7 +106,7 @@ internal static class ReaderContentionBenchmarks
                 if (role == "checkpoint")
                 {
                     var before = Stopwatch.GetTimestamp();
-                    dbWorker.Checkpoint();
+                    writer.Checkpoint();
                     checkpointed = Stopwatch.GetTimestamp() - before;
                     checkpointMs += checkpointed * 1000.0 / Stopwatch.Frequency;
                     checkpointCount++;
@@ -160,7 +170,7 @@ internal static class ReaderContentionBenchmarks
         if (ownershipProfile != null)
             foreach (var key in ownershipProfile.Keys.ToArray()) ownershipProfile[key] -= ownershipBefore[key];
         var close = Stopwatch.StartNew();
-        dbWorker.Dispose();
+        dbWorker?.Dispose();
         close.Stop();
         Thread.Sleep(1200);
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
