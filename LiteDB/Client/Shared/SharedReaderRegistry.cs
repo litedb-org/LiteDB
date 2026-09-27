@@ -7,7 +7,9 @@ using System.Linq;
 namespace LiteDB.Client.Shared
 {
     /// <summary>
-    /// All registration and inspection runs under the database's named mutex.
+    /// File creation and inspection run under the database's named mutex. Mapped
+    /// admission may republish a slot in an already established live registry,
+    /// with a full fence and storage-generation revalidation before using it.
     /// An exclusive open handle is the lease, not a heartbeat or a process ID.
     /// The OS releases it on death, including when no managed cleanup runs.
     /// A registry keeps one lease file for all its readers (<see cref="SharedReaderSlots"/>);
@@ -80,7 +82,7 @@ namespace LiteDB.Client.Shared
         /// <summary>
         /// Prove that a lease can be registered, without keeping one: register and drop a
         /// lease at <paramref name="version"/>, and remove the directory again if this call
-        /// created it. The caller owns the mutex, under which every registration runs.
+        /// created it. The caller owns the mutex; this probe may create the registry files.
         /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/>.
         /// </summary>
         internal void Probe(int version)

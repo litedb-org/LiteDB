@@ -183,6 +183,9 @@ namespace LiteDB.Engine
                         ? prior.Position + PAGE_SIZE : 0;
                     page.Position = this.AllocateLogPosition(pageID, isConfirmed, transactionAnchored, minimum);
                 }
+                // One notification point covers reclaimed slots and in-transaction
+                // safepoint rewrites, before either can overwrite an observed prefix.
+                if (page.Position < previousStreamLength.Value) _signals?.SlotReused();
                 this.RecordLogPosition(pageID, page.Position);
                 this.RecordLogTransactionID(page.ReadUInt32(BasePage.P_TRANSACTION_ID));
                 page.Origin = FileOrigin.Log;
@@ -216,6 +219,7 @@ namespace LiteDB.Engine
                     Interlocked.Exchange(ref _logLength, previousLogLength);
                     if (previousStreamLength.HasValue)
                     {
+                        _signals?.SlotReused();
                         stream.SetLength(previousStreamLength.Value);
                         _logFactory.TrimCapacity(stream);
                     }
