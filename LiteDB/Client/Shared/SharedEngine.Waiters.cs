@@ -13,13 +13,9 @@ namespace LiteDB
         /// Enter the connection's mutex ownership, counted as a waiter meanwhile so that
         /// any pin of this instance, including one started after this call, ends for it.
         /// </summary>
-        private bool EnterOwner(bool scoped = false, bool writing = false)
+        private bool EnterOwner(bool scoped = false)
         {
             if (_owner.IsOwnedByCurrentThread) return _owner.Enter(scoped);
-#if NET8_0_OR_GREATER
-            if (writing)
-                lock (_snapshotGate) _coordination?.RequestWriterTurn(System.Environment.TickCount64);
-#endif
             this.AddMutexWaiter();
             try
             {

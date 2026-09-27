@@ -26,7 +26,6 @@ namespace LiteDB
         internal System.Runtime.InteropServices.Architecture? CoordinationArchitectureOverride;
         internal Action<string> CoordinationStage;
         internal bool UnsafeSkipCoordinationRecheck;
-        internal bool ForceCoordinatedYield;
 #else
         private TimeSpan CoordinatedIdleLimit => SnapshotIdle;
 #endif
@@ -122,7 +121,6 @@ namespace LiteDB
         {
             if (_coordination == null || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             CachedSharedSnapshot snapshot;
-            bool yieldToWriter;
             lock (_snapshotGate)
             {
                 snapshot = _cachedSnapshot;
@@ -156,13 +154,11 @@ namespace LiteDB
                     throw;
                 }
                 snapshot.Readers++;
-                yieldToWriter = _coordination.ShouldYieldToWriter(Environment.TickCount64);
 #if DEBUG || TESTING
                 Interlocked.Increment(ref CoordinatedReadHits);
-                yieldToWriter |= ForceCoordinatedYield;
 #endif
             }
-            return this.ReadCached(collection, query, snapshot, yieldToWriter);
+            return this.ReadCached(collection, query, snapshot);
         }
 
         /// <summary>Install only a snapshot opened and leased under the database mutex.</summary>
@@ -210,20 +206,13 @@ namespace LiteDB
             finally { _owner.Exit(); }
         }
 
-        private IBsonDataReader ReadCached(string collection, Query query, CachedSharedSnapshot snapshot, bool yieldToWriter = false)
+        private IBsonDataReader ReadCached(string collection, Query query, CachedSharedSnapshot snapshot)
         {
             IBsonDataReader reader = null;
             int? local = null;
             var released = false;
             try
             {
-                if (yieldToWriter)
-                {
-#if DEBUG || TESTING
-                    CoordinationStage?.Invoke("writer-pressure");
-#endif
-                    Thread.Yield();
-                }
                 reader = snapshot.Engine.Query(collection, query);
                 var buffered = TryBuffer(reader, out var prefix);
                 if (buffered != null)

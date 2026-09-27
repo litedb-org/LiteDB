@@ -97,29 +97,6 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
-        public void Writer_hint_expires_without_changing_storage_authority()
-        {
-            WithPage((page, view) =>
-            {
-                page.Opened(7);
-                page.TryRead(out var before).Should().BeTrue();
-                var sequence = view.ReadInt64(8);
-                page.RequestWriterTurn(1000);
-                page.ShouldYieldToWriter(1000).Should().BeTrue();
-                page.ShouldYieldToWriter(1099).Should().BeTrue();
-                page.ShouldYieldToWriter(1100).Should().BeFalse("a dead requester needs no cleanup to release pressure");
-                page.ShouldYieldToWriter(999).Should().BeFalse("out-of-window contents are only an ignored hint");
-                page.TryRead(out var after).Should().BeTrue();
-                after.Version.Should().Be(before.Version);
-                after.SameStorage(before).Should().BeTrue();
-                view.ReadInt64(8).Should().Be(sequence);
-                page.Dispose();
-                page.RequestWriterTurn(2000);
-                page.ShouldYieldToWriter(2000).Should().BeFalse();
-            });
-        }
-
         private static void WithPage(Action<SharedCoordinationPage, MemoryMappedViewAccessor> test)
         {
             var directory = Path.Combine(Path.GetTempPath(), "litedb-publication-" + Guid.NewGuid().ToString("N"));
