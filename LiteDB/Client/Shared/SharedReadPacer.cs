@@ -13,6 +13,7 @@ namespace LiteDB.Client.Shared
     /// </summary>
     internal sealed class SharedReadPacer
     {
+        private const double DelayPerWork = 7;
         private double _pendingMilliseconds;
 
         internal int ReserveDelay(bool pressure)
@@ -23,7 +24,7 @@ namespace LiteDB.Client.Shared
             return delay;
         }
 
-        internal void RecordWork(long ticks) => Adjust(ticks * 5000.0 / Stopwatch.Frequency);
+        internal void RecordWork(long ticks) => Adjust(ticks * (DelayPerWork * 1000.0) / Stopwatch.Frequency);
 
         // Credit the actual scheduling delay, including coarse OS timer granularity.
         // A long suspension must not accumulate unbounded credit or future pauses.
