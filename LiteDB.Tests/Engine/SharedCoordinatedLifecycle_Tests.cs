@@ -148,7 +148,8 @@ namespace LiteDB.Tests.Engine
                     for (var i = 0; i < 10; i++)
                         database.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(71);
                     engine.CoordinatedReadHits.Should().Be(0);
-                    engine.CoordinationFallbackReason.Should().Contain("Unknown Shared status page size");
+                    engine.CoordinationFallbackReason.Should().Contain("Unpaired or unknown Shared coordination files");
+                    File.Exists(SharedCoordinationFallback.LivePath(file)).Should().BeFalse();
                 }
                 File.ReadAllBytes(page).Should().Equal(foreign);
                 using (var cold = new LiteDatabase(file))
