@@ -2,22 +2,38 @@
 
 ## Shared diagnostics and mode admission
 
-`SharedEngine.GetDiagnostics()` reports a typed read path, fallback reason, cache
+`LiteDatabase.GetSharedDiagnostics()` exposes diagnostics for `Connection=shared`
+connections; non-Shared engines return null. `SharedEngine.GetDiagnostics()` reports a typed read path, fallback reason, cache
 hits/misses, active leases and process-local participant/writer counters.
 `LiteDB-Shared` publishes lifecycle events; exception reasons omit stack traces.
 
 **Compatibility change for writable Direct connections:** file engines now open
 a persistent `<database>-shared-mode` sidecar even if Shared has never been used.
-The directory must permit its creation (or the existing sidecar must be writable).
-Unavailable guards fail with `SharedModeConflictException`, an `IOException`
-with the filesystem cause retained. On Unix, disabling .NET file-sharing locks
+The directory must permit its creation; existing guard and participation files
+need only read access for Direct admission. Conflicts/unavailable authorities fail
+with `DatabaseAdmissionException`, an `IOException` retaining the cause and native
+error code. Missing-directory, path-length and permission errors retain their
+ordinary exception types. Windows sharing/lock conflicts receive bounded retries. On Unix, disabling .NET file-sharing locks
 now rejects writable Direct as well as Shared/Coordinated access. There is no
 bypass based on absent Shared files: it would race a later mapped attachment.
+There is deliberately no LiteDB opt-out for disabled OS locking. If another
+component needs that process-wide setting, use a separate process with file
+locking enabled for file-backed LiteDB.
+
+A second writable Direct connection to the same path is now rejected on Unix too;
+previous .NET sharing behavior could admit both writers. For reading in a directory
+that cannot create files (including a read-only container mount), use `ReadOnly=true`
+instead of opening a default writable connection and issuing only read queries.
 
 The guard remains after close. Offline backups may omit it, and offline cleanup
 may delete it; never delete or replace it while connections are open. Private
 rebuild/upgrade candidates do not create their own guard files. No data/WAL
-format migration is involved. Read-only Shared connections do not initialize or
+format migration is involved. Writable Shared connections acquire admission even
+for their first read and retain it through streaming snapshot disposal. Rejected
+participants do not revoke peers and can retry after the conflict ends.
+An orphan `-shared-state` blocks Direct with its filename and offline cleanup
+instructions; see [orphan recovery](shared-mode-safety.md#orphan-coordination-recovery).
+Read-only Shared connections do not initialize or
 rewrite mode identities; absent/mismatched identities retain protected reads.
 Direct read-only and protected read-only access are outside the mode-mixing
 rejection guarantee. See [mode admission and limitations](shared-mode-safety.md#diagnostics-and-mode-admission).

@@ -12,6 +12,23 @@ namespace LiteDB.Tests.Engine
     public class DirectModeAdmission_Tests
     {
         [Fact]
+        public void Connection_string_shared_diagnostics_do_not_open_storage()
+        {
+            using var file = new TempFile();
+            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared }))
+            {
+                db.GetSharedDiagnostics().Should().NotBeNull();
+                db.GetSharedDiagnostics().CoordinatedReadHits.Should().Be(0);
+                File.Exists(file.Filename).Should().BeFalse();
+                File.Exists(file.Filename + "-shared-mode").Should().BeFalse();
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            }
+            using var direct = new LiteDatabase(file.Filename);
+            direct.GetSharedDiagnostics().Should().BeNull();
+            direct.GetCollection("rows").Count().Should().Be(1);
+        }
+
+        [Fact]
         public void Missing_directory_retains_ordinary_path_exception()
         {
             using var file = new TempFile();

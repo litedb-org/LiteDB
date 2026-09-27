@@ -99,8 +99,9 @@ recovers the WAL as usual.
 
 ## Diagnostics and mode admission
 
-Retain the `SharedEngine` passed to `LiteDatabase` and call `GetDiagnostics()` to
-observe the connection without opening storage. `ReadPath` uses the
+For `Connection=shared`, call `LiteDatabase.GetSharedDiagnostics()`; it returns
+null for other engines. A retained `SharedEngine` also exposes `GetDiagnostics()`.
+Both observe the connection without opening storage. `ReadPath` uses the
 `SharedReadPath` enum: `Uninitialized`,
 `Protected`, `Mapped`, `Revoked`, or `Disposed`. `Mapped` means a usable authority
 is attached; an individual query can still need the protected path, so consult
@@ -125,11 +126,17 @@ Modern writable file engines and mapped participants hold an OS file-sharing
 lease on `<database>-shared-mode`. Direct writers require exclusive admission;
 Shared participants share a lease bound to the effective mutex name. Different
 mutex strategies that resolve to the same name remain compatible. Detectable
-conflicts and guard access failures throw the public `SharedModeConflictException`
+conflicts and unavailable authorities throw the public `DatabaseAdmissionException`
 (an `IOException`, retaining the underlying cause in `InnerException`) before
 opening writable storage, including
 upgrade/recovery, and Direct rebuild keeps its admission through replacement.
-Mapped streaming snapshots retain admission after their connection is disposed.
+A writable Shared connection's admission intent survives its read-only snapshot
+settings: even the first streaming read initializes/holds admission. Streaming
+snapshots retain admission after their connection is disposed. Admission is held
+before fallback revocation and through engine open. A rejected participant cannot
+revoke peers or permanently disable its own mapped path. Ordinary missing-directory,
+path-length and permission exceptions retain their types; Windows sharing/lock
+violations retain their native codes for bounded retries.
 Process termination releases the OS lease automatically. An incomplete idle
 identity can be rewritten only after obtaining exclusive admission. An unknown
 identity is preserved and refuses Shared writes instead of truncating an unrelated
@@ -169,14 +176,28 @@ file, even for databases that have never used Shared. Skipping admission until a
 Shared artifact appears would race a Shared participant arriving after Direct
 opens. Guard creation/open failures stop access before data/WAL mutation; there
 is no best-effort bypass. The directory must permit creating the sidecar, or an
-existing sidecar must be writable. Disabling .NET file-sharing locks on Unix now
+existing sidecar must be readable (Direct requires an exclusive lease, not write access). Disabling .NET file-sharing locks on Unix now
 rejects writable Direct too, with an error naming Direct admission. NFS/SMB
-workarounds that disable locks do not satisfy this contract.
+workarounds that disable locks do not satisfy this contract. There is deliberately
+no LiteDB-level bypass; if another component needs disabled locking, isolate it
+from file-backed LiteDB in a separate process. A second writable Direct connection
+is now rejected on Unix as well. For directories that cannot create guard files,
+open with `ReadOnly=true` when only reads are intended.
 
 Offline backup/copy tools can omit the guard because it contains no database
 state. Deleting the database file alone leaves it behind; delete it only after
 all users of that database path have closed. Do not remove a live guard to work
 around an admission error. See the [release notes](release-notes.md).
+
+### Orphan coordination recovery
+
+If `<database>-shared-state` exists without `-shared-live`, Direct admission fails
+closed. The error names the orphan file. Stop **all** processes and connections
+using that database path before removing the orphan `-shared-state`; preserve the
+database, WAL, backups and rebuild-recovery markers. Retry only after cleanup is
+offline. Do not remove sidecars under live readers or writers. Permission failures
+must be corrected rather than treated as missing files. Direct uses managed file
+metadata checks here and does not depend on the mapped fast-path native probe.
 
 [SharedModeDiagnostics_Tests](../LiteDB.Tests/Engine/SharedModeDiagnostics_Tests.cs)
 checks the public observations, lifecycle events, conflicting writers in real
