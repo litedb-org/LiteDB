@@ -45,11 +45,7 @@ namespace LiteDB.Client.Shared
         internal static void Revoke(string filename)
         {
             if (File.Exists(DisabledPath(filename))) return;
-            using (var marker = new FileStream(DisabledPath(filename), FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite))
-            {
-                var bytes = BitConverter.GetBytes(Magic);
-                marker.Write(bytes, 0, bytes.Length);
-            }
+            SharedCoordinationFile.Publish(DisabledPath(filename), BitConverter.GetBytes(Magic));
         }
 
         /// <summary>Caller owns the database mutex and has closed its participation handle.</summary>

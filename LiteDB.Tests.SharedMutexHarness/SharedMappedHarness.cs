@@ -28,6 +28,13 @@ internal static class SharedMappedHarness
         var rows = database.GetCollection("docs");
         for (var i = 0; i < 3; i++)
             if (rows.FindById(0)["value"].AsInt32 != 0) throw new Exception("Incorrect warm snapshot");
+        if (mode == "mapped-control-create" && args[4].StartsWith("-shared-disabled:", StringComparison.Ordinal))
+        {
+            database.BeginTrans();
+            typeof(SharedEngine).Assembly.GetType("LiteDB.Client.Shared.SharedCoordinationFallback")!
+                .GetMethod("Revoke", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { filename });
+            throw new Exception("Expected revocation publication boundary");
+        }
         var owner = typeof(SharedEngine).GetField("_owner", Private)!.GetValue(engine)!;
         owner.GetType().GetMethod("WaitForRelease")!.Invoke(owner, null);
         if (mode == "mapped-slot-half")

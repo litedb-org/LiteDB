@@ -19,7 +19,7 @@ namespace LiteDB.Internals
 
         public static System.Collections.Generic.IEnumerable<object[]> CreationBoundaries()
         {
-            foreach (var suffix in new[] { "-shared-live", "-shared-state" })
+            foreach (var suffix in new[] { "-shared-live", "-shared-state", "-shared-disabled" })
                 foreach (var stage in new[] { "created", "written", "flushed", "published" })
                     foreach (var password in new[] { null, "secret" })
                         yield return new object[] { suffix, stage, password };
@@ -128,7 +128,7 @@ namespace LiteDB.Internals
                         rows[id]["_id"].AsInt32.Should().Be(id);
                         rows[id]["value"].AsInt32.Should().Be(name == "docs" ? revision : 0);
                         rows[id]["payload"].AsString.Should().Be(new string('x', 3000));
-                        database.GetCollection(name).FindById(id).Should().BeEquivalentTo(rows[id]);
+                        database.GetCollection(name).FindById(id).ToString().Should().Be(rows[id].ToString());
                     }
                 }
             }

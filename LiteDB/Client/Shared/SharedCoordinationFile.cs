@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -18,7 +17,9 @@ namespace LiteDB.Client.Shared
             // Same-directory rename publishes complete contents without replacing
             // an unknown destination. A killed process can leave an ignored temp
             // file, never a partially initialized authority at the final path.
-            var temporary = Path.Combine(Path.GetDirectoryName(path), ".litedb-control-" + Guid.NewGuid().ToString("N"));
+            // At most 21 characters: even a one-character database name at the
+            // existing 239-character Windows limit keeps this path below MAX_PATH.
+            var temporary = Path.Combine(Path.GetDirectoryName(path), ".ldb-" + Guid.NewGuid().ToString("N").Substring(0, 16));
             var created = false;
             try
             {
@@ -54,4 +55,3 @@ namespace LiteDB.Client.Shared
         }
     }
 }
-#endif
