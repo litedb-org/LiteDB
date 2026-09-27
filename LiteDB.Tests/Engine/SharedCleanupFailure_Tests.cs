@@ -44,22 +44,30 @@ namespace LiteDB.Tests.Engine
         public void Page_finalization_contains_managed_disposal_errors_and_releases_participation()
         {
             using var file = new MappedTestFile();
+            var failing = AbandonPage(file, out var page);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            page.IsAlive.Should().BeFalse();
+            failing.Closed.Should().BeTrue();
+            using var exclusive = new FileStream(SharedCoordinationFallback.LivePath(file), FileMode.Open,
+                FileAccess.ReadWrite, FileShare.None);
+            GC.KeepAlive(failing);
+        }
+
+        // A separate frame prevents JIT/AOT lifetime extension from retaining the page.
+        // Keep the injected stream alive so only the page's real finalizer can close it.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static FailingStream AbandonPage(string file, out WeakReference reference)
+        {
             var page = SharedCoordinationPage.Open(file);
             var original = Field<FileStream>(page, "_participation");
             var failing = new FailingStream(SharedCoordinationFallback.LivePath(file));
             typeof(SharedCoordinationPage).GetField("_participation", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(page, failing);
             original.Dispose();
-            Action finalize = () => typeof(SharedCoordinationPage).GetMethod("Finalize",
-                BindingFlags.Instance | BindingFlags.NonPublic).Invoke(page, null);
-            try
-            {
-                finalize.Should().NotThrow();
-                failing.Closed.Should().BeTrue();
-                using var exclusive = new FileStream(SharedCoordinationFallback.LivePath(file), FileMode.Open,
-                    FileAccess.ReadWrite, FileShare.None);
-            }
-            finally { GC.SuppressFinalize(page); }
+            reference = new WeakReference(page);
+            return failing;
         }
 
         [MappedTheory]

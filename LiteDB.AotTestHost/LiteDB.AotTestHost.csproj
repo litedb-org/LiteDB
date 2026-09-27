@@ -60,14 +60,11 @@
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
   <Target Name="PublishMvccProbe" AfterTargets="Publish">
+    <!-- Published test hosts do not have an installed dotnet host beside their runtime.
+         Ship a child with the same framework/runtime/architecture and keep its runtime guards. -->
     <MSBuild Projects="../LiteDB.Tests.SharedMutexHarness/SharedMutexHarness.csproj"
-             Targets="Restore;Build"
-             Properties="Configuration=$(Configuration);TestingEnabled=true;RuntimeIdentifier=;SelfContained=false;PublishAot=false;PublishTrimmed=false"
-             RemoveProperties="TargetFramework;HostTargetFramework" />
-    <ItemGroup>
-      <MvccProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.SharedMutexHarness/bin/$(Configuration)/net8.0/*" />
-    </ItemGroup>
-    <Error Condition="'@(MvccProbeFiles)' == ''" Text="MVCC probe output not found." />
-    <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(PublishDir)mvcc-probe" />
+             Targets="Restore;Publish"
+             Properties="Configuration=$(Configuration);TestingEnabled=true;TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);RuntimeFrameworkVersion=$(RuntimeFrameworkVersion);SelfContained=true;PublishAot=false;PublishTrimmed=false;PublishDir=$(PublishDir)mvcc-probe/"
+             RemoveProperties="HostTargetFramework" />
   </Target>
 </Project>

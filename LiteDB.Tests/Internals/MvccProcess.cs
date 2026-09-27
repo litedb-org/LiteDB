@@ -21,6 +21,11 @@ namespace LiteDB.Internals
             var runtime = new DirectoryInfo(RuntimeEnvironment.GetRuntimeDirectory());
             var host = Path.Combine(runtime.Parent.Parent.Parent.FullName,
                 RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "dotnet.exe" : "dotnet");
+            var probeDirectory = Path.Combine(AppContext.BaseDirectory, "mvcc-probe");
+            var selfContained = File.Exists(Path.Combine(probeDirectory, "System.Private.CoreLib.dll"));
+            if (selfContained)
+                host = Path.Combine(probeDirectory, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? "SharedMutexHarness.exe" : "SharedMutexHarness");
             var start = new ProcessStartInfo(host)
             {
                 UseShellExecute = false,
@@ -33,9 +38,12 @@ namespace LiteDB.Internals
             if (disableMappedReads) start.Environment["LITEDB_DISABLE_SHARED_MAPPED_READS"] = "1";
             start.Environment["LITEDB_MVCC_RUNTIME"] = Environment.Version.ToString();
             start.Environment["LITEDB_MVCC_ARCHITECTURE"] = RuntimeInformation.ProcessArchitecture.ToString();
-            start.ArgumentList.Add("--fx-version");
-            start.ArgumentList.Add(Environment.Version.ToString());
-            start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "mvcc-probe", "SharedMutexHarness.dll"));
+            if (!selfContained)
+            {
+                start.ArgumentList.Add("--fx-version");
+                start.ArgumentList.Add(Environment.Version.ToString());
+                start.ArgumentList.Add(Path.Combine(probeDirectory, "SharedMutexHarness.dll"));
+            }
             foreach (var arg in new[] { "mvcc", mode, filename, password ?? "-" }) start.ArgumentList.Add(arg);
             if (value != null) start.ArgumentList.Add(value);
             _process = Process.Start(start);
