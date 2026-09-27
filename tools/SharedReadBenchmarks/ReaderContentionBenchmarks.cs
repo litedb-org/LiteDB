@@ -122,14 +122,15 @@ internal static class ReaderContentionBenchmarks
                 minimum = observed;
             }
         }
-        void AwaitArrival(Stopwatch timer, int completed)
+        void AwaitArrival(Stopwatch timer, int completed, int deadlineMs)
         {
             if (intervalMs == 0) return;
-            while (timer.Elapsed.TotalMilliseconds < completed * intervalMs) Thread.Sleep(1);
+            var arrival = Math.Min(completed * intervalMs, deadlineMs);
+            while (timer.Elapsed.TotalMilliseconds < arrival) Thread.Sleep(1);
         }
         while (clock.Elapsed.TotalMilliseconds < warmupMs)
         {
-            AwaitArrival(clock, warmupCount);
+            AwaitArrival(clock, warmupCount, warmupMs);
             if (clock.Elapsed.TotalMilliseconds >= warmupMs) break;
             Operation(); warmupCount++;
         }
@@ -144,7 +145,7 @@ internal static class ReaderContentionBenchmarks
         var active = Stopwatch.StartNew();
         while (active.Elapsed.TotalMilliseconds < measureMs)
         {
-            AwaitArrival(active, samples.Count);
+            AwaitArrival(active, samples.Count, measureMs);
             if (active.Elapsed.TotalMilliseconds >= measureMs) break;
             var intended = intervalMs == 0 ? active.Elapsed.TotalMilliseconds : samples.Count * intervalMs;
             var before = Stopwatch.GetTimestamp();

@@ -166,20 +166,24 @@ jobs:
           python-version: '3.x'
       - name: Build production libraries and identical runners
         shell: pwsh
+        env:
+          READER_FRAMEWORK: ${{ matrix.framework }}
+          PROFILE_OWNERSHIP: ${{ inputs.profile_ownership }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ($env:READER_FRAMEWORK -notin @('net8.0', 'net10.0')) { throw 'Unsupported reader framework' }
           $baseSha = git -C baseline rev-parse HEAD
           git -C candidate merge-base --is-ancestor $baseSha HEAD
           if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
-          if ('${{ inputs.profile_ownership }}' -eq 'true') {
+          if ($env:PROFILE_OWNERSHIP -eq 'true') {
             python candidate/scripts/instrument-shared-ownership.py baseline candidate --output ownership-profile.patch
             if ($LASTEXITCODE) { throw 'Ownership instrumentation failed' }
           }
           foreach ($variant in @('baseline', 'candidate')) {
-            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f $env:READER_FRAMEWORK -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
-            $library = Join-Path $PWD "$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
-            dotnet build candidate/tools/SharedReadBenchmarks -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
+            $library = Join-Path $PWD "$variant/LiteDB/bin/Release/$env:READER_FRAMEWORK/LiteDB.dll"
+            dotnet build candidate/tools/SharedReadBenchmarks -c Release -f $env:READER_FRAMEWORK "-p:LiteDBAssembly=$library" -o "runner-$variant"
             if ($LASTEXITCODE) { throw "Runner build failed: $variant" }
           }
           New-Item -ItemType Directory evidence | Out-Null
@@ -190,13 +194,14 @@ jobs:
       - name: Concurrent reader production pairs
         shell: pwsh
         env:
+          READER_ACTIVITY: ${{ matrix.activity }}
           READER_SCENARIOS: ${{ inputs.reader_scenarios || 'point medium large' }}
           READER_COUNTS: ${{ inputs.reader_counts || '1 4' }}
           READER_INTERVAL: ${{ inputs.reader_interval_ms || 0 }}
         run: |
           $scenarios = $env:READER_SCENARIOS -split ' '
           $counts = $env:READER_COUNTS -split ' '
-          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --reader-interval-ms $env:READER_INTERVAL --scenarios @scenarios --readers @counts
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity $env:READER_ACTIVITY --reader-interval-ms $env:READER_INTERVAL --scenarios @scenarios --readers @counts
           if ($LASTEXITCODE) { throw 'Reader comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
