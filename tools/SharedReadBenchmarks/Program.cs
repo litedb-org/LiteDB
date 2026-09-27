@@ -221,6 +221,13 @@ internal static class Program
         if (changesRows)
             for (var id = 1; id <= Rows; id++) Validate(rows.FindById(id), id, expected);
 
+        // Verify an explicitly requested protected-path measurement outside timing.
+        // Reflection keeps this runner compatible with older production baselines.
+        var coordinationFallbackReason = engine.GetType().GetProperty("CoordinationFallbackReason")?.GetValue(engine) as string;
+        if (mode == "shared" && Environment.GetEnvironmentVariable("LITEDB_DISABLE_SHARED_MAPPED_READS") == "1" &&
+            (coordinationFallbackReason == null || !coordinationFallbackReason.Contains("LiteDB.DisableSharedMappedReads")))
+            throw new InvalidOperationException("Protected-read benchmark did not disable mapped attachment.");
+
         var log = Path.Combine(Path.GetDirectoryName(filename),
             Path.GetFileNameWithoutExtension(filename) + "-log" + Path.GetExtension(filename));
         long LogBytes() => File.Exists(log) ? new FileInfo(log).Length : 0;
@@ -245,7 +252,7 @@ internal static class Program
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
-            mode, scenario, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
+            mode, scenario, coordinationFallbackReason, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
             coldMs, meanMs = samples.Average(), windows,
             p50Ms = samples[count / 2], p95Ms = samples[Math.Min(count - 1, (int)(count * 0.95))], worstMs = samples[count - 1], p99Ms = samples[Math.Min(count - 1, (int)(count * 0.99))],
             bytesPerOperation = bytes / (double)count, cpuMsPerOperation = cpuMs / count,
