@@ -56,3 +56,30 @@ The broader Shared/MVCC/recovery suites and finite campaigns remain required.
 Process death does not simulate loss of the OS cache; persistence-fault tests cover
 their own explicit lost/torn-write and failed-flush models. Cross-platform results
 must name their actual tested runtime and architecture.
+
+## Initial Linux .NET 10 results
+
+Five alternating pairs, 10-second warmup and 10-second measured interval,
+4 reader processes and one unthrottled writer (200-document durable transaction).
+Values are medians; paired changes use an exploratory deterministic bootstrap.
+
+| Comparison / readers | Writer transactions/s | Writer p99 ms | Reader calls/s |
+| --- | --- | --- | --- |
+| Archived → acquire loads, point | 23.48 → 23.72 | 50.89 → 50.23 | 829 → 940 |
+| Merged → combined, point | 23.20 → 23.49 | 52.76 → 50.41 | 217 → 929 |
+| Merged → combined, large scan | 22.58 → 22.59 | 53.11 → 53.69 | 90.20 → 94.10 |
+
+Combined is library `ad7de069d`: loads, duplicate removal, monotonic publication,
+reuse batching and timer changes. In the large-scan comparison writer throughput
+changes −0.24% [−0.68, +0.08], while writer p99 changes +3.52% [−2.17, +8.28].
+The latter is inconclusive, not proof of a 5% equivalence bound. Point readers use
+15.7% more aggregate process CPU while completing 4.15 times as many reads.
+
+These local runs do not reproduce the archived hosted regression magnitude.
+The original Linux .NET 10 hosted point results have 68.44 → 56.76 writer
+transactions/s and 379 → 12,181 reader calls/s; Windows large scans have
+44.02 → 33.92 writer transactions/s and 163 → 616 reader calls/s. Their raw
+reports were inspected. The local host's lower reader concurrency and different
+I/O timings make hosted qualification necessary before claiming the writer problem
+is solved. Hardware performance counters are unavailable (`perf_event_paranoid=4`);
+no system permissions were changed to collect them.

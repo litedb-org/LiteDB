@@ -14,6 +14,11 @@ on:
         default: standard
         type: choice
         options: [standard, readers, contention]
+      reader_interval_ms:
+        description: 'Per-reader offered interval for reader comparisons (0 saturates)'
+        required: false
+        default: 0
+        type: number
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
@@ -160,7 +165,7 @@ jobs:
       - name: Concurrent reader production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }}
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --reader-interval-ms ${{ inputs.reader_interval_ms || 0 }}
           if ($LASTEXITCODE) { throw 'Reader comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
