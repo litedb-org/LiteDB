@@ -130,7 +130,8 @@ namespace LiteDB.Engine
                 _pragmas[Pragmas.CHECKPOINT] = buffer.ReadInt32(EnginePragmas.P_CHECKPOINT);
                 _pragmas[Pragmas.TIMEOUT] = buffer.ReadInt32(EnginePragmas.P_TIMEOUT);
                 _pragmas[Pragmas.UTC_DATE] = buffer.ReadBool(EnginePragmas.P_UTC_DATE);
-                _pragmas[Pragmas.LIMIT_SIZE] = buffer.ReadInt64(EnginePragmas.P_LIMIT_SIZE);
+                var limit = buffer.ReadInt64(EnginePragmas.P_LIMIT_SIZE);
+                _pragmas[Pragmas.LIMIT_SIZE] = limit == 0 ? long.MaxValue : limit;
             }
             else
             {

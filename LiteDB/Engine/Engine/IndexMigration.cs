@@ -16,12 +16,13 @@ namespace LiteDB.Engine
                 return;
             }
 
+            this.ValidateLegacyCollation(migrating: true);
             if (_settings.ReadOnly)
             {
                 // The stale ordering stays visible through EnginePragmas.IndexesOrdered;
                 // queries then use full scans instead of seeking these indexes.
                 if (_settings.LegacyIndexScan) return;
-                throw new LiteException(0, "Database index ordering/collation requires migration. " +
+                throw new LiteException(LiteException.COLLATION_MISMATCH, "Database index ordering/collation requires migration. " +
                     "Open the database writable once to automatically rebuild its indexes, or add " +
                     "`legacy index scan=true` (LegacyIndexScan) to this read-only connection to query " +
                     "it with full scans instead of its indexes.");
@@ -29,7 +30,6 @@ namespace LiteDB.Engine
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
-            this.ValidateLegacyCollation(migrating: true);
             var capacity = new IndexMigrationCapacity(_header, _settings.IndexMigrationLimitSize);
             var validation = _monitor.GetTransaction(true, true, out _);
             try
@@ -173,7 +173,7 @@ namespace LiteDB.Engine
                 var dataBlock = primary.DataBlock;
                 using (var reader = new BufferReader(data.Read(dataBlock)))
                 {
-                    var document = reader.ReadDocument().GetValue();
+                    var document = ReadMigrationDocument(reader, snapshot.CollectionName, dataBlock);
                     var last = indexer.GetNodeList(position).Last();
                     foreach (var key in index.BsonExpr.GetIndexKeys(document, _header.Pragmas.Collation))
                         last = indexer.AddNode(index, key, dataBlock, last);
@@ -191,7 +191,7 @@ namespace LiteDB.Engine
             foreach (var node in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
             {
                 using (var reader = new BufferReader(data.Read(node.DataBlock)))
-                    index.BsonExpr.ExecuteScalar(reader.ReadDocument().GetValue(), _header.Pragmas.Collation);
+                    index.BsonExpr.ExecuteScalar(ReadMigrationDocument(reader, snapshot.CollectionName, node.DataBlock), _header.Pragmas.Collation);
                 capacity.AddVectorDocument(snapshot.CollectionPage.GetVectorIndexMetadata(index.Name).Dimensions);
                 snapshot.Safepoint();
             }
@@ -207,7 +207,7 @@ namespace LiteDB.Engine
                 var position = node.Position;
                 using (var reader = new BufferReader(data.Read(node.DataBlock)))
                 {
-                    var document = reader.ReadDocument().GetValue();
+                    var document = ReadMigrationDocument(reader, snapshot.CollectionName, node.DataBlock);
                     foreach (var key in index.BsonExpr.GetIndexKeys(document, _header.Pragmas.Collation))
                     {
                         if (key.IsMinValue || key.IsMaxValue ||

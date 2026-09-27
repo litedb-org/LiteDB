@@ -23,8 +23,8 @@ namespace LiteDB.Tests.Issues
             bytes[EnginePragmas.P_COLLATION_STAMP] ^= 1;
             PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
-            Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly }); };
-            open.Should().Throw<LiteException>().WithMessage("*collation*Rebuild*");
+            Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly, AutoRebuild = true }); };
+            open.Should().Throw<LiteException>().Where(ex => ex.ErrorCode == LiteException.COLLATION_MISMATCH).WithMessage("*collation*Rebuild*");
             File.ReadAllBytes(file.Filename).Should().Equal(bytes);
         }
 

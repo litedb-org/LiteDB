@@ -45,6 +45,8 @@ namespace LiteDB
         public const int REBUILD_INCOMPLETE = 139;
         /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
         public const int CHECKSUM_MISMATCH = 140;
+        /// <summary>Persisted index ordering is incompatible with this comparer or runtime.</summary>
+        public const int COLLATION_MISMATCH = 141;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;

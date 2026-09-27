@@ -20,7 +20,7 @@ namespace LiteDB.Tests.Issues
                 var settings = new EngineSettings
                 {
                     Filename = filename,
-                    AutoRebuild = true,
+                    AutoRebuild = false,
                 };
 
                 try
@@ -39,13 +39,14 @@ namespace LiteDB.Tests.Issues
                     Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
                 }
 
+                settings.AutoRebuild = true;
                 using (var db = new LiteEngine(settings))
                 {
                     var col = db.Query("customers", Query.All()).ToList().Count;
                     var errors = db.Query("_rebuild_errors", Query.All()).ToList().Count;
 
                     col.Should().Be(4);
-                    errors.Should().Be(0);
+                    errors.Should().Be(1, "the opening corruption diagnostic is retained in the recovery report");
                 }
             }
         }
@@ -61,7 +62,7 @@ namespace LiteDB.Tests.Issues
                 {
                     Filename = filename,
                     Password = "bzj2NplCbVH/bB8fxtjEC7u0unYdKHJVSmdmPgArRBwmmGw0+Wd2tE+b2zRMFcHAzoG71YIn/2Nq1EMqa5JKcQ==",
-                    AutoRebuild = true,
+                    AutoRebuild = false,
                 };
 
                 try
@@ -80,13 +81,14 @@ namespace LiteDB.Tests.Issues
                     Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
                 }
 
+                settings.AutoRebuild = true;
                 using (var db = new LiteEngine(settings))
                 {
                     var col = db.Query("hubData$AppOperations", Query.All()).ToList().Count;
                     var errors = db.Query("_rebuild_errors", Query.All()).ToList().Count;
 
                     col.Should().Be(408);
-                    errors.Should().Be(0);
+                    errors.Should().Be(1, "the opening corruption diagnostic is retained in the recovery report");
                 }
             }
         }

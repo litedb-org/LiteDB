@@ -81,7 +81,7 @@ namespace LiteDB.Engine
 
         #region Open & Close
 
-        internal bool Open()
+        internal bool Open(bool allowOpeningRebuild = true)
         {
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
@@ -116,7 +116,7 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && !_settings.ReadOnly && allowOpeningRebuild)
                 {
                     // Announce replacement before checking the external leases: a
                     // later admission must not pass a scan that permitted rebuilding.
@@ -174,7 +174,22 @@ namespace LiteDB.Engine
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
-                this.MigrateIndexOrdering();
+                try
+                {
+                    this.MigrateIndexOrdering();
+                }
+                catch (LiteException ex) when (ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
+                {
+                    // Opening validation is inspection. Do not stamp or checkpoint a
+                    // rejected source, including a read-only file requested for salvage.
+                    using var structural = new StructuralScope(_settings.CoordinationSignals);
+                    var recover = allowOpeningRebuild && _settings.AutoRebuild && !_settings.ReadOnly &&
+                        !string.IsNullOrEmpty(_settings.Filename) && (_settings.AutoRebuildAllowed?.Invoke() ?? true);
+                    this.Close(checkpoint: false);
+                    if (!recover) throw;
+                    this.Recovery(_header.Pragmas.Collation, ex);
+                    return this.Open(allowOpeningRebuild: false);
+                }
                 _disk.TrimTrailingPages();
 
                 // register system collections

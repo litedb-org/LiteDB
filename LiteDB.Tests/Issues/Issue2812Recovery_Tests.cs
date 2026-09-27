@@ -30,7 +30,7 @@ namespace LiteDB.Tests.Issues
             bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
             PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
-            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true, ReadOnly = true };
+            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
             if (conflict)
             {
                 Action open = () => { using var db = new LiteDatabase(settings); };
@@ -70,9 +70,11 @@ namespace LiteDB.Tests.Issues
             Array.Copy(BitConverter.GetBytes((int)CompareOptions.IgnoreCase), 0, bytes, EnginePragmas.P_COLLATION_SORT, 4);
             PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
-            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
+            var settings = new ConnectionString { Filename = file.Filename };
             Action open = () => { using var db = new LiteDatabase(settings); };
             open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(999);
+            File.ReadAllBytes(file.Filename).Should().Equal(bytes);
+            settings.AutoRebuild = true;
             using var recovered = new LiteDatabase(settings);
             recovered.GetCollection("before").Count().Should().Be(2);
             recovered.GetCollection("loop").Count().Should().Be(1);
