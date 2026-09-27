@@ -93,10 +93,18 @@ namespace LiteDB.Engine
             var indexEntered = false;
             var commitEntered = false;
             var writerEntered = false;
+            var structural = false;
             object commitLock = null;
             try
             {
                 commitLock = _getCommitLock();
+                // A coordinator's clients open snapshots without a lock: tell them before
+                // the lease scan, so a snapshot registered after it is never accepted.
+                if (_signals != null)
+                {
+                    _signals.StructuralBegin();
+                    structural = true;
+                }
                 // Scanning lease files is filesystem work; keep it outside the index
                 // lock. The database mutex already orders it with lease registration.
                 var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
@@ -178,6 +186,7 @@ namespace LiteDB.Engine
                 if (indexEntered) _indexLock.ExitWriteLock();
                 if (commitEntered) System.Threading.Monitor.Exit(commitLock);
                 if (mustExit) _locker.ExitExclusive();
+                if (structural) _signals.StructuralEnd(_currentReadVersion);
             }
         }
     }

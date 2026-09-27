@@ -31,13 +31,14 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Flush to disk through engine wrappers, using FileStream.Flush(true) at the file boundary.
+        /// Flush to disk through engine wrappers. At the file boundary, <see cref="NativeFileSync"/>
+        /// syncs the descriptor so that Unix sync failures are reported (FileStream.Flush(true) loses them).
         /// </summary>
         public static void FlushToDisk(this Stream stream)
         {
             if (stream is FileStream fstream)
             {
-                fstream.Flush(true);
+                NativeFileSync.FlushToDisk(fstream);
             }
             else if (stream is AesStream encrypted)
             {

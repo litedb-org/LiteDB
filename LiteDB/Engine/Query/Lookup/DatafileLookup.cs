@@ -11,6 +11,7 @@ namespace LiteDB.Engine
         protected readonly DataService _data;
         protected readonly bool _utcDate;
         protected readonly HashSet<string> _fields;
+        private BufferReader _materializer;
 
         public DatafileLookup(DataService data, bool utcDate, HashSet<string> fields)
         {
@@ -30,14 +31,21 @@ namespace LiteDB.Engine
         {
             BorrowedQueryDiagnostics.Materialized();
 
-            using (var reader = new BufferReader(_data.Read(rawId), _utcDate))
+            // A lookup belongs to one query and reads synchronously. Reuse its
+            // cursor, clearing the borrowed page reference after every document.
+            var reader = _materializer;
+            if (reader == null) _materializer = reader = new BufferReader(_data, _utcDate);
+            else reader.FieldNames ??= new BsonFieldNameCache();
+            try
             {
+                reader.Reset(rawId);
                 var doc = _data.ReadDocument(reader, _fields, _utcDate, rawId).GetValue();
 
                 doc.RawId = rawId;
 
                 return doc;
             }
+            finally { reader.Dispose(); }
         }
 
         internal bool TryEvaluate(IndexNode node, BorrowedDocumentReader documentReader,

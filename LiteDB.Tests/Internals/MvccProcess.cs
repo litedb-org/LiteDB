@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using FluentAssertions;
 
@@ -12,16 +13,28 @@ namespace LiteDB.Internals
         private readonly Process _process;
         private readonly Task<string> _errors;
 
-        internal MvccProcess(string mode, string filename, string password, string value = null)
+        internal MvccProcess(string mode, string filename, string password, string value = null, bool disableFileLocking = false, bool disableMappedReads = false)
         {
-            var start = new ProcessStartInfo("dotnet")
+            // Use the host beside the runtime executing this test, including
+            // isolated CI installations and Windows x86. PATH may select x64
+            // or a newer major runtime even when the parent guard is correct.
+            var runtime = new DirectoryInfo(RuntimeEnvironment.GetRuntimeDirectory());
+            var host = Path.Combine(runtime.Parent.Parent.Parent.FullName,
+                RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "dotnet.exe" : "dotnet");
+            var start = new ProcessStartInfo(host)
             {
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
-            start.Environment["DOTNET_ROLL_FORWARD"] = "LatestMajor";
+            start.Environment["DOTNET_ROLL_FORWARD"] = "Disable";
+            if (disableFileLocking) start.Environment["DOTNET_SYSTEM_IO_DISABLEFILELOCKING"] = "1";
+            if (disableMappedReads) start.Environment["LITEDB_DISABLE_SHARED_MAPPED_READS"] = "1";
+            start.Environment["LITEDB_MVCC_RUNTIME"] = Environment.Version.ToString();
+            start.Environment["LITEDB_MVCC_ARCHITECTURE"] = RuntimeInformation.ProcessArchitecture.ToString();
+            start.ArgumentList.Add("--fx-version");
+            start.ArgumentList.Add(Environment.Version.ToString());
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "mvcc-probe", "SharedMutexHarness.dll"));
             foreach (var arg in new[] { "mvcc", mode, filename, password ?? "-" }) start.ArgumentList.Add(arg);
             if (value != null) start.ArgumentList.Add(value);
@@ -35,6 +48,12 @@ namespace LiteDB.Internals
             if (line == null) throw new Exception(await _errors);
             line.Should().Be(expected);
         }
+
+        /// <summary>Next output line, or null once the process closed its output.</summary>
+        internal Task<string> ReadLine(TimeSpan timeout) =>
+            _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+
+        internal void Send(string command) => _process.StandardInput.WriteLine(command);
 
         internal async Task Finish(bool release = false)
         {

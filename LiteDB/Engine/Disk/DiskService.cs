@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
         private readonly bool _readOnly;
+        private readonly ICoordinationSignals _signals;
         internal bool CompactStorage { get; }
 
         private IStreamFactory _dataFactory;
@@ -46,6 +47,8 @@ namespace LiteDB.Engine
             _state = state;
             _readOnly = settings.ReadOnly;
             _durableCommits = settings.DurableCommits;
+            _sharedDurability = settings.SharedDurability;
+            _signals = settings.CoordinationSignals;
 
             try
             {
@@ -75,6 +78,7 @@ namespace LiteDB.Engine
                     }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
+                    using var structural = new StructuralScope(_signals);
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
                         settings.CompactStorage == CompactStorageMode.Auto);
                     dataLength = _dataFactory.GetLength();
@@ -192,6 +196,8 @@ namespace LiteDB.Engine
         /// </summary>
         internal void MarkAsInvalidState()
         {
+            // Never ended: after error-close no client may open a direct snapshot.
+            _signals?.StructuralBegin();
             FileHelper.TryExec(60, () =>
             {
                 var stream = _dataPool.Writer.Value;
@@ -219,6 +225,24 @@ namespace LiteDB.Engine
         }
 
         #region Sync Read/Write operations
+
+        /// <summary>
+        /// Experimental coordinator: the WAL frames from <paramref name="from"/> to the
+        /// current physical end, validated as <see cref="ReadFull"/> validates them.
+        /// </summary>
+        internal IEnumerable<PageBuffer> ReadLogFrom(long from)
+        {
+            if (!ChecksumsEnabled || !_logFactory.Exists()) yield break;
+            var length = _logFactory.GetLength();
+            if (length <= from) yield break;
+            var reader = (ChecksummedWalStream)_logPool.Rent();
+            try
+            {
+                foreach (var page in WalRetirementReader.Read(reader.RawStream, _checksums, length, null, from))
+                    yield return page;
+            }
+            finally { _logPool.Return(reader); }
+        }
 
         /// <summary>
         /// Read all database pages inside file with no cache using. PageBuffers dont need to be Released

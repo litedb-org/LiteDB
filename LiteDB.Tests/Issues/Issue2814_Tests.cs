@@ -26,7 +26,9 @@ namespace LiteDB.Tests.Issues
                 db.Checkpoint();
                 var errors = new ConcurrentQueue<Exception>();
                 long reads = 0;
-                var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+                // Dedicated threads: a saturated thread pool (parallel test classes on a slow
+                // runner) must not delay the readers' start past the handshake deadline.
+                var readers = Enumerable.Range(0, 4).Select(_ => Task.Factory.StartNew(() =>
                 {
                     ready.Signal();
                     try
@@ -38,11 +40,11 @@ namespace LiteDB.Tests.Issues
                         }
                     }
                     catch (Exception ex) { errors.Enqueue(ex); }
-                })).ToArray();
+                }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
                 var log = Path.ChangeExtension(file.Filename, null) + "-log.db";
                 try
                 {
-                    ready.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    ready.Wait(TimeSpan.FromSeconds(30)).Should().BeTrue("all four readers must be running before the writes");
                     for (var id = 1; id <= 1000; id++)
                     {
                         col.Insert(new BsonDocument { ["_id"] = id, ["payload"] = new string((char)('A' + id % 26), 4000) });
@@ -52,7 +54,7 @@ namespace LiteDB.Tests.Issues
                 finally
                 {
                     stop.Cancel();
-                    Task.WaitAll(readers, TimeSpan.FromSeconds(10)).Should().BeTrue();
+                    Task.WaitAll(readers, TimeSpan.FromSeconds(30)).Should().BeTrue();
                 }
                 errors.Should().BeEmpty();
                 reads.Should().BeGreaterThan(100);

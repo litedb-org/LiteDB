@@ -78,8 +78,21 @@ namespace LiteDB.Engine
         }
 
 #if DEBUG || TESTING
+        /// <summary>
+        /// Test hook: receives the share count of a buffer finalized while still in use (a pinned
+        /// reader page is positive, a transaction's writable page is BUFFER_WRITABLE) instead of
+        /// the assertion terminating the process, so a stress test can count leaks.
+        /// </summary>
+        internal static Action<int> FinalizedInUse;
+
         ~PageBuffer()
         {
+            var hook = FinalizedInUse;
+            if (hook != null)
+            {
+                if (this.ShareCounter != 0) hook(this.ShareCounter);
+                return;
+            }
             ENSURE(this.ShareCounter == 0, $"share count must be 0 in destroy PageBuffer (current: {this.ShareCounter})");
         }
 #endif

@@ -29,6 +29,8 @@ namespace LiteDB.Tests.Issues
                 Assert.False(cursor.MoveNext());
             }
             Assert.False(db.FileStorage.Exists("target"));
+            // A shared connection keeps its writable handles, which exclude direct mode.
+            db.Dispose();
             using var direct = new LiteDatabase(file.Filename);
             Assert.Equal(2, direct.GetCollection("rows").Count());
         }
@@ -51,6 +53,8 @@ namespace LiteDB.Tests.Issues
             }
             if (rollback) Assert.True(db.Rollback());
             else Assert.True(db.Commit());
+            // A shared connection keeps its writable handles, which exclude direct mode.
+            db.Dispose();
             using var direct = new LiteDatabase(file.Filename);
             Assert.Equal(rollback ? 2 : 3, direct.GetCollection("rows").Count());
         }

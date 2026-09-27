@@ -40,6 +40,7 @@ namespace LiteDB.Engine
                 _bufferPool.Return(buffer, true);
             }
             // run rebuild process
+            using var structural = new StructuralScope(_settings.CoordinationSignals);
             this.Recovery(_settings.Collation);
         }
 

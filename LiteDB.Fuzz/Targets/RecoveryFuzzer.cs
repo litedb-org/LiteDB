@@ -37,7 +37,7 @@ internal sealed class RecoveryFuzzer : IFuzzTarget
                         $"Interrupted recovery changed acknowledged row {i}.");
                 recovered.Checkpoint();
             }
-            var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"recovered-{context.Steps}.db"));
+            var file = context.StepFile($"recovered-{context.Steps}.db");
             File.WriteAllBytes(file, data.ToArray());
             DatabaseIntegrityVerifier.Verify(context, file);
             context.ObserveNovelty("recovery-failure", selected.Writes, selected.Persistent, selected.Fired);

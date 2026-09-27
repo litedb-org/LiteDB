@@ -27,6 +27,7 @@ namespace LiteDB.Engine
 
         private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
         private readonly Func<object> _getCommitLock;
+        private readonly ICoordinationSignals _signals;
 
         private int _currentReadVersion = 0;
 
@@ -36,9 +37,10 @@ namespace LiteDB.Engine
         private int _lastTransactionID = 0;
 
         public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, Func<object> getCommitLock = null,
-            CheckpointBackoff backoff = null)
+            CheckpointBackoff backoff = null, ICoordinationSignals signals = null)
         {
             _disk = disk;
+            _signals = signals;
             _locker = locker;
             _sharedReaders = sharedReaders;
             _backoff = backoff ?? new CheckpointBackoff();
@@ -78,6 +80,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Clear()
         {
+            _signals?.StructuralBegin();
             _indexLock.TryEnterWriteLock(-1);
 
             try
@@ -103,6 +106,7 @@ namespace LiteDB.Engine
             finally
             {
                 _indexLock.ExitWriteLock();
+                _signals?.StructuralEnd(0);
             }
         }
 
@@ -175,6 +179,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void ConfirmTransaction(uint transactionID, ICollection<PagePosition> pagePositions, long headerPosition = long.MaxValue)
         {
+            int visible;
             // must lock commit operation to update WAL-Index (memory only operation)
             _indexLock.TryEnterWriteLock(-1);
 
@@ -202,12 +207,13 @@ namespace LiteDB.Engine
                     // add version/position into pageID slot
                     slot.Add(new KeyValuePair<int, long>(_currentReadVersion, pos.Position));
                 }
-
+                visible = _currentReadVersion;
             }
             finally
             {
                 _indexLock.ExitWriteLock();
             }
+            _signals?.Committed(visible);
         }
 
         /// <summary>
@@ -266,21 +272,7 @@ namespace LiteDB.Engine
                     var pageType = (PageType)buffer.ReadByte(BasePage.P_PAGE_TYPE);
 
                     // when a header is modified in transaction, must always be the last page inside log file (per transaction)
-                    if (pageType == PageType.Header && !buffer.WalFrame.Retired)
-                    {
-                        // page buffer instance can't change
-                        var headerBuffer = header.Buffer;
-                        var fileVersion = header.FileVersion;
-
-                        // copy this buffer block into original header block
-                        Buffer.BlockCopy(buffer.Array, buffer.Offset, headerBuffer.Array, headerBuffer.Offset, PAGE_SIZE);
-
-                        // re-load header (using new buffer data)
-                        header = new HeaderPage(headerBuffer);
-                        header.EnsureVersion(fileVersion);
-                        header.TransactionID = uint.MaxValue;
-                        header.IsConfirmed = false;
-                    }
+                    if (pageType == PageType.Header && !buffer.WalFrame.Retired) CopyConfirmedHeader(ref header, buffer);
                 }
 
                 // Keep the greatest observed ID, including abandoned transactions.
@@ -295,11 +287,28 @@ namespace LiteDB.Engine
             {
                 validateHeader?.Invoke(header);
                 _disk.FinishWalRecovery(recovery);
+                this.RecordScan(recovery, positions.Values);
                 var occupied = new HashSet<long>(_index.Values.SelectMany(x => x).Select(x => x.Value));
                 foreach (var position in _disk.Retirement.Slots.Keys)
                     if (!occupied.Contains(position)) _disk.RegisterFreeLogPosition(position);
             }
         }
 
+
+        private static void CopyConfirmedHeader(ref HeaderPage header, PageBuffer buffer)
+        {
+            // page buffer instance can't change
+            var headerBuffer = header.Buffer;
+            var fileVersion = header.FileVersion;
+
+            // copy this buffer block into original header block
+            Buffer.BlockCopy(buffer.Array, buffer.Offset, headerBuffer.Array, headerBuffer.Offset, PAGE_SIZE);
+
+            // re-load header (using new buffer data)
+            header = new HeaderPage(headerBuffer);
+            header.EnsureVersion(fileVersion);
+            header.TransactionID = uint.MaxValue;
+            header.IsConfirmed = false;
+        }
     }
 }
