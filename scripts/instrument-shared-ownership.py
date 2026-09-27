@@ -44,6 +44,8 @@ for root in args.roots:
     record(root, relative, before, after)
     for name, signature, metric in (
         ('SharedEngine.cs', 'private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)', 'Open'),
+        ('SharedMutexTurnstile.cs', 'public void Wait(Mutex mutex)', 'Native'),
+        ('SharedEngine.Query.cs', 'private IBsonDataReader QuerySnapshot(string collection, Query query, LiteEngine snapshot)', 'Query'),
         ('SharedEngine.CoordinatedReads.cs', 'private static void RetireSnapshot(CachedSharedSnapshot snapshot)', 'Retire')):
         relative = Path('LiteDB/Client/Shared') / name
         if not (root / relative).exists() and metric == 'Retire':
@@ -51,7 +53,7 @@ for root in args.roots:
         before = (root / relative).read_text()
         record(root, relative, before, wrap(before, signature, metric))
     helper = 'namespace LiteDB { internal static class SharedReaderProfile {\n'
-    for metric in ('Wait', 'Open', 'Retire'):
+    for metric in ('Wait', 'Open', 'Native', 'Query', 'Retire'):
         helper += (f'internal static long {metric}Ticks, {metric}Count;\n'
                    f'internal static void Record{metric}(long start) {{\n'
                    f'System.Threading.Interlocked.Add(ref {metric}Ticks, System.Diagnostics.Stopwatch.GetTimestamp() - start);\n'
