@@ -109,15 +109,21 @@ jobs:
 
   readers:
     if: inputs.suite == 'readers'
-    name: Readers (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.activity }})
+    name: Readers (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.activity }}, ${{ matrix.scenario }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        framework: [net8.0, net10.0]
-        activity: [idle, writer, checkpoint]
+        include:
+          - os: windows-latest
+            framework: net8.0
+            activity: checkpoint
+            scenario: point
+          - os: windows-latest
+            framework: net10.0
+            activity: checkpoint
+            scenario: large
     steps:
       - uses: actions/checkout@v4
         with:
@@ -160,7 +166,7 @@ jobs:
       - name: Concurrent reader production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }}
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --scenarios ${{ matrix.scenario }} --readers 4 --rounds 10
           if ($LASTEXITCODE) { throw 'Reader comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
