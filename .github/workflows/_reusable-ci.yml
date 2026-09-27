@@ -206,6 +206,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # The v9 compatibility probe builds a historical commit in a worktree.
+          fetch-depth: 0
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
@@ -222,9 +225,6 @@ jobs:
 
       - name: Verify genuine v9 vectors through the storage stack
         run: python scripts/test-v9-compatibility.py
-
-      - name: Restore test-hook assemblies
-        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
