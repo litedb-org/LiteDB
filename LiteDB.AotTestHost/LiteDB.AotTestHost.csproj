@@ -62,9 +62,12 @@
   <Target Name="PublishMvccProbe" AfterTargets="Publish">
     <!-- Published test hosts do not have an installed dotnet host beside their runtime.
          Ship a child with the same framework/runtime/architecture and keep its runtime guards. -->
+    <PropertyGroup>
+      <_MvccProbePublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)', 'mvcc-probe'))</_MvccProbePublishDir>
+    </PropertyGroup>
     <MSBuild Projects="../LiteDB.Tests.SharedMutexHarness/SharedMutexHarness.csproj"
              Targets="Restore;Publish"
-             Properties="Configuration=$(Configuration);TestingEnabled=true;TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);RuntimeFrameworkVersion=$(RuntimeFrameworkVersion);SelfContained=true;PublishAot=false;PublishTrimmed=false;PublishDir=$(PublishDir)mvcc-probe/"
+             Properties="Configuration=$(Configuration);TestingEnabled=true;TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);RuntimeFrameworkVersion=$(RuntimeFrameworkVersion);SelfContained=true;PublishAot=false;PublishTrimmed=false;PublishDir=$(_MvccProbePublishDir)"
              RemoveProperties="HostTargetFramework" />
   </Target>
 </Project>
