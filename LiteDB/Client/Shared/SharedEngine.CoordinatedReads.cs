@@ -124,8 +124,19 @@ namespace LiteDB
             lock (_snapshotGate)
             {
                 snapshot = _cachedSnapshot;
-                if (snapshot == null || _coordination == null || !_coordination.TryRead(out var status) ||
-                    status.Version != snapshot.Status.Version || !status.SameStorage(snapshot.Status)) return null;
+                if (snapshot == null) return null;
+                if (_coordination == null || !_coordination.TryRead(out var status) ||
+                    status.Version != snapshot.Status.Version || !status.SameStorage(snapshot.Status))
+                {
+                    // Closing a populated read cache can release many pages. Do that
+                    // before joining the database mutex queue, not while installing its
+                    // successor under writer ownership. Active readers keep their leases.
+                    this.RetireCachedSnapshot();
+#if DEBUG || TESTING
+                    CoordinationStage?.Invoke("cache-retired");
+#endif
+                    return null;
+                }
 #if DEBUG || TESTING
                 CoordinationStage?.Invoke("cached-status");
 #endif
@@ -144,6 +155,7 @@ namespace LiteDB
                     if (!_coordination.TryRead(out var after) || !after.SameStorage(status))
                     {
                         if (addedLease) { snapshot.Lease.Dispose(); snapshot.Lease = null; }
+                        this.RetireCachedSnapshot();
                         return null;
                     }
                 }

@@ -141,3 +141,72 @@ and integrity checks passed. Maximum invocation was 54.3 seconds, with about
 source; concurrent working-tree edits were documentation-only and their patch plus
 binary/source-tree hashes are retained. This is a three-seed follow-up, not a claim
 to have rerun the archived 16-seed campaign.
+
+## Hosted rejection of the first combined variant
+
+Run `36308282410` measured production `b2010e8bd` against the merged baseline.
+Linux .NET 8, four saturated point readers: writer throughput changed −14.18%
+[−15.37, −13.19] and p99 +11.26% [+8.01, +14.46], despite reader throughput
+increasing about 20 times. Windows .NET 10 checkpoint workloads also regressed:
+point throughput −28.19%, large −16.91%, with substantially worse writer p99.
+These results reject the first combined variant against the provisional target.
+The publication helper savings do not solve the end-to-end problem.
+
+Idle Linux .NET 10 comparison against the archived mapped implementation retained
+reader performance: point +1.90% [+0.86, +2.78], large +0.13% [−1.29, +1.89].
+Equal offered load locally completes approximately 80 large reads/s with writer
+throughput −0.93% [−1.62, −0.23], but that does not excuse saturated regressions.
+
+The initial full CI exposed a Windows sharing-mode error in the new publication
+test helper; `f69ba57f4` fixes the helper using an explicitly shared stream.
+The old run and a duplicate queued run were stopped while implementation continues;
+their partial results are not final qualification. The five corrected tests pass
+locally. Windows confirmation remains required.
+
+## Rejected mapped reader-lease experiment
+
+Archived revision `b02672b75` (library `f8b8f9d18`) added a fixed 4 KB table containing 511 atomic version/complement slots.
+Only cached coordinated reads use it; scoped fallback keeps its file-backed table.
+One connection may therefore own one table of each kind. The new `mapped-` lease
+prefix makes older parsers fail closed. Scanners and publishers both map the table;
+the implementation does not assume coherence between file reads and mapped writes.
+An exclusive OS lease handle still proves process liveness. No table is resized
+while published, and exhaustion falls back through ordinary query admission.
+
+The table is created under database ownership, and hot admission can only reuse
+an established table. Idle caches release their slots immediately. Scanner views
+are currently opened for each scan; their added open/map costs are part of the
+experiment. It was reverted from the working candidate after measurement; the
+branch `codex/shared-mmap-leases-experiment` preserves it locally.
+
+New tests exercise full tables, malformed contents and lengths, version zero,
+mixed lease formats, deferred disposal and prohibition of unowned table creation.
+Existing generation tests now explicitly exercise the bounded two-table case;
+file-write injection tests explicitly select the fallback protocol. A partial
+file-backed publication is still tested with live mapped peers. Native mapped
+death tests cover atomic publication before final admission. Production phase
+timing records writer begin/update/commit costs separately to identify where any
+end-to-end regression occurs. Hosted run `36310590505` found Linux point readers
++11.89% [+9.40, +14.33], but writers −1.05% [−1.61, −0.44] against the already
+regressed combined variant. Windows writer comparisons were noisy and did not
+establish recovery of the lost throughput. Extra table/mapping complexity was not
+accepted without solving the writer problem. A local broad selection with the mapped
+prototype and subsequent cache-retirement change passed 474 cases; that is not a
+qualification of either standalone variant.
+
+## Ownership delay and cache retirement
+
+Production phase timing in run `36310099049` compares the merged baseline with
+the first combined variant. Linux .NET 10 point workloads have median writer
+begin time 1.40 → 3.53 ms/transaction, while updates remain 4.99 → 5.09 ms and
+commit 6.75 → 6.75 ms. Windows point begins grow 1.10 → 3.19 ms; large begins
+3.10 → 4.99 ms, with large commits 8.43 → 8.41 ms. Begin includes ownership
+waiting and writable-engine opening; it does not by itself separate those costs.
+
+The next candidate retires an invalid cached snapshot before waiting for database
+ownership. Previously its accumulated pages were released while installing the
+replacement under that mutex. Active streaming readers still retain their engine
+and lease until their own disposal. A targeted interleaving checks retirement
+while another connection holds a write transaction, then verifies both the new
+query's committed value and every older streaming value. Performance remains to
+be established independently.
