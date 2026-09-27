@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # GitHub replaces a pending group member even when cancel-in-progress is false.
+  # Unrelated label events must never enter the validation run's group.
+  group: ci-${{ github.event.action == 'labeled' && github.event.label.name != 'full-ci' && format('ignored-label-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'full-ci' }}
 
 jobs:

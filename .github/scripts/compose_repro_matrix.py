@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -23,8 +24,14 @@ def main():
         if not entry.get("reason") or not entry.get("tests"):
             raise ValueError(f"Retired repro {name} needs a reason and replacement tests")
         for reference in entry["tests"]:
-            path, method = reference.split("#", 1)
-            if not path.startswith("LiteDB.Tests/") or not method or method + "(" not in (workspace / path).read_text(encoding="utf-8-sig"):
+            path, separator, method = reference.partition("#")
+            source = (workspace / path).resolve()
+            if (not separator or not re.fullmatch(r"[A-Za-z_]\w*", method)
+                    or not source.is_relative_to((workspace / "LiteDB.Tests").resolve())
+                    or source.suffix != ".cs" or not source.is_file()):
+                raise ValueError(f"Missing replacement test for {name}: {reference}")
+            declaration = r"(?m)^\s*public\s+(?:async\s+)?[\w.<>]+\s+" + re.escape(method) + r"\s*\("
+            if not re.search(declaration, source.read_text(encoding="utf-8-sig")):
                 raise ValueError(f"Missing replacement test for {name}: {reference}")
 
     os_matrix = json.loads(os_matrix_path.read_text(encoding="utf-8"))

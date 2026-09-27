@@ -69,6 +69,13 @@ class ReproMatrixTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "needs a reason and replacement tests"):
             self.compose([], retired={"Fixed": {"tests": []}})
 
+    def test_malformed_and_substring_references_cannot_retire_a_repro(self):
+        source = "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs"
+        for reference in [source, source + "#", source + "#ReleasesFileHandle_AndAllowsRetry"]:
+            with self.subTest(reference=reference):
+                with self.assertRaisesRegex(ValueError, "Missing replacement test for Fixed:"):
+                    self.compose([], retired={"Fixed": {"reason": "covered", "tests": [reference]}})
+
     def test_invalid_manifests_and_tiers_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "Invalid repro manifests"):
             self.compose([], invalid=[{"name": "broken", "errors": ["bad manifest"]}])
