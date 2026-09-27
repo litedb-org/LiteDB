@@ -2,10 +2,11 @@
 
 [![NuGet Version](https://img.shields.io/nuget/v/LiteDB)](https://www.nuget.org/packages/LiteDB/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/LiteDB)](https://www.nuget.org/packages/LiteDB/)
-[![Build status](https://ci.appveyor.com/api/projects/status/sfe8he0vik18m033?svg=true)](https://ci.appveyor.com/project/mbdavid/litedb) 
 [![](https://dcbadge.limes.pink/api/server/u8seFBH9Zu?style=flat-square)](https://discord.gg/u8seFBH9Zu)
 
-
+[![NuGet Version](https://img.shields.io/nuget/vpre/LiteDB)](https://www.nuget.org/packages/LiteDB/absoluteLatest)
+[![Build status](https://img.shields.io/github/actions/workflow/status/litedb-org/LiteDB/publish-prerelease.yml)](https://github.com/litedb-org/LiteDB/actions/workflows/publish-prerelease.yml)
+<!--[![Build status](https://ci.appveyor.com/api/projects/status/sfe8he0vik18m033?svg=true)](https://ci.appveyor.com/project/mbdavid/litedb) -->
 LiteDB is a small, fast and lightweight .NET NoSQL embedded database. 
 
 - Serverless NoSQL Document Store
