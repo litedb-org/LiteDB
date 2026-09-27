@@ -121,6 +121,41 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Completing_an_older_request_cannot_clear_a_newer_same_tick_hint()
+        {
+            WithPage((page, view) =>
+            {
+                var older = page.RequestWriterTurn(1000);
+                var newer = page.RequestWriterTurn(1000);
+                newer.Should().NotBe(older);
+                page.EndWriterTurn(older);
+                page.ShouldYieldToWriter(1000).Should().BeTrue();
+                page.EndWriterTurn(newer);
+                page.ShouldYieldToWriter(1000).Should().BeFalse();
+                var next = page.RequestWriterTurn(1000);
+                next.Should().NotBe(older).And.NotBe(newer);
+                page.EndWriterTurn(newer);
+                page.ShouldYieldToWriter(1000).Should().BeTrue();
+                page.EndWriterTurn(next);
+                page.ShouldYieldToWriter(1000).Should().BeFalse();
+            });
+        }
+
+        [Fact]
+        public void Hint_deadlines_remain_bounded_across_tick_wrap()
+        {
+            WithPage((page, view) =>
+            {
+                var now = (long)uint.MaxValue - 50;
+                page.RequestWriterTurn(now);
+                page.ShouldYieldToWriter(now).Should().BeTrue();
+                page.ShouldYieldToWriter(now + 99).Should().BeTrue();
+                page.ShouldYieldToWriter(now + 100).Should().BeFalse();
+                page.ShouldYieldToWriter(now - 1).Should().BeFalse();
+            });
+        }
+
+        [Fact]
         public void Writer_hint_expires_without_changing_storage_authority()
         {
             WithPage((page, view) =>

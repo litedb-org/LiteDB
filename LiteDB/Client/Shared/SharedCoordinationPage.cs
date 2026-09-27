@@ -116,9 +116,29 @@ namespace LiteDB.Client.Shared
 
         // A short scheduling hint, not a lock or a liveness proof. A killed requester
         // cannot strand readers: they merely yield, and the hint expires independently.
-        internal void RequestWriterTurn(long now)
+        internal long RequestWriterTurn(long now)
         {
-            lock (_writeLock) if (!_disposed) this.Store(7, unchecked(now + 100));
+            lock (_writeLock)
+            {
+                if (_disposed) return 0;
+                // One atomic word holds a wrapping deadline, a request sequence and
+                // the active bit. Completion retains the sequence, so requests made
+                // in the same millisecond cannot clear each other's hints.
+                while (true)
+                {
+                    var previous = this.Load(7);
+                    var request = unchecked((long)(uint)(now + 100) << 32) |
+                        (unchecked(previous + 2) & 0xfffffffeL) | 1;
+                    if (Interlocked.CompareExchange(ref _fields[7], request, previous) == previous) return request;
+                }
+            }
+        }
+
+        internal void EndWriterTurn(long request)
+        {
+            lock (_writeLock)
+                if (!_disposed && request != 0)
+                    Interlocked.CompareExchange(ref _fields[7], request & ~1L, request);
         }
 
         internal bool ShouldYieldToWriter(long now)
@@ -126,8 +146,9 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 if (_disposed) return false;
-                var remaining = unchecked(this.Load(7) - now);
-                return remaining > 0 && remaining <= 100;
+                var request = this.Load(7);
+                var remaining = unchecked((uint)(request >> 32) - (uint)now);
+                return (request & 1) != 0 && remaining > 0 && remaining <= 100;
             }
         }
 

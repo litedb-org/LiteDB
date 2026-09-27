@@ -113,7 +113,7 @@ namespace LiteDB
             {
                 RejectAbandonedTransaction();
             }
-            catch { _owner.Exit(); throw; }
+            catch { this.EndWriterPressure(); _owner.Exit(); throw; }
 
             // Check, open and count under one lock. A reader disposed on another thread
             // closes the engine in CloseDatabase once the count reaches zero; between a
@@ -121,7 +121,7 @@ namespace LiteDB
             lock (_useLock)
             {
                 try { this.AdmitLocked(); }
-                catch { _owner.Exit(); throw; }
+                catch { this.EndWriterPressure(); _owner.Exit(); throw; }
                 // Don't create a new engine while a transaction is running.
                 if (!_transactionRunning && _engine == null)
                 {
@@ -131,7 +131,7 @@ namespace LiteDB
                     }
                     catch
                     {
-                        _owner.Exit();
+                        this.EndWriterPressure(); _owner.Exit();
                         throw;
                     }
                 }
@@ -197,7 +197,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        engine.Close();
+                        try { engine.Close(); } finally { this.EndWriterPressure(); }
                     }
                 }
             }
