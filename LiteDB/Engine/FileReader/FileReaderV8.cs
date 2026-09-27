@@ -241,7 +241,7 @@ namespace LiteDB.Engine
                 try
                 {
                     var page = result.Value;
-                    var collectionPage = new CollectionPage(page.Buffer);
+                    var collectionPage = new CollectionPage(page.Buffer, UnmarkedCollectionVectorSections);
 
                     foreach (var index in collectionPage.GetCollectionIndexes())
                     {

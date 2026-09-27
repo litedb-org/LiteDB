@@ -14,7 +14,7 @@ namespace LiteDB.Internals
         public void MixedCoverageRejectsEveryUnknownMarkerAndEverySingleBitDowngrade()
         {
             var policy = new DataChecksumPolicy();
-            policy.InitializeMixed(10);
+            policy.InitializeMixed(10, HeaderPage.FILE_VERSION);
             var page = new BufferSlice(new byte[PAGE_SIZE], 0, PAGE_SIZE);
             page.Write(3u, BasePage.P_PAGE_ID);
             page.Write(123u, BasePage.P_TRANSACTION_ID);
@@ -41,7 +41,7 @@ namespace LiteDB.Internals
         public void HeaderAndPagesPastLegacyBoundaryAlwaysRequireChecksums()
         {
             var mixed = new DataChecksumPolicy();
-            mixed.InitializeMixed(10);
+            mixed.InitializeMixed(10, HeaderPage.FILE_VERSION);
             var complete = new DataChecksumPolicy();
             foreach (var id in new[] { 0u, 1u, 10u, 11u })
             {
@@ -172,7 +172,7 @@ namespace LiteDB.Internals
             var header = new HeaderPage(page, 0) { LastPageID = 10 };
             header.UpdateBuffer();
             var policy = new DataChecksumPolicy();
-            policy.InitializeMixed(10);
+            policy.InitializeMixed(10, HeaderPage.FILE_VERSION);
             policy.Write(page);
             PageChecksum.Write(page);
             policy.Load(page);

@@ -63,7 +63,7 @@ namespace LiteDB.Engine
 
                 if (page.PageType == PageType.Collection)
                 {
-                    var collectionPage = new CollectionPage(page.Buffer);
+                    var collectionPage = new CollectionPage(page.Buffer, snapshot.UnmarkedCollectionVectorSections);
                     doc["dataPageList"] = new BsonArray(collectionPage.FreeDataPageList.Select(x => new BsonValue((int)x)));
                     doc["indexes"] = new BsonArray(collectionPage.GetCollectionIndexes().Select(x => new BsonDocument
                     {

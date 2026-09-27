@@ -11,6 +11,13 @@ namespace LiteDB.Engine
         private readonly DataChecksumPolicy _dataChecksums = new DataChecksumPolicy();
         internal string ChecksumCoverage => ChecksumsEnabled ? (_dataChecksums.Mixed ? "Mixed" : "Complete") : "Legacy";
         internal uint LegacyLastPageID => _dataChecksums.LegacyLastPageID;
+
+        /// <summary>
+        /// Whether collection pages without the vector-section marker carry vector metadata
+        /// (see <see cref="CollectionPage.UnmarkedPagesHaveVectorSection"/>).
+        /// </summary>
+        internal bool UnmarkedCollectionVectorSections =>
+            CollectionPage.UnmarkedPagesHaveVectorSection(FileVersion, _dataChecksums.LegacyVersion);
         internal WalRecoveryReport RecoveryReport { get; private set; }
 
         private void LoadChecksums(BufferSlice header)
@@ -79,8 +86,9 @@ namespace LiteDB.Engine
             SyncLogBarrier(log);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
+            var legacyVersion = buffer[HeaderPage.P_FILE_VERSION];
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
-            _dataChecksums.InitializeMixed(header.LastPageID);
+            _dataChecksums.InitializeMixed(header.LastPageID, legacyVersion);
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             StampDataPage(buffer);
             stream.Position = 0;

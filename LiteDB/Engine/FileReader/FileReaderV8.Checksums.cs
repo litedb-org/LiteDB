@@ -9,6 +9,10 @@ namespace LiteDB.Engine
         private readonly WalChecksum _checksums = new WalChecksum();
         private byte[] _recoveredHeader;
         private readonly DataChecksumPolicy _dataChecksums = new DataChecksumPolicy();
+        private byte _fileVersion = HeaderPage.FILE_VERSION;
+
+        private bool UnmarkedCollectionVectorSections =>
+            CollectionPage.UnmarkedPagesHaveVectorSection(_fileVersion, _dataChecksums.LegacyVersion);
 
         private void InitializeChecksums()
         {
@@ -26,6 +30,7 @@ namespace LiteDB.Engine
                 if (journal.ConfirmsLegacyBackup && !published && journal.FooterBytes != 0)
                     _checksums.LegacyConfirmationPosition = journal.Position - PAGE_SIZE;
             }
+            _fileVersion = bytes[HeaderPage.P_FILE_VERSION];
             if (bytes[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION &&
                 new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
             // Mixed-page permissions must only come from a verified header.

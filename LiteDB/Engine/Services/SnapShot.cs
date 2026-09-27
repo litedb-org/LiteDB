@@ -48,6 +48,9 @@ namespace LiteDB.Engine
         /// <summary>Maximum chain traversal count for this snapshot's engine.</summary>
         internal uint MaxItemsCount => _disk.MAX_ITEMS_COUNT;
 
+        /// <summary>See <see cref="CollectionPage.UnmarkedPagesHaveVectorSection"/>.</summary>
+        internal bool UnmarkedCollectionVectorSections => _disk.UnmarkedCollectionVectorSections;
+
         public Snapshot(
             LockMode mode, 
             string collectionName, 
@@ -231,7 +234,7 @@ namespace LiteDB.Engine
             var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             try
             {
-                var page = BasePage.ReadPage<T>(buffer);
+                var page = BasePage.ReadPage<T>(buffer, _disk.UnmarkedCollectionVectorSections);
                 if (dirty)
                 {
                     ENSURE(page.TransactionID == _transPages.TransactionID, "this page must came from same transaction");
