@@ -17,6 +17,15 @@ def main():
     workspace = Path(os.getenv("GITHUB_WORKSPACE", Path.cwd()))
     os_matrix_path = workspace / ".github" / "os-matrix.json"
     repros_path = workspace / "repros.json"
+    retired = json.loads((workspace / ".github" / "repro-ci.json").read_text(encoding="utf-8"))
+    include_retired = os.getenv("INCLUDE_REGRESSION_REPROS", "false").lower() == "true"
+    for name, entry in retired.items():
+        if not entry.get("reason") or not entry.get("tests"):
+            raise ValueError(f"Retired repro {name} needs a reason and replacement tests")
+        for reference in entry["tests"]:
+            path, method = reference.split("#", 1)
+            if not path.startswith("LiteDB.Tests/") or not method or method + "(" not in (workspace / path).read_text(encoding="utf-8-sig"):
+                raise ValueError(f"Missing replacement test for {name}: {reference}")
 
     os_matrix = json.loads(os_matrix_path.read_text(encoding="utf-8"))
     tier = os.getenv("CI_TIER", "full").lower()
@@ -29,14 +38,15 @@ def main():
     for platform, labels in os_matrix.items():
         normalized = platform.lower()
         platform_labels[normalized] = []
-        selected_labels = labels[:1] if tier == "pr" else labels
-        for label in selected_labels:
+        for label in labels:
             platform_labels[normalized].append(label)
             label_platform[label] = normalized
 
     all_labels = set(label_platform.keys())
 
     payload = json.loads(repros_path.read_text(encoding="utf-8"))
+    if payload.get("invalid"):
+        raise ValueError(f"Invalid repro manifests: {payload['invalid']}")
     repros = payload.get("repros") or []
 
     matrix_entries: list[dict[str, str]] = []
@@ -58,6 +68,10 @@ def main():
     for repro in repros:
         name = repro.get("name") or repro.get("id")
         if not name:
+            continue
+
+        if name in retired and not include_retired:
+            skipped.append(f"{name} (normal tests: {retired[name]['reason']})")
             continue
 
         supports = as_iterable(repro.get("supports"))
@@ -113,6 +127,15 @@ def main():
             unknown_labels.update(unrecognized)
 
         candidate_labels &= all_labels
+
+        # Apply constraints before selecting a representative per platform: a
+        # repro pinned to the second Linux image must not silently disappear.
+        if tier == "pr":
+            candidate_labels = {
+                next(label for label in labels if label in candidate_labels)
+                for labels in platform_labels.values()
+                if any(label in candidate_labels for label in labels)
+            }
 
         if candidate_labels:
             for label in sorted(candidate_labels):

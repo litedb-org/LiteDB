@@ -36,10 +36,12 @@ jobs:
             10.0.x
             8.0.x
 
-      - name: Check changed C# file sizes
+      - name: Check CI policy and changed C# file sizes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
+        run: |
+          python -m unittest discover -s .github/scripts -p 'test_*.py'
+          python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
 
       - name: Restore
         run: dotnet restore LiteDB.sln /p:TestingEnabled=true
@@ -96,7 +98,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.item.sdk }}
-          include-prerelease: ${{ matrix.item.includePrerelease }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -172,7 +173,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.item.sdk }}
-          include-prerelease: ${{ matrix.item.includePrerelease }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -259,7 +259,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.item.sdk }}
-          include-prerelease: ${{ matrix.item.includePrerelease }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -301,14 +300,6 @@ jobs:
           -Framework "${{ matrix.item.framework }}"
           -Architecture "${{ matrix.arch }}"
           -PartitionSuite
-
-      - name: Upload test partition results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ github.job }}-${{ strategy.job-index }}
-          path: LiteDB.Tests/TestResults/*.trx
-          if-no-files-found: warn
 
       - name: Verify Windows x86 dump and storage-volume contracts
         if: matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
@@ -356,15 +347,13 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-      - name: Upload cross-process test results
+      - name: Upload test partition results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: crossprocess-test-results-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.item.display }}
-          path: |
-            LiteDB.Tests/TestResults/CrossProcessTestResults-${{ matrix.arch }}.trx
-            LiteDB.Tests/TestResults/CrossProcessRepeat-*.trx
-            LiteDB.Tests/TestResults/SharedDumpContracts.trx
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn
 
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
@@ -434,7 +423,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.item.sdk }}
-          include-prerelease: ${{ matrix.item.includePrerelease }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4

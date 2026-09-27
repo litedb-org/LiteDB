@@ -11,6 +11,11 @@ on:
         description: Git ref (branch, tag, or SHA) to check out
         required: false
         type: string
+      include-regressions:
+        description: Also run historical repros replaced by normal regression tests
+        required: false
+        type: boolean
+        default: false
       tier:
         description: Repro coverage tier (pr or full)
         required: false
@@ -60,12 +65,13 @@ jobs:
       - name: Capture repro inventory
         id: list
         shell: bash
+        env:
+          FILTER_INPUT: ${{ inputs.filter }}
         run: |
           set -euo pipefail
-          filter_input="${{ inputs.filter }}"
-          cmd=(dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release --no-build --no-restore -- list --json)
-          if [ -n "${filter_input}" ]; then
-            cmd+=("--filter" "${filter_input}")
+          cmd=(dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release --no-build --no-restore -- list --json --strict)
+          if [ -n "${FILTER_INPUT}" ]; then
+            cmd+=("--filter" "${FILTER_INPUT}")
           fi
           "${cmd[@]}" > repros.json
 
@@ -74,6 +80,7 @@ jobs:
         shell: bash
         env:
           CI_TIER: ${{ inputs.tier }}
+          INCLUDE_REGRESSION_REPROS: ${{ github.event_name == 'workflow_dispatch' && inputs.include-regressions || false }}
         run: |
           set -euo pipefail
           python .github/scripts/compose_repro_matrix.py

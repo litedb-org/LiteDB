@@ -116,7 +116,7 @@ $arguments = @(
     'vstest', $assembly,
     "/Framework:.NETCoreApp,Version=v$RuntimeMajor.0", "/Platform:$Architecture",
     "/Settings:$(Join-Path $repoRoot 'tests.runsettings')", "/ResultsDirectory:$results",
-    "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=detailed'
+    "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=minimal'
 )
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"

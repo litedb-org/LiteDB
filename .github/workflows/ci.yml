@@ -17,7 +17,7 @@ jobs:
       tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
 
   repro-runner:
-    if: github.event.action != 'labeled' || github.event.label.name == 'full-ci'
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
     uses: ./.github/workflows/reprorunner.yml
     with:
       tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}

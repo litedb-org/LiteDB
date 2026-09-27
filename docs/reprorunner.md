@@ -86,19 +86,52 @@ ReproRunner) picks up the change automatically.
 - Optional inputs:
   - `filter` - regular expression to narrow the repro list.
   - `ref` - commit, branch, or tag to check out.
+  - `tier` - `pr` selects one eligible image per platform; `full` selects all eligible images.
+  - `include-regressions` - manual dispatch only; run historical repros retired in favor of normal tests.
+
+The main CI workflow on ordinary PRs runs the complete test suite on Linux .NET 8/.NET 10, Windows .NET 10,
+and Windows .NET Framework 4.8.1: six jobs including the two builds. They do not
+start ReproRunner's inventory or execution jobs. Separate migration compatibility
+and path-triggered fuzz/performance workflows retain their own jobs. The `full-ci` label opts into
+full coverage; pushes to `dev` and nightly CI also run the full tier. Full tests
+retain verified .NET 9 runtimes, x86, ARM64, macOS, and the second Windows image.
+Shared-process tests run in the normal suite; x86 diagnostics and repeated insert
+checks share the Windows test job instead of duplicating the matrix.
+
+### Retiring fixed repros
+
+`.github/repro-ci.json` lists repros replaced by named regression tests. Both
+automatic tiers omit these entries. The matrix builder validates the referenced
+test methods; its policy tests run inside the existing Linux build check. New
+repros remain enabled by default in full CI. Use `full-ci` on PRs that need them.
+Do not retire a repro solely because its manifest says `green`: first establish
+that normal tests cover the relevant behavior and failure paths.
+
+| Repro | Automatic CI | Replacement / reason |
+| --- | --- | --- |
+| `Issue_2586_RollbackTransaction` | Disabled | `Transactions_Tests` covers dirty/read-only safepoint buffers; `Issue2586_RollbackSafety_Tests` adds committed rows, indexed reads, subsequent writes, and file reopen. |
+| `Issue_2614_DiskServiceDispose` | Disabled | `Issue2614_InitializationCleanup_Tests` injects EIO/ENOSPC during new-header sync, checks exclusive reopen before GC, repeats failures, then writes/reopens successfully; `StreamOwnership_Tests` covers caller-owned streams. |
+| `Issue_2561_TransactionMonitor` | Full tier | Still marked `red`: verifies a known-bug reproduction, not a passing fixed-bug guard. |
+
+The disk replacement tests exercise constructor cleanup through deterministic I/O
+fault injection on real files, without changing the test process's resource limits.
+The historical RLIMIT_FSIZE/package comparison remains available locally and via
+manual `include-regressions`; it is not a claim of general power-loss coverage.
+Storage compatibility scripts and the normal recovery/fault-injection suites remain
+in CI. No storage implementation changes are needed for this consolidation.
 
 ### Job layout
 
 1. **generate-matrix**
    - Checks out the requested ref.
    - Restores/builds the CLI and captures the JSON inventory: `reprorunner list --json [--filter <regex>]`.
-   - Loads `.github/os-matrix.json`, applies each repro's constraints, and emits a matrix of `{ os, repro }` pairs.
+   - Loads `.github/os-matrix.json`, excludes retired repros unless manually requested, applies OS constraints and the tier, and emits `{ os, repro }` pairs.
    - Writes a summary of scheduled/skipped repros (with reasons) to `$GITHUB_STEP_SUMMARY`.
-   - Uploads `repros.json` for debugging.
+   - Uploads `repros.json` for debugging and packages the CLI for all matrix jobs.
 
 2. **repro**
    - Runs once per matrix entry using `runs-on: ${{ matrix.os }}`.
-   - Builds the CLI in Release mode.
+   - Downloads and extracts the CLI built once by `generate-matrix`.
    - Executes `reprorunner run <name> --ci --target-os "<runner label>"`.
    - Uploads `logs-<repro>-<os>` artifacts (`artifacts/` plus the CLI `runs/` folder when present).
    - Appends a per-job summary snippet (status + artifact hint).
@@ -123,7 +156,7 @@ Most local workflows mirror CI:
   ```
 
 - View generated artifacts under `LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/<tfm>/<configuration>/runs/...`
-  or in the CI job artifacts prefixed with `logs-`.
+  or in the CI job artifacts prefixed with `logs-` (the packaged CLI writes to `reprorunner-cli/runs`).
 
 When crafting new repro manifests, prefer `supports` for broad platform gating and the `os` block for
 precise runner pinning.
