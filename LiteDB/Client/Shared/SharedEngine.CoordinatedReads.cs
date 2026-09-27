@@ -1,5 +1,6 @@
 #if NET8_0_OR_GREATER
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -17,6 +18,7 @@ namespace LiteDB
         private int _readCacheDemand;
         private CachedSharedSnapshot _cachedSnapshot;
         private Timer _snapshotIdle;
+        private readonly SharedReadPacer _readPacer = new SharedReadPacer();
         private static readonly TimeSpan SnapshotIdle = TimeSpan.FromMilliseconds(100);
 #if DEBUG || TESTING
         internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
@@ -122,6 +124,7 @@ namespace LiteDB
         {
             if (_coordination == null || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             bool yieldToWriter;
+            int delay;
             lock (_snapshotGate)
             {
                 yieldToWriter = _cachedSnapshot != null && _coordination != null &&
@@ -129,6 +132,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                 yieldToWriter |= ForceCoordinatedYield;
 #endif
+                delay = _readPacer.ReserveDelay(yieldToWriter);
             }
             if (yieldToWriter)
             {
@@ -137,8 +141,12 @@ namespace LiteDB
 #endif
                 // A scheduling delay must not extend a reader lease or hold the
                 // local lifetime gate. Re-read all admission state afterwards.
-                Thread.Yield();
+                var started = Stopwatch.GetTimestamp();
+                if (delay != 0) Thread.Sleep(delay);
+                else Thread.Yield();
+                lock (_snapshotGate) _readPacer.RecordDelay(delay, Stopwatch.GetTimestamp() - started);
             }
+            var workStarted = yieldToWriter ? Stopwatch.GetTimestamp() : 0;
             CachedSharedSnapshot snapshot;
             lock (_snapshotGate)
             {
@@ -177,7 +185,7 @@ namespace LiteDB
                 Interlocked.Increment(ref CoordinatedReadHits);
 #endif
             }
-            return this.ReadCached(collection, query, snapshot);
+            return this.ReadCached(collection, query, snapshot, workStarted);
         }
 
         /// <summary>Install only a snapshot opened and leased under the database mutex.</summary>
@@ -225,7 +233,12 @@ namespace LiteDB
             finally { _owner.Exit(); }
         }
 
-        private IBsonDataReader ReadCached(string collection, Query query, CachedSharedSnapshot snapshot)
+        private void RecordCachedWork(long ticks)
+        {
+            lock (_snapshotGate) _readPacer.RecordWork(ticks);
+        }
+
+        private IBsonDataReader ReadCached(string collection, Query query, CachedSharedSnapshot snapshot, long workStarted = 0)
         {
             IBsonDataReader reader = null;
             int? local = null;
@@ -247,7 +260,8 @@ namespace LiteDB
                 }
                 local = this.AddLocalReader();
                 lock (_snapshotGate) snapshot.HadStreamingReader = true;
-                var continued = new PrefixedDataReader(prefix, reader);
+                IBsonDataReader continued = new PrefixedDataReader(prefix, reader);
+                if (workStarted != 0) continued = new MeasuredSharedReader(continued, this.RecordCachedWork);
                 return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local));
             }
             catch
@@ -264,6 +278,7 @@ namespace LiteDB
                 }
                 throw;
             }
+            finally { if (workStarted != 0) this.RecordCachedWork(Stopwatch.GetTimestamp() - workStarted); }
         }
 
         private void ReleaseCached(CachedSharedSnapshot snapshot, int? local)
