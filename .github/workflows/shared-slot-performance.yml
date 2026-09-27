@@ -19,6 +19,22 @@ on:
         required: false
         default: 0
         type: number
+      reader_frameworks:
+        description: 'Reader runtimes (JSON array)'
+        default: '["net8.0", "net10.0"]'
+        type: string
+      reader_activities:
+        description: 'Reader activities (JSON array)'
+        default: '["idle", "writer", "checkpoint"]'
+        type: string
+      reader_scenarios:
+        description: 'Space-separated reader scenarios'
+        default: 'point medium large'
+        type: string
+      reader_counts:
+        description: 'Space-separated reader process counts'
+        default: '1 4'
+        type: string
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
@@ -121,8 +137,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        framework: [net8.0, net10.0]
-        activity: [idle, writer, checkpoint]
+        framework: ${{ fromJSON(inputs.reader_frameworks || '["net8.0", "net10.0"]') }}
+        activity: ${{ fromJSON(inputs.reader_activities || '["idle", "writer", "checkpoint"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -164,8 +180,14 @@ jobs:
           dotnet --info | Out-File evidence/runtime.txt
       - name: Concurrent reader production pairs
         shell: pwsh
+        env:
+          READER_SCENARIOS: ${{ inputs.reader_scenarios || 'point medium large' }}
+          READER_COUNTS: ${{ inputs.reader_counts || '1 4' }}
+          READER_INTERVAL: ${{ inputs.reader_interval_ms || 0 }}
         run: |
-          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --reader-interval-ms ${{ inputs.reader_interval_ms || 0 }}
+          $scenarios = $env:READER_SCENARIOS -split ' '
+          $counts = $env:READER_COUNTS -split ' '
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --reader-interval-ms $env:READER_INTERVAL --scenarios @scenarios --readers @counts
           if ($LASTEXITCODE) { throw 'Reader comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()

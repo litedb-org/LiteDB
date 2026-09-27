@@ -71,15 +71,22 @@ internal static class ReaderContentionBenchmarks
         var warmupCount = 0;
         var checkpointCount = 0;
         var checkpointMs = 0.0;
+        long beginTicks = 0, updateTicks = 0, commitTicks = 0;
         void Operation()
         {
             if (role == "writer" || role == "checkpoint")
             {
                 var next = revision + 1;
+                var phase = Stopwatch.GetTimestamp();
                 dbWorker.BeginTrans();
+                beginTicks += Stopwatch.GetTimestamp() - phase;
+                phase = Stopwatch.GetTimestamp();
                 for (var id = 0; id < Rows; id++)
                     if (!rows.Update(Row(id, next))) throw new InvalidOperationException("Missing update " + id);
+                updateTicks += Stopwatch.GetTimestamp() - phase;
+                phase = Stopwatch.GetTimestamp();
                 if (!dbWorker.Commit()) throw new InvalidOperationException("Missing commit");
+                commitTicks += Stopwatch.GetTimestamp() - phase;
                 revision = next;
                 if (role == "checkpoint")
                 {
@@ -121,6 +128,7 @@ internal static class ReaderContentionBenchmarks
         }
         checkpointCount = 0;
         checkpointMs = 0;
+        beginTicks = updateTicks = commitTicks = 0;
         var cpu = process.TotalProcessorTime;
         var allocation = GC.GetTotalAllocatedBytes(true);
         var arrivals = new List<double>();
@@ -161,6 +169,9 @@ internal static class ReaderContentionBenchmarks
             activeMs, activeCpuMs, activeAllocated, lifecycleCpuMs, lifecycleAllocated,
             meanMs = samples.Average(), p50Ms = Percentile(.5), p95Ms = Percentile(.95), p99Ms = Percentile(.99),
             worstMs = samples.Last(), chronologicalWindows, checkpointCount, checkpointMs,
+            beginMs = beginTicks * 1000.0 / Stopwatch.Frequency,
+            updateMs = updateTicks * 1000.0 / Stopwatch.Frequency,
+            commitMs = commitTicks * 1000.0 / Stopwatch.Frequency,
             closeMs = close.Elapsed.TotalMilliseconds,
             peakWorkingSetBytes = process.PeakWorkingSet64, idleWorkingSetBytes = process.WorkingSet64,
             idleThreads = process.Threads.Count, idleHandles = process.HandleCount, retainedManagedBytes = GC.GetTotalMemory(false),
