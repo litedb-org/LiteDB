@@ -16,10 +16,14 @@ parser.add_argument('--scratch', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=5)
 parser.add_argument('--matrix', choices=['core', 'traffic'], default='core')
-parser.add_argument('--scenarios', nargs='+', help='Run only these scenarios from the selected matrix; still requires five pairs')
+parser.add_argument('--scenarios', nargs='+', help='Run only these scenarios from the selected matrix; still requires five rounds')
+parser.add_argument('--candidate-only', action='store_true',
+                    help='Run the selected diagnostics only for the candidate when the baseline predates them')
 args = parser.parse_args()
 if args.rounds < 5:
-    parser.error('At least five paired rounds are required')
+    parser.error('At least five rounds are required')
+if args.candidate_only and not args.scenarios:
+    parser.error('--candidate-only requires an explicit --scenarios selection')
 args.scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
 args.output.parent.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
@@ -37,14 +41,17 @@ if args.scenarios:
 with args.output.open('x') as output:
     for scenario, count, parameter in workloads:
         for pair in range(args.rounds):
-            order = ('baseline', 'candidate') if pair % 2 == 0 else ('candidate', 'baseline')
+            order = ('candidate',) if args.candidate_only else (
+                ('baseline', 'candidate') if pair % 2 == 0 else ('candidate', 'baseline'))
             for variant in order:
                 dll = getattr(args, variant).resolve() / 'SharedReadBenchmarks.dll'
                 command = ['dotnet', str(dll), str(args.scratch.resolve()),
                            'shared', scenario, str(count), str(parameter)]
                 started = time.time()
                 result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=300)
-                record = dict(pair=pair, variant=variant, command=command, TMPDIR=env['TMPDIR'],
+                record = dict(pair=pair, variant=variant,
+                              comparison='candidate-only' if args.candidate_only else 'paired',
+                              command=command, TMPDIR=env['TMPDIR'],
                               librarySha256=hashlib.sha256((dll.parent / 'LiteDB.dll').read_bytes()).hexdigest(),
                               runnerSha256=hashlib.sha256(dll.read_bytes()).hexdigest(),
                               started=started, elapsed=time.time()-started, host=platform.platform(),

@@ -108,8 +108,18 @@ jobs:
       - name: Five serial alternating production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }}
+          if ('${{ matrix.workload }}' -eq 'core') {
+            python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix core --scenarios point scan mixed
+          } else {
+            python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix traffic
+          }
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
+      - name: Candidate slot lifecycle and boundary diagnostics
+        if: matrix.workload == 'core'
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/candidate-slots.jsonl --matrix core --scenarios slots --candidate-only
+          if ($LASTEXITCODE) { throw 'Candidate slot diagnostics failed' }
       - name: Two and four writer contention with lifecycle accounting
         if: matrix.workload == 'core'
         shell: pwsh
