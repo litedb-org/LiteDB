@@ -41,11 +41,8 @@ public class Issue2456_HashContract_Tests
 
         for (var i = 0; i < Iterations; i++)
         {
-            // BsonDocument.CompareTo only walks the left-hand keys, so two documents with
-            // disjoint keys both compare greater than each other. That ordering quirk predates
-            // this change and is outside its scope, so documents are excluded here.
-            var left = RandomValue(random, depth: 0, allowDocuments: false);
-            var right = RandomValue(random, depth: 0, allowDocuments: false);
+            var left = RandomValue(random, depth: 0);
+            var right = RandomValue(random, depth: 0);
 
             var forward = Math.Sign(left.CompareTo(right));
             var backward = Math.Sign(right.CompareTo(left));
@@ -269,13 +266,10 @@ public class Issue2456_HashContract_Tests
                 return NumericVariant(random, value.AsDecimal);
 
             case BsonType.Double:
-                // cross-type comparison goes through decimal, which rounds to 28 digits, while
-                // double-to-double comparison is exact. Only offer other representations when the
-                // decimal round trip is lossless, so the variant is equal under both rules.
+                // Only generated quarter fractions have binary-exact numeric variants.
                 var number = value.AsDouble;
-                if (double.IsNaN(number) || double.IsInfinity(number) || Math.Abs(number) >= 7.9e28) return new BsonValue(number);
-                if ((double)(decimal)number != number) return new BsonValue(number);
-                return NumericVariant(random, (decimal)number);
+                return number >= -5 && number <= 5 && number * 4 == Math.Truncate(number * 4)
+                    ? NumericVariant(random, (decimal)number) : new BsonValue(number);
 
             case BsonType.Binary:
                 return new BsonValue((byte[])value.AsBinary.Clone());

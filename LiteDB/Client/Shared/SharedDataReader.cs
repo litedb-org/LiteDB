@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 
 namespace LiteDB
 {
@@ -11,7 +12,7 @@ namespace LiteDB
         private readonly IBsonDataReader _reader;
         private readonly Action _dispose;
 
-        private bool _disposed = false;
+        private int _disposed;
 
         public SharedDataReader(IBsonDataReader reader, Action dispose)
         {
@@ -42,9 +43,10 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (_disposed) return;
-
-            _disposed = true;
+            // Atomic admission: the callback ends one mutex recursion and one engine user.
+            // Two threads disposing at once must not both run it, or the second would end
+            // another reader's ownership and could close the engine under it.
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             if (disposing)
             {

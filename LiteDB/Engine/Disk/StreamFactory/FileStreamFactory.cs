@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -11,14 +11,16 @@ namespace LiteDB.Engine
     /// FileStream disk implementation of disk factory
     /// [ThreadSafe]
     /// </summary>
-    internal class FileStreamFactory : IStreamFactory
+    internal partial class FileStreamFactory : IStreamFactory
     {
         private readonly string _filename;
         private readonly string _password;
         private readonly bool _readonly;
         private readonly bool _hidden;
         private readonly bool _useAesStream;
+        private readonly bool _isLog;
         private readonly Action<string> _setHiddenAttribute;
+        private readonly SharedFileHandles _handles;
 #if DEBUG || TESTING
         internal Action BeforeReadLength;
 #endif
@@ -29,14 +31,18 @@ namespace LiteDB.Engine
             bool readOnly,
             bool hidden,
             bool useAesStream = true,
-            Action<string> setHiddenAttribute = null)
+            Action<string> setHiddenAttribute = null,
+            bool isLog = false,
+            SharedFileHandles handles = null)
         {
             _filename = filename;
             _password = password;
             _readonly = readOnly;
             _hidden = hidden;
             _useAesStream = useAesStream;
+            _isLog = isLog;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
+            _handles = handles;
         }
 
         /// <summary>
@@ -53,6 +59,9 @@ namespace LiteDB.Engine
 
             var fileMode = _readonly ? System.IO.FileMode.Open : System.IO.FileMode.OpenOrCreate;
             var fileAccess = write ? FileAccess.ReadWrite : FileAccess.Read;
+            // Cached shared handles let every shared process open, write and delete the
+            // files; exclusive openers are still refused while a writable handle is open.
+            var cached = _handles != null && (!write || SharedFileHandles.CacheWriters);
             var fileShare = write ? FileShare.Read : FileShare.ReadWrite;
             var fileOptions = sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess;
 
@@ -61,12 +70,14 @@ namespace LiteDB.Engine
             FileStream stream;
             try
             {
-                stream = new FileStream(_filename,
-                    fileMode,
-                    fileAccess,
-                    fileShare,
-                    PAGE_SIZE,
-                    fileOptions);
+                stream = cached
+                    ? _handles.Open(_filename, fileMode, fileAccess, PAGE_SIZE, fileOptions)
+                    : new FileStream(_filename,
+                        fileMode,
+                        fileAccess,
+                        fileShare,
+                        PAGE_SIZE,
+                        fileOptions);
             }
             catch (IOException ex) when (_readonly && !canWrite &&
                 (ex is FileNotFoundException || ex is DirectoryNotFoundException))
@@ -88,7 +99,9 @@ namespace LiteDB.Engine
                 }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream, allowRecovery: false);
+            if (_password == null || !_useAesStream) return stream;
+            return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>
@@ -131,6 +144,10 @@ namespace LiteDB.Engine
                     1,
                     FileOptions.SequentialScan))
                 {
+                    if (_isLog)
+                    {
+                        using (var reader = EncryptedLogPreamble.Open(_password, stream)) return reader.Length;
+                    }
                     return stream.ReadByte() == 1 ? 0 : length;
                 }
             }

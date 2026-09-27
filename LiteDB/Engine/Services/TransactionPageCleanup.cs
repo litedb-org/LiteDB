@@ -43,6 +43,8 @@ namespace LiteDB.Engine
                 errors.Add(ex);
             }
 
+            snapshot.ReleaseSnapshotPin();
+
             // Collection locks are thread-affine. During normal release, free
             // the lock even if a page lease failed; shutdown can run elsewhere.
             if (releaseLock && snapshot.Mode == LockMode.Write)

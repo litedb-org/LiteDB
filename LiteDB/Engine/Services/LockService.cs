@@ -20,8 +20,10 @@ namespace LiteDB.Engine
         private readonly TransactionGate _transaction = new TransactionGate();
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
-#if TESTING
+#if DEBUG || TESTING
         internal Action BeforeTransactionAdmission { get; set; }
+        internal Action BeforeExclusiveAdmission { get; set; }
+        internal Action AfterExclusiveAdmission { get; set; }
 #endif
 
         internal LockService(EnginePragmas pragmas)
@@ -44,21 +46,32 @@ namespace LiteDB.Engine
         /// </summary>
         public void EnterTransaction()
         {
-#if TESTING
+#if DEBUG || TESTING
             BeforeTransactionAdmission?.Invoke();
 #endif
             // if current thread already in exclusive mode, just exit
             if (_transaction.IsWriteLockHeld) return;
 
-            if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+            try
+            {
+                if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false)
+                    throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Rebuild can dispose the old admission gate while a new operation
+                // is queued behind its exclusive lease. Expose the engine contract,
+                // not the implementation detail of the retired gate.
+                throw LiteException.EngineDisposed();
+            }
         }
 
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction(int ownerThreadId)
+        public void ExitTransaction(Thread owner)
         {
-            _transaction.ExitReadLock(ownerThreadId);
+            _transaction.ExitReadLock(owner);
         }
 
         /// <summary>
@@ -90,12 +103,18 @@ namespace LiteDB.Engine
         /// </summary>
         public bool EnterExclusive()
         {
+#if DEBUG || TESTING
+            BeforeExclusiveAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode
             if (_transaction.IsWriteLockHeld) return false;
 
             // wait finish all transactions before enter in reserved mode
             if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
 
+#if DEBUG || TESTING
+            AfterExclusiveAdmission?.Invoke();
+#endif
             return true;
         }
 

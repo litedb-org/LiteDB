@@ -1,0 +1,80 @@
+name: Index migration compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    name: Produce legacy indexes (${{ matrix.runtime }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: ICU
+          - os: windows-2022
+            runtime: NLS
+    env:
+      DOTNET_SYSTEM_GLOBALIZATION_USENLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Create real LiteDB 5.0.21 fixtures
+        shell: bash
+        run: |
+          mkdir -p artifacts_temp/index-fixtures
+          dotnet run --project tools/IndexCompatibility/Legacy/Legacy.csproj -c Release -- create artifacts_temp/index-fixtures
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-indexes-${{ matrix.runtime }}
+          path: artifacts_temp/index-fixtures
+          if-no-files-found: error
+
+  migrate:
+    name: Migrate ${{ matrix.source }} indexes on ${{ matrix.target }}
+    needs: produce
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            source: NLS
+            target: ICU
+          - os: windows-2022
+            source: ICU
+            target: NLS
+    env:
+      DOTNET_SYSTEM_GLOBALIZATION_USENLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: legacy-indexes-${{ matrix.source }}
+          path: artifacts_temp/index-fixtures
+      - name: Migrate, reject downgrade, and reopen
+        shell: bash
+        run: |
+          dotnet run --project tools/IndexCompatibility/Current/Current.csproj -c Release -p:TestingEnabled=true -- migrate artifacts_temp/index-fixtures
+          dotnet run --project tools/IndexCompatibility/Legacy/Legacy.csproj -c Release -- refuse artifacts_temp/index-fixtures
+          dotnet run --project tools/IndexCompatibility/Current/Current.csproj -c Release -p:TestingEnabled=true -- verify artifacts_temp/index-fixtures
+      - name: Test migration process termination and partial I/O
+        run: python scripts/test-index-migration-recovery.py

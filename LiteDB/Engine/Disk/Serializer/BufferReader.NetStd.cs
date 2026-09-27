@@ -60,8 +60,10 @@ internal partial class BufferReader
                 this.MoveForward(initialCount);
 
                 // and go to next segment
-                while (_current[_currentPosition] != 0x00 && _isEOF == false)
+                while (true)
                 {
+                    this.EnsureByteAvailable();
+                    if (_current[_currentPosition] == 0x00) break;
                     mem.WriteByte(_current[_currentPosition]);
 
                     this.MoveForward(1);

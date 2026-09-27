@@ -152,13 +152,18 @@ namespace LiteDB.Tests.Mapper
         [Fact]
         public void Concurrent_bindings_are_independent_and_cache_does_not_retain_closures()
         {
-            var mapper = new BsonMapper();
-            Parallel.For(0, 200, i =>
+            BsonMapper mapper = null;
+            for (var round = 0; round < 20; round++)
             {
-                var expression = mapper.GetExpression(Point(i));
-                expression.Parameters["p0"].AsInt32.Should().Be(i);
-                expression.ExecuteScalar(new BsonDocument { ["Score"] = i }).AsBoolean.Should().BeTrue();
-            });
+                // Repeatedly race cold entity-map publication against initialization waiters.
+                mapper = new BsonMapper();
+                Parallel.For(0, 200, i =>
+                {
+                    var expression = mapper.GetExpression(Point(i));
+                    expression.Parameters["p0"].AsInt32.Should().Be(i);
+                    expression.ExecuteScalar(new BsonDocument { ["Score"] = i }).AsBoolean.Should().BeTrue();
+                });
+            }
             var weak = TranslateTemporaryClosure(mapper);
             GC.Collect();
             GC.WaitForPendingFinalizers();

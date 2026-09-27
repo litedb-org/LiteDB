@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using static LiteDB.Constants;
 
@@ -21,7 +22,12 @@ namespace LiteDB
         /// <summary>
         /// Get array result or throw exception if there is any error on read result
         /// </summary>
-        public T GetValue() => this.Ok ? this.Value : throw this.Exception;
+        public T GetValue()
+        {
+            if (this.Ok) return this.Value;
+            ExceptionDispatchInfo.Capture(this.Exception).Throw();
+            return null;
+        }
 
         public Result(T value, Exception ex = null)
         {

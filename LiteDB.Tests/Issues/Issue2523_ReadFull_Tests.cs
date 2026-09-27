@@ -36,11 +36,14 @@ public class Issue2523_ReadFull_Tests
 
             // Assert: immediately read the log back fully.
             // Pre-fix: throws (ReadFull must read PAGE_SIZE bytes)
-            // Post-fix: returns 1 page, filled with 0xAC
+            // Post-fix: returns the complete payload with the v10 page marker
             var logPages = disk.ReadFull(FileOrigin.Log).ToList();
 
             logPages.Should().HaveCount(1);
-            logPages[0].All(0xAC).Should().BeTrue();
+            logPages[0].Slice(0, BasePage.P_PAGE_FORMAT).All(0xAC).Should().BeTrue();
+            logPages[0][BasePage.P_PAGE_FORMAT].Should().Be(PageChecksum.Checksummed);
+            logPages[0].Slice(BasePage.P_PAGE_FORMAT + 1, Constants.PAGE_SIZE - BasePage.P_PAGE_FORMAT - 1)
+                .All(0xAC).Should().BeTrue();
         }
         finally
         {

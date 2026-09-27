@@ -213,6 +213,7 @@ namespace LiteDB
         private char _char = '\0';
         private Token _ahead = null;
         private bool _eof = false;
+        internal bool StrictStrings { get; set; }
 
         public bool EOF => _eof && _ahead == null;
         public long Position { get; private set; }
@@ -618,50 +619,6 @@ namespace LiteDB
             return sb.ToString();
         }
         
-        /// <summary>
-        /// Read a string removing open and close " or '
-        /// </summary>
-        private string ReadString(char quote)
-        {
-            var sb = new StringBuilder();
-            this.ReadChar(); // remove first " or '
-
-            while (_char != quote && !_eof)
-            {
-                if (_char == '\\')
-                {
-                    this.ReadChar();
-
-                    if (_char == quote) sb.Append(quote);
-
-                    switch (_char)
-                    {
-                        case '\\': sb.Append('\\'); break;
-                        case '/': sb.Append('/'); break;
-                        case 'b': sb.Append('\b'); break;
-                        case 'f': sb.Append('\f'); break;
-                        case 'n': sb.Append('\n'); break;
-                        case 'r': sb.Append('\r'); break;
-                        case 't': sb.Append('\t'); break;
-                        case 'u':
-                            var codePoint = ParseUnicode(this.ReadChar(), this.ReadChar(), this.ReadChar(), this.ReadChar());
-                            sb.Append((char)codePoint);
-                            break;
-                    }
-                }
-                else
-                {
-                    sb.Append(_char);
-                }
-
-                this.ReadChar();
-            }
-
-            this.ReadChar(); // read last " or '
-
-            return sb.ToString();
-        }
-
         /// <summary>
         /// Read all chars to end of LINE
         /// </summary>

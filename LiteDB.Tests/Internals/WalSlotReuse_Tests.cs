@@ -120,7 +120,7 @@ namespace LiteDB.Internals
             Write(1, 10);
             Write(2, 20);
             Write(1, 30);
-            log.Length.Should().Be(2 * PAGE_SIZE);
+            log.Length.Should().Be(WalPadding.AlignedLength(2 * WalChecksum.FrameSize));
             positions[1].Position.Should().Be(0);
             var updated = reader.ReadPage(0, false, FileOrigin.Log);
             updated.ReadInt32(PAGE_SIZE - sizeof(int)).Should().Be(30);
@@ -128,7 +128,7 @@ namespace LiteDB.Internals
 
             Write(1, 40, confirmed: true);
             positions[1].Position.Should().Be(2 * PAGE_SIZE, "confirmation must follow every transaction page");
-            log.Length.Should().Be(3 * PAGE_SIZE);
+            log.Length.Should().Be(WalPadding.AlignedLength(3 * WalChecksum.FrameSize));
             disk.Cache.PinnedPages.Should().Be(0);
             disk.Cache.WritablePages.Should().Be(0);
             disk.Cache.LostFrames.Should().Be(0);

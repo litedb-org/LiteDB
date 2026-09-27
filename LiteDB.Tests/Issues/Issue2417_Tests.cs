@@ -36,7 +36,7 @@ namespace LiteDB.Tests.Issues
                 }
                 catch (Exception ex)
                 {
-                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999);
+                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
                 }
 
                 using (var db = new LiteEngine(settings))
@@ -77,7 +77,7 @@ namespace LiteDB.Tests.Issues
                 }
                 catch (Exception ex)
                 {
-                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999);
+                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
                 }
 
                 using (var db = new LiteEngine(settings))

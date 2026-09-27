@@ -59,7 +59,7 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = Environment.CurrentManagedThreadId;
+                var owner = Thread.CurrentThread;
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
@@ -124,7 +124,7 @@ namespace LiteDB.Engine
             }
             finally
             {
-                if (removed) _locker.ExitTransaction(transaction.ThreadID);
+                if (removed) _locker.ExitTransaction(transaction.OwnerThread);
                 if (!transaction.QueryOnly)
                 {
                     ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
@@ -174,7 +174,7 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
-            return _slot.Value ?? _transactions.FindForThread(Environment.CurrentManagedThreadId);
+            return _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 
         /// <summary>

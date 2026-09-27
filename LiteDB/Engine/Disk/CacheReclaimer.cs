@@ -84,6 +84,9 @@ namespace LiteDB.Engine
                     continue;
                 }
 
+#if DEBUG || TESTING
+                EngineState.ObserveCacheEviction?.Invoke(page);
+#endif
                 _evict(page);
                 return examined;
             }
@@ -121,6 +124,9 @@ namespace LiteDB.Engine
                     {
                         if (page.State == FrameState.Readable && page.ShareCounter == 0)
                         {
+#if DEBUG || TESTING
+                            EngineState.ObserveCacheEviction?.Invoke(page);
+#endif
                             _evict(page);
                             evicted++;
                         }

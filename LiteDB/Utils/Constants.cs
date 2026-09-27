@@ -7,7 +7,9 @@ using System.Threading;
 
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
 #if DEBUG || TESTING
+[assembly: InternalsVisibleTo("LiteDB.Fuzz")]
 [assembly: InternalsVisibleTo("ConsoleApp1")]
+[assembly: InternalsVisibleTo("VectorCompatibility.Current")]
 #endif
 
 namespace LiteDB

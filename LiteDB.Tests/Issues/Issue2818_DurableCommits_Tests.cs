@@ -144,15 +144,20 @@ namespace LiteDB.Tests.Issues
             db.Checkpoint();
 
             // Data pages are overwritten in place: the log that can redo them must be on the device first.
-            storage.SyncOrder.Should().Equal("log", "data");
+            storage.SyncOrder.Should().Equal("log", "log", "data", "data"); // Sync padding, seal redo, then publish data and salt.
         }
 
-        [Fact]
-        public void Opted_out_checkpoint_tolerates_log_storage_that_cannot_sync()
+        // Plain files only: opening an encrypted WAL stream syncs its preamble, which
+        // such storage already rejected before #2818.
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Checkpoint_tolerates_log_storage_that_cannot_sync(bool durableCommits)
         {
+            const string password = null;
             using var storage = new Storage();
 
-            using (var engine = storage.Open(durableCommits: false, password: null))
+            using (var engine = storage.Open(durableCommits, password))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 var rows = WarmUp(db);
@@ -164,10 +169,82 @@ namespace LiteDB.Tests.Issues
                 db.Checkpoint();
 
                 rows.Count().Should().Be(7);
-                storage.Log.DurableFlushes.Should().Be(1, "a rejected sync is remembered, not retried");
+                DurableLogFlush(db).Should().BeFalse("the weaker guarantee must be discoverable");
+            }
+
+            // The storage still cannot sync: reopening recovers and keeps writing (#2242).
+            using (var engine = storage.Open(durableCommits: true, password))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                var rows = db.GetCollection("rows");
+                rows.Count().Should().Be(7);
+                rows.Insert(new BsonDocument { ["_id"] = 101 });
+                db.Checkpoint();
+                DurableLogFlush(db).Should().BeFalse();
             }
 
             storage.Log.DurableFailure = null;
+            using var reopenedEngine = storage.Open(durableCommits: true, password);
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            reopened.GetCollection("rows").Count().Should().Be(8);
+            DurableLogFlush(reopened).Should().BeTrue("storage that syncs again regains durable commits");
+        }
+
+        [Fact]
+        public void Automatic_checkpoint_tolerates_log_storage_that_stops_syncing()
+        {
+            const string password = null;
+            using var storage = new Storage();
+
+            using (var engine = storage.Open(durableCommits: true, password))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                var rows = WarmUp(db);
+                db.CheckpointSize = 1;
+                db.Checkpoint();
+                storage.Log.DurableFailure = new UnauthorizedAccessException("Access to the path is denied.");
+
+                // Each commit reaches the automatic checkpoint limit.
+                for (var i = 1; i <= 3; i++) rows.Insert(new BsonDocument { ["_id"] = i });
+
+                rows.Count().Should().Be(5);
+            }
+
+            using var reopenedEngine = storage.Open(durableCommits: true, password);
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            reopened.GetCollection("rows").Count().Should().Be(5);
+        }
+
+        [Theory]
+        [InlineData(false, null)]
+        [InlineData(false, "secret")]
+        [InlineData(true, null)]
+        [InlineData(true, "secret")]
+        public void Checkpoint_stops_before_overwriting_data_when_the_log_sync_fails(bool durableCommits, string password)
+        {
+            using var storage = new Storage();
+
+            using (var engine = storage.Open(durableCommits, password))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                var rows = WarmUp(db);
+                CommitFourTransactions(db, rows);
+                var before = ReadShared(storage.Data.Name);
+                // A failed sync, unlike an unsupported one, leaves the redo state unknown.
+                storage.Log.DurableFailure = new IOException("The request could not be performed because of an I/O device error.");
+
+                Action checkpoint = () => db.Checkpoint();
+                checkpoint.Should().Throw<IOException>().Which.Should().BeSameAs(storage.Log.DurableFailure);
+                ReadShared(storage.Data.Name).Should().Equal(before);
+                Action write = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
+                write.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
+            }
+
+            storage.Log.DurableFailure = null;
+            using var reopenedEngine = storage.Open(durableCommits: true, password);
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            reopened.GetCollection("rows").Count().Should().Be(6);
+            reopened.Checkpoint();
         }
 
         [Theory]

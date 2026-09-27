@@ -419,7 +419,7 @@ namespace LiteDB.Tests.Engine
             var diskField = typeof(LiteEngine).GetField("_disk", BindingFlags.Instance | BindingFlags.NonPublic);
             var disk = diskField.GetValue(engine);
             var factoryField = typeof(DiskService).GetField("_logFactory", BindingFlags.Instance | BindingFlags.NonPublic);
-            var factory = factoryField.GetValue(disk);
+            var factory = typeof(ChecksummedWalFactory).GetField("_inner", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(factoryField.GetValue(disk));
             var streamField = typeof(StreamFactory).GetField("_stream", BindingFlags.Instance | BindingFlags.NonPublic);
 
             return (MemoryStream)streamField.GetValue(factory);

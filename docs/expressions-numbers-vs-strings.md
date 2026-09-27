@@ -30,7 +30,10 @@ and it is also how a digits-only input silently turns into a number. A parameter
 is never parsed as expression text.
 
 The numeric types are one family: `5`, `5L`, `5.0` and `5m` compare equal and
-find each other through an index. There is no implicit conversion between
+find each other through an index. Numbers of different types compare by their
+exact values: a fractional literal such as `19.99` is a double, which does not
+equal the decimal `19.99m`. Use a decimal parameter or `DECIMAL(19.99)` for
+decimal fields (see the release notes). There is no implicit conversion between
 numbers and strings, in either direction.
 
 ## A field that holds both numbers and strings

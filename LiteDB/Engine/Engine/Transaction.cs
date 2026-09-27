@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -15,6 +16,8 @@ namespace LiteDB.Engine
         public bool BeginTrans()
         {
             _state.Validate();
+
+            if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -76,9 +79,15 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create (or reuse) a transaction an add try/catch block. Commit transaction if is new transaction
         /// </summary>
-        private T AutoTransaction<T>(Func<TransactionService, T> fn)
+        private T AutoTransaction<T>(Func<TransactionService, T> fn) => this.ExecuteAutoTransaction(fn, true);
+
+        private T AutoReadTransaction<T>(Func<TransactionService, T> fn) => this.ExecuteAutoTransaction(fn, false);
+
+        private T ExecuteAutoTransaction<T>(Func<TransactionService, T> fn, bool write)
         {
             _state.Validate();
+
+            if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
 
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 

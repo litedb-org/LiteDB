@@ -21,7 +21,6 @@ namespace LiteDB.Engine
         private readonly WalIndexService _walIndex;
 
         // instances from transaction
-        private readonly uint _transactionID;
         private readonly TransactionPages _transPages;
         private readonly Action _safepoint;
 
@@ -53,7 +52,6 @@ namespace LiteDB.Engine
             LockMode mode, 
             string collectionName, 
             HeaderPage header, 
-            uint transactionID, 
             TransactionPages transPages, 
             LockService locker, 
             WalIndexService walIndex, 
@@ -65,7 +63,6 @@ namespace LiteDB.Engine
             _mode = mode;
             _collectionName = collectionName;
             _header = header;
-            _transactionID = transactionID;
             _transPages = transPages;
             _locker = locker;
             _walIndex = walIndex;
@@ -88,7 +85,7 @@ namespace LiteDB.Engine
                 {
                     // Collection identity and WAL visibility must describe the same committed
                     // state. A commit that changes the map holds this lock through confirmation.
-                    _readVersion = _walIndex.CurrentReadVersion;
+                    _readVersion = _walIndex.PinSnapshot();
                     collectionPageID = _header.GetCollectionPageID(_collectionName);
                 }
                 srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);
@@ -96,6 +93,7 @@ namespace LiteDB.Engine
             }
             catch
             {
+                this.ReleaseSnapshotPin();
                 // A failed constructor never reaches the transaction's snapshot map.
                 if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
                 foreach (var page in _localPages.Values)
@@ -154,33 +152,6 @@ namespace LiteDB.Engine
             // The collection page is deliberately retained by the snapshot
             // across safepoints, so refresh only its ownership epoch.
             _collectionPage?.SetSnapshotOwnership(this);
-        }
-
-        /// <summary>
-        /// Dispose stream readers and exit collection lock
-        /// </summary>
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            // release all data/index pages
-            this.Clear();
-
-            _disposed = true;
-
-            // release collection page (in read mode)
-            if (_mode == LockMode.Read && _collectionPage != null)
-            {
-                _collectionPage.Buffer.Release();
-            }
-
-            if(_mode == LockMode.Write)
-            {
-                _locker.ExitLock(_collectionName);
-            }
         }
 
         #region Page Version functions
@@ -263,7 +234,7 @@ namespace LiteDB.Engine
                 var page = BasePage.ReadPage<T>(buffer);
                 if (dirty)
                 {
-                    ENSURE(page.TransactionID == _transactionID, "this page must came from same transaction");
+                    ENSURE(page.TransactionID == _transPages.TransactionID, "this page must came from same transaction");
                 }
                 else if (origin == FileOrigin.Log)
                 {
@@ -395,7 +366,7 @@ namespace LiteDB.Engine
                     // checks if not exceeded data file limit size
                     var newLength = (_header.LastPageID + 1) * PAGE_SIZE;
 
-                    if (newLength > _header.Pragmas.LimitSize) throw LiteException.FileSizeExceeded(_header.Pragmas.LimitSize);
+                    if (newLength > (_transPages.IndexMigrationLimitSize ?? _header.Pragmas.LimitSize)) throw LiteException.FileSizeExceeded(_transPages.IndexMigrationLimitSize ?? _header.Pragmas.LimitSize);
 
                     var savepoint = _header.Savepoint();
                     try
@@ -484,7 +455,7 @@ namespace LiteDB.Engine
             var mustKeep = newSlot == 0;
 
             // first, test if page should be deleted
-            if (page.ItemsCount == 0)
+            if (page.ItemsCount == 0 && !RetainEmptyIndexPages)
             {
                 if (isOnList)
                 {
@@ -743,7 +714,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            // remove collection name (in header) at commit time
+            this.DropSchemas(safePoint);
             _transPages.Commit += (h) => h.DeleteCollection(_collectionName);
         }
 

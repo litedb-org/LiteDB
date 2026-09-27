@@ -60,14 +60,17 @@ namespace LiteDB.Internals
             test.Database.BeginTrans();
             test.Update("first", 1);
             var first = test.Engine.GetMonitor().GetThreadTransaction();
+            var provisionalFirstID = first.TransactionID;
             first.Safepoint();
             var firstPositions = first.Pages.DirtyPages.Values.Select(page => page.Position).ToArray();
+            uint secondID = 0;
 
             RunOnThread(() =>
             {
                 test.Database.BeginTrans();
                 test.Update("second", 2);
                 var second = test.Engine.GetMonitor().GetThreadTransaction();
+                secondID = second.TransactionID;
                 second.Safepoint();
                 second.Pages.DirtyPages.Values.Select(page => page.Position).Should().NotIntersectWith(firstPositions);
                 test.Update("second", 3);
@@ -76,6 +79,9 @@ namespace LiteDB.Internals
 
             test.Update("first", 4);
             first.Safepoint();
+            provisionalFirstID.Should().BeLessThan(secondID);
+            first.TransactionID.Should().Be(provisionalFirstID,
+                "checksummed transactions keep the identity included in their original frame proofs");
             AssertValues(test.Recover("first", checkpoint: false), 0);
             AssertValues(test.Recover("second", checkpoint: false), 3);
 
@@ -85,6 +91,37 @@ namespace LiteDB.Internals
             var expected = rollbackFirst ? 0 : 4;
             AssertValues(test.Recover("first", checkpoint: true), expected);
             AssertValues(test.Recover("second", checkpoint: true), 3);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void DelayedCommit_PreservesEarlierSafepointProofsAndTransactionIdentity(string password)
+        {
+            using var test = new WalTestDatabase(password);
+            test.Seed("first");
+            test.Seed("second");
+            test.Database.Checkpoint();
+            test.Database.BeginTrans();
+            test.Update("first", 1);
+            var first = test.Engine.GetMonitor().GetThreadTransaction();
+            var provisionalFirstID = first.TransactionID;
+            first.Safepoint();
+            uint secondID = 0;
+
+            RunOnThread(() =>
+            {
+                test.Database.BeginTrans();
+                test.Update("second", 2);
+                secondID = test.Engine.GetMonitor().GetThreadTransaction().TransactionID;
+                test.Database.Commit().Should().BeTrue();
+            });
+
+            test.Database.Commit().Should().BeTrue();
+            provisionalFirstID.Should().BeLessThan(secondID);
+            first.TransactionID.Should().Be(provisionalFirstID);
+            AssertValues(test.Recover("first", checkpoint: false), 1);
+            AssertValues(test.Recover("second", checkpoint: true), 2);
         }
 
         [Theory]
@@ -181,6 +218,47 @@ namespace LiteDB.Internals
             cache.WritablePages.Should().Be(0);
             test.Engine.GetMonitor().Transactions.Should().BeEmpty();
             AssertValues(test.Recover("docs", checkpoint: true), 0);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void TornSafepointAfterAnotherTransactionCommits_PreservesItsAcknowledgedPrefix(string password)
+        {
+            using var test = new WalTestDatabase(password);
+            test.Seed("first");
+            test.Seed("second");
+            test.Database.Checkpoint();
+            test.Database.BeginTrans();
+            test.Update("first", 1);
+            var first = test.Engine.GetMonitor().GetThreadTransaction();
+            first.Safepoint();
+            RunOnThread(() => test.Update("second", 2));
+            var committed = test.Log.ToArray();
+
+            test.Update("first", 3);
+            first.Safepoint();
+            var bytes = test.Log.ToArray();
+            var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+            var committedFrames = (committed.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble;
+            bytes.Take(committedFrames).Should().Equal(committed.Take(committedFrames),
+                "a later safepoint must leave the acknowledged prefix immutable");
+            bytes.Length.Should().BeGreaterThan(committed.Length);
+            Array.Clear(bytes, committedFrames, Math.Min(512, bytes.Length - committedFrames));
+            using var data = ChecksumTestFiles.Copy(test.Data.ToArray());
+            using var log = ChecksumTestFiles.Copy(bytes);
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                AssertValues(db.GetCollection("first").FindAll().ToArray(), 0);
+                AssertValues(db.GetCollection("second").FindAll().ToArray(), 2);
+                log.Length.Should().Be(committed.Length);
+                db.Checkpoint();
+            }
+            using var reopenedEngine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password });
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            AssertValues(reopened.GetCollection("first").FindAll().ToArray(), 0);
+            AssertValues(reopened.GetCollection("second").FindAll().ToArray(), 2);
         }
 
         private static void AssertValues(BsonDocument[] documents, int value)

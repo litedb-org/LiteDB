@@ -1,30 +1,80 @@
-﻿using LiteDB.Engine;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using LiteDB.Vector;
 
 namespace LiteDB
 {
-    public class SharedEngine : ILiteEngine
+    public partial class SharedEngine : ILiteEngine
     {
+        // An operation's engine closes without checkpoint until the WAL reaches this many
+        // pages: replaying up to 400 KiB at the next open costs less than the checkpoint's syncs.
+        internal const int CLOSE_CHECKPOINT_PAGES = 50;
+
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedMutexTurnstile _turnstile;
+        private readonly SharedMutexOwner _owner;
+        // Guards the engine's user count, which a reader disposed on another thread also updates.
+        private readonly object _useLock = new object();
+        private readonly SharedReaderRegistry _readers;
+        private readonly SharedFileHandles _handles;
         private LiteEngine _engine;
+        private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
+        private int _databaseUsers;
+        private SharedMutexPin _transactionUse;
+        // Read-only snapshots streaming under the mutex (no lease could be registered).
+        private readonly HashSet<LiteEngine> _mutexSnapshots = new HashSet<LiteEngine>();
+        private int _disposed;
+#if DEBUG || TESTING
+        internal Func<LiteEngine> SimulateOpenEngine { get; set; }
+
+        /// <summary>Test hook: runs in OpenDatabase between the engine check and counting the user.</summary>
+        internal Action BeforeCountingUser { get; set; }
+
+        internal int EngineOpens { get; private set; }
+
+        internal int SnapshotOpens { get; private set; }
+
+        internal SharedMutexOwner MutexOwner => _owner;
+        internal SharedFileHandles FileHandles => _handles;
+#endif
 
         public SharedEngine(EngineSettings settings)
         {
-            _settings = settings;
+            _settings = settings.Clone();
+            // Reopens must use the same path as the mutex and snapshot registry,
+            // even if the process changes its working directory between calls.
+            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
+                _settings.Filename = Path.GetFullPath(_settings.Filename);
+            _settings.SharedDurability = new SharedDurabilityState();
+            _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
+            _settings.SharedReaderVersions = _readers.LiveVersions;
+            // A rebuild would replace the files under live snapshot readers. Scan the
+            // registry only when an open is about to rebuild, not on every operation.
+            _settings.AutoRebuildAllowed = () => !_readers.OldestVersion().HasValue;
+            // Each operation opens and closes an engine. Share one back-off so a
+            // long-lived reader cannot make every close pay for partial checkpoint.
+            _settings.CheckpointBackoff = new CheckpointBackoff();
+            _settings.CloseCheckpointPages = CLOSE_CHECKPOINT_PAGES;
+            // Opening the files is most of an operation's fixed cost. Keep the handles,
+            // never the engine state: every operation still reads the files afresh.
+            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:" &&
+                _settings.DataStream == null && _settings.LogStream == null &&
+                SharedFileHandles.IsSupportedFor(_settings.Filename))
+                _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
-            var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {
                 _mutex = SharedMutexFactory.Create(name);
+                _turnstile = new SharedMutexTurnstile(SharedMutexFactory.Create(name + ".Turn"));
             }
             catch (NotSupportedException ex)
             {
@@ -35,72 +85,157 @@ namespace LiteDB
 
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
+            _owner = new SharedMutexOwner(_mutex, _turnstile, this.OnOwnerExited);
         }
 
         /// <summary>
-        /// Open database in safe mode
+        /// Open database in safe mode. Returns the pin the operation runs under, or
+        /// null when the operation owns a recursion of the named mutex instead.
+        /// Open for an operation. A <paramref name="scoped"/> caller closes on the same thread
+        /// before it returns; its ownership then takes the OS mutex directly on this thread.
         /// </summary>
-        /// <returns>true if successfully opened; false if already open</returns>
-        private bool OpenDatabase()
+        private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
+            // Writers retire idle read handles before _useLock, preserving lock order.
+            if (writing) this.RetireCoordinatedReads();
+            var pin = _pin;
+            if (pin != null)
+            {
+                if (pin.TryEnter()) return pin;
+                // Another thread needs the mutex: end the pin at its next idle moment.
+                if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
+            }
+
+            // Acquire mutex for every call to open DB.
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
+
             try
             {
-                // Acquire mutex for every call to open DB.
-                _mutex.WaitOne();
+                RejectAbandonedTransaction();
             }
-            catch (AbandonedMutexException) { }
+            catch { this.EndWriterPressure(); _owner.Exit(); throw; }
 
-            try { RejectAbandonedTransaction(); }
-            catch { _mutex.ReleaseMutex(); throw; }
+            // Check, open and count under one lock. A reader disposed on another thread
+            // closes the engine in CloseDatabase once the count reaches zero; between a
+            // separate check and increment it could close the engine this call relies on.
+            lock (_useLock)
+            {
+                try { this.AdmitLocked(); }
+                catch { this.EndWriterPressure(); _owner.Exit(); throw; }
+                // Don't create a new engine while a transaction is running.
+                if (!_transactionRunning && _engine == null)
+                {
+                    try
+                    {
+                        this.OpenEngine(recoveredAbandonedOwner, writing: writing);
+                    }
+                    catch
+                    {
+                        this.EndWriterPressure(); _owner.Exit();
+                        throw;
+                    }
+                }
+#if DEBUG || TESTING
+                this.BeforeCountingUser?.Invoke();
+#endif
+                _databaseUsers++;
+            }
+            return null;
+        }
 
-            // Don't create a new engine while a transaction is running.
-            if (!_transactionRunning && _engine == null)
+        private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)
+        {
+            const int retries = 100;
+            for (var attempt = 0; ; attempt++)
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
-                    return true;
+#if DEBUG || TESTING
+                    if (SimulateOpenEngine != null) return SimulateOpenEngine();
+#endif
+                    return new LiteEngine(settings ?? _settings);
                 }
-                catch
+                catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
                 {
-                    _mutex.ReleaseMutex();
-                    throw;
+                    // On Windows an abandoned mutex can become available just before
+                    // the dead process' file handles finish closing. Keep ownership
+                    // while the transient sharing violation clears.
+                    Thread.Sleep(20);
                 }
-            }
-            else
-            {
-                return false;
             }
         }
 
-        /// <summary>
-        /// Dequeue stack and dispose database on empty stack
-        /// </summary>
-        private void CloseDatabase(bool ownsEngine = true)
+        private static bool IsWindowsLockViolation(IOException exception)
         {
+            const int ERROR_SHARING_VIOLATION = 32;
+            const int ERROR_LOCK_VIOLATION = 33;
+            var errorCode = exception.HResult & 0xFFFF;
+            return errorCode == ERROR_SHARING_VIOLATION || errorCode == ERROR_LOCK_VIOLATION;
+        }
+
+        /// <summary>
+        /// Dequeue stack and dispose database on empty stack. A pinned use ends an
+        /// operation, or with <paramref name="hold"/> a reader or transaction.
+        /// </summary>
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1)
+        {
+            if (use != null)
+            {
+                // The pin keeps the engine; its holder closes it.
+                use.Exit(hold);
+                return;
+            }
+
             try
             {
-                // Nested operations borrow an engine owned by a transaction or reader.
-                if (ownsEngine && !_transactionRunning && _engine != null)
+                lock (_useLock)
                 {
-                    var engine = _engine;
-                    _engine = null;
-                    engine.Dispose();
+                    // A reader of an ownership that already ended (Dispose, exited
+                    // owner) was counted by that ownership, which reset the count.
+                    if (generation >= 0 && generation != _owner.Generation) return;
+                    if (_databaseUsers > 0 && --_databaseUsers == 0 && !_transactionRunning && _engine != null)
+                    {
+                        var engine = _engine;
+                        _engine = null;
+                        try { engine.Close(); } finally { this.EndWriterPressure(); }
+                    }
                 }
             }
             finally
             {
-                if (ownsEngine && !_transactionRunning) _transactionThreadId = 0;
+                if (!_transactionRunning) _transactionThreadId = 0;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
-                _mutex.ReleaseMutex();
+                // Any thread may end it, for example when disposing a reader.
+                _owner.Exit(generation);
             }
+        }
+
+        /// <summary>
+        /// Runs on the mutex holder thread when the owner thread exited while owning
+        /// the mutex. The mutex was never released meanwhile, but the owner's open
+        /// reader or transaction can no longer complete: drop the engine without
+        /// writing. An exited transaction owner is reported to the next caller.
+        /// </summary>
+        private void OnOwnerExited()
+        {
+            lock (_useLock)
+            {
+                _databaseUsers = 0;
+                var engine = _engine;
+                _engine = null;
+                engine?.Close(checkpoint: false);
+                this.CloseMutexSnapshotsLocked();
+            }
+            _handles?.CloseIdle();
         }
 
         #region Transaction Operations
 
-        public bool BeginTrans()
+        public bool BeginTrans() => this.Call(this.BeginTransCore);
+
+        private bool BeginTransCore()
         {
-            var opened = OpenDatabase();
+            var use = OpenDatabase();
 
             try
             {
@@ -109,50 +244,65 @@ namespace LiteDB
                 {
                     _transactionThreadId = Environment.CurrentManagedThreadId;
                     _transactionRunning = true;
+                    // A pinned transaction keeps the pin until it completes.
+                    _transactionUse = use;
+                    use?.ToHold();
                 }
                 // A false join belongs to the surrounding explicit or automatic
                 // transaction; its caller owes no completion or mutex recursion.
-                else CloseDatabase(opened);
+                else CloseDatabase(use);
                 return started;
             }
             catch
             {
-                CloseDatabase(opened);
+                CloseDatabase(use);
                 throw;
             }
         }
 
-        public bool Commit() => CompleteTransaction(commit: true);
+        public bool Commit() => this.Call(() => CompleteTransaction(commit: true));
 
-        public bool Rollback() => CompleteTransaction(commit: false);
+        public bool Rollback() => this.Call(() => CompleteTransaction(commit: false));
 
         private bool CompleteTransaction(bool commit)
         {
-            // Hold one extra mutex recursion throughout completion. A foreign
-            // thread must not reach cleanup, even while BeginTrans is publishing.
-            try
+            // Hold one extra mutex recursion (or pinned operation) throughout
+            // completion. A foreign thread must not reach cleanup, even while
+            // BeginTrans is publishing.
+            var pin = _pin;
+            var pinned = pin != null && pin.TryEnter();
+            if (!pinned && !_owner.TryEnter(out _))
             {
-                if (!_mutex.WaitOne(0))
-                {
-                    // Rolling back nothing is safe and must not replace the error a catch block is handling.
-                    if (!_transactionRunning || !commit) return false;
-                    throw ForeignTransactionCompletion();
-                }
+                // Rolling back nothing is safe and must not replace the error a catch block is handling.
+                if (!_transactionRunning || !commit) return false;
+                throw ForeignTransactionCompletion();
             }
-            catch (AbandonedMutexException) { }
 
             try
             {
+                // Dispose ended the transaction with the connection; a rollback in a catch
+                // block must not replace the error it handles.
+                lock (_useLock)
+                {
+                    if (!commit && Volatile.Read(ref _disposed) != 0) return false;
+                    this.AdmitLocked();
+                }
                 RejectAbandonedTransaction();
                 if (!_transactionRunning || _engine == null) return false;
                 try { return commit ? _engine.Commit() : _engine.Rollback(); }
                 finally
                 {
+                    var use = _transactionUse;
+                    _transactionUse = null;
                     _transactionRunning = false;
-                    CloseDatabase();
+                    CloseDatabase(use, hold: true);
                 }
             }
-            finally { _mutex.ReleaseMutex(); }
+            finally
+            {
+                if (pinned) pin.Exit(hold: false);
+                else _owner.Exit();
+            }
         }
 
         private void RejectAbandonedTransaction()
@@ -163,9 +313,14 @@ namespace LiteDB
             if (!_transactionRunning || _transactionThreadId == Environment.CurrentManagedThreadId) return;
             _transactionRunning = false;
             _transactionThreadId = 0;
+            _databaseUsers = 0;
             var orphan = _engine;
             _engine = null;
-            orphan?.Dispose();
+            // The mutex was free since the owner exited, so another process may have
+            // committed or checkpointed. This engine's WAL index and cache can be stale:
+            // release it without the close checkpoint; the next open recovers the WAL.
+            orphan?.Close(checkpoint: false);
+            _handles?.CloseIdle();
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
 
@@ -176,21 +331,6 @@ namespace LiteDB
 
         #region Read Operation
 
-        public IBsonDataReader Query(string collection, Query query)
-        {
-            bool opened = OpenDatabase();
-            try
-            {
-                var reader = _engine.Query(collection, query);
-                return new SharedDataReader(reader, () => CloseDatabase(opened));
-            }
-            catch
-            {
-                CloseDatabase(opened);
-                throw;
-            }
-        }
-
         public BsonValue Pragma(string name)
         {
             return QueryDatabase(() => _engine.Pragma(name));
@@ -198,76 +338,90 @@ namespace LiteDB
 
         public bool Pragma(string name, BsonValue value)
         {
-            return QueryDatabase(() => _engine.Pragma(name, value));
+            return WriteDatabase(() => _engine.Pragma(name, value), scoped: true);
         }
 
         #endregion
 
         #region Write Operations
 
-        public int Checkpoint()
-        {
-            return QueryDatabase(() => _engine.Checkpoint());
-        }
+        public int Checkpoint() => WriteDatabase(() => _engine.Checkpoint(), scoped: true);
 
         public long Rebuild(RebuildOptions options)
         {
-            return QueryDatabase(() => _engine.Rebuild(options));
+            return WriteDatabase(() =>
+            {
+                // Publish before inspecting leases: a cached reader may be admitting
+                // without the database mutex and must not accept a replaced file set.
+                _settings.CoordinationSignals?.StructuralBegin();
+                try
+                {
+                    if (_readers.OldestVersion().HasValue)
+                        throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                    _handles?.CloseIdle();
+                    return _engine.Rebuild(options);
+                }
+                finally
+                {
+                    _handles?.CloseIdle();
+                    _settings.CoordinationSignals?.StructuralEnd(-1);
+                }
+            });
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Insert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Insert(collection, docs, autoId), scoped: docs is BsonDocument[]);
         }
 
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
-            return QueryDatabase(() => _engine.Update(collection, docs));
+            return WriteDatabase(() => _engine.Update(collection, docs), scoped: docs is BsonDocument[]);
         }
 
         public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.UpdateMany(collection, extend, predicate));
+            return WriteDatabase(() => _engine.UpdateMany(collection, extend, predicate), scoped: true);
         }
 
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Upsert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Upsert(collection, docs, autoId), scoped: docs is BsonDocument[]);
         }
 
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
-            return QueryDatabase(() => _engine.Delete(collection, ids));
+            return WriteDatabase(() => _engine.Delete(collection, ids), scoped: ids is BsonValue[]);
         }
 
         public int DeleteMany(string collection, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.DeleteMany(collection, predicate));
+            return WriteDatabase(() => _engine.DeleteMany(collection, predicate), scoped: true);
         }
 
         public bool DropCollection(string name)
         {
-            return QueryDatabase(() => _engine.DropCollection(name));
+            return WriteDatabase(() => _engine.DropCollection(name), scoped: true);
         }
 
         public bool RenameCollection(string name, string newName)
         {
-            return QueryDatabase(() => _engine.RenameCollection(name, newName));
+            return WriteDatabase(() => _engine.RenameCollection(name, newName), scoped: true);
         }
 
         public bool DropIndex(string collection, string name)
         {
-            return QueryDatabase(() => _engine.DropIndex(collection, name));
+            return WriteDatabase(() => _engine.DropIndex(collection, name), scoped: true);
         }
 
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
-            return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+            return WriteDatabase(() => _engine.EnsureIndex(collection, name, expression, unique), scoped: true);
         }
 
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
         {
-            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
+            return WriteDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options), scoped: true);
         }
 
         #endregion
@@ -285,28 +439,62 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing)
+            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+            this.RetireCoordinatedReads();
+            // Any thread can end a pin; its holder closes the engine and releases. Read
+            // under the lock that orders a starting pin's publication with this Dispose.
+            SharedMutexPin pin;
+            lock (_useLock) pin = _pin;
+            if (pin != null)
+            {
+                pin.RequestRelease(force: true);
+                if (!pin.CanWaitFrom(Thread.CurrentThread))
+                {
+                    // The pin's holder still closes its engine; its streams close on return.
+                    _handles?.Dispose();
+                    _readers.Dispose();
+                    return;
+                }
+                pin.WaitReleased();
+            }
+
+            // Calls admitted before Dispose started finish first; later ones are refused.
+            this.WaitForAdmittedCalls();
+            var closed = false;
+            lock (_useLock)
             {
                 if (_engine != null)
                 {
-                    _engine.Dispose();
+                    _engine.Close(final: true);
                     _engine = null;
-                    _mutex.ReleaseMutex();
+                    closed = true;
                 }
+                this.CloseMutexSnapshotsLocked();
+                _databaseUsers = 0;
             }
+            // Open readers and transactions of any thread end with the connection.
+            _owner.ReleaseAll();
+            // Operations left a WAL below the close threshold: checkpoint it now, so
+            // the data file alone is the database again once every connection closed.
+            if (!closed) this.CheckpointOnDispose();
+            _handles?.Dispose();
+            // Leased readers may outlive the connection; the slot file closes after the last.
+            _readers.Dispose();
+            // A disposed connection holds no mutex, even for the moment its holder
+            // needs to release it; another connection's final close may try it next.
+            _owner.WaitForRelease();
+            this.DisposeCoordination();
         }
 
-        private T QueryDatabase<T>(Func<T> Query)
+        /// <summary>
+        /// Readers streaming under the mutex end with their ownership, like the
+        /// operation engine: a later read would no longer be ordered with writers.
+        /// </summary>
+        private void CloseMutexSnapshotsLocked()
         {
-            bool opened = OpenDatabase();
-            try
-            {
-                return Query();
-            }
-            finally
-            {
-                CloseDatabase(opened);
-            }
+            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
+            _mutexSnapshots.Clear();
         }
     }
 }

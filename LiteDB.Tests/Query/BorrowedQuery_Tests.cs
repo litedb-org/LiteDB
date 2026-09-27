@@ -14,7 +14,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Selective_filter_materializes_only_limited_survivors()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 100).Select(index => new BsonDocument
@@ -39,7 +39,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Count_evaluates_multiple_nested_predicates_without_materialization()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 100).Select(index => new BsonDocument
@@ -63,7 +63,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Exists_stops_at_first_borrowed_match()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 100).Select(index => new BsonDocument
@@ -82,7 +82,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Sql_count_uses_the_same_borrowed_plan()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 50).Select(index => new BsonDocument
@@ -105,7 +105,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Sql_count_with_computed_input_uses_materialized_fallback()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 10).Select(index => new BsonDocument
@@ -125,7 +125,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Multi_page_documents_are_filtered_without_materialization()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 8).Select(index => new BsonDocument
@@ -144,7 +144,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Scalar_sort_materializes_only_the_final_window()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 100).Select(index => new BsonDocument
@@ -167,7 +167,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Direct_projection_builds_only_the_result_document()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 100).Select(index => new BsonDocument
@@ -193,7 +193,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Borrowed_numeric_comparisons_match_owning_expression_semantics()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
             var documents = new List<BsonDocument>
             {
@@ -222,7 +222,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Unsupported_unicode_paths_use_materialized_fallback()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
 
             collection.InsertBulk(Enumerable.Range(0, 10).Select(index => new BsonDocument
@@ -240,7 +240,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Non_ascii_stored_names_preserve_ordinal_ignore_case_semantics()
         {
-            using var db = DatabaseFactory.Create();
+            using var db = CreateLegacyDatabase();
             var collection = db.GetCollection("items", BsonAutoId.Int32);
             var document = new BsonDocument { ["K"] = 5 };
             var expression = BsonExpression.Create("$.K = 5");
@@ -287,5 +287,8 @@ namespace LiteDB.Tests.QueryTest
             aggregate.Project((long)int.MaxValue + 1)["count"].AsInt64
                 .Should().Be((long)int.MaxValue + 1);
         }
+
+        private static LiteDatabase CreateLegacyDatabase() =>
+            DatabaseFactory.Create(connectionString: "Filename=:memory:;Compact Storage=Legacy");
     }
 }

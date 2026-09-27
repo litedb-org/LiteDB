@@ -185,6 +185,9 @@ namespace LiteDB.Tests.Issues
                 Patch(bytes, _damaged.Ticks, DamagedTicks(high)).Should().BeGreaterThan(0);
             }
 
+            // Preserve valid page checksums to exercise legacy date decoding, not damaged storage.
+            for (var offset = 0; offset < bytes.Length; offset += 8192)
+                LiteDB.Engine.PageChecksum.Write(new BufferSlice(bytes, offset, 8192));
             File.WriteAllBytes(file.Filename, bytes);
         }
 

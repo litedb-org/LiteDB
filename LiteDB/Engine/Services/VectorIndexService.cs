@@ -924,6 +924,11 @@ namespace LiteDB.Engine
                 return false;
             }
 
+            for (var i = 0; i < buffer.Length; i++)
+            {
+                if (float.IsNaN(buffer[i]) || float.IsInfinity(buffer[i])) return false;
+            }
+
             vector = buffer;
             return true;
         }

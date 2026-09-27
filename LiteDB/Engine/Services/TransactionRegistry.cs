@@ -81,12 +81,12 @@ namespace LiteDB.Engine
             return false;
         }
 
-        public TransactionService FindForThread(int threadID)
+        public TransactionService FindForThread(Thread thread)
         {
             for (var i = 0; i < _slots.Length; i++)
             {
                 var transaction = Volatile.Read(ref _slots[i]);
-                if (transaction?.ThreadID == threadID) return transaction;
+                if (transaction?.OwnerThread == thread) return transaction;
             }
 
             return null;

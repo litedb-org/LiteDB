@@ -19,7 +19,13 @@ namespace LiteDB.Engine
         public override long Position { get => _stream.Position; set => _stream.Position = value; }
         public override void Flush() => _stream.Flush();
         public override int Read(byte[] buffer, int offset, int count) => _stream.Read(buffer, offset, count);
-        public override void Write(byte[] buffer, int offset, int count) => _stream.Write(buffer, offset, count);
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            // CryptoStream emits an empty final write during disposal. A borrowed
+            // MemoryStream may have been truncated below this wrapper's position;
+            // forwarding that empty write would extend it again without data.
+            if (count != 0) _stream.Write(buffer, offset, count);
+        }
         public override long Seek(long offset, SeekOrigin origin) => _stream.Seek(offset, origin);
         public override void SetLength(long value) => _stream.SetLength(value);
     }

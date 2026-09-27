@@ -14,6 +14,7 @@ namespace LiteDB
         private readonly static IFormatProvider _numberFormat = CultureInfo.InvariantCulture.NumberFormat;
 
         private readonly Tokenizer _tokenizer = null;
+        private readonly bool _requireEof;
 
         public long Position { get { return _tokenizer.Position; } }
 
@@ -21,12 +22,14 @@ namespace LiteDB
         {
             if (reader == null) throw new ArgumentNullException(nameof(reader));
 
-            _tokenizer = new Tokenizer(reader);
+            _tokenizer = new Tokenizer(reader) { StrictStrings = true };
+            _requireEof = true;
         }
 
         internal JsonReader(Tokenizer tokenizer)
         {
             _tokenizer = tokenizer ?? throw new ArgumentNullException(nameof(tokenizer));
+            _requireEof = false;
         }
 
         public BsonValue Deserialize()
@@ -36,6 +39,8 @@ namespace LiteDB
             if (token.Type == TokenType.EOF) return BsonValue.Null;
 
             var value = this.ReadValue(token);
+
+            if (_requireEof) _tokenizer.ReadToken().Expect(TokenType.EOF);
 
             return value;
         }
