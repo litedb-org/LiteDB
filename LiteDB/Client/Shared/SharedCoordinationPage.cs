@@ -116,20 +116,27 @@ namespace LiteDB.Client.Shared
 
         internal bool TryRead(out SharedCoordinationStatus status)
         {
-            lock (_writeLock) return this.TryReadCore(out status);
+            lock (_writeLock) return this.TryReadCore(out status, checkRevocation: true);
         }
 
-        private bool TryReadCore(out SharedCoordinationStatus status)
+        // A hint cannot authorize a read: admission must publish its lease and then
+        // call TryRead, including the filesystem revocation checks, before any query.
+        internal bool TryReadHint(out SharedCoordinationStatus status)
+        {
+            lock (_writeLock) return this.TryReadCore(out status, checkRevocation: false);
+        }
+
+        private bool TryReadCore(out SharedCoordinationStatus status, bool checkRevocation)
         {
             status = default;
-            if (_disposed || !_trusted || this.Revoked()) return false;
+            if (_disposed || !_trusted || (checkRevocation && this.Revoked())) return false;
             for (var attempt = 0; attempt < 8; attempt++)
             {
                 var sequence = this.Load(1);
                 if ((sequence & 1) != 0 || this.Load(0) != Magic) continue;
                 status = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4), this.Load(5), this.Load(6));
                 Interlocked.MemoryBarrier();
-                if (sequence == this.Load(1)) return status.Quiet && !this.Revoked();
+                if (sequence == this.Load(1)) return status.Quiet && (!checkRevocation || !this.Revoked());
             }
             status = default;
             return false;

@@ -124,7 +124,7 @@ namespace LiteDB
             lock (_snapshotGate)
             {
                 snapshot = _cachedSnapshot;
-                if (snapshot == null || _coordination == null || !_coordination.TryRead(out var status) ||
+                if (snapshot == null || _coordination == null || !_coordination.TryReadHint(out var status) ||
                     status.Version != snapshot.Status.Version || !status.SameStorage(snapshot.Status)) return null;
 #if DEBUG || TESTING
                 CoordinationStage?.Invoke("cached-status");

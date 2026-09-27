@@ -32,7 +32,10 @@ namespace LiteDB.Tests.Engine
                 peerEngine.CoordinatedReadHits.Should().BeGreaterThan(hits, "a protected read cannot invalidate storage");
                 hits = peerEngine.CoordinatedReadHits;
                 database.GetCollection("rows").Update(new BsonDocument { ["_id"] = 1, ["value"] = 20 });
+                var provisionalLease = false;
+                peerEngine.CoordinationStage = stage => provisionalLease |= stage == "lease-published";
                 peer.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(20);
+                provisionalLease.Should().BeTrue("the mapped hint must still require final revocation validation");
                 peerEngine.CoordinatedReadHits.Should().Be(hits, "a fallback writer must revoke before mutation");
             }
         }
@@ -68,10 +71,13 @@ namespace LiteDB.Tests.Engine
                             { ["_id"] = 1, ["value"] = "updated", ["payload"] = new string('p', 1000) });
                         fallback.CoordinationFallbackReason.Should().Be("architecture: Arm");
                         var before = readerEngine.CoordinatedReadHits;
+                        var provisionalLease = false;
+                        readerEngine.CoordinationStage = stage => provisionalLease |= stage == "lease-published";
                         var current = rows.FindById(1)["value"].AsString;
                         if (current != "updated") PreserveBeforeCleanup(directory);
                         current.Should().Be("updated", "a query after acknowledgement must not trust unannounced cached state");
                         readerEngine.CoordinatedReadHits.Should().Be(before);
+                        provisionalLease.Should().BeTrue("an existing streaming lease also requires the final revocation check");
                         writer.Checkpoint();
                         var count = 1;
                         while (held.MoveNext())
