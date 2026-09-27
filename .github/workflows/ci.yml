@@ -2,12 +2,25 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
+
+concurrency:
+  # GitHub replaces a pending group member even when cancel-in-progress is false.
+  # Unrelated label events must never enter the validation run's group.
+  group: ci-${{ github.event.action == 'labeled' && github.event.label.name != 'full-ci' && format('ignored-label-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'full-ci' }}
 
 jobs:
   build-and-test:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-ci'
     uses: ./.github/workflows/_reusable-ci.yml
+    with:
+      tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
 
   repro-runner:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
     uses: ./.github/workflows/reprorunner.yml
+    with:
+      tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
     secrets: inherit

@@ -1,0 +1,17 @@
+{
+  "Issue_2586_RollbackTransaction": {
+    "reason": "Fixed rollback regression is covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint",
+      "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Discard_Writable_Dirty_Pages",
+      "LiteDB.Tests/Issues/Issue2586_RollbackSafety_Tests.cs#RollbackAfterSafepoint_PreservesCommittedDataOnReopen"
+    ]
+  },
+  "Issue_2614_DiskServiceDispose": {
+    "reason": "Fixed initialization cleanup regression is covered by file-backed failure/retry tests and stream ownership tests.",
+    "tests": [
+      "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
+      "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
+    ]
+  }
+}
