@@ -26,6 +26,7 @@ internal static class Program
         catch (HelpRequestedException) { PrintHelp(); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error.Message); PrintHelp(); return 2; }
 
+        if (options.Child == "verify-checkpointed") return CheckpointedFileVerifier.Run(options);
         if (options.Child == "shared") return SharedProcessFuzzer.RunChild(options);
         if (options.Child == "snapshot-writer") return SnapshotWriterProcess.RunChild(options);
         if (options.Child == "snapshot-reader") return SnapshotFuzzer.RunChild(options);
@@ -210,6 +211,7 @@ internal static class Program
         Console.WriteLine("  --replay <replay.json>      replay one saved target/seed/count");
         Console.WriteLine("  --coverage-guided           retain seeds that add new LiteDB IL-range coverage");
         Console.WriteLine("  --determinism-check         rerun and compare input/trace hashes");
+        Console.WriteLine("  --child verify-checkpointed --database <file>  read-only structural check of a quiescent fixture");
         Console.WriteLine("  --list                      list targets");
     }
 

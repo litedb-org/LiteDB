@@ -79,7 +79,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                     context.Check(child.Process.ExitCode != 0, "Crash worker unexpectedly completed normally.");
                     var marker = CrashMarker(child.Ledger);
                     context.Check(File.Exists(marker),
-                        "Shared crash worker exited without proving the configured hook fired.");
+                        "Shared crash worker exited without proving the configured hook fired: " + error);
                     var observed = File.ReadAllText(marker);
                     var position = int.Parse(observed.Split('|')[0]);
                     FuzzOracle.VerifyCrashMarker(context, observed, ExpectedMarker(position));
