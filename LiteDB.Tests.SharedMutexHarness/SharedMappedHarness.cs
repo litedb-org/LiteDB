@@ -28,11 +28,6 @@ internal static class SharedMappedHarness
                 Console.ReadLine();
                 throw new IOException("A half-published lease child must be killed by its parent");
             }));
-            // Exercise the file-backed fallback while mapped readers coexist. Atomic
-            // mapped publication has no half-write boundary; its death boundary is
-            // covered separately by the lease-published admission stage.
-            registry.GetType().GetMethod("RegisterUnscanned", Private)!.Invoke(registry, new object[] { 7 });
-            throw new Exception("The half-published lease must not return");
         }
         else
         {

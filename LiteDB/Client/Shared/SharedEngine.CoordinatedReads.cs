@@ -132,7 +132,7 @@ namespace LiteDB
                 var addedLease = snapshot.Lease == null;
                 if (addedLease)
                 {
-                    try { snapshot.Lease = _readers.RegisterMapped(checked((int)status.Version), allowCreate: false); }
+                    try { snapshot.Lease = _readers.RegisterUnscanned(checked((int)status.Version)); }
                     catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
                 }
                 Interlocked.MemoryBarrier();
@@ -168,9 +168,7 @@ namespace LiteDB
             // Start caching only after two consecutive read-only opens.
             if (_readCacheDemand < 2) _readCacheDemand++;
             if (_readCacheDemand < 2 || _coordination == null || !_coordination.TryRead(out var status) || status.Version != engine.ReadVersion) return null;
-            IDisposable lease;
-            try { lease = _readers.RegisterMapped(engine.ReadVersion, allowCreate: true); }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
+            var lease = this.TryRegisterLease(engine.ReadVersion);
             if (lease == null) return null;
             var snapshot = new CachedSharedSnapshot(engine, lease, status) { Readers = 1 };
             var installed = false;
