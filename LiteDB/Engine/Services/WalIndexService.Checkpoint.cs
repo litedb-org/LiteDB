@@ -108,6 +108,21 @@ namespace LiteDB.Engine
                 // Scanning lease files is filesystem work; keep it outside the index
                 // lock. The database mutex already orders it with lease registration.
                 var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
+                // A short-lived reader may finish while the structural fence excludes
+                // new admission. Make one rescan, then at most three more while a
+                // 1 ms budget remains. Accumulated WAL bypasses this wait; retained
+                // readers always keep their protection.
+                if (exclusive && _signals is IBatchedCoordinationSignals &&
+                    _confirmTransactions.Count == 1 && shared?.Length > 0)
+                {
+                    var started = System.Diagnostics.Stopwatch.GetTimestamp();
+                    for (var attempt = 0; attempt < 4 && shared?.Length > 0 && (attempt == 0 ||
+                        System.Diagnostics.Stopwatch.GetTimestamp() - started < System.Diagnostics.Stopwatch.Frequency / 1000); attempt++)
+                    {
+                        System.Threading.Thread.Yield();
+                        shared = _sharedReaders();
+                    }
+                }
                 // Null means the external reader registry could not be inspected.
                 // Neither backfill nor reclamation is safe without the oldest
                 // snapshot version, so leave the WAL untouched and retry later.
