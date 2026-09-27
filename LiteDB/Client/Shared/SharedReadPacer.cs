@@ -13,7 +13,7 @@ namespace LiteDB.Client.Shared
     /// </summary>
     internal sealed class SharedReadPacer
     {
-        private const double DelayPerWork = 7;
+        private const double DelayPerWork = 10;
         private double _pendingMilliseconds;
 
         internal int ReserveDelay(bool pressure)
