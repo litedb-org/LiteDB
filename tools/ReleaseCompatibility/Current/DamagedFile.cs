@@ -27,7 +27,7 @@ internal static class DamagedFile
         {
             recovered = db.GetCollection("directories").FindAll().Count();
             errors = db.GetCollection("_rebuild_errors").Count();
-            if (recovered < 1646 || errors == 0) throw new Exception("Salvage silently lost records or its error report");
+            if (recovered != 6824 || errors != 6) throw new Exception("Salvage changed the known recoverable corpus or its error report");
             db.GetCollection("salvage_probe").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "persisted" });
         }
         var backup = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename) + "-backup" + Path.GetExtension(filename));
