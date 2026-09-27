@@ -144,7 +144,7 @@ namespace LiteDB
                 // local lifetime gate. Re-read all admission state afterwards.
                 var started = Stopwatch.GetTimestamp();
                 if (delay != 0) Thread.Sleep(delay);
-                else Thread.Yield();
+                else Thread.Sleep(0);
                 lock (_snapshotGate) _readPacer.RecordDelay(delay, Stopwatch.GetTimestamp() - started);
             }
             var workStarted = yieldToWriter ? Stopwatch.GetTimestamp() : 0;
