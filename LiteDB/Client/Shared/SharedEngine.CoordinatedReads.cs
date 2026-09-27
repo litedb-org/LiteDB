@@ -187,7 +187,7 @@ namespace LiteDB
                         _snapshotIdle = new Timer(state =>
                         {
                             if (((WeakReference<SharedEngine>)state).TryGetTarget(out var owner)) owner.ExpireSnapshot();
-                        }, weak, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                        }, weak, this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
                     }
                     installed = true;
                 }
@@ -266,8 +266,6 @@ namespace LiteDB
                         }
                         checkpoint = snapshot.HadStreamingReader;
                         snapshot.HadStreamingReader = false;
-                        if (ReferenceEquals(snapshot, _cachedSnapshot))
-                            _snapshotIdle?.Change(this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
                         if (snapshot.Retired) snapshot.Close();
                         if (_cachedSnapshot == null) { _snapshotIdle?.Dispose(); _snapshotIdle = null; }
                     }
@@ -285,7 +283,12 @@ namespace LiteDB
             lock (_snapshotGate)
             {
                 var snapshot = _cachedSnapshot;
-                if (snapshot == null || snapshot.Readers != 0) return;
+                if (snapshot == null) return;
+                if (snapshot.Readers != 0)
+                {
+                    _snapshotIdle?.Change(this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
+                    return;
+                }
                 var remaining = this.CoordinatedIdleLimit.TotalMilliseconds - (Environment.TickCount64 - snapshot.LastUse);
                 if (remaining > 0)
                 {
