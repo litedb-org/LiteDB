@@ -123,7 +123,7 @@ namespace LiteDB.Client.Shared
                 while (true)
                 {
                     var previous = this.Load(7);
-                    var request = unchecked((long)(uint)(now + 100) << 32) |
+                    var request = unchecked((long)(uint)(now + 500) << 32) |
                         (unchecked(previous + 2) & 0xfffffffeL) | 1;
                     if (Interlocked.CompareExchange(ref _fields[7], request, previous) == previous) return request;
                 }
@@ -144,7 +144,7 @@ namespace LiteDB.Client.Shared
                 if (_disposed) return false;
                 var request = this.Load(7);
                 var remaining = unchecked((uint)(request >> 32) - (uint)now);
-                return (request & 1) != 0 && remaining > 0 && remaining <= 100;
+                return (request & 1) != 0 && remaining > 0 && remaining <= 500;
             }
         }
 
