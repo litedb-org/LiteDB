@@ -95,6 +95,9 @@ internal static class FuzzCorpus
 
     private static bool StrongerThan(FuzzCorpusCase candidate, FuzzCorpusCase retained)
     {
+        var candidateRecorded = candidate.InputFile != null && candidate.InputHash != null;
+        var retainedRecorded = retained.InputFile != null && retained.InputHash != null;
+        if (candidateRecorded != retainedRecorded) return candidateRecorded;
         if (candidate.Count != retained.Count) return candidate.Count > retained.Count;
         return Fidelity(candidate) > Fidelity(retained);
     }

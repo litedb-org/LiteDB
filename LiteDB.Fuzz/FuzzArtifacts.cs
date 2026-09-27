@@ -220,23 +220,41 @@ internal static class FuzzArtifacts
                 TraceHash = TracePrefixHash(Path.Combine(candidate.SourceDirectory, "trace.jsonl"), candidate.Case.Count)
             };
             if (candidate.Case.InputFile == null) continue;
-            var destination = Path.Combine(root, candidate.Case.InputFile);
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            CopyPrefix(Path.Combine(candidate.SourceDirectory, "input.bin"), destination,
-                InputLengthForStep(candidate.SourceDirectory, candidate.Case.Count));
-            candidate.Case = candidate.Case with { InputHash = Hash(destination) };
+            var directory = Path.Combine(root, "interesting-inputs");
+            Directory.CreateDirectory(directory);
+            var temporary = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                CopyPrefix(Path.Combine(candidate.SourceDirectory, "input.bin"), temporary,
+                    InputLengthForStep(candidate.SourceDirectory, candidate.Case.Count));
+                var hash = Hash(temporary);
+                var relative = "interesting-inputs/" + hash + ".bin";
+                var destination = Path.Combine(root, relative);
+                // Immutable inputs keep the previous manifest replayable until the replacement is ready.
+                if (!File.Exists(destination)) File.Move(temporary, destination);
+                candidate.Case = candidate.Case with { InputHash = hash, InputFile = relative };
+            }
+            finally { File.Delete(temporary); }
         }
-        File.WriteAllLines(retained, selected.OrderBy(item => item.Case.Target, StringComparer.Ordinal)
-            .ThenBy(item => item.Case.Seed)
-            .Select(item => System.Text.Json.JsonSerializer.Serialize(item.Case)));
+        var stagedManifest = retained + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllLines(stagedManifest, selected.OrderBy(item => item.Case.Target, StringComparer.Ordinal)
+                .ThenBy(item => item.Case.Seed)
+                .Select(item => System.Text.Json.JsonSerializer.Serialize(item.Case)));
+            File.Move(stagedManifest, retained, overwrite: true);
+        }
+        finally { File.Delete(stagedManifest); }
         DeleteUnreferencedInputs(root, selected.Select(candidate => candidate.Case.InputFile));
 
         void Add(InterestingCandidate candidate)
         {
             var key = (candidate.Case.Target, candidate.Case.Seed);
             if (!entries.TryGetValue(key, out var previous) ||
-                candidate.Case.Count > previous.Case.Count ||
-                candidate.Case.Count == previous.Case.Count && Fidelity(candidate) > Fidelity(previous))
+                Fidelity(candidate) >= 6 && Fidelity(previous) < 6 ||
+                (Fidelity(candidate) >= 6) == (Fidelity(previous) >= 6) &&
+                (candidate.Case.Count > previous.Case.Count ||
+                 candidate.Case.Count == previous.Case.Count && Fidelity(candidate) > Fidelity(previous)))
             {
                 entries[key] = candidate;
             }
