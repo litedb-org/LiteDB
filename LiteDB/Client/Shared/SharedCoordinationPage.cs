@@ -210,9 +210,12 @@ namespace LiteDB.Client.Shared
         // A failed field update deliberately leaves an odd sequence for recovery.
         private void EndChange(long before) => this.Store(1, checked(before + 2));
 
-        // Read/write views on every runtime: Interlocked's full fences and aligned 64-bit
-        // atomics are required. No MemoryMappedViewAccessor.Write participates in ordering.
-        private long Load(int field) => Interlocked.CompareExchange(ref _fields[field], 0, 0);
+        // Aligned 64-bit acquire loads do not write the shared cache line on x64/ARM64.
+        // Keep the conservative atomic read on x86. The seqlock validation fence and
+        // the post-lease admission fence remain full barriers.
+        private long Load(int field) => IntPtr.Size == 8
+            ? Volatile.Read(ref _fields[field])
+            : Interlocked.CompareExchange(ref _fields[field], 0, 0);
         private void Store(int field, long value) => Interlocked.Exchange(ref _fields[field], value);
         private static long NewIdentity() => BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0) | 1;
 
