@@ -39,13 +39,19 @@ exceeds the budget is stopped, its databases are dropped, and it fails as
 rather than silently filling the disk. Replays and corpus cases are not budgeted.
 Novel state signatures and their replayable seeds are retained in
 `interesting.jsonl`; the parent runner deduplicates them across isolated target
-processes into `interesting-corpus.jsonl`. Existing entries are preserved and
+processes into `interesting-corpus.jsonl`, keeping at most eight target/seed
+prefixes per target before hashing traces or copying input. This is the same bound
+used when replaying the corpus. Selected existing entries are preserved and
 replayed automatically on the next campaign using the same artifact root, so
 new semantic coverage feeds future runs rather than being report-only. Only the
 entries a campaign replays are kept (the strongest per target/seed, at most eight per
 target), and input prefixes no longer referenced are deleted. Retained
-entries keep the longest interesting prefix for each target/seed together with
-duration mode, exact recorded input prefix, and input/trace hashes. Targets with persistent state also
+entries prefer verified recorded input over seed-only candidates, then keep the longest
+interesting prefix for each target/seed together with duration mode and input/trace hashes.
+New input prefixes have content-addressed names; the manifest is replaced only after all
+selected inputs are ready, and unreferenced inputs are pruned afterward. A failed update
+leaves the previous manifest and its inputs available; retrying finishes publication and
+cleanup. This is a local artifact publication guarantee, not a power-loss durability claim. Targets with persistent state also
 preserve database/WAL files. Replay a failure
 without remembering the original command:
 

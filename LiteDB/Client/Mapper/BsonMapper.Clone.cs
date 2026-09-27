@@ -9,6 +9,8 @@ namespace LiteDB
         /// Create an independent mapper with the same configuration and entity mappings.
         /// Runtime caches are intentionally not shared.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+            Justification = "DbRef configurations can only exist after annotated runtime mapping APIs register them; cloning rebuilds their delegates against the new mapper.")]
         internal BsonMapper Clone()
         {
             var clone = this.CreateCloneInstance();
@@ -27,7 +29,16 @@ namespace LiteDB
             clone.MaxDepth = this.MaxDepth;
             clone.ResolveFieldName = this.ResolveFieldName;
             clone.ResolveMember = this.ResolveMember;
-            clone.ResolveCollectionName = this.ResolveCollectionName;
+            clone._resolveCollectionName = _resolveCollectionName;
+            clone._customTypeRegistrations = _customTypeRegistrations;
+            clone._customEntityConfigurations = _customEntityConfigurations;
+            foreach (var item in _generatedEntities)
+            {
+                var entity = new EntityMapper(item.Key);
+                CloneEntityMapper(item.Value, entity);
+                clone._generatedEntities[item.Key] = entity;
+            }
+            foreach (var item in _generatedExecutionMaps) clone._generatedExecutionMaps[item.Key] = item.Value;
             clone.OnDeserialization = this.OnDeserialization;
 
             clone._customSerializer.Clear();
@@ -81,7 +92,8 @@ namespace LiteDB
         /// </summary>
         protected virtual BsonMapper CreateCloneInstance()
         {
-            return new BsonMapper(_typeInstantiator, _typeNameBinder);
+            return new BsonMapper(_hasCustomTypeInstantiator ? _typeInstantiator : null,
+                _hasCustomTypeNameBinder ? _typeNameBinder : null);
         }
 
         private static void CloneEntityMapper(EntityMapper source, EntityMapper target)

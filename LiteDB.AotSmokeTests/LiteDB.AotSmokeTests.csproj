@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- The parity gate publishes this project once per supported runtime: -p:SmokeTargetFramework=net10.0 -->
+    <SmokeTargetFramework Condition="'$(SmokeTargetFramework)' == ''">net8.0</SmokeTargetFramework>
+    <TargetFramework>$(SmokeTargetFramework)</TargetFramework>
+    <PublishAot>true</PublishAot>
+    <!-- Globalization stays enabled on purpose: LiteDB collations are culture-specific and have to work published. -->
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2057;IL2067;IL2070;IL2072;IL2075;IL3050;IL3051</WarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+  Whole-library analysis mode. By default the trimmer and the AOT compiler only analyse what this program
+  reaches. Rooting LiteDB makes them compile and analyse every method of the library, so a trim or AOT
+  warning anywhere in LiteDB.dll fails the gate even when no smoke scenario calls that code.
+  -->
+  <ItemGroup Condition="'$(LiteDbAnalyzeWholeLibrary)' == 'true'">
+    <TrimmerRootAssembly Include="LiteDB" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+    <ProjectReference Include="..\LiteDB.SourceGenerator\LiteDB.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -37,6 +37,7 @@ dlldata.c
 *_i.h
 *.ilk
 *.meta
+!integration/LiteDB.UnityIosAotSmoke/Assets/**/*.meta
 *.obj
 *.pch
 *.pdb
@@ -221,7 +222,12 @@ FakesAssemblies/
 **/packages/*
 # except build/, which is used as an MSBuild target.
 !**/packages/build/
+!integration/LiteDB.UnityIosAotSmoke/Packages/
+!integration/LiteDB.UnityIosAotSmoke/Packages/manifest.json
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/packages/repositories.config
 /LiteDB.BadJsonTest
 repro-summary.json
+
+# Output of scripts/validate-*.sh
+artifacts/

@@ -1,22 +1,23 @@
 ﻿using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
-using static LiteDB.Constants;
 
 namespace LiteDB
 {
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public partial class LiteQueryable<T> : ILiteQueryable<T>
     {
         private readonly LiteDatabaseContext _context;
         protected readonly string _collection;
         protected readonly Query _query;
+        private readonly Func<BsonDocument, T> _deserialize;
+        private readonly bool _useGeneratedMappers;
 
         protected ILiteEngine _engine => _context.Engine;
 
@@ -28,11 +29,38 @@ namespace LiteDB
         private readonly bool _isSimpleType = Reflection.IsSimpleType(typeof(T));
 
         internal LiteQueryable(LiteDatabaseContext context, string collection, Query query)
+            : this(context, collection, query, null)
+        {
+        }
+
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query, Func<BsonDocument, T> deserialize)
+            : this(context, collection, query, deserialize, false)
+        {
+        }
+
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query, Func<BsonDocument, T> deserialize, bool useGeneratedMappers)
         {
             _context = context;
             _collection = collection;
             _query = query;
+            _deserialize = deserialize;
+            _useGeneratedMappers = useGeneratedMappers;
         }
+
+        /// <summary>
+        /// A query created by a generated collection must always carry its statically registered deserializer.
+        /// Failing here keeps a missing one from silently degrading into runtime model mapping.
+        /// </summary>
+        private void EnsureRuntimeMappingAllowed()
+        {
+            if (_useGeneratedMappers)
+            {
+                throw new InvalidOperationException($"A source-generated query over '{typeof(T).FullName}' has no generated deserializer and must not fall back to runtime model mapping.");
+            }
+        }
+
+        private BsonExpression GetExpression<K>(Expression<Func<T, K>> expression) =>
+            _useGeneratedMappers ? _mapper.GetGeneratedExpression(expression) : _mapper.GetExpression(expression);
 
         #region Includes
 
@@ -41,7 +69,8 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> Include<K>(Expression<Func<T, K>> path)
         {
-            _query.Includes.Add(_mapper.GetExpression(path));
+            if (_useGeneratedMappers) throw new NotSupportedException("Generated query includes require generated DbRef serialization and hydration support.");
+            _query.Includes.Add(this.GetExpression(path));
             return this;
         }
 
@@ -50,6 +79,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> Include(BsonExpression path)
         {
+            if (_useGeneratedMappers) throw new NotSupportedException("Generated query includes require generated DbRef serialization and hydration support.");
             _query.Includes.Add(path);
             return this;
         }
@@ -59,6 +89,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> Include(List<BsonExpression> paths)
         {
+            if (_useGeneratedMappers) throw new NotSupportedException("Generated query includes require generated DbRef serialization and hydration support.");
             _query.Includes.AddRange(paths);
             return this;
         }
@@ -99,7 +130,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> Where(Expression<Func<T, bool>> predicate)
         {
-            return this.Where(_mapper.GetExpression(predicate));
+            return this.Where(this.GetExpression(predicate));
         }
 
         #endregion
@@ -122,7 +153,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> OrderBy<K>(Expression<Func<T, K>> keySelector, int order = Query.Ascending)
         {
-            return this.OrderBy(_mapper.GetExpression(keySelector), order);
+            return this.OrderBy(this.GetExpression(keySelector), order);
         }
 
         /// <summary>
@@ -151,7 +182,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> ThenBy<K>(Expression<Func<T, K>> keySelector)
         {
-            return this.ThenBy(_mapper.GetExpression(keySelector));
+            return this.ThenBy(this.GetExpression(keySelector));
         }
 
         /// <summary>
@@ -170,7 +201,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> ThenByDescending<K>(Expression<Func<T, K>> keySelector)
         {
-            return this.ThenByDescending(_mapper.GetExpression(keySelector));
+            return this.ThenByDescending(this.GetExpression(keySelector));
         }
 
         #endregion
@@ -182,12 +213,32 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector)
         {
-            var expression = _mapper.GetExpression(keySelector);
+            var expression = this.GetExpression(keySelector);
 
             this.GroupBy(expression);
 
-            _mapper.RegisterGroupingType<K, T>();
+            if (_useGeneratedMappers)
+            {
+                var deserializeKey = this.CreateGeneratedGroupingKeyDeserializer<K>();
 
+                IGrouping<K, T> DeserializeGrouping(BsonDocument document)
+                {
+                    var key = deserializeKey(document[LiteGroupingFieldNames.Key]);
+                    var items = document[LiteGroupingFieldNames.Items].AsArray
+                        .Select(item => _deserialize(item.AsDocument))
+                        .ToList();
+                    return new LiteGrouping<K, T>(key, items);
+                }
+
+                return new LiteQueryable<IGrouping<K, T>>(
+                    _context,
+                    _collection,
+                    _query,
+                    DeserializeGrouping,
+                    true);
+            }
+
+            _mapper.RegisterGroupingType<K, T>();
             return new LiteQueryable<IGrouping<K, T>>(_context, _collection, _query);
         }
 
@@ -228,7 +279,7 @@ namespace LiteDB
         {
             _query.Select = selector;
 
-            return new LiteQueryable<BsonDocument>(_context, _collection, _query);
+            return new LiteQueryable<BsonDocument>(_context, _collection, _query, document => document, _useGeneratedMappers);
         }
 
         /// <summary>
@@ -236,9 +287,27 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector)
         {
-            _query.Select = _mapper.GetExpression(selector);
+            _query.Select = this.GetExpression(selector);
 
-            return new LiteQueryable<K>(_context, _collection, _query);
+            Func<BsonDocument, K> deserialize = null;
+            if (_useGeneratedMappers)
+            {
+                if (_mapper.TryGetGeneratedExecutionMap<K>(out var map))
+                {
+                    var options = _mapper.ValidateGeneratedExecutionConfiguration(map);
+                    deserialize = document => map.Deserialize(document, options);
+                }
+                else if (GeneratedScalarConverter.CanConvert(typeof(K)))
+                {
+                    deserialize = document => GeneratedScalarConverter.Convert<K>(document[document.Keys.First()]);
+                }
+                else
+                {
+                    throw new NotSupportedException($"Projection type '{typeof(K).FullName}' requires a registered generated execution map.");
+                }
+            }
+
+            return new LiteQueryable<K>(_context, _collection, _query, deserialize, _useGeneratedMappers);
         }
 
         #endregion
@@ -322,6 +391,13 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<T> ToEnumerable()
         {
+            if (_deserialize != null)
+            {
+                return this.ToDocuments().Select(_deserialize);
+            }
+
+            this.EnsureRuntimeMappingAllowed();
+
             if (_isSimpleType)
             {
                 return this.ToDocuments()

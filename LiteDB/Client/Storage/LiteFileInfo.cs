@@ -9,7 +9,7 @@ namespace LiteDB
     /// <summary>
     /// Represents a file inside storage collection
     /// </summary>
-    public class LiteFileInfo<TFileId>
+    public class LiteFileInfo<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>
     {
         public TFileId Id { get; internal set; }
 

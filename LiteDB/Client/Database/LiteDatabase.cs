@@ -118,19 +118,64 @@ namespace LiteDB
 
         #region Collections
 
+        private const string DocumentCollectionJustification =
+            "LiteCollection<BsonDocument> never discovers model members: its constructor skips entity mapping for BsonDocument, " +
+            "ToDocument returns a BsonDocument unchanged, and Deserialize returns the stored document for typeof(BsonDocument). " +
+            "LINQ on it serializes captured values without model mapping and rejects application objects. The only lambdas that still " +
+            "reach runtime mapping are object initializers and anonymous types, and for those the C# compiler's own Expression.Bind and " +
+            "Expression.New calls already report IL2026 at the consumer's call site. " +
+            "The document scenarios of LiteDB.AotSmokeTests run this path trimmed and as Native AOT.";
+
         /// <summary>
         /// Get a collection using an entity class as strong typed document. If collection does not exist, create a new one.
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
             return new LiteCollection<T>(name, autoId, _context);
         }
 
         /// <summary>
+        /// Gets a typed collection backed exclusively by a source-generated execution map.
+        /// </summary>
+        /// <typeparam name="T">The explicitly generated entity type.</typeparam>
+        /// <param name="name">The required case-insensitive collection name.</param>
+        /// <param name="autoId">The auto-ID type when the entity map has no auto-ID member.</param>
+        /// <returns>The typed collection.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is missing.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when no generated mapper is registered or a registered generated execution map requires an unsupported mapper configuration.</exception>
+        public ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
+        {
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
+
+            if (Mapper.HasGeneratedEntityMapper(typeof(T)) == false)
+            {
+                throw new InvalidOperationException($"No source-generated entity mapper is registered for '{typeof(T).FullName}'.");
+            }
+
+            if (Mapper.TryGetGeneratedExecutionMap<T>(out var generatedMap) == false)
+            {
+                throw new InvalidOperationException($"No source-generated execution map is registered for '{typeof(T).FullName}'.");
+            }
+
+            Mapper.ValidateGeneratedExecutionConfiguration(generatedMap);
+            return new GeneratedLiteCollection<T>(
+                name,
+                autoId,
+                _context,
+                Mapper.GetGeneratedEntityMapper(typeof(T)),
+                generatedMap,
+                () => Mapper.ValidateGeneratedExecutionConfiguration(generatedMap));
+        }
+
+        /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteCollection<T> GetCollection<T>()
         {
             return this.GetCollection<T>(null);
@@ -139,6 +184,8 @@ namespace LiteDB
         /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteCollection<T> GetCollection<T>(BsonAutoId autoId)
         {
             return this.GetCollection<T>(null, autoId);
@@ -149,6 +196,8 @@ namespace LiteDB
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when document contains no _id field)</param>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = DocumentCollectionJustification)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = DocumentCollectionJustification)]
         public ILiteCollection<BsonDocument> GetCollection(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -187,13 +236,17 @@ namespace LiteDB
         /// </summary>
         public ILiteStorage<string> FileStorage
         {
-            get { return _fs ?? (_fs = this.GetStorage<string>()); }
+            [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The ID type is string, which uses BSON-native conversion; LiteFileInfo<string> has a statically authored map. No application type is reflected.")]
+            [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "String IDs and the statically authored LiteFileInfo<string> map require no runtime type construction.")]
+            get { return _fs ??= this.GetStorage<string>(); }
         }
 
         /// <summary>
         /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
         /// </summary>
-        public ILiteStorage<TFileId> GetStorage<TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks")
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
+        public ILiteStorage<TFileId> GetStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks")
         {
             return new LiteStorage<TFileId>(this, filesCollection, chunksCollection);
         }

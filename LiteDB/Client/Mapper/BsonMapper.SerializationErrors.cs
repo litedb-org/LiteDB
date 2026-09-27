@@ -9,6 +9,7 @@ namespace LiteDB
                 "Constructor parameter names are missing for '{0}'. Preserve constructor metadata when trimming or register a constructor with Entity<T>().Ctor(...).",
                 type.FullName);
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         private void SerializeMember(BsonDocument document, MemberMapper member, object instance, int depth)
         {
             try

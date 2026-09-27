@@ -74,6 +74,8 @@ namespace LiteDB
             throw new NotSupportedException($"Operator not supported {nodeType}");
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+            Justification = "Runtime metadata is accessed only outside generated mode, through the annotated BsonMapper LINQ APIs.")]
         private string ResolveMember(MemberInfo member, Type mappedType, out MemberMapper memberMapper)
         {
             var name = member.Name;
@@ -82,7 +84,7 @@ namespace LiteDB
             var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
 
             // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(mappedType);
+            var entity = _useGeneratedMappers ? _mapper.GetGeneratedEntityMapper(mappedType) : _mapper.GetEntityMapper(mappedType);
             entity.WaitForInitialization();
 
             // get mapped field from entity
@@ -93,7 +95,7 @@ namespace LiteDB
             _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
 
             // if parent call is DbRef and are calling _id field, rename to $id
-            var fieldName = _mapper.ResolveAbstractIdField(entity, field);
+            var fieldName = _useGeneratedMappers ? field.FieldName : _mapper.ResolveAbstractIdField(entity, field);
             MemberGuards?.Add(new LinqMemberGuard(_mapper, entity, field, member, fieldName));
             return isParentDbRef && fieldName == "_id" ? "$id" : fieldName;
         }
@@ -112,7 +114,8 @@ namespace LiteDB
             }
             else
             {
-                value = Expression.Lambda(expression).Compile().DynamicInvoke();
+                value = Expression.Lambda<Func<object>>(Expression.Convert(expression, typeof(object)))
+                    .Compile(preferInterpretation: true).DynamicInvoke();
             }
             if (validTypes.Length > 0 && (value == null || !validTypes.Contains(value.GetType())))
                 throw new NotSupportedException($"Expression {expression} must return one of: {string.Join(", ", validTypes.Select(x => x.Name))}");

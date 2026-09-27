@@ -118,6 +118,7 @@ namespace LiteDB
         /// <summary>
         /// Parse a document builder syntax used in SELECT statment: {expr0} [AS] [{alias}], {expr1} [AS] [{alias}], ...
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Expression trees are interpreted when dynamic code is unavailable.")]
         public static BsonExpression ParseSelectDocumentBuilder(Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters)
         {
             var fields = new List<KeyValuePair<string, BsonExpression>>();
@@ -208,6 +209,7 @@ namespace LiteDB
         /// {key0} = {expr0}, .... will be converted into { key: [expr], ... }
         /// {key: value} ... return return a new document
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Expression trees are interpreted when dynamic code is unavailable.")]
         public static BsonExpression ParseUpdateDocumentBuilder(Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters)
         {
             var next = tokenizer.LookAhead();
@@ -348,6 +350,7 @@ namespace LiteDB
         /// <summary>
         /// Try parse json document - return null if not document token
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Expression trees are interpreted when dynamic code is unavailable.")]
         private static BsonExpression TryParseDocument(Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters, DocumentScope scope)
         {
             if (tokenizer.Current.Type != TokenType.OpenBrace) return null;
@@ -410,6 +413,7 @@ namespace LiteDB
         /// <summary>
         /// Try parse array - return null if not array token
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Expression trees are interpreted when dynamic code is unavailable.")]
         private static BsonExpression TryParseArray(Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters, DocumentScope scope)
         {
             if (tokenizer.Current.Type != TokenType.OpenBracket) return null;
@@ -600,6 +604,7 @@ namespace LiteDB
         /// <summary>
         /// Create an array expression with 2 values (used only in BETWEEN statement)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Expression trees are interpreted when dynamic code is unavailable.")]
         private static BsonExpression NewArray(BsonExpression item0, BsonExpression item1)
         {
             var values = new Expression[] { item0.Expression, item1.Expression };

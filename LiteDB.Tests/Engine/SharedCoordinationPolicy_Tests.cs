@@ -111,7 +111,9 @@ namespace LiteDB.Tests.Engine
             try
             {
                 Action create = () => new SharedEngine(new EngineSettings { Filename = file }).Dispose();
-                create.Should().Throw<PlatformNotSupportedException>().WithMessage("*file-sharing locks*");
+                var expected = System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported
+                    ? "*file-sharing locks*" : SharedMutexFactory.UnsupportedNativeAotMessage;
+                create.Should().Throw<PlatformNotSupportedException>().WithMessage(expected);
                 Action map = () => SharedCoordinationPage.Open(file).Dispose();
                 map.Should().Throw<PlatformNotSupportedException>();
                 File.Exists(SharedCoordinationFallback.LivePath(file)).Should().BeFalse();

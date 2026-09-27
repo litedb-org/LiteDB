@@ -1,0 +1,30 @@
+<Directives>
+  <Application>
+    <!-- Storage tests inspect private transaction state through reflection. -->
+    <Assembly Name="LiteDB">
+      <Type Name="LiteDB.Engine.LiteEngine">
+        <Method Name="AutoTransaction"><GenericArgument Name="System.UInt32, System.Private.CoreLib" /></Method>
+      </Type>
+    </Assembly>
+    <!-- Assertion libraries close these value-type helpers through reflection.
+         Root their native instantiations without changing any test assertion. -->
+    <Assembly Name="FluentAssertions">
+      <Type Name="FluentAssertions.Equivalency.Steps.GenericEnumerableEquivalencyStep">
+        <Method Name="HandleImpl"><GenericArgument Name="System.Int32, System.Private.CoreLib" /></Method>
+        <Method Name="HandleImpl"><GenericArgument Name="System.UInt32, System.Private.CoreLib" /></Method>
+      </Type>
+    </Assembly>
+    <Assembly Name="xunit.assert">
+      <Type Name="Xunit.Sdk.XunitException" Dynamic="Required All" />
+      <Type Name="Xunit.Sdk.AssertEqualityComparer`1[[System.Collections.Generic.KeyValuePair`2[[System.String, System.Private.CoreLib],[LiteDB.BsonValue, LiteDB]], System.Private.CoreLib]]" Dynamic="Required All" />
+      <Type Name="Xunit.Sdk.AssertEqualityComparerAdapter`1[[System.Collections.Generic.KeyValuePair`2[[System.String, System.Private.CoreLib],[LiteDB.BsonValue, LiteDB]], System.Private.CoreLib]]" Dynamic="Required All" />
+      <Type Name="Xunit.Sdk.CollectionTrackerExtensions">
+        <Method Name="AsTracker"><GenericArgument Name="System.Byte, System.Private.CoreLib" /></Method>
+        <Method Name="AsTracker"><GenericArgument Name="System.DateTime, System.Private.CoreLib" /></Method>
+        <Method Name="AsTracker"><GenericArgument Name="System.Collections.Generic.KeyValuePair`2[System.String,System.Int32], System.Private.CoreLib" /></Method>
+        <Method Name="AsTracker"><GenericArgument Name="LiteDB.Tests.Issues.Issue1192DeclaredSchema_Tests+ByteEnum, LiteDB.Tests" /></Method>
+        <Method Name="AsTracker"><GenericArgument Name="LiteDB.Tests.Issues.Issue2376_Tests+ByteEnum, LiteDB.Tests" /></Method>
+      </Type>
+    </Assembly>
+  </Application>
+</Directives>

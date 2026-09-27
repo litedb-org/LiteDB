@@ -5,6 +5,8 @@ namespace LiteDB
 {
     public partial class BsonMapper
     {
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         internal void RegisterGroupingType<TKey, TElement>()
         {
             var interfaceType = typeof(IGrouping<TKey, TElement>);
@@ -49,11 +51,16 @@ namespace LiteDB
                 return new LiteGrouping<TKey, TElement>(key, items);
             }
 
-            this.RegisterType(interfaceType, SerializeGrouping, DeserializeGrouping);
+            // Written directly rather than through RegisterType: this is LiteDB's own plumbing for an
+            // ordinary GroupBy, and counting it as a user type registration would make every generated
+            // collection on this mapper reject the mapper configuration from then on.
+            _customSerializer[interfaceType] = SerializeGrouping;
+            _customDeserializer[interfaceType] = DeserializeGrouping;
 
             if (!_customDeserializer.ContainsKey(concreteType))
             {
-                this.RegisterType(concreteType, SerializeGrouping, DeserializeGrouping);
+                _customSerializer[concreteType] = SerializeGrouping;
+                _customDeserializer[concreteType] = DeserializeGrouping;
             }
         }
     }

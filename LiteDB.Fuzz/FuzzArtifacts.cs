@@ -171,14 +171,16 @@ internal static class FuzzArtifacts
 
     internal static void MergeInterestingCorpus(IEnumerable<RunResult> results, string root)
     {
-        var entries = new Dictionary<string, InterestingCandidate>(StringComparer.Ordinal);
+        // A longer exact prefix includes every earlier novelty event for the same seed.
+        // Select the bounded replay set before hashing traces or copying recorded input.
+        var entries = new Dictionary<(string Target, int Seed), InterestingCandidate>();
         var retained = Path.Combine(root, "interesting-corpus.jsonl");
         if (File.Exists(retained))
         {
             foreach (var line in File.ReadLines(retained))
             {
                 var item = FuzzCorpus.ParseInteresting(line);
-                if (item != null) Add(new InterestingCandidate(item, null, null));
+                if (item != null) Add(new InterestingCandidate(item, null));
             }
         }
         foreach (var result in results.OrderBy(item => item.Target).ThenBy(item => item.Seed))
@@ -188,57 +190,81 @@ internal static class FuzzArtifacts
             var replayPath = Path.Combine(result.Directory, "replay.json");
             if (!File.Exists(replayPath)) continue;
             var replay = ReadReplay(replayPath);
+            var input = Path.Combine(result.Directory, "input.bin");
             foreach (var line in File.ReadLines(path))
             {
                 var novelty = FuzzCorpus.ParseInteresting(line);
                 if (novelty?.Signature == null) continue;
                 var relativeInput = Path.Combine("interesting-inputs",
                     $"{Safe(novelty.Target)}-s{novelty.Seed}-{Safe(novelty.Signature)}.bin");
-                var input = Path.Combine(result.Directory, "input.bin");
-                var count = Math.Max(1, novelty.Count);
                 var item = novelty with
                 {
-                    Count = count,
+                    Count = Math.Max(1, novelty.Count),
                     Reason = $"Retained semantic-coverage signature {novelty.Signature} from a previous campaign.",
                     DurationBound = replay.DurationBound,
                     OriginalDurationSeconds = replay.OriginalDurationSeconds,
                     InputFile = File.Exists(input) ? relativeInput.Replace('\\', '/') : null,
                     InputHash = null,
-                    TraceHash = TracePrefixHash(Path.Combine(result.Directory, "trace.jsonl"), count)
+                    TraceHash = null
                 };
-                var inputLength = File.Exists(input) ? InputLengthForStep(result.Directory, count) : (long?)null;
-                Add(new InterestingCandidate(item, input, inputLength));
+                Add(new InterestingCandidate(item, result.Directory));
             }
         }
         Directory.CreateDirectory(root);
-        // Keep exactly what the next campaign replays (FuzzCorpus.LoadInteresting): the strongest
-        // case per target/seed, and at most MaximumRetainedCasesPerTarget per target. Copying an
-        // input prefix for every signature made the corpus grow with every epoch.
-        var kept = FuzzCorpus.SelectReplayed(entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .Select(pair => pair.Value), candidate => candidate.Case);
-        foreach (var candidate in kept)
+        var selected = FuzzCorpus.SelectReplayed(entries.Values, candidate => candidate.Case);
+        foreach (var candidate in selected)
         {
-            if (candidate.SourceInput == null || candidate.Case.InputFile == null || !candidate.InputLength.HasValue) continue;
-            var destination = Path.Combine(root, candidate.Case.InputFile);
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            CopyPrefix(candidate.SourceInput, destination, candidate.InputLength.Value);
-            candidate.Case = candidate.Case with { InputHash = Hash(destination) };
+            if (candidate.SourceDirectory == null) continue;
+            candidate.Case = candidate.Case with
+            {
+                TraceHash = TracePrefixHash(Path.Combine(candidate.SourceDirectory, "trace.jsonl"), candidate.Case.Count)
+            };
+            if (candidate.Case.InputFile == null) continue;
+            var directory = Path.Combine(root, "interesting-inputs");
+            Directory.CreateDirectory(directory);
+            var temporary = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                CopyPrefix(Path.Combine(candidate.SourceDirectory, "input.bin"), temporary,
+                    InputLengthForStep(candidate.SourceDirectory, candidate.Case.Count));
+                var hash = Hash(temporary);
+                var relative = "interesting-inputs/" + hash + ".bin";
+                var destination = Path.Combine(root, relative);
+                // Immutable inputs keep the previous manifest replayable until the replacement is ready.
+                if (!File.Exists(destination)) File.Move(temporary, destination);
+                candidate.Case = candidate.Case with { InputHash = hash, InputFile = relative };
+            }
+            finally { File.Delete(temporary); }
         }
-        File.WriteAllLines(retained, kept.Select(candidate => System.Text.Json.JsonSerializer.Serialize(candidate.Case)));
-        DeleteUnreferencedInputs(root, kept.Select(candidate => candidate.Case.InputFile));
+        var stagedManifest = retained + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllLines(stagedManifest, selected.OrderBy(item => item.Case.Target, StringComparer.Ordinal)
+                .ThenBy(item => item.Case.Seed)
+                .Select(item => System.Text.Json.JsonSerializer.Serialize(item.Case)));
+            File.Move(stagedManifest, retained, overwrite: true);
+        }
+        finally { File.Delete(stagedManifest); }
+        DeleteUnreferencedInputs(root, selected.Select(candidate => candidate.Case.InputFile));
 
         void Add(InterestingCandidate candidate)
         {
-            var key = $"{candidate.Case.Target}:{candidate.Case.Seed}:" +
-                (candidate.Case.Signature ?? candidate.Case.Count.ToString(CultureInfo.InvariantCulture));
-            if (!entries.TryGetValue(key, out var retainedCandidate) ||
-                candidate.Case.Count > retainedCandidate.Case.Count ||
-                candidate.Case.Count == retainedCandidate.Case.Count &&
-                CorpusFidelity(candidate.Case) > CorpusFidelity(retainedCandidate.Case))
+            var key = (candidate.Case.Target, candidate.Case.Seed);
+            if (!entries.TryGetValue(key, out var previous) ||
+                Fidelity(candidate) >= 6 && Fidelity(previous) < 6 ||
+                (Fidelity(candidate) >= 6) == (Fidelity(previous) >= 6) &&
+                (candidate.Case.Count > previous.Case.Count ||
+                 candidate.Case.Count == previous.Case.Count && Fidelity(candidate) > Fidelity(previous)))
             {
                 entries[key] = candidate;
             }
         }
+
+        int Fidelity(InterestingCandidate candidate) => candidate.SourceDirectory == null
+            ? CorpusFidelity(candidate.Case)
+            : (candidate.Case.InputFile == null ? 0 : 6) +
+                (File.Exists(Path.Combine(candidate.SourceDirectory, "trace.jsonl")) ? 1 : 0) +
+                (candidate.Case.DurationBound ? 1 : 0);
     }
 
     private static void DeleteUnreferencedInputs(string root, IEnumerable<string> referenced)
@@ -411,15 +437,13 @@ internal static class FuzzArtifacts
 
     private sealed class InterestingCandidate
     {
-        internal InterestingCandidate(FuzzCorpusCase item, string sourceInput, long? inputLength)
+        internal InterestingCandidate(FuzzCorpusCase item, string sourceDirectory)
         {
             Case = item;
-            SourceInput = sourceInput;
-            InputLength = inputLength;
+            SourceDirectory = sourceDirectory;
         }
 
         internal FuzzCorpusCase Case { get; set; }
-        internal string SourceInput { get; }
-        internal long? InputLength { get; }
+        internal string SourceDirectory { get; }
     }
 }

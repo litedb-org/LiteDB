@@ -56,6 +56,7 @@ namespace LiteDB
 
         public string GetName(Type type) => type.FullName + ", " + type.GetTypeInfo().Assembly.GetName().Name;
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.PersistedTypeResolution)]
         public Type GetType(string name)
         {
             var type = Type.GetType(name);

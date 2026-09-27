@@ -109,9 +109,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Legacy_database_rejected_without_upgrade_remains_upgradeable()
         {
-            var source = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "../../../Resources/Issue_2494_EncryptedV4.db"));
+            var source = TestResource.GetPath("Issue_2494_EncryptedV4.db");
             var filename = Path.Combine(
                 Path.GetTempPath(),
                 $"litedb-legacy-{Guid.NewGuid():N}.db");

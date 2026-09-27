@@ -159,11 +159,10 @@ namespace LiteDB
 #endif
                 if (cached == null)
                 {
-                    var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
 #if DEBUG || TESTING
-                    cached = UseCache ? CompileScalarWhenNeeded(expr, lambda) : lambda.Compile();
+                    cached = UseCache ? CompileScalarWhenNeeded(expr, context) : BsonExpressionCompiler.CompileScalar(expr.Expression, context);
 #else
-                    cached = CompileScalarWhenNeeded(expr, lambda);
+                    cached = CompileScalarWhenNeeded(expr, context);
 #endif
                 }
 
@@ -178,8 +177,7 @@ namespace LiteDB
 #endif
                 if (cached == null)
                 {
-                    var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionEnumerableDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
-                    cached = lambda.Compile();
+                    cached = BsonExpressionCompiler.CompileEnumerable(expr.Expression, context);
 #if DEBUG || TESTING
                     if (UseCache) _compiledCache.Add(expr.Source, cached);
 #else

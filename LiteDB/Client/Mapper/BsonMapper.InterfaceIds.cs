@@ -38,6 +38,10 @@ namespace LiteDB
                 candidate.ReflectedMember.DeclaringType.IsAssignableFrom(other.ReflectedMember.DeclaringType))).ToArray();
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072",
+            Justification = AotCompatibility.RuntimeModelMapping)]
         private static bool MatchesDeclaredMember(Type implementation, MemberMapper candidate, MemberMapper declared)
         {
             if (!declared.DataType.IsAssignableFrom(candidate.DataType)) return false;
@@ -77,6 +81,8 @@ namespace LiteDB
                 left.MetadataToken == right.MetadataToken;
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = AotCompatibility.RuntimeModelMapping)]
         private static bool HasCustomIdSelection(Type type)
         {
             for (; type != typeof(BsonMapper); type = type.BaseType)
@@ -90,6 +96,8 @@ namespace LiteDB
             return false;
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = AotCompatibility.RuntimeModelMapping)]
         private static MethodInfo GetVirtualDefinition(MethodInfo accessor)
         {
             // Covariant returns use a new CLR slot with an explicit override marker.

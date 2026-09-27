@@ -100,6 +100,8 @@ namespace LiteDB
             };
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "Only statically referenced BsonValue[] and string[] arrays are created by the expression interpreter.")]
         internal static BsonExpression Array(IEnumerable<BsonExpression> items, BsonDocument parameters)
         {
             var values = items.Select(x => x.IsScalar ? x : ConvertToArray(x)).ToArray();
@@ -108,6 +110,8 @@ namespace LiteDB
                 BsonExpressionFormatter.Array(values));
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "Only statically referenced BsonValue[] and string[] arrays are created by the expression interpreter.")]
         internal static BsonExpression Document(IEnumerable<KeyValuePair<string, BsonExpression>> members, BsonDocument parameters)
         {
             var fields = members.ToArray();

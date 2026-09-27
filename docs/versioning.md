@@ -15,8 +15,8 @@ The first prerelease that precedes the 6.0.0 release (commit `a0298891ddcaf7ba48
 
 ## GitHub workflows
 
-- `publish-prerelease.yml` runs on every push to `dev`. It resolves the semantic version with GitVersion, runs the full test suite, packs the library, and pushes the resulting prerelease package to NuGet. GitHub releases are intentionally skipped for now.
-- `publish-release.yml` is manual (`workflow_dispatch`). It computes the release version and can optionally push to NuGet and/or create a GitHub release via boolean inputs. GitHub releases use a zero-padded prerelease counter for predictable sorting in the UI, while NuGet publishing keeps the standard GitVersion output. By default it performs a dry run (build + pack only) so we keep the publishing path disabled until explicitly requested.
+- `publish-prerelease.yml` runs on every push to `dev`. It resolves one semantic version with GitVersion, runs the full test suite and Native AOT package/source gates, packs the matching `LiteDB` runtime and `LiteDB.SourceGenerator` analyzer archives, validates their package contract, and pushes the resulting prerelease pair to NuGet. GitHub releases are intentionally skipped for now.
+- `publish-release.yml` is manual (`workflow_dispatch`). It computes one release version and can optionally push the validated matching package pair to NuGet and/or create a GitHub release via boolean inputs. It runs the package-consumer and source-project Native AOT gates directly before pairing, packing, and validating both archives. GitHub releases use a zero-padded prerelease counter for predictable sorting in the UI, while NuGet publishing keeps the standard GitVersion output. By default it performs a dry run (build + pack only) so we keep the publishing path disabled until explicitly requested.
 - `tag-version.yml` lets you start a manual major/minor/patch bump. It tags the specified ref (defaults to `master`) with the next `v*` version so future builds pick up the new baseline. Use this after validating a release candidate.
 
 ## Dry-running versions
@@ -49,7 +49,7 @@ Both scripts resolve the git ref to a SHA, execute GitVersion with the repositor
 
 ## Working locally
 
-- `dotnet build` / `dotnet pack` automatically consume the GitVersion-generated values; no extra parameters are required.
+- `dotnet build` / `dotnet pack` automatically consume the shared GitVersion-generated values; no extra parameters are required. A publishable source-generator analyzer must be packed and validated with the matching LiteDB runtime version.
 - To bypass GitVersion temporarily (e.g., for experiments), set `GitVersion_NoFetch=false` in the build command. Reverting the property restores normal behaviour.
 - When you are ready to publish a prerelease, push to `dev` and let the workflow take care of packing and nuget push.
 

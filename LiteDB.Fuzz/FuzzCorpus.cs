@@ -10,7 +10,7 @@ internal sealed record FuzzCorpusFile(int SchemaVersion, FuzzCorpusCase[] Cases)
 
 internal static class FuzzCorpus
 {
-    private const int MaximumRetainedCasesPerTarget = 8;
+    internal const int MaximumRetainedCasesPerTarget = 8;
 
     internal static IReadOnlyList<FuzzCorpusCase> Load()
     {
@@ -95,6 +95,9 @@ internal static class FuzzCorpus
 
     private static bool StrongerThan(FuzzCorpusCase candidate, FuzzCorpusCase retained)
     {
+        var candidateRecorded = candidate.InputFile != null && candidate.InputHash != null;
+        var retainedRecorded = retained.InputFile != null && retained.InputHash != null;
+        if (candidateRecorded != retainedRecorded) return candidateRecorded;
         if (candidate.Count != retained.Count) return candidate.Count > retained.Count;
         return Fidelity(candidate) > Fidelity(retained);
     }

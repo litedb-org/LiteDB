@@ -51,7 +51,7 @@ namespace LiteDB
             }
 #endif
             // A caller's FileStream subclass that overrides Flush(bool) defines its own sync.
-            if (_windows || _nativeUnavailable || RuntimeSyncSimulated || OverridesFlush(stream.GetType()))
+            if (_windows || _nativeUnavailable || RuntimeSyncSimulated || OverridesFlush(stream))
             {
                 stream.Flush(true);
                 return;
@@ -72,11 +72,15 @@ namespace LiteDB
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
         }
 
-        private static bool OverridesFlush(Type type)
+        private static bool OverridesFlush(FileStream stream)
         {
+            var type = stream.GetType();
             if (type == typeof(FileStream)) return false;
-            return _overrides.GetOrAdd(type, t =>
-                t.GetMethod(nameof(FileStream.Flush), new[] { typeof(bool) })?.DeclaringType != typeof(FileStream));
+            if (_overrides.TryGetValue(type, out var overrides)) return overrides;
+            // Bind the actual virtual slot. This also works under trimming without discovering
+            // arbitrary methods on the caller's type, and ignores unrelated hidden Flush methods.
+            return _overrides.GetOrAdd(type,
+                new Action<bool>(stream.Flush).Method.DeclaringType != typeof(FileStream));
         }
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> _overrides =

@@ -48,6 +48,7 @@ public sealed class FuzzReliability_Tests
             new RunResult("corpus-probe", 71, run, true)
         }, root.Path);
 
+        Assert.Single(File.ReadLines(Path.Combine(root.Path, "interesting-corpus.jsonl")));
         var retained = Assert.Single(FuzzCorpus.LoadInteresting(root.Path));
         Assert.Equal(4, retained.Count);
         Assert.NotNull(retained.InputFile);
@@ -88,14 +89,30 @@ public sealed class FuzzReliability_Tests
     }
 
     [Fact]
+    public async Task Corpus_retention_bounds_recorded_inputs_before_copying()
+    {
+        using var root = new TemporaryDirectory();
+        var runs = new List<RunResult>();
+        for (var seed = 0; seed < 12; seed++)
+            runs.Add(await CreateInterestingRun(root.Path, seed));
+
+        FuzzArtifacts.MergeInterestingCorpus(runs, root.Path);
+
+        Assert.Equal(8, File.ReadLines(Path.Combine(root.Path, "interesting-corpus.jsonl")).Count());
+        Assert.Equal(8, Directory.GetFiles(Path.Combine(root.Path, "interesting-inputs")).Length);
+        Assert.Equal(Enumerable.Range(4, 8), FuzzCorpus.LoadInteresting(root.Path).Select(item => item.Seed));
+    }
+
+    [Fact]
     public async Task Oracle_mutations_use_and_fail_the_real_verification_paths()
     {
         using var directory = new TemporaryDirectory();
-        using var context = new FuzzContext("oracle-selftest", 1, 1, null, directory.Path);
+        using var context = new FuzzContext("oracle-selftest", 1, 100, null, directory.Path);
 
         await new OracleSelfTestFuzzer().RunAsync(context);
 
-        Assert.Equal(8, context.Metrics["controlledMutationsKilled"]);
+        Assert.Equal(800, context.Metrics["controlledMutationsKilled"]);
+        Assert.Equal(1, context.Metrics["novelStates"]);
     }
 
     [Fact]

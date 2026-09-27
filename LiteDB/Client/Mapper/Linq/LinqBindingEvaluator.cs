@@ -24,7 +24,7 @@ namespace LiteDB
             var lambda = Expression.Lambda<Func<List<Expression>, object>>(body, compiler._expressions);
             // Do not pay for a second compilation when a shape is used only once.
             // This tree has already replaced every caller-owned constant.
-            return new Lazy<Func<List<Expression>, object>>(lambda.Compile);
+            return new Lazy<Func<List<Expression>, object>>(() => lambda.Compile(preferInterpretation: true));
         }
 
         private Expression Evaluate(Expression node, int position)
@@ -52,8 +52,8 @@ namespace LiteDB
 
         private Expression ReadConstant(int position)
         {
-            var current = Expression.Property(_expressions, "Item", Expression.Constant(position));
-            return Expression.Property(Expression.Convert(current, typeof(ConstantExpression)), "Value");
+            var current = Expression.Property(_expressions, typeof(List<Expression>).GetProperty("Item"), Expression.Constant(position));
+            return Expression.Property(Expression.Convert(current, typeof(ConstantExpression)), typeof(ConstantExpression).GetProperty("Value"));
         }
 
         public override Expression Visit(Expression node)

@@ -64,3 +64,8 @@ manually bump project versions. Releases use annotated version tags. Preserve
 separate GitVersion output files for configuration, target framework, and hook
 setting. Worktrees without the `.git/HEAD` sentinel use the detached fallback;
 that version does not imply a broken build. See [versioning](../versioning.md).
+
+Keep synthetic package-consumer builds in the `PackageValidation` configuration so
+they cannot replace release DLLs. Release packing rebuilds with `TestingEnabled=false`;
+use GitVersion 6’s `SemVer` output with `UseFullSemVerForNuGet=false`, then validate
+both archives and embedded assembly versions using the scripts under `scripts/`.

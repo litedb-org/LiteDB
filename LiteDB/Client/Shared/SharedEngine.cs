@@ -47,6 +47,7 @@ namespace LiteDB
 
         public SharedEngine(EngineSettings settings)
         {
+            SharedMutexFactory.EnsureSupported();
             _settings = settings.Clone();
             // Reopens must use the same path as the mutex and snapshot registry,
             // even if the process changes its working directory between calls.
@@ -89,8 +90,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Open database in safe mode. Returns the pin the operation runs under, or
-        /// null when the operation owns a recursion of the named mutex instead.
+        /// Returns the operation's pin, or null for recursive mutex ownership.
         /// Open for an operation. A <paramref name="scoped"/> caller closes on the same thread
         /// before it returns; its ownership then takes the OS mutex directly on this thread.
         /// </summary>

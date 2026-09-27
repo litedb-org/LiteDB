@@ -22,16 +22,22 @@ namespace LiteDB
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         ILiteCollection<T> GetCollection<T>();
 
         /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         ILiteCollection<T> GetCollection<T>(BsonAutoId autoId);
 
         /// <summary>
@@ -60,7 +66,9 @@ namespace LiteDB
         /// <summary>
         /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
         /// </summary>
-        ILiteStorage<TFileId> GetStorage<TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks");
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
+        ILiteStorage<TFileId> GetStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks");
 
         /// <summary>
         /// Get all collections name inside this database.

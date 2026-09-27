@@ -132,6 +132,8 @@ namespace LiteDB
                 return true;
             }
 
+            [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+                Justification = "BsonDocument bindings use SerializeGeneratedConstant; typed runtime queries enter through annotated BsonMapper LINQ APIs. Generated queries bypass this cache.")]
             internal BsonExpression Bind(BsonMapper mapper, LinqQueryShape shape)
             {
                 var parameters = new BsonDocument();
@@ -142,7 +144,8 @@ namespace LiteDB
                     var value = _evaluators[i] == null ? LinqExpressionTranslator.Evaluate(shape.Expressions[_slots[i]]) :
                         _evaluators[i].Value(shape.Expressions);
                     parameters[_names[i]] = value == null ? BsonValue.Null : value is BsonValue bson ? bson : value is string text ?
-                        new BsonValue(text) : mapper.Serialize(value.GetType(), value);
+                        new BsonValue(text) : shape.Expressions[0] is LambdaExpression lambda && lambda.Parameters[0].Type == typeof(BsonDocument) ?
+                        mapper.SerializeGeneratedConstant(value) : mapper.Serialize(value.GetType(), value);
                 }
                 return _template.Bind(parameters);
             }
