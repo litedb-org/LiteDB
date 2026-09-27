@@ -8,8 +8,8 @@ using LiteDB.Engine;
 namespace LiteDB.Client.Shared
 {
     /// <summary>
-    /// Experimental same-version coordination. Attach/retire and all publications require
-    /// the database mutex. Readers serialize local access with disposal. No stored page is
+    /// Experimental same-version coordination. Attach/retire and storage publications require
+    /// the database mutex. Scheduling hints do not authorize storage access. Readers serialize local access with disposal. No stored page is
     /// trusted until an engine has opened under that mutex in this process.
     /// </summary>
     internal sealed unsafe class SharedCoordinationPage : IBatchedCoordinationSignals, IDisposable
@@ -113,6 +113,23 @@ namespace LiteDB.Client.Shared
         internal static void Revoke(string filename) => SharedCoordinationFallback.Revoke(filename);
 
         private bool Revoked() => SharedCoordinationRevocation.IsRevoked(_revocationPath);
+
+        // A short scheduling hint, not a lock or a liveness proof. A killed requester
+        // cannot strand readers: they merely yield, and the hint expires independently.
+        internal void RequestWriterTurn(long now)
+        {
+            lock (_writeLock) if (!_disposed) this.Store(7, unchecked(now + 100));
+        }
+
+        internal bool ShouldYieldToWriter(long now)
+        {
+            lock (_writeLock)
+            {
+                if (_disposed) return false;
+                var remaining = unchecked(this.Load(7) - now);
+                return remaining > 0 && remaining <= 100;
+            }
+        }
 
         internal bool TryRead(out SharedCoordinationStatus status)
         {

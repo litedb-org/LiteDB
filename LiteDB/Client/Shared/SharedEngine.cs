@@ -107,7 +107,7 @@ namespace LiteDB
             }
 
             // Acquire mutex for every call to open DB.
-            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope);
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing: true);
 
             try
             {
