@@ -46,7 +46,7 @@ namespace LiteDB.Tests.Engine
 #endif
 
         [Fact]
-        public void Unavailable_direct_guard_reports_public_exception_and_preserves_data()
+        public void Unavailable_direct_guard_preserves_permission_exception_and_data()
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename))
@@ -58,8 +58,7 @@ namespace LiteDB.Tests.Engine
             try
             {
                 Action open = () => { using var db = new LiteDatabase(file.Filename); };
-                open.Should().Throw<SharedModeConflictException>()
-                    .WithMessage("*directory permits*").WithInnerException<UnauthorizedAccessException>();
+                open.Should().Throw<UnauthorizedAccessException>();
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
             }
             finally { Directory.Delete(path); }

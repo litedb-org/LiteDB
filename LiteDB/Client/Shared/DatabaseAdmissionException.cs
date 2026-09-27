@@ -7,13 +7,12 @@ namespace LiteDB
     /// Database admission failed because another connection is incompatible or the
     /// mode guard is unavailable. Inspect InnerException for the filesystem cause.
     /// </summary>
-    public sealed class SharedModeConflictException : IOException
+    public sealed class DatabaseAdmissionException : IOException
     {
-        internal SharedModeConflictException(string filename, Exception inner)
+        internal DatabaseAdmissionException(string filename, Exception inner)
             : base("Cannot safely admit database access to '" + filename +
-                "': conflicting Direct/Shared access, Shared mutex identity, or unavailable mode guard. " +
-                "Close incompatible connections, use one database path and mutex strategy, and ensure " +
-                "the directory permits creating and opening the '-shared-mode' file. Cause: " + inner.Message, inner)
+                "': could not acquire database admission using '" + filename + "-shared-mode'. " +
+                "An incompatible connection or unavailable coordination storage may prevent access. Cause: " + inner.Message, inner)
         {
             // Preserve the native cause so bounded sharing-violation retries can
             // distinguish contention from permissions, malformed identity, or I/O.

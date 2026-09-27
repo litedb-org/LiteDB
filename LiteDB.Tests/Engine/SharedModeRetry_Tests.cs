@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Engine
         public void Wrapped_native_errors_preserve_retry_classification_and_bound(int code, bool retryable)
         {
             var inner = new IOException("injected native failure", code);
-            var wrapped = new SharedModeConflictException("database.db", inner);
+            var wrapped = new DatabaseAdmissionException("database.db", inner);
             wrapped.HResult.Should().Be(code);
             var attempts = 0;
             Action run = () => SharedCoordinationFile.RetrySharingViolation<int>(() =>
@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Engine
                 attempts++;
                 throw wrapped;
             });
-            run.Should().Throw<SharedModeConflictException>().Which.Should().BeSameAs(wrapped);
+            run.Should().Throw<DatabaseAdmissionException>().Which.Should().BeSameAs(wrapped);
             attempts.Should().Be(retryable && RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 5 : 1);
         }
 
@@ -58,7 +58,7 @@ namespace LiteDB.Tests.Engine
                 }
                 else
                 {
-                    attach.Should().Throw<SharedModeConflictException>().Which.HResult.Should().Be(unchecked((int)0x80070020));
+                    attach.Should().Throw<DatabaseAdmissionException>().Which.HResult.Should().Be(unchecked((int)0x80070020));
                     attempts.Should().Be(1, "native Windows retries must not run on other platforms");
                 }
             }

@@ -106,7 +106,7 @@ namespace LiteDB
             }
             // A rejected participant cannot change the authority or make this connection
             // permanently fall back. A later operation must retry admission normally.
-            catch (SharedModeConflictException) { throw; }
+            catch (DatabaseAdmissionException) { throw; }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
             {
                 // Existing participants must learn about this fallback before this
@@ -158,10 +158,7 @@ namespace LiteDB
                 if (addedLease)
                 {
                     try { snapshot.Lease = _readers.RegisterUnscanned(checked((int)status.Version)); }
-                    // A rejected participant cannot change the authority or make this connection
-            // permanently fall back. A later operation must retry admission normally.
-            catch (SharedModeConflictException) { throw; }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
+                    catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
                 }
                 Interlocked.MemoryBarrier();
 #if DEBUG || TESTING

@@ -25,7 +25,8 @@ namespace LiteDB.Client.Shared
             var shared = settings.SharedMode;
             var readOnly = shared ? settings.SharedModeReadOnly : settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
             if (readOnly && !shared) return null;
-            return Open(settings.Filename, shared, settings.SharedMutexNameStrategy, readOnly);
+            return SharedCoordinationFile.RetrySharingViolation(() =>
+                Open(settings.Filename, shared, settings.SharedMutexNameStrategy, readOnly));
         }
 
         internal static SharedModeGuard Open(string filename, bool shared, SharedMutexNameStrategy strategy,
@@ -77,27 +78,32 @@ namespace LiteDB.Client.Shared
                     lease = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     if (!Matches(lease, identity)) throw new IOException("Conflicting Shared mutex identity.");
                 }
-                else lease = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                else lease = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Read, FileShare.None);
                 var guard = new SharedModeGuard(lease);
                 if (!shared)
                 {
                     // Pre-guard mapped implementations still hold the participation
                     // file. Keep it exclusive so they cannot attach during this writer.
                     var live = SharedCoordinationFallback.LivePath(filename);
-                    try { guard._legacyLease = new FileStream(live, FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
+                    try { guard._legacyLease = new FileStream(live, FileMode.Open, FileAccess.Read, FileShare.None); }
                     catch (FileNotFoundException)
                     {
-                        if (SharedCoordinationRevocation.ExistsOrUnknown(SharedCoordinationFallback.PagePath(filename)))
-                            throw new IOException("Unpaired Shared coordination authority.");
+                        var authority = SharedCoordinationFallback.PagePath(filename);
+                        // This cold Direct-open check uses managed I/O, independent of the
+                        // optional native hot-path revocation probe and its platform bindings.
+                        if (FileHelper.ExistsOrThrow(authority))
+                            throw new IOException("Unpaired Shared coordination authority: '" + authority +
+                                "'. Stop all connections to this database, then remove this orphan coordination file " +
+                                "before retrying. Preserve database, WAL, backup and rebuild-recovery files.");
                     }
                 }
                 return guard;
             }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            catch (IOException error) when (!(error is DirectoryNotFoundException) && !(error is PathTooLongException))
             {
                 lease?.Dispose();
                 SharedCoordinationEvents.Log.Transition(filename, "mode-conflict", error.Message);
-                throw new SharedModeConflictException(filename, error);
+                throw new DatabaseAdmissionException(filename, error);
             }
             catch { lease?.Dispose(); throw; }
         }
