@@ -50,9 +50,9 @@ allows new writes. V4 files require the explicit `Upgrade=true` boundary.
 
 ## Automated evidence
 
-`Issue3022LegacyDamage_Tests` covers ordering diagnostics, source byte preservation,
+`Issue3022LegacyDamage_Tests` and `Issue3022WalRecovery_Tests` cover ordering diagnostics, source byte preservation,
 read-only refusal to repair, first-open salvage, preserved unrelated data and
-backups, recorded loss, persisted new writes, denied shared admission, interrupted
+data/WAL backup pairs, recorded loss, persisted new writes, denied shared admission, interrupted
 promotion headers, and repeated installation failures at seven rebuild phases.
 `Issue2812*` retains genuine collation rejection and recovery coverage; `Issue2417`
 retains plain/encrypted loop salvage with the opening error now recorded.

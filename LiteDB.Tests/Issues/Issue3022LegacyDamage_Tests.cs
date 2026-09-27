@@ -100,8 +100,9 @@ namespace LiteDB.Tests.Issues
         [InlineData("after-temp-install")]
         public void Failed_opening_salvage_preserves_source_and_can_be_retried(string phase)
         {
-            using var file = DamagedFile(true);
+            using var file = DamagedFile(true, wal: true);
             var before = File.ReadAllBytes(file.Filename);
+            var originalLog = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
             var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
             for (var retry = 0; retry < 2; retry++)
             {
@@ -120,6 +121,7 @@ namespace LiteDB.Tests.Issues
                 finally { RebuildService.SimulateInstallFailure = null; }
                 reached.Should().BeTrue();
                 File.ReadAllBytes(file.Filename).Should().Equal(before);
+                File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(originalLog);
             }
             using var recovered = new LiteDatabase(settings);
             Verify(recovered);
@@ -201,7 +203,7 @@ namespace LiteDB.Tests.Issues
             }
         }
 
-        private static TempFile DamagedFile(bool migrating, bool documentDamage = false)
+        internal static TempFile DamagedFile(bool migrating, bool documentDamage = false, bool wal = false)
         {
             var file = new TempFile();
             using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename }))
@@ -211,6 +213,11 @@ namespace LiteDB.Tests.Issues
                     ["_id"] = i, ["payload"] = "original-" + i
                 }), BsonAutoId.Int32);
                 engine.Insert("unrelated", new[] { new BsonDocument { ["_id"] = 1, ["payload"] = "preserved" } }, BsonAutoId.Int32);
+                if (wal)
+                {
+                    engine.Checkpoint();
+                    engine.Pragma(Pragmas.CHECKPOINT, 0);
+                }
                 Func<TransactionService, bool> damage = transaction =>
                 {
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, "rows", false);
