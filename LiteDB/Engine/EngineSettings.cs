@@ -27,6 +27,8 @@ namespace LiteDB.Engine
         internal Func<bool> AutoRebuildAllowed { get; set; }
         // Shared mode: outlives each short-lived engine; rations close checkpoints too.
         internal CheckpointBackoff CheckpointBackoff { get; set; }
+        // Private rebuild/upgrade output; the live engine retains admission through publication.
+        internal bool RebuildCandidate { get; set; }
         internal bool SharedMode { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }

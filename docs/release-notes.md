@@ -1,5 +1,27 @@
 # Release notes
 
+## Shared diagnostics and mode admission
+
+`SharedEngine.GetDiagnostics()` reports a typed read path, fallback reason, cache
+hits/misses, active leases and process-local participant/writer counters.
+`LiteDB-Shared` publishes lifecycle events; exception reasons omit stack traces.
+
+**Compatibility change for writable Direct connections:** file engines now open
+a persistent `<database>-shared-mode` sidecar even if Shared has never been used.
+The directory must permit its creation (or the existing sidecar must be writable).
+Unavailable guards fail with `SharedModeConflictException`, an `IOException`
+with the filesystem cause retained. On Unix, disabling .NET file-sharing locks
+now rejects writable Direct as well as Shared/Coordinated access. There is no
+bypass based on absent Shared files: it would race a later mapped attachment.
+
+The guard remains after close. Offline backups may omit it, and offline cleanup
+may delete it; never delete or replace it while connections are open. Private
+rebuild/upgrade candidates do not create their own guard files. No data/WAL
+format migration is involved. Read-only Shared connections do not initialize or
+rewrite mode identities; absent/mismatched identities retain protected reads.
+Direct read-only and protected read-only access are outside the mode-mixing
+rejection guarantee. See [mode admission and limitations](shared-mode-safety.md#diagnostics-and-mode-admission).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only

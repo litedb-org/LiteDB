@@ -111,5 +111,37 @@ namespace LiteDB.Tests.Engine
             cold.GetCollection("rows").Count().Should().Be(1);
         }
 #endif
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Rebuild_candidates_do_not_leave_mode_sidecars(bool fail)
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "litedb-mode-rebuild-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var filename = Path.Combine(directory, "data.db");
+            try
+            {
+                using (var db = new LiteDatabase(filename))
+                {
+                    db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preserved" });
+                    RebuildService.SimulateInstallFailure = stage =>
+                    {
+                        if (fail && stage == "before-temp-install") throw new IOException("injected installation failure");
+                    };
+                    try
+                    {
+                        Action rebuild = () => db.Rebuild();
+                        if (fail) rebuild.Should().Throw<IOException>();
+                        else rebuild();
+                    }
+                    finally { RebuildService.SimulateInstallFailure = null; }
+                }
+                Directory.GetFiles(directory, "*-shared-mode").Should().Equal(filename + "-shared-mode");
+                using var cold = new LiteDatabase(filename);
+                cold.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
+            }
+            finally { Directory.Delete(directory, true); }
+        }
     }
 }

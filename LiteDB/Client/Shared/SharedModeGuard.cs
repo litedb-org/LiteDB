@@ -20,7 +20,7 @@ namespace LiteDB.Client.Shared
 
         internal static SharedModeGuard Open(EngineSettings settings)
         {
-            if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
+            if (settings.RebuildCandidate || settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return null;
             var shared = settings.SharedMode;
             var readOnly = settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;

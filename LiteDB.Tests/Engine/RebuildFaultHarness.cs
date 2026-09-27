@@ -234,8 +234,7 @@ namespace LiteDB.Tests.Engine
             .Select(Path.GetFileName)
             // Persistent admission locks contain no recovery data and may be held
             // exclusively. Keep every data/WAL/backup/candidate in the safety oracle.
-            .Where(name => !name.StartsWith("copy-") && name != Path.GetFileName(this.Live) + "-shared-mode" &&
-                name != Path.GetFileName(this.Temp) + "-shared-mode")
+            .Where(name => !name.StartsWith("copy-") && name != Path.GetFileName(this.Live) + "-shared-mode")
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
