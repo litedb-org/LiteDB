@@ -136,10 +136,14 @@ namespace LiteDB.Client.Shared
         }
 
         /// <summary>Publish the result of an independently validated open under writer ownership.</summary>
-        internal void Opened(int version)
+        internal void Opened(int version, bool endStructural = false)
         {
-            this.Committed(version);
-            _trusted = true;
+            lock (_writeLock)
+            {
+                if (endStructural) this.StructuralEnd(version);
+                else this.Committed(version);
+                _trusted = true;
+            }
         }
 
         public void StructuralBegin()

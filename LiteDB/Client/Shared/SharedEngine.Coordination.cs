@@ -30,8 +30,7 @@ namespace LiteDB
                 throw;
             }
 #if NET8_0_OR_GREATER
-            _coordination?.StructuralEnd(_engine.ReadVersion);
-            _coordination?.Opened(_engine.ReadVersion);
+            _coordination?.Opened(_engine.ReadVersion, endStructural: true);
 #endif
 #if DEBUG || TESTING
             this.EngineOpens++;
