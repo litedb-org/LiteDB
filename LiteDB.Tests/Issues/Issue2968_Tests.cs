@@ -35,7 +35,11 @@ namespace LiteDB.Tests.Issues
             engine.SimulateOpenEngine = () =>
             {
                 if (attempts++ == 0) throw SharingViolation();
-                return new LiteEngine(settings);
+                // The hook substitutes for SharedEngine's inner open. Preserve its
+                // admission mode instead of opening a conflicting Direct writer.
+                var operationSettings = settings.Clone();
+                operationSettings.SharedMode = true;
+                return new LiteEngine(operationSettings);
             };
 
             engine.Pragma(Pragmas.USER_VERSION).AsInt32.Should().Be(0);
