@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.IO;
 using FluentAssertions;
@@ -31,7 +30,7 @@ namespace LiteDB.Tests.Engine
                     publish.Should().Throw<IOException>().WithMessage("Injected creation failure");
                 }
                 finally { SharedCoordinationFile.CreationStage = null; }
-                Directory.GetFiles(directory, ".litedb-control-*").Should().BeEmpty();
+                Directory.GetFiles(directory, ".ldb-*").Should().BeEmpty();
                 if (failureStage == "published") File.ReadAllBytes(path).Should().Equal(bytes);
                 else File.Exists(path).Should().BeFalse();
             });
@@ -48,7 +47,31 @@ namespace LiteDB.Tests.Engine
                 Action publish = () => SharedCoordinationFile.Publish(path, new byte[4096]);
                 publish.Should().Throw<IOException>();
                 File.ReadAllBytes(path).Should().Equal(original);
-                Directory.GetFiles(directory, ".litedb-control-*").Should().BeEmpty();
+                Directory.GetFiles(directory, ".ldb-*").Should().BeEmpty();
+            });
+        }
+
+        [Fact]
+        public void Publication_fits_the_existing_Windows_control_name_budget()
+        {
+            WithDirectory(directory =>
+            {
+                var parent = Path.Combine(directory, new string('p', 236 - directory.Length));
+                Directory.CreateDirectory(parent);
+                var database = Path.Combine(parent, "x");
+                database.Length.Should().Be(239);
+                SharedCoordinationFallback.SupportsNames(database).Should().BeTrue();
+                var path = SharedCoordinationFallback.LivePath(database);
+                SharedCoordinationFile.CreationStage = (_, stage) =>
+                {
+                    if (stage == "created")
+                        foreach (var temporary in Directory.GetFiles(parent))
+                            temporary.Length.Should().BeLessThan(260);
+                };
+                var bytes = BitConverter.GetBytes(SharedCoordinationFallback.Magic);
+                try { SharedCoordinationFile.Publish(path, bytes); }
+                finally { SharedCoordinationFile.CreationStage = null; }
+                File.ReadAllBytes(path).Should().Equal(bytes);
             });
         }
 
@@ -61,4 +84,3 @@ namespace LiteDB.Tests.Engine
         }
     }
 }
-#endif
