@@ -83,3 +83,30 @@ reports were inspected. The local host's lower reader concurrency and different
 I/O timings make hosted qualification necessary before claiming the writer problem
 is solved. Hardware performance counters are unavailable (`perf_event_paranoid=4`);
 no system permissions were changed to collect them.
+
+## Isolated coordination measurements
+
+A temporary reflection-bound helper runner exercises production methods directly;
+delegates are bound before timing. Five alternating rounds per variant, a two-second
+warmup and one million operations per process validate the final status/version.
+These are helper costs, not database transaction latency.
+
+| Cumulative variant | Commit publication ns | Writable-open publication ns | Status read ns |
+| --- | ---: | ---: | ---: |
+| Archived | 31.82 | 104.26 | 2146.55 |
+| Acquire loads | 23.27 | 76.59 | 2112.96 |
+| Remove duplicate open publication | 22.59 | 63.21 | 2126.31 |
+| Atomic monotonic commit | 14.46 | 63.49 | 2139.22 |
+| Batch reuse | 14.53 | 63.66 | 2130.28 |
+| Timer change | 14.69 | 64.21 | 2110.50 |
+
+The final two changes are not exercised by this helper; their unchanged values
+are controls. Batching's event counts/failure boundaries are tested separately.
+The full status call retains its filesystem revocation checks. Nanosecond savings
+in publication cannot alone explain a double-digit end-to-end writer regression.
+Raw inputs/source and per-run library hashes are in `coordination-costs.jsonl`
+and the sibling `coordination-probe` directory.
+
+Local Shared/coordinator/WAL selection on .NET 10 passed 461 cases, including the
+new publication/reset, batch/failure and timer tests. Hosted CI and reader
+comparisons are running on `b2010e8bd`; their completion remains outstanding.

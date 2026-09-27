@@ -164,3 +164,10 @@ bounds. Summed process RSS double-counts shared mappings. Failed files and
 child diagnostics are retained. This scenario's explicit checkpoint timings do
 not count implicit engine-close checkpoints; engine replay/admission counters
 require separate diagnostic runs.
+
+Use `measure-shared-readers.py --reader-interval-ms 20` to offer each reader
+50 calls per second while the writer remains unthrottled. Zero (the default)
+saturates the readers. Equal-load runs report offered and completed counts plus
+latency from each intended arrival, including queue delay. Compare these separately
+from saturation capacity; a worker that cannot keep up retains the missed work in
+its offered/completed accounting. The hosted reader workflow exposes the same input.
