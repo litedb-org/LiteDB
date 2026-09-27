@@ -260,7 +260,8 @@ compared it directly with `640aaa1c4` using five alternating validated pairs:
 | Windows point / writer | +7.30% [+1.68, +14.08] | −55.74% |
 | Windows large / writer | +4.54% [−1.55, +11.79] | −39.96% |
 
-That reader cost is too high. The hint was reverted; the local branch
+That reader cost is too high with broad startup invalidation. The standalone
+hint was reverted; the local branch
 `codex/shared-pressure-experiment` preserves the tested revision. All four jobs
 validated their data. Locally the same point experiment mainly reduced readers
 (−9.56%) while writers changed +0.24%; slow local durable flushes again limit
@@ -282,3 +283,27 @@ The first hosted dispatch (`36314066290`) failed before building because checkou
 requires a full SHA rather than the abbreviated baseline provided. It contains
 no performance results. Corrected run `36314228934` compares the same candidate
 with the full `640aaa1c43df36a95a83aefbd853561c99b79bec` baseline.
+
+Run `36314228934` completed all four jobs and validated their data. Narrowing
+alone is rejected on writer performance: Linux point readers improved +332.63%
+[+320.94, +344.28], but writers regressed −40.25% [−41.05, −39.45]; large readers
+improved +309.94%, with writers −36.03%. Windows point reads improved +613.51%,
+with writers −25.09%; large reads improved +191.38%, with writers −27.32%.
+Measured process CPU rose substantially. The extra usable reader time under a
+writer creates additional saturated work; narrower fences are not sufficient.
+
+Revision `c5c54c9cb` combines those narrower scopes with the earlier expiring
+writer-pressure yield. Run `36314784490` compares that combination directly with
+the merged `c12b6a72149ad2166d62769d07efe961198b7a38` baseline. The hypothesis is
+that pacing some of the additional reader work can recover writer capacity while
+still retaining the archived reader throughput. Results remain outstanding.
+
+Safety evidence for narrowing: the .NET 10 broad selection passed 482 cases;
+a subsequent .NET 8 selection including encrypted native repair death passed
+483. On the combined revision another 317 targeted recovery, migration, rebuild,
+pressure and native-process cases passed. In an isolated checkout, deliberately
+removing `StructuralScope` publication fails all twelve startup-mutation/rebuild
+tests while both clean-open controls pass; the unmodified control passes all
+fourteen. The exact mutant patch and TRX reports are retained. This establishes
+that these tests detect missing guards; it does not replace final platform and
+campaign qualification.

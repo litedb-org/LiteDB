@@ -13,9 +13,11 @@ namespace LiteDB.Tests.Engine
     public class SharedWriterPressure_Tests
     {
         [Theory]
-        [InlineData(null)]
-        [InlineData("secret")]
-        public void A_yield_after_admission_keeps_its_generation_through_commit_and_checkpoint(string password)
+        [InlineData(null, false)]
+        [InlineData("secret", false)]
+        [InlineData(null, true)]
+        [InlineData("secret", true)]
+        public void Scheduling_precedes_leases_but_an_admitted_reader_keeps_its_generation(string password, bool beforeAdmission)
         {
             var directory = Path.Combine(Path.GetTempPath(), "litedb-pressure-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
@@ -40,7 +42,8 @@ namespace LiteDB.Tests.Engine
                     engine.ForceCoordinatedYield = true;
                     engine.CoordinationStage = stage =>
                     {
-                        if (stage != "writer-pressure") return;
+                        if (stage != (beforeAdmission ? "writer-pressure" : "admitted")) return;
+                        engine.CoordinationStage = null;
                         ready.Set();
                         if (!resume.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("Paused accepted reader");
                     };
@@ -48,11 +51,16 @@ namespace LiteDB.Tests.Engine
                     try
                     {
                         ready.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                        if (beforeAdmission)
+                        {
+                            using var registry = new LiteDB.Client.Shared.SharedReaderRegistry(file);
+                            registry.LiveVersions().Should().BeEmpty("scheduling must not retain a reader lease");
+                        }
                         writer.GetCollection("rows").Update(Enumerable.Range(0, 64).Select(id => Row(id, 7))).Should().Be(64);
                         writer.Checkpoint();
                         resume.Set();
                         reading.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
-                        reading.Result["value"].AsInt32.Should().Be(0);
+                        reading.Result["value"].AsInt32.Should().Be(beforeAdmission ? 7 : 0);
                         reading.Result["payload"].AsString.Should().Be(new string('x', 3000));
                         rows.FindById(63)["value"].AsInt32.Should().Be(7);
                     }
