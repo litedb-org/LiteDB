@@ -224,6 +224,9 @@ namespace LiteDB.Tests.Engine
                     var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
                     for (var id = 1; DateTime.UtcNow < until; id++)
                     {
+                        // Do not charge a voluntary scheduler handoff to the mutex wait.
+                        // This matters on single-core and oversubscribed CI runners.
+                        Thread.Yield();
                         var wait = Stopwatch.StartNew();
                         engine.Insert("other", new[] { new BsonDocument { ["_id"] = id } }, BsonAutoId.Int32);
                         waits.Add(wait.Elapsed);
@@ -236,7 +239,12 @@ namespace LiteDB.Tests.Engine
             try
             {
                 var value = 2;
-                while (other.IsAlive) engine.Update("docs", new[] { Doc(1, value++) });
+                while (other.IsAlive)
+                {
+                    engine.Update("docs", new[] { Doc(1, value++) });
+                    // Keep the loop tight while allowing the measured waiter to run.
+                    Thread.Yield();
+                }
             }
             finally
             {
