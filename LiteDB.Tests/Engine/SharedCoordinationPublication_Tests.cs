@@ -105,8 +105,10 @@ namespace LiteDB.Tests.Engine
             {
                 var file = Path.Combine(directory, "test.db");
                 using var page = SharedCoordinationPage.Open(file);
-                using var mapping = MemoryMappedFile.CreateFromFile(SharedCoordinationPage.PagePath(file),
-                    FileMode.Open, null, 4096, MemoryMappedFileAccess.ReadWrite);
+                using var content = new FileStream(SharedCoordinationPage.PagePath(file),
+                    FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                using var mapping = MemoryMappedFile.CreateFromFile(content, null, 4096,
+                    MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, leaveOpen: true);
                 using var view = mapping.CreateViewAccessor();
                 test(page, view);
             }
