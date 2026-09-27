@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -54,4 +53,3 @@ namespace LiteDB.Client.Shared
         }
     }
 }
-#endif
