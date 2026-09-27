@@ -13,12 +13,18 @@ using Xunit;
 
 namespace LiteDB.Tests.Engine
 {
+    [CollectionDefinition(nameof(SharedReaderPinCollection), DisableParallelization = true)]
+    public sealed class SharedReaderPinCollection
+    {
+    }
+
     /// <summary>
     /// A write from a thread iterating a leased reader pins the engine: a holder
     /// thread keeps the named mutex between that thread's calls. Any thread must be
     /// able to end the pin, and nothing may leave the mutex owned by a live thread
     /// that never calls back in, or every other thread and process would wait forever.
     /// </summary>
+    [Collection(nameof(SharedReaderPinCollection))]
     public class SharedReaderPin_Tests : IDisposable
     {
         private readonly OpenReaders _open = new OpenReaders();
