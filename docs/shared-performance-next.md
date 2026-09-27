@@ -59,8 +59,12 @@ database/WAL formats do not change, and no database rebuild is required.
 ## Measurement evidence
 
 Production comparisons use Release with `TestingEnabled=false`, isolated library
-builds, identical runners, fresh processes, ten-second warmup and alternating
-baseline/candidate order. Raw artifacts record commits, assembly hashes, command,
+builds, identical runners, fresh processes and alternating baseline/candidate
+order. Single-process scenarios use ten-second warmup. The separate writer
+contention runner measures the whole timed ownership lifecycle from startup;
+it has no discarded warmup window. Targeted follow-ups extend mixed measurements
+to 20,000 calls and contention windows to 30 seconds, with ten pairs, to assess
+CPU and tail signals from the shorter runs. Raw artifacts record commits, assembly hashes, command,
 runtime/OS, chronological windows, complete result validation and final close/WAL
 state. Host/runtime results are not pooled. Paired-bootstrap intervals are
 exploratory per-metric estimates; intervals crossing zero are inconclusive, not
