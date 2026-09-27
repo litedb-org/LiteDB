@@ -24,7 +24,7 @@ namespace LiteDB.Client.Shared
         // A holder that owns nothing exits after this long, so an undisposed
         // connection does not keep a thread (and itself) alive forever.
         private static readonly TimeSpan HolderIdle = TimeSpan.FromSeconds(1);
-        private const int SpinCount = 1000;
+        private const int SpinCount = 35;
 
         private enum Command { None, Acquire, TryAcquire, Release, ReleaseAndOpenGate, ReleaseExitedOwner }
 
