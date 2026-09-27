@@ -16,7 +16,8 @@ namespace LiteDB.Client.Shared
         internal static void RequireFileLocking()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-                Enabled("System.IO.DisableFileLocking", "DOTNET_SYSTEM_IO_DISABLEFILELOCKING"))
+                ((AppContext.TryGetSwitch("System.IO.DisableFileLocking", out var disabled) && disabled) ||
+                 EnvironmentEnabled("DOTNET_SYSTEM_IO_DISABLEFILELOCKING")))
                 throw new PlatformNotSupportedException("Shared readers require OS file-sharing locks. " +
                     "Remove System.IO.DisableFileLocking / DOTNET_SYSTEM_IO_DISABLEFILELOCKING before process startup.");
         }
@@ -36,10 +37,16 @@ namespace LiteDB.Client.Shared
         }
 #endif
 
-        // Match the runtime's precedence and accepted environment values.
+        // Our opt-out gives an explicit switch precedence. Runtime file-locking
+        // precedence differs across .NET versions, so reject either disabling knob.
         private static bool Enabled(string name, string environment)
         {
             if (AppContext.TryGetSwitch(name, out var value)) return value;
+            return EnvironmentEnabled(environment);
+        }
+
+        private static bool EnvironmentEnabled(string environment)
+        {
             var text = Environment.GetEnvironmentVariable(environment);
             return text == "1" || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase);
         }

@@ -77,7 +77,8 @@ On Unix, **all participating processes must have working OS file-sharing locks**
 unsupported for Shared and Coordinated connections; this build rejects the
 configuration before opening the reader registry or retiring an authority. The
 mapped-read opt-out does not remove the existing lease protocol's locking
-requirement. Set runtime configuration before process startup; changing it after
+requirement. Either enabled disabling knob is rejected, even with a conflicting
+false value in the other: runtime precedence differs between .NET versions. Set runtime configuration before process startup; changing it after
 the runtime has initialized I/O is unsupported. This check cannot protect against
 an older or external participant that bypasses locks.
 
@@ -97,8 +98,9 @@ on ThreadPool workers should account for that occupancy. The OS may delay a
 thread longer than requested. This is not a writer-latency guarantee.
 
 A connection already attached can announce before waiting for the mutex. A fresh
-writer can safely attach only after its first mutex acquisition; it announces
-immediately afterwards, before engine open/recovery. The hint remains active
+writer can safely attach only after its first mutex acquisition; a directly writable
+call announces immediately afterwards, before engine open/recovery. `BeginTrans`
+cannot predict later writes, so its first actual write starts pressure. The hint remains active
 while that writer owns an open engine, including a long transaction, because
 cached reads can consume CPU during its work. It expires after 100 ms and is
 cleared at completion if it still belongs to that writer. Pragma getters,

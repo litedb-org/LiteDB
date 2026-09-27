@@ -120,9 +120,11 @@ namespace LiteDB.Tests.Engine
         }
 
         [MappedTheory]
-        [InlineData(null)]
-        [InlineData("secret")]
-        public async Task A_native_process_with_disabled_file_locking_cannot_retire_a_live_authority(string password)
+        [InlineData(null, false)]
+        [InlineData("secret", false)]
+        [InlineData(null, true)]
+        [InlineData("secret", true)]
+        public async Task A_native_process_with_disabled_file_locking_cannot_retire_a_live_authority(string password, bool conflictingSwitch)
         {
             using var file = new MappedTestFile();
             await MvccProcess.Run("seed", file, password);
@@ -131,7 +133,8 @@ namespace LiteDB.Tests.Engine
             using var database = new LiteDatabase(engine);
             for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0);
             var live = File.ReadAllBytes(SharedCoordinationFallback.LivePath(file));
-            using (var child = new MvccProcess("mapped-locking-disabled", file, password, disableFileLocking: true))
+            using (var child = new MvccProcess(conflictingSwitch ? "mapped-locking-disabled-conflict" : "mapped-locking-disabled",
+                file, password, disableFileLocking: true))
             {
                 await child.Expect("done");
                 await child.Finish();

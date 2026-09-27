@@ -21,7 +21,8 @@ internal static class SharedPolicyHarness
             Console.WriteLine("done");
             return true;
         }
-        if (mode != "mapped-locking-disabled") return false;
+        if (mode == "mapped-locking-disabled-conflict") AppContext.SetSwitch("System.IO.DisableFileLocking", false);
+        else if (mode != "mapped-locking-disabled") return false;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             // Windows sharing locks are mandatory and this Unix runtime knob is ignored.
