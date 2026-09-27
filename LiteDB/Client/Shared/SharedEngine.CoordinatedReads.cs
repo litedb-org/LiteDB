@@ -24,6 +24,7 @@ namespace LiteDB
         internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
         internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
         internal int CoordinatedReadHits;
+        internal int MeasuredStreamingReaders;
         internal string CoordinationFallbackReason;
         internal System.Runtime.InteropServices.Architecture? CoordinationArchitectureOverride;
         internal Action<string> CoordinationStage;
@@ -261,7 +262,13 @@ namespace LiteDB
                 local = this.AddLocalReader();
                 lock (_snapshotGate) snapshot.HadStreamingReader = true;
                 IBsonDataReader continued = new PrefixedDataReader(prefix, reader);
-                if (workStarted != 0) continued = new MeasuredSharedReader(continued, this.RecordCachedWork);
+                if (workStarted != 0)
+                {
+                    continued = new MeasuredSharedReader(continued, this.RecordCachedWork);
+#if DEBUG || TESTING
+                    Interlocked.Increment(ref MeasuredStreamingReaders);
+#endif
+                }
                 return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local));
             }
             catch

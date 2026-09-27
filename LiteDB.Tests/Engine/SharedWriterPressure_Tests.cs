@@ -13,6 +13,62 @@ namespace LiteDB.Tests.Engine
     public class SharedWriterPressure_Tests
     {
         [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void Measured_streaming_reader_preserves_old_rows_and_releases_its_lease_on_another_thread(string password)
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "litedb-pressure-stream-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var file = Path.Combine(directory, "test.db");
+            var passed = false;
+            BsonDocument Row(int id, int value) => new BsonDocument
+                { ["_id"] = id, ["value"] = value, ["payload"] = new string('x', 3000) };
+            try
+            {
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+                    { CoordinatedIdleLimit = TimeSpan.FromMinutes(1), ForceCoordinatedYield = true })
+                using (var reader = new LiteDatabase(engine))
+                using (var writer = new LiteDatabase(new ConnectionString
+                    { Filename = file, Password = password, Connection = ConnectionType.Shared }))
+                {
+                    writer.CheckpointSize = 0;
+                    var rows = writer.GetCollection("rows");
+                    rows.InsertBulk(Enumerable.Range(0, 64).Select(id => Row(id, 0)));
+                    rows.EnsureIndex("value");
+                    for (var i = 0; i < 3; i++) reader.GetCollection("rows").FindById(0);
+                    using (var held = reader.GetCollection("rows").Query().OrderBy("_id").ToEnumerable().GetEnumerator())
+                    {
+                        held.MoveNext().Should().BeTrue();
+                        engine.MeasuredStreamingReaders.Should().Be(1);
+                        rows.Update(Enumerable.Range(0, 64).Select(id => Row(id, 7)));
+                        writer.Checkpoint();
+                        reader.GetCollection("rows").FindById(63)["value"].AsInt32.Should().Be(7);
+                        var count = 0;
+                        do
+                        {
+                            held.Current["_id"].AsInt32.Should().Be(count++);
+                            held.Current["value"].AsInt32.Should().Be(0);
+                            held.Current["payload"].AsString.Should().Be(new string('x', 3000));
+                        } while (count < 32 && held.MoveNext());
+                        count.Should().Be(32, "the measured reader must outlive the buffered prefix");
+                        Task.Run(() => held.Dispose()).Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    }
+                    using var registry = new LiteDB.Client.Shared.SharedReaderRegistry(file);
+                    registry.LiveVersions().Should().BeEmpty();
+                    writer.Checkpoint();
+                }
+                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                {
+                    var rows = cold.GetCollection("rows").Find(Query.EQ("value", 7)).OrderBy(row => row["_id"].AsInt32).ToArray();
+                    rows.Select(row => row["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 64));
+                    rows.Should().OnlyContain(row => row["payload"].AsString == new string('x', 3000));
+                }
+                passed = true;
+            }
+            finally { if (passed) Directory.Delete(directory, true); }
+        }
+
+        [Theory]
         [InlineData(null, false)]
         [InlineData("secret", false)]
         [InlineData(null, true)]
