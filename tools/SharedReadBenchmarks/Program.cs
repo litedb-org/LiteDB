@@ -21,6 +21,13 @@ internal static class Program
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
             throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
 
+        if (args.Length == 1 && args[0] == "capabilities")
+        {
+            var sharedReaderSlots = typeof(LiteDatabase).Assembly.GetType("LiteDB.Client.Shared.SharedReaderSlots") != null;
+            Console.WriteLine("{\"sharedReaderSlots\":" + sharedReaderSlots.ToString().ToLowerInvariant() + "}");
+            return;
+        }
+
         if (args.Length >= 2 && args[0].StartsWith("read-contention", StringComparison.Ordinal))
         {
             ReaderContentionBenchmarks.Run(args);
