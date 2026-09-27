@@ -41,11 +41,7 @@ namespace LiteDB.Internals
                 }
                 var registry = new SharedReaderRegistry(Filename);
                 registry.LiveVersions().Distinct().Should().HaveCount(3);
-                // The first generation uses scoped fallback; later cached generations
-                // use the mapped table. Both are bounded per connection and scanned.
-                Directory.GetFiles(Filename + "-readers", "*.lease").Should().HaveCount(2);
-                Directory.GetFiles(Filename + "-readers", "slots-*.lease").Should().ContainSingle();
-                Directory.GetFiles(Filename + "-readers", "mapped-*.lease").Should().ContainSingle();
+                Directory.GetFiles(Filename + "-readers", "*.lease").Should().HaveCount(1);
                 for (var revision = 3; revision <= 8; revision++)
                 {
                     await MvccProcess.Run("storage-write", Filename, password, "Auto," + revision);

@@ -43,10 +43,6 @@ namespace LiteDB.Tests.Engine
         public void Failed_lease_after_a_successful_probe_retries_before_execution_and_preserves_off_thread_disposal()
         {
             using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
-#if NET8_0_OR_GREATER
-            // This test injects filesystem writes in the scoped fallback protocol.
-            engine.CoordinationArchitectureOverride = System.Runtime.InteropServices.Architecture.Arm;
-#endif
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             using (var warmup = engine.Query("docs", new Query { Limit = 1 })) warmup.Read().Should().BeTrue();
             var registry = (SharedReaderRegistry)typeof(SharedEngine).GetField("_readers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
@@ -71,9 +67,6 @@ namespace LiteDB.Tests.Engine
         public void Failed_registration_followed_only_by_small_reads_does_not_disable_checkpoints()
         {
             using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
-#if NET8_0_OR_GREATER
-            engine.CoordinationArchitectureOverride = System.Runtime.InteropServices.Architecture.Arm;
-#endif
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             using (var warmup = engine.Query("docs", new Query { Limit = 1 })) warmup.Read().Should().BeTrue();
             var registry = (SharedReaderRegistry)typeof(SharedEngine).GetField("_readers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);

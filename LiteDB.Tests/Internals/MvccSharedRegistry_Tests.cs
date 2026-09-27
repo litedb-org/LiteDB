@@ -148,33 +148,21 @@ namespace LiteDB.Internals
         }
 
         /// <summary>
-        /// One connection's readers share bounded slot tables. A checkpoint of another connection must
+        /// One connection's readers share a slot file. A checkpoint of another connection must
         /// keep the frames of every leased version in it, not only the oldest: frames the newer
         /// reader needs are unreachable for the oldest one and for the current state.
         /// </summary>
-        [Theory]
-        [InlineData(false)]
-#if NET8_0_OR_GREATER
-        [InlineData(true)]
-#endif
-        public void ReadersOfOneConnectionAtDifferentVersionsEachKeepTheirFrames(bool coordinated)
+        [Fact]
+        public void ReadersOfOneConnectionAtDifferentVersionsEachKeepTheirFrames()
         {
             using var readers = new SharedEngine(new EngineSettings { Filename = Filename });
-#if NET8_0_OR_GREATER
-            if (!coordinated) readers.CoordinationArchitectureOverride = System.Runtime.InteropServices.Architecture.Arm;
-#endif
             using var writer = new SharedEngine(new EngineSettings { Filename = Filename });
             writer.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
             using var oldest = readers.Query("docs", new Query());
             writer.Update("docs", Documents(STREAMED_DOCUMENTS, 1));
             using var newer = readers.Query("docs", new Query());
             new SharedReaderRegistry(Filename).LiveVersions().Distinct().Should().HaveCount(2);
-            Directory.GetFiles(Leases, "*.lease").Should().HaveCount(coordinated ? 2 : 1);
-            if (coordinated)
-            {
-                Directory.GetFiles(Leases, "slots-*.lease").Should().ContainSingle();
-                Directory.GetFiles(Leases, "mapped-*.lease").Should().ContainSingle();
-            }
+            Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
 
             for (var value = 2; value <= 5; value++)
             {
