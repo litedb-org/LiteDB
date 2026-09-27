@@ -13,7 +13,7 @@ on:
         required: false
         default: standard
         type: choice
-        options: [standard, readers, contention]
+        options: [standard, core, readers, contention]
       reader_interval_ms:
         description: 'Per-reader offered interval for reader comparisons (0 saturates)'
         required: false
@@ -65,7 +65,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         framework: [net8.0, net10.0]
-        workload: [core, traffic]
+        workload: ${{ fromJSON(inputs.suite == 'core' && '["core"]' || '["core", "traffic"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
