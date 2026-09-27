@@ -18,7 +18,7 @@ namespace LiteDB.Client.Shared
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
                 ((AppContext.TryGetSwitch("System.IO.DisableFileLocking", out var disabled) && disabled) ||
                  EnvironmentEnabled("DOTNET_SYSTEM_IO_DISABLEFILELOCKING")))
-                throw new PlatformNotSupportedException("Shared readers require OS file-sharing locks. " +
+                throw new PlatformNotSupportedException("Database admission requires OS file-sharing locks for writable Direct and Shared connections. " +
                     "Remove System.IO.DisableFileLocking / DOTNET_SYSTEM_IO_DISABLEFILELOCKING before process startup.");
         }
 

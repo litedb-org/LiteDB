@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using LiteDB.Client.Shared;
 
@@ -5,7 +6,10 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
-        internal long CoordinatedReadHits;
+        private long _coordinatedReadHits;
+#if DEBUG || TESTING
+        internal long CoordinatedReadHits => Interlocked.Read(ref _coordinatedReadHits);
+#endif
         private long _coordinatedReadMisses;
         private long _writerPressureRequests;
         private long _writerYields;
@@ -16,13 +20,19 @@ namespace LiteDB
         /// </summary>
         public SharedDiagnostics GetDiagnostics()
         {
-            var path = "protected";
+            var path = SharedReadPath.Protected;
 #if NET8_0_OR_GREATER
+            SharedCoordinationPage coordination;
             lock (_snapshotGate)
-                path = _coordination != null ? (_coordination.IsRevoked ? "revoked" : "mapped") :
-                    _coordinationDemand == 0 && CoordinationFallbackReason == null ? "uninitialized" : "protected";
+            {
+                coordination = _coordination;
+                if (_coordinationDemand == 0 && CoordinationFallbackReason == null) path = SharedReadPath.Uninitialized;
+            }
+            // IsRevoked synchronizes with page disposal itself. Filesystem probes must
+            // not hold the snapshot gate used by query admission and idle retirement.
+            if (coordination != null) path = coordination.IsRevoked ? SharedReadPath.Revoked : SharedReadPath.Mapped;
 #endif
-            if (Volatile.Read(ref _disposed) != 0) path = "disposed";
+            if (Volatile.Read(ref _disposed) != 0) path = SharedReadPath.Disposed;
             return new SharedDiagnostics
             {
                 ReadPath = path,
@@ -31,13 +41,20 @@ namespace LiteDB
 #else
                 FallbackReason = "runtime: mapped reads require .NET 8 or later",
 #endif
-                CoordinatedReadHits = Interlocked.Read(ref CoordinatedReadHits),
+                CoordinatedReadHits = Interlocked.Read(ref _coordinatedReadHits),
                 CoordinatedReadMisses = Interlocked.Read(ref _coordinatedReadMisses),
                 ActiveSnapshotLeases = _readers.ActiveLeases,
                 ProcessMappedParticipants = SharedCoordinationEvents.Participants(_settings.Filename),
                 WriterPressureRequests = Interlocked.Read(ref _writerPressureRequests),
                 WriterYields = Interlocked.Read(ref _writerYields)
             };
+        }
+
+        private static string DescribeCoordinationFailure(Exception error)
+        {
+            var reason = error.GetType().Name + ": " + error.Message;
+            if (error.InnerException != null) reason += " --> " + DescribeCoordinationFailure(error.InnerException);
+            return reason;
         }
 
         private void RecordCoordinationFallback(string reason)

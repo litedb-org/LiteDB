@@ -93,7 +93,7 @@ namespace LiteDB.Client.Shared
                 }
                 return guard;
             }
-            catch (IOException error)
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
             {
                 lease?.Dispose();
                 SharedCoordinationEvents.Log.Transition(filename, "mode-conflict", error.Message);
@@ -123,11 +123,4 @@ namespace LiteDB.Client.Shared
         }
     }
 
-    internal sealed class SharedModeConflictException : IOException
-    {
-        internal SharedModeConflictException(string filename, Exception inner)
-            : base("Cannot safely admit database access to '" + filename +
-                "': conflicting Direct/Shared access, Shared mutex identity, or unavailable mode guard. " +
-                "Close incompatible connections and use one database path and mutex strategy.", inner) { }
-    }
 }

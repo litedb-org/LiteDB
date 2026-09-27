@@ -108,7 +108,7 @@ namespace LiteDB
             {
                 // Existing participants must learn about this fallback before this
                 // connection is allowed to make a write they would otherwise miss.
-                this.RecordCoordinationFallback(error.ToString());
+                this.RecordCoordinationFallback(DescribeCoordinationFailure(error));
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
             }
@@ -176,7 +176,7 @@ namespace LiteDB
                     throw;
                 }
                 snapshot.Readers++;
-                Interlocked.Increment(ref CoordinatedReadHits);
+                Interlocked.Increment(ref _coordinatedReadHits);
             }
             return this.ReadCached(collection, query, snapshot, workStarted);
         }

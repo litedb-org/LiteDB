@@ -3,8 +3,8 @@ namespace LiteDB
     /// <summary>A best-effort, process-local observation; never authorizes database access.</summary>
     public sealed class SharedDiagnostics
     {
-        /// <summary>uninitialized, protected, mapped, revoked, or disposed.</summary>
-        public string ReadPath { get; internal set; }
+        /// <summary>The currently observed read path for this connection.</summary>
+        public SharedReadPath ReadPath { get; internal set; }
         /// <summary>The last reason mapped attachment was unavailable, if any.</summary>
         public string FallbackReason { get; internal set; }
         /// <summary>Queries admitted using a cached mapped snapshot.</summary>

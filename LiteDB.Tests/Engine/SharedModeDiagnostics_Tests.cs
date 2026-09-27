@@ -24,11 +24,11 @@ namespace LiteDB.Tests.Engine
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var db = new LiteDatabase(engine))
             {
-                engine.GetDiagnostics().ReadPath.Should().Be("uninitialized");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Uninitialized);
                 Seed(db);
                 Warm(db);
                 var before = engine.GetDiagnostics();
-                before.ReadPath.Should().Be("mapped");
+                before.ReadPath.Should().Be(SharedReadPath.Mapped);
                 before.ProcessMappedParticipants.Should().Be(1);
                 before.CoordinatedReadHits.Should().BeGreaterThan(0);
                 before.CoordinatedReadMisses.Should().BeGreaterThan(0);
@@ -45,17 +45,17 @@ namespace LiteDB.Tests.Engine
                 db.GetCollection("rows").Update(new BsonDocument { ["_id"] = 0, ["value"] = 2 });
                 engine.GetDiagnostics().WriterPressureRequests.Should().BeGreaterThan(0);
                 SharedCoordinationFallback.Revoke(file);
-                engine.GetDiagnostics().ReadPath.Should().Be("revoked");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Revoked);
                 Warm(db);
             }
             using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
             using (var db = new LiteDatabase(engine))
             {
                 Warm(db);
-                engine.GetDiagnostics().ReadPath.Should().Be("mapped");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
                 events.ThrowOnEvent = true;
                 engine.Dispose();
-                engine.GetDiagnostics().ReadPath.Should().Be("disposed");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Disposed);
                 engine.GetDiagnostics().ProcessMappedParticipants.Should().Be(0);
             }
             events.States.Should().Contain(new[] { "attached", "detached", "created", "retired", "revoked" });
@@ -74,7 +74,7 @@ namespace LiteDB.Tests.Engine
                 Warm(db);
                 using var held = db.GetCollection("rows").FindAll().GetEnumerator();
                 held.MoveNext().Should().BeTrue();
-                engine.GetDiagnostics().ReadPath.Should().Be("mapped");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
                 var data = File.ReadAllBytes(file);
                 var logPath = FileHelper.GetLogFile(file);
                 var log = File.Exists(logPath) ? File.ReadAllBytes(logPath) : null;
@@ -160,7 +160,7 @@ namespace LiteDB.Tests.Engine
                 { Filename = file, Password = "secret", SharedMutexNameStrategy = SharedMutexNameStrategy.Sha1Hash });
             using var shared = new LiteDatabase(engine);
             Warm(shared);
-            engine.GetDiagnostics().ReadPath.Should().Be("mapped");
+            engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
         }
 
         [MappedFact]
@@ -175,11 +175,37 @@ namespace LiteDB.Tests.Engine
             using var dbRead = new LiteDatabase(engine);
             Warm(dbRead);
             var diagnostics = engine.GetDiagnostics();
-            diagnostics.ReadPath.Should().Be("protected");
+            diagnostics.ReadPath.Should().Be(SharedReadPath.Protected);
             diagnostics.FallbackReason.Should().Contain("architecture");
             diagnostics.CoordinatedReadHits.Should().Be(0);
             File.Exists(file.Filename + "-shared-mode").Should().BeFalse();
             File.ReadAllBytes(file).Should().Equal(original);
+        }
+
+        [MappedFact]
+        public void Repeated_fallback_has_stable_reason_without_stack_traces()
+        {
+            using var file = new MappedTestFile();
+            using (var db = new LiteDatabase(file)) Seed(db);
+            using (SharedModeGuard.Open(file, true, SharedMutexNameStrategy.Default)) { }
+            using var events = new SharedEvents();
+            SharedCoordinationFile.CreationStage = (path, stage) =>
+            {
+                if (stage == "created") throw new IOException("injected mapping failure");
+            };
+            try
+            {
+                using var engine = new SharedEngine(new EngineSettings { Filename = file, ReadOnly = true });
+                using var db = new LiteDatabase(engine);
+                Warm(db);
+                Warm(db);
+                engine.GetDiagnostics().FallbackReason.Should().Be("IOException: injected mapping failure");
+                events.FallbackReasons.Should().Equal("IOException: injected mapping failure");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Protected);
+            }
+            finally { SharedCoordinationFile.CreationStage = null; }
+            using var cold = new LiteDatabase(file);
+            cold.GetCollection("untouched").FindById(1)["value"].AsInt32.Should().Be(42);
         }
 
         private static void Seed(LiteDatabase db)
@@ -199,6 +225,7 @@ namespace LiteDB.Tests.Engine
         {
             internal bool ThrowOnEvent;
             internal readonly List<string> States = new List<string>();
+            internal readonly List<string> FallbackReasons = new List<string>();
             protected override void OnEventSourceCreated(EventSource source)
             {
                 if (source.Name == "LiteDB-Shared") EnableEvents(source, EventLevel.Informational);
@@ -206,7 +233,11 @@ namespace LiteDB.Tests.Engine
             protected override void OnEventWritten(EventWrittenEventArgs data)
             {
                 if (data.EventId != 1) return;
-                lock (States) States.Add((string)data.Payload[1]);
+                lock (States)
+                {
+                    States.Add((string)data.Payload[1]);
+                    if ((string)data.Payload[1] == "fallback") FallbackReasons.Add((string)data.Payload[2]);
+                }
                 if (ThrowOnEvent) throw new InvalidOperationException("diagnostic listener failure");
             }
         }

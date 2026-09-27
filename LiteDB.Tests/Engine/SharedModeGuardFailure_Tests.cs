@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Engine
             using (var db = new LiteDatabase(engine))
             {
                 for (var i = 0; i < 4; i++) db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
-                engine.GetDiagnostics().ReadPath.Should().Be("mapped");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
             }
             using var reopened = new LiteDatabase(file);
             reopened.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
@@ -70,16 +70,17 @@ namespace LiteDB.Tests.Engine
             using var file = new MappedTestFile();
             using (var db = new LiteDatabase(file)) db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
             var data = File.ReadAllBytes(file);
+            using (SharedModeGuard.Open(file, true, SharedMutexNameStrategy.Default)) { }
             SharedCoordinationFile.CreationStage = (path, stage) =>
             {
-                if (stage == "mode-initializing") throw new IOException("read-only coordination storage");
+                if (stage == "created") throw new IOException("read-only coordination storage");
             };
             try
             {
                 using var engine = new SharedEngine(new EngineSettings { Filename = file, ReadOnly = true });
                 using var db = new LiteDatabase(engine);
                 for (var i = 0; i < 4; i++) db.GetCollection("rows").Count().Should().Be(1);
-                engine.GetDiagnostics().ReadPath.Should().Be("protected");
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Protected);
                 engine.GetDiagnostics().FallbackReason.Should().Contain("read-only coordination storage");
                 File.ReadAllBytes(file).Should().Equal(data);
             }
