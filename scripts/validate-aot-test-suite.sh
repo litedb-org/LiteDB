@@ -89,7 +89,18 @@ grep -v '^#' "$known_file" | tr -d '\r' | awk -F '\t' 'NF >= 2 { print $2 }' | s
 # Every test the JIT build discovers has to be discovered by the Native AOT build as well.
 comm -23 "$output_root/regular.names" "$output_root/native-aot.names" > "$output_root/undiscovered.names"
 comm -12 "$output_root/regular.pass" "$output_root/native-aot.fail" > "$output_root/aot-only.names"
-comm -23 "$output_root/aot-only.names" "$output_root/known.names" > "$output_root/unexpected.names"
+# Unix Native AOT deliberately rejects Shared/coordinator opens before file access.
+# Only that exact guard diagnostic is a supported platform rejection; arbitrary
+# PlatformNotSupportedException failures and Windows failures still fail this gate.
+: > "$output_root/platform-rejected.names"
+case "$runtime_identifier" in
+    linux-* | osx-*)
+        awk -F '\t' '$1 == "Fail" && index($3, "PlatformNotSupportedException: Shared and coordinated connections are not supported under Native AOT on Unix because named mutexes do not synchronize across processes. Use a direct connection with exclusive process ownership.") { print $2 }' \
+            "$output_root/native-aot.tsv" | tr -d '\r' | sort -u > "$output_root/platform-rejected.names"
+        ;;
+esac
+comm -23 "$output_root/aot-only.names" "$output_root/known.names" | \
+    comm -23 - "$output_root/platform-rejected.names" > "$output_root/unexpected.names"
 comm -13 "$output_root/aot-only.names" "$output_root/known.names" > "$output_root/stale.names"
 
 # Timing-sensitive tests can fail once for reasons unrelated to AOT: give each unexpected failure one more run.
@@ -119,6 +130,12 @@ if [ -s "$output_root/regular.fail" ]; then
     awk -F '\t' '$1 == "Fail" { printf "    %s\n        %s\n", $2, $3 }' "$output_root/regular.tsv"
 fi
 
+if [ -s "$output_root/platform-rejected.names" ]; then
+    printf '[AOT-TESTS] Unsupported Unix Native AOT connections rejected before file access (%s tests; not passes):\n' \
+        "$(wc -l < "$output_root/platform-rejected.names" | tr -d ' ')"
+    sed 's/^/    /' "$output_root/platform-rejected.names"
+fi
+
 if [ -s "$output_root/stale.names" ]; then
     # Not an error: which generic instantiations have native code can differ between platforms and runtimes.
     printf '[AOT-TESTS] Listed as known differences but not failing here:\n'
@@ -143,4 +160,4 @@ fi
 
 [ "$failed" -eq 0 ] || exit 1
 
-printf '[AOT-TESTS] Passed (%s, %s): every Native AOT difference from the JIT run is a documented one.\n' "$target_framework" "$runtime_identifier"
+printf '[AOT-TESTS] Passed (%s, %s): every Native AOT difference is documented or an explicit unsupported-platform rejection.\n' "$target_framework" "$runtime_identifier"

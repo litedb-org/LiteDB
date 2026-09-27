@@ -1,5 +1,7 @@
 # Experimental: coordinator mode
 
+Unix Native AOT is unsupported: opening a coordinator throws `PlatformNotSupportedException` before file access because its named mutexes cannot elect a cross-process owner. Managed Unix and Windows retain their existing behavior. Follow-up [#3024](https://github.com/litedb-org/LiteDB/issues/3024) is blocked on AOT PR #2907 merging.
+
 > **Status: experiment.** This prototype is opt-in only. It does not change any default,
 > connection-string key or the file format. Its API is marked `[Experimental]`: suppress the
 > `LITEDB_EXPERIMENTAL_COORDINATOR` diagnostic to use it. It is available on .NET 8+ only

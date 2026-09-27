@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
         public CoordinatedEngine(EngineSettings settings)
         {
+            SharedMutexFactory.EnsureSupported();
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (string.IsNullOrEmpty(settings.Filename) || settings.Filename == ":memory:" || settings.Filename == ":temp:" ||
                 settings.DataStream != null || settings.LogStream != null)

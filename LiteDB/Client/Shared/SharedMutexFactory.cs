@@ -11,8 +11,20 @@ namespace LiteDB
         private const string MutexPrefix = "Global\\";
         private const string MutexSuffix = ".Mutex";
 
+        internal const string UnsupportedNativeAotMessage =
+            "Shared and coordinated connections are not supported under Native AOT on Unix because named mutexes do not synchronize across processes. Use a direct connection with exclusive process ownership.";
+
+        internal static void EnsureSupported()
+        {
+#if NET8_0_OR_GREATER
+            if (!OperatingSystem.IsWindows() && !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+                throw new PlatformNotSupportedException(UnsupportedNativeAotMessage);
+#endif
+        }
+
         public static Mutex Create(string name)
         {
+            EnsureSupported();
             var fullName = MutexPrefix + name + MutexSuffix;
 
             if (!IsWindows())

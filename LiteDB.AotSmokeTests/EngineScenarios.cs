@@ -12,7 +12,7 @@ namespace LiteDB.AotSmokeTests
 {
     /// <summary>
     /// Engine features reached through the document API. None of them involve entity mapping, so they are
-    /// expected to work in every publish mode without generated maps.
+    /// validated without generated maps, including explicit rejection of unsupported platforms.
     /// </summary>
     internal static class EngineScenarios
     {
@@ -135,8 +135,21 @@ namespace LiteDB.AotSmokeTests
 
         private static void RunSharedConnection(string path)
         {
-            Console.WriteLine("  [4.5] Use two shared-mode connections on one data file.");
+            Console.WriteLine("  [4.5] Verify the shared-connection platform contract.");
             var connection = new ConnectionString { Filename = path, Connection = ConnectionType.Shared };
+
+            if (!OperatingSystem.IsWindows() && !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+            {
+                RequireThrows<PlatformNotSupportedException>(() =>
+                {
+                    using var unsupported = new LiteDatabase(connection);
+                    unsupported.GetCollection("shared").Count();
+                }, "Unix Native AOT accepted a shared connection without cross-process mutex support.");
+                Require(!File.Exists(path), "Rejected shared connection created a database file.");
+                Console.Error.WriteLine("[PLATFORM] Shared mode rejected before file access: Unix Native AOT has no cross-process named mutexes.");
+                Console.WriteLine("        Passed: shared-connection platform contract.");
+                return;
+            }
 
             using var first = new LiteDatabase(connection);
             using var second = new LiteDatabase(connection);
@@ -144,12 +157,11 @@ namespace LiteDB.AotSmokeTests
             first.GetCollection("shared").Insert(new BsonDocument { ["_id"] = 1, ["from"] = "first" });
             second.GetCollection("shared").Insert(new BsonDocument { ["_id"] = 2, ["from"] = "second" });
 
-            Report("visible to first", first.GetCollection("shared").Count());
-            Report("visible to second", second.GetCollection("shared").Count());
             Require(first.GetCollection("shared").Count() == 2 && second.GetCollection("shared").Count() == 2,
                 "Shared-mode connections did not see each other's writes.");
 
-            Console.WriteLine("        Passed: shared-mode locking and cross-connection visibility.");
+            Console.Error.WriteLine("[PLATFORM] Shared mode supported: both connections observe both committed writes.");
+            Console.WriteLine("        Passed: shared-connection platform contract.");
         }
 
         private static void RunConcurrentWriters(string path)
