@@ -116,28 +116,33 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild &&
-                    (_settings.AutoRebuildAllowed?.Invoke() ?? true))
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
                 {
-                    // dispose disk access to rebuild process
-                    _disk.Dispose();
-                    _disk = null;
+                    // Announce replacement before checking the external leases: a
+                    // later admission must not pass a scan that permitted rebuilding.
+                    using var structural = new StructuralScope(_settings.CoordinationSignals);
+                    if (_settings.AutoRebuildAllowed?.Invoke() ?? true)
+                    {
+                        // dispose disk access to rebuild process
+                        _disk.Dispose();
+                        _disk = null;
 
-                    // rebuild database, create -backup file and include _rebuild_errors collection
-                    this.Recovery(_header.Pragmas.Collation);
+                        // rebuild database, create -backup file and include _rebuild_errors collection
+                        this.Recovery(_header.Pragmas.Collation);
 
-                    // re-initialize disk service
-                    _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                        // re-initialize disk service
+                        _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
-                    // read buffer header page again
-                    buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
+                        // read buffer header page again
+                        buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
 
-                    // if first byte are 1 this datafile are encrypted but has do defined password to open
-                    if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
+                        // if first byte are 1 this datafile are encrypted but has do defined password to open
+                        if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
-                    // read header database page
-                    _header = new HeaderPage(buffer);
-                    _disk.FileVersion = _header.FileVersion;
+                        // read header database page
+                        _header = new HeaderPage(buffer);
+                        _disk.FileVersion = _header.FileVersion;
+                    }
                 }
 
                 this.ValidateCollationStamp();

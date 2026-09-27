@@ -78,6 +78,7 @@ namespace LiteDB.Engine
                     }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
+                    using var structural = new StructuralScope(_signals);
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
                         settings.CompactStorage == CompactStorageMode.Auto);
                     dataLength = _dataFactory.GetLength();

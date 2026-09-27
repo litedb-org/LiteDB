@@ -73,9 +73,10 @@ namespace LiteDB
             var pin = _pin;
             var use = pin != null && pin.TryEnter() ? pin
                 : this.CanPin() ? this.StartPin()
-                : this.OpenDatabase(scoped && this.CanScope);
+                : this.OpenDatabase(scoped && this.CanScope, writing: true);
             try
             {
+                this.StartWriterPressure();
                 return write();
             }
             finally
@@ -97,6 +98,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin StartPin()
         {
+            this.RetireCoordinatedReads();
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
 
@@ -124,7 +126,7 @@ namespace LiteDB
                 if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
                 RejectAbandonedTransaction();
                 var open = Stopwatch.StartNew();
-                if (_engine == null) this.OpenEngine(pin.RecoveredAbandonedOwner);
+                if (_engine == null) this.OpenEngine(pin.RecoveredAbandonedOwner, writing: true);
                 _databaseUsers++;
                 pin.MarkReady(open.Elapsed + _lastPinClose);
                 lock (_useLock)
@@ -177,6 +179,7 @@ namespace LiteDB
                 engine.Dispose();
                 _lastPinClose = close.Elapsed;
             }
+            if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
         }
 
         /// <summary>
@@ -268,7 +271,7 @@ namespace LiteDB
         /// <summary>Open an engine only to close it with its checkpoint. The caller owns the mutex.</summary>
         private void CloseFinally()
         {
-            this.OpenEngine(false);
+            this.OpenEngine(false, final: true, writing: true);
             var engine = _engine;
             _engine = null;
             engine.Close(final: true);

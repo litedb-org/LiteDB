@@ -10,6 +10,12 @@ namespace LiteDB.Engine
     {
         // Protected by the WAL writer lock, except during single-threaded open.
         private readonly Dictionary<uint, long> _lastLogPositions = new Dictionary<uint, long>();
+        // Only RestoreIndex's blank/already-retired slots and structurally fenced
+        // checkpoint reclamation may populate this set. Those paths already exclude
+        // every accepted snapshot that could reach the old contents. Allocation does
+        // not rescan leases: SlotReused before overwrite invalidates idle caches and
+        // admissions racing reclamation; idle caches themselves hold no lease.
+        // A new producer must preserve that reclamation fence, not merely add a slot.
         private readonly SortedSet<long> _freeLogPositions = new SortedSet<long>();
         private uint _lastWalTransactionID;
 
@@ -35,13 +41,14 @@ namespace LiteDB.Engine
         }
 
         private void RewriteLogTransactionIDs(Stream stream, IEnumerable<long> positions,
-            uint transactionID)
+            uint transactionID, ref bool reusePublished)
         {
             var bytes = new byte[PAGE_SIZE];
             var buffer = new BufferSlice(bytes, 0, bytes.Length);
 
             foreach (var position in positions)
             {
+                this.PublishWalReuse(ref reusePublished);
                 _cache.Invalidate(position, FileOrigin.Log);
                 stream.Position = position;
                 stream.ReadRequired(bytes, 0, bytes.Length);
@@ -49,6 +56,13 @@ namespace LiteDB.Engine
                 stream.Position = position;
                 stream.Write(bytes, 0, bytes.Length);
             }
+        }
+
+        private void PublishWalReuse(ref bool published)
+        {
+            if (published && _signals is IBatchedCoordinationSignals) return;
+            _signals?.SlotReused();
+            published = true;
         }
 
         private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored, long transactionMinimum)
@@ -75,7 +89,6 @@ namespace LiteDB.Engine
                     if (eligible.MoveNext())
                     {
                         var position = eligible.Current;
-                        _signals?.SlotReused();
                         _freeLogPositions.Remove(position);
                         _cache.Invalidate(position, FileOrigin.Log);
                         return position;

@@ -66,6 +66,7 @@ namespace LiteDB.Engine
         internal void EnableChecksums(ref HeaderPage header)
         {
             if (_readOnly || ChecksumsEnabled) return;
+            using var structural = new StructuralScope(_signals);
             var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             stream.Position = 0;
@@ -115,6 +116,7 @@ namespace LiteDB.Engine
             RecoveryReport = new WalRecoveryReport(bytes, invalidTail);
             if (!_readOnly)
             {
+                using var structural = new StructuralScope(_signals);
                 SetLength(end, FileOrigin.Log);
                 SyncLogBarrier(_writer.Value);
             }

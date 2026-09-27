@@ -84,6 +84,7 @@ namespace LiteDB.Engine
                 }
                 if (_readOnly) return;
 
+                using var structural = new StructuralScope(_signals);
                 // Repair and sync the header before removing its recovery copy.
                 // Legacy redo stays until checkpoint also repairs converted pages.
                 var data = _dataPool.Writer.Value;

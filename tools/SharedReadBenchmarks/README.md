@@ -172,3 +172,29 @@ bounds. Summed process RSS double-counts shared mappings. Failed files and
 child diagnostics are retained. This scenario's explicit checkpoint timings do
 not count implicit engine-close checkpoints; engine replay/admission counters
 require separate diagnostic runs.
+
+Use `measure-shared-readers.py --reader-interval-ms 20` to offer each reader
+50 calls per second while the writer remains unthrottled. Zero (the default)
+saturates the readers. Equal-load runs report offered and completed counts plus
+latency from each intended arrival, including queue delay. Compare these separately
+from saturation capacity; a worker that cannot keep up retains the missed work in
+its offered/completed accounting. The hosted reader workflow exposes the same input.
+# Ownership diagnostics
+
+The reader workflow's `profile_ownership` option instruments its disposable
+checkouts with mutex-wait, engine-open and cached-snapshot-retirement counters.
+It preserves the exact source patch and reports `ownershipProfile` tick/count
+differences for each measured worker. These builds explain time attribution;
+they are **not production acceptance measurements**. Normal runs report a null
+profile and contain no profiling code in the library. Saturation comparisons must
+be rerun without instrumentation before accepting a change.
+Concurrent writer output includes per-phase p99 latencies and the ten slowest
+transactions with their begin/update/commit/checkpoint breakdown. These use the
+existing phase timestamps and reset after warmup; inspect them before attributing
+a total-latency tail to ownership or durable I/O.
+
+The reader-contention activity `churn` uses a fresh Shared connection for each writer
+transaction. Its operation latency includes construction, transaction work and disposal
+(including the final checkpoint); the Begin/update/Commit phase counters cover only
+those calls. Use it alongside `writer` to distinguish connection-per-operation costs
+from a warm writer. Correctness oracles and the reader workload are unchanged.

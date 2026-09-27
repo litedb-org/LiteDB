@@ -94,8 +94,10 @@ namespace LiteDB
         /// Open for an operation. A <paramref name="scoped"/> caller closes on the same thread
         /// before it returns; its ownership then takes the OS mutex directly on this thread.
         /// </summary>
-        private SharedMutexPin OpenDatabase(bool scoped = false)
+        private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
+            // Writers retire idle read handles before _useLock, preserving lock order.
+            if (writing) this.RetireCoordinatedReads();
             var pin = _pin;
             if (pin != null)
             {
@@ -105,13 +107,13 @@ namespace LiteDB
             }
 
             // Acquire mutex for every call to open DB.
-            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope);
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
 
             try
             {
                 RejectAbandonedTransaction();
             }
-            catch { _owner.Exit(); throw; }
+            catch { this.EndWriterPressure(); _owner.Exit(); throw; }
 
             // Check, open and count under one lock. A reader disposed on another thread
             // closes the engine in CloseDatabase once the count reaches zero; between a
@@ -119,17 +121,17 @@ namespace LiteDB
             lock (_useLock)
             {
                 try { this.AdmitLocked(); }
-                catch { _owner.Exit(); throw; }
+                catch { this.EndWriterPressure(); _owner.Exit(); throw; }
                 // Don't create a new engine while a transaction is running.
                 if (!_transactionRunning && _engine == null)
                 {
                     try
                     {
-                        this.OpenEngine(recoveredAbandonedOwner);
+                        this.OpenEngine(recoveredAbandonedOwner, writing: writing);
                     }
                     catch
                     {
-                        _owner.Exit();
+                        this.EndWriterPressure(); _owner.Exit();
                         throw;
                     }
                 }
@@ -139,16 +141,6 @@ namespace LiteDB
                 _databaseUsers++;
             }
             return null;
-        }
-
-        private void OpenEngine(bool recoveredAbandonedOwner)
-        {
-            _engine = this.CreateEngine(recoveredAbandonedOwner);
-#if DEBUG || TESTING
-            this.EngineOpens++;
-#endif
-            _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
-            _engine.RecoveryReport = _recoveryReport;
         }
 
         private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)
@@ -205,7 +197,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        engine.Close();
+                        try { engine.Close(); } finally { this.EndWriterPressure(); }
                     }
                 }
             }
@@ -353,21 +345,27 @@ namespace LiteDB
 
         #region Write Operations
 
-        public int Checkpoint()
-        {
-            return WriteDatabase(() => _engine.Checkpoint(), scoped: true);
-        }
+        public int Checkpoint() => WriteDatabase(() => _engine.Checkpoint(), scoped: true);
 
         public long Rebuild(RebuildOptions options)
         {
             return WriteDatabase(() =>
             {
-                if (_readers.OldestVersion().HasValue)
-                    throw new LiteException(0, "Close shared readers before rebuilding the database.");
-                // Rebuild replaces the files; do not keep handles to the old ones.
-                _handles?.CloseIdle();
-                try { return _engine.Rebuild(options); }
-                finally { _handles?.CloseIdle(); }
+                // Publish before inspecting leases: a cached reader may be admitting
+                // without the database mutex and must not accept a replaced file set.
+                _settings.CoordinationSignals?.StructuralBegin();
+                try
+                {
+                    if (_readers.OldestVersion().HasValue)
+                        throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                    _handles?.CloseIdle();
+                    return _engine.Rebuild(options);
+                }
+                finally
+                {
+                    _handles?.CloseIdle();
+                    _settings.CoordinationSignals?.StructuralEnd(-1);
+                }
             });
         }
 
@@ -443,6 +441,7 @@ namespace LiteDB
         {
             if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+            this.RetireCoordinatedReads();
             // Any thread can end a pin; its holder closes the engine and releases. Read
             // under the lock that orders a starting pin's publication with this Dispose.
             SharedMutexPin pin;
@@ -485,6 +484,7 @@ namespace LiteDB
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
+            this.DisposeCoordination();
         }
 
         /// <summary>

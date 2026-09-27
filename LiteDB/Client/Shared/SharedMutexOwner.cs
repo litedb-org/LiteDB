@@ -141,7 +141,11 @@ namespace LiteDB.Client.Shared
             this.WaitForRelease();
             if (!_gate.Wait(0))
             {
-                if (!this.ReleaseIfOwnerExited() || !_gate.Wait(0)) return false;
+                this.ReleaseIfOwnerExited();
+                // The poll may already have claimed the exited owner and cleared
+                // its identity. Its cleanup is our own release, not a foreign owner.
+                this.WaitForRelease();
+                if (!_gate.Wait(0)) return false;
             }
             return scoped && SharedMutexScope.CanEnter
                 ? this.TakeDirect(block: false, out abandoned)
@@ -419,8 +423,7 @@ namespace LiteDB.Client.Shared
                 }
                 if (posted)
                 {
-                    _gate.Release();
-                    _released.Set();
+                    lock (_sync) { _gate.Release(); _released.Set(); }
                 }
                 else _done.Set();
             }
@@ -466,6 +469,7 @@ namespace LiteDB.Client.Shared
                 // both would release the mutex and reopen the gate, and the second gate
                 // release throws on this thread. The mutex and the gate stay held until
                 // the cleanup below finishes, so nobody enters meanwhile.
+                _released.Reset();
                 _owner = null;
                 _recursion = 0;
                 _generation++;
@@ -476,7 +480,7 @@ namespace LiteDB.Client.Shared
             try { _ownerExited(); }
             catch (Exception) { /* The next open recovers; the mutex must still be released. */ }
             this.ReleaseMutex();
-            _gate.Release();
+            lock (_sync) { _gate.Release(); _released.Set(); }
         }
     }
 }

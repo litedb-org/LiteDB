@@ -1,5 +1,21 @@
 # Release notes
 
+## Shared mapped reads
+
+Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only
+snapshot and use mapped status to avoid reopening under the database mutex. Writers
+publish version/storage changes and cached readers yield briefly under writer pressure.
+Database/WAL formats and commit durability are unchanged by this optimization.
+
+Set `AppContext.SetSwitch("LiteDB.DisableSharedMappedReads", true)` before creating
+connections, or `LITEDB_DISABLE_SHARED_MAPPED_READS=1` before startup, to opt out.
+`SharedEngine.CoordinationFallbackReason` explains local attachment fallback in
+production. The new `-shared-live`, `-shared-state` and `-shared-disabled` files are
+ephemeral; do not remove or synchronize them while any participant is alive.
+Unix processes with disabled .NET file-sharing locks now reject Shared/Coordinated
+participation because both mapped admission and existing leases require those locks.
+See [operation, backup, platform and scheduling details](shared-mapped-operations.md).
+
 ## Snapshot-aware checkpoints (format v13)
 
 Checkpoint no longer waits for readers. It copies pages no live snapshot still
