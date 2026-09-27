@@ -17,6 +17,41 @@ namespace LiteDB.Internals
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedMappedProcess_Tests() => Directory.CreateDirectory(_directory);
 
+        public static System.Collections.Generic.IEnumerable<object[]> CreationBoundaries()
+        {
+            foreach (var suffix in new[] { "-shared-live", "-shared-state" })
+                foreach (var stage in new[] { "created", "written", "flushed", "published" })
+                    foreach (var password in new[] { null, "secret" })
+                        yield return new object[] { suffix, stage, password };
+        }
+
+        [Theory]
+        [MemberData(nameof(CreationBoundaries))]
+        public async Task Death_during_control_creation_preserves_data_and_recovers_mapped_reads(string suffix, string stage, string password)
+        {
+            await MvccProcess.Run("seed", Filename, password);
+            SharedCoordinationPage.TryRetire(Filename);
+            using (var child = new MvccProcess("mapped-control-create", Filename, password, suffix + ":" + stage))
+            {
+                await child.Expect("ready");
+                File.Exists(Filename + suffix).Should().Be(stage == "published");
+                await child.Kill();
+            }
+            // A surviving temporary file must never prevent a fresh authority.
+            using (var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password }))
+            using (var database = new LiteDatabase(engine))
+            {
+                for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
+                var authority = (SharedCoordinationPage)typeof(SharedEngine).GetField("_coordination",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(engine);
+                authority.Should().NotBeNull("a crash must not permanently disable the mapped path");
+                authority.TryRead(out _).Should().BeTrue();
+            }
+            await MvccProcess.Run("write", Filename, password, "7");
+            await MvccProcess.Run("checkpoint", Filename, password);
+            VerifyCold(password, 7);
+        }
+
         [Theory]
         [InlineData(null, "cached-status", false)]
         [InlineData(null, "lease-published", false)]
@@ -93,6 +128,7 @@ namespace LiteDB.Internals
                         rows[id]["_id"].AsInt32.Should().Be(id);
                         rows[id]["value"].AsInt32.Should().Be(name == "docs" ? revision : 0);
                         rows[id]["payload"].AsString.Should().Be(new string('x', 3000));
+                        database.GetCollection(name).FindById(id).Should().BeEquivalentTo(rows[id]);
                     }
                 }
             }

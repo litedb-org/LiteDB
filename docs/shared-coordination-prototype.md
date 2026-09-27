@@ -41,6 +41,12 @@ an authority while any participant survives. An independently validated protecte
 open is required before each connection trusts a page. First participation retires
 recognized stale control files after proving all old handles are gone; unknown
 files are preserved. The page is never a durable commit record.
+New participation/status files are fully written and flushed in a unique temporary
+file, then renamed in the same directory without replacing an existing destination.
+Process death before publication can leave an ignored `.litedb-control-*` temporary
+file (at most 4 KiB per interrupted creation), but cannot publish a partial authority.
+Power-loss durability of directory entries remains filesystem-dependent; missing
+or unrecognized control files never authorize a snapshot.
 
 Before waiting for ownership, a writer can publish a short scheduling hint in a
 separate atomic word. A deadline, request sequence and active bit distinguish

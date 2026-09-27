@@ -9,6 +9,19 @@ internal static class SharedMappedHarness
     internal static bool TryRun(string mode, string filename, string? password, string[] args)
     {
         if (!mode.StartsWith("mapped-", StringComparison.Ordinal)) return false;
+        if (mode == "mapped-control-create")
+        {
+            var boundary = args[4].Split(':');
+            var publisher = typeof(SharedEngine).Assembly.GetType("LiteDB.Client.Shared.SharedCoordinationFile")!;
+            publisher.GetField("CreationStage", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null,
+                (Action<string, string>)((path, stage) =>
+                {
+                    if (!path.EndsWith(boundary[0], StringComparison.Ordinal) || stage != boundary[1]) return;
+                    Console.WriteLine("ready");
+                    Console.ReadLine();
+                    throw new IOException("A control-file creation child must be killed by its parent");
+                }));
+        }
         using var engine = new SharedEngine(new EngineSettings { Filename = filename, Password = password });
         typeof(SharedEngine).GetProperty("CoordinatedIdleLimit", Private)!.SetValue(engine, TimeSpan.FromMinutes(1));
         using var database = new LiteDatabase(engine, disposeOnClose: false);

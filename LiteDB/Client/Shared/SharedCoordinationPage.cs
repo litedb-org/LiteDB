@@ -73,24 +73,20 @@ namespace LiteDB.Client.Shared
                 // The participation file is never written after creation. Shared read
                 // handles prove liveness without a PID, timestamp, or heartbeat.
                 if (!File.Exists(LivePath(filename)))
-                    using (var live = new FileStream(LivePath(filename), FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                    {
-                        var bytes = BitConverter.GetBytes(Magic);
-                        live.Write(bytes, 0, bytes.Length);
-                    }
+                    SharedCoordinationFile.Publish(LivePath(filename), BitConverter.GetBytes(Magic));
                 participation = new FileStream(LivePath(filename), FileMode.Open, FileAccess.Read, FileShare.Read);
                 if (!SharedCoordinationFallback.IsOwned(participation)) throw new IOException("Unknown Shared participation file.");
-                var created = !File.Exists(PagePath(filename));
-                file = new FileStream(PagePath(filename), created ? FileMode.CreateNew : FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-                if (created) file.SetLength(Size);
+                if (!File.Exists(PagePath(filename)))
+                {
+                    var bytes = new byte[Size];
+                    BitConverter.GetBytes(Magic).CopyTo(bytes, 0);
+                    BitConverter.GetBytes(-1L).CopyTo(bytes, 16);
+                    BitConverter.GetBytes(NewIdentity()).CopyTo(bytes, 48);
+                    SharedCoordinationFile.Publish(PagePath(filename), bytes);
+                }
+                file = new FileStream(PagePath(filename), FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
                 if (file.Length != Size) throw new IOException("Unknown Shared status page size.");
                 var page = new SharedCoordinationPage(filename, participation, file);
-                if (created)
-                {
-                    page.Store(6, NewIdentity());
-                    page.Store(2, -1);
-                    page.Store(0, Magic);
-                }
                 if (page.Load(0) != Magic)
                 {
                     page.Dispose();
