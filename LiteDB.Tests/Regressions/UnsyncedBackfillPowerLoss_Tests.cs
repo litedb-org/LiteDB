@@ -139,10 +139,17 @@ namespace LiteDB.Tests.Regressions
                 using (var power = new SyncPowerLossModel(file.Filename) { DataFails = true })
                 {
                     Action open = () => new LiteEngine(power.Settings()).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*");
+                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*readonly=true;legacy index scan=true*");
                     SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
                     SyncPowerLossModel.ReadShared(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(version);
                 }
+
+                // The diagnostic's way to read it meanwhile.
+                using (var readOnly = new LiteDatabase($"Filename={file.Filename};readonly=true;legacy index scan=true"))
+                {
+                    readOnly.GetCollection("docs").Count().Should().Be(101);
+                }
+                SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
 
                 using var db = new LiteDatabase(file.Filename);
                 var docs = db.GetCollection("docs").FindAll().ToList();

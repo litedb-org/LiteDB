@@ -123,7 +123,8 @@ namespace LiteDB.Engine
                 if (_disk.DataUnsyncedWhileLogSyncs)
                     throw new System.IO.IOException("Cannot convert this legacy database: its data file cannot be " +
                         "synced to the device while its log file can, so emptying the log could lose committed " +
-                        "transactions on a power loss. Move both files to storage that syncs them, or open it read-only.");
+                        "transactions on a power loss. Move both files to storage that syncs them, or open it with " +
+                        "\"readonly=true;legacy index scan=true\".");
                 throw new LiteException(LiteException.LOCK_TIMEOUT,
                     "Cannot convert this legacy database while another connection may still read its log " +
                     "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
