@@ -20,6 +20,11 @@ args = parser.parse_args()
 args.scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
 env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
 
+def capabilities(runner):
+    result = subprocess.run(['dotnet', str(runner.resolve() / 'SharedReadBenchmarks.dll'), 'capabilities'],
+                            text=True, capture_output=True, env=env, check=True, timeout=30)
+    return json.loads(result.stdout)
+
 class Client:
     def __init__(self, runner, database):
         self.errors = (database.parent / f'child-{len(list(database.parent.glob("child-*.stderr.log")))}.stderr.log').open('w+t')
@@ -78,7 +83,19 @@ class Client:
 
 # Concurrent participants use exactly the same library version. Compare each
 # production variant on its own database, never across a mixed-version history.
-for writer_name, reader_name in [('baseline', 'baseline'), ('candidate', 'candidate')]:
+# A legacy baseline without slot-backed readers cannot make progress while a v5
+# Shared reader owns its process-wide mutex, so it stays in the serial and writer
+# contention campaigns and is recorded as unsupported here.
+campaigns = [('candidate', 'candidate')]
+if capabilities(args.baseline).get('sharedReaderSlots'):
+    campaigns.insert(0, ('baseline', 'baseline'))
+else:
+    print(json.dumps(dict(writer='baseline', reader='baseline', skipped=True,
+                          reason='SharedReaderSlots is not implemented by this baseline')), flush=True)
+if not capabilities(args.candidate).get('sharedReaderSlots'):
+    raise RuntimeError('The candidate does not implement SharedReaderSlots')
+
+for writer_name, reader_name in campaigns:
     directory = Path(tempfile.mkdtemp(prefix='interop-', dir=args.scratch.resolve()))
     database = directory / 'test.db'
     clients = []

@@ -95,7 +95,9 @@ jobs:
           git -C candidate merge-base --is-ancestor $baseSha HEAD
           if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
           foreach ($variant in @('baseline', 'candidate')) {
-            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
+            # A release baseline can predate the current runtime TFMs; compile both
+            # source trees for the runner's TFM so the production comparison is valid.
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
             $library = Join-Path $PWD "$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
             dotnet build candidate/tools/SharedReadBenchmarks -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
@@ -190,7 +192,7 @@ jobs:
             if ($LASTEXITCODE) { throw 'Ownership instrumentation failed' }
           }
           foreach ($variant in @('baseline', 'candidate')) {
-            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f $env:READER_FRAMEWORK -p:TestingEnabled=false
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f $env:READER_FRAMEWORK "-p:TargetFrameworks=$env:READER_FRAMEWORK" -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
             $library = Join-Path $PWD "$variant/LiteDB/bin/Release/$env:READER_FRAMEWORK/LiteDB.dll"
             dotnet build candidate/tools/SharedReadBenchmarks -c Release -f $env:READER_FRAMEWORK "-p:LiteDBAssembly=$library" -o "runner-$variant"
@@ -259,7 +261,7 @@ jobs:
           git -C candidate merge-base --is-ancestor $baseSha HEAD
           if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
           foreach ($variant in @('baseline', 'candidate')) {
-            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
             $library = Join-Path $PWD "$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
             dotnet build candidate/tools/SharedReadBenchmarks -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"

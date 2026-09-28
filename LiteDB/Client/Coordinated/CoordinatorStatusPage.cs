@@ -41,6 +41,9 @@ namespace LiteDB.Client.Coordinated
 #if DEBUG || TESTING
         /// <summary>Test hook: how old a heartbeat may be before the page is not trusted.</summary>
         internal static volatile int TrustTimeoutMilliseconds = HeartbeatTimeoutMilliseconds;
+
+        /// <summary>Test hook: observes the safety wait without using elapsed time as an oracle.</summary>
+        internal static Action BeforeWaitOutHeartbeats;
 #else
         private const int TrustTimeoutMilliseconds = HeartbeatTimeoutMilliseconds;
 #endif
@@ -238,8 +241,13 @@ namespace LiteDB.Client.Coordinated
         /// opens the engine: every client of the dead coordinator then distrusts that page, even
         /// one this successor cannot see or write (another temp location, changed permissions).
         /// </summary>
-        internal static void WaitOutHeartbeats() =>
+        internal static void WaitOutHeartbeats()
+        {
+#if DEBUG || TESTING
+            BeforeWaitOutHeartbeats?.Invoke();
+#endif
             Thread.Sleep(HeartbeatTimeoutMilliseconds + 2 * HeartbeatPeriodMilliseconds);
+        }
 
         /// <summary>Single writer: the caller serializes calls.</summary>
         internal void Write(in CoordinatorStatus status)

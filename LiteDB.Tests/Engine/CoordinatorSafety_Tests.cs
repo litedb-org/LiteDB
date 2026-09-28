@@ -177,30 +177,37 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             var marker = CoordinatorMarker.PathFor(file.Filename);
-            var clock = System.Diagnostics.Stopwatch.StartNew();
-            var first = new CoordinatedEngine(file.Filename);
-            first.IsCoordinator.Should().BeTrue();
-            File.Exists(marker).Should().BeTrue("a coordinator holds its marker");
-            using var second = new CoordinatedEngine(file.Filename);
-            var secondDb = new LiteDatabase(second, disposeOnClose: false);
-            secondDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
-            first.Dispose();
+            var heartbeatWaits = 0;
+            CoordinatorStatusPage.BeforeWaitOutHeartbeats = () => Interlocked.Increment(ref heartbeatWaits);
+            try
+            {
+                using var first = new CoordinatedEngine(file.Filename);
+                first.IsCoordinator.Should().BeTrue();
+                heartbeatWaits.Should().Be(0, "a first coordinator has no predecessor heartbeat");
+                File.Exists(marker).Should().BeTrue("a coordinator holds its marker");
+                using var second = new CoordinatedEngine(file.Filename);
+                var secondDb = new LiteDatabase(second, disposeOnClose: false);
+                secondDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+                first.Dispose();
 
-            _ = secondDb.UserVersion;
-            second.IsCoordinator.Should().BeTrue();
-            clock.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(CoordinatorStatusPage.HeartbeatTimeoutMilliseconds),
-                "neither the first start nor a takeover after a graceful stop waits out a heartbeat");
+                _ = secondDb.UserVersion;
+                second.IsCoordinator.Should().BeTrue();
+                heartbeatWaits.Should().Be(0, "a graceful predecessor removed its marker");
 
-            second.CrashCoordinator(abandonMutex: false);
-            File.Exists(marker).Should().BeTrue("a dead coordinator leaves its marker");
-            clock.Restart();
-            // No coordinator is alive, so this engine is elected while it is constructed.
-            using var third = new CoordinatedEngine(file.Filename);
-            _ = new LiteDatabase(third, disposeOnClose: false).UserVersion;
-            third.IsCoordinator.Should().BeTrue();
-            clock.Elapsed.Should().BeGreaterOrEqualTo(TimeSpan.FromMilliseconds(CoordinatorStatusPage.HeartbeatTimeoutMilliseconds));
-            third.Dispose();
-            File.Exists(marker).Should().BeFalse("a graceful stop removes the marker");
+                second.CrashCoordinator(abandonMutex: false);
+                File.Exists(marker).Should().BeTrue("a dead coordinator leaves its marker");
+                // No coordinator is alive, so this engine is elected while it is constructed.
+                using var third = new CoordinatedEngine(file.Filename);
+                _ = new LiteDatabase(third, disposeOnClose: false).UserVersion;
+                third.IsCoordinator.Should().BeTrue();
+                heartbeatWaits.Should().Be(1, "only a dead predecessor requires the safety wait");
+                third.Dispose();
+                File.Exists(marker).Should().BeFalse("a graceful stop removes the marker");
+            }
+            finally
+            {
+                CoordinatorStatusPage.BeforeWaitOutHeartbeats = null;
+            }
         }
 
         /// <summary>
