@@ -230,6 +230,8 @@ namespace LiteDB.Engine
             var pages = _disk.ReadFull(FileOrigin.Log);
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
             var legacyLimit = _disk.ChecksumsEnabled ? uint.MaxValue : this.LegacyPageLimit(header);
+            // Legacy transactions holding a page that is not a page of this format, by transaction ID.
+            var legacyInvalid = _disk.ChecksumsEnabled ? null : new Dictionary<uint, uint>();
             foreach (var buffer in pages)
             {
                 var current = buffer.Position;
@@ -246,6 +248,7 @@ namespace LiteDB.Engine
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
                 _disk.RecordLogTransactionID(transactionID);
+                if (legacyInvalid != null && !IsLegacyPage(buffer, pageID)) legacyInvalid[transactionID] = pageID;
 
                 var position = new PagePosition(pageID, current);
 
@@ -259,8 +262,9 @@ namespace LiteDB.Engine
                     // Their witnesses still confirm the surviving frames at the same
                     // stable physical version as before reclamation.
                     var version = checked((int)(current / PAGE_SIZE + 1));
-                    if (!_disk.ChecksumsEnabled)
+                    if (legacyInvalid != null)
                     {
+                        if (legacyInvalid.TryGetValue(transactionID, out var invalid)) throw LegacyPageInvalid(invalid);
                         // A 5.x commit that allocated pages confirms with its header, whose LastPageID
                         // counts every ID handed out so far, also to transactions still open whose
                         // pages never reached the WAL (concurrent writers).
@@ -317,6 +321,18 @@ namespace LiteDB.Engine
             var logPages = _disk.GetFileLength(FileOrigin.Log) / PAGE_SIZE;
             return (uint)Math.Min(uint.MaxValue, Math.Max(header.LastPageID, dataPages - 1) + logPages);
         }
+
+        /// <summary>Page 0 is the header and only the header: any other combination, or an unknown type, is not a page.</summary>
+        private static bool IsLegacyPage(PageBuffer buffer, uint pageID)
+        {
+            var type = buffer.ReadByte(BasePage.P_PAGE_TYPE);
+            return type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
+        }
+
+        private static LiteException LegacyPageInvalid(uint pageID) => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file commits a page (ID {0}) that is not a valid page of its type, so " +
+            "the log is damaged or belongs to another data file. Replaying it would overwrite the data file with it. " +
+            "Nothing was changed; move the log file aside to open the database without its uncheckpointed transactions.", pageID);
 
         private static LiteException LegacyPageOutOfRange(uint pageID, uint limit) => new LiteException(LiteException.INVALID_DATABASE,
             "Cannot open this database: its log file holds a committed page (ID {0}) beyond any page the data and log " +
