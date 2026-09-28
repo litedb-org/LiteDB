@@ -101,6 +101,7 @@ namespace LiteDB.Engine
                         // another write must not append to (or truncate) the WAL behind it. The next
                         // open restores the header from the journal.
                         failure = ex as IOException ?? new IOException("File format promotion failed.", ex);
+                        this.RecordWriteFailure("A file format promotion", failure);
                         ownsFailure = _state.BeginStop(failure);
                     }
                 });

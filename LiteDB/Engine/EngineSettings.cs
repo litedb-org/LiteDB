@@ -62,6 +62,13 @@ namespace LiteDB.Engine
         /// </summary>
         internal string ReadOnlyCause { get; set; }
 
+        /// <summary>
+        /// The write or sync failure after which the engine reopened read-only (set by the engine on its
+        /// own copy of the settings; decision 6 of docs/decisions/durability-policy.md). Writes throw
+        /// with its details until the database is reopened; <c>$database.writeFailure</c> reports it.
+        /// </summary>
+        internal WriteFailure WriteFailure { get; set; }
+
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
@@ -182,6 +189,19 @@ namespace LiteDB.Engine
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>
         public bool DurableCommits { get; set; } = true;
+
+        /// <summary>Default <see cref="WalLimit"/>: 1 GiB.</summary>
+        public const long DEFAULT_WAL_LIMIT = 1L << 30;
+
+        /// <summary>
+        /// While the data file cannot sync to the device (#2242), checkpoints cannot move the log file into it and
+        /// the log keeps every commit (commits stay durable there). This is how large the kept log file may grow:
+        /// past it, a write that starts throws an <see cref="System.IO.IOException"/> (a transaction already running
+        /// may still commit), reads keep working, and writes resume once a data sync succeeds and a checkpoint
+        /// drains the log. <c>$database</c> reports <c>walKept</c>, <c>logFileSize</c> and <c>walLimit</c>, to warn
+        /// before the limit. Applies with and without durable commits; not stored in the data file. (default: 1 GiB)
+        /// </summary>
+        public long WalLimit { get; set; } = DEFAULT_WAL_LIMIT;
 
         /// <summary>
         /// Zone used by <see cref="RejectInvalidLocalTime"/>; null means <see cref="TimeZoneInfo.Local"/>.

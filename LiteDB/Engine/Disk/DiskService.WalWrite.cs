@@ -42,6 +42,8 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                // Before any frame: a commit that cannot be made durable fails here (decision 3).
+                this.RequireDurableCommit(stream);
                 var uncertain = false;
                 try
                 {
@@ -130,6 +132,7 @@ namespace LiteDB.Engine
                     // frame. Whatever the exception type, stop before releasing the writer: no later
                     // commit may be appended (and acknowledged) behind it.
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
+                    this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log));
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
 
@@ -151,6 +154,7 @@ namespace LiteDB.Engine
                         // defer teardown: cleanup can need the WAL-index lock while a
                         // partial checkpoint owns it and waits for this monitor.
                         flushFailure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
+                        this.RecordWriteFailure("A commit's log flush", WriteFailure.InFile(flushFailure, FileOrigin.Log));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }

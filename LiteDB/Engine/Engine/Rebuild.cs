@@ -20,6 +20,8 @@ namespace LiteDB.Engine
         {
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file, as in 5.x
 
+            this.EnsureOpen();
+
             if (_settings.ReadOnly) throw _settings.ReadOnlyCause == null ? new IOException("Cannot rebuild a read-only database.") : this.ReadOnlyWrite();
 
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.

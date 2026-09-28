@@ -60,7 +60,7 @@ namespace LiteDB.Engine
 
             if (expression.Source == "$._id") return false; // always exists
 
-            _state.Validate();
+            this.EnsureOpen();
             if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source);
 
             return this.AutoTransaction(transaction =>
@@ -147,7 +147,7 @@ namespace LiteDB.Engine
             if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
             if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
 
-            _state.Validate();
+            this.EnsureOpen();
             if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source, options);
 
             return this.AutoTransaction(transaction =>

@@ -171,6 +171,7 @@ namespace LiteDB.Engine
         internal bool BeginCheckpointStop(Exception exception, out bool owned)
         {
             owned = false;
+            if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
 #if DEBUG || TESTING
             if (_state.DeferCheckpointStop) return false;
 #endif
@@ -181,7 +182,11 @@ namespace LiteDB.Engine
         internal void StopAfterCheckpointFailure(Exception exception, bool begun, bool owned)
         {
             if (begun) _state.CompleteStop(exception, owned);
-            else _state.Stop(exception);
+            else
+            {
+                if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
+                _state.Stop(exception);
+            }
         }
     }
 }

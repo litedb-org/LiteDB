@@ -38,7 +38,8 @@ namespace LiteDB.Engine
         private bool _markedForRebuild;
 
         // immutable settings
-        private readonly EngineSettings _settings;
+        // The caller's settings, or the engine's own copy once it opened (or reopened) read-only on its own.
+        private EngineSettings _settings;
 
         /// <summary>
         /// All system read-only collections for get metadata database information
@@ -83,6 +84,18 @@ namespace LiteDB.Engine
             {
                 _settings = settings.Clone();
                 _settings.ReadOnlyStorage = true;
+            }
+
+            // An earlier operation of this shared connection hit a write or sync failure (decision 6):
+            // its later operations open read-only until the connection is reopened.
+            var connectionFailure = settings.SharedDurability?.WriteFailure;
+            if (connectionFailure != null && !_settings.ReadOnly)
+            {
+                _settings = _settings.Clone();
+                _settings.ReadOnly = true;
+                _settings.LegacyIndexScan = true;
+                _settings.WriteFailure = connectionFailure;
+                _settings.ReadOnlyCause = connectionFailure.ToString();
             }
 
             try
@@ -339,6 +352,7 @@ namespace LiteDB.Engine
 
             var tc = new TryCatch(ex);
 
+            this.RememberLostTransactions(_state);
             tc.Catch(() => _monitor?.Dispose());
 
             // A read-only engine never writes, and storage that cannot be written cannot take the
@@ -385,7 +399,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
-            _state.Validate();
+            this.EnsureOpen();
             // Fail before a checkpoint journals the header into a caller's log it cannot finish.
             if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
                 throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
@@ -408,6 +422,7 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
+            _closing = true;
             this.Close();
         }
     }

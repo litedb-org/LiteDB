@@ -26,6 +26,8 @@ namespace LiteDB.Engine
                 ["readOnly"] = _settings.ReadOnly,
                 // Why a writable open opened read-only instead (the data file cannot sync); null otherwise.
                 ["readOnlyReason"] = _settings.ReadOnlyCause,
+                // The write or sync failure after which the engine continues read-only (decision 6).
+                ["writeFailure"] = _settings.WriteFailure?.ToDocument() ?? BsonValue.Null,
 
                 ["lastPageID"] = (int)_header.LastPageID,
                 ["freeEmptyPageID"] = (int)_header.FreeEmptyPageList,
@@ -38,6 +40,8 @@ namespace LiteDB.Engine
                 // one that fails shows in the next read's durableLogFlush.
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
                 ["walKept"] = _disk.WalKeptReport,
+                // How large a kept log may grow before writes throw (decision 4).
+                ["walLimit"] = _settings.WalLimit,
                 ["checksums"] = _disk.ChecksumsEnabled,
                 ["checksumCoverage"] = _disk.ChecksumCoverage,
                 ["legacyLastPageID"] = (long)_disk.LegacyLastPageID,

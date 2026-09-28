@@ -108,6 +108,10 @@ namespace LiteDB
         /// </summary>
         public bool DurableCommits { get; set; } = true;
 
+        /// <summary>"wal limit": while the data file cannot sync, how large the kept log file may grow before writes
+        /// throw (reads keep working) - support KB, MB, GB (default: 1GB). See <see cref="EngineSettings.WalLimit"/>.</summary>
+        public long WalLimit { get; set; } = EngineSettings.DEFAULT_WAL_LIMIT;
+
         /// <summary>
         /// "collation": Set default collaction when database creation (default: "[CurrentCulture]/IgnoreCase")
         /// </summary>
@@ -184,6 +188,7 @@ namespace LiteDB
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
             this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
+            this.WalLimit = _values.GetFileSize("wal limit", this.WalLimit);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -209,7 +214,7 @@ namespace LiteDB
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
-                firstKey.Equals("durable commits", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("durable commits", StringComparison.OrdinalIgnoreCase) || firstKey.Equals("wal limit", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
@@ -289,6 +294,7 @@ namespace LiteDB
                 AutoRebuild = this.AutoRebuild,
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
                 DurableCommits = this.DurableCommits,
+                WalLimit = this.WalLimit,
             };
 
             engineSettingsAction?.Invoke(settings);
@@ -420,6 +426,8 @@ namespace LiteDB
                     .Append(CompactStorage)
                     .Append(';');
             }
+
+            if (WalLimit != EngineSettings.DEFAULT_WAL_LIMIT) bld.Append("wal limit=").AppendFormat(CultureInfo.InvariantCulture, "{0:D}", WalLimit).Append(';');
 
             if (DurableCommits == false)
             {

@@ -43,6 +43,7 @@ namespace LiteDB.Engine
             {
                 throw new ArgumentOutOfRangeException(nameof(settings.CompactStorage));
             }
+            if (settings.WalLimit <= 0) throw new ArgumentOutOfRangeException(nameof(settings.WalLimit), "The WAL limit must be positive.");
 
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
@@ -60,6 +61,7 @@ namespace LiteDB.Engine
                 // caller streams (memory, devices) are the caller's to share.
                 _dataIsFile = _dataFactory is FileStreamFactory || settings.DataStream is FileStream;
                 _dataPath = DurablePath(settings);
+                _logPath = LogDurablePath(settings);
                 _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);
@@ -335,7 +337,8 @@ namespace LiteDB.Engine
                     this.PreserveFileVersion(page);
                     this.StampDataPage(page);
                     this.CountDataWrite();
-                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    try { stream.Write(page.Array, page.Offset, PAGE_SIZE); }
+                    catch (Exception ex) when (FailedIn(ex, FileOrigin.Data)) { }
                     this.CrashPoint("checkpoint-after-page-write");
                     this.CheckpointStage("data-page");
                 }

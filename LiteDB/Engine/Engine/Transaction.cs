@@ -15,7 +15,11 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
-            _state.Validate();
+            this.EnsureOpen();
+
+            // A write failure ended this thread's transaction: it still counts as open until Commit
+            // (which throws) or Rollback completes it.
+            if (this.HasLostTransaction()) return false;
 
             // Storage opened read-only because it cannot be written, or because its data file cannot
             // sync, accepts explicit transactions, as released versions did; writes are still rejected.
@@ -40,7 +44,10 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
-            _state.Validate();
+            this.EnsureOpen();
+
+            // A write failure ended this thread's transaction before it committed.
+            if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
 
             var transaction = this.GetTransactionForCompletion(commit: true);
 
@@ -72,7 +79,9 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Rollback()
         {
-            _state.Validate();
+            this.EnsureOpen();
+
+            if (this.TakeLostTransaction()) return true;
 
             var transaction = this.GetTransactionForCompletion(commit: false);
 
@@ -94,15 +103,21 @@ namespace LiteDB.Engine
         private T AutoReadTransaction<T>(Func<TransactionService, T> fn) => this.ExecuteAutoTransaction(fn, false);
 
         /// <summary>A write to a read-only engine; one that opened read-only on its own says why.</summary>
-        private IOException ReadOnlyWrite() => new IOException(_settings.ReadOnlyCause == null
-            ? "Cannot modify a read-only database."
-            : "Cannot modify this database: it opened read-only because the writable open was refused. " + _settings.ReadOnlyCause);
+        private IOException ReadOnlyWrite() =>
+            _settings.WriteFailure != null ? new IOException(WriteFailedPrefix + _settings.WriteFailure) :
+            new IOException(_settings.ReadOnlyCause == null
+                ? "Cannot modify a read-only database."
+                : "Cannot modify this database: it opened read-only because the writable open was refused. " + _settings.ReadOnlyCause);
+
+        internal const string WriteFailedPrefix = "Cannot modify this database: an earlier write failed, so the engine continues " +
+            "read-only until the database is reopened. ";
 
         private T ExecuteAutoTransaction<T>(Func<TransactionService, T> fn, bool write)
         {
-            _state.Validate();
+            this.EnsureOpen();
 
             if (write && _settings.ReadOnly) throw ReadOnlyWrite();
+            if (write) this.RequireWalBelowLimit();
 
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -140,6 +155,7 @@ namespace LiteDB.Engine
             {
                 // Completion may have partially persisted state. Do not let a later
                 // write reuse this transaction and report success without committing.
+                if (ex is IOException) _disk.RecordWriteFailure("A commit", ex);
                 _state.Stop(ex);
                 throw;
             }
@@ -148,7 +164,10 @@ namespace LiteDB.Engine
             if (this.CheckpointPages > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (this.CheckpointPages * PAGE_SIZE))
             {
-                _walIndex.TryAutoCheckpoint();
+                // This commit succeeded: a checkpoint's write or sync failure is not its caller's
+                // (decision 6). It is recorded, $database reports it, and the next write throws it.
+                try { _walIndex.TryAutoCheckpoint(); }
+                catch (Exception) when (_state.WriteFailure != null) { }
             }
         }
 
@@ -161,6 +180,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
+                if (ex is IOException) _disk.RecordWriteFailure("A rollback", ex);
                 _state.Stop(ex);
                 throw;
             }

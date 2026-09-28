@@ -15,7 +15,22 @@ namespace LiteDB.Engine
     internal class EngineState
     {
         public volatile bool Disposed = false;
+        // Set once a failure's teardown closed the engine's services (CompleteStop).
+        private readonly ManualResetEventSlim _closed = new ManualResetEventSlim();
         private Exception _exception;
+        private WriteFailure _writeFailure;
+
+        /// <summary>A failure stopped this engine (<see cref="BeginStop"/>).</summary>
+        internal bool Stopped => Volatile.Read(ref _exception) != null;
+
+        /// <summary>
+        /// The write or sync failure that stopped this engine (decision 6 of
+        /// docs/decisions/durability-policy.md); null when none, or when the engine stopped otherwise.
+        /// </summary>
+        internal WriteFailure WriteFailure => Volatile.Read(ref _writeFailure);
+
+        /// <summary>Threads whose explicit transaction the failure ended: their Commit must throw.</summary>
+        internal int[] LostTransactionThreads { get; set; }
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
 
@@ -85,6 +100,20 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Record a write or sync failure before the stop it causes, so the engine reopens read-only
+        /// instead of closing for good. The first failure wins; a shared connection keeps it for its
+        /// later engines (their operations open read-only until the connection is reopened).
+        /// </summary>
+        internal void RecordWriteFailure(WriteFailure failure)
+        {
+            if (Interlocked.CompareExchange(ref _writeFailure, failure, null) != null) return;
+            _settings?.SharedDurability?.RecordWriteFailure(failure);
+        }
+
+        /// <summary>Wait until the failure's teardown closed the services; false after <paramref name="milliseconds"/>.</summary>
+        internal bool WaitClosed(int milliseconds) => _closed.Wait(milliseconds);
+
+        /// <summary>
         /// Make the engine immediately unusable without running cleanup that can
         /// acquire unrelated locks. The caller later owns <see cref="CompleteStop"/>.
         /// </summary>
@@ -104,7 +133,11 @@ namespace LiteDB.Engine
         {
             if (!ownsFailure) return;
             try { _engine?.Close(ex, this); }
-            finally { this.Disposed = true; }
+            finally
+            {
+                this.Disposed = true;
+                _closed.Set();
+            }
         }
 
         /// <summary>

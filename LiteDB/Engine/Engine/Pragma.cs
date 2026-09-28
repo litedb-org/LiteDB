@@ -13,7 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BsonValue Pragma(string name)
         {
-            _state.Validate();
+            this.EnsureOpen();
             return _header.Pragmas.Get(name);
         }
 

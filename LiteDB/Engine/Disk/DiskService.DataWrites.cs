@@ -82,5 +82,25 @@ namespace LiteDB.Engine
             if (_volatileLog) return;
             if (Interlocked.Read(ref _dataWritesSynced) < Interlocked.Read(ref _dataWrites)) throw DataStoppedSyncing(operation);
         }
+
+        /// <summary>
+        /// Record a write or sync failure before the stop it causes (decision 6 of
+        /// docs/decisions/durability-policy.md): the engine then reopens read-only on its next call and
+        /// refuses writes until the database is reopened.
+        /// </summary>
+        internal void RecordWriteFailure(string operation, Exception error)
+        {
+            bool walKept;
+            try { walKept = this.GetFileLength(FileOrigin.Log) > 0; }
+            catch (Exception) { walKept = true; }
+            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept));
+        }
+
+        /// <summary>For an exception filter: name the file of a failed write or sync, and let it pass.</summary>
+        private static bool FailedIn(Exception error, FileOrigin origin)
+        {
+            WriteFailure.InFile(error, origin);
+            return false;
+        }
     }
 }
