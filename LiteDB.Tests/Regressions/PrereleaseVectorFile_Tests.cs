@@ -22,8 +22,18 @@ namespace LiteDB.Tests.Regressions
     /// read the vector section these files store there.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
-    public class PrereleaseVectorFile_Tests
+    public class PrereleaseVectorFile_Tests : IDisposable
     {
+        // The writable open rebuilds these vector indexes, and a rebuild or insert draws each node's
+        // levels at random: one of 300 seeds built a graph whose nearest five for [1, 7] miss
+        // document 7, as a Windows CI run did. Pin the levels so every run searches the same graphs
+        // (tests run without parallelism).
+        private readonly Func<Random> _previousLevelRandom = VectorIndexService.LevelRandomFactory;
+
+        public PrereleaseVectorFile_Tests() => VectorIndexService.LevelRandomFactory = () => new Random(1);
+
+        public void Dispose() => VectorIndexService.LevelRandomFactory = _previousLevelRandom;
+
         [Theory]
         [InlineData("vectors.db", null)]
         [InlineData("vectors-encrypted.db", "vector-secret")]
