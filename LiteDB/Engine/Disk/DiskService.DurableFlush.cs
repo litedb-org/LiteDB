@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -75,8 +76,8 @@ namespace LiteDB.Engine
         /// <summary>
         /// The latest data barrier answered "cannot sync" (#2242), so the data file may not hold on
         /// the device what the WAL does. The WAL is emptied only after a data sync that covers the
-        /// backfill succeeded: until one does, a full checkpoint keeps it and the WAL grows
-        /// (reported as <c>$database.walKept</c>). Whether an earlier engine or process synced WAL
+        /// backfill succeeded (<see cref="ShrinkLog"/> enforces it): until one does, a full checkpoint
+        /// keeps it and the WAL grows (reported as <c>$database.walKept</c>). Whether an earlier engine or process synced WAL
         /// frames is not known here, and the OS can write an emptied WAL back ahead of the backfill.
         /// A WAL the engine keeps in memory protects nothing across a power loss and is emptied.
         /// </summary>
@@ -140,8 +141,8 @@ namespace LiteDB.Engine
         /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine
         /// whose latest data sync did not succeed, or that tried none yet (a reopen, a restart or a
         /// shared-mode operation after an engine that kept the WAL), retries one first, as its next
-        /// checkpoint would. A read-only engine (also a shared-mode read) or one over storage that
-        /// cannot be written never syncs: it reports what the connection's engines found.
+        /// checkpoint would. A read-only engine or one over storage that cannot be written never
+        /// syncs: it reports what the connection's engines found.
         /// </summary>
         internal bool WalKeptReport
         {
@@ -302,12 +303,11 @@ namespace LiteDB.Engine
         /// </summary>
         private void ProveDataFile()
         {
-            var data = _dataPool.Writer.Value;
-            lock (data)
+            this.UseDataWriter(data =>
             {
                 if (_dataPath != null && data.Length >= PAGE_SIZE && DurableHeaders.Matches(_dataPath, ReadDataHeader(data))) _dataSyncProven = true;
                 else this.SyncDataBarrier(data);
-            }
+            });
         }
 
         /// <summary>
@@ -348,8 +348,7 @@ namespace LiteDB.Engine
         /// <summary>Sync the data file as a barrier. Caller holds the log writer lock (order: log, then data).</summary>
         private void SyncDataFile()
         {
-            var data = _dataPool.Writer.Value;
-            lock (data) this.SyncDataBarrier(data);
+            this.UseDataWriter(this.SyncDataBarrier);
         }
 
         private static byte[] ReadDataHeader(Stream data)
@@ -397,9 +396,12 @@ namespace LiteDB.Engine
         private void SyncDataBarrier(Stream data)
         {
             _dataBarrierTried = true;
+            // Caller holds the data writer's lock (UseDataWriter): no write can slip in before the sync.
+            var covered = Interlocked.Read(ref _dataWrites);
             try
             {
                 data.FlushToDisk();
+                this.DataWritesSynced(covered);
                 _dataBarrierSynced = _dataSyncProven = true;
                 if (_sharedDurability != null) _sharedDurability.DataUnsynced = false;
                 if (_dataPath != null && data.Length >= PAGE_SIZE) DurableHeaders.Record(_dataPath, ReadDataHeader(data));

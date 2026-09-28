@@ -79,19 +79,22 @@ namespace LiteDB.Engine
             var raw = ((ChecksummedWalStream)_writer.Value).RawStream;
             if (pending != null)
             {
-                var data = _dataPool.Writer.Value;
                 var header = new BufferSlice(new byte[PAGE_SIZE], 0, PAGE_SIZE);
-                data.Position = 0;
-                data.ReadRequired(header.Array, 0, PAGE_SIZE);
-                PageChecksum.Validate(header, 0);
-                header[HeaderPage.P_FILE_VERSION] = Math.Max(FileVersion, HeaderPage.MVCC_FILE_VERSION);
-                pending.WriteHeader(header);
-                PageChecksum.Write(header);
-                data.Position = 0;
-                CheckpointStage("retirement-before-header-write");
-                data.Write(header.Array, 0, PAGE_SIZE);
-                CheckpointStage("retirement-after-header-write");
-                this.SyncDataBarrier(data);
+                this.UseDataWriter(data =>
+                {
+                    data.Position = 0;
+                    data.ReadRequired(header.Array, 0, PAGE_SIZE);
+                    PageChecksum.Validate(header, 0);
+                    header[HeaderPage.P_FILE_VERSION] = Math.Max(FileVersion, HeaderPage.MVCC_FILE_VERSION);
+                    pending.WriteHeader(header);
+                    PageChecksum.Write(header);
+                    data.Position = 0;
+                    CheckpointStage("retirement-before-header-write");
+                    this.CountDataWrite();
+                    data.Write(header.Array, 0, PAGE_SIZE);
+                    CheckpointStage("retirement-after-header-write");
+                    this.SyncDataBarrier(data);
+                });
                 if (!_dataBarrierSynced && !_volatileLog) throw DataStoppedSyncing("a checkpoint");
                 CheckpointStage("retirement-header-flushed");
                 FileVersion = header[HeaderPage.P_FILE_VERSION];
@@ -100,7 +103,7 @@ namespace LiteDB.Engine
             }
             if (_checksums.JournalBytes != 0)
             {
-                raw.SetLength(WalPadding.AlignedLength(raw.Length - _checksums.JournalBytes));
+                this.ShrinkLog(raw, WalPadding.AlignedLength(raw.Length - _checksums.JournalBytes), "a checkpoint");
                 CheckpointStage("retirement-before-journal-retire-flush");
                 SyncLogBarrier(raw);
                 _checksums.JournalBytes = 0;

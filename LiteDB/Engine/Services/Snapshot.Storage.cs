@@ -31,6 +31,10 @@ namespace LiteDB.Engine
         /// </summary>
         internal bool TryRequireCompactVersion()
         {
+            if (_header.FileVersion >= HeaderPage.COMPACT_FILE_VERSION) return true;
+            // Known to be refused: skip the promotion's data sync for every document meanwhile. A log
+            // sync retries the data sync first and clears this once the data file syncs again.
+            if (_disk.KeepsWal) return false;
             try { RequireFileVersion(HeaderPage.COMPACT_FILE_VERSION); return true; }
             catch (IOException ex) when (ex.Data.Contains(DiskService.UnsyncedPromotionDataKey)) { return false; }
         }

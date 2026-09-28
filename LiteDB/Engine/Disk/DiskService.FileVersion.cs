@@ -60,8 +60,7 @@ namespace LiteDB.Engine
             var ownsFailure = false;
             lock (writer)
             {
-                var stream = _dataPool.Writer.Value;
-                lock (stream)
+                this.UseDataWriter(stream =>
                 {
                     try
                     {
@@ -82,12 +81,13 @@ namespace LiteDB.Engine
                         PageChecksum.Write(header);
                         stream.Position = 0;
                         if (compact) this.CrashPoint("promotion-before-header-write");
+                        this.CountDataWrite();
                         stream.Write(header.Array, 0, PAGE_SIZE);
                         if (compact) this.CrashPoint("promotion-after-header-write");
                         this.SyncDataBarrier(stream);
-                        if (this.KeepsWal) throw DataStoppedSyncing("a file format promotion");
                         if (compact) this.CrashPoint("promotion-after-header-flush");
-                        rawLog.SetLength(originalLength);
+                        // Only once a data sync covered the new header (ShrinkLog): otherwise stop below.
+                        this.ShrinkLog(rawLog, originalLength, "a file format promotion");
                         if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
                         SyncLogBarrier(rawLog);
                         if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
@@ -103,7 +103,7 @@ namespace LiteDB.Engine
                         failure = ex as IOException ?? new IOException("File format promotion failed.", ex);
                         ownsFailure = _state.BeginStop(failure);
                     }
-                }
+                });
             }
             if (failure != null)
             {

@@ -68,16 +68,18 @@ namespace LiteDB.Engine
             if (_readOnly || ChecksumsEnabled) return;
             this.RequireWritableStorage();
             using var structural = new StructuralScope(_signals);
-            var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            stream.Position = 0;
-            stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            });
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
             // Successful syncs are required before crossing the format boundary,
             // unless the log storage cannot sync at all (#2242): then the
             // ordered writes keep conversion process-crash safe only. The log is
             // emptied below, which needs a data file that syncs (KeepsWal).
-            this.SyncDataBarrier(stream);
+            this.SyncDataFile();
             if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
             SyncLogBarrier(log);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
@@ -86,12 +88,16 @@ namespace LiteDB.Engine
             _dataChecksums.InitializeMixed(header.LastPageID);
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             StampDataPage(buffer);
-            stream.Position = 0;
-            stream.Write(buffer.Array, 0, PAGE_SIZE);
-            this.SyncDataBarrier(stream);
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                this.CountDataWrite();
+                stream.Write(buffer.Array, 0, PAGE_SIZE);
+                this.SyncDataBarrier(stream);
+            });
             // The legacy header backup and the conversion journal go only once the new header synced.
             if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
-            SetLength(0, FileOrigin.Log);
+            this.EmptyLog("a conversion");
             SyncLogBarrier(log);
             _recoveredHeader = null;
             FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
@@ -112,16 +118,19 @@ namespace LiteDB.Engine
         internal void RotateWalSalt()
         {
             if (!ChecksumsEnabled) return;
-            var stream = _dataPool.Writer.Value;
             var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            stream.Position = 0;
-            stream.ReadRequired(header.Array, 0, PAGE_SIZE);
-            PageChecksum.Validate(header, 0);
-            _checksums.Reset(Guid.NewGuid().ToByteArray());
-            StampDataPage(header);
-            stream.Position = 0;
-            stream.Write(header.Array, 0, PAGE_SIZE);
-            this.SyncDataBarrier(stream);
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                stream.ReadRequired(header.Array, 0, PAGE_SIZE);
+                PageChecksum.Validate(header, 0);
+                _checksums.Reset(Guid.NewGuid().ToByteArray());
+                StampDataPage(header);
+                stream.Position = 0;
+                this.CountDataWrite();
+                stream.Write(header.Array, 0, PAGE_SIZE);
+                this.SyncDataBarrier(stream);
+            });
         }
 
         internal void DiscardWalTail(long end, bool invalidTail)

@@ -98,8 +98,9 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A compact-storage write would promote a legacy-storage file while the data file cannot sync:
         /// the promotion is refused before it writes anything, and the write falls back to BSON (as
-        /// whenever compact storage does not pay) instead of failing and closing the engine. Once the
-        /// data file syncs, a later compact write promotes the file.
+        /// whenever compact storage does not pay) instead of failing and closing the engine; the engine
+        /// does not retry the refused promotion until a data sync succeeds (the next commit's log sync
+        /// retries it first). Once the data file syncs, the compact write after that commit promotes.
         /// </summary>
         [Fact]
         public void Compact_write_stays_bson_while_the_data_file_cannot_sync()
@@ -122,11 +123,13 @@ namespace LiteDB.Tests.Regressions
 
                 power.DataFails = false;
                 db.GetCollection("compact").Insert(Enumerable.Range(5, 4).Select(Compact));
+                Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeLessThan(HeaderPage.COMPACT_FILE_VERSION, "no data sync succeeded before this write");
+                db.GetCollection("compact").Insert(Enumerable.Range(9, 4).Select(Compact));
                 Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.COMPACT_FILE_VERSION);
             }
             FilePowerLossModel.Open(power.Capture(), x =>
             {
-                x.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 8).Select(Compact), o => o.WithStrictOrdering());
+                x.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 12).Select(Compact), o => o.WithStrictOrdering());
                 return SyncPowerLossModel.AssertRows(x, Rows, 0);
             });
         }

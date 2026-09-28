@@ -220,12 +220,11 @@ namespace LiteDB.Engine
                     _disk.Cache.Clear();
                     _disk.CheckpointStage("before-reclaim");
                     _disk.RotateWalSalt();
-                    // The new salt must be durable before the WAL of the old one goes.
-                    if (_disk.KeepsWal) throw DiskService.DataStoppedSyncing("a checkpoint");
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif
-                    _disk.SetLength(0, FileOrigin.Log);
+                    // Only once a data sync covered the backfill and the new salt (DiskService.ShrinkLog).
+                    _disk.EmptyLog("a checkpoint");
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-after-clear");
 #endif

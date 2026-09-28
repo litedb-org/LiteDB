@@ -30,11 +30,23 @@ namespace LiteDB.Engine
             if (trailingLength == 0) return;
 
             using var structural = new StructuralScope(_signals);
-            var stream = pool.Writer.Value;
             this.CrashPoint("startup-before-tail-trim");
-            stream.SetLength(length);
-            if (pool == _dataPool) this.SyncDataBarrier(stream);
-            else this.SyncLogBarrier(stream);
+            // A partial trailing page holds nothing recovery reads: trimmed without ShrinkLog.
+            if (pool == _dataPool)
+            {
+                this.UseDataWriter(data =>
+                {
+                    this.CountDataWrite();
+                    data.SetLength(length);
+                    this.SyncDataBarrier(data);
+                });
+            }
+            else
+            {
+                var stream = pool.Writer.Value;
+                stream.SetLength(length);
+                this.SyncLogBarrier(stream);
+            }
             this.CrashPoint("startup-after-tail-trim");
             trailingLength = 0;
         }

@@ -40,7 +40,8 @@ under the mutex. A larger one registers its lease for that engine's read version
 while the mutex is still held and then continues the same reader, so the query
 runs once. A file that needs a writable open first (creation, upgrade, index
 migration, promotion, auto-rebuild) is read through the writable engine as
-before. Leases are exclusive handles created with delete-on-close: a held lease
+before, and so is `$database`, which describes the connection's own engine
+(`readOnly`, `readOnlyReason`, `walKept`). Leases are exclusive handles created with delete-on-close: a held lease
 cannot be taken by a prober's exclusive open, and a closed one removes itself.
 Registration does not scan the registry; checkpoints remove the leases of
 crashed readers and fail closed on a registry they cannot read (performance

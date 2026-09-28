@@ -38,9 +38,11 @@ namespace LiteDB.Engine
         private void PrepareCheckpointHeader()
         {
             var header = new byte[PAGE_SIZE];
-            var data = _dataPool.Writer.Value;
-            data.Position = 0;
-            data.ReadRequired(header, 0, header.Length);
+            this.UseDataWriter(data =>
+            {
+                data.Position = 0;
+                data.ReadRequired(header, 0, header.Length);
+            });
             if (ChecksumsEnabled) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
             BeginHeaderJournal(header);
         }
@@ -96,21 +98,25 @@ namespace LiteDB.Engine
                     SyncLogBarrierUnproven(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
                 }
-                var data = _dataPool.Writer.Value;
-                if (_recoveredHeader != null)
+                var repaired = header;
+                this.UseDataWriter(data =>
                 {
-                    this.CrashPoint("promotion-recovery-before-header-write");
-                    data.Position = 0;
-                    data.Write(header, 0, header.Length);
-                    this.CrashPoint("promotion-recovery-after-header-write");
-                }
-                this.SyncDataBarrier(data);
+                    if (_recoveredHeader != null)
+                    {
+                        this.CrashPoint("promotion-recovery-before-header-write");
+                        data.Position = 0;
+                        this.CountDataWrite();
+                        data.Write(repaired, 0, repaired.Length);
+                        this.CrashPoint("promotion-recovery-after-header-write");
+                    }
+                    this.SyncDataBarrier(data);
+                });
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 // The journal is the header's only recovery copy until a data sync covers it (#2242).
                 if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedHeaderRecovery();
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
-                writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
+                this.ShrinkLog(writer, journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position), "a header repair");
                 SyncLogBarrier(writer);
                 _checksums.JournalBytes = 0;
                 _recoveredHeader = null;

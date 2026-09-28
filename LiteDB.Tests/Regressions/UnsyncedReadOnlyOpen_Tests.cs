@@ -40,7 +40,8 @@ namespace LiteDB.Tests.Regressions
         /// convert this legacy database now" and nothing could be read. It now opens read-only:
         /// every row reads, a query on an indexed field finds the right rows (it scans documents,
         /// as the legacy index keeps the old order), an explicit transaction reads and rolls back,
-        /// and a write throws before any change, also inside that transaction. The file is
+        /// and a write throws before any change, also inside that transaction; so do a new index
+        /// and a rebuild, with the same message (they threw generic read-only errors). The file is
         /// unchanged, no log is created and nothing is synced. Once the data file syncs, a plain
         /// open converts, and a commit it reports durable survives a power loss.
         /// </summary>
@@ -66,6 +67,11 @@ namespace LiteDB.Tests.Regressions
                     AssertWriteRefused(db, reason);
                     AssertPlainRows(db);
                     db.Rollback().Should().BeTrue();
+                    AssertPlainRows(db);
+                    Action index = () => db.GetCollection("rows").EnsureIndex("payload");
+                    index.Should().Throw<IOException>().Which.Message.Should().Be(WriteRefused + reason);
+                    Action rebuild = () => db.Rebuild();
+                    rebuild.Should().Throw<IOException>().Which.Message.Should().Be(WriteRefused + reason);
                     AssertPlainRows(db);
                     power.DataSyncs.Should().Be(syncs, "the read-only engine syncs nothing");
                 }
@@ -131,6 +137,8 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Control: a writable open that succeeds reports no reason, and an explicit read-only
         /// open reports readOnly without one; its write and transaction errors stay as they were.
+        /// A shared connection's $database describes its own engine, not the read-only snapshot
+        /// engine its other reads use (which reported readOnly on a writable connection).
         /// </summary>
         [Fact]
         public void Healthy_and_explicitly_read_only_opens_report_no_read_only_reason()
@@ -139,6 +147,13 @@ namespace LiteDB.Tests.Regressions
             using (var db = new LiteDatabase(file.Filename))
             {
                 db.GetCollection("rows").Insert(PlainRow(1));
+                var info = Info(db);
+                info["readOnly"].AsBoolean.Should().BeFalse();
+                info["readOnlyReason"].IsNull.Should().BeTrue();
+            }
+            using (var db = new LiteDatabase($"Filename={file.Filename};Connection=shared"))
+            {
+                db.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
                 var info = Info(db);
                 info["readOnly"].AsBoolean.Should().BeFalse();
                 info["readOnlyReason"].IsNull.Should().BeTrue();

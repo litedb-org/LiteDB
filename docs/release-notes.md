@@ -64,15 +64,17 @@ such checkpoint on storage that syncs; a retiring checkpoint's proof already is 
 and writes nothing while that sync fails, in every
 engine, including a restart or a shared-mode operation: the WAL is kept and grows until the
 data file syncs again, and `$database.walKept` reports it: a writable engine that has not
-seen a data sync succeed tries one first, and a read-only engine (also a shared-mode read)
-reports what its connection's engines found, so a new shared connection may report false
-until one of its checkpoints tried the data file (`logFileSize` and `dataFileSize` are now
-64-bit). Once an engine, or an engine of the same shared connection, found that the data file
+seen a data sync succeed tries one first, and a read-only engine reports what its
+connection's engines found (a shared connection reads `$database` from its own engine, not
+from a read-only snapshot, which also reported `readOnly` on a writable connection;
+`logFileSize` and `dataFileSize` are now 64-bit). Once an engine, or an engine of the same shared connection, found that the data file
 cannot sync, its checkpoints retry the data sync before they scan the WAL. A data sync that fails later in the same
 checkpoint stops the engine with the WAL and the journal intact. On storage that never syncs
 the WAL therefore never shrinks (before, it was emptied as before #2818). A writable open that
 would first have to convert a 5.x file, migrate its indexes, or repair or retire a header
-journal while the data file cannot sync opens read-only instead, changing neither file: reads
+journal while the data file cannot sync opens read-only instead (a refusal found before the
+open wrote anything changes neither file; one found later leaves what it wrote, which the
+read-only open and the next writable open recover): reads
 work (indexes in the old order are scanned, as with `legacy index scan=true`), explicit
 transactions are accepted, and every write throws an `IOException` naming the cause without
 stopping the engine, so the application can catch it and keep reading. `$database.readOnly`

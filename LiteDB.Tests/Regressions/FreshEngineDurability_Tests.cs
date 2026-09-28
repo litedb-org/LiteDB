@@ -129,7 +129,8 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Healthy storage pays the proof once per data header in the process, not per fresh engine:
         /// neither a shared connection's operations nor direct-mode open, commit and close add a data
-        /// sync while the header is the one the latest successful data sync left.
+        /// sync while the header is the one the latest successful data sync left. (Reading
+        /// $database.walKept over a WAL that holds frames tries a data sync, as in direct mode.)
         /// </summary>
         [Fact]
         public void Data_file_is_proven_once_per_data_header()
@@ -143,9 +144,9 @@ namespace LiteDB.Tests.Regressions
             {
                 db.CheckpointSize = 0;
                 for (var id = 1; id <= 8; id++) Insert(db, id);
+                power.DataSyncs.Should().Be(0, "every operation found the header the setup left durable");
                 DurableLogFlush(db).Should().BeTrue();
             }
-            power.DataSyncs.Should().Be(0, "every operation found the header the setup left durable");
             for (var id = 9; id <= 11; id++)
             {
                 using var direct = new LiteDatabase(file.Filename);
@@ -232,7 +233,9 @@ namespace LiteDB.Tests.Regressions
                 if (!dataSyncsAgain)
                 {
                     var data = SyncPowerLossModel.ReadShared(file.Filename);
-                    UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 3), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                    var reason = UnsyncedReadOnlyOpen_Tests.ReadOnlyReason(db); // found out without a write
+                    reason.Should().StartWith(UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                    UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 3), reason);
                     AssertRows(db, 2); // the connection keeps reading
                     SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the refused write changed nothing");
                     SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays");

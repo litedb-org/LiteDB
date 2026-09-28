@@ -104,7 +104,7 @@ namespace LiteDB.Engine
                 _disk.Cache.Clear();
 
                 // clear log file (sync)
-                _disk.SetLength(0, FileOrigin.Log);
+                _disk.EmptyLog("a WAL reset");
             }
             finally
             {

@@ -86,8 +86,8 @@ namespace LiteDB.Engine
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     using var structural = new StructuralScope(_signals);
-                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
-                        settings.CompactStorage == CompactStorageMode.Auto);
+                    this.UseDataWriter(data => this.Initialize(data, settings.Collation, settings.InitialSize,
+                        settings.CompactStorage == CompactStorageMode.Auto));
                     dataLength = _dataFactory.GetLength();
                 }
 
@@ -98,7 +98,7 @@ namespace LiteDB.Engine
 
                 if (settings.ReadOnly == false)
                 {
-                    _ = _dataPool.Writer.Value.CanRead;
+                    this.UseDataWriter(data => data.CanRead);
                 }
 
                 _dataTrailingLength = dataLength % PAGE_SIZE;
@@ -209,23 +209,26 @@ namespace LiteDB.Engine
             _signals?.StructuralBegin();
             return FileHelper.TryExec(60, () =>
             {
-                var stream = _dataPool.Writer.Value;
                 var buffer = _bufferPool.Rent(PAGE_SIZE);
                 try
                 {
-                    stream.Position = 0;
-                    var offset = 0;
-                    while (offset < PAGE_SIZE)
+                    this.UseDataWriter(stream =>
                     {
-                        var read = stream.Read(buffer, offset, PAGE_SIZE - offset);
-                        if (read == 0) throw new EndOfStreamException("Cannot mark an incomplete database header");
-                        offset += read;
-                    }
-                    this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
-                    this.CrashPoint("invalid-state-before-mark");
-                    stream.Position = 0;
-                    stream.Write(buffer, 0, PAGE_SIZE);
-                    this.SyncDataBarrier(stream);
+                        stream.Position = 0;
+                        var offset = 0;
+                        while (offset < PAGE_SIZE)
+                        {
+                            var read = stream.Read(buffer, offset, PAGE_SIZE - offset);
+                            if (read == 0) throw new EndOfStreamException("Cannot mark an incomplete database header");
+                            offset += read;
+                        }
+                        this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
+                        this.CrashPoint("invalid-state-before-mark");
+                        stream.Position = 0;
+                        this.CountDataWrite();
+                        stream.Write(buffer, 0, PAGE_SIZE);
+                        this.SyncDataBarrier(stream);
+                    });
                 }
                 finally
                 {
@@ -318,8 +321,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void WriteDataDisk(IEnumerable<PageBuffer> pages)
         {
-            var stream = _dataPool.Writer.Value;
-            lock (stream)
+            this.UseDataWriter(stream =>
             {
                 foreach (var page in pages)
                 {
@@ -332,6 +334,7 @@ namespace LiteDB.Engine
                     this.CrashPoint("checkpoint-before-page-write");
                     this.PreserveFileVersion(page);
                     this.StampDataPage(page);
+                    this.CountDataWrite();
                     stream.Write(page.Array, page.Offset, PAGE_SIZE);
                     this.CrashPoint("checkpoint-after-page-write");
                     this.CheckpointStage("data-page");
@@ -341,16 +344,16 @@ namespace LiteDB.Engine
                 this.SyncDataBarrier(stream);
                 this.CrashPoint("checkpoint-after-data-flush");
                 this.CheckpointStage("data-flushed");
-            }
+            });
         }
 
         /// <summary>
-        /// Set new length for file in sync mode. Queue must be empty before set length
+        /// Set new length for file in sync mode. Queue must be empty before set length. A log that loses
+        /// content recovery may need goes through <see cref="EmptyLog"/> or <see cref="ShrinkLog"/>;
+        /// this trims only what no recovery reads (a torn WAL tail, see DiscardWalTail).
         /// </summary>
         public void SetLength(long length, FileOrigin origin)
         {
-            var stream = origin == FileOrigin.Log ? _logPool.Writer : _dataPool.Writer;
-
             if (origin == FileOrigin.Log)
             {
                 Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
@@ -366,12 +369,19 @@ namespace LiteDB.Engine
                 Interlocked.Exchange(ref _dataLength, length - PAGE_SIZE);
             }
 
-            stream.Value.SetLength(length);
-
-            if (origin == FileOrigin.Log)
+            if (origin == FileOrigin.Data)
             {
-                _logFactory.TrimCapacity(stream.Value);
+                this.UseDataWriter(data =>
+                {
+                    this.CountDataWrite();
+                    data.SetLength(length);
+                });
+                return;
             }
+
+            var log = _logPool.Writer.Value;
+            log.SetLength(length);
+            _logFactory.TrimCapacity(log);
         }
 
         /// <summary>
