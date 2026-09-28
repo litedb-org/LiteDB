@@ -141,10 +141,11 @@ share the verifier. Witness publication requires a durable sync: every retiring
 checkpoint first syncs the data file and WAL (the WAL directory once per engine), and
 storage that answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage
 that stops syncing during a retiring checkpoint degrades its barriers; that checkpoint keeps
-the frames it retired. Before its first reuse of a slot found at open, every engine (of any
-connection) syncs the data file and the WAL. Never make a WAL change durable that discards
-frames the data file could not make durable: a full checkpoint whose data file cannot sync
-while the WAL can keeps the WAL.
+the frames it retired and publishes no root once it found out. Before its first slot reuse
+every engine (of any connection) syncs the WAL, and before its first durable commit a
+file-backed engine proves the data file (a shared connection once per data header). Never
+make a WAL change durable that discards frames the data file could not make durable: a full
+checkpoint whose data file cannot sync while the WAL can keeps the WAL.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and
