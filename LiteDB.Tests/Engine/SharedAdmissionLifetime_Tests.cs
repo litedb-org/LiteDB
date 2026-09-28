@@ -66,6 +66,27 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Open_retains_admission_when_a_callback_disposes_the_connection()
+        {
+            using var file = new TempFile();
+            using (var seed = new LiteDatabase(file.Filename))
+                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
+            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            Action direct = () => { using var writer = new LiteEngine(file.Filename); };
+            engine.SimulateOpenEngine = () =>
+            {
+                engine.Dispose();
+                direct.Should().Throw<DatabaseAdmissionException>("setup still owns admission after reentrant connection disposal");
+                throw new IOException("injected open failure");
+            };
+            Action open = () => engine.Pragma(Pragmas.USER_VERSION);
+            open.Should().Throw<IOException>().WithMessage("injected open failure");
+            direct.Should().NotThrow("failed setup releases its temporary reference");
+            using var cold = new LiteDatabase(file.Filename);
+            cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(42);
+        }
+
+        [Fact]
         public void Failed_inner_opens_release_their_references_and_connection_disposal_releases_admission()
         {
             using var file = new TempFile();
