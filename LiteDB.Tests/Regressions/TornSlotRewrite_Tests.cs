@@ -45,9 +45,10 @@ namespace LiteDB.Tests.Regressions
                 (length - log.FailedPosition).Should().BeGreaterOrEqualTo(WalChecksum.FrameSize,
                     "the failure must tear an existing frame in place, not an append into the tail padding");
 
-                // Nothing may be appended behind the torn frame.
+                // Nothing may be appended behind the torn frame: the stopped engine rethrows its failure.
                 Action insert = () => db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
-                insert.Should().Throw<Exception>();
+                insert.Should().Throw<IOException>().WithMessage("*WAL frame overwrite failed*")
+                    .Where(ex => ex.GetBaseException() is UnauthorizedAccessException);
 
                 // Process crash: take the bytes before any close-time work.
                 crashData = data.ToArray();

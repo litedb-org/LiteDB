@@ -40,6 +40,12 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// Rebase a transaction's earlier frames to a new ID (legacy, non-checksummed WAL only:
+        /// every writable v8/v9 open converts to checksums first). It rewrites four bytes of
+        /// frames without CRCs, and legacy recovery does not stop at an invalid frame, so it
+        /// needs neither the checksummed overwrite stop nor a pinned-frame check.
+        /// </summary>
         private void RewriteLogTransactionIDs(Stream stream, IEnumerable<long> positions,
             uint transactionID, ref bool reusePublished)
         {

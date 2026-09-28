@@ -38,8 +38,9 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Checkpoint after every commit without changing the persisted CHECKPOINT pragma. Used when
-        /// the WAL is volatile (a caller's data stream without a log stream), so commits reach the
-        /// caller's stream before they are acknowledged.
+        /// the WAL is volatile (a caller's data stream without a log stream). The checkpoint only
+        /// backfills versions no open snapshot still needs: while another thread holds a cursor, a
+        /// commit reaches the caller's stream at a later commit or at the close checkpoint.
         /// </summary>
         internal bool CheckpointEachCommit { get; set; }
 

@@ -62,6 +62,79 @@ namespace LiteDB.Tests.Regressions
             Recover(data.ToArray(), log.ToArray()).Should().Be((1001, 1000));
         }
 
+        /// <summary>
+        /// File-backed: every dirty page pinned by $dump, then commit, then two supersessions under a
+        /// live reader and a partial checkpoint that retires frames (v13), then a process-crash image
+        /// and the real files are recovered and checkpointed.
+        /// </summary>
+        [Fact]
+        public void Pinned_slots_of_a_file_database_survive_commit_retirement_and_recovery()
+        {
+            using var file = new TempFile();
+            var y = new string('y', 500);
+            byte[] crashData, crashLog;
+
+            using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, TransactionPageLimit = 50 }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var col = db.GetCollection("docs");
+                col.Insert(new BsonDocument { ["_id"] = -1, ["payload"] = "committed" });
+                db.BeginTrans().Should().BeTrue();
+                col.Insert(Enumerable.Range(0, 1000).Select(i => new BsonDocument { ["_id"] = i, ["payload"] = new string('x', 500) }));
+                foreach (var pageID in engine.GetMonitor().GetThreadTransaction().Pages.DirtyPages.Keys.Where(id => id != 0).ToArray())
+                {
+                    db.Execute($"SELECT $ FROM $dump({pageID})").ToEnumerable().ToList().Should().NotBeEmpty();
+                }
+                col.Update(Enumerable.Range(0, 1000).Select(i => new BsonDocument { ["_id"] = i, ["payload"] = y }));
+                db.Commit().Should().BeTrue();
+
+                using (var reader = engine.Query("docs", new Query()))
+                {
+                    RunThread(() =>
+                    {
+                        col.Update(Enumerable.Range(0, 100).Select(i => new BsonDocument { ["_id"] = i, ["payload"] = "z" }));
+                        col.Update(Enumerable.Range(0, 100).Select(i => new BsonDocument { ["_id"] = i, ["payload"] = y }));
+                        engine.Checkpoint();
+                    });
+                }
+
+                crashData = ReadShared(file.Filename);
+                crashLog = ReadShared(FileHelper.GetLogFile(file.Filename));
+                crashData[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.MVCC_FILE_VERSION, "the partial checkpoint retired frames");
+            }
+
+            Recover(crashData, crashLog).Should().Be((1001, 1000));
+            for (var round = 0; round < 2; round++)
+            {
+                using var db = new LiteDatabase(file.Filename);
+                db.GetCollection("docs").Count().Should().Be(1001);
+                db.GetCollection("docs").Count(Query.EQ("payload", y)).Should().Be(1000);
+                db.Checkpoint();
+            }
+        }
+
+        private static byte[] ReadShared(string filename)
+        {
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            return copy.ToArray();
+        }
+
+        private static void RunThread(Action action)
+        {
+            Exception failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try { action(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.Start();
+            thread.Join();
+            if (failure != null) throw new AggregateException(failure);
+        }
+
         private static (int count, int updated) Recover(byte[] dataBytes, byte[] logBytes)
         {
             using var data = new MemoryStream();
