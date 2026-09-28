@@ -262,6 +262,12 @@ namespace LiteDB.Engine
         }
 
         /// <summary>The engine keeps its WAL in memory: no caller log stream and no log file.</summary>
+        /// <summary>
+        /// <c>:memory:</c> and <c>:temp:</c>: the engine's own factories create the database's streams, and
+        /// its teardown releases them, so nothing is left for a read-only reopen to read.
+        /// </summary>
+        internal bool EngineOwnsVolatileStreams => this.DataStream == null && (this.Filename == ":memory:" || this.Filename == ":temp:");
+
         internal bool VolatileLog => this.LogStream == null &&
             (string.IsNullOrEmpty(this.Filename) || this.Filename == ":memory:" || this.Filename == ":temp:");
 

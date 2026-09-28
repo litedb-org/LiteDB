@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Regressions
         private readonly string _data, _log;
         private readonly object _gate = new object();
         private byte[] _durableData, _durableLog;
-        private int _dataSyncs;
+        private int _dataSyncs, _logSyncs;
         internal volatile bool DataFails, LogFails;
 
         /// <summary>When positive, the data file's syncs from this one on (counted from 1) fail as while <see cref="DataFails"/>.</summary>
@@ -36,6 +36,7 @@ namespace LiteDB.Tests.Regressions
                 var name = Path.GetFullPath(path);
                 if (string.Equals(name, _log, StringComparison.OrdinalIgnoreCase))
                 {
+                    Interlocked.Increment(ref _logSyncs);
                     if (LogFails) return 22;
                     lock (_gate) _durableLog = Read(_log);
                 }
@@ -48,6 +49,9 @@ namespace LiteDB.Tests.Regressions
                 return 0;
             };
         }
+
+        /// <summary>Syncs of the log file attempted so far.</summary>
+        internal int LogSyncs => Volatile.Read(ref _logSyncs);
 
         /// <summary>Syncs of the data file attempted so far.</summary>
         internal int DataSyncs => Volatile.Read(ref _dataSyncs);

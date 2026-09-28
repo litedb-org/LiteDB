@@ -20,7 +20,7 @@ namespace LiteDB.Engine
             this.Error = error.Message;
             this.Time = DateTime.UtcNow;
             this.WalKept = walKept;
-            this.Acknowledged = acknowledged;
+            _acknowledged = acknowledged;
         }
 
         /// <summary>
@@ -28,7 +28,19 @@ namespace LiteDB.Engine
         /// failure left them; a read-only reopen replays only that while the files are still so. Null
         /// for every other failure.
         /// </summary>
-        internal AcknowledgedLog Acknowledged { get; }
+        internal AcknowledgedLog Acknowledged => System.Threading.Volatile.Read(ref _acknowledged);
+
+        private AcknowledgedLog _acknowledged;
+
+        /// <summary>
+        /// A failed WAL batch after this failure was recorded (the first one wins, and its stop may still
+        /// have been due): its bound applies too, so the reopen never shows the batch whose caller got
+        /// "outcome unknown". The first bound wins; this failure's own is set by the constructor.
+        /// </summary>
+        internal void AdoptBound(AcknowledgedLog acknowledged)
+        {
+            if (acknowledged != null) System.Threading.Interlocked.CompareExchange(ref _acknowledged, acknowledged, null);
+        }
 
         /// <summary>"data", "log", or null when the failure did not say.</summary>
         internal string File { get; }

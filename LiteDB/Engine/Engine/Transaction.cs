@@ -176,18 +176,23 @@ namespace LiteDB.Engine
             }
 
             // Only this commit's engine checkpoints: after another thread's failure stopped it, or a
-            // reopen replaced it, the services in place are not the ones this commit wrote through.
-            if (state.Stopped || !ReferenceEquals(state, _state)) return;
+            // reopen replaced it, the services in place are not the ones this commit wrote through. They
+            // are read before the check: a reopen publishes its state before its services. A failure
+            // recorded meanwhile (its stop may still be due) stops every write and sync (decision 6).
+            var disk = _disk;
+            var walIndex = _walIndex;
+            var checkpointPages = this.CheckpointPages;
+            if (state.Stopped || state.WriteFailure != null || !ReferenceEquals(state, _state)) return;
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (this.CheckpointPages > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (this.CheckpointPages * PAGE_SIZE))
+            if (checkpointPages > 0 &&
+                disk.GetFileLength(FileOrigin.Log) >= (checkpointPages * PAGE_SIZE))
             {
                 // This commit succeeded: a checkpoint's write or sync failure is not its caller's
                 // (decision 6). It is recorded on this commit's engine (captured above: a reopen assigns
                 // a new state without it), $database reports it, and the next write throws it. A
                 // checkpoint refused before it wrote anything (the data file cannot sync) is no failure.
-                try { _walIndex.TryAutoCheckpoint(); }
+                try { walIndex.TryAutoCheckpoint(); }
                 catch (Exception ex) when (state.WriteFailure != null || DiskService.IsRefusedBeforeWrite(ex)) { }
             }
         }

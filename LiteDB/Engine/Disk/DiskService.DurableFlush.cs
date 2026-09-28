@@ -102,7 +102,10 @@ namespace LiteDB.Engine
         /// engine that knows nothing yet finds out at its checkpoint's pre-write sync.
         /// </summary>
         internal bool DefersCheckpoint() =>
-            !_volatileLog && (!_dataBarrierSynced || (_sharedDurability?.DataUnsynced ?? false)) && !this.DataFileSyncs();
+            !_volatileLog && (((!_dataBarrierSynced || (_sharedDurability?.DataUnsynced ?? false)) && !this.DataFileSyncs()) ||
+            // So while this engine found that the log cannot sync (decision D): no journal could back the
+            // checkpoint's overwrite, and a checkpoint would scan the WAL at every commit to find that out.
+            (this.LogKnownUnsyncable && !this.LogSyncs()));
 
         /// <summary>
         /// Sync the data file now: false when it answers "cannot sync" (#2242). A checkpoint calls it

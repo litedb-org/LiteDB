@@ -111,7 +111,9 @@ namespace LiteDB.Engine
                         _checksums.JournalBytes = 0;
                         FileVersion = version;
                     }
-                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops)
+                    // A refusal before this promotion wrote anything (an earlier journal still outstanding)
+                    // tore nothing: it is no failure (implementation note 6).
+                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops && !IsRefusedBeforeWrite(ex))
                     {
                         // The journal is the only recovery copy of a header this write may have torn.
                         // Whatever the exception type, stop before releasing the writer: a rollback or

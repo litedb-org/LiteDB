@@ -15,19 +15,21 @@ namespace LiteDB.Engine
         internal bool LogKnownUnsyncable => _logFlushDegraded && !_logBarrierSynced && !_volatileLog;
 
         /// <summary>
-        /// For an operation of the caller's that is not a checkpoint (the WAL limit): while the log is
-        /// <see cref="LogKnownUnsyncable"/>, try one log sync. True once the log syncs. A sync that fails
-        /// (an I/O error) propagates, naming the log file.
+        /// Whether a checkpoint could drain the WAL into the data file as far as the log is concerned
+        /// (the WAL limit, <c>$database.walKept</c>, deferring a checkpoint): true once a log barrier of
+        /// this engine synced. Otherwise try one raw log sync: an engine that has not synced the log (a
+        /// reopen, every operation of a shared connection) cannot know what an earlier one found. A sync
+        /// that fails (an I/O error) propagates, naming the log file.
         /// </summary>
         internal bool LogSyncs()
         {
-            if (!this.LogKnownUnsyncable) return true;
+            if (_volatileLog || _readOnly || _logBarrierSynced) return true;
             lock (_writer.Value)
             {
                 try { this.SyncRawLog(); }
                 catch (IOException ex) when (IsUnsyncedStorage(ex)) { }
             }
-            return !this.LogKnownUnsyncable;
+            return _logBarrierSynced;
         }
 
         /// <summary>

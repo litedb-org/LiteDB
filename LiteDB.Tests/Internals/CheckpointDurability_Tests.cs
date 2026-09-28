@@ -250,7 +250,8 @@ namespace LiteDB.Internals
                 db.CheckpointSize = 1000; // enables the close checkpoint, far above this WAL
             }
             data.ToArray().Should().Equal(dataBefore, "the close checkpoint writes nothing either, and does not throw");
-            log.RejectedSyncs.Should().Be(4, "the close checkpoint tried a real sync too");
+            // $database.walKept retried one too at each of the two reads above (as for the data file).
+            log.RejectedSyncs.Should().Be(6, "the close checkpoint tried a real sync too");
             AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
             AssertRecovery(data.Durable, log.Durable, password, 0);
         }

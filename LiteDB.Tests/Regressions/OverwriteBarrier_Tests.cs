@@ -31,7 +31,9 @@ namespace LiteDB.Tests.Regressions
         /// to the data file and keep every WAL frame. Every row reads, through the index too; nothing is
         /// recorded as a failure, and durableLogFlush says commits are not durable. A power loss keeps
         /// the data file whole, with the rows it held when the log stopped syncing. Once the log syncs,
-        /// a checkpoint drains the WAL into the data file.
+        /// a checkpoint drains the WAL into the data file. The first checkpoint finds out that the log
+        /// cannot sync; every later one only retries one log sync and defers, instead of scanning the
+        /// growing WAL at every commit (independent review B).
         /// </summary>
         [Fact]
         public void Checkpoints_on_a_log_that_cannot_sync_write_nothing_and_keep_the_wal_without_durable_commits()
@@ -41,6 +43,7 @@ namespace LiteDB.Tests.Regressions
             Setup(file.Filename, 10);
             using var power = new FilePowerLossModel(file.Filename) { LogFails = true };
             var checkpoints = 0;
+            var logSyncs = 0;
             var settings = new EngineSettings
             {
                 Filename = file.Filename, DurableCommits = false,
@@ -53,13 +56,15 @@ namespace LiteDB.Tests.Regressions
                 using (var db = new LiteDatabase(engine, disposeOnClose: false))
                 {
                     db.CheckpointSize = 4; // pages: the commits below start automatic checkpoints
+                    logSyncs = power.LogSyncs;
                     for (var id = 11; id <= 30; id++)
                     {
                         var kept = Frames(SyncPowerLossModel.ReadShared(logName));
                         db.GetCollection("rows").Insert(Row(id));
                         SyncPowerLossModel.ReadShared(logName).Take(kept.Length).Should().Equal(kept, "the WAL grows behind the frames it keeps");
                     }
-                    checkpoints.Should().BeGreaterThan(10, "each commit past the checkpoint size started an automatic checkpoint");
+                    checkpoints.Should().Be(1, "the first automatic checkpoint found out that the log cannot sync");
+                    (power.LogSyncs - logSyncs).Should().BeGreaterThan(10, "every later one retried a log sync first, and deferred");
                     SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "no automatic checkpoint wrote to the data file");
 
                     var wal = SyncPowerLossModel.ReadShared(logName);
@@ -75,8 +80,10 @@ namespace LiteDB.Tests.Regressions
                     power.AfterPowerLoss(x => AssertRows(x, 10));
                     FilePowerLossModel.Open((SyncPowerLossModel.ReadShared(file.Filename), SyncPowerLossModel.ReadShared(logName)), x => AssertRows(x, 30));
                     checkpoints = 0;
+                    logSyncs = power.LogSyncs;
                 }
-                checkpoints.Should().Be(1, "the close checkpoint ran");
+                checkpoints.Should().Be(0, "the close checkpoint deferred too");
+                (power.LogSyncs - logSyncs).Should().Be(1, "after one more log sync that the log refused");
                 SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "and wrote nothing either, without throwing");
                 power.AfterPowerLoss(x => AssertRows(x, 10));
 

@@ -14,7 +14,8 @@ namespace LiteDB.Engine
         internal void RecordWriteFailure(string operation, Exception error, AcknowledgedLog acknowledged = null)
         {
             bool walKept;
-            try { walKept = this.LogHoldsAnything(); }
+            // A WAL the engine keeps in memory is no log file anyone could keep.
+            try { walKept = !_volatileLog && this.LogHoldsAnything(); }
             catch (Exception) { walKept = true; }
             _state.RecordWriteFailure(new WriteFailure(operation, error, walKept, acknowledged));
         }
@@ -47,14 +48,18 @@ namespace LiteDB.Engine
         /// </summary>
         private bool LogWriteFailed => (_state.WriteFailure ?? _state.ReopenedAfter)?.File == "log";
 
+        /// <summary>See <see cref="EngineState.RequireNoWriteFailure"/>.</summary>
+        internal void RequireNoWriteFailure() => _state.RequireNoWriteFailure();
+
         /// <summary>
-        /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine
-        /// whose latest data sync did not succeed, or that tried none yet (a reopen, a restart or a
-        /// shared-mode operation after an engine that kept the WAL), retries one first, as its next
-        /// checkpoint would. A data sync that fails there (an I/O error, not "cannot sync") does not fail
-        /// the read: it is recorded, reported, and the engine's next call stops it and reopens it
-        /// read-only (decision 6). A read-only engine or one over storage that cannot be written never
-        /// syncs: it reports what the connection's engines found, and the write failure it reopened after.
+        /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds, or while the
+        /// log cannot sync (no checkpoint overwrites behind it). An engine whose latest data or log sync
+        /// did not succeed, or that tried none yet (a reopen, a restart or a shared-mode operation after
+        /// an engine that kept the WAL), retries one first, as its next checkpoint would. A sync that
+        /// fails there (an I/O error, not "cannot sync") does not fail the read: it is recorded, reported,
+        /// and the engine's next call stops it and reopens it read-only (decision 6). A read-only engine
+        /// or one over storage that cannot be written never syncs: it reports what the connection's
+        /// engines found, and the write failure it reopened after.
         /// </summary>
         internal bool WalKeptReport
         {
@@ -63,8 +68,18 @@ namespace LiteDB.Engine
                 if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
                 if (_readOnly || _readOnlyStorage)
                     return (_sharedDurability?.DataUnsynced ?? false) || (_state.ReopenedAfter?.WalKept ?? false);
-                // A log that cannot sync keeps the WAL too: a checkpoint writes nothing behind it.
-                if (this.LogKnownUnsyncable) return true;
+                // After a recorded failure nothing syncs again on its handles (fsyncgate): report the record's.
+                if (_state.WriteFailure is WriteFailure failure) return failure.WalKept;
+                try
+                {
+                    // A log that cannot sync keeps the WAL too: a checkpoint writes nothing behind it.
+                    if (!this.LogSyncs()) return true;
+                }
+                catch (IOException ex)
+                {
+                    _state.StopLater("A log sync", WriteFailure.InFile(ex, FileOrigin.Log));
+                    return true;
+                }
                 if (this.DataSyncConfirmed) return false;
                 try { return !this.DataFileSyncs(); }
                 catch (IOException ex)

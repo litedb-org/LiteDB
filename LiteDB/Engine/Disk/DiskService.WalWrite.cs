@@ -42,6 +42,12 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                try { _state.RequireNoWriteFailure(); }
+                catch (IOException refused)
+                {
+                    refused.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
+                    throw;
+                }
                 // The end of what earlier batches acknowledged: a read-only reopen after this batch
                 // failed replays only up to it (decision 13).
                 var acknowledgedEnd = Interlocked.Read(ref _logLength) + PAGE_SIZE;

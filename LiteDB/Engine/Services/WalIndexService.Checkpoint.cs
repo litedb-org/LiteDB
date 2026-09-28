@@ -106,6 +106,7 @@ namespace LiteDB.Engine
         private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+            _disk.RequireNoWriteFailure();
 
             // The WAL is kept until a data sync succeeds (DiskService.KeepsWal). Once this engine or, in
             // shared mode, an earlier engine of the connection found that the data file cannot sync, a

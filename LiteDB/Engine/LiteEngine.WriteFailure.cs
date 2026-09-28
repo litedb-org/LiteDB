@@ -42,7 +42,9 @@ namespace LiteDB.Engine
             }
             // A failure recorded where the engine could not stop (a $database read) stops it now.
             if (state.StopDue && !_closing) state.Stop(state.WriteFailure.Cause);
-            if (state.Stopped && state.WriteFailure != null && !_closing)
+            // An in-memory or temporary database stays closed, as before decision 6: its failed engine's
+            // teardown released the streams it lived in, and a reopen would read an empty database.
+            if (state.Stopped && state.WriteFailure != null && !_closing && !_settings.EngineOwnsVolatileStreams)
             {
                 this.ReopenAfterWriteFailure(state);
                 state = _state;

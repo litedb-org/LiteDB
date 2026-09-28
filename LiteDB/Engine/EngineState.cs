@@ -158,12 +158,34 @@ namespace LiteDB.Engine
         /// instead of closing for good. The first failure wins; a shared connection keeps it for its
         /// later engines (their operations open read-only until the connection is reopened).
         /// </summary>
+        /// <summary>
+        /// Decision 6: no write, sync or checkpoint starts while a failure is recorded, also one whose
+        /// stop is still due (<see cref="StopLater"/>) or an operation that passed its entry check before
+        /// it was recorded: nothing more goes through the handles that failed (fsyncgate).
+        /// </summary>
+        internal void RequireNoWriteFailure()
+        {
+            if (this.WriteFailure is WriteFailure failure)
+                throw new System.IO.IOException(LiteEngine.WriteFailedPrefix + failure, failure.Cause);
+        }
+
         internal void RecordWriteFailure(WriteFailure failure)
         {
             // Every failure is recorded before its stop: an engine that already stopped without a record
             // stopped for a failed read or a damaged file, and stays closed (implementation note 6).
+            // A failed batch after the recorded failure keeps its decision 13 bound (WriteFailure.AdoptBound).
+            if (this.WriteFailure is WriteFailure recorded)
+            {
+                recorded.AdoptBound(failure.Acknowledged);
+                return;
+            }
             if (this.Stopped) return;
-            if (Interlocked.CompareExchange(ref _writeFailure, failure, null) != null) return;
+            var first = Interlocked.CompareExchange(ref _writeFailure, failure, null);
+            if (first != null)
+            {
+                first.AdoptBound(failure.Acknowledged);
+                return;
+            }
             _settings?.SharedDurability?.RecordWriteFailure(failure);
         }
 
