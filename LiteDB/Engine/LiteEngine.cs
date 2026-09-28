@@ -32,7 +32,8 @@ namespace LiteDB.Engine
 
         private SortDisk _sortDisk;
 
-        private EngineState _state;
+        // Volatile: a reopen publishes a new state while other threads call in (see EnsureOpen).
+        private volatile EngineState _state;
 
         // the last error-close wrote the rebuild mark into the data file header
         private bool _markedForRebuild;
@@ -172,6 +173,9 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
                 _markedForRebuild = false;
+#if DEBUG || TESTING
+                _settings.ReopenStage?.Invoke("state-published");
+#endif
 
                 // A failed rebuild may have left stale data or no canonical file.
                 // Check before upgrade, recovery, or DiskService can create a new file.
@@ -181,7 +185,8 @@ namespace LiteDB.Engine
                 if (_settings.Upgrade) this.TryUpgrade();
 
                 // initialize disk service (will create database if needed)
-                _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                _disk = _state.Disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                this.LogUnverifiedSyncs();
 
                 // read page with no cache ref (has a own PageBuffer) - do not Release() support.
                 // An existing file's header was just read and validated by the disk service.
@@ -196,8 +201,11 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                // A rebuild replaces files: a caller's stream is opened as it is.
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && _settings.DataStream == null)
+                // A rebuild replaces files: a caller's stream is opened as it is, and so is a file this
+                // engine opened read-only on its own (after a write failure, or because the writable open
+                // was refused): nothing may write there.
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && _settings.DataStream == null &&
+                    _settings.WriteFailure == null && _settings.ReadOnlyCause == null)
                 {
                     // Announce replacement before checking the external leases: a
                     // later admission must not pass a scan that permitted rebuilding.
@@ -212,7 +220,7 @@ namespace LiteDB.Engine
                         this.Recovery(_header.Pragmas.Collation);
 
                         // re-initialize disk service
-                        _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                        _disk = _state.Disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
                         // read buffer header page again
                         buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
@@ -300,7 +308,8 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (checkpoint && !_settings.ReadOnly && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
+            // A failure stopped the engine (its teardown is pending): nothing may be written after it.
+            if (checkpoint && !_settings.ReadOnly && !_state.Stopped && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
@@ -320,7 +329,8 @@ namespace LiteDB.Engine
 
         /// <summary>WAL size (in pages) that triggers a checkpoint; 0 disables automatic checkpoints.</summary>
         // Storage that cannot be written is never checkpointed: its changes stay in the log, as in 5.x.
-        private int CheckpointPages => _settings.ReadOnlyStorage ? 0 : _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
+        // Neither is a read-only engine (its read transactions complete through CommitAndReleaseTransaction).
+        private int CheckpointPages => _settings.ReadOnlyStorage || _settings.ReadOnly ? 0 : _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
 
         /// <summary>
         /// Every close checkpoints unless a shared connection set a threshold: its short-lived
@@ -333,6 +343,18 @@ namespace LiteDB.Engine
             if (threshold <= 0) return true;
             var pages = Math.Min(threshold, this.CheckpointPages);
             return _disk.GetFileLength(FileOrigin.Log) >= (long)pages * PAGE_SIZE;
+        }
+
+        /// <summary>
+        /// Implementation note 3 of docs/decisions/durability-policy.md: without a C library on Unix the
+        /// runtime's Flush(true) loses sync errors. Syncs are still attempted and commits acknowledged,
+        /// with durableLogFlush false; say so once per open where durable commits were asked for.
+        /// </summary>
+        private void LogUnverifiedSyncs()
+        {
+            if (_settings.DurableCommits && !_settings.ReadOnly && _disk.LogSyncUnverified)
+                LOG("durable commits requested, but no C library could be bound: file syncs go through the runtime's " +
+                    "Flush(true), which cannot report a failed sync, so commits are not claimed durable (durableLogFlush=false)", "DISK");
         }
 
         /// <summary>
@@ -400,14 +422,17 @@ namespace LiteDB.Engine
         public int Checkpoint()
         {
             this.EnsureOpen();
+            // Continuing read-only after a write failure: the caller's drain did not happen (decision 6).
+            if (_settings.WriteFailure != null) throw this.ReadOnlyWrite();
             // Fail before a checkpoint journals the header into a caller's log it cannot finish.
             if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
                 throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
             if (_settings.ReadOnlyStorage) return 0;
+            var state = _state;
             try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
             catch (Exception ex)
             {
-                _state.Handle(ex);
+                state.Handle(ex);
                 throw;
             }
         }
@@ -422,8 +447,7 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
-            _closing = true;
-            this.Close();
+            this.CloseForDispose();
         }
     }
 }

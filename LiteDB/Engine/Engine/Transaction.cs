@@ -17,9 +17,10 @@ namespace LiteDB.Engine
         {
             this.EnsureOpen();
 
-            // A write failure ended this thread's transaction: it still counts as open until Commit
-            // (which throws) or Rollback completes it.
-            if (this.HasLostTransaction()) return false;
+            // A write failure ended this thread's transaction. Thread IDs are reused (pool threads), so
+            // this begin may be unrelated: consume the mark and throw the recorded failure here, instead
+            // of joining a transaction that is gone.
+            if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
 
             // Storage opened read-only because it cannot be written, or because its data file cannot
             // sync, accepts explicit transactions, as released versions did; writes are still rejected.
@@ -45,6 +46,8 @@ namespace LiteDB.Engine
         public bool Commit()
         {
             this.EnsureOpen();
+            var state = _state;
+            var monitor = _monitor;
 
             // A write failure ended this thread's transaction before it committed.
             if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
@@ -61,11 +64,11 @@ namespace LiteDB.Engine
                     // A failed safepoint discarded pages this transaction changed: never publish the rest.
                     if (transaction.WriteFailure != null)
                     {
-                        this.RollbackAndReleaseTransaction(transaction);
+                        this.RollbackAndReleaseTransaction(transaction, state, monitor);
                         throw TransactionService.WriteFailed(transaction.WriteFailure);
                     }
 
-                    this.CommitAndReleaseTransaction(transaction);
+                    this.CommitAndReleaseTransaction(transaction, state, monitor);
 
                     return true;
                 }
@@ -80,6 +83,8 @@ namespace LiteDB.Engine
         public bool Rollback()
         {
             this.EnsureOpen();
+            var state = _state;
+            var monitor = _monitor;
 
             if (this.TakeLostTransaction()) return true;
 
@@ -87,7 +92,7 @@ namespace LiteDB.Engine
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {
-                this.RollbackAndReleaseTransaction(transaction);
+                this.RollbackAndReleaseTransaction(transaction, state, monitor);
 
                 return true;
             }
@@ -115,11 +120,14 @@ namespace LiteDB.Engine
         private T ExecuteAutoTransaction<T>(Func<TransactionService, T> fn, bool write)
         {
             this.EnsureOpen();
+            // This operation's engine: a failure stops it, never an engine a reopen replaced it with.
+            var state = _state;
+            var monitor = _monitor;
 
             if (write && _settings.ReadOnly) throw ReadOnlyWrite();
-            if (write) this.RequireWalBelowLimit();
+            if (write) this.RequireWalBelowLimit(state);
 
-            var transaction = _monitor.GetTransaction(true, false, out var isNew);
+            var transaction = monitor.GetTransaction(true, false, out var isNew);
 
             try
             {
@@ -127,61 +135,74 @@ namespace LiteDB.Engine
 
                 // if this transaction was auto-created for this operation, commit & dispose now
                 if (isNew)
-                    this.CommitAndReleaseTransaction(transaction);
+                    this.CommitAndReleaseTransaction(transaction, state, monitor);
 
                 return result;
             }
             catch(Exception ex)
             {
-                if (_state.Handle(ex) && transaction.State == TransactionState.Active)
+                if (state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
-                    this.RollbackAndReleaseTransaction(transaction);
+                    this.RollbackAndReleaseTransaction(transaction, state, monitor);
 
-                    if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
+                    if (transaction.ExplicitTransaction) monitor.MarkExplicitAbort();
                 }
 
                 throw;
             }
         }
 
-        private void CommitAndReleaseTransaction(TransactionService transaction)
+        /// <summary>
+        /// A failure of the storage a completion wrote to: an I/O error, or a sync the storage refused
+        /// (an encrypted log's preamble answers "cannot sync" with UnauthorizedAccessException). It is
+        /// recorded (decision 6), so the engine reopens read-only instead of staying closed.
+        /// </summary>
+        private static bool IsStorageFailure(Exception ex) => ex is IOException || ex is UnauthorizedAccessException;
+
+        private void CommitAndReleaseTransaction(TransactionService transaction, EngineState state, TransactionMonitor monitor)
         {
             try
             {
                 transaction.Commit();
-                _monitor.ReleaseTransaction(transaction);
+                monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
             {
                 // Completion may have partially persisted state. Do not let a later
                 // write reuse this transaction and report success without committing.
-                if (ex is IOException) _disk.RecordWriteFailure("A commit", ex);
-                _state.Stop(ex);
+                if (IsStorageFailure(ex)) state.Disk?.RecordWriteFailure("A commit", ex);
+                state.Stop(ex);
                 throw;
             }
+
+            // Only this commit's engine checkpoints: after another thread's failure stopped it, or a
+            // reopen replaced it, the services in place are not the ones this commit wrote through.
+            if (state.Stopped || !ReferenceEquals(state, _state)) return;
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
             if (this.CheckpointPages > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (this.CheckpointPages * PAGE_SIZE))
             {
                 // This commit succeeded: a checkpoint's write or sync failure is not its caller's
-                // (decision 6). It is recorded, $database reports it, and the next write throws it.
+                // (decision 6). It is recorded on this commit's engine (captured above: a reopen assigns
+                // a new state without it), $database reports it, and the next write throws it. A
+                // checkpoint refused before it wrote anything (the data file cannot sync) is no failure.
                 try { _walIndex.TryAutoCheckpoint(); }
-                catch (Exception) when (_state.WriteFailure != null) { }
+                catch (Exception ex) when (state.WriteFailure != null || DiskService.IsRefusedBeforeWrite(ex)) { }
             }
         }
 
-        private void RollbackAndReleaseTransaction(TransactionService transaction)
+        private void RollbackAndReleaseTransaction(TransactionService transaction, EngineState state, TransactionMonitor monitor)
         {
             try
             {
                 transaction.Rollback();
-                _monitor.ReleaseTransaction(transaction);
+                monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
             {
-                if (ex is IOException) _disk.RecordWriteFailure("A rollback", ex);
-                _state.Stop(ex);
+                if (IsStorageFailure(ex)) state.Disk?.RecordWriteFailure("A rollback", ex);
+                state.Stop(ex);
                 throw;
             }
         }

@@ -48,11 +48,23 @@ namespace LiteDB.Engine
                 "to the device, and the upgrade keeps its header's recovery copy in the log file until the new header " +
                 "synced. Retry once the storage syncs.");
             error.Data[UnsyncedPromotionDataKey] = true;
+            error.Data[RefusedBeforeWriteDataKey] = true;
             return UnsyncedStorage(error);
         }
 
         /// <summary>Exception.Data key of <see cref="UnsyncedPromotion"/>: refused before anything was written.</summary>
         internal const string UnsyncedPromotionDataKey = "LiteDB.UnsyncedPromotion";
+
+        /// <summary>
+        /// Exception.Data key: refused because the data file cannot sync (#2242) before anything was
+        /// written. Not a failure (implementation note 6 of docs/decisions/durability-policy.md, in both
+        /// modes): nothing is recorded, the engine keeps writing, and the operation's caller gets it.
+        /// </summary>
+        internal const string RefusedBeforeWriteDataKey = "LiteDB.RefusedBeforeWrite";
+
+        /// <summary>See <see cref="RefusedBeforeWriteDataKey"/>.</summary>
+        internal static bool IsRefusedBeforeWrite(Exception error) =>
+            error.Data.Contains(RefusedBeforeWriteDataKey) && IsUnsyncedStorage(error);
 
         private void WriteFileVersion(Stream writer, byte version, bool checkpointStops)
         {
@@ -74,7 +86,9 @@ namespace LiteDB.Engine
                         if (!_volatileLog && !this.DataFileSyncs()) throw UnsyncedPromotion();
                         var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                         if (compact) this.CrashPoint("promotion-before-journal-write");
-                        BeginHeaderJournal(header.Array, promotion: compact);
+                        // The journal and its barrier go to the log file (decision 6 records the file).
+                        try { BeginHeaderJournal(header.Array, promotion: compact); }
+                        catch (Exception ex) when (FailedIn(ex, FileOrigin.Log)) { }
                         if (compact) this.CrashPoint("promotion-after-journal-flush");
                         header[HeaderPage.P_FILE_VERSION] = version;
                         if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
@@ -82,7 +96,8 @@ namespace LiteDB.Engine
                         stream.Position = 0;
                         if (compact) this.CrashPoint("promotion-before-header-write");
                         this.CountDataWrite();
-                        stream.Write(header.Array, 0, PAGE_SIZE);
+                        try { stream.Write(header.Array, 0, PAGE_SIZE); }
+                        catch (Exception ex) when (FailedIn(ex, FileOrigin.Data)) { }
                         if (compact) this.CrashPoint("promotion-after-header-write");
                         this.SyncDataBarrier(stream);
                         if (compact) this.CrashPoint("promotion-after-header-flush");
@@ -101,6 +116,8 @@ namespace LiteDB.Engine
                         // another write must not append to (or truncate) the WAL behind it. The next
                         // open restores the header from the journal.
                         failure = ex as IOException ?? new IOException("File format promotion failed.", ex);
+                        // The record names the file of the write or sync that failed, whatever wraps it.
+                        if (ex.Data[WriteFailure.FileDataKey] is string file) failure.Data[WriteFailure.FileDataKey] = file;
                         this.RecordWriteFailure("A file format promotion", failure);
                         ownsFailure = _state.BeginStop(failure);
                     }

@@ -57,19 +57,19 @@ namespace LiteDB.Engine
         /// <summary>
         /// False when commits are not made durable: the caller opted out
         /// (<see cref="EngineSettings.DurableCommits"/>), the log storage rejected a durable flush or its
-        /// directory sync (a durable commit then throws, decision 3), or the log's syncs cannot report
-        /// failures. A data file that cannot sync does not change it: commits stay durable in the WAL
-        /// (decision 4), which <c>$database.walKept</c> reports.
+        /// directory sync (a durable commit then throws, decision 3), the log's syncs cannot report
+        /// failures, or a write or sync of the log failed (decision 6). A data file that cannot sync does
+        /// not change it: commits stay durable in the WAL (decision 4), which <c>$database.walKept</c> reports.
         /// </summary>
         internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
-            !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false);
+            !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false) && !this.LogWriteFailed;
 
         /// <summary>
         /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
         /// sync is still attempted, but a failure would go unreported, so it never proves
         /// durability. Such a log is not used for slot reuse (see <see cref="ProveSlotReuse"/>).
         /// </summary>
-        private bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
+        internal bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
         /// <summary>
         /// Some storage of this database answered "cannot sync" (#2242), in this engine or, in
@@ -141,23 +141,6 @@ namespace LiteDB.Engine
         /// removed the log or its header's recovery copy: an open that failed so can read instead.
         /// </summary>
         internal static bool IsUnsyncedStorage(Exception error) => error.Data.Contains(UnsyncedStorageDataKey);
-
-        /// <summary>
-        /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine
-        /// whose latest data sync did not succeed, or that tried none yet (a reopen, a restart or a
-        /// shared-mode operation after an engine that kept the WAL), retries one first, as its next
-        /// checkpoint would. A read-only engine or one over storage that cannot be written never
-        /// syncs: it reports what the connection's engines found.
-        /// </summary>
-        internal bool WalKeptReport
-        {
-            get
-            {
-                if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
-                if (_readOnly || _readOnlyStorage) return _sharedDurability?.DataUnsynced ?? false;
-                return !this.DataSyncConfirmed && !this.DataFileSyncs();
-            }
-        }
 
         /// <summary>The engine keeps its WAL in memory (<see cref="EngineSettings.VolatileLog"/>).</summary>
         internal bool LogIsVolatile => _volatileLog;

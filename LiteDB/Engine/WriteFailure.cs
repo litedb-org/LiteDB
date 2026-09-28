@@ -52,6 +52,12 @@ namespace LiteDB.Engine
             return error;
         }
 
+        /// <summary>
+        /// The failure names the file whose write or sync failed (<see cref="InFile"/>): it is a write-side
+        /// failure, recorded before the stop it causes. A failed read names none.
+        /// </summary>
+        internal static bool NamesFile(Exception error) => error.Data.Contains(FileDataKey);
+
         internal BsonDocument ToDocument() => new BsonDocument
         {
             ["file"] = this.File == null ? BsonValue.Null : new BsonValue(this.File),

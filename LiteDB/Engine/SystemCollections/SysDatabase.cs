@@ -19,15 +19,21 @@ namespace LiteDB.Engine
                 ["pages"] = x.Pages.TransactionSize
             }).ToArray();
 
+            // First: its data sync may fail, which this read records instead of throwing (decision 6).
+            var walKept = _disk.WalKeptReport;
+            // The failure the engine reopened read-only after, or one recorded on it that its next call
+            // stops it for (and reopens it read-only).
+            var failure = _settings.WriteFailure ?? _state.WriteFailure;
+
             yield return new BsonDocument
             {
                 ["name"] = _disk.GetName(FileOrigin.Data),
                 ["encrypted"] = _settings.Password != null,
-                ["readOnly"] = _settings.ReadOnly,
+                ["readOnly"] = _settings.ReadOnly || failure != null,
                 // Why a writable open opened read-only instead (the data file cannot sync); null otherwise.
-                ["readOnlyReason"] = _settings.ReadOnlyCause,
+                ["readOnlyReason"] = _settings.ReadOnlyCause ?? failure?.ToString(),
                 // The write or sync failure after which the engine continues read-only (decision 6).
-                ["writeFailure"] = _settings.WriteFailure?.ToDocument() ?? BsonValue.Null,
+                ["writeFailure"] = failure?.ToDocument() ?? BsonValue.Null,
 
                 ["lastPageID"] = (int)_header.LastPageID,
                 ["freeEmptyPageID"] = (int)_header.FreeEmptyPageList,
@@ -36,10 +42,9 @@ namespace LiteDB.Engine
 
                 ["dataFileSize"] = _disk.GetFileLength(FileOrigin.Data),
                 ["logFileSize"] = _disk.GetFileLength(FileOrigin.Log),
-                // durableLogFlush: the mode commits ran in so far. walKept may try a data sync first;
-                // one that fails shows in the next read's durableLogFlush.
+                // durableLogFlush: the mode commits ran in so far; false once a log write or sync failed.
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
-                ["walKept"] = _disk.WalKeptReport,
+                ["walKept"] = walKept,
                 // How large a kept log may grow before writes throw (decision 4).
                 ["walLimit"] = _settings.WalLimit,
                 ["checksums"] = _disk.ChecksumsEnabled,

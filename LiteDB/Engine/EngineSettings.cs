@@ -20,6 +20,11 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
+
+        // Test hook: stages of a failure's stop and the read-only reopen after it: "stopped" (the
+        // failure's teardown closed the services), "before-open" (a reopen starts), and, in every open,
+        // "state-published" (the new state is in place, the services are not yet).
+        internal Action<string> ReopenStage { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while

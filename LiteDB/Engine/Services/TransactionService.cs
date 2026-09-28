@@ -280,11 +280,17 @@ namespace LiteDB.Engine
 
             // Reuse this transaction's unconfirmed slots across safepoints.
             // Disk always appends the confirmation page, preserving recovery order.
-            var count = _disk.WriteLogDisk(source(), (pageID, position) =>
+            int count;
+            try
             {
-                if (pageID == 0) _headerPosition = position;
-                else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
-            }, _transPages, _walIndex.NextTransactionID);
+                count = _disk.WriteLogDisk(source(), (pageID, position) =>
+                {
+                    if (pageID == 0) _headerPosition = position;
+                    else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
+                }, _transPages, _walIndex.NextTransactionID);
+            }
+            // A failed batch (a safepoint's or a commit's) names the log file, which its record reports.
+            catch (Exception ex) when (_disk.NameLogWriteFailure(ex)) { throw; }
 
             if (_transPages.HeaderChanged)
             {

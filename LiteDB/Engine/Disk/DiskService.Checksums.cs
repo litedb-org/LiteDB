@@ -167,11 +167,14 @@ namespace LiteDB.Engine
         /// A checkpoint that fails while it holds the WAL writer publishes the stop before releasing
         /// it: a commit waiting for the writer must not append behind what the failed checkpoint left
         /// (a torn retirement record, a reserved slot it never wrote, an outstanding header journal).
-        /// Returns whether the stop was begun; teardown follows once the locks are released.
+        /// Returns whether the stop was begun; teardown follows once the locks are released. A refusal
+        /// before the checkpoint wrote anything (<see cref="IsRefusedBeforeWrite"/>: its format promotion
+        /// found that the data file cannot sync) left nothing behind: it neither records nor stops.
         /// </summary>
         internal bool BeginCheckpointStop(Exception exception, out bool owned)
         {
             owned = false;
+            if (IsRefusedBeforeWrite(exception)) return true;
             if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
 #if DEBUG || TESTING
             if (_state.DeferCheckpointStop) return false;
@@ -183,7 +186,7 @@ namespace LiteDB.Engine
         internal void StopAfterCheckpointFailure(Exception exception, bool begun, bool owned)
         {
             if (begun) _state.CompleteStop(exception, owned);
-            else
+            else if (!IsRefusedBeforeWrite(exception))
             {
                 if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
                 _state.Stop(exception);

@@ -31,6 +31,25 @@ namespace LiteDB.Engine
 
         /// <summary>Threads whose explicit transaction the failure ended: their Commit must throw.</summary>
         internal int[] LostTransactionThreads { get; set; }
+
+        /// <summary>
+        /// This engine's disk service (set by LiteEngine.Open): a write or sync failure that reaches
+        /// <see cref="Handle"/> or <see cref="StopAfter"/> is recorded through it. Null in unit tests.
+        /// </summary>
+        internal DiskService Disk { get; set; }
+
+        /// <summary>
+        /// The write failure this engine opened read-only after: its own engine's before the reopen, or
+        /// an earlier engine's of the same shared connection. Null otherwise.
+        /// </summary>
+        internal WriteFailure ReopenedAfter => _settings?.WriteFailure;
+
+        // A failure recorded where the engine could not stop (a $database read): the next call stops it.
+        private volatile bool _stopDue;
+
+        /// <summary>A recorded failure waits for its stop (<see cref="StopLater"/>).</summary>
+        internal bool StopDue => _stopDue && !this.Stopped;
+
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
 
@@ -71,19 +90,52 @@ namespace LiteDB.Engine
             if (this.Disposed) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
         }
 
+        /// <summary>
+        /// An operation failed: false when the failure stopped the engine, true when the caller rolls its
+        /// transaction back and the engine goes on. An I/O failure or a damaged file stops it; a write or
+        /// sync failure is recorded first, so the engine reopens read-only on its next call (decision 6
+        /// of docs/decisions/durability-policy.md), while a failed read or a damaged file keeps it
+        /// closed (implementation note 6).
+        /// </summary>
         public bool Handle(Exception ex)
         {
             LOG(ex.Message, "ERROR");
 
+            // Refused because the data file cannot sync, before anything was written (#2242): not a
+            // failure (implementation note 6). The transaction rolls back and the caller gets the
+            // refusal, as at the WAL limit. A refusal its throw site recorded stops the engine below.
+            if (DiskService.IsRefusedBeforeWrite(ex) && this.WriteFailure == null) return true;
+
             if (ex is IOException ||
                 (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
             {
-                this.Stop(ex);
+                this.StopAfter("A write", ex);
 
                 return false;
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Stop the engine after <paramref name="ex"/>. A write or sync failure (one that names its file,
+        /// <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>, so the
+        /// next call reopens the engine read-only instead of finding it closed (decision 6).
+        /// </summary>
+        internal void StopAfter(string operation, Exception ex)
+        {
+            if (WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
+            this.Stop(ex);
+        }
+
+        /// <summary>
+        /// Record a write or sync failure where stopping the engine would fail the caller's read (a
+        /// <c>$database</c> read): the engine's next call stops it and reopens it read-only.
+        /// </summary>
+        internal void StopLater(string operation, Exception ex)
+        {
+            this.Disk?.RecordWriteFailure(operation, ex);
+            if (this.WriteFailure != null) _stopDue = true;
         }
 
 #if DEBUG || TESTING
@@ -106,6 +158,9 @@ namespace LiteDB.Engine
         /// </summary>
         internal void RecordWriteFailure(WriteFailure failure)
         {
+            // Every failure is recorded before its stop: an engine that already stopped without a record
+            // stopped for a failed read or a damaged file, and stays closed (implementation note 6).
+            if (this.Stopped) return;
             if (Interlocked.CompareExchange(ref _writeFailure, failure, null) != null) return;
             _settings?.SharedDurability?.RecordWriteFailure(failure);
         }
@@ -137,6 +192,9 @@ namespace LiteDB.Engine
             {
                 this.Disposed = true;
                 _closed.Set();
+#if DEBUG || TESTING
+                _settings?.ReopenStage?.Invoke("stopped");
+#endif
             }
         }
 

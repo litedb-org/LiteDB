@@ -37,7 +37,7 @@ namespace LiteDB.Engine
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
             // A replacement that cannot sync is refused (RebuildService): find out before this engine
             // closes, so that a refusal leaves it open.
-            if (!_disk.DataFileSyncs()) throw RebuildService.UnsyncedRebuild();
+            if (!this.DataFileSyncs(_state)) throw RebuildService.UnsyncedRebuild();
             _locker.EnterExclusive();
 
             this.Close();

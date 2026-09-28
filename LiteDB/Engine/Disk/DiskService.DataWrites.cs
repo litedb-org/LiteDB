@@ -67,9 +67,7 @@ namespace LiteDB.Engine
         /// </summary>
         internal void EmptyLog(string operation)
         {
-            var raw = _writer.IsValueCreated ? (_writer.Value as ChecksummedWalStream)?.RawStream ?? _writer.Value : null;
-            if (this.GetFileLength(FileOrigin.Log) > 0 || _checksums.JournalBytes != 0 || (raw?.Length ?? 0) > 0)
-                this.RequireDataWritesSynced(operation);
+            if (this.LogHoldsAnything()) this.RequireDataWritesSynced(operation);
             this.SetLength(0, FileOrigin.Log);
         }
 
@@ -81,19 +79,6 @@ namespace LiteDB.Engine
         {
             if (_volatileLog) return;
             if (Interlocked.Read(ref _dataWritesSynced) < Interlocked.Read(ref _dataWrites)) throw DataStoppedSyncing(operation);
-        }
-
-        /// <summary>
-        /// Record a write or sync failure before the stop it causes (decision 6 of
-        /// docs/decisions/durability-policy.md): the engine then reopens read-only on its next call and
-        /// refuses writes until the database is reopened.
-        /// </summary>
-        internal void RecordWriteFailure(string operation, Exception error, AcknowledgedLog acknowledged = null)
-        {
-            bool walKept;
-            try { walKept = this.GetFileLength(FileOrigin.Log) > 0; }
-            catch (Exception) { walKept = true; }
-            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept, acknowledged));
         }
 
         /// <summary>For an exception filter: name the file of a failed write or sync, and let it pass.</summary>
