@@ -1,5 +1,6 @@
 #if DEBUG || TESTING
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -89,6 +90,42 @@ namespace LiteDB.Tests.Regressions
             using var recovered = Recover(data, log);
             recovered.GetCollection("rows").Count().Should().Be(20, "the header is restored from its journal");
             recovered.GetCollection("late").Count().Should().Be(0);
+        }
+
+        /// <summary>
+        /// The stop a failed checkpoint begins inside the WAL writer is completed after its locks:
+        /// the engine is closed, so disposing it later runs no close-time checkpoint over the
+        /// failure, and a new engine opens the file.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Failed_checkpoint_closes_the_engine(bool ioFailure)
+        {
+            using var file = new TempFile();
+            var stages = new List<string>();
+            var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            try
+            {
+                using (var db = new LiteDatabase(engine, disposeOnClose: false))
+                {
+                    // The default checkpoint size: a normal close checkpoints.
+                    db.GetCollection("rows").Insert(Enumerable.Range(1, 20).Select(id => new BsonDocument { ["_id"] = id }));
+                    engine.CheckpointStage = stage =>
+                    {
+                        if (stage == "before-reclaim") throw ioFailure ? new IOException("injected checkpoint failure") : new InvalidOperationException("injected checkpoint failure");
+                    };
+                    Action checkpoint = () => db.Checkpoint();
+                    checkpoint.Should().Throw<Exception>().Where(x => x.Message.Contains("injected checkpoint failure"));
+                }
+                engine.CheckpointStage = stages.Add;
+                engine.Dispose();
+                stages.Should().BeEmpty("the failed checkpoint closed the engine");
+            }
+            finally { engine.Dispose(); }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").Count().Should().Be(20);
         }
 
         /// <summary>Checkpoint on a worker thread; in its window after the locks, commit on a third thread.</summary>
