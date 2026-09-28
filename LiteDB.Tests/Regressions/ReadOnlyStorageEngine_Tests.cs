@@ -65,6 +65,26 @@ namespace LiteDB.Tests.Regressions
             data.ToArray().Should().Equal(original);
         }
 
+        /// <summary>An engine opened read-only never writes, not even the invalid-state mark.</summary>
+        [Fact]
+        public void Error_close_of_a_read_only_engine_over_writable_streams_writes_nothing()
+        {
+            var (original, _) = CurrentFile(CompactStorageMode.Auto);
+            using var data = Writable(original);
+            using var log = new MemoryStream();
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, ReadOnly = true }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                engine.SimulateDiskReadFail = page => throw LiteException.InvalidDatafileState("injected damage");
+                Action query = () => db.GetCollection("rows").FindAll().ToList();
+                query.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            }
+
+            data.ToArray().Should().Equal(original);
+            log.Length.Should().Be(0);
+        }
+
         /// <summary>
         /// A v11 file (every migrated 5.0.21 file until its first compact write) must promote its
         /// format before a compact write, which storage that cannot be written cannot take: such

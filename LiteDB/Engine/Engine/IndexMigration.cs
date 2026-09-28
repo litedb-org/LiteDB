@@ -22,8 +22,8 @@ namespace LiteDB.Engine
                       "are listed in `_rebuild_errors` and a backup is kept), or read-only with `legacy index scan=true` to read " +
                       "its undamaged collections."
                     : "A stream is not rebuilt in place: copy it to a file and open that with `auto-rebuild=true` (unreadable " +
-                      "documents are listed in `_rebuild_errors`), or open the stream read-only with `legacy index scan=true` " +
-                      "to read its undamaged collections."),
+                      "documents are listed in `_rebuild_errors`), or pass a stream that cannot be written (or EngineSettings " +
+                      "ReadOnly with LegacyIndexScan) to read its undamaged collections."),
                 collection == null ? "The database" : "Collection '" + collection + "'", ex.Message);
 
         private void MigrateIndexOrdering()

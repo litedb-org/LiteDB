@@ -13,9 +13,9 @@ namespace LiteDB.Internals
     /// the WAL slots an earlier engine cleared without a durable sync. Those slots must
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
     /// reporting the weaker guarantee. Each fresh engine still makes one real sync
-    /// attempt per write. An engine proves its syncs before it first retires frames, so a
-    /// log known unable to sync makes a checkpoint retire and clear nothing; slots are cleared
-    /// without a durable sync only when the log stops syncing during that checkpoint. A second
+    /// attempt per write. Every retiring checkpoint first proves its syncs, so a log known
+    /// unable to sync makes a checkpoint retire and clear nothing; slots are cleared without a
+    /// durable sync only when the log stops syncing during that checkpoint. A second
     /// connection, which does not share the first one's diagnostic, relies on its own probe.
     /// </summary>
     public class SharedUnsyncableLog_Tests

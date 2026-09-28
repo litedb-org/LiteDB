@@ -20,9 +20,9 @@ namespace LiteDB.Tests.Regressions
     public class UnsyncableRetirement_Tests
     {
         /// <summary>
-        /// Retirement witnesses need a durable sync and a reused WAL slot a durable clear. Before an
-        /// engine first retires frames it syncs the data file, the log and the log's directory
-        /// once, so a partial checkpoint under a live reader on storage that answers "cannot sync"
+        /// Retirement witnesses need a durable sync and a reused WAL slot a durable clear. Every
+        /// retiring checkpoint first syncs the data file and the log (the log's directory once per
+        /// engine), so a partial checkpoint under a live reader on storage that answers "cannot sync"
         /// neither retires frames (no v13 promotion, no witness root, no cleared slot) nor lets
         /// later commits reuse slots - also when that checkpoint is the first to find out, and when
         /// commits opted out of syncs. Control: storage that syncs retires and reuses slots.
@@ -103,12 +103,15 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A long-lived engine retired frames while its storage synced; then the data file stops
-        /// syncing. Every retiring checkpoint proves its syncs again, so the next one retires
-        /// nothing: the witness root and the cleared slots stay as they were.
+        /// A long-lived engine retired frames while its storage synced; then the data file or the
+        /// log stops syncing (commits opted out of syncs, so only a checkpoint can find out). Every
+        /// retiring checkpoint proves its syncs again, so the next one retires nothing: the witness
+        /// root and the cleared slots stay as they were.
         /// </summary>
-        [Fact]
-        public void Storage_that_stops_syncing_after_a_retirement_retires_nothing_more()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Storage_that_stops_syncing_after_a_retirement_retires_nothing_more(bool logStops)
         {
             using var file = new TempFile();
             using (var setup = new LiteDatabase(file.Filename))
@@ -116,7 +119,7 @@ namespace LiteDB.Tests.Regressions
             var logName = FileHelper.GetLogFile(file.Filename);
             try
             {
-                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = false });
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 db.CheckpointSize = 0;
                 for (var value = 1; value <= 5; value++) Update(db, value);
@@ -131,13 +134,13 @@ namespace LiteDB.Tests.Regressions
                     root.Should().BeGreaterThan(0, "syncing storage retires frames");
                     var cleared = BlankFrames(ReadShared(logName));
 
-                    NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
+                    NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) == logStops ? 22 : 0;
                     Worker(() =>
                     {
                         for (var value = 10; value <= 13; value++) Update(db, value);
                         engine.Checkpoint();
                     });
-                    BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition).Should().Be(root, "no witness is published once the data file cannot sync");
+                    BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition).Should().Be(root, "no witness is published once storage cannot sync");
                     BlankFrames(ReadShared(logName)).Should().BeLessOrEqualTo(cleared, "no further slot is cleared");
                 }
             }

@@ -321,9 +321,10 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
-            // Storage that cannot be written cannot take the mark (and caller streams are never
-            // rebuilt): marking would only journal the header into a caller's writable log.
-            if (tc.InvalidDatafileState && !_settings.ReadOnlyStorage)
+            // A read-only engine never writes, and storage that cannot be written cannot take the
+            // mark (caller streams are never rebuilt): marking would only journal the header into
+            // a caller's writable log.
+            if (tc.InvalidDatafileState && !_settings.ReadOnly && !_settings.ReadOnlyStorage)
             {
                 // Keep the data writer alive until the recovery marker is durable.
                 tc.Catch(() => _markedForRebuild = _disk?.MarkAsInvalidState() == true);
