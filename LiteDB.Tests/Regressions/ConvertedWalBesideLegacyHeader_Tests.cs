@@ -16,6 +16,7 @@ namespace LiteDB.Tests.Regressions
     /// the data file at those positions: a 6.7 TB sparse file on Linux, "There is not enough space
     /// on the disk" on Windows, and the log deleted. The open is now refused and changes neither file.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class ConvertedWalBesideLegacyHeader_Tests
     {
         [Theory]

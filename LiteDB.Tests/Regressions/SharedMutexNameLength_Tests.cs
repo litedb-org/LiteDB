@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Regressions
@@ -21,10 +21,9 @@ namespace LiteDB.Tests.Regressions
     [Trait("Category", "RegressionSince5021")]
     public class SharedMutexNameLength_Tests
     {
-        [Fact]
+        [UnixFact]
         public void Unix_names_are_hashed_only_beyond_the_runtime_limit()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
 
             // The runtime keeps at most 255 characters after "Global\"; SharedEngine adds up to
             // ".Turn.Mutex". An escaped name of 244 characters keeps its existing identity.

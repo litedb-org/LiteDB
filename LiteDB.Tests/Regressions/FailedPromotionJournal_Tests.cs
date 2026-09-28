@@ -17,6 +17,7 @@ namespace LiteDB.Tests.Regressions
     /// in the data header). Such a failure now stops the engine before the WAL writer is released,
     /// and a failed append never truncates an outstanding journal.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class FailedPromotionJournal_Tests
     {
         [Fact]

@@ -362,6 +362,7 @@ namespace LiteDB.Engine
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
         internal bool SimulateDeferredCheckpointStop { set => _state.DeferCheckpointStop = value; }
+        internal Action SimulateAfterFailedWalWrite { set => _state.AfterFailedWalWrite = value; }
         internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
         internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
         internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }

@@ -19,6 +19,7 @@ namespace LiteDB.Tests.Regressions
     /// checkpoint now publishes the stop before it releases the WAL writer. The window is forced
     /// through the coordination signal the checkpoint raises after releasing its locks.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class CheckpointFailureWindow_Tests
     {
         [Theory]

@@ -14,6 +14,7 @@ namespace LiteDB.Tests.Regressions
     /// A committed legacy page beyond every page the data and log files can hold now fails the
     /// open, changing neither file.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class LegacyWalPageBound_Tests
     {
         [Theory]

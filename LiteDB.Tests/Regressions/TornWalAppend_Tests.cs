@@ -18,6 +18,7 @@ namespace LiteDB.Tests.Regressions
     /// Checked with a frame torn at half its length and with a complete frame whose write still
     /// reported failure, for the first and second frame written after the failure is armed.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class TornWalAppend_Tests
     {
         [Theory]

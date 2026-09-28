@@ -133,25 +133,25 @@ namespace LiteDB.Tests.Regressions
             {
                 using var data = writableData ? CopyOf(dataBytes) : new MemoryStream((byte[])dataBytes.Clone(), writable: false);
                 using var log = writableLog ? CopyOf(logBytes) : new MemoryStream((byte[])logBytes.Clone(), writable: false);
-                int expected;
-                using (var reference = new LiteEngine(new EngineSettings
+                // Independent oracle: a writable open of private copies recovers, repairs and converts.
+                string[] expected;
+                using (var reference = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = CopyOf(dataBytes), LogStream = CopyOf(logBytes) })))
                 {
-                    DataStream = new MemoryStream((byte[])dataBytes.Clone(), false), LogStream = new MemoryStream((byte[])logBytes.Clone(), false),
-                    ReadOnly = true, LegacyIndexScan = true
-                }))
-                using (var referenceDb = new LiteDatabase(reference))
-                {
-                    expected = referenceDb.GetCollection(collection).Count();
+                    expected = Documents(reference, collection);
                 }
+                expected.Should().NotBeEmpty(name);
 
                 using (var db = new LiteDatabase(data, null, log))
                 {
-                    db.GetCollection(collection).Count().Should().Be(expected, name);
+                    Documents(db, collection).Should().Equal(expected, name);
                 }
                 data.ToArray().Should().Equal(dataBytes, name);
                 log.ToArray().Should().Equal(logBytes, name);
             }
         }
+
+        private static string[] Documents(LiteDatabase db, string collection) => db.GetCollection(collection).FindAll()
+            .OrderBy(x => x["_id"]).Select(x => JsonSerializer.Serialize(x)).ToArray();
 
         private static IEnumerable<(string, byte[], byte[], string)> MigrationCrashImages()
         {

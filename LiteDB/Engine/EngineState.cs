@@ -28,6 +28,9 @@ namespace LiteDB.Engine
         // Test hook: a failed checkpoint stops the engine only after releasing its locks (the timing
         // before the stop moved inside the WAL writer), to reach defences behind that stop.
         public bool DeferCheckpointStop;
+
+        // Test hook: runs after a failed WAL write released the writer, before the engine's teardown.
+        public Action AfterFailedWalWrite;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;

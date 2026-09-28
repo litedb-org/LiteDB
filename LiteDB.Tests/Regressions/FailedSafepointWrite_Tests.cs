@@ -16,6 +16,7 @@ namespace LiteDB.Tests.Regressions
     /// every read failed ("get only index below highest index"). Such a transaction now can only
     /// roll back: a later write or Commit rolls it back and throws, and a later read throws.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     public class FailedSafepointWrite_Tests
     {
         [Theory]

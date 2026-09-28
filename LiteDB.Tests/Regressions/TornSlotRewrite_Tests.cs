@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Threading;
-using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
@@ -60,48 +59,47 @@ namespace LiteDB.Tests.Regressions
             second.Should().BeFalse();
         }
 
+#if DEBUG || TESTING
+        /// <summary>
+        /// The IOException case: a commit that reaches the WAL writer right after the failed rewrite
+        /// released it, before the engine's teardown, finds the engine stopped. A test hook runs the
+        /// commit on another thread in exactly that window.
+        /// </summary>
         [Fact]
         public void Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost()
         {
-            using var committerWaiting = new ManualResetEventSlim();
-            using var failing = new ManualResetEventSlim();
             using var data = new MemoryStream();
-            using var log = new FailingLogStream(() =>
-            {
-                failing.Set();
-                committerWaiting.Wait(TimeSpan.FromSeconds(10));
-                Thread.Sleep(300); // let the committer reach the WAL writer lock
-                throw new IOException("injected partial overwrite");
-            });
+            using var log = new FailingLogStream(() => throw new IOException("injected partial overwrite"));
             var settings = new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 2 };
 
             byte[] crashData, crashLog;
-            bool acknowledged;
+            var acknowledged = false;
+            var windowRan = false;
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 PrepareSafepointedTransaction(engine, db);
-
-                var committer = Task.Run(() =>
+                engine.SimulateAfterFailedWalWrite = () =>
                 {
-                    if (!failing.Wait(TimeSpan.FromSeconds(10))) return false;
-                    committerWaiting.Set();
-                    try
+                    engine.SimulateAfterFailedWalWrite = null;
+                    windowRan = true;
+                    var committer = new Thread(() =>
                     {
-                        db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
-                        return true;
-                    }
-                    catch (Exception)
-                    {
-                        return false;
-                    }
-                });
+                        try
+                        {
+                            db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
+                            acknowledged = true;
+                        }
+                        catch (Exception) { }
+                    });
+                    committer.Start();
+                    committer.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
+                };
 
                 log.Armed = true;
                 Action update = () => db.GetCollection("a").Update(new BsonDocument { ["_id"] = 1, ["value"] = 3 });
                 update.Should().Throw<IOException>();
-                committerWaiting.IsSet.Should().BeTrue("the committer must race the failing overwrite");
-                acknowledged = committer.Result;
+                windowRan.Should().BeTrue("the commit ran after the failed write released the WAL writer");
 
                 crashData = data.ToArray();
                 crashLog = log.ToArray();
@@ -110,8 +108,9 @@ namespace LiteDB.Tests.Regressions
             var (value, second) = Recover(crashData, crashLog);
             value.Should().Be(0);
             if (acknowledged) second.Should().BeTrue("an acknowledged commit must survive crash recovery");
-            acknowledged.Should().BeFalse("the stopped engine must refuse the waiting commit");
+            acknowledged.Should().BeFalse("the engine stopped before it released the WAL writer");
         }
+#endif
 
         private static void PrepareSafepointedTransaction(LiteEngine engine, LiteDatabase db)
         {

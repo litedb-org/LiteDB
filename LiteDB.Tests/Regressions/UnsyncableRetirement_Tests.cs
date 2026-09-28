@@ -99,7 +99,7 @@ namespace LiteDB.Tests.Regressions
             }
 
             using var reopened = new LiteDatabase(file.Filename);
-            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().HaveCount(8).And.OnlyContain(x => x == 13);
         }
 
         /// <summary>
@@ -147,7 +147,7 @@ namespace LiteDB.Tests.Regressions
             finally { NativeFileSync.SimulateErrno = null; }
 
             using var reopened = new LiteDatabase(file.Filename);
-            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().HaveCount(8).And.OnlyContain(x => x == 13);
         }
 
         /// <summary>

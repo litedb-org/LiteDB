@@ -24,7 +24,7 @@ namespace LiteDB.Tests.Regressions
     /// EncryptedWalCrash_5_0_21.zip (password "wal-secret": 65 documents, 15 with value 7 only in
     /// the WAL; 5.0.21 recovers both counts).
     /// </summary>
-    [Trait("Category", "RegressionSince5021")]
+    [Trait("Category", "IoSafety")] // guards a torn tail an earlier commit of this change introduced; passes on dev
     public class LegacyWalTornTail_Tests
     {
         [Theory]

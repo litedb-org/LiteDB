@@ -20,6 +20,7 @@ namespace LiteDB.Tests.Regressions
     /// successful sync) lost those commits. An engine now proves the data file before its first
     /// log sync of any kind.
     /// </summary>
+    [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
     public class FreshEngineLogSync_Tests
     {
