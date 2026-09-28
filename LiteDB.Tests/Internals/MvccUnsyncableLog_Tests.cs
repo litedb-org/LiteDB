@@ -8,10 +8,11 @@ using Xunit;
 namespace LiteDB.Internals
 {
     /// <summary>
-    /// #2242 under MVCC: a log that rejects every device sync keeps snapshot checkpoints,
-    /// retirement records and readers working, but never reuses reclaimed WAL slots.
-    /// Without a durable clear, a reused slot could overwrite a retired version that
-    /// unsynced data pages still depend on after a power loss, so the WAL appends like dev.
+    /// #2242 under MVCC: a log that rejects every device sync keeps snapshot checkpoints
+    /// and readers working, but never reuses reclaimed WAL slots. Without a durable clear, a
+    /// reused slot could overwrite a retired version that unsynced data pages still depend on
+    /// after a power loss, so the WAL appends like dev. Once the rejection is known, a
+    /// checkpoint also retires nothing; the checkpoint that first meets it still clears slots.
     /// </summary>
     public class MvccUnsyncableLog_Tests
     {
@@ -77,7 +78,8 @@ namespace LiteDB.Internals
         public void Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced(bool syncable)
         {
             using var data = new MemoryStream();
-            using var log = new UnsyncableLog();
+            // Commits sync; the checkpoint's first sync is rejected, after it retired frames.
+            using var log = new UnsyncableLog { Syncable = true };
             byte[] crashedData, crashedLog;
             using (var engine = Open(data, log))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
@@ -87,12 +89,14 @@ namespace LiteDB.Internals
                 Write(db, "docs", 0);
                 for (var value = 1; value <= 20; value++) Write(db, "docs", value);
                 using var reader = engine.Query("docs", new Query());
+                log.Syncable = false;
                 MvccCheckpoint_Tests.RunThread(() => engine.Checkpoint());
 
                 // A killed process: the cleared slots stay in the WAL.
                 crashedData = data.ToArray();
                 crashedLog = log.ToArray();
             }
+            BlankFrames(crashedLog).Should().NotBeEmpty("the checkpoint cleared the slots it retired");
 
             using var dataCopy = Copy(new MemoryStream(crashedData), new MemoryStream());
             using var logCopy = Copy(new MemoryStream(crashedLog), new UnsyncableLog { Syncable = syncable });
