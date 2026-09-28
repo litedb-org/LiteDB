@@ -84,6 +84,15 @@ jobs:
           name: tests-build-linux
           path: tests-build-linux.tar.gz
 
+      - name: Verify prerelease database acknowledgement guard
+        run: >-
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework net8.0
+          /p:TestingEnabled=true
+          /p:LiteDBPreDev=true
+          --filter FullyQualifiedName~PreDevRelease_Tests
+
   test-linux:
     name: Test (Linux ${{ matrix.item.display }})
     runs-on: ubuntu-latest

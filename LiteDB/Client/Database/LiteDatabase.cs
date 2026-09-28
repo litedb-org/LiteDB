@@ -51,6 +51,9 @@ namespace LiteDB
         /// </summary>
         public LiteDatabase(ConnectionString connectionString, BsonMapper mapper = null)
         {
+#if LITEDB_PREDEV
+            LiteDBPragmas.EnsurePreDevRiskAcknowledged();
+#endif
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
             var resolvedMapper = ResolveMapper(mapper);
@@ -67,6 +70,9 @@ namespace LiteDB
         /// <param name="logStream">LogStream reference </param>
         public LiteDatabase(Stream stream, BsonMapper mapper = null, Stream logStream = null)
         {
+#if LITEDB_PREDEV
+            LiteDBPragmas.EnsurePreDevRiskAcknowledged();
+#endif
             var settings = new EngineSettings
             {
                 DataStream = stream ?? throw new ArgumentNullException(nameof(stream)),
@@ -105,6 +111,9 @@ namespace LiteDB
         /// </summary>
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
+#if LITEDB_PREDEV
+            LiteDBPragmas.EnsurePreDevRiskAcknowledged();
+#endif
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
             _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
