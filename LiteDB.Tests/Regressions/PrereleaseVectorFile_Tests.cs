@@ -141,6 +141,52 @@ namespace LiteDB.Tests.Regressions
             NearestComputed(db.GetCollection("computed"), 7f).Should().Contain(7);
         }
 
+        /// <summary>
+        /// A section that decodes but names more indexes than the page lists as vector indexes (here
+        /// "embedding" and "other", beside a list without "other") is not this page's: "embedding"
+        /// gets no metadata from it, and a writable open reports it.
+        /// </summary>
+        [Fact]
+        public void Vector_section_naming_other_indexes_is_ignored()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("vectors.db");
+            WriteVectorSection(bytes, "embedding", "other");
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using (var readOnly = new LiteDatabase($"Filename={file.Filename};readonly=true;legacy index scan=true"))
+            {
+                readOnly.GetCollection("docs").Count().Should().Be(40);
+            }
+            Action open = () => new LiteDatabase(file.Filename).Dispose();
+            open.Should().Throw<LiteException>().Where(x => x.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
+                .WithMessage("*'embedding' has no vector metadata.*");
+        }
+
+        /// <summary>After the index list of the page listing "embedding", a section naming these indexes with its metadata.</summary>
+        private static void WriteVectorSection(byte[] bytes, params string[] section)
+        {
+            for (var start = 0; start < bytes.Length; start += Constants.PAGE_SIZE)
+            {
+                if (bytes[start + BasePage.P_PAGE_TYPE] != (byte)PageType.Collection) continue;
+                var page = new CollectionPage(new PageBuffer(bytes, start, 0));
+                if (page.GetCollectionIndex("embedding") == null || page.GetCollectionIndex("name") == null) continue;
+                var metadata = page.GetVectorIndexMetadata("embedding");
+                var indexes = page.GetCollectionIndexes().ToArray();
+                using var writer = new BufferWriter(new BufferSlice(bytes, start + CollectionPage.P_INDEXES, Constants.PAGE_SIZE - CollectionPage.P_INDEXES));
+                writer.Write((byte)indexes.Length);
+                foreach (var index in indexes) index.UpdateBuffer(writer);
+                writer.Write((byte)section.Length);
+                foreach (var name in section)
+                {
+                    writer.WriteCString(name);
+                    metadata.UpdateBuffer(writer);
+                }
+                return;
+            }
+            throw new InvalidOperationException("no collection page lists embedding");
+        }
+
         /// <summary>What 5.0.21's DropIndex writes: the index list without the entry, nothing after it.</summary>
         private static void DropIndexAs5021(byte[] bytes, string dropped)
         {
