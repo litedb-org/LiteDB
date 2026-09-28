@@ -85,6 +85,19 @@ namespace A
         self.assertNotIn("Two", source[one.start:one.end])
 
 
+class TreeTests(unittest.TestCase):
+    def test_reading_a_directory_does_not_desynchronize_later_reads(self):
+        from safety_fixtures import GitRepo
+        with GitRepo() as repo:
+            revision = repo.commit({"dir/a.txt": "alpha", "b.txt": "beta"})
+            tree = common.Tree(revision)
+            self.assertIsNone(tree.read("dir"))
+            self.assertIsNone(tree.read("missing.txt"))
+            self.assertEqual(tree.read("b.txt"), "beta")
+            self.assertEqual(tree.read("dir/a.txt"), "alpha")
+            tree.close()
+
+
 class HelperTests(unittest.TestCase):
     def test_blank_code_keeps_offsets_and_optionally_strings(self):
         source = 'call("x"); // note\nnext();'

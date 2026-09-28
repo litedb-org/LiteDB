@@ -88,6 +88,16 @@ class CoverageRegressionTests(unittest.TestCase):
         self.assertIn("corpus-repinned: wal:1:2", output)
         self.assertIn("expected-failure-added: wal:F", output)
 
+    def test_removing_injector_evidence_is_a_finding(self):
+        registry = ".github/safety/fault-points.json"
+        evidence = [{"test": f"{TESTS}#Keeps", "model": "exception", "proves": "p"}]
+        base = {registry: json.dumps({"hooks": [], "injectors": [{"name": "SimulateDiskWriteFail", "evidence": evidence}]})}
+        head = {registry: json.dumps({"hooks": [], "injectors": [{"name": "SimulateDiskWriteFail", "evidence": [],
+                                                                  "gap": "No longer claimed by any test."}]})}
+        code, output = self.run_check(base, head)
+        self.assertEqual(code, 1)
+        self.assertIn("fault-evidence-removed: injector:SimulateDiskWriteFail", output)
+
     def test_shrinking_a_regression_proof_guard_is_a_finding(self):
         proofs = ".github/safety/regression-proofs.json"
         guard = [f"{TESTS}#Keeps", f"{TESTS}#Removed"]

@@ -149,9 +149,12 @@ def check_provenance(entry, report, dev_ref, offline=False):
     if bad.get("kind") == "package":
         if offline:
             return
-        with urllib.request.urlopen(NUGET_INDEX, timeout=30) as response:
-            versions = set(json.load(response).get("versions", []))
-        if str(bad.get("version", "")).lower() not in versions:
+        try:
+            versions = {normalize_version(version) for version in published_versions()}
+        except (OSError, ValueError) as error:  # URLError is an OSError
+            report.error(f"{label}: could not read the NuGet index to verify the package: {error}")
+            return
+        if normalize_version(bad.get("version", "")) not in versions:
             report.error(f"{label}: LiteDB {bad.get('version')} is not a published NuGet package")
         return
     commit = str(bad.get("commit"))
@@ -198,6 +201,15 @@ def new_proofs(base, entries):
     old = {entry.get("repro"): entry for entry in load(common.Tree(base), common.Report(""))}
     return [entry for entry in entries
             if entry.get("repro") not in old or old[entry.get("repro")].get("knownBad") != entry.get("knownBad")]
+
+
+def normalize_version(version):
+    """NuGet's normalized form: lowercase, no build metadata, no leading zeros, no zero 4th part."""
+    core, _, label = str(version).lower().split("+")[0].partition("-")
+    parts = [str(int(part)) if part.isdigit() else part for part in core.split(".")]
+    if len(parts) == 4 and parts[3] == "0":
+        parts = parts[:3]
+    return ".".join(parts) + (f"-{label}" if label else "")
 
 
 def published_versions():
@@ -395,7 +407,7 @@ def main(argv=None):
                      "that fails on a real known-bad state and passes at the PR head. Scaffold one with "
                      "`python .github/scripts/regression_proof.py new --id Issue_<n>_<Name> --issue <n> "
                      "--title <title>` (see docs/rules/safety-evidence.md#regression-proofs).")
-    matrix = [matrix_item(head, entry) for entry in chosen if not report.errors]
+    matrix = [] if report.errors else [matrix_item(head, entry) for entry in chosen]  # errors prove nothing
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
         with open(output, "a", encoding="utf-8") as handle:

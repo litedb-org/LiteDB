@@ -107,10 +107,12 @@ class Tree:
         batch.stdin.write(f"{self.rev}:{path}\n".encode("utf-8"))
         batch.stdin.flush()
         header = batch.stdout.readline().decode("utf-8").split()
-        if len(header) < 3 or header[1] != "blob":
+        if len(header) < 3:  # "<name> missing"
             return None
-        content = batch.stdout.read(int(header[2]))
+        content = batch.stdout.read(int(header[2]))  # consume every object type, or the stream desyncs
         batch.stdout.read(1)
+        if header[1] != "blob":  # a directory (tree) or submodule (commit)
+            return None
         return content.decode("utf-8-sig", errors="replace")
 
     def close(self):

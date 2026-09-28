@@ -218,6 +218,15 @@ class VerifyTests(unittest.TestCase):
                 self.assertIn(expected, output)
 
 
+class VersionTests(unittest.TestCase):
+    def test_versions_compare_in_nuget_normalized_form(self):
+        cases = {"5.0.20": "5.0.20", "5.0.20.0": "5.0.20", "05.0.020": "5.0.20", "6.0.0-Prerelease.318": "6.0.0-prerelease.318",
+                 "5.0.21+build.7": "5.0.21", "1.2.3.4": "1.2.3.4"}
+        for given, expected in cases.items():
+            with self.subTest(given):
+                self.assertEqual(proof.normalize_version(given), expected)
+
+
 class PackTests(unittest.TestCase):
     def test_reversion_rewrites_only_the_package_version(self):
         directory = Path(tempfile.mkdtemp())
