@@ -14,13 +14,14 @@ namespace LiteDB.Tests.Regressions
     /// stream), the query only reported it: the explicit transaction stayed active although the
     /// failed pages had been discarded, and Commit then published the rest, a collection whose
     /// every read failed ("get only index below highest index"). Such a transaction now can only
-    /// roll back: a later write or Commit rolls it back and throws.
+    /// roll back: a later write or Commit rolls it back and throws, and a later read throws.
     /// </summary>
     public class FailedSafepointWrite_Tests
     {
         [Theory]
         [InlineData("commit")]
         [InlineData("write")]
+        [InlineData("read")]
         [InlineData("rollback")]
         public void Transaction_whose_query_safepoint_failed_to_write_only_rolls_back(string then)
         {
@@ -90,6 +91,15 @@ namespace LiteDB.Tests.Regressions
         private static void Finish(LiteDatabase db, string then)
         {
             if (then == "rollback") db.Rollback().Should().BeTrue();
+            else if (then == "read")
+            {
+                // A point read reaches no safepoint: it used the snapshots whose pages the failed
+                // write discarded, and could return a document of another collection.
+                Action read = () => db.GetCollection("rows").FindById(1);
+                read.Should().Throw<LiteException>().WithMessage("*can only be rolled back*");
+                Action commit = () => db.Commit();
+                commit.Should().Throw<LiteException>().WithMessage("*can only be rolled back*");
+            }
             else if (then == "write")
             {
                 Action write = () => db.GetCollection("rows").Insert(Row(5));

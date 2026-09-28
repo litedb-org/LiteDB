@@ -87,6 +87,9 @@ namespace LiteDB.Engine
         public Snapshot CreateSnapshot(LockMode mode, string collection, bool addIfNotExists)
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
+            // Its snapshots still name pages the failed write handed to the disk writer: a point read
+            // (no safepoint) could return another page's document. Only Rollback may use it now.
+            if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
 
             Snapshot create() => new Snapshot(mode, collection, _header, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
