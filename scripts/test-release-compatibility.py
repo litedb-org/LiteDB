@@ -33,7 +33,12 @@ actual = {(item["version"], item["variant"]) for item in manifest["fixtures"]}
 if actual != {(v, variant) for v in expected for variant in ("plain", "encrypted")} or len(manifest["fixtures"]) != 56:
     raise RuntimeError("Incomplete/duplicate release inventory")
 project = root / "tools/ReleaseCompatibility/Current/Current.csproj"
-subprocess.run(["dotnet", "build", str(project), "-c", "Release", "-p:TestingEnabled=true"], check=True)
+build_timeout = 300
+try:
+    subprocess.run(["dotnet", "build", str(project), "-c", "Release", "-p:TestingEnabled=true"],
+                   check=True, timeout=build_timeout)
+except subprocess.TimeoutExpired:
+    raise SystemExit(f"Release compatibility build timed out after {build_timeout} seconds.") from None
 runner = project.parent / "bin/Release/net8.0/Current.dll"
 for fixture in manifest["fixtures"]:
     archive = read(fixture["archive"])
