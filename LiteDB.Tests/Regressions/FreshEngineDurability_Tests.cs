@@ -147,6 +147,7 @@ namespace LiteDB.Tests.Regressions
                 power.DataSyncs.Should().Be(0, "every operation found the header the setup left durable");
                 DurableLogFlush(db).Should().BeTrue();
             }
+            power.DataSyncs.Should().Be(1, "only $database's walKept tried a data sync; closing added none");
             for (var id = 9; id <= 11; id++)
             {
                 using var direct = new LiteDatabase(file.Filename);

@@ -115,6 +115,8 @@ namespace LiteDB.Engine
                 // after a power loss stop at the cleared slot and discard every later commit.
                 // Keep the retired frames: while the root names them, reads skip them.
                 if (this.FlushDegraded) return;
+                // A cleared slot's frame is gone like an emptied WAL's: only behind a covering data sync.
+                this.RequireDataWritesSynced("a checkpoint");
                 var empty = new byte[ChecksumsEnabled ? WalChecksum.FrameSize : PAGE_SIZE];
                 var target = ChecksumsEnabled ? ((ChecksummedWalStream)stream).RawStream : stream;
                 foreach (var position in positions)

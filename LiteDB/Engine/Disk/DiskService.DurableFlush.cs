@@ -345,7 +345,11 @@ namespace LiteDB.Engine
             catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
         }
 
-        /// <summary>Sync the data file as a barrier. Caller holds the log writer lock (order: log, then data).</summary>
+        /// <summary>
+        /// Sync the data file as a barrier, under the data writer's lock. A caller that also takes the
+        /// log writer's lock takes it first (order: log, then data); an open, a conversion and
+        /// <see cref="DataFileSyncs"/> before the WAL writer exists take only the data writer's.
+        /// </summary>
         private void SyncDataFile()
         {
             this.UseDataWriter(this.SyncDataBarrier);

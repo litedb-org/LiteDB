@@ -32,7 +32,9 @@ namespace LiteDB.Tests.Regressions
         /// lock, so they moved the shared data writer under the paused read: the checkpoint failed
         /// ("The stream ended before the requested data was read") and stopped the engine, and a new
         /// header could land at another offset. The rotation now waits for the data writer's lock; the
-        /// checkpoint completes and the database reopens with every row.
+        /// checkpoint completes and the database reopens with every row. (The sync is called directly:
+        /// DataFileSyncs takes only the data writer's lock while the WAL writer does not exist yet, a
+        /// window a checkpoint that creates the writer can overlap but a test cannot hit reliably.)
         /// </summary>
         [Fact]
         public void Data_sync_outside_the_wal_writer_lock_waits_for_the_salt_rotation()
@@ -111,6 +113,38 @@ namespace LiteDB.Tests.Regressions
             db.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, documents).Select(Compact), o => o.WithStrictOrdering());
             SyncPowerLossModel.ReadShared(file.Filename).Take(PAGE_SIZE).ToArray()[HeaderPage.P_FILE_VERSION]
                 .Should().BeLessThan(HeaderPage.COMPACT_FILE_VERSION);
+        }
+
+        /// <summary>
+        /// The log shrinks only behind a data sync of this engine that covered every data write it made
+        /// (DiskService.ShrinkLog): an engine that has not synced the data file yet (an earlier engine
+        /// may have left writes in the OS cache), and one with a data write no sync covered, stop with
+        /// "stopped syncing" before the log changes; after a covering data sync the log shrinks.
+        /// </summary>
+        [Fact]
+        public void Log_shrinks_only_behind_a_data_sync_that_covered_every_data_write()
+        {
+            using var file = new TempFile();
+            using (var setup = new LiteDatabase(file.Filename))
+                setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            var disk = (DiskService)typeof(LiteEngine).GetField("_disk", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(engine);
+            using var log = new MemoryStream(new byte[100]);
+
+            Action shrink = () => disk.ShrinkLog(log, 50, "a test");
+            shrink.Should().Throw<IOException>().WithMessage("The data file stopped syncing*", "this engine has not synced the data file");
+            log.Length.Should().Be(100);
+            disk.DataFileSyncs().Should().BeTrue();
+            shrink.Should().NotThrow();
+            log.Length.Should().Be(50);
+
+            typeof(DiskService).GetMethod("CountDataWrite", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(disk, null);
+            Action again = () => disk.ShrinkLog(log, 20, "a test");
+            again.Should().Throw<IOException>().WithMessage("The data file stopped syncing*", "no data sync covered the latest data write");
+            log.Length.Should().Be(50);
+            disk.DataFileSyncs().Should().BeTrue();
+            again.Should().NotThrow();
+            log.Length.Should().Be(20);
         }
 
         private static void Update(LiteDatabase db, int value) =>

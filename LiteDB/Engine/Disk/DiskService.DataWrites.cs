@@ -9,7 +9,7 @@ namespace LiteDB.Engine
         // Writes this engine made to the data file, and how many of them its latest successful data
         // sync covered: -1 before its first one, since an earlier engine or process may have left
         // writes in the OS cache. Both change under the data writer's lock (UseDataWriter,
-        // SyncDataBarrier); ShrinkLog reads them under the WAL writer's.
+        // SyncDataBarrier); ShrinkLog reads them atomically, with or without the WAL writer's lock.
         private long _dataWrites, _dataWritesSynced = -1;
 
         /// <summary>
@@ -55,18 +55,29 @@ namespace LiteDB.Engine
         /// </summary>
         internal void ShrinkLog(Stream log, long length, string operation)
         {
-            if (log.Length > length) this.RequireDataWritesSynced(operation);
+            // An outstanding header journal is retired with it, also where the log keeps its length.
+            if (log.Length > length || _checksums.JournalBytes != 0) this.RequireDataWritesSynced(operation);
             log.SetLength(length);
         }
 
-        /// <summary>Empty the WAL through the same check as <see cref="ShrinkLog"/>, and reset its positions.</summary>
+        /// <summary>
+        /// Empty the log through the same check as <see cref="ShrinkLog"/>, and reset its positions. The
+        /// raw log counts, not only its WAL frames: a conversion's log holds the legacy header backup and
+        /// the conversion journal after its drain emptied the WAL.
+        /// </summary>
         internal void EmptyLog(string operation)
         {
-            if (this.GetFileLength(FileOrigin.Log) > 0) this.RequireDataWritesSynced(operation);
+            var raw = _writer.IsValueCreated ? (_writer.Value as ChecksummedWalStream)?.RawStream ?? _writer.Value : null;
+            if (this.GetFileLength(FileOrigin.Log) > 0 || _checksums.JournalBytes != 0 || (raw?.Length ?? 0) > 0)
+                this.RequireDataWritesSynced(operation);
             this.SetLength(0, FileOrigin.Log);
         }
 
-        private void RequireDataWritesSynced(string operation)
+        /// <summary>
+        /// Stop (<see cref="DataStoppedSyncing"/>) unless a successful data sync of this engine covered
+        /// every data write it made: also before clearing retired WAL slots (ReclaimLogPages).
+        /// </summary>
+        internal void RequireDataWritesSynced(string operation)
         {
             if (_volatileLog) return;
             if (Interlocked.Read(ref _dataWritesSynced) < Interlocked.Read(ref _dataWrites)) throw DataStoppedSyncing(operation);
