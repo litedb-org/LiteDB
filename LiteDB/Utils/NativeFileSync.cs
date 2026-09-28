@@ -52,7 +52,7 @@ namespace LiteDB
             if (simulate != null)
             {
                 stream.Flush(true);
-                var injected = simulate(stream.Name);
+                var injected = simulate(Engine.SharedFileHandles.PathOf(stream));
                 if (injected != 0) throw new FileSyncException(stream.Name, injected, _bsd);
                 return;
             }

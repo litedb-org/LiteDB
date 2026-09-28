@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
@@ -16,6 +17,7 @@ namespace LiteDB.Engine
 
         private readonly bool _durableCommits;
         private readonly SharedDurabilityState _sharedDurability;
+        private readonly bool _dataIsFile;
         private volatile bool _logFlushDegraded;
 
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
@@ -23,6 +25,10 @@ namespace LiteDB.Engine
 
         // Set once this engine proved what reusing a WAL slot needs (see ProveSlotReuse).
         private volatile bool _slotReuseProven;
+
+        // Set by this engine's first successful data barrier: whatever earlier engines left in the
+        // data file's OS cache is durable since (see ProveDataFile).
+        private volatile bool _dataSyncProven;
 
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
         // false after "cannot sync" (#2242).
@@ -127,6 +133,7 @@ namespace LiteDB.Engine
                 return;
             }
 
+            if (!_dataSyncProven && _dataIsFile) this.ProveDataFile();
             this.SyncLogBarrier(stream);
             // The WAL may have been created (or recreated after a checkpoint deleted it) by
             // this or a crashed engine: make its name durable before a commit depends on it.
@@ -177,10 +184,47 @@ namespace LiteDB.Engine
             // An unverifiable log sync proves nothing. A failed proof leaves the engine degraded,
             // so a retry per allocation costs no sync.
             if (this.FlushDegraded || this.LogSyncUnverified) return false;
-            var data = _dataPool.Writer.Value;
-            lock (data) this.SyncDataBarrier(data);
+            if (!_dataSyncProven) this.SyncDataFile();
             if (!this.FlushDegraded) this.SyncRawLog();
             return _slotReuseProven = !this.FlushDegraded;
+        }
+
+        /// <summary>
+        /// A commit also depends on the data file, where an earlier engine, maybe of another
+        /// connection or process, may have left a header in the OS cache only: a data file that
+        /// answered "cannot sync" (#2242) for a salt rotation, a retirement root or a format
+        /// conversion. Before this engine first acknowledges a commit as durable, make it durable;
+        /// a "cannot sync" answer degrades this engine's commits instead. Only a header change can
+        /// make earlier WAL content obsolete (a checkpoint that does not change it keeps every
+        /// frame), so a shared connection whose latest data sync left this exact header skips it.
+        /// Caller streams are the caller's to share. Caller holds the log writer lock.
+        /// </summary>
+        private void ProveDataFile()
+        {
+            var data = _dataPool.Writer.Value;
+            lock (data)
+            {
+                var durable = _sharedDurability?.DurableHeader;
+                if (durable != null && ReadDataHeader(data).SequenceEqual(durable)) _dataSyncProven = true;
+                else this.SyncDataBarrier(data);
+            }
+        }
+
+        /// <summary>Sync the data file as a barrier. Caller holds the log writer lock (order: log, then data).</summary>
+        private void SyncDataFile()
+        {
+            var data = _dataPool.Writer.Value;
+            lock (data) this.SyncDataBarrier(data);
+        }
+
+        private static byte[] ReadDataHeader(Stream data)
+        {
+            var position = data.Position;
+            var header = new byte[PAGE_SIZE];
+            data.Position = 0;
+            data.ReadRequired(header, 0, PAGE_SIZE);
+            data.Position = position;
+            return header;
         }
 
         /// <summary>
@@ -215,7 +259,8 @@ namespace LiteDB.Engine
             try
             {
                 data.FlushToDisk();
-                _dataBarrierSynced = true;
+                _dataBarrierSynced = _dataSyncProven = true;
+                if (_sharedDurability != null && _dataIsFile) _sharedDurability.DurableHeader = ReadDataHeader(data);
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

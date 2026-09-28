@@ -55,6 +55,7 @@ namespace LiteDB.Engine
             try
             {
                 _dataFactory = settings.CreateDataFactory();
+                _dataIsFile = _dataFactory is FileStreamFactory;
                 _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);
