@@ -560,9 +560,10 @@ jobs:
     needs: [safety-policy, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Artifacts of the current run download with the runner's own token; fork PRs
+    # grant no `actions` scope, and requesting it fails the whole workflow.
     permissions:
       contents: read
-      actions: read
 
     steps:
       - name: Check out repository
