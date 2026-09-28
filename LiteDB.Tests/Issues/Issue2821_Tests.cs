@@ -35,8 +35,16 @@ namespace LiteDB.Tests.Issues
             using (File.Open(file.Filename, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
         }
 
+        /// <summary>
+        /// A disk-full failure of a commit's log write is sticky (decision 6 and default B of
+        /// docs/decisions/durability-policy.md): after the fault cleared, the same instance continues
+        /// read-only. It reads the acknowledged row, reports the failure in $database, and refuses the
+        /// next write before it touches the storage, with an error that says the database must be
+        /// reopened (not that the disk is still full) and carries the original I/O failure. A reopen
+        /// retries: the reopened database accepts writes again.
+        /// </summary>
         [Fact]
-        public void Closed_instance_explains_recovery_after_a_transient_disk_full_failure()
+        public void Read_only_instance_explains_recovery_after_a_transient_disk_full_failure()
         {
             using var data = new MemoryStream();
             using var log = new DiskFullStream();
@@ -49,21 +57,36 @@ namespace LiteDB.Tests.Issues
                 rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" });
                 log.FailNextWrite = true;
                 Action write = () => rows.Insert(new BsonDocument { ["_id"] = 2, ["value"] = "not committed" });
-                write.Should().Throw<IOException>().WithMessage("injected disk full");
+                var failure = write.Should().Throw<IOException>().WithMessage("injected disk full").Which;
                 log.FailNextWrite.Should().BeFalse("the simulated storage fault has cleared");
                 log.Failures.Should().Be(1);
 
-                subsequent = Record.Exception(() => rows.Count());
+                rows.FindAll().Select(row => row["_id"].AsInt32).Should().Equal(1);
+                rows.FindById(1)["value"].AsString.Should().Be("acknowledged");
+                var info = db.GetCollection("$database").FindAll().Single();
+                info["readOnly"].AsBoolean.Should().BeTrue("the failure is sticky until the database is reopened");
+                info["writeFailure"]["operation"].AsString.Should().Be("A commit");
+                info["writeFailure"]["error"].AsString.Should().Be("injected disk full");
+
+                var bytes = (Data: data.ToArray(), Log: log.ToArray());
+                subsequent = Record.Exception(() => rows.Insert(new BsonDocument { ["_id"] = 3, ["value"] = "refused" }));
                 log.Failures.Should().Be(1, "the subsequent error is engine state, not another disk failure");
+                data.ToArray().Should().Equal(bytes.Data, "the refused write touches nothing");
+                log.ToArray().Should().Equal(bytes.Log);
+                subsequent.Should().BeOfType<IOException>().Which.Message.Should().Be(LiteEngine.WriteFailedPrefix + info["readOnlyReason"].AsString);
+                subsequent.InnerException.Should().BeSameAs(failure, "the original I/O cause must remain available");
+                rows.FindAll().Select(row => row["_id"].AsInt32).Should().Equal(1);
             }
 
-            // The documented recovery is dispose/reopen. Check it before the diagnostic
-            // assertion so a misleading error cannot hide lost data or leaked state.
+            // The documented recovery is dispose/reopen: a reopen retries (default B) and accepts
+            // writes again. Check it before the diagnostic assertion so a misleading error cannot
+            // hide lost data or leaked state.
             using (var recovered = new LiteDatabase(new LiteEngine(settings)))
             {
                 var rows = recovered.GetCollection("rows");
                 rows.FindAll().Select(row => row["_id"].AsInt32).Should().Equal(1);
                 rows.FindById(1)["value"].AsString.Should().Be("acknowledged");
+                recovered.GetCollection("$database").FindAll().Single()["writeFailure"].IsNull.Should().BeTrue("a reopen retries");
                 rows.Insert(new BsonDocument { ["_id"] = 3, ["value"] = "recovered" });
             }
             using (var reopened = new LiteDatabase(new LiteEngine(settings)))
@@ -73,10 +96,8 @@ namespace LiteDB.Tests.Issues
                 rows.FindById(3)["value"].AsString.Should().Be("recovered");
             }
 
-            Assert.NotNull(subsequent);
-            var diagnostic = subsequent.Message.ToLowerInvariant();
-            (diagnostic.Contains("closed") || diagnostic.Contains("reopen") || diagnostic.Contains("recreat"))
-                .Should().BeTrue("the user must be told the engine needs reopening after I/O failure, rather than that the disk is still full");
+            subsequent.Message.ToLowerInvariant().Should().Contain("reopen",
+                "the user must be told the database needs reopening after an I/O failure, rather than that the disk is still full");
             subsequent.ToString().Should().Contain("injected disk full", "the original I/O cause must remain available");
         }
 
