@@ -90,7 +90,9 @@ namespace LiteDB.Tests.Regressions
             try
             {
                 armed = true;
-                var reopen = Task.Run(() => Record.Exception(() => rows.Count()));
+                // A call that pins no page once the engine reopened: a query would go on reading the
+                // reopened engine while Dispose closes it, a use after dispose that can leave a page pinned.
+                var reopen = Task.Run(() => Record.Exception(() => engine.Pragma(Pragmas.USER_VERSION)));
                 reopening.Wait(10000).Should().BeTrue();
                 var dispose = Task.Run(engine.Dispose);
                 dispose.Wait(300).Should().BeFalse("Dispose waits for the reopen that already started");
