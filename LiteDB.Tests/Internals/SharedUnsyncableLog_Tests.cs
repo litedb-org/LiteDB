@@ -13,19 +13,23 @@ namespace LiteDB.Internals
     /// the WAL slots an earlier engine cleared without a durable sync. Those slots must
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
     /// reporting the weaker guarantee. Each fresh engine still makes one real sync
-    /// attempt per write: its reuse probe, after which its commit flushes without one.
+    /// attempt per write. Once the log is known unable to sync, a checkpoint retires and
+    /// clears nothing: without reuse, clearing would only add unsynced writes.
     /// </summary>
     public class SharedUnsyncableLog_Tests
     {
         private const int DocumentCount = 64; // Streams past the shared buffered-result budget.
         private const int LaterWrites = 5;
 
-        [Fact]
-        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync()
+        [Theory]
+        [InlineData(false)] // the checkpoint's own sync finds out and clears slots
+        [InlineData(true)]  // earlier commits found out: the checkpoint clears nothing
+        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync(bool knownBeforeCheckpoint)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
-            using var log = new SyncFile(file.Filename + "-wal") { Failure = new UnauthorizedAccessException("sync unsupported") };
+            var unsupported = new UnauthorizedAccessException("sync unsupported");
+            using var log = new SyncFile(file.Filename + "-wal") { Failure = knownBeforeCheckpoint ? unsupported : null };
             using var engine = new SharedEngine(new EngineSettings
             {
                 Filename = file.Filename, DataStream = data, LogStream = log,
@@ -41,12 +45,14 @@ namespace LiteDB.Internals
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
             int[] cleared = null;
+            log.Failure = unsupported;
             MvccCheckpoint_Tests.RunThread(() =>
             {
                 db.Checkpoint();
                 cleared = BlankFrames(ReadAll(log));
             });
-            cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
+            if (knownBeforeCheckpoint) cleared.Should().BeEmpty("storage known unable to sync never retires frames");
+            else cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
             IsDurable(db).Should().BeFalse();
 
             var rejectedBefore = log.RejectedSyncs;

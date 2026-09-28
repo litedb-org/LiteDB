@@ -50,6 +50,13 @@ namespace LiteDB.Engine
         private bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
         /// <summary>
+        /// Some storage of this database answered "cannot sync" (#2242), in this engine or, in
+        /// shared mode, an earlier one. Retirement witnesses need a durable sync and reused
+        /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
+        /// </summary>
+        internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
+
+        /// <summary>
         /// Flush a confirmed WAL batch: to the device, or to the OS cache only when the caller opted out.
         /// Caller holds the log writer lock.
         /// </summary>
@@ -166,7 +173,7 @@ namespace LiteDB.Engine
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 data.Flush();
-                if (_sharedDurability != null) _sharedDurability.Degraded = true;
+                if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
                 if (_dataFlushDegraded) return;
                 _dataFlushDegraded = true;
                 LOG($"data storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); checkpoints now flush to the OS cache only", "DISK");
@@ -175,7 +182,7 @@ namespace LiteDB.Engine
 
         private void MarkLogFlushDegraded(Exception ex)
         {
-            if (_sharedDurability != null) _sharedDurability.Degraded = true;
+            if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
             if (_logFlushDegraded) return;
             _logFlushDegraded = true;
             LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");

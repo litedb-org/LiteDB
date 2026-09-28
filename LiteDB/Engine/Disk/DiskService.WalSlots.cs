@@ -76,7 +76,7 @@ namespace LiteDB.Engine
             // Storage that cannot sync (#2242) never reuses slots; see ReclaimLogPages.
             // A fresh engine (every shared-mode operation) has not yet learned that, so it
             // proves one log sync before reusing slots found at open.
-            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !_logFlushDegraded &&
+            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !this.FlushDegraded &&
                 _freeLogPositions.Count > 0 && this.ProveLogSync())
             {
                 // v8 engines backfill in physical order. Preserve increasing
@@ -122,7 +122,7 @@ namespace LiteDB.Engine
                 // Storage that cannot sync (#2242) keeps appending like dev: without a
                 // durable clear, reusing a slot could overwrite a retired version that
                 // unsynced data pages still depend on after a power loss.
-                if (_logFlushDegraded || _dataFlushDegraded) return;
+                if (this.FlushDegraded) return;
                 foreach (var position in positions) _freeLogPositions.Add(position);
                 this.CheckpointStage("wal-slots-published");
             }
