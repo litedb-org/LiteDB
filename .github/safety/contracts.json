@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "description": "A small index of high-value safety contracts and the executable evidence that claims each one. It links to the normative rules and design documents instead of restating them. Maintained by .github/scripts/check_contracts.py; see docs/rules/safety-evidence.md.",
+  "models": {
+    "exception": "An API or I/O operation fails; cleanup and unwinding run.",
+    "process-death": "The process or owner dies without graceful disposal; the OS cache, surviving processes and locks remain.",
+    "modeled-power-loss": "A fault-model stream or device keeps only durable bytes: lost, torn or reordered unsynced writes.",
+    "device": "An actual OS/VM reset or physical-device campaign; never inferred from a process-kill test.",
+    "corrupt-input": "Damaged or unsupported persisted input is detected, diagnosed and not silently accepted."
+  },
+  "contracts": [
+    {
+      "id": "durable-ack",
+      "title": "Acknowledged durable transactions survive within the stated fault model",
+      "docs": [
+        "docs/rules/data-safety.md#the-engine-must-not-corrupt-its-own-database",
+        "docs/storage-stack-safety.md#fault-model-and-operational-limits"
+      ],
+      "paths": [
+        "LiteDB/Engine/Disk/**",
+        "LiteDB/Engine/Pages/**",
+        "LiteDB/Engine/Services/Transaction*.cs",
+        "LiteDB/Engine/Services/WalIndexService*.cs",
+        "LiteDB/Engine/Engine/Transaction*.cs",
+        "LiteDB/Engine/LiteEngine.cs",
+        "LiteDB/Engine/EngineState.cs",
+        "LiteDB/Engine/EngineSettings.cs",
+        "LiteDB/Utils/NativeFileSync.cs",
+        "LiteDB/Client/Shared/**",
+        "LiteDB/Client/Storage/**"
+      ],
+      "evidence": [
+        {"fuzz": "power-loss", "model": "modeled-power-loss", "proves": "Each operation's acknowledgment is recorded outside the engine; after a cut only the in-flight operation may resolve to old or new, and complete documents and FileStorage bytes are compared."},
+        {"test": "LiteDB.Tests/Internals/WalPowerLoss_Tests.cs#SectorTearsOfNewAppends_PreserveAcknowledgedPrefix", "model": "modeled-power-loss", "proves": "Sector tears of new WAL appends keep every acknowledged commit before them."},
+        {"test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes", "model": "modeled-power-loss", "proves": "A rooted full checkpoint cut at each phase keeps complete payloads, secondary-index results and untouched data."},
+        {"test": "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#FailedCheckpointSync_PreservesAtomicDataAndStopsWrites", "model": "exception", "proves": "A failed checkpoint sync performs zero data writes and stops later writes instead of acknowledging them."},
+        {"test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership", "model": "exception", "proves": "Device failures at the Shared commit barrier recover whole transactions and release writer ownership."},
+        {"fuzz": "shared", "model": "process-death", "proves": "Child processes die at the reached hook; the parent requires the matching durable intent marker and verifies the recovered state."},
+        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."}
+      ],
+      "gaps": [
+        {"text": "No OS/VM reset or physical-device campaign: the device model is unclaimed."},
+        {"text": "Storage that cannot sync (#2242) is covered for its documented process-crash guarantee only; it makes no power-loss claim."}
+      ]
+    },
+    {
+      "id": "recovery-generation",
+      "title": "Recovery never combines incompatible data and WAL generations",
+      "docs": [
+        "docs/rules/storage-ownership.md#wal-rebuild-and-filestorage",
+        "docs/rebuild-recovery.md",
+        "docs/storage-stack-safety.md#v10-checksums-wal-proofs-and-header-publication"
+      ],
+      "paths": [
+        "LiteDB/Engine/Services/Rebuild*.cs",
+        "LiteDB/Engine/Engine/Rebuild.cs",
+        "LiteDB/Engine/Engine/Recovery.cs",
+        "LiteDB/Engine/Engine/Upgrade.cs",
+        "LiteDB/Engine/Disk/**",
+        "LiteDB/Engine/Services/WalIndexService*.cs",
+        "LiteDB/Engine/FileReader/**",
+        "LiteDB/Client/Shared/SharedCoordination*.cs"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract", "model": "exception", "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state (#2978)."},
+        {"test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point", "model": "exception", "proves": "Escape guard: the hit list of a successful rebuild equals the registered install faults, so a new fault point cannot be left out of the matrix."},
+        {"test": "LiteDB.Tests/Issues/Issue2967_Tests.cs#Failed_password_rebuild_restores_the_original_data_and_wal_pair", "model": "exception", "proves": "A failed password rebuild restores the original data file together with its own WAL."},
+        {"test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens", "model": "exception", "proves": "Repeated recovery failures keep Shared reuse and fresh opens blocked instead of admitting a stale original."},
+        {"test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal", "model": "modeled-power-loss", "proves": "Header recovery interrupted again at each repair phase keeps the journal that selects the generation."},
+        {"fuzz": "rebuild-transition", "model": "exception", "proves": "All backup and install gates are faulted while rebuilding indexes/FileStorage and changing passwords."}
+      ],
+      "gaps": [
+        {"text": "Directory-entry persistence of the rebuild marker and renames is not modeled (#3011); the install matrix is not power-loss evidence."}
+      ]
+    },
+    {
+      "id": "reader-snapshot",
+      "title": "Readers retain their admitted snapshot across writes and reclamation",
+      "docs": [
+        "docs/rules/storage-ownership.md#transaction-and-cursor-lifetime",
+        "docs/storage-stack-safety.md#v13-snapshot-checkpointing-and-retirement"
+      ],
+      "paths": [
+        "LiteDB/Engine/Services/Snap*.cs",
+        "LiteDB/Engine/Services/WalIndexService*.cs",
+        "LiteDB/Engine/Services/Transaction*.cs",
+        "LiteDB/Engine/Services/LockService.cs",
+        "LiteDB/Engine/Engine/SnapshotAdvance.cs",
+        "LiteDB/Engine/Disk/DiskService.WalSlots.cs",
+        "LiteDB/Engine/Disk/DiskService.Retirement.cs",
+        "LiteDB/Engine/Disk/MemoryCache*.cs",
+        "LiteDB/Client/Shared/**",
+        "LiteDB/Client/Coordinated/**",
+        "LiteDB/Document/DataReader/**"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Tests/Internals/MvccReclamationRace_Tests.cs#AResolvedButUnreadWalOffsetCannotBeReclaimed", "model": "exception", "proves": "A WAL offset a reader resolved but has not read yet is never reclaimed under a concurrent checkpoint."},
+        {"test": "LiteDB.Tests/Internals/MvccCursorModel_Tests.cs#LongLivedCursorsAcrossCheckpoints_MatchModel", "proves": "Long-lived cursors across partial checkpoints return exactly what an independent model predicts."},
+        {"test": "LiteDB.Tests/Engine/SharedReaderModel_Tests.cs#InterleavedSharedInstances_ReadersMatchModel", "proves": "Held readers of interleaved Shared instances match an independent model."},
+        {"test": "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Pin_owner_hands_off_to_each_repeated_waiter", "proves": "Each attempt observes ready, fresh-owner update and re-pin, release and completion, so every handoff is a real one (#3033)."},
+        {"test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery", "model": "process-death", "proves": "A reclaimer killed mid-reclamation cannot invalidate another process's live reader or the reused-slot recovery."},
+        {"fuzz": "threaded-snapshot", "proves": "Holds N and N+1 readers while two writers demonstrably complete, then overlaps checkpoint and slot reuse and checks all three versions."},
+        {"fuzz": "transaction-gate", "proves": "Transaction admission overlaps checkpoints and readers under forced interleavings."},
+        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."}
+      ],
+      "gaps": [
+        {"text": "Shared reader lease files have observer stages only; no registered fault point interrupts lease publication or expiry."}
+      ]
+    },
+    {
+      "id": "historical-input",
+      "title": "Supported historical inputs preserve their documented behavior",
+      "docs": [
+        "docs/rules/compatibility.md#establish-the-boundary",
+        "docs/rules/data-safety.md#make-upgrades-atomic-and-repeatable",
+        "docs/storage-stack-safety.md#separate-process-format-boundaries"
+      ],
+      "paths": [
+        "LiteDB/Engine/FileReader/**",
+        "LiteDB/Engine/Engine/IndexMigration*.cs",
+        "LiteDB/Engine/Engine/Upgrade.cs",
+        "LiteDB/Engine/Services/Snapshot.FileVersion.cs",
+        "LiteDB/Engine/Services/Snapshot.IndexMigration.cs",
+        "LiteDB/Engine/Disk/DiskService.FileVersion.cs",
+        "LiteDB/Engine/Disk/DiskService.Checksums.cs",
+        "LiteDB/Engine/Disk/HeaderJournal*.cs",
+        "LiteDB/Engine/Disk/Serializer/**",
+        "LiteDB/Engine/Pages/**",
+        "LiteDB/Engine/Storage/**",
+        "LiteDB/Document/Bson/**",
+        "LiteDB.Tests/Resources/**",
+        "scripts/test-*-compatibility.py",
+        "tools/*Compatibility/**"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Tests/Engine/IndexMigrationPowerLoss_Tests.cs#Released_indexes_survive_power_loss_and_another_interrupted_recovery", "model": "modeled-power-loss", "proves": "Indexes written by the released 5.0.21 package survive migration power loss and a second interrupted recovery, with complete payloads and index plans."},
+        {"test": "LiteDB.Tests/Internals/LazyChecksumMigration_Tests.cs#CutoverChangesOnlyHeader_ThenWritesMigratePagesOutOfOrder", "model": "exception", "proves": "The checksum cutover changes only the header; later writes migrate pages in any order."},
+        {"script": "scripts/test-v9-compatibility.py", "proves": "An actual v9 predecessor creates vector/scalar indexes and clean/dirty WAL; the current engine migrates through every layer and v9 rejects the result."},
+        {"script": "scripts/test-index-compatibility.py", "proves": "Released 5.0.21 creates genuine old indexes; the current engine migrates them and the released reader refuses the promoted format."},
+        {"script": "scripts/test-parent-format-compatibility.py", "model": "corrupt-input", "proves": "Pinned actual v10/v11 predecessors reject newer fixtures without changing the data file or WAL."},
+        {"script": "scripts/test-mvcc-compatibility.py", "model": "corrupt-input", "proves": "The pinned actual v12 predecessor rejects v13 retained-WAL fixtures without changing either file."},
+        {"fuzz": "compatibility", "model": "exception", "proves": "Plain/encrypted v4/v7 fixtures are upgraded with every publication phase interrupted and resumed, then extended with indexes, FileStorage, dirty WAL and read-only opens."}
+      ],
+      "gaps": [
+        {"text": "No declared policy for published prerelease packages and their files (#3034, Phase A)."},
+        {"text": "Fixtures lack provenance manifests (producer, recipe, hashes, expected outcome)."}
+      ]
+    },
+    {
+      "id": "query-meaning",
+      "title": "Query and mapping paths preserve meaning",
+      "docs": [
+        "docs/rules/query-execution.md#rewrites-must-preserve-results-and-failures",
+        "docs/rules/query-expressions.md#translation-and-observable-semantics",
+        "docs/rules/mapping-serialization.md#preserve-the-selected-contract"
+      ],
+      "paths": [
+        "LiteDB/Engine/Query/**",
+        "LiteDB/Engine/Sort/**",
+        "LiteDB/Engine/Services/IndexService.cs",
+        "LiteDB/Engine/Services/VectorIndexService*.cs",
+        "LiteDB/Document/**",
+        "LiteDB/Client/Mapper/**",
+        "LiteDB/Client/SqlParser/**",
+        "LiteDB/Client/Database/Collections/**",
+        "LiteDB/Client/Database/LiteQueryable*.cs",
+        "LiteDB/Client/Database/LiteRepository*.cs",
+        "LiteDB/Client/Database/QueryAggregateExpressions.cs",
+        "LiteDB/Client/Database/LiteGrouping.cs"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Tests/Query/RangeUnionOptimization_Tests.cs#Merged_ranges_match_unindexed_results_in_both_directions", "proves": "Merged index ranges return exactly the unindexed results in both directions."},
+        {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
+        {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},
+        {"fuzz": "sql-dml", "proves": "Generated SQL statements are executed differentially against a full state model."},
+        {"fuzz": "mapper", "proves": "The first serialization is compared with an independently constructed BSON tree."}
+      ],
+      "gaps": [
+        {"text": "Cached and uncached paths share one translator; CLR evaluation is the independent oracle only where semantics align."}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "description": "Coverage accounting. 'quarantine' lists tests that no CI leg executes, each with an owner, a review date and the gap it leaves; the Safety evidence job fails on any other never-executed test. 'dispositions' explain removed or weakened coverage; check_coverage_regression.py accepts only dispositions added by the same change. See docs/rules/safety-evidence.md.",
+  "quarantine": [
+    {
+      "test": "LiteDB.Tests.Database.PredicateBuilder_Tests.Usage_PredicateBuilder",
+      "reason": "Skipped with 'Need review' before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "PredicateBuilder expressions composed with And are not executed against a collection on any CI leg."
+    },
+    {
+      "test": "LiteDB.Tests.Engine.Collation_Tests.Create_Database_Using_Current_Culture",
+      "reason": "Skipped as 'works only in Windows local machine' before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "A new database taking its collation from the current thread culture is not asserted on any CI leg."
+    },
+    {
+      "test": "LiteDB.Tests.Engine.ParallelQuery_Tests.Query_Parallel",
+      "reason": "Skipped as 'Must fix parallel query fetch' before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "Enumerating one FindAll cursor from Parallel.ForEach is not exercised on any CI leg."
+    },
+    {
+      "test": "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+      "reason": "Skipped as 'Not supported yet' before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "Rebuilding to a case-sensitive collation and back with colliding keys is not exercised on any CI leg."
+    },
+    {
+      "test": "LiteDB.Internals.Disk_Tests.Disk_ExclusiveScheduler_Write",
+      "reason": "Skipped as 'Verificar loop' before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "The exclusive disk-write scheduler loop is not exercised by this test on any CI leg."
+    },
+    {
+      "test": "LiteDB.Tests.Issues.Issue2127_Tests+ReproTests.InsertItemBackToBack_Test",
+      "reason": "Skipped as too slow for a build before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "The #2127 back-to-back file-backed insert reproduction (100 recreated databases) does not run in CI."
+    },
+    {
+      "test": "LiteDB.Tests.QueryTest.VectorIndex_Tests.VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_PersistedUpdate",
+      "reason": "Skipped as flaky before the evidence check existed.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "Persisted updates of vectors spanning several data blocks are not verified by this test on any CI leg."
+    },
+    {
+      "test": "LiteDB.Tests.Engine.Rebuild_Crash_Tests.Rebuild_Crash_IO_Write_Error",
+      "reason": "Declared under #if DEBUG; every CI build is Release with TestingEnabled, so no leg compiles it.",
+      "owner": "JKamsker",
+      "review": "2026-12-31",
+      "gap": "A rebuild whose disk write fails (SimulateDiskWriteFail) is not exercised by this test in CI; the install fault matrix covers rebuild faults separately."
+    }
+  ],
+  "dispositions": [
+    {
+      "id": "3034-evidence-jobs",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/_reusable-ci.yml"],
+      "disposition": "strengthened",
+      "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
+      "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    }
+  ]
+}

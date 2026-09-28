@@ -1,0 +1,454 @@
+"""Shared helpers for the safety-evidence checks (see docs/rules/safety-evidence.md).
+
+The checks read git revisions rather than the working tree, so they can judge any
+candidate tree (a PR merge ref, a scratch merge, a merge-queue commit) without a
+checkout. C# is scanned with a small lexer that blanks comments (and optionally
+string literals) while preserving offsets, so structure found in the blanked text
+can be read back from the original.
+"""
+import json
+import os
+import re
+import subprocess
+import weakref
+from dataclasses import dataclass, field
+from pathlib import Path
+
+SAFETY_DIR = ".github/safety"
+FUZZ_TARGETS_DIR = "LiteDB.Fuzz/Targets/"
+FUZZ_WORKFLOW = ".github/workflows/fuzz.yml"
+WORKFLOWS_DIR = ".github/workflows/"
+
+
+def git(*args, cwd=None, binary=False):
+    output = subprocess.check_output(["git", *args], cwd=cwd or repo_root())
+    return output if binary else output.decode("utf-8-sig", errors="replace")
+
+
+_ROOT = []
+
+
+def repo_root():
+    """The repository top level, so paths are repository-relative from any directory."""
+    if not _ROOT:
+        top = subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+        _ROOT.append(top)
+    return _ROOT[0]
+
+
+WORKTREE = "WORKTREE"
+
+
+class Tree:
+    """Read-only view of the files of one git revision (or WORKTREE for local files)."""
+
+    def __init__(self, rev, cwd=None):
+        self.rev = rev
+        self.cwd = cwd or repo_root()
+        self._paths = None
+        self._cache = {}
+        self._state = {"batch": None}
+        weakref.finalize(self, Tree._shutdown, self._state)
+
+    def paths(self):
+        if self._paths is None:
+            if self.rev == WORKTREE:
+                listing = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", cwd=self.cwd)
+                root = Path(self.cwd)
+                names = [name for name in listing.split("\0") if name and (root / name).is_file()]
+            else:
+                names = git("ls-tree", "-r", "-z", "--name-only", self.rev, cwd=self.cwd).split("\0")
+            self._paths = sorted(filter(None, names))
+        return self._paths
+
+    def exists(self, path):
+        return path in set(self.paths())
+
+    def read(self, path):
+        """Return the decoded file content, or None when the revision lacks it."""
+        if path not in self._cache:
+            self._cache[path] = self._read_blob(path)
+        return self._cache[path]
+
+    def read_json(self, path, default=None):
+        text = self.read(path)
+        return default if text is None else json.loads(text)
+
+    def _read_blob(self, path):
+        if self.rev == WORKTREE:
+            file = Path(self.cwd) / path
+            return file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else None
+        batch = self._state["batch"]
+        if batch is None:
+            batch = self._state["batch"] = subprocess.Popen(
+                ["git", "cat-file", "--batch"], cwd=self.cwd,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        batch.stdin.write(f"{self.rev}:{path}\n".encode("utf-8"))
+        batch.stdin.flush()
+        header = batch.stdout.readline().decode("utf-8").split()
+        if len(header) < 3 or header[1] != "blob":
+            return None
+        content = batch.stdout.read(int(header[2]))
+        batch.stdout.read(1)
+        return content.decode("utf-8-sig", errors="replace")
+
+    def close(self):
+        Tree._shutdown(self._state)
+
+    @staticmethod
+    def _shutdown(state):
+        """Stop the batch reader; also runs when the Tree is garbage-collected."""
+        batch, state["batch"] = state["batch"], None
+        if batch is not None:
+            batch.stdin.close()
+            batch.stdout.close()
+            batch.wait()
+
+
+def _revisions(base, head):
+    return [base] if head == WORKTREE else [base, head]
+
+
+def changed_files(base, head, cwd=None):
+    """Map changed path -> status letter (A, M, D; renames become D + A)."""
+    output = git("diff", "--name-status", "--no-renames", "-z", *_revisions(base, head), cwd=cwd)
+    fields = [value for value in output.split("\0") if value]
+    changes = {fields[index + 1]: fields[index][0] for index in range(0, len(fields) - 1, 2)}
+    if head == WORKTREE:
+        untracked = git("ls-files", "-z", "--others", "--exclude-standard", cwd=cwd).split("\0")
+        changes.update({path: "A" for path in untracked if path})
+    return changes
+
+
+def added_lines(base, head, paths, cwd=None):
+    """Yield (path, head line number, text) for lines added between two revisions."""
+    diff = git("diff", "-U0", "--no-renames", *_revisions(base, head), "--", *paths, cwd=cwd)
+    path = line = None
+    for raw in diff.splitlines():
+        if raw.startswith("+++ "):
+            path = None if raw[4:] == "/dev/null" else raw[6:]
+        elif raw.startswith("@@"):
+            line = int(re.match(r"@@ -\S+ \+(\d+)", raw).group(1))
+        elif raw.startswith("+") and path is not None:
+            yield path, line, raw[1:]
+            line += 1
+
+
+# --- C# scanning -----------------------------------------------------------
+
+def blank_code(text, keep_strings=False):
+    """Replace comments (and string/char literal contents) by spaces, keeping offsets."""
+    out = list(text)
+    index, length = 0, len(text)
+
+    def blank(start, end):
+        for position in range(start, end):
+            if out[position] != "\n":
+                out[position] = " "
+
+    while index < length:
+        char = text[index]
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            end = length if end < 0 else end
+            blank(index, end)
+            index = end
+        elif text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            end = length if end < 0 else end + 2
+            blank(index, end)
+            index = end
+        elif char == '"' or (char in "@$" and re.match(r'[@$]{1,2}"', text[index:index + 3])):
+            end = _string_end(text, index)
+            if not keep_strings:
+                blank(index, end)
+            index = end
+        elif char == "'":
+            match = re.match(r"'(?:\\.[^']{0,8}|[^'\\\n])'", text[index:index + 12])
+            end = index + (len(match.group(0)) if match else 1)
+            if not keep_strings:
+                blank(index, end)
+            index = end
+        else:
+            index += 1
+    return "".join(out)
+
+
+def _string_end(text, start):
+    prefix = re.match(r'[@$]*', text[start:]).group(0)
+    quote = start + len(prefix)
+    quotes = len(re.match(r'"*', text[quote:]).group(0))
+    if quotes >= 3:  # raw string literal
+        end = text.find('"' * quotes, quote + quotes)
+        return len(text) if end < 0 else end + quotes
+    index = quote + 1
+    verbatim = "@" in prefix
+    while index < len(text):
+        char = text[index]
+        if verbatim and char == '"':
+            if text.startswith('""', index):
+                index += 2
+                continue
+            return index + 1
+        if not verbatim and char == "\\":
+            index += 2
+            continue
+        if char == '"' or (char == "\n" and not verbatim):
+            return index + 1
+        index += 1
+    return len(text)
+
+
+def matching(text, open_index, opener, closer):
+    """Index just past the bracket closing the one at open_index (blanked text)."""
+    depth = 0
+    for index in range(open_index, len(text)):
+        if text[index] == opener:
+            depth += 1
+        elif text[index] == closer:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return len(text)
+
+
+@dataclass
+class TestMethod:
+    fqn: str
+    name: str
+    line: int
+    start: int
+    end: int
+    kinds: list = field(default_factory=list)
+    skips: list = field(default_factory=list)
+
+    @property
+    def skipped_variants(self):
+        return sum(1 for skip in self.skips if skip is not None)
+
+
+_STRUCTURE = re.compile(
+    r"(?P<ns>\bnamespace\s+(?P<nsname>[\w.]+)\s*(?P<nsend>[;{]))"
+    r"|(?P<type>\b(?:class|struct|record|interface)\s+(?P<tname>[A-Za-z_]\w*))"
+    r"|(?P<open>\{)|(?P<close>\})|(?P<semi>;)"
+    r"|(?P<attr>\[\s*(?:\w+\.)*(?P<kind>\w*(?:Fact|Theory))(?:Attribute)?\s*(?=[(\],]))")
+_SKIP = re.compile(r'\bSkip\s*=\s*(?:@?"((?:[^"\\]|\\.)*)"|([^,)\]]+))')
+_BETWEEN = re.compile(r"\s*(?:#[^\n]*\n\s*|\[)")
+
+
+def parse_tests(text):
+    """Return {fqn: TestMethod} for xUnit test methods declared in C# source."""
+    code = blank_code(text)
+    stack, file_namespace, pending, attributes = [], "", None, []
+    for match in _STRUCTURE.finditer(code):
+        if match.group("ns"):
+            if match.group("nsend") == ";":
+                file_namespace = match.group("nsname")
+            else:
+                stack.append(("ns", match.group("nsname")))
+        elif match.group("type"):
+            pending = match.group("tname")
+        elif match.group("open"):
+            stack.append(("type", pending) if pending else ("block", None))
+            pending = None
+        elif match.group("close"):
+            if stack:
+                stack.pop()
+        elif match.group("semi"):
+            pending = None
+        elif match.group("attr"):
+            namespaces = [file_namespace] + [name for kind, name in stack if kind == "ns"]
+            types = [name for kind, name in stack if kind == "type"]
+            scope = ".".join(filter(None, namespaces))
+            owner = "+".join(types)
+            attributes.append((match.start(), match.group("kind"), f"{scope}.{owner}".strip(".")))
+    return _attach_methods(text, code, attributes)
+
+
+def _attach_methods(text, code, attributes):
+    tests, consumed = {}, set()
+    for position, kind, owner in attributes:
+        if position in consumed:
+            continue
+        variants = [(position, kind)]
+        cursor = matching(code, position, "[", "]")
+        while True:  # absorb #if/#else variants and further attribute sections
+            gap = _BETWEEN.match(code, cursor)
+            if not gap:
+                break
+            if gap.group(0).rstrip().endswith("["):
+                section = gap.end() - 1
+                nested = next((item for item in attributes if item[0] == section), None)
+                if nested:
+                    consumed.add(section)
+                    variants.append((section, nested[1]))
+                cursor = matching(code, section, "[", "]")
+            else:
+                cursor = gap.end()
+        paren = code.find("(", cursor)
+        declaration = re.sub(r"<[^<>]*>\s*$", "", code[cursor:paren].rstrip())
+        name_match = re.search(r"([A-Za-z_]\w*)\s*$", declaration)
+        if paren < 0 or not name_match:
+            continue
+        name = name_match.group(1)
+        end = _body_end(code, matching(code, paren, "(", ")"))
+        skips = [_skip_reason(text, start, matching(code, start, "[", "]")) for start, _ in variants]
+        fqn = f"{owner}.{name}"
+        method = tests.get(fqn)
+        if method is None:
+            line = code.count("\n", 0, cursor + name_match.start(1)) + 1
+            method = tests[fqn] = TestMethod(fqn, name, line, position, end)
+        method.kinds.extend(kind for _, kind in variants)
+        method.skips.extend(skips)
+        method.end = max(method.end, end)
+    return tests
+
+
+def _body_end(code, after_parameters):
+    brace = code.find("{", after_parameters)
+    arrow = code.find("=>", after_parameters)
+    if arrow >= 0 and (brace < 0 or arrow < brace):
+        semicolon = code.find(";", arrow)
+        return len(code) if semicolon < 0 else semicolon + 1
+    return len(code) if brace < 0 else matching(code, brace, "{", "}")
+
+
+def _skip_reason(text, start, end):
+    match = _SKIP.search(text, start, end)
+    if not match:
+        return None
+    return match.group(1) if match.group(1) is not None else match.group(2).strip()
+
+
+def is_test_path(path):
+    first = path.split("/", 1)[0]
+    return path.endswith(".cs") and first.endswith(".Tests")
+
+
+def collect_tests(tree):
+    """Return {fqn: (path, TestMethod)} for every test project in the tree."""
+    cached = getattr(tree, "_tests", None)
+    if cached is not None:
+        return cached
+    tests = {}
+    for path in tree.paths():
+        if is_test_path(path):
+            for fqn, method in parse_tests(tree.read(path) or "").items():
+                tests.setdefault(fqn, (path, method))
+    tree._tests = tests
+    return tests
+
+
+def resolve_test(tree, reference):
+    """Resolve 'path#Method' to (path, TestMethod) or None."""
+    path, separator, name = reference.partition("#")
+    text = tree.read(path) if separator and is_test_path(path) else None
+    if text is None:
+        return None
+    return next(((path, method) for method in parse_tests(text).values() if method.name == name), None)
+
+
+def fuzz_targets(tree):
+    """Return {target name: source path} for LiteDB.Fuzz targets."""
+    targets = {}
+    for path in tree.paths():
+        if path.startswith(FUZZ_TARGETS_DIR) and path.endswith(".cs"):
+            for name in re.findall(r'\bstring\s+Name\s*=>\s*"([^"]+)"', tree.read(path) or ""):
+                targets[name] = path
+    return targets
+
+
+def scheduled_fuzz_targets(tree):
+    """Target names that fuzz.yml runs in any job (smoke, checksums, nightly, ...)."""
+    workflow = tree.read(FUZZ_WORKFLOW) or ""
+    names = set()
+    for value in re.findall(r"(?:targets:|--target)\s+\"?([a-z0-9,\-]+)", workflow):
+        names.update(filter(None, value.split(",")))
+    return names
+
+
+def workflow_text(tree):
+    return "\n".join(tree.read(path) or "" for path in tree.paths()
+                     if path.startswith(WORKFLOWS_DIR) and path.endswith((".yml", ".yaml")))
+
+
+def markdown_anchors(text):
+    anchors, seen = set(), {}
+    for heading in re.findall(r"^#{1,6}\s+(.+?)\s*#*\s*$", text, re.M):
+        slug = re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+        count = seen.get(slug, 0)
+        seen[slug] = count + 1
+        anchors.add(slug if count == 0 else f"{slug}-{count}")
+    return anchors
+
+
+def glob_regex(pattern):
+    """Translate a path glob with ** support into a compiled regex."""
+    parts, index = [], 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:.*/)?")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        elif pattern[index] == "?":
+            parts.append("[^/]")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+    return re.compile("".join(parts) + r"\Z")
+
+
+# --- reporting -------------------------------------------------------------
+
+class Report:
+    """Collects errors/warnings, prints GitHub annotations and a step summary."""
+
+    def __init__(self, title):
+        self.title = title
+        self.errors, self.warnings, self.sections = [], [], []
+
+    def error(self, message, path=None, line=None):
+        self.errors.append(message)
+        _annotate("error", message, path, line)
+
+    def warning(self, message, path=None, line=None):
+        self.warnings.append(message)
+        _annotate("warning", message, path, line)
+
+    def section(self, markdown):
+        self.sections.append(markdown)
+
+    def finish(self):
+        status = "failed" if self.errors else "passed"
+        lines = [f"## {self.title}: {status}", ""]
+        lines += [f"- :x: {message}" for message in self.errors]
+        lines += [f"- :warning: {message}" for message in self.warnings]
+        lines += [""] + self.sections
+        summary = "\n".join(lines) + "\n"
+        target = os.environ.get("GITHUB_STEP_SUMMARY")
+        if target:
+            with open(target, "a", encoding="utf-8") as handle:
+                handle.write(summary)
+        else:
+            print(summary)
+        return 1 if self.errors else 0
+
+
+def _annotate(level, message, path, line):
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        location = f"{path}:{line}: " if path and line else (f"{path}: " if path else "")
+        print(f"{level.upper()}: {location}{message}")
+        return
+    properties = ",".join(filter(None, [f"file={path}" if path else "", f"line={line}" if line else ""]))
+    escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::{level}{' ' + properties if properties else ''}::{escaped}")
+
+
+def load_json_file(path):
+    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
