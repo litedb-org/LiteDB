@@ -17,7 +17,7 @@ namespace LiteDB
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
             // Admission must span fallback revocation and the operation engine's open.
             // Even a transient conflict cannot permit an unadmitted writer to revoke peers.
-            using var admission = SharedModeGuard.Open(_settings);
+            _settings.SharedAdmission.Ensure();
 #if NET8_0_OR_GREATER
             this.EnsureCoordination(allowCreate: !final, writing: !_settings.SharedModeReadOnly);
             // A fresh connection can attach only under ownership. Announce before

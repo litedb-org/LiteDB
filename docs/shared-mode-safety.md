@@ -155,6 +155,12 @@ participants have the additional lifetime protection against Direct writers.
 `ReadOnly` combined with `Upgrade` or `AutoRebuild` can write during open and must
 acquire writable admission. Private rebuild/upgrade candidates do not create guard
 files; the live engine retains admission across publication.
+Shared acquires its admission lazily under the database mutex and retains it
+between operations until connection disposal. Short-lived operation engines and
+snapshots share that lease rather than reopening the guard; an escaping snapshot
+keeps admission until its own disposal, including disposal on another thread.
+Failed inner opens release their references. A read-only connection without an
+admissible identity still checks again on subsequent operations.
 Memory databases, caller data streams, and names outside the supported control
 path limits retain their existing behavior.
 

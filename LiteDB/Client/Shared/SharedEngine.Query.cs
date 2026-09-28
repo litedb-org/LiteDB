@@ -336,6 +336,7 @@ namespace LiteDB
             try
             {
                 RebuildRecovery.EnsureAvailable(_settings);
+                _settings.SharedAdmission.Ensure();
 #if NET8_0_OR_GREATER
                 this.EnsureReadCoordination();
 #endif

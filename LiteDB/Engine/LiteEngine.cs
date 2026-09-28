@@ -23,7 +23,7 @@ namespace LiteDB.Engine
         private LockService _locker;
 
         private DiskService _disk;
-        private LiteDB.Client.Shared.SharedModeGuard _modeGuard;
+        private IDisposable _modeGuard;
 
         private WalIndexService _walIndex;
 
@@ -97,7 +97,9 @@ namespace LiteDB.Engine
                 // A failed rebuild may have left stale data or no canonical file.
                 // Check before upgrade, recovery, or DiskService can create a new file.
                 RebuildRecovery.EnsureAvailable(_settings);
-                _modeGuard ??= LiteDB.Client.Shared.SharedModeGuard.Open(_settings);
+                _modeGuard ??= !_settings.RebuildCandidate && _settings.SharedAdmission != null
+                    ? _settings.SharedAdmission.Retain()
+                    : LiteDB.Client.Shared.SharedModeGuard.Open(_settings);
 
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
