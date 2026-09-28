@@ -18,9 +18,10 @@ namespace LiteDB.Tests.Regressions
         /// <c>$database</c> of <paramref name="db"/> reports readOnly and a writeFailure of
         /// <paramref name="operation"/> on <paramref name="file"/> ("data", "log", or null when the
         /// failure named none) whose error starts with <paramref name="error"/>, with the log file
-        /// kept (<paramref name="walKept"/>) or empty; readOnlyReason is that record. Returns the record.
+        /// kept (<paramref name="walKept"/>) or empty (null: not checked here); readOnlyReason is that
+        /// record. Returns the record.
         /// </summary>
-        internal static string AssertReported(LiteDatabase db, string operation, string file, string error, bool walKept = true)
+        internal static string AssertReported(LiteDatabase db, string operation, string file, string error, bool? walKept = true)
         {
             var info = db.GetCollection("$database").FindAll().Single();
             info["readOnly"].AsBoolean.Should().BeTrue("the engine continues read-only after a write failure");
@@ -29,10 +30,10 @@ namespace LiteDB.Tests.Regressions
             failure["operation"].AsString.Should().Be(operation);
             (failure["file"].IsNull ? null : failure["file"].AsString).Should().Be(file);
             failure["error"].AsString.Should().StartWith(error);
-            failure["walKept"].AsBoolean.Should().Be(walKept);
+            if (walKept.HasValue) failure["walKept"].AsBoolean.Should().Be(walKept.Value);
             var time = failure["time"].AsDateTime.ToUniversalTime();
             var record = $"{operation} failed at {time:yyyy-MM-dd HH:mm:ss} UTC" + (file == null ? "" : $" on the {file} file") +
-                $": {failure["error"].AsString} " + (walKept ? "The log file was kept." : "The log file was empty.");
+                $": {failure["error"].AsString} " + (failure["walKept"].AsBoolean ? "The log file was kept." : "The log file was empty.");
             info["readOnlyReason"].AsString.Should().Be(record);
             return record;
         }

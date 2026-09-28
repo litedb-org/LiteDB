@@ -19,8 +19,10 @@ namespace LiteDB.Tests.Regressions
     /// "cannot sync" (#2242), and a retiring checkpoint that promoted the file went on to write its
     /// backfill to that data file. Like a checkpoint, a promotion now writes only to a data file
     /// that just synced (it is refused unchanged otherwise), and stops the engine with its journal
-    /// kept when the data file stops syncing after its header write. Power-loss images keep each
-    /// file as of its last successful sync, take both as written, or tear the data header.
+    /// kept when the data file stops syncing after its header write; the failure is recorded, and the
+    /// engine continues read-only (decision 6 of docs/decisions/durability-policy.md). Power-loss
+    /// images keep each file as of its last successful sync, take both as written, or tear the data
+    /// header.
     /// </summary>
     [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -80,7 +82,7 @@ namespace LiteDB.Tests.Regressions
             var synced = power.Capture();
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
-            AssertReadOnly(db, "A checkpoint", "The data file stopped syncing to the device during a file format promotion", 9, 5);
+            AssertReadOnly(db, thrown, "A checkpoint", "The data file stopped syncing to the device during a file format promotion", 9, 5);
             SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
             SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
             HasJournal(synced.Log).Should().BeTrue("the promotion's journal synced and is kept");
@@ -245,13 +247,14 @@ namespace LiteDB.Tests.Regressions
             engine.SimulateCrashPoint = phase => { if (phase == "promotion-after-header-write") power.DataFails = true; };
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             Action insert = () => db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
-            insert.Should().Throw<IOException>().WithMessage(
-                "The data file stopped syncing to the device during a file format promotion*");
+            var thrown = insert.Should().Throw<IOException>().WithMessage(
+                "The data file stopped syncing to the device during a file format promotion*").Which;
 
             var synced = power.Capture();
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
-            AssertReadOnly(db, "A file format promotion", "The data file stopped syncing to the device during a file format promotion", 0, 0);
+            // walKept: see Promotion_failure_record_reports_its_kept_header_journal.
+            AssertReadOnly(db, thrown, "A file format promotion", "The data file stopped syncing to the device during a file format promotion", 0, 0, walKept: null);
             db.GetCollectionNames().Should().NotContain("compact");
             SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
             SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
@@ -266,6 +269,34 @@ namespace LiteDB.Tests.Regressions
                     return SyncPowerLossModel.AssertRows(x, Rows, 0);
                 });
             }
+        }
+
+        /// <summary>
+        /// Suspected engine defect, left failing: the promotion above stops with its header journal kept
+        /// in the log file (the torn header's only durable recovery copy; decision 1 of
+        /// docs/decisions/durability-policy.md keeps the WAL and its header journal alike), but its
+        /// recorded failure says walKept false and "The log file was empty.", which invites deleting that
+        /// log: DiskService.RecordWriteFailure counts only the WAL's frames (GetFileLength excludes the
+        /// journal). Expected: walKept true and "The log file was kept."
+        /// </summary>
+        [Fact]
+        public void Promotion_failure_record_reports_its_kept_header_journal()
+        {
+            using var file = new TempFile();
+            SetupLegacyStorage(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            var settings = power.Settings();
+            settings.CompactStorage = CompactStorageMode.Auto;
+            using var engine = new LiteEngine(settings);
+            engine.SimulateCrashPoint = phase => { if (phase == "promotion-after-header-write") power.DataFails = true; };
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            Action insert = () => db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
+            insert.Should().Throw<IOException>().WithMessage("The data file stopped syncing to the device during a file format promotion*");
+            HasJournal(SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename))).Should().BeTrue("the log file keeps the header journal");
+
+            var info = Info(db);
+            info["writeFailure"]["walKept"].AsBoolean.Should().BeTrue("the log file holds the kept header journal");
+            info["readOnlyReason"].AsString.Should().EndWith("The log file was kept.");
         }
 
         /// <summary>
@@ -389,17 +420,19 @@ namespace LiteDB.Tests.Regressions
         private static BsonDocument Info(LiteDatabase db) => db.GetCollection("$database").FindAll().Single();
 
         /// <summary>
-        /// After a recorded failure of <paramref name="operation"/> on the data file (decision 6) the
-        /// engine continues read-only: it reads commit <paramref name="value"/> and the extra rows of
-        /// commits 1 to <paramref name="extras"/>, reports the failure, and refuses a write.
+        /// After a recorded failure (<paramref name="thrown"/>) of <paramref name="operation"/> on the
+        /// data file (decision 6) the engine continues read-only: it reads commit <paramref name="value"/>
+        /// and the extra rows of commits 1 to <paramref name="extras"/>, reports the failure (with the
+        /// log file kept, <paramref name="walKept"/>; null: not checked), and refuses a write with it.
         /// </summary>
-        private static void AssertReadOnly(LiteDatabase db, string operation, string error, int value, int extras)
+        private static void AssertReadOnly(LiteDatabase db, Exception thrown, string operation, string error, int value, int extras, bool? walKept = true)
         {
             SyncPowerLossModel.AssertRows(db, Rows, value);
             db.GetCollection("extra").FindAll().Select(d => d["_id"].AsInt32).Should().BeEquivalentTo(
                 Enumerable.Range(1, extras).SelectMany(v => Enumerable.Range(v * 100 + 1, 10)));
-            var record = ReadOnlyAfterWriteFailure.AssertReported(db, operation, "data", error);
-            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, value + 1), record);
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, operation, "data", error, walKept);
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, value + 1), record)
+                .InnerException.Should().BeSameAs(thrown, "the refusal carries the recorded failure");
             SyncPowerLossModel.AssertRows(db, Rows, value);
         }
 

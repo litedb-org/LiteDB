@@ -40,8 +40,9 @@ namespace LiteDB.Tests.Regressions
                 db.CheckpointSize = 0;
                 data.Armed = true;
                 Action compact = () => db.GetCollection("compact").Insert(Compact());
-                compact.Should().Throw<IOException>("the promotion stops the engine with the header journal outstanding")
-                    .WithMessage("File format promotion failed*").WithInnerException<UnauthorizedAccessException>();
+                var thrown = compact.Should().Throw<IOException>("the promotion stops the engine with the header journal outstanding")
+                    .WithMessage("File format promotion failed*").Which;
+                thrown.InnerException.Should().BeOfType<UnauthorizedAccessException>();
                 data.Torn.Should().BeTrue();
 
                 // The engine continues read-only (decision 6): it reads the rows through the torn header's
@@ -53,11 +54,13 @@ namespace LiteDB.Tests.Regressions
                 info["readOnly"].AsBoolean.Should().BeTrue();
                 info["writeFailure"]["operation"].AsString.Should().Be("A file format promotion");
                 info["writeFailure"]["error"].AsString.Should().Be("File format promotion failed.");
-                info["writeFailure"]["walKept"].AsBoolean.Should().BeTrue("the header journal is kept");
+                info["writeFailure"]["walKept"].AsBoolean.Should().BeTrue("the log file holds the WAL and the header journal");
+                info["readOnlyReason"].AsString.Should().StartWith("A file format promotion failed at ").And.EndWith(
+                    ": File format promotion failed. The log file was kept.");
                 Action later = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 6 });
                 var refused = later.Should().Throw<IOException>().Which;
                 refused.Message.Should().Be(LiteEngine.WriteFailedPrefix + info["readOnlyReason"].AsString);
-                refused.GetBaseException().Should().BeOfType<UnauthorizedAccessException>("the refusal carries the recorded failure");
+                refused.InnerException.Should().BeSameAs(thrown, "the refusal carries the recorded failure");
                 db.GetCollection("rows").Count().Should().Be(5);
                 data.ToArray().Should().Equal(files.Data, "the read-only engine writes nothing");
                 log.ToArray().Should().Equal(files.Log, "the journal stays");
