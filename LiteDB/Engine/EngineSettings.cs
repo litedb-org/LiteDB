@@ -42,6 +42,14 @@ namespace LiteDB.Engine
         /// caller's stream before they are acknowledged.
         /// </summary>
         internal bool CheckpointEachCommit { get; set; }
+
+        /// <summary>
+        /// The data stream cannot be written (LiteDatabase over a non-writable stream). The engine
+        /// opens writable, as 5.x did, unless the open would have to change the file (index
+        /// migration, format conversion, trimming a partial page); then it reads the file as it
+        /// is, with <see cref="ReadOnly"/> and <see cref="LegacyIndexScan"/>.
+        /// </summary>
+        internal bool ReadOnlyDataStream { get; set; }
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();

@@ -78,6 +78,13 @@ namespace LiteDB.Engine
             {
                 this.Open();
             }
+            catch (ReadOnlyOpenRequiredException)
+            {
+                // Opening a non-writable data stream would have changed the file; nothing was written.
+                _settings.ReadOnly = true;
+                _settings.LegacyIndexScan = true;
+                this.Open();
+            }
             catch (LiteException ex) when (this.RebuildAfterFailedOpen(ex))
             {
                 // Damage found while opening (e.g. by the index migration of a legacy file) marked
@@ -86,6 +93,9 @@ namespace LiteDB.Engine
                 this.Open();
             }
         }
+
+        /// <summary>Thrown before the first write when a non-writable data stream would change.</summary>
+        private sealed class ReadOnlyOpenRequiredException : Exception { }
 
         private bool RebuildAfterFailedOpen(LiteException ex) =>
             ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE && _settings.AutoRebuild &&
@@ -189,6 +199,8 @@ namespace LiteDB.Engine
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
                 this.MigrateIndexOrdering();
+                if (_settings.ReadOnlyDataStream && !_settings.ReadOnly && _disk.HasTrailingDataPage)
+                    throw new ReadOnlyOpenRequiredException();
                 _disk.TrimTrailingPages();
 
                 // register system collections

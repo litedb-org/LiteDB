@@ -4,6 +4,9 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
+        /// <summary>The data file ends in a partial page that a writable open trims.</summary>
+        internal bool HasTrailingDataPage => _dataTrailingLength != 0;
+
         /// <summary>
         /// Remove incomplete trailing pages only after the data header was validated.
         /// </summary>
