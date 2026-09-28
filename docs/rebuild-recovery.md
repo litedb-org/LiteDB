@@ -13,6 +13,13 @@ reopen. Opening recovery and v4 upgrade retain the same ownership through their
 entire open. The OS releases this transient claim on process death. It does not
 replace the durable recovery marker described below.
 
+On runtimes without named-mutex support, ordinary Direct opens (including
+read-only opens) retain their previous behavior without this admission mutex.
+Shared/Coordinated mode, explicit rebuild, and opens requesting `AutoRebuild` or
+`Upgrade` still require it and fail if unavailable. Permission errors and mutex
+timeouts are not treated as unsupported platforms. The durable recovery marker
+is checked even when an ordinary Direct open cannot use a mutex.
+
 Direct rebuild additionally holds exclusive handles on the original data and WAL
 through construction and installation. Its file reader borrows these handles,
 so finishing the scan cannot admit another writer before the marker is created.

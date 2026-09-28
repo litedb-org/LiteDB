@@ -9,6 +9,9 @@ the recovery marker. Other Direct connections must close before rebuilding;
 ineffective OS file-sharing locks cause rebuild to fail before copying records.
 The claim is released on process death, while an incomplete-installation marker
 still blocks access. See [ownership and path limits](rebuild-recovery.md).
+Ordinary Direct opens remain available on runtimes without named mutexes,
+including read-only access. Shared mode, explicit rebuild, and opens requesting
+`AutoRebuild` or `Upgrade` require named-mutex support.
 
 Legacy ordering failures now distinguish corruption (`INVALID_DATAFILE_STATE`,
 999) from collation incompatibility (`COLLATION_MISMATCH`, 141, previously 0).

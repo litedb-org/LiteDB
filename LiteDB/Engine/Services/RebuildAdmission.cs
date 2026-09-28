@@ -16,13 +16,35 @@ namespace LiteDB.Engine
 
         private RebuildAdmission(Mutex mutex) => _mutex = mutex;
 
+        /// <summary>
+        /// Ordinary Direct opens retain support for runtimes without named mutexes.
+        /// Replacement-capable and shared opens still require admission.
+        /// </summary>
+        internal static RebuildAdmission EnterForOpen(EngineSettings settings)
+        {
+            try { return Enter(settings); }
+            catch (PlatformNotSupportedException ex) when (settings.SharedReaderVersions == null &&
+                !settings.AutoRebuild && !settings.Upgrade &&
+                !(ex.InnerException is System.ComponentModel.Win32Exception))
+            {
+                // SharedMutexFactory also wraps Windows access failures in this
+                // exception. Those are not evidence that mutexes are unsupported.
+                return null;
+            }
+        }
+
         internal static RebuildAdmission Enter(EngineSettings settings, int timeoutMilliseconds = 60000)
         {
             if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return null;
 
-            var mutex = SharedMutexFactory.Create("litedb-rebuild-" +
-                SharedMutexNameFactory.CreateUsingSha1(settings.Filename));
+            var name = "litedb-rebuild-" + SharedMutexNameFactory.CreateUsingSha1(settings.Filename);
+#if DEBUG || TESTING
+            var mutex = settings.CreateRebuildMutex != null ? settings.CreateRebuildMutex(name) :
+                SharedMutexFactory.Create(name);
+#else
+            var mutex = SharedMutexFactory.Create(name);
+#endif
             try
             {
                 try
