@@ -11,8 +11,9 @@ namespace LiteDB.Internals
     /// #2242 under MVCC: a log that rejects every device sync keeps snapshot checkpoints
     /// and readers working, but never reuses reclaimed WAL slots. Without a durable clear, a
     /// reused slot could overwrite a retired version that unsynced data pages still depend on
-    /// after a power loss, so the WAL appends like dev. Once the rejection is known, a
-    /// checkpoint also retires nothing; the checkpoint that first meets it still clears slots.
+    /// after a power loss, so the WAL appends like dev. A retiring checkpoint first proves both
+    /// files can sync, so a known rejection retires nothing; only a log that stops syncing during
+    /// the retiring checkpoint, after that proof, leaves cleared slots behind.
     /// </summary>
     public class MvccUnsyncableLog_Tests
     {
@@ -78,7 +79,7 @@ namespace LiteDB.Internals
         public void Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced(bool syncable)
         {
             using var data = new MemoryStream();
-            // Commits sync; the checkpoint's first sync is rejected, after it retired frames.
+            // Commits and the checkpoint's proof sync; the log then rejects its retirement syncs.
             using var log = new UnsyncableLog { Syncable = true };
             byte[] crashedData, crashedLog;
             using (var engine = Open(data, log))
@@ -90,6 +91,7 @@ namespace LiteDB.Internals
                 for (var value = 1; value <= 20; value++) Write(db, "docs", value);
                 using var reader = engine.Query("docs", new Query());
                 log.Syncable = false;
+                log.AllowedSyncs = 1;
                 MvccCheckpoint_Tests.RunThread(() => engine.Checkpoint());
 
                 // A killed process: the cleared slots stay in the WAL.
@@ -165,10 +167,16 @@ namespace LiteDB.Internals
         {
             internal int Rejections;
             internal bool Syncable;
+            internal int AllowedSyncs;
 
             public void FlushToDisk()
             {
                 if (Syncable) return;
+                if (AllowedSyncs > 0)
+                {
+                    AllowedSyncs--;
+                    return;
+                }
                 Rejections++;
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }

@@ -137,10 +137,12 @@ See [storage ownership](storage-ownership.md) for data/WAL replacement and
 Never clear a checksummed committed frame without a durable retirement witness.
 The header binds the witness-chain root and minimum confirmed sequence. Retain
 original frame contributions and confirmation proofs; recovery and rebuild must
-share the verifier. Witness publication requires a durable sync: an engine syncs the
-data file, WAL and WAL directory once before it first retires frames, and storage that
-answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage that stops
-syncing during a checkpoint degrades that checkpoint's barriers.
+share the verifier. Witness publication requires a durable sync: every retiring
+checkpoint first syncs the data file and WAL (the WAL directory once per engine), and
+storage that answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage
+that stops syncing during a retiring checkpoint degrades its barriers; the slots it clears
+are never published, though another shared connection's fresh engine proves only a log
+sync before reusing blank slots (reachable only when one of the sibling files fails).
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and

@@ -157,7 +157,8 @@ namespace LiteDB.Engine
 
                 // Retiring frames only lets their slots be reused, which storage that cannot
                 // sync never does; its witness could not be published durably either.
-                var obsolete = reclaim || !_disk.ProveRetirementSyncs() ? new List<long>() : this.FindObsoleteFrames(live);
+                var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(live);
+                if (obsolete.Count > 0 && !_disk.ProveRetirementSyncs()) obsolete.Clear();
                 if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
 
                 // WAL must be durable before its pages can reach the data file.

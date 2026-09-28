@@ -32,6 +32,7 @@ namespace LiteDB.Tests.Regressions
         [InlineData("data-detected-earlier")]  // by a checkpoint before the reader
         [InlineData("data-detected-by-partial")]
         [InlineData("opted-out-commits")]      // DurableCommits=false: nothing synced before the checkpoint
+        [InlineData("opted-out-log")]          // same, only the WAL cannot sync: found by the proof's log sync
         [InlineData("directory")]              // the WAL's directory cannot be synced (EACCES)
         [InlineData("opted-out-directory")]    // same, found only by the checkpoint's proof
         public void Storage_that_cannot_sync_neither_retires_nor_reuses_wal_frames(string mode)
@@ -46,6 +47,7 @@ namespace LiteDB.Tests.Regressions
 
             if (mode.StartsWith("data")) NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
             if (mode == "opted-out-commits") NativeFileSync.SimulateErrno = _ => 22;
+            if (mode == "opted-out-log") NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
             if (mode.EndsWith("directory")) NativeFileSync.SimulateDirectoryErrno = _ => 13;
             try
             {
@@ -95,6 +97,51 @@ namespace LiteDB.Tests.Regressions
                 NativeFileSync.SimulateErrno = null;
                 NativeFileSync.SimulateDirectoryErrno = null;
             }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
+        }
+
+        /// <summary>
+        /// A long-lived engine retired frames while its storage synced; then the data file stops
+        /// syncing. Every retiring checkpoint proves its syncs again, so the next one retires
+        /// nothing: the witness root and the cleared slots stay as they were.
+        /// </summary>
+        [Fact]
+        public void Storage_that_stops_syncing_after_a_retirement_retires_nothing_more()
+        {
+            using var file = new TempFile();
+            using (var setup = new LiteDatabase(file.Filename))
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, 8).Select(id => MvccRetirementScenario.Document(id, 0)));
+            var logName = FileHelper.GetLogFile(file.Filename);
+            try
+            {
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++) Update(db, value);
+                using (var reader = engine.Query("rows", new Query()))
+                {
+                    Worker(() =>
+                    {
+                        for (var value = 6; value <= 9; value++) Update(db, value);
+                        engine.Checkpoint();
+                    });
+                    var root = BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition);
+                    root.Should().BeGreaterThan(0, "syncing storage retires frames");
+                    var cleared = BlankFrames(ReadShared(logName));
+
+                    NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
+                    Worker(() =>
+                    {
+                        for (var value = 10; value <= 13; value++) Update(db, value);
+                        engine.Checkpoint();
+                    });
+                    BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition).Should().Be(root, "no witness is published once the data file cannot sync");
+                    BlankFrames(ReadShared(logName)).Should().BeLessOrEqualTo(cleared, "no further slot is cleared");
+                }
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
 
             using var reopened = new LiteDatabase(file.Filename);
             reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
