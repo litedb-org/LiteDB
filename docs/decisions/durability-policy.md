@@ -93,3 +93,11 @@ Copies: the PR description, and `pull-requests/3027-io-regressions-since-5021/de
    fails a durable commit loudly, before it writes; `durable commits=false` commits there as
    5.0.21 did. Reading, recovery and consistency are unaffected: only a new WAL's file name is
    not provably durable, so a power loss could lose the whole WAL file.
+10. **The anchor is a header frame in the WAL (form of 8).** The existing header journal is a
+    temporary footer that cannot stay while commits append behind it, so the copy of the header is
+    a WAL frame of its own at the start of the WAL (chosen over a separate file next to the
+    database). It is a checksummed frame of the header page that no transaction confirms, so
+    recovery that does not look for it skips it; recovery that does takes the header, and the WAL
+    salt that validates the following frames, from it when the data file's header is missing or
+    invalid. It stays until a checkpoint whose data sync succeeded empties the WAL. Older 6.x
+    prereleases do not read it (older versions are out of scope).
