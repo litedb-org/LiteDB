@@ -48,9 +48,6 @@ namespace LiteDB.Engine
         /// <summary>Maximum chain traversal count for this snapshot's engine.</summary>
         internal uint MaxItemsCount => _disk.MAX_ITEMS_COUNT;
 
-        /// <summary>See <see cref="CollectionPage.UnmarkedPagesHaveVectorSection"/>.</summary>
-        internal bool UnmarkedCollectionVectorSections => _disk.UnmarkedCollectionVectorSections;
-
         public Snapshot(
             LockMode mode, 
             string collectionName, 

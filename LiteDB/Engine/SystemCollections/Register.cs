@@ -25,7 +25,7 @@ namespace LiteDB.Engine
             this.RegisterSystemCollection("$open_cursors", () => this.SysOpenCursors());
 
             this.RegisterSystemCollection(new SysFile()); // use single $file(?) for all file formats
-            this.RegisterSystemCollection(new SysDump(_header, _monitor));
+            this.RegisterSystemCollection(new SysDump(_header, _monitor, () => _disk.UnmarkedCollectionVectorSections));
             this.RegisterSystemCollection(new SysPageList(_header, _monitor));
 
             this.RegisterSystemCollection(new SysQuery(this));
