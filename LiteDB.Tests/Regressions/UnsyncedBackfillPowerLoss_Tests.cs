@@ -82,6 +82,40 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// A connection's rationing of a kept WAL ends when another connection empties the WAL:
+        /// its automatic checkpoints do not wait until a new WAL doubles the old kept length.
+        /// </summary>
+        [Fact]
+        public void Kept_wal_rationing_ends_when_another_connection_empties_the_wal()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            try
+            {
+                using var engine = new SharedEngine(power.Settings());
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                for (var id = 1; id <= 200; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
+                power.DataFails = true;
+                db.Checkpoint();
+                new FileInfo(logName).Length.Should().BeGreaterThan(0, "the full checkpoint kept the WAL");
+                power.DataFails = false;
+
+                using (var other = new SharedEngine(power.Settings()))
+                using (var otherDb = new LiteDatabase(other, disposeOnClose: false))
+                    otherDb.Checkpoint();
+                new FileInfo(logName).Length.Should().Be(0);
+
+                db.CheckpointSize = 10;
+                for (var id = 201; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
+                new FileInfo(logName).Length.Should().BeLessThan(80L * Constants.PAGE_SIZE, "automatic checkpoints run again");
+            }
+            finally { File.Delete(logName); }
+        }
+
+        /// <summary>
         /// A WAL the engine keeps in memory (LiteDatabase(Stream) without a log stream) protects
         /// nothing, so a data stream that cannot sync does not keep it: it stays bounded.
         /// </summary>

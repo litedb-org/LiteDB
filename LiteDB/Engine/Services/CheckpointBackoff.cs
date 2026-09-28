@@ -78,7 +78,12 @@ namespace LiteDB.Engine
 
         public bool DefersKeptWal(long length)
         {
-            lock (_sync) return _keptWalLength > 0 && length < 2 * _keptWalLength;
+            lock (_sync)
+            {
+                // A shorter WAL was emptied since, maybe by another connection: nothing is kept.
+                if (length < _keptWalLength) _keptWalLength = 0;
+                return _keptWalLength > 0 && length < 2 * _keptWalLength;
+            }
         }
 
         private static long ToTicks(int milliseconds) => milliseconds * Stopwatch.Frequency / MILLISECONDS_PER_SECOND;
