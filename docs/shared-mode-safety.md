@@ -114,11 +114,14 @@ makes durable a data header (salt, witness root, format version) or a backfill t
 an earlier engine left in the OS cache only; it skips this while the data header is
 one a successful data sync in this process left, so healthy storage pays it once per
 header change, not per operation. Before its first slot reuse an engine also syncs
-the raw log once. A "cannot sync" answer makes it report reduced durability and
-append instead.
+the raw log once. A "cannot sync" answer makes it append instead; with durable
+commits a log that cannot sync fails the commit before it writes. A write or sync
+failure of one operation is kept connection-wide: the connection's later operations
+open read-only and report it in `$database.writeFailure` until it is reopened.
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
-or has acknowledged a commit after that fallback. Shared connections retain this
+or its log fell back to OS-cache flushes (only possible after opting out; with
+durable commits such a commit throws instead). Shared connections retain this
 diagnostic across internal engine reopenings, including diagnostic queries. A
 later engine still attempts device sync; retaining the diagnostic does not disable
 sync. A new independent connection starts with its own diagnostic state. The

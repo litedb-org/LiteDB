@@ -154,37 +154,40 @@ preserving data and recovery frames. Semantic-error marker writes require the
 same durable journal before changing the header; a failed sync leaves that header
 intact during shutdown.
 
-Log storage that rejects sync as unsupported (some network shares and virtual
-file systems, #2242) is different: it can never make recovery information durable.
-Conversion, checkpoint and marker writes then proceed in the same write order
-without the device sync, as before #2818, reported by
-`$database.durableLogFlush=false`. The ordered writes reach the operating system,
-so a killed process still recovers; power loss can lose recent commits or leave a
-checkpoint partially applied, the same risk as before #2818. Every barrier still
-attempts a real sync first, and an engine whose data is a file proves the data file
-before its first log sync (so no log sync makes an earlier engine's unsynced WAL change
-durable ahead of its backfill), so commits acknowledged after the storage syncs again
-regain the full guarantee. A data file that answers the same degrades its barriers the same way.
-A log sync then waits for the data file: it would make durable a WAL change (a full
-checkpoint's emptied WAL, a converted WAL) whose backfill or header is in the data file's
-OS cache only. After a data sync answered "cannot sync", every log sync first retries it and
-only flushes the log to the OS cache while the data file still cannot sync, so the WAL that
-last synced stays the durable one, with every commit acknowledged durable before, also if
-the WAL alone syncs again, and a stream opened to read never syncs. The OS can still write
-an emptied WAL back ahead of the backfill, and no engine knows whether an earlier one (of any
-connection or process) synced the WAL's frames. So the WAL and its header journal are removed
-only after a data sync that covers what they protect succeeded. Every checkpoint that writes
-first syncs the data file and writes nothing while that sync fails, whichever engine runs
-it: the WAL grows until the data file syncs again (`$database.walKept`), also on storage that
-never syncs. A data sync that fails later in the same checkpoint (after the backfill, the
-salt rotation or a retirement root) stops the engine before anything is removed, leaving
-the state of a crash at that point; the next open repairs a torn header from the journal,
-and a writable open that would have to retire a journal while the data file cannot sync opens
+Storage that rejects sync as unsupported (some network shares and virtual file systems,
+#2242) is different: it can never make recovery information durable. The rules follow the
+maintainer's decisions ([decisions/durability-policy.md](decisions/durability-policy.md)).
+With durable commits (the default) a log that answers "cannot sync" is a failure: a commit
+throws before it writes a frame (an engine proves, before its first commit, that the log and
+its directory sync), a checkpoint stops before it writes on, and an open that must sync the
+log first opens read-only. With `durable commits=false` that answer is not a failure:
+conversion, checkpoint and marker writes proceed in the same write order without the device
+sync, as before #2818. The ordered writes reach the operating system, so a killed process
+still recovers; power loss can lose recent commits, the risk the caller accepted.
+
+A data file that answers "cannot sync" never loses what the WAL holds. Commits stay durable
+in the WAL, whose syncs continue, as long as the data header the WAL depends on (its salt,
+version and creation time) is on the device: an engine whose data is a file proves it before
+its first log sync (skipped while the header is one a successful data sync in this process
+left); where it cannot (a database created there, or a new process), a durable commit throws
+before it writes. The OS can write an emptied WAL back ahead of the backfill, and no engine
+knows whether an earlier one (of any connection or process) synced the WAL's frames, so the
+WAL, its header journal and a legacy header backup are removed only after a data sync that
+covers every data write of the engine succeeded; every log shrink goes through that check.
+Every checkpoint that writes first syncs the data file and writes nothing while that sync
+fails, whichever engine runs it: the WAL grows until the data file syncs again
+(`$database.walKept`, `walLimit`), also on storage that never syncs, and past `wal limit` a
+write throws while reads keep working. A data sync that fails later in the same checkpoint
+(after the backfill, the salt rotation or a retirement root) records a write failure before
+anything is removed, leaving the state of a crash at that point; the engine continues
+read-only until reopened. The next open repairs a torn header from the journal, and a
+writable open that would have to retire a journal while the data file cannot sync opens
 read-only instead (writes throw, `$database.readOnlyReason` says why). A conversion, which
-empties a log, likewise opens read-only there, and a rebuild is refused, both files unchanged. Only a WAL the engine keeps in memory, which survives no
-power loss, is emptied. A format promotion keeps its journal the same way: it writes only
-right after a data sync that succeeded, is refused otherwise, and stops the engine with the
-journal kept when the data file stops syncing after its header write. A legacy header
+empties a log, likewise opens read-only there, and a rebuild is refused, both files
+unchanged. Only a WAL the engine keeps in memory, which survives no power loss, is emptied.
+A format promotion keeps its journal the same way: it writes only right after a data sync
+that succeeded, is refused otherwise, and records a failure with the journal kept when the
+data file stops syncing after its header write. A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.

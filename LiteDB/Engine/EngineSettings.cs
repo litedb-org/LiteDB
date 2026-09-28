@@ -184,7 +184,9 @@ namespace LiteDB.Engine
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
         /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
-        /// Checkpoints and file creation are synced either way.
+        /// Checkpoints and file creation are synced either way. When true, a commit that cannot be made durable
+        /// (storage that rejects the sync, #2242) throws an <see cref="System.IO.IOException"/> before it writes,
+        /// and the engine then continues read-only; set false to use such storage.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>

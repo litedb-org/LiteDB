@@ -147,12 +147,15 @@ the frames it retired and publishes no root once it found out. Before its first 
 every engine (of any connection) syncs the WAL, and before its first log sync an engine
 whose data is a file proves the data file (once per data header in the process). Remove a
 file WAL or a header journal only after a data sync that covers what it protects succeeded;
-never infer that no earlier engine or process synced its frames. A checkpoint or format
+never infer that no earlier engine or process synced its frames; every log shrink goes
+through the one check that a data sync covered every data write. A checkpoint or format
 promotion syncs the data file before it writes and writes nothing while that fails; a failure
-later in either stops the engine before any removal; an open that would retire a journal, convert or
-migrate without a data sync opens read-only instead (writes throw, reads work); a rebuild is
-refused unchanged; and after "cannot sync"
-a log sync waits for a data sync that succeeds.
+later in either is recorded before any removal and the engine continues read-only; an open that
+would retire a journal, convert or migrate without a data sync opens read-only instead (writes
+throw, reads work); a rebuild is refused unchanged. With durable commits a commit that cannot be
+made durable (a log or WAL directory that cannot sync, or a data header not known to be on the
+device while the data file cannot sync) throws before it writes; log syncs never wait for the data
+file. Follow [the durability decisions](../decisions/durability-policy.md).
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and
