@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         internal WriteFailure(string operation, Exception error, bool walKept)
         {
             this.File = error.Data[FileDataKey] as string;
+            this.Cause = error;
             this.Operation = operation;
             this.Error = error.Message;
             this.Time = DateTime.UtcNow;
@@ -25,6 +26,9 @@ namespace LiteDB.Engine
         internal string File { get; }
 
         internal string Operation { get; }
+
+        /// <summary>The failure itself: every later write's error carries it as its inner exception.</summary>
+        internal Exception Cause { get; }
 
         internal string Error { get; }
 

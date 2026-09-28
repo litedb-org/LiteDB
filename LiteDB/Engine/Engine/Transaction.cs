@@ -104,7 +104,7 @@ namespace LiteDB.Engine
 
         /// <summary>A write to a read-only engine; one that opened read-only on its own says why.</summary>
         private IOException ReadOnlyWrite() =>
-            _settings.WriteFailure != null ? new IOException(WriteFailedPrefix + _settings.WriteFailure) :
+            _settings.WriteFailure != null ? new IOException(WriteFailedPrefix + _settings.WriteFailure, _settings.WriteFailure.Cause) :
             new IOException(_settings.ReadOnlyCause == null
                 ? "Cannot modify a read-only database."
                 : "Cannot modify this database: it opened read-only because the writable open was refused. " + _settings.ReadOnlyCause);
