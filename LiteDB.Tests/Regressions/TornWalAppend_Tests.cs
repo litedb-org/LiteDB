@@ -67,7 +67,7 @@ namespace LiteDB.Tests.Regressions
             using var recoveredLog = new MemoryStream(log.ToArray());
             using var recovered = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = recoveredData, LogStream = recoveredLog }));
             var docs = recovered.GetCollection("rows").FindAll().ToList();
-            docs.Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, 20).Append(200),
+            docs.Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, 20).Concat(new[] { 200 }),
                 "every acknowledged commit survives, and the failed insert is absent");
             docs.Where(x => x["_id"].AsInt32 <= 20).Should().OnlyContain(x => x["value"].AsInt32 == 7);
         }
