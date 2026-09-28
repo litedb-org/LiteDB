@@ -355,6 +355,7 @@ namespace LiteDB.Engine
                 Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
                 if (length == 0)
                 {
+                    _walSynced = false;
                     _freeLogPositions.Clear();
                     _lastLogPositions.Clear();
                     _lastWalTransactionID = 0;

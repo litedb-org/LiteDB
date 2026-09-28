@@ -62,25 +62,27 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A full checkpoint on storage whose data file cannot sync empties the WAL as on storage
-        /// where neither file syncs: automatic checkpoints keep it near the checkpoint size (a kept
-        /// WAL grew to 230 MB after 6,000 inserts of 2 KB). Only what was durable before survives.
+        /// A full checkpoint on storage whose data file never synced for this engine empties the WAL
+        /// as where neither file syncs: automatic checkpoints keep it near the checkpoint size (a
+        /// kept WAL grew to 230 MB after 6,000 inserts of 2 KB). Only a WAL whose frames the engine
+        /// synced is kept (DataFileStopsSyncing_Tests).
         /// </summary>
         [Fact]
         public void Wal_stays_bounded_where_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
-            Setup(file.Filename);
             var logName = FileHelper.GetLogFile(file.Filename);
-            using var power = new SyncPowerLossModel(file.Filename) { DataFails = true };
+            using (var power = new SyncPowerLossModel(file.Filename) { DataFails = true })
             using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
             {
                 db.CheckpointSize = 10;
                 for (var id = 1; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
-                db.GetCollection("log").Count().Should().Be(300);
+                DurableLogFlush(db).Should().BeFalse();
+                power.LogSyncs.Should().Be(0, "no log sync precedes a data sync that succeeds");
                 new FileInfo(logName).Length.Should().BeLessThan(30L * Constants.PAGE_SIZE);
             }
-            power.AfterPowerLoss(Rows).Should().Be(0);
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("log").Count().Should().Be(300);
         }
 
         /// <summary>
@@ -99,20 +101,19 @@ namespace LiteDB.Tests.Regressions
             db.GetCollection("log").Count().Should().Be(200);
         }
 
-        /// <summary>Control: storage where neither file syncs still empties the WAL, as before.</summary>
+        /// <summary>Control: storage where neither file syncs for this engine still empties the WAL, as before.</summary>
         [Fact]
         public void Full_checkpoint_empties_the_wal_when_neither_file_syncs()
         {
             using var file = new TempFile();
             Setup(file.Filename);
             var logName = FileHelper.GetLogFile(file.Filename);
-            using var power = new SyncPowerLossModel(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename) { DataFails = true, LogFails = true };
 
             using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
             {
                 db.CheckpointSize = 0;
                 for (var value = 1; value <= 3; value++) Update(db, value);
-                power.DataFails = power.LogFails = true;
                 db.Checkpoint();
                 new FileInfo(logName).Length.Should().Be(0);
             }
@@ -176,10 +177,10 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// On storage where neither file syncs, a full checkpoint empties the WAL and closing the
-        /// engine deletes it. A directory sync would make that deletion durable, and with it the
-        /// loss of the WAL that held the durable commits: while a log sync waits for the data file,
-        /// so does the directory entry of the WAL that replaces it.
+        /// A WAL an earlier engine synced (commit 1, no checkpoint since): a fresh engine on storage
+        /// where neither file syncs empties it (it synced none of its frames) and deletes it at close.
+        /// A directory sync would make that deletion durable, and with it the loss of commit 1:
+        /// while a log sync waits for the data file, so does the directory entry of the next WAL.
         /// </summary>
         [Fact]
         public void New_wal_directory_entry_waits_for_the_data_file_too()
@@ -197,9 +198,9 @@ namespace LiteDB.Tests.Regressions
                     db.CheckpointSize = 0;
                     Update(db, 1);
                     DurableLogFlush(db).Should().BeTrue();
-                    power.DataFails = power.LogFails = true;
-                    db.Checkpoint();
                 }
+                power.DataFails = power.LogFails = true;
+                using (var db = new LiteDatabase(file.Filename)) db.Checkpoint();
                 File.Exists(logName).Should().BeFalse("closing the engine deleted its empty WAL");
                 power.LogFails = false;
                 directorySyncs = 0;

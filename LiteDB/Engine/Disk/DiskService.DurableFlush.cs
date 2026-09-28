@@ -33,6 +33,10 @@ namespace LiteDB.Engine
         // data file's OS cache is durable since (see ProveDataFile).
         private volatile bool _dataSyncProven;
 
+        // Set by a successful log sync, cleared when the WAL is emptied: the WAL holds frames that
+        // are durable, maybe of commits acknowledged durable (see KeepsSyncedWal).
+        private volatile bool _walSynced;
+
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
         // false after "cannot sync" (#2242), and for the log also while its sync waits for the data file.
         private volatile bool _dataBarrierSynced = true, _logBarrierSynced;
@@ -65,6 +69,27 @@ namespace LiteDB.Engine
         /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
         /// </summary>
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
+
+        /// <summary>
+        /// The latest data barrier answered "cannot sync" (#2242) while the WAL holds frames a log
+        /// sync of this engine made durable. A full checkpoint must not empty it: log syncs wait for
+        /// the data file (<see cref="ProveDataBeforeLog"/>), but the OS can still write the emptied
+        /// WAL back ahead of the backfill, which would lose them. A WAL no log sync reached, such as
+        /// on storage where neither file ever synced, is emptied as before #2818.
+        /// </summary>
+        internal bool KeepsSyncedWal => _walSynced && !_dataBarrierSynced;
+
+        /// <summary>
+        /// A kept WAL is only emptied after a data sync that succeeds: an automatic checkpoint first
+        /// retries it and does nothing while the data file still cannot sync, instead of scanning
+        /// the growing WAL again at every commit.
+        /// </summary>
+        internal bool DefersCheckpoint()
+        {
+            if (!this.KeepsSyncedWal) return false;
+            this.SyncDataFile();
+            return !_dataBarrierSynced;
+        }
 
         /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
@@ -161,7 +186,7 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
-                _logBarrierSynced = true;
+                _logBarrierSynced = _walSynced = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -289,7 +314,7 @@ namespace LiteDB.Engine
             try
             {
                 raw.FlushToDisk();
-                _logBarrierSynced = true;
+                _logBarrierSynced = _walSynced = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

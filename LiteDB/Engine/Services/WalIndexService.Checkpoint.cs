@@ -78,7 +78,7 @@ namespace LiteDB.Engine
 
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
-        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
+        public int TryAutoCheckpoint() => _disk.DefersCheckpoint() ? 0 : this.TryCheckpoint(rationed: true);
 
         /// <summary>
         /// Checkpoint on engine close. A close that can reclaim always runs; shared
@@ -181,8 +181,10 @@ namespace LiteDB.Engine
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
-                // A backfill the data file could not sync (#2242) is followed by the WAL's emptying:
-                // no log sync makes that durable before a data sync succeeds (ProveDataBeforeLog).
+                // A backfill the data file could not sync (#2242): no log sync makes an emptied WAL
+                // durable before a data sync succeeds (ProveDataBeforeLog), but durable frames of
+                // this engine are kept until then (KeepsSyncedWal), as a partial checkpoint does.
+                if (reclaim && _disk.KeepsSyncedWal) reclaim = false;
 
                 // Storage that stopped syncing after the retirement's proof may not have made its
                 // witness records durable: a root published now could leave a durable header naming

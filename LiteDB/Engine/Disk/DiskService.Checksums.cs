@@ -95,6 +95,10 @@ namespace LiteDB.Engine
             _cache.Clear();
         }
 
+        internal static IOException UnsyncedDataConversion() => new IOException("Cannot convert this legacy database now: " +
+            "its data file stopped syncing to the device after its log file synced commits, so the log is kept until the " +
+            "data file syncs again. Reopen it once the storage syncs, or open it with \"readonly=true;legacy index scan=true\".");
+
         /// <summary>Called only after checkpoint synced all data, before recycling the WAL.</summary>
         internal void RotateWalSalt()
         {

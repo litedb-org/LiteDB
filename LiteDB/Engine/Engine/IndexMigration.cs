@@ -122,8 +122,13 @@ namespace LiteDB.Engine
             // Conversion replaces the legacy WAL, so it must be drained completely first.
             // A lease-aware checkpoint skips or limits its work while other connections may
             // read the WAL; discarding what it left would lose committed transactions. A
-            // refused conversion changes neither file; a drain trims partial pages first.
-            if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain()) throw ConversionBlocked();
+            // refused conversion changes neither file; a drain trims partial pages first. A drain
+            // whose data file stopped syncing keeps a WAL with durable commits (KeepsSyncedWal).
+            if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain())
+            {
+                if (_disk.KeepsSyncedWal) throw DiskService.UnsyncedDataConversion();
+                throw ConversionBlocked();
+            }
             _disk.TrimTrailingPages();
             if (!_disk.ChecksumsEnabled)
             {

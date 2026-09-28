@@ -55,9 +55,13 @@ the engine, as it does in a checkpoint. After a data sync answered "cannot sync"
 sync waits for the data file (each one retries its sync first and otherwise flushes the log
 to the OS cache only), so no log sync makes an emptied or converted WAL durable ahead of
 its unsynced backfill or header: commits acknowledged durable before the storage stopped
-syncing survive a power loss, also when the WAL alone syncs again. A full checkpoint
-empties the WAL on such storage as before #2818, so the WAL stays bounded, and a rebuild or
-a 5.x conversion runs as where neither file syncs. A 5.x data file found beside its conversion's WAL (whose
+syncing survive a power loss, also when the WAL alone syncs again. A full checkpoint whose
+backfill did not sync keeps a WAL whose frames the engine synced (the OS could write the
+emptied WAL back first) until the data file syncs again, and automatic checkpoints wait for
+that data sync meanwhile; otherwise it empties the WAL as before #2818, so storage that never
+synced keeps a bounded WAL. A 5.x conversion whose drain keeps such a WAL is refused with an
+`IOException` until the data file syncs; otherwise a rebuild or a conversion runs as where
+neither file syncs. Encrypted streams opened to read no longer sync their file. A 5.x data file found beside its conversion's WAL (whose
 converted header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one

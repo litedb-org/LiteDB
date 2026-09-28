@@ -170,8 +170,18 @@ checkpoint's emptied WAL, a converted WAL) whose backfill or header is in the da
 OS cache only. After a data sync answered "cannot sync", every log sync first retries it and
 only flushes the log to the OS cache while the data file still cannot sync, so the WAL that
 last synced stays the durable one, with every commit acknowledged durable before, also if
-the WAL alone syncs again; the directory entry of a new WAL waits too. A full checkpoint
-empties the WAL on such storage as before #2818, which keeps it bounded. A legacy header
+the WAL alone syncs again; the directory entry of a new WAL waits too, and a stream opened to
+read never syncs. The OS can still write an emptied WAL back ahead of the backfill: a full
+checkpoint whose backfill did not sync keeps a WAL whose frames the engine synced, and its
+automatic checkpoints wait for a data sync that succeeds, until the data file syncs again
+(the WAL grows meanwhile). A WAL no log sync of the engine reached, such as on storage where
+neither file ever synced, is emptied as before #2818, which keeps it bounded. An engine cannot
+know which frames an earlier engine synced, so an emptied WAL written back ahead of its
+backfill can still lose them across engines. While the data file cannot sync, a checkpoint's
+header journal is not synced either: a header the OS writes back torn has no durable repair
+copy, as where neither file syncs. A rebuild there installs its replacement without a
+power-loss guarantee, like every write there; the original files stay under their `-backup`
+names. A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.
