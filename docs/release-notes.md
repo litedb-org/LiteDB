@@ -248,7 +248,13 @@ and continued after a non-I/O failure; a later commit could then land behind the
 frame and be lost at recovery. A caller stream other than a `MemoryStream` is flushed
 after each write, under the lock its readers take: a buffering one (a `BufferedStream`, a
 `FileStream` with a large buffer) held frames the next write or a reader's seek wrote on,
-where a failure tore a frame the writer never heard of. A transaction
+where a failure tore a frame the writer never heard of. That is one `Flush()` per page
+write, data and log: a custom stream whose `Flush()` syncs or uploads now pays that per
+page instead of per batch. A caller stream must not replay a write that failed at another
+position: a `BufferedStream` keeps a buffer whose write failed and writes it again at its
+next access, at the inner stream's current position, so over an inner stream that advanced
+past the bytes it stored before failing (a `FileStream` does not) the page lands shifted
+over the next one, as in 5.0.21. A transaction
 whose safepoint failed to write its pages can only roll back: later reads and writes in
 it throw "can only be rolled back", and `Commit` rolls it back and throws.
 
