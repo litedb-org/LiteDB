@@ -27,6 +27,9 @@ namespace LiteDB.Engine
 #if TESTING
         internal Action BeforeTransactionRegistration { get; set; }
 #endif
+#if DEBUG || TESTING
+        internal Action AfterTransactionExit { get; set; }
+#endif
 
         // expose open transactions
         public ICollection<TransactionService> Transactions => _transactions.Snapshot();
@@ -124,7 +127,13 @@ namespace LiteDB.Engine
             }
             finally
             {
-                if (removed) _locker.ExitTransaction(transaction.OwnerThread);
+                if (removed)
+                {
+                    _locker.ExitTransaction(transaction.OwnerThread);
+#if DEBUG || TESTING
+                    AfterTransactionExit?.Invoke();
+#endif
+                }
                 if (!transaction.QueryOnly)
                 {
                     ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
