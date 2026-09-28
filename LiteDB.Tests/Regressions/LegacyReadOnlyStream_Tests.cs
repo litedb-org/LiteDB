@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.IO.Compression;
 using FluentAssertions;
@@ -29,9 +30,18 @@ namespace LiteDB.Tests.Regressions
                 entry.CopyTo(output);
             }
 
-            using var stream = new FileStream(file.Filename, FileMode.Open, FileAccess.Read);
-            using var db = new LiteDatabase(stream);
-            db.GetCollection("customers").Count().Should().Be(200);
+            var original = File.ReadAllBytes(file.Filename);
+            using (var stream = new FileStream(file.Filename, FileMode.Open, FileAccess.Read))
+            using (var db = new LiteDatabase(stream))
+            {
+                var customers = db.GetCollection("customers");
+                customers.Count().Should().Be(200);
+                customers.Count(Query.EQ("CustomerId", "C5")).Should().Be(1);
+                customers.Count(Query.GT("Name", "n9")).Should().Be(10); // n90..n99
+                Action write = () => customers.Insert(new BsonDocument { ["_id"] = 1000 });
+                write.Should().Throw<Exception>();
+            }
+            File.ReadAllBytes(file.Filename).Should().Equal(original, "a read-only stream must never be migrated or written");
         }
     }
 }
