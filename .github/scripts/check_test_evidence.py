@@ -147,14 +147,21 @@ def _check_partitions(leg, directory, label, report, outcomes):
     return reported, summary
 
 
-def check_execution(outcomes, source_tests, quarantine, report):
+def check_execution(outcomes, source_tests, quarantine, report, shown=20):
     quarantined = {entry["test"]: entry for entry in quarantine}
     never = sorted(fqn for fqn in set(outcomes) | set(source_tests)
                    if not (outcomes.get(fqn, set()) & EXECUTED))
-    for fqn in never:
-        if fqn not in quarantined:
-            state = "was skipped on every leg" if outcomes.get(fqn) else "was not discovered on any leg"
-            report.error(f"{fqn} {state}; fix it or quarantine it in {LEDGER} with an owner and review date")
+    unexplained = [fqn for fqn in never if fqn not in quarantined]
+    for fqn in unexplained[:shown]:
+        if outcomes.get(fqn):
+            state = "was skipped on every leg"
+        elif fqn in outcomes:
+            state = "was discovered but produced no result on any leg"
+        else:
+            state = "was not discovered on any leg"
+        report.error(f"{fqn} {state}; fix it or quarantine it in {LEDGER} with an owner and review date")
+    if len(unexplained) > shown:
+        report.error(f"{len(unexplained) - shown} more tests executed on no leg (see the errors above for the cause)")
     for fqn in sorted(set(quarantined) - set(never)):
         report.warning(f"Quarantined test {fqn} executed on a leg; remove its quarantine entry")
     return [fqn for fqn in never if fqn in quarantined]
