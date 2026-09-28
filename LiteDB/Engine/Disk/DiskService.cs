@@ -193,12 +193,13 @@ namespace LiteDB.Engine
         /// <summary>
         /// Mark the header for recovery during error-close, before disposing
         /// the data writer and its factory (which may own a shared stream).
+        /// Returns false when the mark could not be written before the timeout.
         /// </summary>
-        internal void MarkAsInvalidState()
+        internal bool MarkAsInvalidState()
         {
             // Never ended: after error-close no client may open a direct snapshot.
             _signals?.StructuralBegin();
-            FileHelper.TryExec(60, () =>
+            return FileHelper.TryExec(60, () =>
             {
                 var stream = _dataPool.Writer.Value;
                 var buffer = _bufferPool.Rent(PAGE_SIZE);

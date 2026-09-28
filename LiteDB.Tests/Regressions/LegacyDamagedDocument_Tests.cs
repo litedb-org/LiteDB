@@ -67,6 +67,34 @@ namespace LiteDB.Tests.Regressions
         }
 
         [Fact]
+        public void Failed_automatic_rebuild_keeps_the_damage_that_required_it()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture());
+
+            // A rebuild that cannot run (in shared mode: while another connection reads).
+            var settings = new EngineSettings { Filename = file.Filename, AutoRebuild = true, AutoRebuildAllowed = () => false };
+            Action open = () => new LiteEngine(settings).Dispose();
+            var error = open.Should().Throw<LiteException>().Which;
+            error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            error.Message.Should().Contain("Collection 'c'").And.Contain("The automatic rebuild failed");
+            error.InnerException.Should().BeOfType<AggregateException>().Which.InnerExceptions.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public void Open_is_not_repeated_when_the_rebuild_mark_cannot_be_written()
+        {
+            var original = Fixture();
+            using var data = new MemoryStream(original, writable: false);
+
+            Action open = () => new LiteEngine(new EngineSettings { DataStream = data, AutoRebuild = true }).Dispose();
+            var error = open.Should().Throw<LiteException>().Which;
+            error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            error.Message.Should().Contain("Collection 'c'").And.NotContain("automatic rebuild");
+            error.InnerException.Should().NotBeOfType<AggregateException>();
+        }
+
+        [Fact]
         public void Read_only_legacy_scan_surfaces_the_damage_without_changing_the_file()
         {
             using var file = new TempFile();

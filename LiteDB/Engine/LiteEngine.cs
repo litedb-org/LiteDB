@@ -34,6 +34,9 @@ namespace LiteDB.Engine
 
         private EngineState _state;
 
+        // the last error-close wrote the rebuild mark into the data file header
+        private bool _markedForRebuild;
+
         // immutable settings
         private readonly EngineSettings _settings;
 
@@ -90,7 +93,16 @@ namespace LiteDB.Engine
                 // Damage found while opening (e.g. by the index migration of a legacy file) marked
                 // the data file for rebuild. With AutoRebuild this open rebuilds it, once, instead of
                 // failing and leaving the rebuild to the next open.
-                this.Open();
+                try
+                {
+                    this.Open();
+                }
+                catch (Exception retry)
+                {
+                    // Keep the damage that required the rebuild visible next to the rebuild failure.
+                    throw new LiteException(ex.ErrorCode, new AggregateException(ex, retry),
+                        "{0} The automatic rebuild failed: {1}", ex.Message, retry.Message);
+                }
             }
         }
 
@@ -99,7 +111,7 @@ namespace LiteDB.Engine
 
         private bool RebuildAfterFailedOpen(LiteException ex) =>
             ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE && _settings.AutoRebuild &&
-            !_settings.ReadOnly && !this.InvalidDatafileState;
+            !_settings.ReadOnly && !this.InvalidDatafileState && _markedForRebuild;
 
         #endregion
 
@@ -116,6 +128,7 @@ namespace LiteDB.Engine
             {
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
+                _markedForRebuild = false;
 
                 // A failed rebuild may have left stale data or no canonical file.
                 // Check before upgrade, recovery, or DiskService can create a new file.
@@ -301,7 +314,7 @@ namespace LiteDB.Engine
             if (tc.InvalidDatafileState)
             {
                 // Keep the data writer alive until the recovery marker is durable.
-                tc.Catch(() => _disk?.MarkAsInvalidState());
+                tc.Catch(() => _markedForRebuild = _disk?.MarkAsInvalidState() == true);
             }
 
             // close disks streams
