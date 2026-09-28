@@ -45,7 +45,11 @@ no root once it found out. An engine whose data is a file (opened by it or passe
 `FileStream`) proves the data file syncs before its first log sync, once per data header
 in the process, and syncs the WAL once before it first reuses a slot. On storage that
 syncs, a retiring checkpoint costs one extra data and log sync and an engine's first slot
-reuse one log sync; the data file proof costs nothing while its header is unchanged. A
+reuse one log sync; the data file proof costs nothing while its header is unchanged. The
+process remembers, per path, the header its latest data sync left: a file replaced at that
+path with a byte-identical header (a copy of the same checkpoint restored over it) is taken
+as that synced file, so whoever replaces a database file must sync it (`File.Copy` does
+not); a replacement with any other header is proven again. A
 data sync that fails with an I/O error during that proof fails the operation and stops
 the engine, as it does in a checkpoint. After a data sync answered "cannot sync", a log
 sync waits for the data file (each one retries its sync first and otherwise flushes the log

@@ -133,6 +133,37 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The synced headers are remembered per path (DurableHeaders): a data file replaced at that
+        /// path, here by an older copy restored over it, is proven again when its header differs
+        /// from the one the latest sync there left. A replacement with that very header is taken as
+        /// the synced file (the documented contract): whoever writes it, a restore included, must
+        /// sync it, which File.Copy does not.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Data_file_replaced_at_its_path_is_proven_again_unless_it_has_the_synced_header(bool sameHeader)
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var copy = File.ReadAllBytes(file.Filename);
+            if (!sameHeader)
+            {
+                using var db = new LiteDatabase(file.Filename);
+                Update(db, 1); // its closing checkpoint rotates the salt and syncs the new header
+            }
+            File.Exists(FileHelper.GetLogFile(file.Filename)).Should().BeFalse();
+            File.WriteAllBytes(file.Filename, copy);
+
+            using var power = new FilePowerLossModel(file.Filename);
+            using var direct = new LiteDatabase(file.Filename);
+            var atOpen = power.DataSyncs;
+            Insert(direct, 100);
+            (power.DataSyncs - atOpen).Should().Be(sameHeader ? 0 : 1);
+            DurableLogFlush(direct).Should().BeTrue();
+        }
+
+        /// <summary>
         /// Another connection's checkpoint left a rotated header in the OS cache only: the next
         /// operation of a shared connection whose engines saw the old header durable proves again.
         /// </summary>

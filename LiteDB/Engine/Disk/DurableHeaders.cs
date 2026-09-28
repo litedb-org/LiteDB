@@ -13,7 +13,8 @@ namespace LiteDB.Engine
     /// A missing or stale entry only costs a sync. Assumes a file at the same path with the same
     /// header is the same file: every WAL-emptying checkpoint, rebuild and new database draws a
     /// random salt, but a copy restored over the file (or a template) with a byte-identical header
-    /// and different pages is taken as proven.
+    /// and different pages is taken as proven. Whoever replaces a database file must sync it
+    /// (documented in the release notes); a replacement with another header is proven again.
     /// </summary>
     internal static class DurableHeaders
     {
