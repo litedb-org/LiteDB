@@ -67,11 +67,12 @@ namespace LiteDB.Tests.Regressions
         /// A 5.0.21 file (IndexMigration_5_0_21.zip, its WAL empty) on storage whose data file cannot
         /// sync while its WAL can. The converted header reached the OS cache only while the
         /// checksummed frames written after it became durable, so a power loss left them beside the
-        /// legacy header. No log sync now precedes a data sync that succeeds: the power-loss image is
-        /// the legacy file and its empty WAL, and once the data file syncs, commits are durable.
+        /// legacy header. The conversion empties the log only after a data sync that succeeds, so it
+        /// is now refused, the legacy file unchanged; once the data file syncs, it converts and
+        /// commits are durable.
         /// </summary>
         [Fact]
-        public void Conversion_where_only_the_data_file_cannot_sync_leaves_the_legacy_file_durable()
+        public void Conversion_is_refused_where_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
             var original = Fixture("plain.db");
@@ -80,20 +81,19 @@ namespace LiteDB.Tests.Regressions
             using var power = new FilePowerLossModel(file.Filename) { DataFails = true };
             try
             {
+                Action open = () => new LiteDatabase(file.Filename).Dispose();
+                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                File.ReadAllBytes(file.Filename).Should().Equal(original);
+                (File.Exists(logName) ? new FileInfo(logName).Length : 0).Should().Be(0);
                 int rows;
-                using (var converted = new LiteDatabase(file.Filename))
-                {
-                    rows = converted.GetCollection("rows").Count();
-                    DurableLogFlush(converted).Should().BeFalse();
-                }
-                var image = power.Capture();
-                image.Data.Should().Equal(original, "the converted header never synced");
-                image.Log.Should().BeEmpty("no log sync came before a data sync");
-                FilePowerLossModel.Open(image, db => db.GetCollection("rows").Count()).Should().Be(rows);
+                using (var legacy = new LiteDatabase($"Filename={file.Filename};ReadOnly=true;Legacy Index Scan=true"))
+                    rows = legacy.GetCollection("rows").Count();
+                rows.Should().BeGreaterThan(0);
 
                 power.DataFails = false;
                 using (var converted = new LiteDatabase(file.Filename))
                 {
+                    converted.GetCollection("rows").Count().Should().Be(rows);
                     converted.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 900002, ["value"] = 1 });
                     DurableLogFlush(converted).Should().BeTrue();
                 }
@@ -263,25 +263,58 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A rebuild installs its replacement without the replacement's WAL. Where only the data file
-        /// cannot sync, its full checkpoint empties that WAL as where neither file syncs (it was
-        /// kept, and the rebuild refused): the rebuilt database holds every row.
+        /// The data file syncs for the conversion's check at open, then stops before the conversion's
+        /// own first sync: the conversion is still refused before it writes anything.
         /// </summary>
         [Fact]
-        public void Rebuild_where_only_the_data_file_cannot_sync_keeps_every_row()
+        public void Conversion_whose_data_file_stops_syncing_after_its_check_is_refused_unchanged()
+        {
+            using var file = new TempFile();
+            var original = Fixture("plain.db");
+            File.WriteAllBytes(file.Filename, original);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var dataName = Path.GetFullPath(file.Filename);
+            var dataSyncs = 0;
+            NativeFileSync.SimulateErrno = path =>
+                string.Equals(Path.GetFullPath(path), dataName, StringComparison.OrdinalIgnoreCase) && ++dataSyncs > 1 ? 22 : 0;
+            try
+            {
+                Action open = () => new LiteDatabase(file.Filename).Dispose();
+                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                dataSyncs.Should().Be(2, "the check at open synced, the conversion's own first sync did not");
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+            File.ReadAllBytes(file.Filename).Should().Equal(original);
+            (File.Exists(logName) ? new FileInfo(logName).Length : 0).Should().Be(0);
+            File.Delete(logName);
+        }
+
+        /// <summary>
+        /// A rebuild installs its replacement without the replacement's WAL. Where the data file
+        /// cannot sync, the replacement's full checkpoint keeps that WAL (a data sync must cover the
+        /// backfill), so installing the data file alone would lose every row: the rebuild is refused
+        /// and the database is unchanged. Once the data file syncs, it rebuilds.
+        /// </summary>
+        [Fact]
+        public void Rebuild_is_refused_where_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
             Setup(file.Filename);
+            var original = File.ReadAllBytes(file.Filename);
             NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
             try
             {
                 using var db = new LiteDatabase(file.Filename);
-                db.Rebuild();
-                db.GetCollection("rows").Count().Should().Be(Rows);
+                Action rebuild = () => db.Rebuild();
+                rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
             }
             finally { NativeFileSync.SimulateErrno = null; }
+            File.ReadAllBytes(file.Filename).Should().Equal(original);
+            Directory.GetFiles(Path.GetDirectoryName(file.Filename), Path.GetFileNameWithoutExtension(file.Filename) + "-*")
+                .Should().BeEmpty("no replacement, backup or marker is left");
 
             using var reopened = new LiteDatabase(file.Filename);
+            reopened.Rebuild();
             reopened.GetCollection("rows").FindAll().OrderBy(x => x["_id"].AsInt32).Should().BeEquivalentTo(
                 Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)), o => o.WithStrictOrdering());
         }

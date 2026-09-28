@@ -75,8 +75,10 @@ namespace LiteDB.Engine
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
             // Successful syncs are required before crossing the format boundary,
             // unless the log storage cannot sync at all (#2242): then the
-            // ordered writes keep conversion process-crash safe only.
+            // ordered writes keep conversion process-crash safe only. The log is
+            // emptied below, which needs a data file that syncs (KeepsWal).
             this.SyncDataBarrier(stream);
+            if (!_dataBarrierSynced) throw UnsyncedDataConversion();
             SyncLogBarrier(log);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
@@ -96,8 +98,8 @@ namespace LiteDB.Engine
         }
 
         internal static IOException UnsyncedDataConversion() => new IOException("Cannot convert this legacy database now: " +
-            "its data file stopped syncing to the device after its log file synced commits, so the log is kept until the " +
-            "data file syncs again. Reopen it once the storage syncs, or open it with \"readonly=true;legacy index scan=true\".");
+            "its data file cannot sync to the device, and the conversion empties the log file only after the data file " +
+            "synced. Reopen it once the storage syncs, or open it with \"readonly=true;legacy index scan=true\".");
 
         /// <summary>Called only after checkpoint synced all data, before recycling the WAL.</summary>
         internal void RotateWalSalt()

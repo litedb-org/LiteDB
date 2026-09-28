@@ -53,6 +53,9 @@ namespace LiteDB.Engine
             // key was validated; in shared mode each operation retries while a lease lasts. Refuse
             // before validating when it is already known that the drain cannot run.
             if (!_disk.ChecksumsEnabled && _walIndex.DrainBlocked()) throw ConversionBlocked();
+            // The conversion empties the log only after a data sync that succeeds (KeepsWal): a data
+            // file that cannot sync (#2242) refuses it here, both files unchanged.
+            if (!_disk.ChecksumsEnabled && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
@@ -123,10 +126,10 @@ namespace LiteDB.Engine
             // A lease-aware checkpoint skips or limits its work while other connections may
             // read the WAL; discarding what it left would lose committed transactions. A
             // refused conversion changes neither file; a drain trims partial pages first. A drain
-            // whose data file stopped syncing keeps a WAL with durable commits (KeepsSyncedWal).
+            // whose data file cannot sync keeps the WAL (KeepsWal), and so does the conversion.
             if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain())
             {
-                if (_disk.KeepsSyncedWal) throw DiskService.UnsyncedDataConversion();
+                if (_disk.KeepsWal) throw DiskService.UnsyncedDataConversion();
                 throw ConversionBlocked();
             }
             _disk.TrimTrailingPages();

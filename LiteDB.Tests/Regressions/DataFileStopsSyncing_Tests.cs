@@ -16,8 +16,8 @@ namespace LiteDB.Tests.Regressions
     /// A data file that stops syncing (#2242) after commits were acknowledged durable. No log sync
     /// makes an emptied WAL durable before a data sync succeeds (UnsyncedBackfillPowerLoss_Tests),
     /// but that alone does not stop the OS from writing the emptied WAL back ahead of the backfill,
-    /// nor a sync outside the engine's barriers. An engine keeps a WAL whose frames it synced
-    /// until the data file syncs again, and a stream the engine opens to read never syncs.
+    /// nor a sync outside the engine's barriers. The WAL is kept until a data sync that covers the
+    /// backfill succeeds, and a stream the engine opens to read never syncs.
     /// </summary>
     [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -26,7 +26,7 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The OS writes the WAL back as it is after the full checkpoint, the backfill never reaches
         /// the device: the WAL was emptied, and commits acknowledged durable were lost (every row
-        /// back at 0). The checkpoint now keeps the WAL whose frames the engine synced.
+        /// back at 0). The checkpoint now keeps the WAL until the data file syncs.
         /// </summary>
         [Theory]
         [InlineData(false)] // only the data file cannot sync
@@ -57,14 +57,15 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// The next engine over the same files (a reopen, the next operation of a shared connection)
-        /// did not sync the kept WAL itself, and its data proof failed on the header the backfill
-        /// rewrote: it emptied the WAL, and the commit acknowledged durable was lost to the WAL
-        /// written back ahead of the backfill. The process now remembers a WAL with synced bytes by
-        /// its path until an engine empties it after a data sync.
+        /// The next engine over the same files (a reopen, the next operation of a shared connection,
+        /// an engine of a new process) did not sync the kept WAL itself, and its data proof failed on
+        /// the header the backfill rewrote: it emptied the WAL, and the commit acknowledged durable
+        /// was lost to the WAL written back ahead of the backfill. Every engine now keeps the WAL
+        /// until a data sync succeeds, whoever synced it.
         /// </summary>
         [Theory]
         [InlineData("reopen")]
+        [InlineData("restart")] // the second engine is of a new process
         [InlineData("shared")]
         public void Wal_kept_by_one_engine_is_kept_by_the_next(string mode)
         {
@@ -72,7 +73,7 @@ namespace LiteDB.Tests.Regressions
             Setup(file.Filename);
             var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
-            if (mode == "reopen")
+            if (mode != "shared")
             {
                 using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
                 {
@@ -83,6 +84,7 @@ namespace LiteDB.Tests.Regressions
                     db.Checkpoint();
                 }
                 new FileInfo(logName).Length.Should().BeGreaterThan(0, "the first engine kept its synced WAL");
+                if (mode == "restart") DurableHeaders.Forget(file.Filename);
                 using (var db = new LiteDatabase(new LiteEngine(power.Settings()))) db.Checkpoint();
             }
             else
@@ -101,7 +103,7 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// While the WAL is kept, an automatic checkpoint first retries the data sync and does
         /// nothing while it fails, instead of rescanning the growing WAL at every commit; the first
-        /// one after the data file syncs again empties it.
+        /// one after the data file syncs again empties it. $database.walKept reports the kept WAL.
         /// </summary>
         [Fact]
         public void Automatic_checkpoints_wait_for_the_data_file_while_the_wal_is_kept()
@@ -121,6 +123,7 @@ namespace LiteDB.Tests.Regressions
             power.DataFails = true;
             for (var id = 1; id <= 200; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
             checkpoints.Should().BeLessThan(5, "a kept WAL is not rescanned at every commit");
+            db.GetCollection("$database").FindAll().Single()["walKept"].AsBoolean.Should().BeTrue();
             new FileInfo(logName).Length.Should().BeGreaterThan(80L * Constants.PAGE_SIZE, "the WAL with the durable commit is kept");
             power.AfterPowerLoss(Rows).Should().Be(1);
 
@@ -128,6 +131,7 @@ namespace LiteDB.Tests.Regressions
             db.GetCollection("log").Insert(new BsonDocument { ["_id"] = 201 });
             new FileInfo(logName).Length.Should().BeLessThan(20L * Constants.PAGE_SIZE, "the next automatic checkpoint empties it");
             db.GetCollection("log").Count().Should().Be(201);
+            db.GetCollection("$database").FindAll().Single()["walKept"].AsBoolean.Should().BeFalse();
         }
 
         /// <summary>
@@ -149,7 +153,7 @@ namespace LiteDB.Tests.Regressions
                     var settings = power.Settings();
                     settings.CheckpointStage = stage => { if (stage == "data-page") power.DataFails = true; };
                     Action open = () => new LiteEngine(settings).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*stopped syncing*");
+                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
                     FilePowerLossModel.Open(power.Capture(), AssertLegacyCommits);
                 }
                 using var db = new LiteDatabase(file.Filename);

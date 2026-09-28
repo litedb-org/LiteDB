@@ -145,10 +145,11 @@ storage that answers "cannot sync" (#2242) neither retires nor reuses frames. On
 that stops syncing during a retiring checkpoint degrades its barriers; that checkpoint keeps
 the frames it retired and publishes no root once it found out. Before its first slot reuse
 every engine (of any connection) syncs the WAL, and before its first log sync an engine
-whose data is a file proves the data file (once per data header in the process). Never
-make a WAL change durable that discards frames the data file could not make durable: after
-a data sync answered "cannot sync", a log sync (and a new WAL's directory entry) waits for
-a data sync that succeeds.
+whose data is a file proves the data file (once per data header in the process). Empty a
+file WAL only after a data sync that covers its backfill succeeded; never infer that no
+earlier engine or process synced its frames. After a data sync answered "cannot sync", a
+checkpoint keeps the WAL and writes nothing, a conversion or rebuild is refused unchanged,
+and a log sync waits for a data sync that succeeds.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and

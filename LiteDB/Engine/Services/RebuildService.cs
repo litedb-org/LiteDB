@@ -133,6 +133,14 @@ namespace LiteDB.Engine
                     engine.Checkpoint();
                 }
             }
+
+            // The replacement is installed without its WAL. Its checkpoints keep the WAL until a
+            // data sync succeeds (DiskService.KeepsWal): a data file that cannot sync (#2242) would
+            // lose what the WAL holds, so the original database stays.
+            var tempLog = FileHelper.GetLogFile(tempFilename);
+            if (File.Exists(tempLog) && new FileInfo(tempLog).Length > 0)
+                throw new IOException("Cannot rebuild this database now: the rebuilt data file cannot sync to the device, " +
+                    "so its log file could not be emptied. The database is unchanged; retry once the storage syncs.");
         }
 
         /// <summary>

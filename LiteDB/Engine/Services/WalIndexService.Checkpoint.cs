@@ -78,7 +78,7 @@ namespace LiteDB.Engine
 
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
-        public int TryAutoCheckpoint() => _disk.DefersCheckpoint() ? 0 : this.TryCheckpoint(rationed: true);
+        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
 
         /// <summary>
         /// Checkpoint on engine close. A close that can reclaim always runs; shared
@@ -105,6 +105,10 @@ namespace LiteDB.Engine
         private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+
+            // The WAL is kept until a data sync succeeds (DiskService.KeepsWal): retry it first,
+            // and change nothing while the data file still cannot sync.
+            if (_disk.DefersCheckpoint()) return 0;
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
@@ -181,10 +185,10 @@ namespace LiteDB.Engine
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
-                // A backfill the data file could not sync (#2242): no log sync makes an emptied WAL
-                // durable before a data sync succeeds (ProveDataBeforeLog), but durable frames of
-                // this engine are kept until then (KeepsSyncedWal), as a partial checkpoint does.
-                if (reclaim && _disk.KeepsSyncedWal) reclaim = false;
+                // A backfill the data file could not sync (#2242): the WAL is emptied only after a
+                // data sync that covers the backfill succeeded (KeepsWal), so it is kept, as a
+                // partial checkpoint keeps its frames.
+                if (reclaim && _disk.KeepsWal) reclaim = false;
 
                 // Storage that stopped syncing after the retirement's proof may not have made its
                 // witness records durable: a root published now could leave a durable header naming

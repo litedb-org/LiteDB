@@ -121,7 +121,9 @@ can be unrecoverable. Ordinary commit fallback reports reduced durability.
 Checkpoint, publication and preamble barriers attempt an actual sync; a failed
 sync stops them. Storage that answers "cannot sync" (#2242), for the WAL or the data file, degrades them
 to ordered OS-cache flushes that survive a process crash, not power loss, as before
-#2818; encrypted preambles still require a successful sync. A WAL directory the process
+#2818; encrypted preambles still require a successful sync. A file WAL is emptied only after
+a data sync that covers its backfill succeeded, so there it is kept and grows
+(`$database.walKept`), and a conversion or rebuild is refused unchanged. A WAL directory the process
 cannot open for reading (EACCES/EPERM) counts as a directory that cannot sync. On Unix, released .NET
 runtimes report every fsync failure as success (dotnet/runtime#124725), so file
 handles are synced natively (`fsync`; `F_FULLFSYNC` with `fsync` fallback on macOS)

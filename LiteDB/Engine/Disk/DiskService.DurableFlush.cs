@@ -19,6 +19,9 @@ namespace LiteDB.Engine
         private readonly SharedDurabilityState _sharedDurability;
         private readonly bool _dataIsFile;
 
+        // The WAL lives in memory (EngineSettings.VolatileLog): it survives no power loss.
+        private readonly bool _volatileLog;
+
         // The data file's full path, for DurableHeaders; null when it has none.
         private readonly string _dataPath;
         private volatile bool _logFlushDegraded;
@@ -32,22 +35,6 @@ namespace LiteDB.Engine
         // Set by this engine's first successful data barrier: whatever earlier engines left in the
         // data file's OS cache is durable since (see ProveDataFile).
         private volatile bool _dataSyncProven;
-
-        // Set by a log sync that made WAL bytes durable, cleared when the WAL is emptied: the WAL
-        // holds frames that are durable, maybe of commits acknowledged durable (see KeepsSyncedWal).
-        // Kept per process by the WAL's path, so the next engine over the same files knows it too.
-        private volatile bool _walSynced;
-        private readonly string _logPath;
-
-        private bool WalSynced
-        {
-            get => _logPath == null ? _walSynced : DurableHeaders.IsWalSynced(_logPath);
-            set
-            {
-                if (_logPath == null) _walSynced = value;
-                else DurableHeaders.SetWalSynced(_logPath, value);
-            }
-        }
 
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
         // false after "cannot sync" (#2242), and for the log also while its sync waits for the data file.
@@ -83,24 +70,32 @@ namespace LiteDB.Engine
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
 
         /// <summary>
-        /// The latest data barrier answered "cannot sync" (#2242) while the WAL holds frames a log
-        /// sync of this engine made durable. A full checkpoint must not empty it: log syncs wait for
-        /// the data file (<see cref="ProveDataBeforeLog"/>), but the OS can still write the emptied
-        /// WAL back ahead of the backfill, which would lose them. A WAL no log sync reached, such as
-        /// on storage where neither file ever synced, is emptied as before #2818.
+        /// The latest data barrier answered "cannot sync" (#2242), so the data file may not hold on
+        /// the device what the WAL does. The WAL is emptied only after a data sync that covers the
+        /// backfill succeeded: until one does, a full checkpoint keeps it and the WAL grows
+        /// (reported as <c>$database.walKept</c>). Whether an earlier engine or process synced WAL
+        /// frames is not known here, and the OS can write an emptied WAL back ahead of the backfill.
+        /// A WAL the engine keeps in memory protects nothing across a power loss and is emptied.
         /// </summary>
-        internal bool KeepsSyncedWal => !_dataBarrierSynced && this.WalSynced;
+        internal bool KeepsWal => !_volatileLog && !_dataBarrierSynced;
 
         /// <summary>
-        /// A kept WAL is only emptied after a data sync that succeeds: an automatic checkpoint first
-        /// retries it and does nothing while the data file still cannot sync, instead of scanning
-        /// the growing WAL again at every commit.
+        /// While the WAL is kept, a checkpoint first retries the data sync and does nothing while
+        /// the data file still cannot sync: it writes no page to a file that cannot make it durable,
+        /// and does not scan the growing WAL again at every commit.
         /// </summary>
         internal bool DefersCheckpoint()
         {
-            if (!this.KeepsSyncedWal) return false;
+            if (!this.KeepsWal) return false;
             this.SyncDataFile();
             return !_dataBarrierSynced;
+        }
+
+        /// <summary>Sync the data file now: false when it answers "cannot sync" (#2242).</summary>
+        internal bool DataFileSyncs()
+        {
+            this.SyncDataFile();
+            return _dataBarrierSynced;
         }
 
         /// <summary>
@@ -199,7 +194,6 @@ namespace LiteDB.Engine
             {
                 log.FlushToDisk();
                 _logBarrierSynced = true;
-                this.WalSynced = log.Length > 0;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -286,15 +280,6 @@ namespace LiteDB.Engine
             log.Flush();
         }
 
-        /// <summary>The WAL file's full path, for DurableHeaders; null for a WAL in memory or a caller stream without one.</summary>
-        private static string DurableLogPath(EngineSettings settings)
-        {
-            if (settings.LogStream == null) return settings.DataStream == null && DurablePath(settings) is string data ? FileHelper.GetLogFile(data) : null;
-            var name = (settings.LogStream as FileStream)?.Name;
-            try { return name != null && Path.IsPathRooted(name) ? Path.GetFullPath(name) : null; }
-            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
-        }
-
         private static string DurablePath(EngineSettings settings)
         {
             var path = settings.DataStream == null ? settings.Filename : (settings.DataStream as FileStream)?.Name;
@@ -337,7 +322,6 @@ namespace LiteDB.Engine
             {
                 raw.FlushToDisk();
                 _logBarrierSynced = true;
-                this.WalSynced = raw.Length > 0;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
