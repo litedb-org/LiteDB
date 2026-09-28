@@ -156,6 +156,15 @@ It pins the newest published package by default (`--known-bad` accepts
 fails the proof. Do not add new repros to `LiteDB.sln`: a repro pinned to a
 packed commit cannot restore in the ordinary build.
 
+Every PR shows its counts in the checks list as an informational check named like
+`Evidence: +12 tests · 2/2 proven to fail before` (tests added, minus tests
+removed, and the regression proofs whose known-bad state failed while the PR head
+passed). After the run, the **PR evidence labels** workflow sets
+`regression: proven` or, on a `bug` PR without a passing proof,
+`regression: needs proof`. It runs trusted code from `dev` and treats the run's
+`pr-evidence.json` as data, so it also labels fork PRs. The Evidence check's name
+changes with the counts; never make it a required check.
+
 To reproduce a commit state locally, run
 `python .github/scripts/regression_proof.py pack-known-bad --commit <sha> --feed
 <dir>`, set `RestoreAdditionalProjectSources=<dir>`, then run the repro with

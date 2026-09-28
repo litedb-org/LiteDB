@@ -1,0 +1,64 @@
+name: PR evidence labels
+
+# Labels a PR from the counts its Regression proof run computed:
+#   "regression: proven"      every regression proof failed on its known-bad state
+#                              and passed at the PR head;
+#   "regression: needs proof" a PR labelled bug without such a proof.
+# workflow_run runs this file from dev with a write token, also for fork PRs. It
+# never checks out or runs PR code: pr-evidence.json is untrusted data, parsed by
+# dev's own script, and only applied while the PR still has the evaluated head.
+on:
+  workflow_run:
+    workflows: [Regression proof]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  label:
+    name: Apply evidence labels
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out dev (trusted code only)
+        uses: actions/checkout@v4
+
+      - name: Download the run's evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-evidence
+          path: evidence
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Apply labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_HEAD: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          plan=$(python .github/scripts/pr_evidence.py labels --evidence evidence/pr-evidence.json)
+          pr=$(jq -r .pr <<<"$plan")
+          sha=$(jq -r .headSha <<<"$plan")
+          if [ "$sha" != "$RUN_HEAD" ]; then echo "Evidence is for $sha, the run for $RUN_HEAD; skipping."; exit 0; fi
+          current=$(gh pr view "$pr" -R "$REPO" --json headRefOid --jq .headRefOid)
+          if [ "$current" != "$sha" ]; then echo "PR #$pr moved on to $current; the newer run labels it."; exit 0; fi
+          gh label create "regression: proven" -R "$REPO" --color 0e8a16 --force \
+            --description "Every regression proof failed on its known-bad state and passed at the PR head"
+          gh label create "regression: needs proof" -R "$REPO" --color d93f0b --force \
+            --description "A bug fix without a passing regression proof"
+          jq -r '.labels | to_entries[] | "\(.key)\t\(.value)\t\(.key | @uri)"' <<<"$plan" |
+            while IFS=$'\t' read -r label wanted encoded; do
+              if [ "$wanted" = "true" ]; then
+                gh api -X POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$label" --silent
+              else  # 404 when the label is not on the PR
+                gh api -X DELETE "repos/$REPO/issues/$pr/labels/$encoded" --silent 2>/dev/null || true
+              fi
+            done
+          echo "PR #$pr: $(jq -c .labels <<<"$plan")" >> "$GITHUB_STEP_SUMMARY"

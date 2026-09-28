@@ -37,7 +37,10 @@ stable or prerelease, is:
 Full read and migrate support is promised for stable releases, and for a
 prerelease only where a fixture, compatibility script or regression proof names
 it. Refusing an unsupported prerelease file is acceptable; misreading it or
-changing its bytes is a defect.
+changing its bytes is a defect. The nightly **Published-package compatibility**
+workflow (`scripts/test-prerelease-compatibility.py`) writes plain/encrypted,
+clean/dirty-WAL files with the newest prereleases and the latest stable package
+and opens them with the current engine; a scheduled failure opens an issue.
 
 ## Vector File Compatibility
 BSON-only new files use v11; Auto compact files use v12 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;

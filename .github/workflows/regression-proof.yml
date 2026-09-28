@@ -139,8 +139,46 @@ jobs:
     needs: [select, prove]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    outputs:
+      badge: ${{ steps.summary.outputs.badge }}
     steps:
+      - name: Check out repository
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download proof reports
+        if: github.event_name == 'pull_request' && needs.select.outputs.count != '0' && needs.select.outputs.count != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: regression-proof-*
+          path: proofs
+
+      # Counts for the Evidence check name and the labeler (pr-evidence-labels.yml).
+      - name: Summarize tests added and proofs proven
+        id: summary
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          MATRIX: ${{ needs.select.outputs.matrix }}
+          BUG_PR: ${{ contains(github.event.pull_request.labels.*.name, 'bug') }}
+        run: |
+          bug=(); if [ "$BUG_PR" = "true" ]; then bug=(--bug); fi
+          python .github/scripts/pr_evidence.py summarize --base "$BASE_SHA" --head-sha "$HEAD_SHA" \
+            --pr "$PR" --matrix "$MATRIX" --reports proofs "${bug[@]}" --output pr-evidence.json
+
+      - name: Upload evidence for the labeler
+        if: steps.summary.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-evidence
+          path: pr-evidence.json
+          overwrite: true
+
       - name: Every selected proof must pass
         env:
           SELECTED: ${{ needs.select.result }}
@@ -150,3 +188,17 @@ jobs:
           echo "select=$SELECTED prove=$PROVED proofs=$COUNT"
           test "$SELECTED" = success
           if [ "$COUNT" = "0" ]; then test "$PROVED" = skipped; else test "$PROVED" = success; fi
+
+  # Informational: its name carries the counts, so they show in the PR's checks
+  # list. Its name changes with the counts; never make it a required check.
+  evidence:
+    name: ${{ needs.result.outputs.badge || 'Evidence' }}
+    needs: result
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Show the counts
+        env:
+          BADGE: ${{ needs.result.outputs.badge }}
+        run: echo "${BADGE:-No evidence summary}" >> "$GITHUB_STEP_SUMMARY"

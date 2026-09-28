@@ -140,10 +140,10 @@
         {"script": "scripts/test-index-compatibility.py", "proves": "Released 5.0.21 creates genuine old indexes; the current engine migrates them and the released reader refuses the promoted format."},
         {"script": "scripts/test-parent-format-compatibility.py", "model": "corrupt-input", "proves": "Pinned actual v10/v11 predecessors reject newer fixtures without changing the data file or WAL."},
         {"script": "scripts/test-mvcc-compatibility.py", "model": "corrupt-input", "proves": "The pinned actual v12 predecessor rejects v13 retained-WAL fixtures without changing either file."},
+        {"script": "scripts/test-prerelease-compatibility.py", "proves": "Files written by the newest published prereleases and the latest stable package (plain/encrypted, clean/dirty WAL) are read or migrated with complete payloads and index results and stay writable, or are refused with both files byte-identical; each writer reports the package it loaded."},
         {"fuzz": "compatibility", "model": "exception", "proves": "Plain/encrypted v4/v7 fixtures are upgraded with every publication phase interrupted and resumed, then extended with indexes, FileStorage, dirty WAL and read-only opens."}
       ],
       "gaps": [
-        {"text": "The published-prerelease floor (open correctly or refuse byte-identically) is decided, but no job yet opens files written by actual prerelease packages."},
         {"text": "Fixtures lack provenance manifests (producer, recipe, hashes, expected outcome)."}
       ]
     },
