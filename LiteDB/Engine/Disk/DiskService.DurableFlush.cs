@@ -154,6 +154,16 @@ namespace LiteDB.Engine
         private void SyncLogBarrier(Stream log)
         {
             this.ProveDataBeforeLog();
+            this.SyncLogBarrierUnproven(log);
+        }
+
+        /// <summary>
+        /// <see cref="SyncLogBarrier"/> without the data proof: only for a log sync that must precede
+        /// every data sync, the recovery copy of a torn header (the proof would make the torn header
+        /// durable before its only repair).
+        /// </summary>
+        private void SyncLogBarrierUnproven(Stream log)
+        {
             try
             {
                 log.FlushToDisk();

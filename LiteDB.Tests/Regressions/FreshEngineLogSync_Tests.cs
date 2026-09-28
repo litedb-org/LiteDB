@@ -1,4 +1,5 @@
 #if DEBUG || TESTING
+using System;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
@@ -56,6 +57,66 @@ namespace LiteDB.Tests.Regressions
                 db.Checkpoint();
             }
             image.Data.Should().NotBeNull();
+            FilePowerLossModel.Open(image, Values).Should().Equal(new[] { 5 }, "value 5 was acknowledged durable");
+            File.Delete(FileHelper.GetLogFile(file.Filename));
+        }
+
+        /// <summary>
+        /// The one log sync that must precede the data proof: an open that repairs a torn header from
+        /// its journal makes the journal durable first. Proving the data file before it made the torn
+        /// header durable while the journal, its only repair, was still in the OS cache.
+        /// </summary>
+        [Fact]
+        public void Open_repairing_a_torn_header_makes_its_journal_durable_first()
+        {
+            using var file = new TempFile();
+            using var power = new FilePowerLossModel(file.Filename);
+            using (var setup = new LiteDatabase(file.Filename))
+            {
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            }
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++)
+                    db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
+            }
+
+            power.DataFails = power.LogFails = true;
+            var settings = new EngineSettings { Filename = file.Filename };
+            settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
+                Action checkpoint = () => db.Checkpoint();
+                checkpoint.Should().Throw<IOException>(); // its header journal reached the OS cache only
+            }
+            // That checkpoint's header write, torn in the OS cache.
+            using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+            {
+                data.Position = 200;
+                data.Write(Enumerable.Repeat((byte)0xA5, 3000).ToArray(), 0, 3000);
+            }
+
+            power.DataFails = power.LogFails = false; // the storage syncs again
+            (byte[] Data, byte[] Log) image = default;
+            var hook = NativeFileSync.SimulateErrno;
+            var log = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
+            NativeFileSync.SimulateErrno = path =>
+            {
+                // A power loss just before the open's first log sync.
+                if (image.Data == null && string.Equals(Path.GetFullPath(path), log, StringComparison.OrdinalIgnoreCase)) image = power.Capture();
+                return hook(path);
+            };
+            try
+            {
+                using var reopened = new LiteDatabase(file.Filename);
+                Values(reopened).Should().Equal(new[] { 5 }, "the open restores the header from its journal");
+            }
+            finally { NativeFileSync.SimulateErrno = hook; }
+
+            image.Data.Should().NotBeNull("the open synced the log");
             FilePowerLossModel.Open(image, Values).Should().Equal(new[] { 5 }, "value 5 was acknowledged durable");
             File.Delete(FileHelper.GetLogFile(file.Filename));
         }

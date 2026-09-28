@@ -91,8 +91,9 @@ namespace LiteDB.Engine
                 var data = _dataPool.Writer.Value;
                 if (_recoveredHeader != null)
                 {
-                    // Make an OS-cached recovery copy durable before repairing its primary.
-                    SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
+                    // Make an OS-cached recovery copy durable before repairing its primary. The primary
+                    // is torn: no data sync may come first (the data barrier below proves the file).
+                    SyncLogBarrierUnproven(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
                     this.CrashPoint("promotion-recovery-before-header-write");
                     data.Position = 0;
