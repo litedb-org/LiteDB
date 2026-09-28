@@ -48,10 +48,27 @@ A one-byte admission range starts at `Int64.MaxValue - 4096`, beyond LiteDB's
 supported database address space. Direct writers lock it exclusively; other users
 lock it shared. Three following bytes identify shared families: the default/URI
 mutex strategy, the explicit SHA1 strategy, and standalone Direct readers. Under
-a short physical-identity mutex, an entrant checks for locks in incompatible
-families and acquires its own shared family lock. Equivalent default and URI
+a short physical-identity mutex, an entrant claims its own shared family lock
+before checking for locks in incompatible families. Equivalent default and URI
 mutex names remain compatible. These bytes are lock addresses; no file bytes are
 written or file length changed.
+
+Shared admission also binds the canonical storage path. Device/inode alone cannot
+identify a data/WAL/mutex namespace: directory bind mounts can expose the same
+inode with one link under two canonical paths. A local alias is refused before
+retaining an entry. Across processes, four shared bytes encode 240 bits of a
+SHA-256 path fingerprint in disjoint ranges of length `2^60`, starting at `2^60`,
+`2*2^60`, `3*2^60` and `4*2^60`. Each byte's offset uses the low 60 bits of one
+little-endian 64-bit hash chunk. Windows canonical paths use invariant uppercase;
+Unix paths retain case. This relies on the fingerprint's collision resistance.
+
+All four bytes are claimed before checking the prefix and suffix around each
+byte for another owner's lock. Matching paths coexist; differing overlapping
+claims cannot both pass (both may be refused). Empty intervals are skipped:
+Unix zero-length locks mean through EOF. All ranges remain above database pages
+and below the admission/family bytes. Descriptor upgrade and replacement retain
+the original live-path fingerprint, including while the candidate has a temporary
+name. No path fingerprint is written to disk.
 
 Windows uses nonblocking `LockFileEx` and `UnlockFileEx` with a read handle sharing
 read/write/delete. Unix uses nonblocking open-file-description `fcntl` locks:
@@ -78,7 +95,9 @@ x64 or arm64 and a kernel implementing OFD locks. Windows uses its native ABI on
 both x86 and x64. Overlayfs requires local backing storage with functioning OFD
 locks; a successful local probe cannot certify remote-server or device behavior.
 The independent Shared coordination protocol still requires .NET file-sharing
-locks to be enabled.
+locks to be enabled. All Shared participants must also observe the same OS/runtime
+named-mutex namespace. Separate containers or sandboxes with isolated mutex
+backing are not qualified merely because they share a volume and path string.
 
 Darwin x64 uses the INODE64 stat entry points; arm64 uses the native stat ABI.
 The arm64 open/fcntl bindings place their variadic argument on the stack, as
@@ -99,6 +118,11 @@ handle still names the file at the canonical path. An alias with a separate pre-
 also remains authoritative. Recover such legacy alias data/WAL pairs together
 before switching to canonical paths. Hard-linked databases fail
 closed: their alternate path names could choose unrelated WALs for one inode.
+Directory bind aliases with a different canonical path are refused while another
+owner exists. File-only bind mounts are not a complete data/WAL/recovery namespace
+and remain unsupported, including after owner death. Path fingerprints do not
+discover an omitted historical WAL. Moving storage to another namespace requires
+stopping all owners and preserving the complete matching file bundle.
 External unlink/rename, changing links during use, and concurrent use by executables
 with older admission protocols remain unsupported. Stop all users when upgrading
 the library. The existing pre-guard `-shared-live` exclusion remains as a limited
@@ -145,6 +169,11 @@ of power loss or a dishonest filesystem server.
 | Replacement cannot transiently admit a conflicting user or strand recovery data. | Cross-process pauses and kills at installation boundaries, a prechecked opener in the rename gap, failed downgrade exclusion, remote idle Shared rejection, local retained admission; existing rebuild install fault matrix, crash suite and #2979 repeated rollback recovery tests. |
 | Unsupported locking never silently weakens writable safety. | Injected unsupported volume, actual conflict probes on every initial lease, existing runtime-disabled-locking tests. |
 | Native identity and locking work when glibc lacks an exported `fstat`. | The full CI tier runs admission, competing-process, crash, and rebuild tests under glibc 2.31 on standard Ubuntu x64 and ARM64 runners. `scripts/test-native-admission-glibc.sh` verifies the native library version and actual .NET runtime/architecture. |
+
+The bounded [admission safety audit](native-admission-audit.md) gives stable
+contract IDs, semantic execution assertions, historical failing-before evidence,
+unsafe-variant checks, and the limits of these oracles. It supplements this
+protocol specification rather than treating a broad green suite as proof.
 
 The process harness is packaged by the existing Windows/Linux/macOS CI matrix and
 runs with the test host's selected runtime and architecture. The full tier also

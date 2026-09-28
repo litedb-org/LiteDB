@@ -62,6 +62,10 @@ Read [explicit transactions](../explicit-transactions.md),
   add whole-file locks that conflict with admission or obscure family probes.
   Keep admission through ordinary buffered-stream finalization and transfer it
   across replacement before publication. See [native admission](../native-database-admission.md).
+  Verify native exclusion independently of registry, recovery-marker and mutex
+  refusals: those mechanisms can hide a prematurely closed OS handle. Admission
+  compatibility must include the storage/coordination namespace, not just inode
+  and mode; aliases must not create independent WAL or writer-mutex identities.
 
 ## Buffers and cleanup
 

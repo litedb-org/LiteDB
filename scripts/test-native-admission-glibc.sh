@@ -40,3 +40,5 @@ for guard in ('RequestedRuntimeAndArchitecture_AreActuallyRunning', 'LoadedLibra
     assert sum(r.get('testName', '').endswith(guard) and r.get('outcome') == 'Passed' for r in results) == 1, guard
 assert any('NativeAdmissionProcess_Tests' in r.get('testName', '') and r.get('outcome') == 'Passed' for r in results)
 PY
+
+bash "$repo_root/scripts/test-native-admission-bind-mount.sh" "$image"

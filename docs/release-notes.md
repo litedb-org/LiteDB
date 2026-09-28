@@ -31,7 +31,10 @@ retain their existing platform contract. Copy a closed database and its matching
 WAL to a supported local filesystem before opening it with this version.
 
 Symlinks resolve to the target before choosing storage paths. Hard links are
-rejected to prevent conflicting WAL identities. Rebuild/upgrade locks both source
+rejected to prevent conflicting WAL identities. Concurrent directory bind aliases
+with different canonical paths are also rejected, including across processes.
+Shared participants must share one named-mutex namespace; file-only bind mounts
+and isolated container mutex namespaces are unsupported. Rebuild/upgrade locks both source
 and replacement through publication/rollback; Shared replacement requires other
 processes to close even idle connections first. Interrupted installation retains
 the existing recovery marker and data/WAL backups.

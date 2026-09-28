@@ -41,6 +41,9 @@ namespace LiteDB.Client.Shared
                     RebuildRecovery.EnsureAvailable(new EngineSettings { Filename = filename });
                     if (Entries.TryGetValue(file.Identity, out var entry))
                     {
+                        if (!string.Equals(entry.Filename, filename, DatabaseFileIdentity.Windows
+                            ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                            throw new IOException("The physical database is already open through a different canonical path.");
                         if (entry.Family != family || entry.Replacing || entry.Faulted || (engine && entry.Engine))
                             throw new IOException("Incompatible local database access. Independent Direct writers require one shared LiteEngine.");
                         return Retain(entry, engine);
@@ -50,10 +53,11 @@ namespace LiteDB.Client.Shared
                     file.Lock(DatabaseFileLock.Admission, exclusive: family < 0);
                     if (family >= 0)
                     {
+                        file.Lock(DatabaseFileLock.Family + family, exclusive: false);
                         for (var i = 0; i < 3; i++)
                             if (i != family && file.Conflicts(DatabaseFileLock.Family + i))
                                 throw new IOException("Incompatible Shared mutex identity or Direct read-only participant.");
-                        file.Lock(DatabaseFileLock.Family + family, exclusive: false);
+                        DatabasePathLock.Claim(file, filename);
                     }
                     // Detect unsupported/no-op locking before storage can write.
                     using (var probe = new DatabaseFileLock(filename, readOnly: true, create: false))

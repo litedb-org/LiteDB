@@ -44,14 +44,14 @@ namespace LiteDB.Client.Shared
             else this.UnixLock(offset, exclusive ? WriteLock : ReadLock, query: false);
         }
 
-        internal void Unlock(long offset)
+        internal void Unlock(long offset, long length = 1)
         {
             if (DatabaseFileIdentity.Windows)
             {
                 var position = Position(offset);
-                if (!UnlockFileEx(_handle, 0, 1, 0, ref position)) throw Error("UnlockFileEx");
+                if (!UnlockFileEx(_handle, 0, (uint)length, (uint)(length >> 32), ref position)) throw Error("UnlockFileEx");
             }
-            else this.UnixLock(offset, UnlockLock, query: false);
+            else this.UnixLock(offset, UnlockLock, query: false, length: length);
         }
 
         internal void Downgrade(long offset)
@@ -65,17 +65,18 @@ namespace LiteDB.Client.Shared
 
         // Only used for ranges this handle does not own, under the admission mutex.
         // F_OFD_GETLK works on read-only descriptors, unlike a trial write lock.
-        internal bool Conflicts(long offset)
+        internal bool Conflicts(long offset, long length = 1)
         {
+            if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
             if (!DatabaseFileIdentity.Windows)
-                return this.UnixLock(offset, WriteLock, query: true) != UnlockLock;
+                return this.UnixLock(offset, WriteLock, query: true, length: length) != UnlockLock;
             var position = Position(offset);
-            if (!LockFileEx(_handle, 3, 0, 1, 0, ref position))
+            if (!LockFileEx(_handle, 3, 0, (uint)length, (uint)(length >> 32), ref position))
             {
                 if (Marshal.GetLastWin32Error() == 33) return true;
                 throw Error("LockFileEx probe");
             }
-            this.Unlock(offset);
+            this.Unlock(offset, length);
             return false;
         }
 
@@ -84,7 +85,7 @@ namespace LiteDB.Client.Shared
         private static short WriteLock => Darwin ? (short)3 : (short)1;
         private static short UnlockLock => 2;
 
-        private short UnixLock(long offset, short type, bool query)
+        private short UnixLock(long offset, short type, bool query, long length = 1)
         {
             int result;
             short actual;
@@ -92,13 +93,13 @@ namespace LiteDB.Client.Shared
             {
                 if (Darwin)
                 {
-                    var value = new DarwinFlock { Start = offset, Length = 1, Type = type };
+                    var value = new DarwinFlock { Start = offset, Length = length, Type = type };
                     result = DatabaseUnixNative.Api.LockDarwin(_handle, query ? 92 : 90, ref value);
                     actual = value.Type;
                 }
                 else
                 {
-                    var value = new LinuxFlock { Start = offset, Length = 1, Type = type };
+                    var value = new LinuxFlock { Start = offset, Length = length, Type = type };
                     result = DatabaseUnixNative.Api.LockLinux(_handle, query ? 36 : 37, ref value);
                     actual = value.Type;
                 }

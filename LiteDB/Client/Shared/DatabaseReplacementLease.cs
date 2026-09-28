@@ -53,6 +53,7 @@ namespace LiteDB.Client.Shared
                     if (entry.Family >= 0)
                     {
                         replacement.Lock(DatabaseFileLock.Family + entry.Family, exclusive: false);
+                        DatabasePathLock.Claim(replacement, entry.Filename);
                         Upgrade(entry);
                     }
                     var lease = new DatabaseReplacementLease(reference, entry, replacement, settings.Filename, pathGate);
@@ -139,6 +140,7 @@ namespace LiteDB.Client.Shared
                     writable = new DatabaseFileLock(old.Path, readOnly: false, create: false);
                     if (writable.Identity != old.Identity) throw new IOException("Database changed before replacement.");
                     writable.Lock(DatabaseFileLock.Family + entry.Family, exclusive: false);
+                    DatabasePathLock.Claim(writable, entry.Filename);
                 }
                 if (DatabaseFileIdentity.Windows || !ReferenceEquals(old, writable))
                 {
