@@ -110,6 +110,7 @@ namespace LiteDB.Tests.Engine
                     throw new IOException(Failure);
                 };
             }
+            // Dispose returned normally although the close failed: #3047 tracks surfacing it.
             writes.Should().Be(1, "the close checkpoint reached the data write and stopped at its failure");
             new FileInfo(file.Log).Length.Should().BeGreaterThan(0, "the WAL must survive a failed close checkpoint");
 
