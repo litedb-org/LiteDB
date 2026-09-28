@@ -132,7 +132,9 @@ WAL page that is not a page of its type (an unknown type, or page 0 that is not 
 header) or that names a page beyond both files and every page a committed header counts,
 and a committed header of another database (another creation time), fail the open with
 `INVALID_DATABASE`, changing neither file (5.0.21 wrote it over the header, that far into
-the data file, or replayed the other database into it). Unique-key
+the data file, or replayed the other database into it). The creation time identifies the
+database that was created, not each copy of it: a log left beside a fresh copy of the same
+seed file still passes, as in 5.0.21. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages after keys that
 released updates left stale (for example `19.99` for a stored `19.99m`, including
