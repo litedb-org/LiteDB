@@ -1,4 +1,5 @@
 using LiteDB.Engine;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Fuzz.Targets;
 
@@ -39,7 +40,11 @@ internal sealed class RebuildFuzzer : IFuzzTarget
                 if (context.Steps % 7 == 0)
                 {
                     var corrupt = context.RegisterFile(Path.Combine(context.DirectoryPath, "corrupt-probe.db"));
-                    File.Copy(file, corrupt, true);
+                    // The source remains admitted but is checkpointed and idle.
+                    // Darwin's File.Copy adds a conflicting whole-file flock.
+                    using (var source = AdmittedFileStream.Open(file, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite, Constants.PAGE_SIZE, FileOptions.SequentialScan))
+                    using (var destination = File.Create(corrupt)) source.CopyTo(destination);
                     Corrupt(corrupt, context.Random);
                     corruptionProbes++;
                     if (ProbeCorruption(context, corrupt, password, expected)) corruptionRejections++;
