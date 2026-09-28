@@ -95,8 +95,13 @@
       "family": "checkpoint-stage",
       "name": "before-wal-reclaim-lock",
       "protocol": "WAL slot reclamation",
-      "evidence": [],
-      "gap": "No test or fuzz target names this stage: interruption before the WAL reclamation lock is not exercised by registered evidence."
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+          "model": "process-death",
+          "proves": "Stream images copied at the stage (after the data flush, before any slot is cleared) recover every committed row with a fresh engine, plain and encrypted."
+        }
+      ]
     },
     {
       "family": "checkpoint-stage",
@@ -352,7 +357,7 @@
       "evidence": [
         {
           "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
-          "model": "exception",
+          "model": "process-death",
           "proves": "Recovery succeeds after interruption at every reclamation boundary."
         },
         {
@@ -377,7 +382,7 @@
       "evidence": [
         {
           "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
-          "model": "exception",
+          "model": "process-death",
           "proves": "Recovery succeeds after interruption at every reclamation boundary."
         },
         {
@@ -402,7 +407,7 @@
       "evidence": [
         {
           "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
-          "model": "exception",
+          "model": "process-death",
           "proves": "Recovery succeeds after interruption at every reclamation boundary."
         },
         {
@@ -993,15 +998,35 @@
       "family": "process-crash",
       "name": "startup-after-tail-trim",
       "protocol": "startup trailing-page trim",
-      "evidence": [],
-      "gap": "No test or fuzz target names this hook: an interruption after startup trims trailing pages is not exercised by registered evidence."
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "process-death",
+          "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "exception",
+          "proves": "Keeping whatever the error-close left, the next open still recovers every committed row and accepts a write and checkpoint."
+        }
+      ]
     },
     {
       "family": "process-crash",
       "name": "startup-before-tail-trim",
       "protocol": "startup trailing-page trim",
-      "evidence": [],
-      "gap": "No test or fuzz target names this hook: an interruption while startup trims trailing pages is not exercised by registered evidence (generic sweeps may reach it, but nothing asserts that)."
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "process-death",
+          "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "exception",
+          "proves": "Keeping whatever the error-close left, the next open still recovers every committed row and accepts a write and checkpoint."
+        }
+      ]
     },
     {
       "family": "process-crash",
@@ -1609,8 +1634,23 @@
     {
       "name": "SimulateDataWriteFail",
       "protocol": "data-file page writes",
-      "evidence": [],
-      "gap": "Declared (and required to exist by TestHost_Tests) but set by no test or fuzz target: failed data-file page writes are not injected through this hook."
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#Control_HookSeesEveryBackfilledDataPage",
+          "model": "exception",
+          "proves": "The hook sees exactly the checkpoint's backfilled data pages."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedDataPageWrite_StopsTheEngine_AndTheWalRecoversEveryCommit",
+          "model": "exception",
+          "proves": "A failed first or later data-page write stops the engine without further writes; a fresh open recovers every commit from the unchanged WAL and a later checkpoint leaves a self-sufficient data file. Removing the hook's Invoke fails 8/8."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedCloseCheckpoint_LeavesTheWalToRecoverEveryCommit",
+          "model": "exception",
+          "proves": "A failed close-time checkpoint leaves the WAL to recover every commit."
+        }
+      ]
     },
     {
       "name": "SimulateErrno",
