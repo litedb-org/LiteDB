@@ -27,6 +27,9 @@ namespace LiteDB.Engine
             {
                 try
                 {
+#if DEBUG || TESTING
+                    settings.BeforeOpeningAdmission?.Invoke();
+#endif
                     if (!mutex.WaitOne(timeoutMilliseconds))
                         throw new IOException("Timed out waiting for database opening or rebuild ownership: " + settings.Filename);
                 }

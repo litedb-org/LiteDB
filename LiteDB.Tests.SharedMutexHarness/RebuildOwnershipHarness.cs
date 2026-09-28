@@ -8,6 +8,20 @@ internal static class RebuildOwnershipHarness
     {
         if (!mode.StartsWith("rebuild-", StringComparison.Ordinal)) return false;
         var settings = new EngineSettings { Filename = filename, Password = password };
+        if (mode == "rebuild-waiting-open")
+        {
+            settings.ReadOnly = true;
+            typeof(EngineSettings).GetProperty("BeforeOpeningAdmission", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(settings, (Action)(() => Console.WriteLine("admitting")));
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                if (db.GetCollection("rows").Count() != 2 ||
+                    db.GetCollection("rows").FindById(2)["value"] != "wal")
+                    throw new InvalidOperationException("Read an incomplete replacement");
+            }
+            Console.WriteLine("opened");
+            return true;
+        }
         if (mode == "rebuild-probe")
         {
             var admission = typeof(LiteDatabase).Assembly.GetType("LiteDB.Engine.RebuildAdmission")!;

@@ -13,6 +13,28 @@ namespace LiteDB.Tests.Engine
     public class RebuildOwnershipProcess_Tests
     {
         [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Actual_open_waits_during_handoff_after_physical_claims_are_closed(bool encrypted)
+        {
+            var password = encrypted ? "password" : null;
+            using var file = RebuildOwnership_Tests.Seed(password);
+            using var owner = new MvccProcess("rebuild-ownership", file.Filename, password, "after-rebuild-data-close");
+            await owner.Expect("ready");
+            using var reader = new MvccProcess("rebuild-waiting-open", file.Filename, password);
+            await reader.Expect("admitting");
+            var opened = reader.ReadLine(TimeSpan.FromSeconds(20));
+            var first = await Task.WhenAny(opened, Task.Delay(300));
+            first.Should().NotBeSameAs(opened, "admission cannot finish before the recovery owner releases its claim");
+            owner.Send("continue");
+            await owner.Expect("done");
+            await owner.Finish();
+            (await opened).Should().Be("opened");
+            await reader.Finish();
+            RebuildOwnership_Tests.VerifyAndWrite(file.Filename, password);
+        }
+
+        [Theory]
         [InlineData("after-rebuild-source-claim", false)]
         [InlineData("after-rebuild-source-claim", true)]
         [InlineData("before-recovery-marker", false)]

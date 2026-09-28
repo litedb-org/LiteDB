@@ -22,6 +22,7 @@ namespace LiteDB.Engine
         internal Action<string> CheckpointStage { get; set; }
         internal Action<FileOrigin> AfterDiskPoolClose { get; set; }
         internal Action BeforeOpeningWalRestore { get; set; }
+        internal Action BeforeOpeningAdmission { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted when AutoRebuild is about to salvage a damaged file, while
