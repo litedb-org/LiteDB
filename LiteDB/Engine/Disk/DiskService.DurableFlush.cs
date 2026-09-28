@@ -164,8 +164,8 @@ namespace LiteDB.Engine
             this.SyncLogBarrier(stream);
             // The WAL may have been created (or recreated after a checkpoint deleted it) by
             // this or a crashed engine: make its name durable before a commit depends on it.
-            // Not while its sync waits for the data file: the entry could drop the WAL it replaced.
-            if (!_logDirectorySynced && _logBarrierSynced) this.SyncLogDirectory();
+            // A WAL is deleted only once empty, after a data sync covered its backfill (KeepsWal).
+            if (!_logDirectorySynced) this.SyncLogDirectory();
         }
 
         /// <summary>
