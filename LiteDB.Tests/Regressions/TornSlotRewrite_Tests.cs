@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Regressions
 
                 // Nothing may be appended behind the torn frame: the stopped engine rethrows its failure.
                 Action insert = () => db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
-                insert.Should().Throw<IOException>().WithMessage("*WAL frame overwrite failed*")
+                insert.Should().Throw<IOException>().WithMessage("*WAL frame write failed*")
                     .Where(ex => ex.GetBaseException() is UnauthorizedAccessException);
 
                 // Process crash: take the bytes before any close-time work.

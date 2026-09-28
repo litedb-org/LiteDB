@@ -41,7 +41,7 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
-                var tornOverwrite = false;
+                var uncertain = false;
                 try
                 {
                     using (var iterator = pages.GetEnumerator())
@@ -89,7 +89,7 @@ namespace LiteDB.Engine
 
                                 this.WriteLogPage(stream, page, written, transactionPages,
                                     ref transactionAnchored, first && rebase,
-                                    ref count, ref hasConfirmation, ref reusePublished, ref tornOverwrite);
+                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
 
                                 if (first && rebase)
                                 {
@@ -108,7 +108,7 @@ namespace LiteDB.Engine
                             {
                                 this.WriteLogPage(stream, delayedConfirmation, written,
                                     transactionPages, ref transactionAnchored, false,
-                                    ref count, ref hasConfirmation, ref reusePublished, ref tornOverwrite);
+                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
                                 delayedConfirmation = null;
                             }
                         }
@@ -121,13 +121,14 @@ namespace LiteDB.Engine
                         }
                     }
                 }
-                catch (Exception ex) when (tornOverwrite)
+                catch (Exception ex) when (uncertain)
                 {
-                    // A failed overwrite of an existing frame can leave a torn frame in the middle
-                    // of the WAL, and recovery stops at the first invalid frame. Whatever the
-                    // exception type, stop before releasing the writer: no later commit may be
-                    // appended (and acknowledged) behind it.
-                    flushFailure = ex as IOException ?? new IOException("WAL frame overwrite failed.", ex);
+                    // A failed write can leave a torn frame: in the middle of the WAL (an overwrite of
+                    // an existing slot), or at its end when the truncation that removes a failed append
+                    // failed too or had to keep a header journal. Recovery stops at the first invalid
+                    // frame. Whatever the exception type, stop before releasing the writer: no later
+                    // commit may be appended (and acknowledged) behind it.
+                    flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
 
@@ -167,10 +168,11 @@ namespace LiteDB.Engine
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
             bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
-            ref bool tornOverwrite)
+            ref bool uncertain)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
+            var overwrite = false;
             PageBuffer readable = null;
 
             try
@@ -215,9 +217,10 @@ namespace LiteDB.Engine
                 this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
                 this.PreserveFileVersion(page);
                 // From here a failure can leave part of the frame on the stream.
-                tornOverwrite = page.Position < previousStreamLength.Value;
+                overwrite = page.Position < previousStreamLength.Value;
+                uncertain = true;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
-                tornOverwrite = false;
+                uncertain = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
                 hasConfirmation |= isConfirmed;
 
@@ -237,11 +240,14 @@ namespace LiteDB.Engine
                 {
                     _cache.DiscardPage(page);
                     Interlocked.Exchange(ref _logLength, previousLogLength);
-                    if (previousStreamLength.HasValue)
+                    // The stream length excludes an outstanding header journal: never truncate it away.
+                    if (previousStreamLength.HasValue && _checksums.JournalBytes == 0)
                     {
                         this.PublishWalReuse(ref reusePublished);
                         stream.SetLength(previousStreamLength.Value);
                         _logFactory.TrimCapacity(stream);
+                        // The truncation removes a torn append, not a torn overwrite of an earlier slot.
+                        if (!overwrite) uncertain = false;
                     }
                 }
 
