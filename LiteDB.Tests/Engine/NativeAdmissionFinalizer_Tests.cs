@@ -28,6 +28,11 @@ namespace LiteDB.Tests.Engine
             {
                 try
                 {
+                    // A registry rejection alone can hide an already released
+                    // OS handle. This separate descriptor bypasses admission.
+                    using var probe = new DatabaseFileLock(_filename, readOnly: true, create: false);
+                    if (!probe.Conflicts(DatabaseFileLock.Admission))
+                        throw new Exception("Native lock ended before the buffered owner's finalizer.");
                     using var contender = SharedModeGuard.Open(_filename, true, SharedMutexNameStrategy.Default);
                     _result.Error = new Exception("Admission ended before the buffered owner's finalizer.");
                 }

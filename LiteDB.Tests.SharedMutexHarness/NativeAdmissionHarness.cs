@@ -12,7 +12,7 @@ internal static class NativeAdmissionHarness
         settings.ReadOnly = args[4].Contains("readonly", StringComparison.Ordinal);
         if (mode == "native-rebuild-hold")
         {
-            var stage = args[4];
+            var stage = args[4].Split('|')[0];
             var rebuild = typeof(LiteEngine).Assembly.GetType("LiteDB.Engine.RebuildService")!;
             rebuild.GetField("SimulateInstallFailure", BindingFlags.Static | BindingFlags.NonPublic)!
                 .SetValue(null, (Action<string>)(actual =>
@@ -21,7 +21,7 @@ internal static class NativeAdmissionHarness
                     Console.WriteLine("ready");
                     Console.ReadLine();
                 }));
-            using var db = new LiteDatabase(new LiteEngine(settings));
+            using var db = new LiteDatabase(shared ? new SharedEngine(settings) : new LiteEngine(settings));
             db.Rebuild();
             Console.WriteLine("installed");
             Console.ReadLine();
