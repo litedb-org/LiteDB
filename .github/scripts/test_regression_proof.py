@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -103,13 +105,23 @@ class LedgerTests(unittest.TestCase):
 
 
 class BugPullRequestTests(unittest.TestCase):
-    """A PR labelled bug must add (or re-pin) at least one proof."""
+    """A bug-fix PR must add (or re-pin) at least one proof."""
 
-    def select_bug_pr(self, base_files, head_files):
+    def select_bug_pr(self, base_files, head_files, flags=("--require-new-proof",)):
         with GitRepo() as repo:
             base = repo.commit({**BASE, **base_files})
             repo.commit(head_files)
-            return run_quietly(proof.main, ["select", "--base", base, "--require-new-proof"])
+            return run_quietly(proof.main, ["select", "--base", base, *flags])
+
+    def test_the_bug_fix_labels_require_a_new_proof(self):
+        base, head = {LEDGER: ledger()}, {"LiteDB/Fix.cs": "fixed"}
+        for labels, expected in (('["bug"]', 1), ('["area: storage", "bugfix-fix"]', 1),
+                                 ('["enhancement"]', 0), ("[]", 0), ("null", 0)):
+            with self.subTest(labels):
+                code, output = self.select_bug_pr(base, head, ("--labels", labels))
+                self.assertEqual(code, expected, output)
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            self.select_bug_pr(base, head, ("--labels", '"bug"'))
 
     def test_a_bug_pr_without_a_new_proof_fails(self):
         for label, base, head in (

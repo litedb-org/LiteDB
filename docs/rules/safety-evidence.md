@@ -141,11 +141,13 @@ The **Regression proof** workflow runs this lifecycle:
   dispatch. The permanent guard stays in the ordinary suites, and removing part
   of it is a coverage finding.
 
-**A PR labelled `bug` must add at least one regression proof**: a new proof, or an
-existing one re-pinned to a new known-bad state. A PR fixing several bugs adds one
-per bug. Without it, the Regression proof check fails. The check runs on every PR
-and again when labels change, so the rule also applies when the label is added
-later. Scaffold the repro and its entry in one step:
+**A bug-fix PR must add at least one regression proof**: a new proof, or an
+existing one re-pinned to a new known-bad state. A bug-fix PR is one labelled
+`bug`, or `bugfix-fix` (the automated bugfix worker's fixes); `BUG_LABELS` in
+`regression_proof.py` is the list. A PR fixing several bugs adds one proof per
+bug. Without it, the Regression proof check fails. The check runs on every PR and
+again when labels change, so the rule also applies when the label is added later.
+Scaffold the repro and its entry in one step:
 
 ```bash
 python .github/scripts/regression_proof.py new --id Issue_1234_ShortName --issue 1234 \
@@ -162,7 +164,7 @@ Every PR shows its counts in the checks list as an informational check named lik
 `Evidence: +12 tests · 2/2 proven to fail before` (tests added, minus tests
 removed, and the regression proofs whose known-bad state failed while the PR head
 passed). After the run, the **PR evidence labels** workflow sets
-`regression: proven` or, on a `bug` PR without a passing proof,
+`regression: proven` or, on a bug-fix PR without a passing proof,
 `regression: needs proof`. It runs trusted code from `dev` and treats the run's
 `pr-evidence.json` as data, so it also labels fork PRs. The counts come from code
 the PR controls, so both the check name and the labels are advisory. The labeler

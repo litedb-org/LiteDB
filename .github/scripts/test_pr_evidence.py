@@ -58,14 +58,19 @@ class BadgeTests(unittest.TestCase):
         try:
             data = {"pr": 3, "headSha": SHA, "testsAdded": 1, "testsRemoved": 0, "proofsTotal": 1,
                     "proofsProven": 1, "newProofs": 1, "bug": False}
-            (directory / "e.json").write_text(json.dumps(data), encoding="utf-8")
-            (directory / "labels.txt").write_text("bug\narea: storage\n", encoding="utf-8")
             (directory / "files.txt").write_text("LiteDB/Engine/X.cs\n", encoding="utf-8")
-            code, text = run_quietly(evidence.main, [
-                "labels", "--evidence", str(directory / "e.json"), "--pr-labels", str(directory / "labels.txt"),
-                "--changed-files", str(directory / "files.txt"), "--run-conclusion", "success"])
-            self.assertEqual(code, 0, text)
-            self.assertEqual(json.loads(text)["labels"], {evidence.PROVEN: True, evidence.NEEDS_PROOF: False})
+            for labels, proof_count, expected in (
+                    ("bug\narea: storage\n", 1, {evidence.PROVEN: True, evidence.NEEDS_PROOF: False}),
+                    ("bugfix-fix\n", 0, {evidence.PROVEN: True, evidence.NEEDS_PROOF: True}),
+                    ("enhancement\n", 0, {evidence.PROVEN: True, evidence.NEEDS_PROOF: False})):
+                with self.subTest(labels):
+                    (directory / "e.json").write_text(json.dumps({**data, "newProofs": proof_count}), encoding="utf-8")
+                    (directory / "labels.txt").write_text(labels, encoding="utf-8")
+                    code, text = run_quietly(evidence.main, [
+                        "labels", "--evidence", str(directory / "e.json"), "--pr-labels", str(directory / "labels.txt"),
+                        "--changed-files", str(directory / "files.txt"), "--run-conclusion", "success"])
+                    self.assertEqual(code, 0, text)
+                    self.assertEqual(json.loads(text)["labels"], expected)
         finally:
             shutil.rmtree(directory)
 
@@ -94,11 +99,12 @@ class SummarizeTests(unittest.TestCase):
                 output = repo.path / "pr-evidence.json"
                 code, text = run_quietly(evidence.main, [
                     "summarize", "--base", base, "--head-sha", SHA, "--pr", "7", "--matrix", matrix,
-                    "--reports", str(reports), "--bug", "--output", str(output)])
+                    "--reports", str(reports), "--labels", '["bugfix-fix"]', "--output", str(output)])
                 self.assertEqual(code, 0, text)
                 self.assertIn("Evidence: +2 tests · 1/1 proven to fail before", text)
                 data = json.loads(output.read_text())
-                self.assertEqual((data["testsAdded"], data["proofsProven"], data["newProofs"], data["pr"]), (2, 1, 1, 7))
+                self.assertEqual((data["testsAdded"], data["proofsProven"], data["newProofs"], data["pr"], data["bug"]),
+                                 (2, 1, 1, 7, True))
         finally:
             shutil.rmtree(reports)
 

@@ -6,7 +6,8 @@ name: Regression proof
 # integrated revision. After that the historical comparison retires, while the
 # permanent guard named in the ledger stays in the ordinary suites.
 #
-# A PR labelled `bug` must add at least one proof. The workflow therefore runs on
+# A bug-fix PR (labelled `bug` or `bugfix-fix`, regression_proof.BUG_LABELS) must
+# add at least one proof. The workflow therefore runs on
 # every PR (selecting nothing is cheap) and again when labels change; a label
 # event re-evaluates everything, so it can never leave a stale green result.
 on:
@@ -18,6 +19,7 @@ on:
       - 'LiteDB.ReproRunner/**'
       - '.github/safety/regression-proofs.json'
       - '.github/scripts/regression_proof.py'
+      - '.github/scripts/repro_scaffold.py'
       - '.github/scripts/safety_common.py'
       - '.github/workflows/regression-proof.yml'
   workflow_dispatch:
@@ -53,16 +55,14 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           ONLY: ${{ inputs.repro }}
-          BUG_PR: ${{ contains(github.event.pull_request.labels.*.name, 'bug') }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
           if [ -n "$ONLY" ]; then
             python .github/scripts/regression_proof.py select --base HEAD --only "$ONLY"
           else
             base="$BASE_SHA"
             if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base="HEAD^"; fi
-            require=()
-            if [ "$BUG_PR" = "true" ]; then require=(--require-new-proof); fi
-            python .github/scripts/regression_proof.py select --base "$base" "${require[@]}"
+            python .github/scripts/regression_proof.py select --base "$base" --labels "$PR_LABELS"
           fi
 
   prove:
@@ -165,11 +165,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR: ${{ github.event.pull_request.number }}
           MATRIX: ${{ needs.select.outputs.matrix }}
-          BUG_PR: ${{ contains(github.event.pull_request.labels.*.name, 'bug') }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
-          bug=(); if [ "$BUG_PR" = "true" ]; then bug=(--bug); fi
           python .github/scripts/pr_evidence.py summarize --base "$BASE_SHA" --head-sha "$HEAD_SHA" \
-            --pr "$PR" --matrix "$MATRIX" --reports proofs "${bug[@]}" --output pr-evidence.json
+            --pr "$PR" --matrix "$MATRIX" --reports proofs --labels "$PR_LABELS" --output pr-evidence.json
 
       - name: Upload evidence for the labeler
         if: steps.summary.outcome == 'success'

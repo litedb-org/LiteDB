@@ -10,7 +10,7 @@ examples: docs/rules/safety-evidence.md. Name every contract id that the
 "Safety contracts" CI step reports for your changed paths.
 A documentation-only change may replace the five bullets with one line:
 "- Not applicable: <why no previously supported behavior can change>".
-Bug fix (label `bug`)? Add a regression proof that fails on a real known-bad
+Bug fix (label `bug` or `bugfix-fix`)? Add a regression proof that fails on a real known-bad
 LiteDB and passes here: python .github/scripts/regression_proof.py new ...
 -->
 

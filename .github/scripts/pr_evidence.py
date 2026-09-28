@@ -73,9 +73,10 @@ def summarize(args):
     proven = tally(args.reports, matrix) if matrix else 0
     entries = regression_proof.load(common.Tree(args.head), common.Report(""))
     new_count = len(regression_proof.new_proofs(args.base, entries))
-    text = badge(added, removed, proven, len(matrix), args.bug, new_count)
+    bug = args.bug or regression_proof.is_bug_fix(regression_proof.parse_labels(args.labels))
+    text = badge(added, removed, proven, len(matrix), bug, new_count)
     evidence = {"pr": args.pr, "headSha": args.head_sha, "testsAdded": added, "testsRemoved": removed,
-                "proofsTotal": len(matrix), "proofsProven": proven, "newProofs": new_count, "bug": args.bug}
+                "proofsTotal": len(matrix), "proofsProven": proven, "newProofs": new_count, "bug": bug}
     Path(args.output).write_text(json.dumps(evidence), encoding="utf-8")
     target = os.environ.get("GITHUB_OUTPUT")
     if target:
@@ -125,6 +126,7 @@ def main(argv=None):
     run.add_argument("--matrix", default="", help="The select job's matrix JSON")
     run.add_argument("--reports", default=".", help="Directory holding regression-proof-* artifacts")
     run.add_argument("--bug", action="store_true")
+    run.add_argument("--labels", help="The PR's labels as a JSON array; a bug-fix label implies --bug")
     run.add_argument("--output", default="pr-evidence.json")
     labels = commands.add_parser("labels", help="Print the label changes for a pr-evidence.json as JSON")
     labels.add_argument("--evidence", required=True)
@@ -135,7 +137,7 @@ def main(argv=None):
     if args.command == "summarize":
         return summarize(args)
     evidence = parse_evidence(Path(args.evidence).read_text(encoding="utf-8"))
-    bug = "bug" in Path(args.pr_labels).read_text(encoding="utf-8").splitlines()
+    bug = regression_proof.is_bug_fix(Path(args.pr_labels).read_text(encoding="utf-8").splitlines())
     harness = harness_changed(Path(args.changed_files).read_text(encoding="utf-8").splitlines())
     result = wanted_labels(evidence, bug, args.run_conclusion == "success", harness)
     print(json.dumps({"pr": evidence["pr"], "headSha": evidence["headSha"], "labels": result,

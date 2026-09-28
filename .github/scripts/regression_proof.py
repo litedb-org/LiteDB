@@ -15,8 +15,8 @@ revision, and afterwards the historical comparison retires: it only runs again
 when its entry or repro changes. The permanent guard named by each entry keeps
 the regression covered in the ordinary suites.
 
-Subcommands: validate, select, new, pack-known-bad, verify. A PR labelled bug must add
-at least one proof (select --require-new-proof).
+Subcommands: validate, select, new, pack-known-bad, verify. A bug-fix PR (a label in
+BUG_LABELS) must add at least one proof (select --labels or --require-new-proof).
 """
 import argparse
 import json
@@ -44,7 +44,24 @@ KINDS = ("package", "dev-commit", "pr-commit")
 OUTCOMES = ["Reproduce", "NoRepro", "HardFail", "Intermittent"]
 STATES = ["Red", "Green", "Flaky"]
 SHA = re.compile(r"[0-9a-f]{40}\Z")
-MIN_BUG_PROOFS = 1  # per PR labelled bug; add one proof per bug a PR fixes
+MIN_BUG_PROOFS = 1  # per bug-fix PR; add one proof per bug a PR fixes
+# Labels that make a PR a bug fix. bugfix-fix marks the automated bugfix worker's fixes.
+BUG_LABELS = ("bug", "bugfix-fix")
+
+
+def is_bug_fix(labels):
+    """True when a PR's labels make it a bug fix, which must add a regression proof."""
+    return any(label in BUG_LABELS for label in labels)
+
+
+def parse_labels(text):
+    """Label names from the event's JSON array; null or empty outside pull requests."""
+    names = json.loads(text) if text and text.strip() else None
+    if names is None:
+        return []
+    if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+        raise ValueError("--labels must be a JSON array of label names")
+    return names
 
 
 def known_bad_version(bad):
@@ -354,7 +371,9 @@ def main(argv=None):
     choose.add_argument("--head", default="HEAD")
     choose.add_argument("--only", help="Select this repro regardless of changes (manual re-proof)")
     choose.add_argument("--require-new-proof", action="store_true",
-                        help=f"Fail unless the change adds at least {MIN_BUG_PROOFS} proof (PRs labelled bug)")
+                        help=f"Fail unless the change adds at least {MIN_BUG_PROOFS} proof (bug-fix PRs)")
+    choose.add_argument("--labels", help=f"The PR's labels as a JSON array; any of {', '.join(BUG_LABELS)} "
+                                         "implies --require-new-proof")
     scaffold = commands.add_parser("new", help="Scaffold a repro and its proof entry for a bug fix")
     scaffold.add_argument("--id", required=True, help="Issue_<number>_<ShortName>")
     scaffold.add_argument("--issue", required=True, type=int)
@@ -372,6 +391,10 @@ def main(argv=None):
     check_run.add_argument("--repro", required=True)
     check_run.add_argument("--expect-version", help="The known-bad LiteDB version the package run must report")
     args = parser.parse_args(argv)
+    try:
+        bug_fix = args.command == "select" and (args.require_new_proof or is_bug_fix(parse_labels(args.labels)))
+    except ValueError as error:
+        parser.error(str(error))
 
     if args.command == "pack-known-bad":
         print(pack_known_bad(args.commit, args.feed))
@@ -411,8 +434,9 @@ def main(argv=None):
         else select(args.base, head, entries)
     if args.only and not chosen:
         report.error(f"No regression proof for {args.only} in {LEDGER}", LEDGER)
-    if args.require_new_proof and len(new_proofs(args.base, entries)) < MIN_BUG_PROOFS:
-        report.error(f"A PR labelled 'bug' must add at least {MIN_BUG_PROOFS} regression proof: a ReproRunner repro "
+    if bug_fix and len(new_proofs(args.base, entries)) < MIN_BUG_PROOFS:
+        report.error(f"A bug-fix PR (labelled {' or '.join(BUG_LABELS)}) must add at least {MIN_BUG_PROOFS} "
+                     "regression proof: a ReproRunner repro "
                      "that fails on a real known-bad state and passes at the PR head. Scaffold one with "
                      "`python .github/scripts/regression_proof.py new --id Issue_<n>_<Name> --issue <n> "
                      "--title <title>` (see docs/rules/safety-evidence.md#regression-proofs).")

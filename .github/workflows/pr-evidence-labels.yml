@@ -3,7 +3,7 @@ name: PR evidence labels
 # Labels a PR from the counts its Regression proof run computed:
 #   "regression: proven"      every regression proof failed on its known-bad state
 #                              and passed at the PR head;
-#   "regression: needs proof" a PR labelled bug without such a proof.
+#   "regression: needs proof" a bug-fix PR (regression_proof.BUG_LABELS) without such a proof.
 # workflow_run runs this file from dev with a write token, also for fork PRs. It
 # never checks out or runs PR code: pr-evidence.json is untrusted data, parsed by
 # dev's own script, and only applied while the PR still has the evaluated head.
