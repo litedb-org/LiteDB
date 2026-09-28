@@ -23,6 +23,9 @@ namespace LiteDB.Tests.Issues
         {
             public int DurableFlushes { get; private set; }
             public int PlainFlushes { get; private set; }
+            // Plain flushes after a durable flush failed: a fallback that papers over the failure.
+            public int PlainFlushesAfterDurableFailure { get; private set; }
+            private bool _durableFailed;
             public Exception DurableFailure { get; set; }
             public Exception PlainFailure { get; set; }
 
@@ -39,12 +42,14 @@ namespace LiteDB.Tests.Issues
                 if (flushToDisk)
                 {
                     DurableFlushes++;
+                    _durableFailed = DurableFailure != null;
                     if (DurableFailure != null) throw DurableFailure;
                     base.Flush(true);
                 }
                 else
                 {
                     PlainFlushes++;
+                    if (_durableFailed) PlainFlushesAfterDurableFailure++;
                     if (PlainFailure != null) throw PlainFailure;
                 }
             }
@@ -128,14 +133,14 @@ namespace LiteDB.Tests.Issues
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");
             rows.Insert(new BsonDocument { ["_id"] = 1 });
-            var plainBefore = log.PlainFlushes;
             log.DurableFailure = new IOException("There is not enough space on the disk.", _diskFull);
 
             Action write = () => rows.Insert(new BsonDocument { ["_id"] = 2 });
             Action nextWrite = () => rows.Insert(new BsonDocument { ["_id"] = 3 });
 
             write.Should().Throw<IOException>().Which.Should().BeSameAs(log.DurableFailure);
-            log.PlainFlushes.Should().Be(plainBefore, "an I/O failure must not be papered over by a weaker flush");
+            // Each frame write is flushed to the OS before the durable flush; none may follow its failure.
+            log.PlainFlushesAfterDurableFailure.Should().Be(0, "an I/O failure must not be papered over by a weaker flush");
             nextWrite.Should().Throw<IOException>();
             log.DurableFailure = null;
         }
