@@ -68,10 +68,17 @@ namespace LiteDB.Tests.Issues
             finally { NativeFileSync.SimulateDirectoryErrno = null; }
         }
 
+        /// <summary>
+        /// Decision 9 of docs/decisions/durability-policy.md: a WAL directory that answers "cannot sync"
+        /// (#2242) fails a durable commit loudly, before it writes. The data file stays byte for byte,
+        /// the log holds no frame, reads work, $database reports the failure, and the next write throws
+        /// with it without asking the directory again (decision 6).
+        /// </summary>
         [Fact]
-        public void A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing()
+        public void A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes()
         {
             using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
             var syncs = 0;
             NativeFileSync.SimulateDirectoryErrno = _ => { syncs++; return EINVAL; };
             try
@@ -79,16 +86,58 @@ namespace LiteDB.Tests.Issues
                 using (var db = Open(file.Filename))
                 {
                     var rows = db.GetCollection("rows");
-                    rows.Insert(new BsonDocument { ["_id"] = 1 });
-                    rows.Insert(new BsonDocument { ["_id"] = 2 });
+                    var data = TempFile.ReadAllBytesShared(file.Filename);
+                    Action insert = () => rows.Insert(new BsonDocument { ["_id"] = 1 });
+                    insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.DirectoryNotWritten + "*");
+                    syncs.Should().Be(1);
+                    TempFile.ReadAllBytesShared(file.Filename).Should().Equal(data);
+                    LogLength(logName).Should().Be(0, "no frame was written");
+
+                    rows.Count().Should().Be(0);
+                    var reason = WriteFailureAssert.CommitRefused(db, WriteFailureAssert.DirectoryNotWritten);
+                    WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 2 }), reason);
                     syncs.Should().Be(1, "a directory that cannot sync is not asked again");
-                    DurableLogFlush(db).Should().BeFalse("the WAL's name is not claimed durable");
+                    TempFile.ReadAllBytesShared(file.Filename).Should().Equal(data);
+                    LogLength(logName).Should().Be(0);
                 }
             }
             finally { NativeFileSync.SimulateDirectoryErrno = null; }
 
             using var reopened = Open(file.Filename);
-            reopened.GetCollection("rows").Count().Should().Be(2);
+            reopened.GetCollection("rows").Count().Should().Be(0);
+            reopened.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            reopened.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
+        }
+
+        /// <summary>
+        /// Opted out of durable commits, the same directory commits and checkpoints as 5.0.21 did
+        /// (decision 9, proposed default A): "cannot sync" is not a failure, and $database reports
+        /// that the log is not durable.
+        /// </summary>
+        [Fact]
+        public void A_directory_that_cannot_sync_keeps_committing_without_durable_commits()
+        {
+            using var file = new TempFile();
+            var syncs = 0;
+            NativeFileSync.SimulateDirectoryErrno = _ => { syncs++; return EINVAL; };
+            try
+            {
+                using (var db = Open(file.Filename, durableCommits: false))
+                {
+                    var rows = db.GetCollection("rows");
+                    rows.Insert(new BsonDocument { ["_id"] = 1 });
+                    rows.Insert(new BsonDocument { ["_id"] = 2 });
+                    db.Checkpoint();
+                    rows.Insert(new BsonDocument { ["_id"] = 3 });
+                    syncs.Should().BeLessOrEqualTo(1, "a directory that cannot sync is not asked again");
+                    DurableLogFlush(db).Should().BeFalse("the WAL's name is not claimed durable");
+                    WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+                }
+            }
+            finally { NativeFileSync.SimulateDirectoryErrno = null; }
+
+            using var reopened = Open(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1, 2, 3);
         }
 
         [Fact]
@@ -107,6 +156,8 @@ namespace LiteDB.Tests.Issues
 
         private static LiteDatabase Open(string filename, bool durableCommits = true) =>
             new LiteDatabase(new LiteEngine(new EngineSettings { Filename = filename, DurableCommits = durableCommits }));
+
+        private static long LogLength(string logName) => File.Exists(logName) ? new FileInfo(logName).Length : 0;
 
         private static bool DurableLogFlush(LiteDatabase db) =>
             db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean;
