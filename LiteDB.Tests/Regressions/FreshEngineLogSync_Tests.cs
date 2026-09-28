@@ -22,6 +22,10 @@ namespace LiteDB.Tests.Regressions
     /// this engine no longer leaves such a truncation behind: the first two tests check that the
     /// acknowledged commits stay recoverable, and the torn-header tests reach a header journal in
     /// the OS cache only through a log that stops syncing.
+    /// A commit or checkpoint on a log that cannot sync now fails loudly with durable commits
+    /// (decision 3 of docs/decisions/durability-policy.md), so the engines that write while it
+    /// cannot sync opted out ("durable commits=false"): "cannot sync" is not a failure for them
+    /// (proposed default A), and they reach the same files as before.
     /// </summary>
     [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -89,7 +93,8 @@ namespace LiteDB.Tests.Regressions
             }
 
             power.LogFails = true;
-            var settings = new EngineSettings { Filename = file.Filename };
+            // Opted out: with durable commits the commit and the journal's barrier would fail loudly.
+            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = false };
             settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
@@ -150,7 +155,8 @@ namespace LiteDB.Tests.Regressions
                     db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
             }
 
-            var settings = new EngineSettings { Filename = file.Filename, Password = "secret" };
+            // Opted out: with durable commits the journal's barrier would fail loudly.
+            var settings = new EngineSettings { Filename = file.Filename, Password = "secret", DurableCommits = false };
             settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
@@ -192,7 +198,8 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Commits 1..5 acknowledged durable, then a full checkpoint and a commit while neither file
         /// syncs. The backfill and the WAL truncation reached the OS cache only; the checkpoint now
-        /// finds the data file cannot sync before it writes, and keeps the WAL.
+        /// finds the data file cannot sync before it writes, and keeps the WAL. That engine opted out
+        /// of durable commits: with them its commit on a log that cannot sync would fail loudly.
         /// </summary>
         private static FilePowerLossModel TruncatedWhileNothingSynced(string filename)
         {
@@ -211,7 +218,7 @@ namespace LiteDB.Tests.Regressions
                 }
             }
             power.DataFails = power.LogFails = true;
-            using (var db = new LiteDatabase(filename))
+            using (var db = new LiteDatabase($"Filename={filename};durable commits=false"))
             {
                 db.Checkpoint();
                 db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1 }); // keeps a WAL file

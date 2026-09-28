@@ -25,17 +25,50 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Unsupported_journal_sync_publishes_the_new_format_without_a_power_loss_claim()
+        public void Unsupported_journal_sync_publishes_the_new_format_without_a_power_loss_claim_without_durable_commits()
         {
-            // #2242: storage that cannot sync keeps working as before #2818.
+            // #2242: storage that cannot sync keeps working as before #2818 for callers that opted out of
+            // durable commits ("cannot sync" is not a failure then, proposed default A of
+            // docs/decisions/durability-policy.md).
             using var data = LegacyIndexOrdering(password: null, out var originalLog);
             using var log = new SyncFailureStream(originalLog, new UnauthorizedAccessException("Durable sync unsupported"));
-            using (var db = Open(data, log, password: null))
+            using (var db = Open(data, log, password: null, durableCommits: false))
             {
                 db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
                 db.GetCollection("rows").FindById(1)["payload"].AsString.Should().Be("acknowledged");
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
             }
             data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+            AssertRecovered(data, log, password: null);
+        }
+
+        /// <summary>
+        /// With durable commits (the default) the promotion's journal sync is a recovery barrier on a
+        /// log that cannot sync: it is refused before the data file changes (decision 3), and the open
+        /// falls back to read-only (decision 2). The row reads, $database says why, a write throws
+        /// naming the refusal, and neither file changes; the format is published once the log syncs.
+        /// </summary>
+        [Fact]
+        public void Unsupported_journal_sync_opens_read_only_without_publishing_the_new_format_with_durable_commits()
+        {
+            using var data = LegacyIndexOrdering(password: null, out var originalLog);
+            var before = data.ToArray();
+            using var log = new SyncFailureStream(originalLog, new UnauthorizedAccessException("Durable sync unsupported"));
+            using (var db = Open(data, log, password: null))
+            {
+                var info = WriteFailureAssert.Info(db);
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                var reason = info["readOnlyReason"].AsString;
+                reason.Should().StartWith(WriteFailureAssert.LogCannotSync);
+                db.GetCollection("rows").FindAll().Should().Equal(new BsonDocument { ["_id"] = 1, ["payload"] = "acknowledged" });
+
+                Action write = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+                write.Should().Throw<IOException>().Which.Message.Should().Be(WriteFailureAssert.OpenRefused + reason);
+                db.GetCollection("rows").Count().Should().Be(1);
+            }
+            data.ToArray().Should().Equal(before, "the promotion was refused before it wrote");
+            log.ToArray().Should().Equal(originalLog);
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.CHECKSUM_FILE_VERSION);
             AssertRecovered(data, log, password: null);
         }
 
@@ -77,8 +110,8 @@ namespace LiteDB.Tests.Engine
             recovered.GetCollection("rows").FindById(1)["payload"].AsString.Should().Be("acknowledged");
         }
 
-        private static LiteDatabase Open(Stream data, Stream log, string password) =>
-            new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }));
+        private static LiteDatabase Open(Stream data, Stream log, string password, bool durableCommits = true) =>
+            new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, DurableCommits = durableCommits }));
 
         private sealed class SyncFailureStream : MemoryStream, IDurableStream
         {
