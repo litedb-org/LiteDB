@@ -45,7 +45,7 @@ namespace LiteDB.Engine
                                 if (order > 0 || (order == 0 && index.Unique))
                                 {
                                     if (LegacyIndexComparison.IsInvariantViolation(previous, key, index.Unique))
-                                        throw new LiteException(LiteException.INVALID_DATAFILE_STATE,
+                                        throw new LegacyFileException(PageType.Index, node.Position, collection.Key, null,
                                             "Damaged index '{0}.{1}' at {2}: adjacent keys violate ordering or uniqueness. " +
                                             "Open a writable file with AutoRebuild=true to salvage readable records; " +
                                             "retain the backup and inspect _rebuild_errors.", collection.Key, index.Name, node.Position);

@@ -163,6 +163,9 @@ namespace LiteDB.Engine
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
+#if DEBUG || TESTING
+                    _settings.BeforeOpeningWalRestore?.Invoke();
+#endif
                     _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
 
@@ -182,12 +185,21 @@ namespace LiteDB.Engine
                 {
                     // Opening validation is inspection. Do not stamp or checkpoint a
                     // rejected source, including a read-only file requested for salvage.
-                    using var structural = new StructuralScope(_settings.CoordinationSignals);
-                    var recover = allowOpeningRebuild && _settings.AutoRebuild && !_settings.ReadOnly &&
-                        !string.IsNullOrEmpty(_settings.Filename) && (_settings.AutoRebuildAllowed?.Invoke() ?? true);
-                    this.Close(checkpoint: false);
-                    if (!recover) throw;
-                    this.Recovery(_header.Pragmas.Collation, ex);
+                    // Close also sets Disposed, so the outer Close(ex) cannot mark
+                    // this rejected source invalid. Cleanup failures forbid replacement.
+                    var closeErrors = this.Close(checkpoint: false);
+                    if (closeErrors.Count != 0)
+                        throw new AggregateException("Failed to close the damaged database before automatic recovery.",
+                            new[] { ex }.Concat(closeErrors));
+                    if (!allowOpeningRebuild || !_settings.AutoRebuild || _settings.ReadOnly ||
+                        string.IsNullOrEmpty(_settings.Filename)) throw;
+                    // Announce only a possible replacement, before checking leases.
+                    // Release the scope before opening the installed candidate.
+                    using (var structural = new StructuralScope(_settings.CoordinationSignals))
+                    {
+                        if (!(_settings.AutoRebuildAllowed?.Invoke() ?? true)) throw;
+                        this.Recovery(_header.Pragmas.Collation, ex);
+                    }
                     return this.Open(allowOpeningRebuild: false);
                 }
                 _disk.TrimTrailingPages();
@@ -203,10 +215,22 @@ namespace LiteDB.Engine
             {
                 LOG(ex.Message, "ERROR");
 
-                this.Close(ex);
+                if (allowOpeningRebuild) this.Close(ex);
+                else
+                {
+                    // A failed admission of a rebuilt candidate must not stamp it
+                    // invalid and cause another salvage/backup on the next open.
+                    var closeErrors = this.Close(checkpoint: false);
+                    if (closeErrors.Count != 0)
+                        throw new AggregateException("Failed to close the rebuilt database after opening failed.",
+                            new[] { ex }.Concat(closeErrors));
+                }
                 throw;
             }
         }
+
+        /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
+        internal bool InvalidDatafileState { get; private set; }
 
         /// <summary>
         /// Normal close process:
@@ -220,9 +244,6 @@ namespace LiteDB.Engine
         /// A shared operation's close checkpoints only a WAL past its threshold; the
         /// connection's <paramref name="final"/> close always does (#3004).
         /// </summary>
-        /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
-        internal bool InvalidDatafileState { get; private set; }
-
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();

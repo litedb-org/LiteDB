@@ -25,11 +25,16 @@ namespace LiteDB.Engine
             };
 
             if (openingError != null)
+            {
+                var damage = openingError as LegacyFileException;
                 options.Errors.Add(new FileReaderError
                 {
-                    Origin = FileOrigin.Data, PageType = PageType.Index,
+                    Stage = "opening",
+                    Origin = FileOrigin.Data, PageType = damage?.PageType ?? PageType.Empty,
+                    PageID = damage?.Address.PageID, Collection = damage?.Collection,
                     Message = openingError.Message, Exception = openingError
                 });
+            }
 
             // run rebuild process
             rebuilder.Rebuild(options);

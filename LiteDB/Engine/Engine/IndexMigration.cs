@@ -16,7 +16,6 @@ namespace LiteDB.Engine
                 return;
             }
 
-            this.ValidateLegacyCollation(migrating: true);
             if (_settings.ReadOnly)
             {
                 // The stale ordering stays visible through EnginePragmas.IndexesOrdered;
@@ -28,6 +27,7 @@ namespace LiteDB.Engine
                     "it with full scans instead of its indexes.");
             }
 
+            this.ValidateLegacyCollation(migrating: true);
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
             var capacity = new IndexMigrationCapacity(_header, _settings.IndexMigrationLimitSize);

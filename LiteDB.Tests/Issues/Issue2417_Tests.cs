@@ -47,6 +47,10 @@ namespace LiteDB.Tests.Issues
 
                     col.Should().Be(4);
                     errors.Should().Be(1, "the opening corruption diagnostic is retained in the recovery report");
+                    var opening = db.Query("_rebuild_errors", Query.All()).ToList().Single();
+                    opening["stage"].AsString.Should().Be("opening");
+                    opening["pageType"].AsString.Should().Be("Index");
+                    opening["pageID"].IsInt32.Should().BeTrue();
                 }
             }
         }
@@ -94,4 +98,3 @@ namespace LiteDB.Tests.Issues
         }
     }
 }
-

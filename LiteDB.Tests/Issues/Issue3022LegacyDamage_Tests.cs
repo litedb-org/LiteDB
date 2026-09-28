@@ -15,7 +15,6 @@ namespace LiteDB.Tests.Issues
         [InlineData(false, false)]
         [InlineData(false, true)]
         [InlineData(true, false)]
-        [InlineData(true, true)]
         public void Damaged_order_is_corruption_and_rejection_preserves_bytes(bool migrating, bool readOnly)
         {
             using var file = DamagedFile(migrating);
@@ -41,6 +40,10 @@ namespace LiteDB.Tests.Issues
                 Verify(db);
                 db.GetCollection("_rebuild_errors").FindAll().Single()["exception"]["code"].AsInt32
                     .Should().Be(LiteException.INVALID_DATAFILE_STATE);
+                var opening = db.GetCollection("_rebuild_errors").FindAll().Single();
+                opening["stage"].AsString.Should().Be("opening");
+                opening["pageType"].AsString.Should().Be("Index");
+                opening["pageID"].IsInt32.Should().BeTrue();
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 4, ["payload"] = "new" });
             }
             File.ReadAllBytes(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().Equal(before);
@@ -55,7 +58,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void ReadOnly_AutoRebuild_never_repairs_or_marks_a_damaged_source()
         {
-            using var file = DamagedFile(true);
+            using var file = DamagedFile(false);
             var before = File.ReadAllBytes(file.Filename);
             Action open = () => new LiteDatabase(new ConnectionString
             {
@@ -144,11 +147,13 @@ namespace LiteDB.Tests.Issues
         }
 
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Malformed_BSON_in_migration_has_corruption_diagnostic_and_explicit_loss_report(bool autoRebuild)
+        [InlineData(true, false)]
+        [InlineData(false, false)]
+        [InlineData(true, true)]
+        [InlineData(false, true)]
+        public void Malformed_BSON_in_migration_has_corruption_diagnostic_and_explicit_loss_report(bool autoRebuild, bool invalidLength)
         {
-            using var file = DamagedFile(true, documentDamage: true);
+            using var file = DamagedFile(true, documentDamage: true, invalidLength: invalidLength);
             var before = File.ReadAllBytes(file.Filename);
             var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = autoRebuild };
             if (!autoRebuild)
@@ -163,6 +168,10 @@ namespace LiteDB.Tests.Issues
             {
                 db.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 2, 3 });
                 db.GetCollection("_rebuild_errors").Count().Should().BeGreaterThan(1);
+                var opening = db.GetCollection("_rebuild_errors").FindAll().Single(x => x["stage"] == "opening");
+                opening["pageType"].AsString.Should().Be("Data");
+                opening["pageID"].IsInt32.Should().BeTrue();
+                db.GetCollection("_rebuild_errors").FindAll().Should().Contain(x => x["stage"] == "salvage");
                 db.GetCollection("unrelated").FindById(1)["payload"].AsString.Should().Be("preserved");
             }
             using var reopened = new LiteDatabase(file.Filename);
@@ -203,7 +212,7 @@ namespace LiteDB.Tests.Issues
             }
         }
 
-        internal static TempFile DamagedFile(bool migrating, bool documentDamage = false, bool wal = false)
+        internal static TempFile DamagedFile(bool migrating, bool documentDamage = false, bool wal = false, bool invalidLength = false)
         {
             var file = new TempFile();
             using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename }))
@@ -226,7 +235,8 @@ namespace LiteDB.Tests.Issues
                     if (documentDamage)
                     {
                         var data = new DataService(snapshot, uint.MaxValue).Read(nodes[0].DataBlock).First();
-                        data[4] = 0x42; // Invalid BSON element type, with intact page structure/checksum.
+                        if (invalidLength) data.Write(4, 0); // Too short for a BSON header and terminator.
+                        else data[4] = 0x42; // Invalid BSON element type, with intact page structure/checksum.
                         snapshot.GetPage<DataPage>(nodes[0].DataBlock.PageID).IsDirty = true;
                         return true;
                     }

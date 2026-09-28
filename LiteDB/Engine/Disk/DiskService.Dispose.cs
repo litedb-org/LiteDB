@@ -14,8 +14,20 @@ namespace LiteDB.Engine
             var delete = false;
 
             TryAction(() => delete = !_readOnly && _checksums.JournalBytes == 0 && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
-            TryAction(() => _dataPool.Dispose(), errors);
-            TryAction(() => _logPool.Dispose(), errors);
+            TryAction(() =>
+            {
+                _dataPool.Dispose();
+#if DEBUG || TESTING
+                _state.AfterDiskPoolClose?.Invoke(FileOrigin.Data);
+#endif
+            }, errors);
+            TryAction(() =>
+            {
+                _logPool.Dispose();
+#if DEBUG || TESTING
+                _state.AfterDiskPoolClose?.Invoke(FileOrigin.Log);
+#endif
+            }, errors);
             if (delete) TryAction(() => _logFactory.Delete(), errors);
             TryAction(() => _cache.Dispose(), errors);
 

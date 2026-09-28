@@ -22,6 +22,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
         public Action<long, FileOrigin> BeforePageRead;
         public Action<string> CheckpointStage;
+        internal Action<FileOrigin> AfterDiskPoolClose;
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
         internal Action<PageBuffer> SimulateDataWriteFail;
@@ -36,6 +37,7 @@ namespace LiteDB.Engine
             _settings = settings;
 #if DEBUG || TESTING
             CheckpointStage = settings?.CheckpointStage;
+            AfterDiskPoolClose = settings?.AfterDiskPoolClose;
 #endif
         }
 

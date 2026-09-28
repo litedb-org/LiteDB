@@ -1,5 +1,29 @@
 # Release notes
 
+## Legacy damage diagnostics and opening recovery (#3022)
+
+Legacy ordering failures now distinguish corruption (`INVALID_DATAFILE_STATE`,
+999) from collation incompatibility (`COLLATION_MISMATCH`, 141, previously 0).
+Writable `AutoRebuild=true` can salvage corruption detected during opening index
+validation on that first open, rather than requiring a failed open to mark the
+file followed by another open. The original data/WAL backup is retained. Failure
+to close the source blocks replacement and reports both the opening and cleanup
+errors. A failed reopen of the rebuilt candidate does not mark it invalid or
+automatically start another rebuild.
+
+**Behavior change:** `ReadOnly=true` prevents automatic rebuild, including when
+`AutoRebuild=true` and the file already has an invalid-state marker. Read-only
+`LegacyIndexScan=true` opens of unmigrated files retain the scan fallback without
+an eager walk of every index. This is not an integrity check; queries still report
+damage they encounter. Writable migration validates index ordering before writes.
+
+**Error-report change:** `_rebuild_errors` now includes the opening diagnostic
+even if salvage recovers every record. New `stage` values distinguish `opening`
+from `salvage`; a nonempty report alone does not establish record loss. Applications
+using its count as a data-loss alarm should inspect the stage and diagnostic.
+Known data/index damage identifies its page type and page ID; unknown structures
+use `Empty` and a null page ID. See [recovery guidance](legacy-file-validation.md).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only
