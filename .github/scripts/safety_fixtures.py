@@ -1,4 +1,5 @@
 """Temporary git repositories for the safety-check unit tests."""
+import ast
 import contextlib
 import io
 import os
@@ -62,6 +63,20 @@ def run_quietly(main, argv):
     with patch.dict(os.environ, environment, clear=True), contextlib.redirect_stdout(output):
         code = main(argv)
     return code, output.getvalue()
+
+
+def script_closure(module):
+    """Repository paths of the .github/scripts modules that `module` imports, transitively, itself included."""
+    scripts, seen, pending = Path(__file__).parent, set(), [module]
+    while pending:
+        name = pending.pop()
+        if name in seen or not (scripts / f"{name}.py").is_file():
+            continue
+        seen.add(name)
+        tree = ast.parse((scripts / f"{name}.py").read_text(encoding="utf-8"))
+        pending += [alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names]
+        pending += [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module]
+    return {f".github/scripts/{name}.py" for name in seen}
 
 
 def csharp_class(name, methods, namespace="LiteDB.Tests.Engine"):

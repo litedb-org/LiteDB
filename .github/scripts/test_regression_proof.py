@@ -8,7 +8,7 @@ from pathlib import Path
 
 import regression_proof as proof
 import safety_common as common
-from safety_fixtures import GitRepo, csharp_class, run_quietly
+from safety_fixtures import GitRepo, csharp_class, run_quietly, script_closure
 
 LEDGER = ".github/safety/regression-proofs.json"
 REPRO = "Issue_1_Sample"
@@ -91,11 +91,15 @@ class LedgerTests(unittest.TestCase):
                                       base_files={LEDGER: ledger(entry())})
         self.assertIn(f"`{REPRO}`", output)
         for harness in ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Evaluator.cs",
-                        ".github/workflows/regression-proof.yml"):
+                        ".github/workflows/regression-proof.yml", ".github/scripts/repro_scaffold.py"):
             with self.subTest(harness):
                 code, output = self.run_check({harness: "# changed"}, argv=("select",),
                                               base_files={LEDGER: ledger(entry())})
                 self.assertIn(f"`{REPRO}`", output)  # a harness change re-proves every entry
+
+    def test_the_harness_covers_the_whole_import_closure(self):
+        self.assertEqual(script_closure("regression_proof"),
+                         {path for path in proof.HARNESS if path.startswith(".github/scripts/")})
 
 
 class BugPullRequestTests(unittest.TestCase):

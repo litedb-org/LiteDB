@@ -1,4 +1,3 @@
-import ast
 import json
 import os
 import shutil
@@ -7,7 +6,7 @@ import unittest
 from pathlib import Path
 
 import pr_evidence as evidence
-from safety_fixtures import GitRepo, csharp_class, run_quietly
+from safety_fixtures import GitRepo, csharp_class, run_quietly, script_closure
 from test_regression_proof import BASE, LEDGER, REPRO, entry, ledger, run_report
 
 SHA = "b" * 40
@@ -51,17 +50,7 @@ class BadgeTests(unittest.TestCase):
                                                    ".github/safety/regression-proofs.json", "LiteDB/Engine/X.cs"]))
 
     def test_the_harness_list_covers_the_whole_import_closure(self):
-        scripts = Path(__file__).parent
-        seen, pending = set(), ["pr_evidence"]
-        while pending:
-            module = pending.pop()
-            if module in seen or not (scripts / f"{module}.py").is_file():
-                continue
-            seen.add(module)
-            tree = ast.parse((scripts / f"{module}.py").read_text(encoding="utf-8"))
-            pending += [alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names]
-            pending += [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module]
-        self.assertEqual({f".github/scripts/{module}.py" for module in seen},
+        self.assertEqual(script_closure("pr_evidence"),
                          {path for path in evidence.HARNESS_FILES if path.startswith(".github/scripts/")})
 
     def test_labels_command_reads_trusted_inputs(self):
