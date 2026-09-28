@@ -96,44 +96,79 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A compact-storage write promotes a legacy-storage file while the data file cannot sync:
-        /// the promotion is refused before it writes anything. Like every I/O failure in a transaction
-        /// the refusal closes the engine (as in 5.0.21), but both files are byte-identical, so the
-        /// database reopens as it was; once the data file syncs, the same write promotes it.
+        /// A compact-storage write would promote a legacy-storage file while the data file cannot sync:
+        /// the promotion is refused before it writes anything, and the write falls back to BSON (as
+        /// whenever compact storage does not pay) instead of failing and closing the engine. Once the
+        /// data file syncs, a later compact write promotes the file.
         /// </summary>
         [Fact]
-        public void Promotion_is_refused_unchanged_while_the_data_file_cannot_sync()
+        public void Compact_write_stays_bson_while_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
             SetupLegacyStorage(file.Filename);
-            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
             var settings = power.Settings();
             settings.CompactStorage = CompactStorageMode.Auto;
             var data = SyncPowerLossModel.ReadShared(file.Filename);
-            var log = SyncPowerLossModel.ReadShared(logName);
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
                 power.DataFails = true;
-                Action refused = () => db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
-                refused.Should().Throw<IOException>().WithMessage("Cannot upgrade this database's file format now*");
-            }
-            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
-            SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
-            using (var db = new LiteDatabase(new LiteEngine(settings)))
-            {
-                SyncPowerLossModel.AssertRows(db, Rows, 0);
-                db.GetCollectionNames().Should().NotContain("compact");
-                power.DataFails = false;
                 db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the promotion wrote nothing");
                 db.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 4).Select(Compact), o => o.WithStrictOrdering());
+                SyncPowerLossModel.AssertRows(db, Rows, 0);
+                Info(db)["durableLogFlush"].AsBoolean.Should().BeFalse("the data file cannot sync");
+
+                power.DataFails = false;
+                db.GetCollection("compact").Insert(Enumerable.Range(5, 4).Select(Compact));
+                Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.COMPACT_FILE_VERSION);
             }
-            Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.COMPACT_FILE_VERSION);
             FilePowerLossModel.Open(power.Capture(), x =>
             {
-                x.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 4).Select(Compact), o => o.WithStrictOrdering());
+                x.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 8).Select(Compact), o => o.WithStrictOrdering());
                 return SyncPowerLossModel.AssertRows(x, Rows, 0);
             });
+        }
+
+        /// <summary>
+        /// A retiring checkpoint whose data file stops syncing between its retirement proof and the
+        /// MVCC promotion's own data sync: the promotion is refused before it writes anything, and the
+        /// checkpoint stops the engine with both files unchanged; every commit acknowledged durable
+        /// opens from them.
+        /// </summary>
+        [Fact]
+        public void Retiring_checkpoint_stops_unchanged_when_its_promotion_is_refused()
+        {
+            using var file = new TempFile();
+            using (var setup = new LiteDatabase(file.Filename))
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            for (var value = 1; value <= 5; value++) Update(db, value);
+            Exception thrown = null;
+            byte[] data = null, log = null;
+            using (var reader = engine.Query("rows", new Query()))
+            {
+                reader.Read().Should().BeTrue();
+                OnAnotherThread(() =>
+                {
+                    for (var value = 6; value <= 9; value++) Update(db, value);
+                    Info(db)["durableLogFlush"].AsBoolean.Should().BeTrue("commit 9 is acknowledged durable");
+                    data = SyncPowerLossModel.ReadShared(file.Filename);
+                    log = SyncPowerLossModel.ReadShared(logName);
+                    power.DataFailsFromSync = power.DataSyncs + 2; // the proof's data sync, then the promotion's
+                    try { db.Checkpoint(); } catch (Exception ex) { thrown = ex; }
+                });
+            }
+            thrown.Should().BeOfType<IOException>().Which.Message.Should().StartWith("Cannot upgrade this database's file format now");
+            Action query = () => db.GetCollection("rows").Count();
+            query.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*");
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
+            SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
+            power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 9));
         }
 
         /// <summary>
@@ -174,6 +209,42 @@ namespace LiteDB.Tests.Regressions
                     return SyncPowerLossModel.AssertRows(x, Rows, 0);
                 });
             }
+        }
+
+        /// <summary>
+        /// A file whose checksums an earlier engine enabled but whose indexes still need the migration
+        /// (v10): the migration's promotion needs a data sync, so while the data file cannot sync the
+        /// writable open is refused up front, both files unchanged, with the read-only remedy named;
+        /// that read-only open works, and once the data file syncs the file migrates.
+        /// </summary>
+        [Fact]
+        public void Index_migration_of_a_checksummed_file_is_refused_while_the_data_file_cannot_sync()
+        {
+            using var file = new TempFile();
+            using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                db.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            LiteDB.Tests.Engine.IndexMigration_Tests.RewriteHeaders(file.Filename, null, header =>
+            {
+                header[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
+                header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
+                Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
+            });
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var data = File.ReadAllBytes(file.Filename);
+            using (var power = new FilePowerLossModel(file.Filename))
+            {
+                power.DataFails = true;
+                Action open = () => LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null).Dispose();
+                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*readonly=true;legacy index scan=true*");
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                (File.Exists(logName) ? File.ReadAllBytes(logName).Length : 0).Should().Be(0);
+                using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { Filename = file.Filename, ReadOnly = true, LegacyIndexScan = true })))
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                power.DataFails = false;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+            }
+            LiteDB.Tests.Engine.IndexMigration_Tests.ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         private static void SetupLegacyStorage(string filename)

@@ -78,11 +78,13 @@ with an `IOException` while the data file cannot sync (open such a file with
 and unchanged; 5.0.21 converted and rebuilt there. A WAL the engine keeps in memory
 (`:memory:`, `:temp:`, `LiteDatabase(Stream)` without a log stream) survives no power loss
 and is still emptied, also by a conversion. A format promotion (a compact or vector write,
-or the first retiring checkpoint, that raises the file version) keeps its header journal the
-same way: it first syncs the data file (one more data sync per promotion), is refused with
-an `IOException` while that sync fails (which, as every I/O failure in a transaction, closes
-the engine; both files stay unchanged), and stops the engine with the journal kept when the
-data file stops syncing after its header write. Encrypted streams
+an index migration, or the first retiring checkpoint, that raises the file version) keeps its
+header journal the same way: it first syncs the data file (one more data sync per promotion)
+and stops the engine with the journal kept when the data file stops syncing after its header
+write. While the data file cannot sync, a compact write stays BSON, an index migration refuses
+the open (`readonly=true;legacy index scan=true` opens), and a vector write to a file older
+than the vector format is refused with an `IOException`, which, as every I/O failure in a
+transaction, closes the engine with both files unchanged. Encrypted streams
 opened to read no longer sync their file. A 5.x data file found beside its conversion's WAL (whose
 converted header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease

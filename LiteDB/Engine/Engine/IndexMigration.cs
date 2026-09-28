@@ -53,9 +53,10 @@ namespace LiteDB.Engine
             // key was validated; in shared mode each operation retries while a lease lasts. Refuse
             // before validating when it is already known that the drain cannot run.
             if (!_disk.ChecksumsEnabled && _walIndex.DrainBlocked()) throw ConversionBlocked();
-            // The conversion empties the log only after a data sync that succeeds (KeepsWal): a data
-            // file that cannot sync (#2242) refuses it here, both files unchanged.
-            if (!_disk.ChecksumsEnabled && !_disk.LogIsVolatile && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
+            // The conversion empties the log, and its format promotion retires a header journal, only
+            // after a data sync that succeeds (KeepsWal): a data file that cannot sync (#2242) refuses
+            // it here, both files unchanged, also for a file whose checksums an earlier engine enabled.
+            if (!_disk.LogIsVolatile && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.

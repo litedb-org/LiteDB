@@ -24,6 +24,17 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// Compact writes need the v12 format. While the data file cannot sync its promotion is refused
+        /// before it writes anything (DiskService.UnsyncedPromotion): the caller then writes BSON, as
+        /// whenever compact storage does not pay.
+        /// </summary>
+        internal bool TryRequireCompactVersion()
+        {
+            try { RequireFileVersion(HeaderPage.COMPACT_FILE_VERSION); return true; }
+            catch (IOException ex) when (ex.Data.Contains(DiskService.UnsyncedPromotionDataKey)) { return false; }
+        }
+
         internal void CommitSchemas(List<StorageSchema> schemas)
         {
             RequireFileVersion(HeaderPage.COMPACT_FILE_VERSION);

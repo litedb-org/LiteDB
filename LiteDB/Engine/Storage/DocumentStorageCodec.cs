@@ -34,7 +34,7 @@ namespace LiteDB.Engine
                     try { payload = encoder.Encode(document); }
                     catch (NotSupportedException) { payload = null; }
                     catch (System.Text.EncoderFallbackException) { payload = null; }
-                    if (payload != null && payload.Length + 8 < length)
+                    if (payload != null && payload.Length + 8 < length && snapshot.TryRequireCompactVersion())
                     {
                         snapshot.ObserveCompactResult(true);
                         snapshot.CommitSchemas(encoder.Pending);

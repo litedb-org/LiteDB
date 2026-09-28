@@ -42,9 +42,17 @@ namespace LiteDB.Engine
         /// to a data file that just synced, is refused unchanged while the data file cannot sync, and
         /// stops the engine with the journal kept when the data file stops syncing in between.
         /// </summary>
-        internal static IOException UnsyncedPromotion() => new IOException("Cannot upgrade this database's " +
-            "file format now: its data file cannot sync to the device, and the upgrade keeps its header's recovery " +
-            "copy in the log file until the new header synced. Retry once the storage syncs.");
+        internal static IOException UnsyncedPromotion()
+        {
+            var error = new IOException("Cannot upgrade this database's file format now: its data file cannot sync " +
+                "to the device, and the upgrade keeps its header's recovery copy in the log file until the new header " +
+                "synced. Retry once the storage syncs.");
+            error.Data[UnsyncedPromotionDataKey] = true;
+            return error;
+        }
+
+        /// <summary>Exception.Data key of <see cref="UnsyncedPromotion"/>: refused before anything was written.</summary>
+        internal const string UnsyncedPromotionDataKey = "LiteDB.UnsyncedPromotion";
 
         private void WriteFileVersion(Stream writer, byte version, bool checkpointStops)
         {
