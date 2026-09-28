@@ -199,6 +199,47 @@ jobs:
           path: LiteDB.Tests/TestResults/*.trx
           if-no-files-found: warn
 
+  test-native-macos-intel:
+    if: inputs.tier == 'full'
+    name: Native admission (macOS Intel - ${{ matrix.framework }})
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - framework: net8.0
+            runtimeMajor: 8
+          - framework: net10.0
+            runtimeMajor: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Build admission tests and process harness
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true
+      # Darwin x64 uses different stat symbols and variadic calling conventions
+      # from arm64. The full macOS suite above exercises the arm64 runner.
+      - name: Verify Intel native locking and replacement
+        shell: pwsh
+        run: >-
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.runtimeMajor }}
+          -Framework "${{ matrix.framework }}"
+          -Architecture x64
+          -Filter 'FullyQualifiedName~NativeAdmission|FullyQualifiedName~SharedAdmissionLifetime|FullyQualifiedName~SharedMode|FullyQualifiedName~DirectModeAdmission|FullyQualifiedName~Rebuild|FullyQualifiedName~Issue2979|FullyQualifiedName~SharedCoordinated'
+          -ResultFile 'NativeAdmission.trx'
+      - name: Upload native admission results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-admission-macos-intel-${{ matrix.framework }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn
+
   build-windows:
     name: Build (Windows)
     runs-on: windows-latest
