@@ -122,11 +122,11 @@ class FaultPointTests(unittest.TestCase):
         source = STATE_SOURCE.replace("#endif", "        internal static Func<string, int> SimulateErrno;\n#endif")
         code, output = self.run_check({STATE: source})
         self.assertEqual(code, 1)
-        self.assertIn("injector:SimulateErrno is not registered", output)
+        self.assertIn("Test hook SimulateErrno is not registered", output)
 
         code, output = self.run_check({REGISTRY: registry(observers={})})
         self.assertEqual(code, 1)
-        self.assertIn("injector:ObserveSortSpill is not registered", output)
+        self.assertIn("Test hook ObserveSortSpill is not registered", output)
 
     def test_new_persistent_io_is_flagged_for_review(self):
         source = ENGINE_SOURCE.replace("void Write(bool confirmed)\n        {",

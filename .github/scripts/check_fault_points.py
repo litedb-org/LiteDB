@@ -127,7 +127,7 @@ def check_registry(tree, report):
     _compare(found, entries, "Fault hook", report)
     injectors = {("injector", name): locations for name, locations in delegates.items()
                  if name not in NAMED_DELEGATES and name not in observers}
-    _compare(injectors, injector_entries, "Fault injector", report)
+    _compare(injectors, injector_entries, "Test hook", report)
     for name, reason in sorted(observers.items()):
         if name not in delegates:
             report.error(f"Observer hook {name} no longer exists in {SOURCE_ROOT}", REGISTRY)
@@ -153,13 +153,16 @@ def _index(items, key, report):
 
 
 def _compare(found, entries, noun, report):
+    def label(key):
+        return key[1] if key[0] == "injector" else f"{key[0]}:{key[1]}"
+
     for key, locations in sorted(found.items()):
         if key not in entries:
             path, line = locations[0]
             hint = " (as an injector with evidence, or under observers with a reason)" if key[0] == "injector" else ""
-            report.error(f"{noun} {key[0]}:{key[1]} is not registered in {REGISTRY}{hint}", path, line)
+            report.error(f"{noun} {label(key)} is not registered in {REGISTRY}{hint}", path, line)
     for key in sorted(set(entries) - set(found)):
-        report.error(f"Registered {noun.lower()} {key[0]}:{key[1]} no longer exists in {SOURCE_ROOT}", REGISTRY)
+        report.error(f"Registered {noun.lower()} {label(key)} no longer exists in {SOURCE_ROOT}", REGISTRY)
 
 
 def check_entry(tree, key, entry, targets, scheduled, report):

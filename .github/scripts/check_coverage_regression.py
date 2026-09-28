@@ -50,14 +50,18 @@ class Finding:
 
 def test_findings(base, head):
     before, after = common.collect_tests(base), common.collect_tests(head)
-    by_name = {}
-    for fqn in after:
-        by_name.setdefault(fqn.rsplit(".", 1)[-1], []).append(fqn)
+    by_name, added_in = {}, {}
+    for fqn, (path, method) in after.items():
+        by_name.setdefault(method.name, []).append(fqn)
+        if fqn not in before:
+            added_in.setdefault(path, []).append(method.name)
     findings = []
     for fqn, (path, method) in sorted(before.items()):
         if fqn not in after:
             moved = [other for other in by_name.get(method.name, []) if other not in before]
             note = f"; a test with this name was added as {', '.join(moved)}" if moved else ""
+            if not moved and added_in.get(path):  # most often a rename
+                note = f"; new in that file: {', '.join(sorted(added_in[path]))}"
             findings.append(Finding("test-removed", fqn, f"was in {path}{note}"))
     for fqn, (path, method) in sorted(after.items()):
         previous = before.get(fqn)
