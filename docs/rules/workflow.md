@@ -50,6 +50,9 @@ call a pending run green or present a local run as hosted-CI evidence.
 - Keep the PR title and description aligned with the final diff. Include current
   validation, relevant before/after measurements, compatibility changes, and
   unresolved questions. Replace stale claims after scope changes.
+- Every PR description has the `Safety / regression evidence` section, naming
+  each implicated contract id; `gh pr create --body` skips the template, so copy
+  it. See [safety evidence](safety-evidence.md).
 - For bug sweeps, track each issue's reproduction, fix, tests, and remaining
   scope separately. A related new case need not mean the original fix regressed.
   Search existing issues before treating a finding as new; keep manifests and
