@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using LiteDB.Client.Shared;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -21,6 +22,7 @@ namespace LiteDB.Engine
         private readonly bool _isLog;
         private readonly Action<string> _setHiddenAttribute;
         private readonly SharedFileHandles _handles;
+        private readonly bool _nativeAdmission;
 #if DEBUG || TESTING
         internal Action BeforeReadLength;
 #endif
@@ -33,7 +35,8 @@ namespace LiteDB.Engine
             bool useAesStream = true,
             Action<string> setHiddenAttribute = null,
             bool isLog = false,
-            SharedFileHandles handles = null)
+            SharedFileHandles handles = null,
+            bool nativeAdmission = false)
         {
             _filename = filename;
             _password = password;
@@ -43,6 +46,7 @@ namespace LiteDB.Engine
             _isLog = isLog;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
             _handles = handles;
+            _nativeAdmission = nativeAdmission;
         }
 
         /// <summary>
@@ -72,6 +76,8 @@ namespace LiteDB.Engine
             {
                 stream = cached
                     ? _handles.Open(_filename, fileMode, fileAccess, PAGE_SIZE, fileOptions)
+                    : _nativeAdmission
+                    ? AdmittedFileStream.Open(_filename, fileMode, fileAccess, fileShare, PAGE_SIZE, fileOptions)
                     : new FileStream(_filename,
                         fileMode,
                         fileAccess,
@@ -136,7 +142,9 @@ namespace LiteDB.Engine
             // Any other short, non-empty input must still reach validation.
             if (length < PAGE_SIZE)
             {
-                using (var stream = new FileStream(
+                using (var stream = _nativeAdmission
+                    ? AdmittedFileStream.Open(_filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1, FileOptions.SequentialScan)
+                    : new FileStream(
                     _filename,
                     System.IO.FileMode.Open,
                     FileAccess.Read,

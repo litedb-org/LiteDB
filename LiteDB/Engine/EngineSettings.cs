@@ -201,7 +201,7 @@ namespace LiteDB.Engine
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream,
-                    handles: this.SharedFileHandles);
+                    handles: this.SharedFileHandles, nativeAdmission: !this.RebuildCandidate);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");

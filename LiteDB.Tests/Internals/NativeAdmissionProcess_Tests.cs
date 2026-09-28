@@ -15,6 +15,34 @@ namespace LiteDB.Tests.Internals
     public class NativeAdmissionProcess_Tests
     {
         [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Storage_streams_preserve_native_admission_and_family_compatibility(bool shared)
+        {
+            using var file = new TempFile();
+            NativeAdmission_Tests.Seed(file);
+            using (SharedModeGuard.Open(file, shared, SharedMutexNameStrategy.Default))
+            {
+                using var handles = shared && SharedFileHandles.IsSupported ? new SharedFileHandles() : null;
+                var settings = new EngineSettings { Filename = file, SharedMode = shared, SharedFileHandles = handles };
+                using var factory = settings.CreateDataFactory();
+                for (var i = 0; i < 3; i++)
+                {
+                    using (var writer = factory.GetStream(true, false))
+                    using (var reader = factory.GetStream(false, false))
+                    {
+                        reader.ReadByte().Should().BeGreaterOrEqualTo(0);
+                        await MvccProcess.Run("native-rejected", file, null, "direct");
+                        await MvccProcess.Run(shared ? "native-open" : "native-rejected", file, null, "shared");
+                    }
+                    await MvccProcess.Run("native-rejected", file, null, "direct");
+                }
+            }
+            await MvccProcess.Run("native-open", file, null, "direct");
+            NativeAdmission_Tests.Verify(file);
+        }
+
+        [Theory]
         [InlineData("direct", "direct")]
         [InlineData("direct", "shared")]
         [InlineData("shared", "direct")]

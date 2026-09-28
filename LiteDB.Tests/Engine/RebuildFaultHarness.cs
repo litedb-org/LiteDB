@@ -264,15 +264,7 @@ namespace LiteDB.Tests.Engine
         public byte[] ReadLive() => this.ReadShared(this.Live);
 
         // A direct handle keeps the rebuilt file open, so read alongside it.
-        private byte[] ReadShared(string path)
-        {
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            using (var buffer = new MemoryStream())
-            {
-                stream.CopyTo(buffer);
-                return buffer.ToArray();
-            }
-        }
+        private byte[] ReadShared(string path) => TempFile.ReadAllBytesShared(path);
 
         private string Identify(string name)
         {

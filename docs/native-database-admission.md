@@ -56,8 +56,13 @@ written or file length changed.
 Windows uses nonblocking `LockFileEx` and `UnlockFileEx` with a read handle sharing
 read/write/delete. Unix uses nonblocking open-file-description `fcntl` locks:
 Linux `F_OFD_SETLK/F_OFD_GETLK` and the macOS equivalents. POSIX process locks are
-unsuitable because closing an unrelated descriptor can release them. `flock`
-would conflict with .NET's independent file-sharing locks. Unix descriptors use
+unsuitable because closing an unrelated descriptor can release them. On Linux,
+OFD locks are independent of .NET's `flock` file-sharing locks. Darwin combines
+both in one lock table, so admitted database streams open native descriptors
+without adding FileStream's automatic whole-file flock. WAL, temporary and Shared
+coordination streams retain their ordinary sharing locks. External FileStream
+readers can be refused while a Direct writer owns admission on macOS; close the
+database before inspecting or copying its files. Unix descriptors use
 `O_CLOEXEC`; handles are not inherited by child executables.
 
 A second descriptor probes the first lock before any storage engine is admitted.

@@ -71,8 +71,10 @@ namespace LiteDB.Tests
 
         public static byte[] ReadAllBytesShared(string filename)
         {
-            using var input = new FileStream(filename, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
+            // Inspect bytes without changing the admission lock on macOS, where
+            // FileStream's whole-file flock interacts with native range locks.
+            using var input = Client.Shared.AdmittedFileStream.Open(filename, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.None);
             using var output = new MemoryStream();
             input.CopyTo(output);
             return output.ToArray();
