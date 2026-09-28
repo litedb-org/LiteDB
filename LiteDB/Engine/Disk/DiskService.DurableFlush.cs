@@ -18,6 +18,9 @@ namespace LiteDB.Engine
         private readonly bool _durableCommits;
         private readonly SharedDurabilityState _sharedDurability;
         private readonly bool _dataIsFile, _volatileLog;
+
+        // The data file's full path, for DurableHeaders; null when it has none.
+        private readonly string _dataPath;
         private volatile bool _logFlushDegraded;
 
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
@@ -184,7 +187,11 @@ namespace LiteDB.Engine
             // An unverifiable log sync proves nothing. A failed proof leaves the engine degraded,
             // so a retry per allocation costs no sync.
             if (this.FlushDegraded || this.LogSyncUnverified) return false;
-            if (!_dataSyncProven) this.SyncDataFile();
+            if (!_dataSyncProven)
+            {
+                if (_dataIsFile) this.ProveDataFile();
+                else this.SyncDataFile();
+            }
             if (!this.FlushDegraded) this.SyncRawLog();
             return _slotReuseProven = !this.FlushDegraded;
         }
@@ -196,17 +203,16 @@ namespace LiteDB.Engine
         /// conversion. Make it durable before this engine's first log sync (see
         /// <see cref="ProveDataBeforeLog"/>); a "cannot sync" answer degrades this engine's commits
         /// instead. Only a header change can make earlier WAL content obsolete (a checkpoint that
-        /// does not change it keeps every frame), so a shared connection whose latest data sync
-        /// left this exact header skips it. Caller streams other than files are the caller's to
-        /// share. Caller holds the log writer lock, or opens the engine.
+        /// does not change it keeps every frame), so the sync is skipped while the header is one a
+        /// successful sync in this process left (<see cref="DurableHeaders"/>).
+        /// Caller holds the log writer lock, or opens the engine.
         /// </summary>
         private void ProveDataFile()
         {
             var data = _dataPool.Writer.Value;
             lock (data)
             {
-                var durable = _sharedDurability?.DurableHeader;
-                if (durable != null && ReadDataHeader(data).SequenceEqual(durable)) _dataSyncProven = true;
+                if (_dataPath != null && data.Length >= PAGE_SIZE && DurableHeaders.Matches(_dataPath, ReadDataHeader(data))) _dataSyncProven = true;
                 else this.SyncDataBarrier(data);
             }
         }
@@ -220,6 +226,14 @@ namespace LiteDB.Engine
         private void ProveDataBeforeLog()
         {
             if (!_dataSyncProven && _dataIsFile && !_readOnly && !_dataFlushDegraded) this.ProveDataFile();
+        }
+
+        private static string DurablePath(EngineSettings settings)
+        {
+            var path = settings.DataStream == null ? settings.Filename : (settings.DataStream as FileStream)?.Name;
+            if (string.IsNullOrEmpty(path) || path == ":memory:" || path == ":temp:") return null;
+            try { return Path.IsPathRooted(path) || settings.DataStream == null ? Path.GetFullPath(path) : null; }
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
         }
 
         /// <summary>Sync the data file as a barrier. Caller holds the log writer lock (order: log, then data).</summary>
@@ -273,7 +287,7 @@ namespace LiteDB.Engine
             {
                 data.FlushToDisk();
                 _dataBarrierSynced = _dataSyncProven = true;
-                if (_sharedDurability != null && _dataIsFile) _sharedDurability.DurableHeader = ReadDataHeader(data);
+                if (_dataPath != null && data.Length >= PAGE_SIZE) DurableHeaders.Record(_dataPath, ReadDataHeader(data));
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

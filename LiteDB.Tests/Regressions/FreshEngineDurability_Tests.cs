@@ -17,8 +17,9 @@ namespace LiteDB.Tests.Regressions
     /// When that engine left a changed data header in the OS cache only (a salt rotation, a format
     /// conversion), the fresh engine's commits depend on it, yet it reported them durable after
     /// syncing only the WAL, and a power loss (each file as of its last successful sync) lost them.
-    /// Before its first durable commit a file-backed engine now proves the data file syncs; a
-    /// shared connection skips that while the data header is the one it last saw durable.
+    /// Before its first log sync an engine whose data is a file (opened by the engine or passed as
+    /// a FileStream) now proves the data file syncs; it skips that while the data header is one a
+    /// successful sync in this process left.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -95,6 +96,69 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// Healthy storage pays the proof once per data header in the process, not per fresh engine:
+        /// neither a shared connection's operations nor direct-mode open, commit and close add a data
+        /// sync while the header is the one the latest successful data sync left.
+        /// </summary>
+        [Fact]
+        public void Data_file_is_proven_once_per_data_header()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename); // its closing checkpoint synced the data file
+            using var power = new FilePowerLossModel(file.Filename);
+
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                for (var id = 1; id <= 8; id++) Insert(db, id);
+                DurableLogFlush(db).Should().BeTrue();
+            }
+            power.DataSyncs.Should().Be(0, "every operation found the header the setup left durable");
+            for (var id = 9; id <= 11; id++)
+            {
+                using var direct = new LiteDatabase(file.Filename);
+                var atOpen = power.DataSyncs;
+                Insert(direct, id);
+                power.DataSyncs.Should().Be(atOpen, "the previous close's checkpoint synced this header");
+                DurableLogFlush(direct).Should().BeTrue();
+            }
+        }
+
+        /// <summary>
+        /// Another connection's checkpoint left a rotated header in the OS cache only: the next
+        /// operation of a shared connection whose engines saw the old header durable proves again.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Shared_connection_proves_again_after_another_connection_left_its_header_unsynced(bool dataSyncsAgain)
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            Update(db, 1);
+            DurableLogFlush(db).Should().BeTrue();
+
+            var settings = new EngineSettings { Filename = file.Filename };
+            settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
+            using (var otherEngine = new SharedEngine(settings))
+            using (var other = new LiteDatabase(otherEngine, disposeOnClose: false))
+            {
+                Update(other, 2);
+                other.Checkpoint();
+            }
+            power.DataFails = !dataSyncsAgain;
+            Update(db, 3);
+            var durable = DurableLogFlush(db);
+            durable.Should().Be(dataSyncsAgain);
+            if (durable) power.AfterPowerLoss(Values).Should().Equal(new[] { 3 }, "a commit reported durable survives the power loss");
+        }
+
+        /// <summary>
         /// The salt rotation case with the files passed as caller FileStreams: a fresh engine over
         /// them reported its commit durable without proving the data file.
         /// </summary>
@@ -123,34 +187,40 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// Healthy storage: a shared connection syncs the data file once, not on every operation's
-        /// fresh engine, until another connection changes the data header (a full checkpoint).
+        /// Healthy storage: reusing retired WAL slots proves the data file like a commit does, once
+        /// per data header, not with a data sync per shared operation.
         /// </summary>
         [Fact]
-        public void Shared_connection_proves_the_data_file_once_per_data_header()
+        public void Slot_reuse_adds_no_data_sync_per_shared_operation()
         {
             using var file = new TempFile();
             Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new FilePowerLossModel(file.Filename);
-
             using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
-            Insert(db, 1);
-            var afterFirst = power.DataSyncs;
-            afterFirst.Should().Be(1, "the first operation proves the data file");
-            for (var id = 2; id <= 8; id++) Insert(db, id);
-            power.DataSyncs.Should().Be(afterFirst, "later operations find the data header they saw durable");
-
-            using (var other = new LiteDatabase($"Filename={file.Filename};Connection=shared"))
+            for (var value = 1; value <= 5; value++) Update(db, value);
+            using (var reader = engine.Query("rows", new Query()))
             {
-                other.Checkpoint(); // rotates the WAL salt in the data header
+                reader.Read().Should().BeTrue("a live reader makes the checkpoint retire frames");
+                var worker = new System.Threading.Thread(() =>
+                {
+                    for (var value = 6; value <= 9; value++) Update(db, value);
+                    db.Checkpoint();
+                });
+                worker.Start();
+                worker.Join();
             }
-            var afterCheckpoint = power.DataSyncs;
-            Insert(db, 9);
-            power.DataSyncs.Should().Be(afterCheckpoint + 1, "a changed data header is proven again");
-            Insert(db, 10);
-            power.DataSyncs.Should().Be(afterCheckpoint + 1);
+            var before = SyncPowerLossModel.ReadShared(logName);
+            var syncs = power.DataSyncs;
+            for (var value = 10; value < 15; value++) Update(db, value);
+            var after = SyncPowerLossModel.ReadShared(logName);
+            Enumerable.Range(0, before.Length / WalChecksum.FrameSize).Count(frame =>
+                !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
+                    .SequenceEqual(after.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)))
+                .Should().BeGreaterThan(0, "the operations reused retired slots");
+            power.DataSyncs.Should().Be(syncs);
             DurableLogFlush(db).Should().BeTrue();
         }
 

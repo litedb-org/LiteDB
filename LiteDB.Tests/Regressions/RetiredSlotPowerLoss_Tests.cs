@@ -103,6 +103,57 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The same two independent connections in the default configuration: files the engines
+        /// open themselves through shared file handles, no caller streams.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void File_backed_independent_connection_after_a_root_left_in_the_os_cache(bool dataSyncsAgain)
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            var armed = false;
+            using var first = new SharedEngine(new EngineSettings
+            {
+                Filename = file.Filename,
+                CheckpointStage = stage => { if (armed && stage == AtRootPublication) power.DataFails = true; }
+            });
+            using var firstDb = new LiteDatabase(first, disposeOnClose: false);
+            firstDb.CheckpointSize = 0;
+            for (var value = 1; value <= 5; value++) Update(firstDb, value);
+            using (var reader = first.Query("rows", new Query()))
+            {
+                reader.Read().Should().BeTrue();
+                Worker(() =>
+                {
+                    for (var value = 6; value <= 9; value++) Update(firstDb, value);
+                    armed = true;
+                    firstDb.Checkpoint();
+                    armed = false;
+                });
+            }
+            power.DataFails.Should().BeTrue("the checkpoint reached its root publication");
+            RetirementRoot(SyncPowerLossModel.ReadShared(file.Filename)).Should().BeGreaterThan(0);
+
+            power.DataFails = !dataSyncsAgain;
+            var before = SyncPowerLossModel.ReadShared(logName);
+            using var second = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using var secondDb = new LiteDatabase(second, disposeOnClose: false);
+            Update(secondDb, 10);
+
+            var changed = ChangedFrames(before, SyncPowerLossModel.ReadShared(logName));
+            if (dataSyncsAgain) changed.Should().BeGreaterThan(0, "the control reuses retired slots");
+            else changed.Should().Be(0, "no retired slot is reused before the data file syncs");
+            DurableLogFlush(secondDb).Should().Be(dataSyncsAgain);
+            power.AfterPowerLoss(db => db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray())
+                .Should().Equal(new[] { 10 }, "every commit so far is in the durable WAL");
+            File.Delete(logName);
+        }
+
+        /// <summary>
         /// The WAL stops syncing after the checkpoint's proof, at its retirement records: publishing
         /// their root in a data file that still syncs would make a durable header name records a
         /// power loss dropped, and the database could not be opened. The root is not published.
