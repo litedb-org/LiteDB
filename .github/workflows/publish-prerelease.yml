@@ -80,10 +80,10 @@ jobs:
         run: dotnet restore LiteDB.sln
 
       - name: Build
-        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true /p:LiteDBPreDev=true
 
       - name: Pack
-        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true
+        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true /p:LiteDBPreDev=true
 
       - name: Clean up detached packages
         run: |
