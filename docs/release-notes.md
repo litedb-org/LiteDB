@@ -129,9 +129,10 @@ be inspected) the open is refused with `LOCK_TIMEOUT` before any document is val
 changing neither file; an unreadable registry keeps refusing until it can be read. It is
 refused with an `IOException` where only the data file cannot sync. A committed legacy
 WAL page that is not a page of its type (an unknown type, or page 0 that is not the
-header) or that names a page beyond both files and every page a committed header counts
-fails the open with `INVALID_DATABASE`, changing neither file (5.0.21 wrote it over the
-header or that far into the data file). Unique-key
+header) or that names a page beyond both files and every page a committed header counts,
+and a committed header of another database (another creation time), fail the open with
+`INVALID_DATABASE`, changing neither file (5.0.21 wrote it over the header, that far into
+the data file, or replayed the other database into it). Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages after keys that
 released updates left stale (for example `19.99` for a stored `19.99m`, including

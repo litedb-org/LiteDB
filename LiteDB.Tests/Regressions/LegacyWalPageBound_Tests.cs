@@ -112,6 +112,64 @@ namespace LiteDB.Tests.Regressions
             finally { File.Delete(logName); }
         }
 
+        /// <summary>
+        /// ForeignWal_5_0_21.zip, written by the LiteDB 5.0.21 package: the WAL of another database
+        /// (10,000 documents, then one insert into a new collection committed with its header,
+        /// LastPageID 1732, and the process killed), beside this crash.db. Its committed header
+        /// raised the bound past its pages: the open replayed them into this file (14 MB, the
+        /// other database's collections in place of its own) and deleted the log. A committed
+        /// header whose creation time is not the data file's now fails the open, changing neither file.
+        /// </summary>
+        [Theory]
+        [InlineData("")]
+        [InlineData(";readonly=true;legacy index scan=true")]
+        [InlineData(";auto-rebuild=true")]
+        public void Log_of_another_database_fails_the_open(string options)
+        {
+            var log = Entry("foreign-log.db", "ForeignWal_5_0_21.zip");
+            AssertLogRefused(log, options, "*commits the header of another database*");
+        }
+
+        /// <summary>
+        /// The same foreign header, its LastPageID raised to cover a data page far beyond both files
+        /// committed with it: it raised the bound for that page (a writable open would write it
+        /// about 28 TB into the data file).
+        /// </summary>
+        [Theory]
+        [InlineData(100000u, false)]
+        [InlineData(0xCDCDCDCDu, true)]
+        public void Header_of_another_database_does_not_raise_the_bound(uint pageID, bool readOnly)
+        {
+            var foreign = Entry("foreign-log.db", "ForeignWal_5_0_21.zip");
+            var header = foreign.Skip(3 * Constants.PAGE_SIZE).Take(Constants.PAGE_SIZE).ToArray();
+            BitConverter.ToUInt32(header, BasePage.P_PAGE_ID).Should().Be(0, "the foreign WAL's committed header");
+            BitConverter.GetBytes(0x7FFF0000u).CopyTo(header, BasePage.P_TRANSACTION_ID);
+            BitConverter.GetBytes(pageID).CopyTo(header, HeaderPage.P_LAST_PAGE_ID);
+            var far = Page(PageType.Data, pageID);
+            far[BasePage.P_IS_CONFIRMED] = 0;
+            var log = Entry("crash-log.db").Concat(far).Concat(header).ToArray();
+            AssertLogRefused(log, readOnly ? ";readonly=true;legacy index scan=true" : "", "*commits the header of another database*");
+        }
+
+        /// <summary>This crash.db beside the given log.</summary>
+        private static void AssertLogRefused(byte[] log, string options, string message)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var data = Entry("crash.db");
+            try
+            {
+                File.WriteAllBytes(file.Filename, data);
+                File.WriteAllBytes(logName, log);
+                Action open = () => new LiteDatabase($"Filename={file.Filename}" + options).Dispose();
+                open.Should().Throw<LiteException>().Where(x => x.ErrorCode == LiteException.INVALID_DATABASE)
+                    .WithMessage(message);
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                File.ReadAllBytes(logName).Should().Equal(log);
+            }
+            finally { File.Delete(logName); }
+        }
+
         private static byte[] Entry(string name, string archive = "WalCrash_5_0_21.zip")
         {
             using var zip = new ZipArchive(typeof(LegacyWalPageBound_Tests).Assembly.GetManifestResourceStream(

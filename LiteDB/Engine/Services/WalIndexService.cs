@@ -232,6 +232,9 @@ namespace LiteDB.Engine
             var legacyLimit = _disk.ChecksumsEnabled ? uint.MaxValue : this.LegacyPageLimit(header);
             // Legacy transactions holding a page that is not a page of this format, by transaction ID.
             var legacyInvalid = _disk.ChecksumsEnabled ? null : new Dictionary<uint, uint>();
+            // A 5.x header keeps the creation time it was created with: a committed header with
+            // another one is another database's.
+            var legacyCreation = legacyInvalid == null ? 0L : header.Buffer.ReadInt64(HeaderPage.P_CREATION_TIME);
             foreach (var buffer in pages)
             {
                 var current = buffer.Position;
@@ -268,7 +271,11 @@ namespace LiteDB.Engine
                         // A 5.x commit that allocated pages confirms with its header, whose LastPageID
                         // counts every ID handed out so far, also to transactions still open whose
                         // pages never reached the WAL (concurrent writers).
-                        if (pageID == 0) legacyLimit = Math.Max(legacyLimit, buffer.ReadUInt32(HeaderPage.P_LAST_PAGE_ID));
+                        if (pageID == 0)
+                        {
+                            if (buffer.ReadInt64(HeaderPage.P_CREATION_TIME) != legacyCreation) throw LegacyForeignLog();
+                            legacyLimit = Math.Max(legacyLimit, buffer.ReadUInt32(HeaderPage.P_LAST_PAGE_ID));
+                        }
                         foreach (var entry in list)
                             if (entry.PageID > legacyLimit) throw LegacyPageOutOfRange(entry.PageID, legacyLimit);
                     }
@@ -333,6 +340,12 @@ namespace LiteDB.Engine
             "Cannot open this database: its log file commits a page (ID {0}) that is not a valid page of its type, so " +
             "the log is damaged or belongs to another data file. Replaying it would overwrite the data file with it. " +
             "Nothing was changed; move the log file aside to open the database without its uncheckpointed transactions.", pageID);
+
+        private static LiteException LegacyForeignLog() => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file commits the header of another database (created at another " +
+            "time), so the log belongs to another data file. Replaying it would overwrite the data file with that " +
+            "database's pages. Nothing was changed; move the log file aside to open the database without its " +
+            "uncheckpointed transactions.");
 
         private static LiteException LegacyPageOutOfRange(uint pageID, uint limit) => new LiteException(LiteException.INVALID_DATABASE,
             "Cannot open this database: its log file holds a committed page (ID {0}) beyond any page the data and log " +
