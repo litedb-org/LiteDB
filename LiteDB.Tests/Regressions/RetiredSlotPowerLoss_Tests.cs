@@ -16,10 +16,12 @@ namespace LiteDB.Tests.Regressions
     /// Neither that connection nor an independent one may then make a WAL change durable that
     /// needs the root: a power loss (modelled by keeping each file as of its last successful
     /// sync) must keep every commit acknowledged while durableLogFlush was true. Such a checkpoint
-    /// now stops ("stopped syncing", its engine closes) before it retires a frame or removes its
-    /// header journal, and an engine that opens over that journal cannot recover until the data
-    /// file syncs: it opens read-only and refuses every write, so no connection reuses a slot or
-    /// acknowledges a commit meanwhile, while every connection still reads every commit.
+    /// now stops ("stopped syncing") before it retires a frame or removes its header journal, and
+    /// records the failure: its connection continues read-only until it is reopened (decision 6 of
+    /// docs/decisions/durability-policy.md). An engine that opens over that journal cannot recover
+    /// until the data file syncs: it opens read-only and refuses every write. So no connection
+    /// reuses a slot or acknowledges a commit meanwhile, while every connection still reads every
+    /// commit.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -27,10 +29,11 @@ namespace LiteDB.Tests.Regressions
     {
         /// <summary>
         /// Every commit acknowledged durable survives, with the WAL as last synced or as written
-        /// back; while the data file cannot sync, the connection's next write is refused (its
-        /// engine opens read-only: "Cannot modify this database", naming the refused recovery)
-        /// without changing either file, and the connection keeps reading every commit; once the
-        /// data file syncs, the connection recovers every commit and writes again.
+        /// back. The shared connection keeps the checkpoint's recorded failure (decision 6 and
+        /// default C of docs/decisions/durability-policy.md): its later operations open read-only,
+        /// so it keeps reading every commit, reports the failure in $database, and refuses the next
+        /// write with that record without changing either file, also once the data file syncs
+        /// again. A new connection then retries: it recovers every commit and writes again.
         /// </summary>
         [Theory]
         [InlineData(BeforeBackfill)] // found before the root is published: none is
@@ -51,16 +54,28 @@ namespace LiteDB.Tests.Regressions
                 FilePowerLossModel.Open((power.Capture().Data, kept), image => SyncPowerLossModel.AssertRows(image, 64, durable));
 
                 var data = SyncPowerLossModel.ReadShared(file.Filename);
-                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A checkpoint", "data",
+                    "The data file stopped syncing to the device during a checkpoint");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, 10), record);
                 SyncPowerLossModel.AssertRows(db, 64, durable); // the connection keeps reading
                 SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays until a data sync");
                 SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
                 power.AssertAfterPowerLoss(64, durable);
 
                 power.DataFails = false;
-                Update(db, 10);
-                SyncPowerLossModel.AssertRows(db, 64, 10);
-                power.AssertAfterPowerLoss(64).Should().BeOneOf(durable, 10);
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, 10), record);
+                SyncPowerLossModel.AssertRows(db, 64, durable);
+                SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the failure is sticky until the connection is reopened");
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
+
+                using var reopened = new SharedEngine(power.Settings());
+                using var reopenedDb = new LiteDatabase(reopened, disposeOnClose: false);
+                SyncPowerLossModel.AssertRows(reopenedDb, 64, durable);
+                Update(reopenedDb, 10);
+                SyncPowerLossModel.AssertRows(reopenedDb, 64, 10);
+                reopenedDb.GetCollection("$database").FindAll().Single()["writeFailure"].IsNull.Should().BeTrue("a reopen retries");
+                DurableLogFlush(reopenedDb).Should().BeTrue();
+                power.AssertAfterPowerLoss(64, 10); // acknowledged durable
             }
             finally { EngineState.SimulateProcessCrash = null; }
         }
@@ -199,6 +214,11 @@ namespace LiteDB.Tests.Regressions
         /// The WAL stops syncing after the checkpoint's proof, at its retirement records: publishing
         /// their root in a data file that still syncs would make a durable header name records a
         /// power loss dropped, and the database could not be opened. The root is not published.
+        /// With durable commits a log that answers "cannot sync" is a failure (decision 3 and
+        /// default A of docs/decisions/durability-policy.md), so the explicit checkpoint, the
+        /// caller's own operation, throws it, and the failure is recorded (decision 6): the shared
+        /// connection continues read-only, reads every commit and refuses the next write without
+        /// changing either file.
         /// </summary>
         [Fact]
         public void Retiring_checkpoint_whose_log_stops_syncing_publishes_no_root()
@@ -218,20 +238,30 @@ namespace LiteDB.Tests.Regressions
                 Worker(() =>
                 {
                     for (var value = 6; value <= 9; value++) Update(db, value);
-                    db.Checkpoint();
+                    DurableLogFlush(db).Should().BeTrue("commit 9 is acknowledged durable");
+                    Action checkpoint = () => db.Checkpoint();
+                    checkpoint.Should().Throw<IOException>().WithMessage("The log file cannot sync to the device (#2242)*");
                 });
             }
             power.LogFails.Should().BeTrue("the checkpoint reached its retirement records");
             RetirementRoot(SyncPowerLossModel.ReadShared(power.DataFile)).Should().Be(0, "no root names records that may not be durable");
-
             power.AfterPowerLoss(64).Should().Be(9, "every commit acknowledged before the log stopped syncing survives");
+
+            var files = (Data: SyncPowerLossModel.ReadShared(power.DataFile), Log: SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(power.DataFile)));
+            SyncPowerLossModel.AssertRows(db, 64, 9);
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A checkpoint", "log", "The log file cannot sync to the device (#2242)");
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, 10), record);
+            SyncPowerLossModel.AssertRows(db, 64, 9);
+            SyncPowerLossModel.ReadShared(power.DataFile).Should().Equal(files.Data, "the refused write changes nothing");
+            SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(power.DataFile)).Should().Equal(files.Log);
+            power.AfterPowerLoss(64).Should().Be(9);
         }
 
         /// <summary>
         /// Commit values 1..9 under a live reader, then run a partial checkpoint during which the
         /// data file stops syncing after the checkpoint proved it could: the checkpoint throws
-        /// "stopped syncing" and closes its engine before it retires a frame or removes its header
-        /// journal. Returns the last value acknowledged while durableLogFlush was true.
+        /// "stopped syncing" and stops its engine, recording the failure, before it retires a frame or
+        /// removes its header journal. Returns the last value acknowledged while durableLogFlush was true.
         /// </summary>
         private static int RetireWhileTheDataFileStopsSyncing(SharedEngine engine, LiteDatabase db, SyncPowerLossModel power, string stage)
         {
