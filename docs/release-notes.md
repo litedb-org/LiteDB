@@ -45,7 +45,9 @@ no root once it found out. A file-backed engine proves its data file syncs befor
 first durable commit (a shared connection once per data header) and syncs the WAL once
 before it first reuses a slot. If only the data file cannot sync, a full checkpoint
 keeps the WAL, since emptying it would outlast the unsynced backfill; automatic
-checkpoints then wait until the WAL has doubled, and a rebuild is refused. Larger
+checkpoints then wait until the WAL has doubled, and a rebuild or the conversion of a
+5.x file is refused. A 5.x data file found beside its conversion's WAL (whose converted
+header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
 host with working file-sharing locks, use the same mutex naming strategy and this

@@ -47,7 +47,8 @@ See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibili
 Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout.
 MVCC reclamation lazily publishes v13 before writing retirement witnesses. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
-data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
+data-page coverage; a data file that cannot sync while its WAL can is not converted, and a
+legacy header beside checksummed WAL frames fails the open without changing either file. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the

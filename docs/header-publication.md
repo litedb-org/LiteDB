@@ -166,7 +166,12 @@ first durable commit, so commits acknowledged after the storage syncs again rega
 full guarantee. A data file that answers the same degrades its barriers the same way.
 A WAL that still syncs then keeps what the data file could not make durable: a full
 checkpoint does not empty it, since the emptied WAL would become durable at the next
-log sync and the backfill never. Once neither file syncs, a full checkpoint empties
+log sync and the backfill never. A 5.x file is not converted there: its converted
+header would stay in the OS cache while the checksummed frames written after it
+became durable. A legacy header found beside such frames (neither file synced and
+the OS wrote the log back first, or a data file restored without its log) fails the
+open without changing either file, since legacy rules would replay the frames as
+pages at positions read from their trailers. Once neither file syncs, a full checkpoint empties
 the WAL as before #2818; if the WAL later syncs again while the data file still does
 not, a power loss can lose commits that were acknowledged as durable before the
 storage stopped syncing.
