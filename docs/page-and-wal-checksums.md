@@ -88,7 +88,8 @@ remain logical multiples of 8192. Trailer offsets and integer encodings are:
 | 32 | 4 | Transaction's distinct physical-slot count |
 | 36 | 8 | Transaction digest |
 | 44 | 8 | Commit sequence, or zero for an unconfirmed frame |
-| 52 | 12 | Reserved zeros, included in the frame CRC |
+| 52 | 4 | Frame marker: zero for a page, `RET1` for a retirement record, `HDR1` for the header frame |
+| 56 | 8 | Reserved zeros, included in the frame CRC |
 
 The page retains its transaction ID and confirmation flag. Each slot contributes
 a position-dependent nonlinear 64-bit mix of its page CRC and generation salt to
@@ -103,6 +104,35 @@ Safepoints can reuse only unconfirmed slots **after** the latest confirmation.
 Earlier slots are frozen: rewriting them could tear an already-synced WAL prefix
 and make recovery discard an acknowledged intervening transaction. Rollback
 releases its checksum bookkeeping. Confirmations always append.
+
+### The header frame
+
+Frame 0 of every WAL generation (from an empty WAL until the next one; decisions 10, 11
+and 14 of [the durability policy](decisions/durability-policy.md)) is the header frame: the
+data header as the data file held it when the generation started, marked `HDR1`, with
+count, digest and sequence zero. Its trailer carries the same salt as the header it holds.
+The first batch that extends an empty WAL writes it, in both commit modes; its commit's
+log sync makes it durable. Volatile logs have none, and a legacy (v5) WAL has none.
+
+The WAL so describes itself: a commit does not depend on the data header being on the
+device (a data file on storage that cannot sync, #2242, or not yet written back).
+Recovery skips the header frame as a page. It uses it only when the data file's header
+is missing or damaged as a power loss leaves a header that never reached the device:
+the data file is empty or shorter than a page, or each 512-byte sector of its header is
+either the header frame's or zeros. A writable open then writes the header back (the WAL
+is emptied only after a data sync covers that write); a read-only open reads it in its
+place and writes nothing. The header frame must name no page the data file lost (its
+`LastPageID` fits the file), and a header journal wins where one applies. An intact header
+always wins, also one of another salt: the WAL is then a stale generation and is
+discarded as before. A header holding other bytes (a drive defect) fails the open as
+before. An empty or missing data file beside a WAL that starts with a header frame is
+never initialized over: the header is restored, or the open fails and changes neither
+file (a missing data file, or one that held pages the header frame names).
+
+Before an engine's first durable commit, the data file is also synced once (decision 14),
+best effort: a WAL holds changed pages only, so a database file someone copied into place
+must be on the device before commits build on it. A data file that cannot sync proceeds;
+the barrier runs once per process and data header, and once per shared connection.
 
 Checksums are computed before encryption. The trailer and page are encrypted
 together using complete AES blocks; encryption and caller-stream wrappers forward
@@ -148,11 +178,12 @@ ordering, encoding, temporary space, and durability limits.
 
 With `DurableCommits=false`, power loss may lose recent commits, but a partially
 present transaction is not recovered. Storage must still honor successful syncs
-for the usual durable-commit and checkpoint guarantees. Log or data storage that
-rejects sync as unsupported (#2242) converts and checkpoints in write order without
-that sync: a killed process still recovers, power loss is not covered, and
-`durableLogFlush` reports false. A failed
-sync still stops before data is overwritten. On Unix the file sync is issued natively
+for the usual durable-commit and checkpoint guarantees. Storage that rejects sync as
+unsupported (#2242) follows [the durability policy](decisions/durability-policy.md): a
+durable commit on a log that cannot sync fails before it writes; a data file that cannot
+sync keeps commits durable in the WAL, which is emptied only after a data sync succeeds
+and grows up to the WAL limit meanwhile. A failed sync still stops before data is
+overwritten, and is recorded: the engine continues read-only. On Unix the file sync is issued natively
 (`fsync`, or `F_FULLFSYNC` on macOS), because `FileStream.Flush(true)` in released .NET
 runtimes reports success for every failed `fsync`.
 

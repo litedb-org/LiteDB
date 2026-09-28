@@ -150,7 +150,7 @@ and the owner's answers:
 These are the implementer's readings where the decisions leave a detail open. They are not decisions
 until the owner confirms them.
 
-1. **Header rule (refines 4; superseded by decision 8, which anchors the header in the WAL).** WAL frames depend on the data header they were written under (its WAL
+1. **Header rule (refines 4; superseded by decisions 8 and 11: every WAL starts with a copy of the header).** WAL frames depend on the data header they were written under (its WAL
    salt, file version and creation time). A commit durable only in the WAL is durable only while that
    header is on the device: the engine synced it, or it is byte-identical to the header a successful
    sync in this process left (the process-wide durable-header record). While the data file cannot sync
@@ -167,7 +167,8 @@ until the owner confirms them.
    the first commit. A later commit whose own sync answers "cannot sync" has already written its frames:
    it throws, and its error says its outcome is unknown (the frames reached the operating system).
 5. **Sticky failure mechanics (6).** The failing operation stops the engine as before; the next call
-   reopens it read-only from the files as they are. Operations running on other threads at that moment
+   reopens it read-only from the files as they are (after a failed WAL batch, only up to the last
+   commit acknowledged before it, decision 13). Operations running on other threads at that moment
    fail with the stop error. An explicit transaction the failure ended throws at `Commit` (and `Rollback`
    returns true). An explicit `Checkpoint()` is the caller's own operation and throws; an automatic
    checkpoint after a successful commit and the one in `Dispose` do not. A shared connection keeps the
@@ -183,3 +184,21 @@ until the owner confirms them.
 8. **The WAL limit** is checked when a write starts: a transaction already running may commit past it.
    Each refused write first retries the data sync, so writes resume on their own once the data file
    syncs; the next checkpoint then drains the WAL.
+9. **What the header frame restores (11).** Only a header a power loss left unwritten: the data file is
+   empty or shorter than a page, or every 512-byte sector of its header is the header frame's or zeros.
+   A header with other bytes (a drive defect) fails the open as before, instead of taking a copy that
+   may be older. The header frame must not name pages the data file lost (its `LastPageID` must fit the
+   file); an empty data file beside a WAL whose header frame names pages, and a missing data file
+   beside a WAL, refuse the open and change neither file. An encrypted data file whose header page was
+   never written back (its bytes zeros, which decrypt to other bytes) is not restored and fails the
+   open; an empty encrypted data file is restored. A header frame whose write fails is truncated like a
+   failed append.
+10. **Which reopens are bounded (13).** A failed WAL write and a failed commit log flush carry the end of
+   the WAL before their batch; the read-only engine that replaces the failed one, and a shared
+   connection's later read-only engines (its read snapshots included), replay up to it while the raw
+   log has the length and salt the failure left. Other failures (a checkpoint, a promotion) wrote no
+   commit and are not bounded.
+11. **The data barrier (14)** runs before an engine's first durable commit, skipped when the data file
+   is not a file, when this engine already synced it, and, in a shared connection, after the
+   connection's first barrier or once it found the data file cannot sync. A real I/O error fails that
+   commit and is recorded (decision 6).
