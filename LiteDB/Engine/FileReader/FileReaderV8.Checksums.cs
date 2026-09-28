@@ -28,7 +28,8 @@ namespace LiteDB.Engine
             }
             // A data header a power loss dropped: the WAL's header frame holds it (decision 11).
             if (_recoveredHeader == null && _logStream != null && !HeaderFrame.IsIntact(bytes) &&
-                HeaderFrame.Read(((ChecksummedWalStream)_logStream).RawStream) is byte[] frame &&
+                // Still the raw log here: Open wraps it in a ChecksummedWalStream only afterwards.
+                HeaderFrame.Read(_logStream is ChecksummedWalStream wal ? wal.RawStream : _logStream) is byte[] frame &&
                 HeaderFrame.Completes(bytes, frame) && HeaderFrame.Fits(frame, _dataStream.Length))
             {
                 bytes = _recoveredHeader = frame;
