@@ -95,6 +95,34 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The salt rotation case with the files passed as caller FileStreams: a fresh engine over
+        /// them reported its commit durable without proving the data file.
+        /// </summary>
+        [Fact]
+        public void Fresh_engine_over_caller_file_streams_after_a_salt_rotation_whose_data_sync_failed()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            var settings = power.Settings();
+            settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
+            using (var first = new LiteDatabase(new LiteEngine(settings)))
+            {
+                first.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++) Update(first, value);
+                first.Checkpoint();
+                DurableLogFlush(first).Should().BeFalse();
+            }
+
+            using (var second = new LiteDatabase(new LiteEngine(power.Settings())))
+            {
+                Update(second, 6);
+                DurableLogFlush(second).Should().BeFalse("the data file still cannot sync the rotated header");
+            }
+            power.AfterPowerLoss(Rows).Should().BeOneOf(5, 6);
+        }
+
+        /// <summary>
         /// Healthy storage: a shared connection syncs the data file once, not on every operation's
         /// fresh engine, until another connection changes the data header (a full checkpoint).
         /// </summary>

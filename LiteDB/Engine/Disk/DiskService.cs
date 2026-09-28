@@ -56,7 +56,9 @@ namespace LiteDB.Engine
             try
             {
                 _dataFactory = settings.CreateDataFactory();
-                _dataIsFile = _dataFactory is FileStreamFactory;
+                // The data proof covers files, whether the engine or the caller opened them; other
+                // caller streams (memory, devices) are the caller's to share.
+                _dataIsFile = _dataFactory is FileStreamFactory || settings.DataStream is FileStream;
                 _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);

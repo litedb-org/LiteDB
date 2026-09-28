@@ -197,8 +197,8 @@ namespace LiteDB.Engine
         /// <see cref="ProveDataBeforeLog"/>); a "cannot sync" answer degrades this engine's commits
         /// instead. Only a header change can make earlier WAL content obsolete (a checkpoint that
         /// does not change it keeps every frame), so a shared connection whose latest data sync
-        /// left this exact header skips it. Caller streams are the caller's to share.
-        /// Caller holds the log writer lock, or opens the engine.
+        /// left this exact header skips it. Caller streams other than files are the caller's to
+        /// share. Caller holds the log writer lock, or opens the engine.
         /// </summary>
         private void ProveDataFile()
         {
