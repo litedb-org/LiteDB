@@ -96,7 +96,8 @@ namespace LiteDB.Internals
         public void LogPublication_Failure_DiscardsUnpublishedFrame()
         {
             using var disk = CreateDisk(out _);
-            var existing = disk.Cache.GetReadablePage(0, FileOrigin.Log, (_, buffer) => buffer.Write(42, 0));
+            // A readable frame where the first page goes: after the new WAL's header frame (decision 11).
+            var existing = disk.Cache.GetReadablePage(PAGE_SIZE, FileOrigin.Log, (_, buffer) => buffer.Write(42, 0));
             existing.Release();
             var page = disk.NewPage();
 
