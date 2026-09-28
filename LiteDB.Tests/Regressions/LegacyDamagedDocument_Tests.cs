@@ -273,6 +273,40 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// Fixture DamagedSalvageDuplicate_5_0_21.zip: written by the LiteDB 5.0.21 package, collection
+        /// "c" with unique index "b" and {_id: 1, a: "keep-1", b: "u-1"}, {_id: 7, b: "u-7", a: "tail-7"},
+        /// {_id: 8, a: "keep-8", b: "u-8"} and {_id: 9, a: "keep-9", b: "u-9"}; then "b" of document 7
+        /// was changed to "u-1", the _id of document 8 to 7, and the BSON length of "a" of both was
+        /// overwritten with 0x7FFFFFF0. The first readable part, {_id: 7, b: "u-1"}, repeats document
+        /// 1's unique key and is reported. It still reserved _id 7, so the second, {_id: 7}, which
+        /// fits, was reported as a duplicate and lost too. It is now kept.
+        /// </summary>
+        [Fact]
+        public void Rejected_readable_part_leaves_its_id_to_a_later_one()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture("DamagedSalvageDuplicate_5_0_21.zip"));
+
+            using (var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true"))
+            {
+                var col = db.GetCollection("c");
+                col.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 7, 9 });
+                col.FindById(7).Keys.Should().BeEquivalentTo(new[] { "_id" }, "the second readable part is kept");
+                col.FindById(1)["a"].AsString.Should().Be("keep-1");
+                col.FindById(9)["b"].AsString.Should().Be("u-9");
+                var errors = db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString).ToList();
+                errors.Should().Contain(x => x.Contains("damaged document 7 was not kept") && x.Contains("unique index 'b'"));
+                errors.Should().Contain(x => x.Contains("Only the readable part of damaged document 7 was kept"));
+                errors.Should().NotContain(x => x.Contains("another document has the same _id"));
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            var c = reopened.GetCollection("c");
+            c.Find(Query.EQ("b", "u-1")).Select(x => x["_id"].AsInt32).Should().Equal(1);
+            c.Find(Query.EQ("b", BsonValue.Null)).Select(x => x["_id"].AsInt32).Should().Equal(7);
+        }
+
+        /// <summary>
         /// Fixture DamagedIndexKeys_5_0_21.zip: written by the LiteDB 5.0.21 package, collections
         /// "maxed", "mined", "long" and "throws" with {_id: 1..3, a: "keep-i", b: "u-i"} and an index
         /// "k" on COALESCE($.b, MAXVALUE()), COALESCE($.b, MINVALUE()), COALESCE($.b, 1100 characters) and

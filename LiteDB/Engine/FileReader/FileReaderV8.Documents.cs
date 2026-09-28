@@ -164,7 +164,7 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// The readable fields of the damaged documents of a collection whose documents were read,
-        /// except those whose _id belongs to a complete document or an earlier partial one.
+        /// except those whose _id belongs to a complete document or an earlier partial one that was kept.
         /// </summary>
         public IEnumerable<BsonDocument> GetSalvagedDocuments(string collection)
         {
@@ -187,9 +187,10 @@ namespace LiteDB.Engine
                     _current = item;
                     _currentRejected = false;
                     yield return item.Document;
+                    // Rejected (its keys conflict or cannot be indexed): its _id stays free for a later part.
+                    if (_currentRejected) kept.Remove(id);
                     // Kept: it reads like a complete document, so say which one lost its later fields.
-                    if (!_currentRejected)
-                        this.HandleError($"Only the readable part of damaged document {id} was kept: its fields after the damage are missing.", item.Page);
+                    else this.HandleError($"Only the readable part of damaged document {id} was kept: its fields after the damage are missing.", item.Page);
                 }
             }
             finally
