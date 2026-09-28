@@ -119,11 +119,13 @@ def check_registry(tree, report):
     registry = tree.read_json(REGISTRY)
     if registry is None:
         report.error(f"{REGISTRY} is missing")
-        return {}
+        return {}, []
     found, delegates = source_hooks(tree, report)
-    entries = _index(registry.get("hooks", []), lambda entry: (entry.get("family"), entry.get("name")), report)
-    injector_entries = _index(registry.get("injectors", []), lambda entry: ("injector", entry.get("name")), report)
-    observers = registry.get("observers", {})
+    hooks, injectors_list, observers, unhooked = (
+        common.section(registry, key, kind, report, REGISTRY)
+        for key, kind in (("hooks", list), ("injectors", list), ("observers", dict), ("unhookedTransitions", list)))
+    entries = _index(hooks, lambda entry: (entry.get("family"), entry.get("name")), report)
+    injector_entries = _index(injectors_list, lambda entry: ("injector", entry.get("name")), report)
     _compare(found, entries, "Fault hook", report)
     injectors = {("injector", name): locations for name, locations in delegates.items()
                  if name not in NAMED_DELEGATES and name not in observers}
@@ -137,10 +139,10 @@ def check_registry(tree, report):
     scheduled = common.scheduled_fuzz_targets(tree)
     for key, entry in sorted({**entries, **injector_entries}.items()):
         check_entry(tree, key, entry, targets, scheduled, report)
-    for item in registry.get("unhookedTransitions", []):
+    for item in unhooked:
         if not item.get("protocol") or not item.get("transition"):
             report.error("Each unhooked transition needs a protocol and a transition", REGISTRY)
-    return {**entries, **injector_entries}
+    return {**entries, **injector_entries}, unhooked
 
 
 def _index(items, key, report):
@@ -169,13 +171,13 @@ def check_entry(tree, key, entry, targets, scheduled, report):
     label = f"{key[0]}:{key[1]}"
     if not entry.get("protocol"):
         report.error(f"{label}: name the protocol this boundary belongs to", REGISTRY)
-    evidence = entry.get("evidence", [])
+    evidence = common.section(entry, "evidence", list, report, REGISTRY)
     if not evidence and len((entry.get("gap") or "").strip()) < 10:
         report.error(f"{label}: no evidence claims this hook; add evidence or state the gap", REGISTRY)
     for item in evidence:
         if item.get("model") not in MODELS:
             report.error(f"{label}: evidence model must be one of {', '.join(sorted(MODELS))}", REGISTRY)
-        sources = [tree.read(via) or "" for via in item.get("via", [])]
+        sources = [tree.read(via) or "" for via in item.get("via", []) if isinstance(via, str)]
         if item.get("test"):
             resolved = common.resolve_test(tree, item["test"])
             if resolved is None:
@@ -216,18 +218,17 @@ def warn_new_io(base, head, report):
                            f"it under unhookedTransitions in {REGISTRY}", path, line)
 
 
-def summarize(entries, registry, report):
+def summarize(entries, unhooked, report):
     rows = ["| Hook | Protocol | Evidence | Gap |", "| --- | --- | --- | --- |"]
-    for (family, name), entry in sorted(entries.items(), key=lambda item: (item[1].get("protocol", ""), item[0])):
+    for (family, name), entry in sorted(entries.items(), key=lambda item: (str(item[1].get("protocol", "")), item[0])):
         claims = ", ".join(item.get("test", "").split("#")[-1] or f"fuzz:{item.get('fuzz')}"
-                           for item in entry.get("evidence", []))
+                           for item in entry.get("evidence", []) if isinstance(item, dict))
         rows.append(f"| `{family}:{name}` | {entry.get('protocol')} | {claims or '**none**'} | {entry.get('gap', '')} |")
     report.section("\n".join(rows))
-    unhooked = registry.get("unhookedTransitions", [])
     if unhooked:
         report.section("Known persistent transitions without a hook:\n\n" + "\n".join(
-            f"- {item['protocol']}: {item['transition']}" + (f" (#{item['issue']})" if item.get("issue") else "")
-            for item in unhooked))
+            f"- {item.get('protocol')}: {item.get('transition')}"
+            + (f" (#{item['issue']})" if item.get("issue") else "") for item in unhooked))
 
 
 def main(argv=None):
@@ -237,10 +238,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     head = common.Tree(args.head)
     report = common.Report("Fault-point registry")
-    entries = check_registry(head, report)
+    try:
+        entries, unhooked = check_registry(head, report)
+    except common.MalformedJson as error:
+        report.error(str(error), REGISTRY)
+        entries, unhooked = {}, []
     if args.base:
         warn_new_io(args.base, args.head, report)
-    summarize(entries, head.read_json(REGISTRY, {}) or {}, report)
+    summarize(entries, unhooked, report)
     return report.finish()
 
 

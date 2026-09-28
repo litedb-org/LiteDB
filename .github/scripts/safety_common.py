@@ -39,6 +39,22 @@ def repo_root():
 WORKTREE = "WORKTREE"
 
 
+class MalformedJson(ValueError):
+    """A registry or ledger file that does not parse; reported instead of a traceback."""
+
+
+def section(data, key, kind, report, path):
+    """data[key] when it has the expected JSON type (list items must be objects); else report it."""
+    value = data.get(key, kind()) if isinstance(data, dict) else None
+    if not isinstance(value, kind):
+        report.error(f"{path}: '{key}' must be a JSON {'array' if kind is list else 'object'}", path)
+        return kind()
+    if kind is list and not all(isinstance(item, dict) for item in value):
+        report.error(f"{path}: every entry of '{key}' must be a JSON object", path)
+        return [item for item in value if isinstance(item, dict)]
+    return value
+
+
 class Tree:
     """Read-only view of the files of one git revision (or WORKTREE for local files)."""
 
@@ -72,7 +88,12 @@ class Tree:
 
     def read_json(self, path, default=None):
         text = self.read(path)
-        return default if text is None else json.loads(text)
+        if text is None:
+            return default
+        try:
+            return json.loads(text)
+        except ValueError as error:
+            raise MalformedJson(f"{path} is not valid JSON at {self.rev}: {error}") from error
 
     def _read_blob(self, path):
         if self.rev == WORKTREE:
@@ -183,8 +204,15 @@ def _string_end(text, start):
         return len(text) if end < 0 else end + quotes
     index = quote + 1
     verbatim = "@" in prefix
+    interpolated = "$" in prefix
     while index < len(text):
         char = text[index]
+        if interpolated and char == "{":
+            if text.startswith("{{", index):
+                index += 2
+                continue
+            index = _hole_end(text, index + 1)
+            continue
         if verbatim and char == '"':
             if text.startswith('""', index):
                 index += 2
@@ -196,6 +224,26 @@ def _string_end(text, start):
         if char == '"' or (char == "\n" and not verbatim):
             return index + 1
         index += 1
+    return len(text)
+
+
+def _hole_end(text, index):
+    """Index just past the '}' closing an interpolation hole; nested literals are code-aware."""
+    depth = 1
+    while index < len(text):
+        char = text[index]
+        if char == '"' or (char in "@$" and re.match(r'[@$]{1,2}"', text[index:index + 3])):
+            index = _string_end(text, index)
+            continue
+        if char == "'":
+            match = re.match(r"'(?:\\.[^']{0,8}|[^'\\\n])'", text[index:index + 12])
+            index += len(match.group(0)) if match else 1
+            continue
+        depth += char == "{"
+        depth -= char == "}"
+        index += 1
+        if depth == 0:
+            return index
     return len(text)
 
 

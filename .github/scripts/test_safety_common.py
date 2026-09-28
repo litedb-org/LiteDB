@@ -93,6 +93,19 @@ class HelperTests(unittest.TestCase):
         self.assertIn('"x"', common.blank_code(source, keep_strings=True))
         self.assertNotIn("note", common.blank_code(source, keep_strings=True))
 
+    def test_interpolation_holes_with_nested_literals_stay_balanced(self):
+        sources = [
+            'var m = $"payload {(mode ? "{\\"a\\":1}" : "{}")} done"; call();',
+            'var m = $@"a {{literal}} {Format("}", \'{\')} ""q"" {x:0.00}"; call();',
+            'var m = $"{(a ? $"{b("}")}" : "(")}"; call();',
+        ]
+        for source in sources:
+            with self.subTest(source):
+                code = common.blank_code(source)
+                self.assertEqual((code.count("("), code.count(")")), (1, 1), repr(code))
+                self.assertEqual((code.count("{"), code.count("}")), (0, 0), repr(code))
+                self.assertTrue(code.rstrip().endswith("call();"), repr(code))
+
     def test_raw_string_literals_are_blanked(self):
         source = 'var s = """\n{ not code }\n""";\nnext();'
         self.assertNotIn("{", common.blank_code(source))

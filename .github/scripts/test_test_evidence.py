@@ -128,6 +128,18 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn("did not pass cleanly (Aborted", output)
         self.assertIn("runtime/architecture guard", output)
 
+    def test_malformed_results_and_evidence_are_reported_not_raised(self):
+        self.leg(8)
+        self.leg(10)
+        (self.artifacts / "test-results-test-linux-10" / "TestResults-all.trx").write_text("<TestRun", encoding="utf-8")
+        broken = self.artifacts / "test-results-broken"
+        broken.mkdir()
+        (broken / "evidence-leg.json").write_text("{not json", encoding="utf-8")
+        code, output = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("is not valid XML (truncated?)", output)
+        self.assertIn("test-results-broken: evidence-leg.json is not valid JSON", output)
+
     def test_a_test_no_leg_executed_needs_a_quarantine_entry(self):
         self.leg(8)
         self.leg(10)

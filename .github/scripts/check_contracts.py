@@ -17,11 +17,24 @@ EVIDENCE_KINDS = ("test", "fuzz", "script")
 
 
 def load(tree, report):
-    index = tree.read_json(INDEX)
+    """The index with well-typed sections; malformed parts are reported and dropped."""
+    try:
+        index = tree.read_json(INDEX)
+    except common.MalformedJson as error:
+        report.error(str(error), INDEX)
+        index = {}
     if index is None:
         report.error(f"{INDEX} is missing")
-        return {"contracts": [], "models": {}}
-    return index
+        index = {}
+    contracts = common.section(index, "contracts", list, report, INDEX)
+    for contract in contracts:
+        if not isinstance(contract.get("id"), str):
+            contract["id"] = None
+        contract["evidence"] = common.section(contract, "evidence", list, report, INDEX)
+        for key, kinds in (("docs", str), ("paths", str), ("gaps", (str, dict))):
+            values = contract.get(key) or []
+            contract[key] = [value for value in values if isinstance(value, kinds)] if isinstance(values, list) else []
+    return {"contracts": contracts, "models": common.section(index, "models", dict, report, INDEX)}
 
 
 def validate(tree, index, report):
@@ -87,6 +100,8 @@ def implicated(index, paths):
     """Return [(contract, [matching paths])] for contracts whose globs match the paths."""
     result = []
     for contract in index.get("contracts", []):
+        if not contract.get("id"):
+            continue
         patterns = [common.glob_regex(pattern) for pattern in contract.get("paths", [])]
         matches = sorted(path for path in paths if any(pattern.match(path) for pattern in patterns))
         if matches:

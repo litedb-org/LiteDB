@@ -10,6 +10,7 @@ change, so an old entry never approves a later weakening.
 import argparse
 import re
 import sys
+import traceback
 from datetime import date
 
 import safety_common as common
@@ -208,9 +209,12 @@ def _describe(evidence):
 def check_ledger(base, head, findings, report):
     """Match findings to dispositions added by this change; validate the ledger."""
     ledger = head.read_json(LEDGER, {}) or {}
-    old_ids = {entry.get("id") for entry in (base.read_json(LEDGER, {}) or {}).get("dispositions", [])}
-    new_entries = [entry for entry in ledger.get("dispositions", []) if entry.get("id") not in old_ids]
-    ids = [entry.get("id") for entry in ledger.get("dispositions", [])]
+    dispositions = common.section(ledger, "dispositions", list, report, LEDGER)
+    old = base.read_json(LEDGER, {}) or {}
+    old_ids = {str(entry.get("id")) for entry in old.get("dispositions", []) if isinstance(entry, dict)} \
+        if isinstance(old, dict) and isinstance(old.get("dispositions"), list) else set()
+    new_entries = [entry for entry in dispositions if str(entry.get("id")) not in old_ids]
+    ids = [str(entry.get("id")) for entry in dispositions]
     for duplicate in sorted({value for value in ids if ids.count(value) > 1}):
         report.error(f"Duplicate disposition id {duplicate!r} in {LEDGER}", LEDGER)
     for entry in new_entries:
@@ -222,12 +226,16 @@ def check_ledger(base, head, findings, report):
     used = {finding.key() for finding in findings}
     for kind, subject in sorted(covered - used):
         report.warning(f"Disposition for {kind}: {subject} matches no change in this diff")
-    validate_quarantine(head, ledger.get("quarantine", []), report)
+    validate_quarantine(head, common.section(ledger, "quarantine", list, report, LEDGER), report)
     return unresolved
 
 
 def validate_disposition(head, entry, report):
     label = entry.get("id") or "<missing id>"
+    for name in ("subjects", "coveredBy"):
+        if not isinstance(entry.get(name, []), list):
+            report.error(f"Disposition {label}: {name} must be a JSON array", LEDGER)
+            entry[name] = []
     if not entry.get("id") or entry.get("kind") not in KINDS or not entry.get("subjects"):
         report.error(f"Disposition {label}: needs id, a known kind ({', '.join(sorted(KINDS))}) and subjects", LEDGER)
     disposition = entry.get("disposition")
@@ -287,10 +295,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     base, head = common.Tree(args.base), common.Tree(args.head)
     report = common.Report("Coverage regression")
+    findings, unresolved, quarantined = [], [], []
     try:
         findings = collect_findings(base, head, common.changed_files(args.base, args.head))
         unresolved = check_ledger(base, head, findings, report)
-        quarantined = (head.read_json(LEDGER, {}) or {}).get("quarantine", [])
+        quarantined = common.section(head.read_json(LEDGER, {}) or {}, "quarantine", list, common.Report(""), LEDGER)
+    except (common.MalformedJson, AttributeError, TypeError, KeyError) as error:
+        # A malformed ledger, corpus or registry must fail with its cause, not a bare traceback.
+        traceback.print_exc(file=sys.stderr)
+        report.error(f"Could not evaluate coverage because a JSON file is malformed: {error}")
     finally:
         base.close()
         head.close()

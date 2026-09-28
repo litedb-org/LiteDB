@@ -113,6 +113,18 @@ class CoverageRegressionTests(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertIn(expected, output)
 
+    def test_malformed_ledger_is_reported_not_raised(self):
+        cases = {
+            json.dumps({"dispositions": "oops", "quarantine": []}): "'dispositions' must be a JSON array",
+            json.dumps({"dispositions": [disposition("x", "test-removed", "not-a-list")]}): "subjects must be a JSON array",
+            "{broken": "a JSON file is malformed",
+        }
+        for content, expected in cases.items():
+            with self.subTest(expected):
+                code, output = self.run_check({}, {LEDGER: content})
+                self.assertEqual(code, 1)
+                self.assertIn(expected, output)
+
     def test_quarantine_entries_must_be_complete_and_current(self):
         stale = {"test": "LiteDB.Tests.Engine.Sample_Tests.Gone", "reason": "r", "owner": "o",
                  "review": "2099-01-01", "gap": "g"}

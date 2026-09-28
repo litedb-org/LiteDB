@@ -128,6 +128,15 @@ class FaultPointTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Test hook ObserveSortSpill is not registered", output)
 
+    def test_malformed_registry_is_reported_not_raised(self):
+        for content, expected in (('{"hooks": "oops"}', "'hooks' must be a JSON array"),
+                                  ("{broken", "is not valid JSON")):
+            with self.subTest(content):
+                code, output = self.run_check({REGISTRY: content})
+                self.assertEqual(code, 1)
+                self.assertIn(expected, output)
+                self.assertNotIn("Traceback", output)
+
     def test_new_persistent_io_is_flagged_for_review(self):
         source = ENGINE_SOURCE.replace("void Write(bool confirmed)\n        {",
                                        "void Write(bool confirmed)\n        {\n            stream.SetLength(0);")

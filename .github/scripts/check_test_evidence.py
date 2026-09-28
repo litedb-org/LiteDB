@@ -134,7 +134,11 @@ def _check_partitions(leg, directory, label, report, outcomes):
         if not path.is_file():
             report.error(f"{label}: partition {partition} has no result file {name}")
             continue
-        results, counters, outcome = reader(path)
+        try:
+            results, counters, outcome = reader(path)
+        except ElementTree.ParseError as error:
+            report.error(f"{label}: partition {partition} result {name} is not valid XML (truncated?): {error}")
+            continue
         summary[partition] = counters
         bad = {key: counters.get(key, 0) for key in FAILED_COUNTERS if counters.get(key, 0)}
         if not partition.startswith("extra:") and (counters.get("total", 0) == 0 or not results):
@@ -167,11 +171,18 @@ def check_execution(outcomes, source_tests, quarantine, report, shown=20):
     return [fqn for fqn in never if fqn in quarantined]
 
 
-def load_legs(root):
+def load_legs(root, report):
     legs = []
     for path in sorted(Path(root).rglob("evidence-leg.json")):
-        leg = json.loads(path.read_text(encoding="utf-8-sig"))
-        legs.append((leg, path.parent))
+        try:
+            leg = json.loads(path.read_text(encoding="utf-8-sig"))
+        except ValueError as error:
+            report.error(f"{path.parent.name}: evidence-leg.json is not valid JSON: {error}")
+            continue
+        if isinstance(leg, dict):
+            legs.append((leg, path.parent))
+        else:
+            report.error(f"{path.parent.name}: evidence-leg.json must be a JSON object")
     return legs
 
 
@@ -186,17 +197,24 @@ def main(argv=None):
     parser.add_argument("--output", help="Directory for safety-evidence.json")
     args = parser.parse_args(argv)
     head = common.Tree(args.head)
-    config = common.load_json_file(args.config) if args.config else head.read_json(CONFIG, {})
-    ledger = head.read_json(LEDGER, {})
     report = common.Report("Safety evidence")
+    try:
+        config = common.load_json_file(args.config) if args.config else head.read_json(CONFIG, {})
+        ledger = head.read_json(LEDGER, {})
+    except (common.MalformedJson, ValueError) as error:
+        report.error(str(error))
+        config, ledger = {}, {}
+    jobs = common.section(config or {}, "jobs", dict, report, CONFIG)
+    config = {"jobs": {name: job for name, job in jobs.items() if isinstance(job, dict)}}
     check_jobs(json.loads(os.environ.get(args.needs_env) or "{}"), config, args.tier, report)
-    legs = load_legs(args.artifacts)
+    legs = load_legs(args.artifacts, report)
     check_leg_set([leg for leg, _ in legs], config, args.tier, report)
     outcomes, summaries = {}, []
     for leg, directory in legs:
         summaries.append(check_leg(leg, directory, args.sha, report, outcomes))
     source = {fqn for fqn, (path, _) in common.collect_tests(head).items() if path.startswith(SUITE_ROOT)}
-    quarantined = check_execution(outcomes, source, ledger.get("quarantine", []), report)
+    quarantine = [entry for entry in common.section(ledger or {}, "quarantine", list, report, LEDGER) if entry.get("test")]
+    quarantined = check_execution(outcomes, source, quarantine, report)
     attempt = int(os.environ.get("GITHUB_RUN_ATTEMPT", "1"))
     if attempt > 1:
         report.warning(f"This is run attempt {attempt}; classify the failures of earlier attempts in the PR")
