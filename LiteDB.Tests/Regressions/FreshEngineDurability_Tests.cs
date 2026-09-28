@@ -63,33 +63,35 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A 5.0.21 file (IndexMigration_5_0_21.zip, its WAL empty) converts on storage whose data file
-        /// cannot sync: the v11 header and WAL salt reach the OS cache only.
+        /// A 5.0.21 file (IndexMigration_5_0_21.zip, its WAL empty) on storage whose data file cannot
+        /// sync while its WAL can: the converted header would reach the OS cache only, while the
+        /// checksummed frames written after it became durable, so a power loss left them beside the
+        /// legacy header. Conversion is refused, changing neither file, and runs once the data file syncs.
         /// </summary>
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Fresh_engine_after_a_conversion_whose_data_sync_failed(bool dataSyncsAgain)
+        [Fact]
+        public void Conversion_is_refused_while_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
-            File.WriteAllBytes(file.Filename, Fixture("plain.db"));
+            var original = Fixture("plain.db");
+            File.WriteAllBytes(file.Filename, original);
+            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new FilePowerLossModel(file.Filename) { DataFails = true };
-            using (var converted = new LiteDatabase(file.Filename))
+            try
             {
-                converted.GetCollection("rows").Count().Should().BeGreaterThan(0);
-            }
+                Action open = () => new LiteDatabase(file.Filename).Dispose();
+                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*");
+                File.ReadAllBytes(file.Filename).Should().Equal(original);
+                (!File.Exists(logName) || new FileInfo(logName).Length == 0).Should().BeTrue("the refusal writes nothing to the log");
 
-            power.DataFails = !dataSyncsAgain;
-            bool durable;
-            using (var second = new LiteDatabase(file.Filename))
-            {
-                second.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 900002, ["value"] = 1 });
-                durable = DurableLogFlush(second);
+                power.DataFails = false;
+                using (var converted = new LiteDatabase(file.Filename))
+                {
+                    converted.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 900002, ["value"] = 1 });
+                    DurableLogFlush(converted).Should().BeTrue();
+                }
+                power.AfterPowerLoss(db => db.GetCollection("rows").FindById(900002) != null).Should().BeTrue();
             }
-            durable.Should().Be(dataSyncsAgain, "a fresh engine proves the data file before its first durable commit");
-
-            var present = power.AfterPowerLoss(db => db.GetCollection("rows").FindById(900002) != null);
-            if (durable) present.Should().BeTrue("a commit reported durable survives the power loss");
+            finally { File.Delete(logName); }
         }
 
         /// <summary>
