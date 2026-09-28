@@ -77,6 +77,14 @@ namespace LiteDB.Engine
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
+            // A caller's stream that cannot be written is never repaired, migrated or checkpointed.
+            if (!settings.ReadOnly && !settings.ReadOnlyStorage &&
+                (settings.DataStream?.CanWrite == false || settings.LogStream?.CanWrite == false))
+            {
+                _settings = settings.Clone();
+                _settings.ReadOnlyStorage = true;
+            }
+
             try
             {
                 this.Open();
@@ -84,6 +92,7 @@ namespace LiteDB.Engine
             catch (ReadOnlyOpenRequiredException)
             {
                 // Opening storage that cannot be written would have changed it; nothing was written.
+                // _settings is the engine's own copy (see above): the caller's settings stay as they were.
                 _settings.ReadOnly = true;
                 _settings.LegacyIndexScan = true;
                 this.Open();
@@ -312,7 +321,9 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
-            if (tc.InvalidDatafileState)
+            // Storage that cannot be written cannot take the mark (and caller streams are never
+            // rebuilt): marking would only journal the header into a caller's writable log.
+            if (tc.InvalidDatafileState && !_settings.ReadOnlyStorage)
             {
                 // Keep the data writer alive until the recovery marker is durable.
                 tc.Catch(() => _markedForRebuild = _disk?.MarkAsInvalidState() == true);
@@ -352,8 +363,9 @@ namespace LiteDB.Engine
         {
             _state.Validate();
             // Fail before a checkpoint journals the header into a caller's log it cannot finish.
-            if (_settings.ReadOnlyStorage && !_settings.ReadOnly)
+            if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
                 throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
+            if (_settings.ReadOnlyStorage) return 0;
             try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
             catch (Exception ex)
             {

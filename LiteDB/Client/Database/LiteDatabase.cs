@@ -66,9 +66,6 @@ namespace LiteDB
             {
                 DataStream = stream,
                 LogStream = logStream,
-                // Streams that cannot be written are never repaired, migrated or converted: a file that
-                // would need it opens read-only and answers queries with full scans instead of its old indexes.
-                ReadOnlyStorage = !stream.CanWrite || (logStream != null && !logStream.CanWrite),
                 // Without a log stream the WAL lives only in memory: checkpoint every commit into the
                 // caller's stream, without persisting a different CHECKPOINT pragma into it.
                 CheckpointEachCommit = logStream == null && stream.CanWrite && stream is not MemoryStream

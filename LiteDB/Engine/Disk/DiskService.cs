@@ -88,7 +88,8 @@ namespace LiteDB.Engine
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
                 if (!isNew) this.ValidateExistingData();
-                CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy;
+                // Compact writes first promote the file format, which storage that cannot be written cannot take.
+                CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy && !_readOnlyStorage;
 
                 if (settings.ReadOnly == false)
                 {
@@ -216,6 +217,7 @@ namespace LiteDB.Engine
                         offset += read;
                     }
                     this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
+                    this.CrashPoint("invalid-state-before-mark");
                     stream.Position = 0;
                     stream.Write(buffer, 0, PAGE_SIZE);
                     this.SyncDataBarrier(stream);

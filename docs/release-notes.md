@@ -88,11 +88,12 @@ New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for co
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
 Read-only files needing migration must first be opened writable, or opened with
 `legacy index scan=true`, which leaves them unchanged and answers queries with
-full scans instead of their unmigrated indexes. `LiteDatabase(Stream)` over a data or
-log stream that cannot be written does the latter by itself when opening would change a
-stream (recovery, repair, migration or conversion): explicit transactions still work, but
-write operations are rejected. Otherwise it opens as before and never checkpoints into
-such a stream. Damaged data that prevents migration
+full scans instead of their unmigrated indexes. A caller's data or log stream that
+cannot be written (`LiteDatabase(Stream)` or `EngineSettings` streams) does the latter by
+itself when opening would change a stream (recovery, repair, migration or conversion):
+explicit transactions still work, but write operations are rejected. Otherwise it opens
+as before; it never checkpoints into, marks or promotes such storage, and keeps writes
+in the log. Damaged data that prevents migration
 fails the open with the damaged collection named and marks the file for rebuild;
 with `auto-rebuild=true` the same open rebuilds it, keeping the readable fields of a
 damaged document as 5.x did, after every complete document: a part that repeats the

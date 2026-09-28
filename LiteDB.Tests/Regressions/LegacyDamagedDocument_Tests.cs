@@ -81,25 +81,44 @@ namespace LiteDB.Tests.Regressions
             error.InnerException.Should().BeOfType<AggregateException>().Which.InnerExceptions.Should().HaveCount(2);
         }
 
-        [Theory]
-        [InlineData(false)] // the mark cannot be written
-        [InlineData(true)]  // a caller stream is marked but never rebuilt (a rebuild replaces files)
-        public void Open_is_not_repeated_without_a_rebuild_it_could_run(bool writable)
+#if DEBUG || TESTING
+        [Fact]
+        public void Open_is_not_repeated_when_the_rebuild_mark_cannot_be_written()
+        {
+            using var file = new TempFile();
+            var original = Fixture();
+            File.WriteAllBytes(file.Filename, original);
+
+            EngineState.SimulateProcessCrash = phase =>
+            {
+                if (phase == "invalid-state-before-mark") throw new InvalidOperationException("mark write failed");
+            };
+            try
+            {
+                Action open = () => new LiteEngine(new EngineSettings { Filename = file.Filename, AutoRebuild = true }).Dispose();
+                var error = open.Should().Throw<LiteException>().Which;
+                error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+                error.Message.Should().Contain("Collection 'c'").And.NotContain("automatic rebuild");
+                error.InnerException.Should().NotBeOfType<AggregateException>();
+            }
+            finally { EngineState.SimulateProcessCrash = null; }
+            File.ReadAllBytes(file.Filename).Should().Equal(original, "neither the mark nor a rebuild was written");
+        }
+#endif
+
+        [Fact]
+        public void Caller_stream_is_marked_but_never_rebuilt()
         {
             var original = Fixture();
-            using var data = writable ? new MemoryStream() : new MemoryStream(original, writable: false);
-            if (writable)
-            {
-                data.Write(original, 0, original.Length);
-                data.Position = 0;
-            }
+            using var data = new MemoryStream();
+            data.Write(original, 0, original.Length);
+            data.Position = 0;
 
             Action open = () => new LiteEngine(new EngineSettings { DataStream = data, AutoRebuild = true }).Dispose();
             var error = open.Should().Throw<LiteException>().Which;
             error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
             error.Message.Should().Contain("Collection 'c'").And.NotContain("automatic rebuild");
             error.InnerException.Should().NotBeOfType<AggregateException>();
-            if (!writable) return;
 
             // The stream now carries the mark: a later open reports the damage again, with remedies
             // that work for a stream, instead of failing inside a file rebuild.
