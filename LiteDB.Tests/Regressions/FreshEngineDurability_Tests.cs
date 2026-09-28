@@ -19,10 +19,10 @@ namespace LiteDB.Tests.Regressions
     /// syncing only the WAL, and a power loss (each file as of its last successful sync) lost them.
     /// Before its first commit an engine whose data is a file (opened by the engine or passed as a
     /// FileStream) now proves that the data header is on the device: it syncs the data file, or skips
-    /// that while the header is one a successful sync in this process left. Where it cannot (the data
-    /// file cannot sync and its header is not proven), a durable commit throws before it writes
-    /// (implementation note 1 and decision 3 of docs/decisions/durability-policy.md); once proven,
-    /// commits stay durable in the WAL while only the data file cannot sync (decision 4).
+    /// that while the header is one a successful sync in this process left. Commits then stay durable
+    /// in the WAL while only the data file cannot sync (decision 4 of
+    /// docs/decisions/durability-policy.md); where the header cannot be proven so (a database created
+    /// there, a new process), it is anchored in the WAL first (decisions 8 and 10).
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -402,13 +402,15 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// The data file syncs, but the rebuilt replacement's does not, so the rebuild is refused
-        /// after this engine closed for it: the replacement is a database created where its data
-        /// file cannot sync, whose first commit is refused before it writes (implementation note 1 of
-        /// docs/decisions/durability-policy.md; before it, its checkpoint kept its log). The refusal
-        /// left the instance closed ("engine instance already disposed"); it now reopens the
-        /// unchanged database, which reads and writes, and the refusal says the rebuild can be
-        /// retried once the storage syncs.
+        /// The data file syncs, but the rebuilt replacement's does not: the replacement is a database
+        /// created where only its data file cannot sync, whose commits are durable in its WAL, the
+        /// header anchored there (decisions 8 and 10 of docs/decisions/durability-policy.md), and whose
+        /// checkpoint keeps that WAL, so the rebuild is refused after this engine closed for it. The
+        /// refusal left the instance closed ("engine instance already disposed"); it now reopens the
+        /// unchanged database, which reads and writes. Fails until decisions 8 and 10 are implemented:
+        /// under the header rule they supersede (implementation note 1), the replacement's first commit
+        /// throws that its header is not known to be on the device, which is not a refusal, and the
+        /// instance stays closed.
         /// </summary>
         [Fact]
         public void Rebuild_refused_by_its_replacement_reopens_the_database()
@@ -421,12 +423,11 @@ namespace LiteDB.Tests.Regressions
                 Update(db, 1);
                 NativeFileSync.SimulateErrno = path => path.Contains("-temp") && !path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
                 Action rebuild = () => db.Rebuild();
-                var refusal = rebuild.Should().Throw<IOException>().Which;
+                rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
                 NativeFileSync.SimulateErrno = null;
                 AssertRows(db, 1); // the instance reopened the unchanged database
                 Update(db, 2);
                 AssertRows(db, 2);
-                refusal.Message.Should().StartWith("Cannot rebuild this database now");
             }
             finally { NativeFileSync.SimulateErrno = null; }
             Directory.GetFiles(Path.GetDirectoryName(file.Filename), Path.GetFileNameWithoutExtension(file.Filename) + "-*")
