@@ -167,10 +167,17 @@ namespace LiteDB.Tests.Regressions
                 db.GetCollection("rows").Insert(Enumerable.Range(1, 12).Select(Row));
             }
             File.WriteAllBytes(file.Filename, new byte[0]);
+            var log = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
+
+            // The log's own encryption checks the password before anything is written: a wrong one
+            // must not create a data file (a new encryption preamble) beside the log.
+            Action wrongPassword = () => new LiteDatabase($"Filename={file.Filename};Password=other").Dispose();
+            wrongPassword.Should().Throw<LiteException>();
+            new FileInfo(file.Filename).Length.Should().Be(0);
+            File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
 
             using (var db = new LiteDatabase(connection))
                 db.GetCollection("rows").Count().Should().Be(12);
-            Action wrongPassword = () => new LiteDatabase($"Filename={file.Filename};Password=other").Dispose();
             wrongPassword.Should().Throw<LiteException>();
         }
 
