@@ -181,12 +181,14 @@ namespace LiteDB.Engine
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                 // Only this transaction can see its unconfirmed slots. Keep the
-                // confirmation page last so recovery sees every page.
+                // confirmation page last so recovery sees every page. A snapshot of
+                // this transaction (e.g. $dump) can still hold the old version:
+                // append then, and the old frame stays part of the transaction.
                 if (!forceAppend && !isConfirmed && transactionPages != null &&
-                    transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position))
+                    transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position) &&
+                    _cache.TryInvalidate(previous.Position, FileOrigin.Log))
                 {
                     page.Position = previous.Position;
-                    _cache.Invalidate(page.Position, FileOrigin.Log);
                 }
                 else
                 {
