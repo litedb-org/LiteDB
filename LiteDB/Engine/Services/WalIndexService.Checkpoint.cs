@@ -65,6 +65,17 @@ namespace LiteDB.Engine
             return _disk.GetFileLength(FileOrigin.Log) == 0;
         }
 
+        /// <summary>
+        /// Whether a drain would change nothing now because another connection may read the WAL:
+        /// it is not empty and a shared reader holds a snapshot, or the registry cannot be inspected.
+        /// </summary>
+        public bool DrainBlocked()
+        {
+            if (_disk.GetFileLength(FileOrigin.Log) == 0) return false;
+            var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
+            return shared == null || shared.Length > 0;
+        }
+
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
         public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true, automatic: true);

@@ -46,6 +46,11 @@ namespace LiteDB.Engine
                     "it with full scans instead of its indexes.");
             }
 
+            // A drain that cannot run refuses the conversion below, after every document and unique
+            // key was validated; in shared mode each operation retries while a lease lasts. Refuse
+            // before validating when it is already known that the drain cannot run.
+            if (!_disk.ChecksumsEnabled && _walIndex.DrainBlocked()) throw ConversionBlocked();
+
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
             try { this.ValidateLegacyCollation(migrating: true); }
@@ -121,10 +126,7 @@ namespace LiteDB.Engine
             if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain())
             {
                 if (_disk.DataUnsyncedWhileLogSyncs) throw DiskService.UnsyncableConversion();
-                throw new LiteException(LiteException.LOCK_TIMEOUT,
-                    "Cannot convert this legacy database while another connection may still read its log " +
-                    "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
-                    "Close the other connections, or make the registry readable, and open it again.");
+                throw ConversionBlocked();
             }
             _disk.TrimTrailingPages();
             if (!_disk.ChecksumsEnabled)
@@ -224,6 +226,11 @@ namespace LiteDB.Engine
             snapshot.ReleaseEmptyIndexPages(index);
             snapshot.CollectionPage.IsDirty = true;
         }
+
+        private static LiteException ConversionBlocked() => new LiteException(LiteException.LOCK_TIMEOUT,
+            "Cannot convert this legacy database while another connection may still read its log " +
+            "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
+            "Close the other connections, or make the registry readable, and open it again.");
 
         private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index, IndexMigrationCapacity capacity)
         {

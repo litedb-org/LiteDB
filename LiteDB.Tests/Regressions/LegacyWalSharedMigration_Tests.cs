@@ -65,6 +65,27 @@ namespace LiteDB.Tests.Regressions
             Recover(data, log).Should().Be((21, 101));
         }
 
+#if DEBUG || TESTING
+        /// <summary>
+        /// A conversion the drain would refuse (a live shared lease) is refused before it validates
+        /// every document and unique key again and before it attempts the drain: in shared mode each
+        /// operation retries the conversion while the lease lasts.
+        /// </summary>
+        [Fact]
+        public void Blocked_conversion_is_refused_before_it_validates_or_drains()
+        {
+            using var data = Entry("crash.db");
+            using var log = Entry("crash-log.db");
+            var stages = new System.Collections.Generic.List<string>();
+            var settings = new EngineSettings { DataStream = data, LogStream = log, SharedReaderVersions = () => new[] { 1 } };
+            settings.CheckpointStage = stage => stages.Add(stage);
+
+            Action open = () => new LiteEngine(settings).Dispose();
+            open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.LOCK_TIMEOUT);
+            stages.Should().BeEmpty("no drain was attempted");
+        }
+#endif
+
         [Fact]
         public void Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal()
         {
