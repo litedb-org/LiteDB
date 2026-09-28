@@ -50,6 +50,11 @@ call a pending run green or present a local run as hosted-CI evidence.
 - Keep the PR title and description aligned with the final diff. Include current
   validation, relevant before/after measurements, compatibility changes, and
   unresolved questions. Replace stale claims after scope changes.
+- Every PR description has the `Safety / regression evidence` section, naming
+  each implicated contract id; `gh pr create --body` skips the template, so copy
+  it. A bug-fix PR (labelled `bug` or `bugfix-fix`) also adds a regression
+  proof: a repro that fails on a real known-bad LiteDB and passes at the PR
+  head. See [safety evidence](safety-evidence.md#regression-proofs).
 - For bug sweeps, track each issue's reproduction, fix, tests, and remaining
   scope separately. A related new case need not mean the original fix regressed.
   Search existing issues before treating a finding as new; keep manifests and

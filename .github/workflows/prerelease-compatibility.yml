@@ -1,0 +1,64 @@
+name: Published-package compatibility
+
+# docs/rules/compatibility.md#published-prereleases: files written by published
+# LiteDB packages (the newest prereleases and the latest stable release) must open
+# correctly with the current engine or be refused with both files byte-identical.
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  pull_request:
+    paths:
+      - 'tools/PrereleaseCompatibility/**'
+      - 'scripts/test-prerelease-compatibility.py'
+      - '.github/workflows/prerelease-compatibility.yml'
+  workflow_dispatch:
+    inputs:
+      prereleases:
+        description: How many of the newest published prereleases to check
+        default: '10'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Open files written by published packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Write fixtures with each package and open them with the current engine
+        env:
+          COUNT: ${{ inputs.prereleases || (github.event_name == 'schedule' && '10') || '3' }}
+        run: python3 scripts/test-prerelease-compatibility.py --prereleases "$COUNT"
+
+  notify-failure:
+    name: Report a scheduled failure
+    if: ${{ github.event_name == 'schedule' && always() && needs.check.result == 'failure' }}
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create or update the failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Compatibility: files written by a published LiteDB package are not handled safely';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const issues = await github.paginate(github.rest.issues.listForRepo, { ...context.repo, state: 'open', per_page: 100 });
+            const existing = issues.find(issue => !issue.pull_request && issue.title === title);
+            const body = `The nightly published-package compatibility check failed for ${context.sha}. ` +
+              `A file was misread, changed by a refused open, or crashed the engine. [View the run](${run}).`;
+            if (existing) await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ ...context.repo, title, body, labels: ['bug', 'area: rebuild/upgrade'] });

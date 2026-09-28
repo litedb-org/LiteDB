@@ -6,7 +6,8 @@ param(
     [string]$ResultFile = 'TestResults.trx',
     [string]$RuntimeDirectory,
     [switch]$PartitionSuite,
-    [string]$VerifyPartitions
+    [string]$VerifyPartitions,
+    [string]$DiscoveryFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,9 +63,32 @@ if ($PartitionSuite) {
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
     }
+    $results = Join-Path $repoRoot 'LiteDB.Tests/TestResults'
+    New-Item -ItemType Directory -Force $results | Out-Null
     & $PSCommandPath -RuntimeMajor $RuntimeMajor -Framework $Framework -Architecture $Architecture `
-        -RuntimeDirectory $RuntimeDirectory -VerifyPartitions ($groups | ConvertTo-Json -Compress)
+        -RuntimeDirectory $RuntimeDirectory -VerifyPartitions ($groups | ConvertTo-Json -Compress) `
+        -DiscoveryFile (Join-Path $results 'discovered-tests.txt')
     if ($LASTEXITCODE -ne 0) { throw 'Test partitions do not cover every test exactly once.' }
+    # Record what this leg tested so the Safety evidence job can prove the run is
+    # complete and current (.github/scripts/check_test_evidence.py).
+    $build = Join-Path $repoRoot 'LiteDB.Tests/bin/Release/build-evidence.json'
+    $evidence = [ordered]@{
+        schemaVersion = 1
+        job = $env:GITHUB_JOB
+        matrix = if ($env:LITEDB_EVIDENCE_MATRIX) { $env:LITEDB_EVIDENCE_MATRIX | ConvertFrom-Json } else { $null }
+        sha = (& git -C $repoRoot rev-parse HEAD)
+        tree = (& git -C $repoRoot rev-parse 'HEAD^{tree}')
+        buildSha = if (Test-Path $build) { (Get-Content $build -Raw | ConvertFrom-Json).sha } else { $null }
+        runtimeMajor = $RuntimeMajor
+        framework = $Framework
+        architecture = $Architecture
+        runtimeDescription = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+        format = 'trx'
+        discovery = 'discovered-tests.txt'
+        partitions = [ordered]@{}
+    }
+    foreach ($group in $groups.GetEnumerator()) { $evidence.partitions[$group.Key] = "TestResults-$($group.Key).trx" }
+    $evidence | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $results 'evidence-leg.json') -Encoding utf8
     $failed = @()
     foreach ($group in $groups.GetEnumerator()) {
         Write-Host "Running complete-suite partition: $($group.Key)"
@@ -93,7 +117,7 @@ if ($VerifyPartitions) {
         /ListFullyQualifiedTests "/ListTestsTargetPath:$listing" -- "RunConfiguration.DotNetHostPath=$testHost" | Out-Null
     if ($LASTEXITCODE -ne 0 -or !(Test-Path $listing)) { throw 'Could not list the test methods.' }
     $names = @(Get-Content $listing | Where-Object { $_ })
-    Remove-Item $listing
+    if ($DiscoveryFile) { Move-Item -Force $listing $DiscoveryFile } else { Remove-Item $listing }
     $problems = @()
     foreach ($name in $names) {
         $matched = @($partitions.PSObject.Properties | Where-Object {

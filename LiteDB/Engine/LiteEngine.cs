@@ -410,6 +410,7 @@ namespace LiteDB.Engine
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action<PageBuffer> SimulateDataWriteFail { set => _state.SimulateDataWriteFail = value; }
         internal bool SimulateDeferredCheckpointStop { set => _state.DeferCheckpointStop = value; }
         internal Action SimulateAfterFailedWalWrite { set => _state.AfterFailedWalWrite = value; }
         internal Action<string> SimulateCrashPoint { set => _state.AtCrashPoint = value; }

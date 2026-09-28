@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-#if DEBUG
+#if DEBUG || TESTING
 namespace LiteDB.Tests.Engine
 {
     public class Rebuild_Crash_Tests

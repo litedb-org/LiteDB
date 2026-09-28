@@ -338,6 +338,10 @@ namespace LiteDB.Engine
 
                     stream.Position = page.Position;
 
+#if DEBUG || TESTING
+                    _state.SimulateDataWriteFail?.Invoke(page);
+#endif
+
                     this.CrashPoint("checkpoint-before-page-write");
                     this.PreserveFileVersion(page);
                     this.StampDataPage(page);
