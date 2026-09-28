@@ -240,10 +240,12 @@ committed versions continue to use separate, immutable WAL positions.
 
 A WAL write that may have left a torn frame stops the engine before the WAL writer is
 released, whatever the exception type: a failed overwrite of a slot, an append whose
-truncation failed, any failure while a caller log stream that buffers (any caller stream
-but a `MemoryStream`) may still hold frames of the batch, and a checkpoint that fails
-while writing the WAL. 5.0.21 rolled back and continued after a non-I/O failure; a later
-commit could then land behind the torn frame and be lost at recovery. A transaction
+truncation failed, and a checkpoint that fails while writing the WAL. 5.0.21 rolled back
+and continued after a non-I/O failure; a later commit could then land behind the torn
+frame and be lost at recovery. A caller stream other than a `MemoryStream` is flushed
+after each write, under the lock its readers take: a buffering one (a `BufferedStream`, a
+`FileStream` with a large buffer) held frames the next write or a reader's seek wrote on,
+where a failure tore a frame the writer never heard of. A transaction
 whose safepoint failed to write its pages can only roll back: later reads and writes in
 it throw "can only be rolled back", and `Commit` rolls it back and throws.
 

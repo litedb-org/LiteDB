@@ -6,13 +6,17 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Implement internal thread-safe Stream using lock control - A single instance of ConcurrentStream are not multi thread,
-    /// but multiples ConcurrentStream instances using same stream base will support concurrency
+    /// but multiples ConcurrentStream instances using same stream base will support concurrency.
+    /// A base stream other than a MemoryStream (a BufferedStream, a FileStream with a large buffer)
+    /// is flushed after each write, under the lock: a write it still held would otherwise be written
+    /// on by the next thread to seek it (a reader), which would get its failure.
     /// </summary>
     internal class ConcurrentStream : Stream
     {
         private readonly Stream _stream;
         private readonly bool _canWrite;
         private readonly bool _leaveOpen;
+        private readonly bool _writeThrough;
 
         private long _position = 0;
 
@@ -21,6 +25,7 @@ namespace LiteDB.Engine
             _stream = stream;
             _canWrite = canWrite;
             _leaveOpen = leaveOpen;
+            _writeThrough = !(stream is MemoryStream);
         }
 
         public override bool CanRead => _stream.CanRead;
@@ -29,11 +34,17 @@ namespace LiteDB.Engine
 
         public override bool CanWrite => _canWrite;
 
-        public override long Length => _stream.Length;
+        public override long Length
+        {
+            get { lock (_stream) return _stream.Length; }
+        }
 
         public override long Position { get => _position; set => _position = value; }
 
-        public override void Flush() => _stream.Flush();
+        public override void Flush()
+        {
+            lock (_stream) _stream.Flush();
+        }
 
         internal void FlushToDisk()
         {
@@ -91,6 +102,7 @@ namespace LiteDB.Engine
             {
                 _stream.Position = _position;
                 _stream.Write(buffer, offset, count);
+                if (_writeThrough) _stream.Flush();
                 _position = _stream.Position;
             }
         }

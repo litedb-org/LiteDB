@@ -90,13 +90,16 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A caller log stream that buffers holds whole frames after their write returned and writes
-        /// them on later: at a later write, seek or length query, or at the batch's final flush, and
-        /// can tear one then. The failed write truncated only its own frame, and a non-I/O failure
-        /// only rolled back: a later commit was acknowledged behind the torn frame and lost at
-        /// recovery. A failure after a frame of the batch was written to such a stream now stops the
-        /// engine, until the batch's final flush succeeded. Checked with a BufferedStream of 64 KiB
-        /// and with a stream holding one frame that tears it at the next frame's write or at the flush.
+        /// A caller log stream that buffers (a BufferedStream, a FileStream with a large buffer) held
+        /// whole frames after their write returned and wrote them on later: at the next frame's
+        /// write, at a seek or length query (also a reader's, see SharedBufferedLogStream_Tests) or at
+        /// the batch's final flush, and could tear one then. The failed write truncated only its own
+        /// frame and a non-I/O failure only rolled back: a later commit was acknowledged behind the
+        /// torn frame and lost at recovery (acknowledged 1..20, 200, 201; recovered 1..20). Such a
+        /// stream is now flushed after each write, so a failure tears the frame being written and
+        /// fails its write, which truncates it. Checked with a BufferedStream of 64 KiB and with a
+        /// stream that holds its latest write until the next write or flush and tears it at a flush
+        /// ("flush") or at the next frame's write ("frame": never reached now, nothing is held then).
         /// </summary>
         [Theory]
         [InlineData("buffered", false)]
@@ -105,13 +108,14 @@ namespace LiteDB.Tests.Regressions
         [InlineData("frame", true)]
         [InlineData("flush", false)]
         [InlineData("flush", true)]
-        public void Buffering_log_stream_that_tears_an_earlier_frame_loses_no_acknowledged_commit(string tear, bool ioFailure)
+        public void Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit(string tear, bool ioFailure)
         {
             using var data = new MemoryStream();
             using var device = new TornLog { IoFailure = ioFailure };
             var holding = tear == "buffered" ? null : new HoldingLog(device, tear);
             var acknowledged = Enumerable.Range(1, 20).ToList();
             (byte[] Data, byte[] Log) image;
+            bool torn;
             using (var log = holding ?? (Stream)new BufferedStream(device, 65536))
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 1 }))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
@@ -122,9 +126,13 @@ namespace LiteDB.Tests.Regressions
                 // Safepoints write the insert's pages before its commit.
                 if (holding != null) holding.Armed = true;
                 else device.Arm(1, completeFrame: false, failSetLength: false);
-                Action failed = () => db.GetCollection("rows").Insert(Enumerable.Range(100, 30).Select(id => Row(id, 0)));
-                failed.Should().Throw<Exception>();
-                device.Torn.Should().BeTrue("a frame the stream held reached the device torn");
+                try
+                {
+                    db.GetCollection("rows").Insert(Enumerable.Range(100, 30).Select(id => Row(id, 0)));
+                    acknowledged.AddRange(Enumerable.Range(100, 30));
+                }
+                catch (Exception) { }
+                torn = device.Torn;
                 device.Disarm();
 
                 foreach (var id in new[] { 200, 201 })
@@ -145,6 +153,8 @@ namespace LiteDB.Tests.Regressions
             using var recovered = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = recoveredData, LogStream = recoveredLog }));
             recovered.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32)
                 .Should().BeEquivalentTo(acknowledged, "every acknowledged commit survives, the failed one is absent");
+            torn.Should().Be(tear != "frame", "a frame is written on at the flush after its own write");
+            acknowledged.Contains(100).Should().Be(tear == "frame", "only a torn frame fails the insert");
         }
 
         private static void WriteLater(LiteDatabase db)

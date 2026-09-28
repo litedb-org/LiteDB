@@ -31,6 +31,9 @@ namespace LiteDB.Engine
 
         // Test hook: runs after a failed WAL write released the writer, before the engine's teardown.
         public Action AfterFailedWalWrite;
+
+        // Test hook: this engine's crash points (SimulateProcessCrash sees every engine's).
+        public Action<string> AtCrashPoint;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
@@ -71,6 +74,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
         internal void CrashPoint(string phase)
         {
+            AtCrashPoint?.Invoke(phase);
             SimulateProcessCrash?.Invoke(phase);
         }
 #endif

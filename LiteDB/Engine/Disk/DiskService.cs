@@ -51,7 +51,6 @@ namespace LiteDB.Engine
             _durableCommits = settings.DurableCommits;
             _sharedDurability = settings.SharedDurability;
             _volatileLog = settings.VolatileLog;
-            _logMayBuffer = settings.LogStream != null && !(settings.LogStream is MemoryStream);
             _signals = settings.CoordinationSignals;
 
             try
