@@ -22,6 +22,23 @@ Use the current branch's format constants and merged design as authoritative.
 Version numbers proposed by concurrent PRs can collide. Do not copy an unmerged
 feature's format number or migration policy into general repository guidance.
 
+## Published prereleases
+
+Every push to `dev` publishes a prerelease package, so intermediate formats exist
+in the wild. The floor for a file written by **any** published LiteDB version,
+stable or prerelease, is:
+
+- the current engine opens it correctly (read, migrate, or request its documented
+  writable upgrade), **or** refuses it with an actionable error and leaves the
+  data file and WAL byte-identical;
+- it is never misread, never decoded by a fallback that does not own its format,
+  and never modified by an open that is then refused.
+
+Full read and migrate support is promised for stable releases, and for a
+prerelease only where a fixture, compatibility script or regression proof names
+it. Refusing an unsupported prerelease file is acceptable; misreading it or
+changing its bytes is a defect.
+
 ## Vector File Compatibility
 BSON-only new files use v11; Auto compact files use v12 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;
 read-only opens requiring migration must request a writable open first. Validate

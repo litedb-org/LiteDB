@@ -113,7 +113,8 @@
       "docs": [
         "docs/rules/compatibility.md#establish-the-boundary",
         "docs/rules/data-safety.md#make-upgrades-atomic-and-repeatable",
-        "docs/storage-stack-safety.md#separate-process-format-boundaries"
+        "docs/storage-stack-safety.md#separate-process-format-boundaries",
+        "docs/rules/compatibility.md#published-prereleases"
       ],
       "paths": [
         "LiteDB/Engine/FileReader/**",
@@ -142,7 +143,7 @@
         {"fuzz": "compatibility", "model": "exception", "proves": "Plain/encrypted v4/v7 fixtures are upgraded with every publication phase interrupted and resumed, then extended with indexes, FileStorage, dirty WAL and read-only opens."}
       ],
       "gaps": [
-        {"text": "No declared policy for published prerelease packages and their files (#3034, Phase A)."},
+        {"text": "The published-prerelease floor (open correctly or refuse byte-identically) is decided, but no job yet opens files written by actual prerelease packages."},
         {"text": "Fixtures lack provenance manifests (producer, recipe, hashes, expected outcome)."}
       ]
     },

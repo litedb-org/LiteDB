@@ -183,6 +183,13 @@ enabled, serialize high-risk merges: update the branch with `dev`, wait for a
 fresh green Safety evidence run on that merge ref, then merge. The scheduled full
 CI run is the post-merge backstop.
 
+Repository settings are unchanged for now: no check is required and there is no
+merge queue, so a check that fails to start cannot block every merge. When the
+checks have run reliably for a while, require **build-and-test / Safety
+evidence** first; it runs on every PR. Never require path-filtered workflows
+(Regression proof, Fuzz, index migration): a required check that does not run
+stays pending and blocks the PR.
+
 ## Findings, gates and audits
 
 Classify each failure as an introduced regression, a pre-existing defect newly
