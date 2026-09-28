@@ -250,17 +250,6 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncLogBarrier(Stream log)
         {
-            if (this.DataHeaderDurable()) this.SyncLogBarrierUnproven(log);
-            else this.SkipLogSync(log);
-        }
-
-        /// <summary>
-        /// <see cref="SyncLogBarrier"/> without the data proof: only for a log sync that must precede
-        /// every data sync, the recovery copy of a torn header (the proof would make the torn header
-        /// durable before its only repair).
-        /// </summary>
-        private void SyncLogBarrierUnproven(Stream log)
-        {
             try
             {
                 log.FlushToDisk();
@@ -309,15 +298,14 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// A commit also depends on the data file, where an earlier engine, maybe of another
-        /// connection or process, may have left a header in the OS cache only: a data file that
-        /// answered "cannot sync" (#2242) for a salt rotation, a retirement root or a format
-        /// conversion. Make it durable before this engine's first log sync (see
-        /// <see cref="DataHeaderDurable"/>); while it answers "cannot sync" no log sync can make a
-        /// commit durable. Only a header change can make earlier WAL content obsolete (a checkpoint that
-        /// does not change it keeps every frame), so the sync is skipped while the header is one a
-        /// successful sync in this process left (<see cref="DurableHeaders"/>).
-        /// Caller holds the log writer lock, or opens the engine.
+        /// Reusing a WAL slot depends on the data file, where an earlier engine, maybe of another
+        /// connection or process, may have left the witness root in the OS cache only (see
+        /// <see cref="ProveSlotReuse"/>). Only a header change can make earlier WAL content obsolete
+        /// (a checkpoint that does not change it keeps every frame), so the sync is skipped while the
+        /// header is one a successful sync in this process left (<see cref="DurableHeaders"/>).
+        /// Before a first commit it is a best-effort barrier only (<see cref="DataBarrierBeforeFirstCommit"/>):
+        /// commits do not depend on it, the WAL starts with a copy of the header (decision 11).
+        /// Caller holds the log writer lock.
         /// </summary>
         private void ProveDataFile()
         {
@@ -326,17 +314,6 @@ namespace LiteDB.Engine
                 if (_dataPath != null && data.Length >= PAGE_SIZE && DurableHeaders.Matches(_dataPath, ReadDataHeader(data))) _dataSyncProven = true;
                 else this.SyncDataBarrier(data);
             });
-        }
-
-        /// <summary>
-        /// A log sync while the data header the WAL depends on is not known to be on the device
-        /// (<see cref="DataHeaderDurable"/>): the writes reach the OS cache only, and a durable commit
-        /// is refused before it writes (<see cref="RequireDurableCommit"/>).
-        /// </summary>
-        private void SkipLogSync(Stream log)
-        {
-            _logBarrierSynced = false;
-            log.Flush();
         }
 
         private static string DurablePath(EngineSettings settings)
@@ -375,11 +352,6 @@ namespace LiteDB.Engine
         {
             var stream = _writer.Value;
             var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
-            if (!this.DataHeaderDurable())
-            {
-                this.SkipLogSync(raw);
-                return;
-            }
             try
             {
                 raw.FlushToDisk();

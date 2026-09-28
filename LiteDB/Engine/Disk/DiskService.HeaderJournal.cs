@@ -95,7 +95,7 @@ namespace LiteDB.Engine
                     // Make an OS-cached recovery copy durable before repairing its primary. The primary
                     // is torn: no data sync may come first (the data barrier below proves the file),
                     // and an encrypted data writer syncs its file when it is created, so it comes after.
-                    SyncLogBarrierUnproven(((ChecksummedWalStream)_writer.Value).RawStream);
+                    SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
                 }
                 var repaired = header;

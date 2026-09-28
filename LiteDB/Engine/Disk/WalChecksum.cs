@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         internal const int SaltPosition = 109; // Reserved database-header bytes 109..124.
         internal const int MarkerPosition = 125;
         internal const uint HeaderMarker = 0x31435243; // CRC1, independent of the version byte.
+        internal const uint HeaderFrameMagic = 0x31524448; // HDR1: frame 0 holds a copy of the data header (HeaderFrame).
         internal byte[] Salt { get; private set; }
         internal WalRetirement Retirement { get; set; } = new WalRetirement();
         internal bool Enabled => Salt != null;
@@ -31,7 +32,7 @@ namespace LiteDB.Engine
 
         internal struct Frame
         {
-            internal bool RetirementRecord, Retired;
+            internal bool RetirementRecord, Retired, HeaderFrame;
             internal ulong Contribution;
             internal uint Count;
             internal ulong Digest;
@@ -112,16 +113,20 @@ namespace LiteDB.Engine
             var actual = ~Crc32C.Update(pageCrc, metadata.Array, metadata.Offset, MetadataSize);
             metadata.Write(expected, 4);
             if (expected != actual) throw new PageChecksumException(FileOrigin.Log, position);
-            if (metadata.ReadUInt32(52) != 0 && metadata.ReadUInt32(52) != WalRetirement.Magic)
+            var marker = metadata.ReadUInt32(52);
+            if (marker != 0 && marker != WalRetirement.Magic && marker != HeaderFrameMagic)
                 throw new PageChecksumException(FileOrigin.Log, position);
-            if (metadata.ReadUInt32(52) == WalRetirement.Magic &&
+            if (marker == WalRetirement.Magic &&
                 (metadata.ReadUInt32(32) != 0 || metadata.ReadInt64(36) != 0 || metadata.ReadInt64(44) != 0 ||
                  page.ReadUInt32(BasePage.P_PAGE_ID) != 0 || page.ReadUInt32(BasePage.P_TRANSACTION_ID) != 0 ||
                  page[BasePage.P_PAGE_TYPE] != 0 || page[BasePage.P_IS_CONFIRMED] != 0))
                 throw new PageChecksumException(FileOrigin.Log, position);
+            if (marker == HeaderFrameMagic && !IsHeaderFrameShape(page, metadata, position))
+                throw new PageChecksumException(FileOrigin.Log, position);
             return new Frame
             {
-                RetirementRecord = metadata.ReadUInt32(52) == WalRetirement.Magic,
+                RetirementRecord = marker == WalRetirement.Magic,
+                HeaderFrame = marker == HeaderFrameMagic,
                 Contribution = Contribution(pageCrc, metadata, position),
                 Count = metadata.ReadUInt32(32), Digest = unchecked((ulong)metadata.ReadInt64(36)), Sequence = metadata.ReadInt64(44)
             };
@@ -141,6 +146,48 @@ namespace LiteDB.Engine
             var actual = ~Crc32C.Update(Crc32C.Update(uint.MaxValue, frame, 0, PAGE_SIZE), frame, PAGE_SIZE, MetadataSize);
             metadata.Write(expected, 4);
             return expected == actual;
+        }
+
+        /// <summary>
+        /// Build the header frame (see <see cref="HeaderFrame"/>) in <paramref name="frame"/>, whose
+        /// first page holds the data header: its trailer carries the salt and the header frame marker.
+        /// </summary>
+        internal static void PrepareHeaderFrame(byte[] frame, byte[] salt)
+        {
+            var metadata = new BufferSlice(frame, PAGE_SIZE, MetadataSize);
+            metadata.Clear();
+            metadata.Write(Magic, 0);
+            Buffer.BlockCopy(salt, 0, frame, PAGE_SIZE + 8, salt.Length);
+            metadata.Write(0L, 24);
+            metadata.Write(HeaderFrameMagic, 52);
+            metadata.Write(~Crc32C.Update(Crc32C.Update(uint.MaxValue, frame, 0, PAGE_SIZE), frame, PAGE_SIZE, MetadataSize), 4);
+        }
+
+        /// <summary>
+        /// The data header a header frame holds, checked without a database header: by the frame's own
+        /// trailer (<see cref="IsFrame"/>), its shape, and the header's own checksum; null otherwise.
+        /// </summary>
+        internal static byte[] ReadHeaderFrame(byte[] frame)
+        {
+            var page = new BufferSlice(frame, 0, PAGE_SIZE);
+            var metadata = new BufferSlice(frame, PAGE_SIZE, MetadataSize);
+            if (!IsFrame(frame, 0) || metadata.ReadUInt32(52) != HeaderFrameMagic || !IsHeaderFrameShape(page, metadata, 0)) return null;
+            try { PageChecksum.Validate(page, 0); }
+            catch (PageChecksumException) { return null; }
+            var header = new byte[PAGE_SIZE];
+            Buffer.BlockCopy(frame, 0, header, 0, PAGE_SIZE);
+            return header;
+        }
+
+        // A header frame is frame 0, holds a checksummed data header with the salt its trailer carries,
+        // and takes no part in a transaction.
+        private static bool IsHeaderFrameShape(BufferSlice page, BufferSlice metadata, long position)
+        {
+            if (position != 0 || metadata.ReadUInt32(32) != 0 || metadata.ReadInt64(36) != 0 || metadata.ReadInt64(44) != 0 ||
+                page.ReadUInt32(BasePage.P_PAGE_ID) != 0 || page.ReadUInt32(WalChecksum.MarkerPosition) != HeaderMarker) return false;
+            for (var i = 0; i < 16; i++)
+                if (page[SaltPosition + i] != metadata[8 + i]) return false;
+            return true;
         }
 
         private static ulong Contribution(uint pageCrc, BufferSlice metadata, long position)

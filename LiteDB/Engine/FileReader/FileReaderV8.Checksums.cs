@@ -26,6 +26,13 @@ namespace LiteDB.Engine
                 if (journal.ConfirmsLegacyBackup && !published && journal.FooterBytes != 0)
                     _checksums.LegacyConfirmationPosition = journal.Position - PAGE_SIZE;
             }
+            // A data header a power loss dropped: the WAL's header frame holds it (decision 11).
+            if (_recoveredHeader == null && _logStream != null && !HeaderFrame.IsIntact(bytes) &&
+                HeaderFrame.Read(((ChecksummedWalStream)_logStream).RawStream) is byte[] frame &&
+                HeaderFrame.Fits(frame, _dataStream.Length))
+            {
+                bytes = _recoveredHeader = frame;
+            }
             if (bytes[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION &&
                 new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
             // Mixed-page permissions must only come from a verified header.

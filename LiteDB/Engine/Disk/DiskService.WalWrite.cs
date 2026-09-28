@@ -42,14 +42,26 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
-                // Before any frame: a commit that cannot be made durable fails here (decision 3).
-                this.RequireDurableCommit(stream);
                 var uncertain = false;
                 try
                 {
                     using (var iterator = pages.GetEnumerator())
                     {
                         if (!iterator.MoveNext()) return 0;
+
+                        // Before any frame: a commit that cannot be made durable fails here (decision 3).
+                        // A batch without pages writes nothing and needs no proof.
+                        try
+                        {
+                            this.RequireDurableCommit(stream);
+                            this.WriteHeaderFrame(stream, ref uncertain);
+                        }
+                        catch
+                        {
+                            // The producer transferred the first page when it yielded it.
+                            if (iterator.Current.State == FrameState.Writable) _cache.DiscardPage(iterator.Current);
+                            throw;
+                        }
 
                         var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
                         var rebase = !ChecksumsEnabled && transactionState != null &&

@@ -21,6 +21,12 @@ namespace LiteDB.Engine
         /// </summary>
         internal volatile bool DataUnsynced;
 
+        /// <summary>
+        /// An engine of this connection ran the data barrier before its first commit (decision 14):
+        /// later engines skip it, so the connection's operations pay nothing for it.
+        /// </summary>
+        internal volatile bool DataBarrierDone;
+
         private WriteFailure _writeFailure;
 
         /// <summary>

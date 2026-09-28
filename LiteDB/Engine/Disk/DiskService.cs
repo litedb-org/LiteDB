@@ -61,14 +61,17 @@ namespace LiteDB.Engine
                 // caller streams (memory, devices) are the caller's to share.
                 _dataIsFile = _dataFactory is FileStreamFactory || settings.DataStream is FileStream;
                 _dataPath = DurablePath(settings);
-                _logPath = LogDurablePath(settings);
                 _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
+                // Only a log the engine opens has its directory synced; a caller's stream is proven per engine.
+                _logPath = ((ChecksummedWalFactory)_logFactory).IsFile ? LogDurablePath(settings) : null;
 
                 _dataPool = new StreamPool(_dataFactory, false);
                 _logPool = new StreamPool(_logFactory, true);
                 _writer = _logPool.Writer;
 
                 var dataLength = _dataFactory.GetLength();
+                // Decision 11: never initialize over the WAL of a database whose data file lost its header.
+                if (dataLength < PAGE_SIZE && this.RestoreDataFileFromLog(dataLength)) dataLength = _dataFactory.GetLength();
                 var isNew = dataLength == 0L;
 
                 if (isNew)
