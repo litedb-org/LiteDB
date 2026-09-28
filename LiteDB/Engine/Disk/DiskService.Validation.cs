@@ -41,9 +41,11 @@ namespace LiteDB.Engine
 
                 // Validate identity and the complete header before permitting any repair.
                 this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
-                if (!ChecksumsEnabled) this.RejectConvertedWal();
                 _openingHeader = (byte[])bytes.Clone();
-                return new HeaderPage(new PageBuffer(bytes, 0, 0));
+                var header = new HeaderPage(new PageBuffer(bytes, 0, 0));
+                // Only a valid legacy header can meet the WAL of its own conversion.
+                if (!ChecksumsEnabled) this.RejectConvertedWal();
+                return header;
             }
             finally
             {
