@@ -58,6 +58,34 @@ namespace LiteDB.Tests.Regressions
             finally { File.Delete(logName); }
         }
 
+        /// <summary>
+        /// The recognised frame checks its own trailer: a changed page byte, CRC or position is not
+        /// a frame (a legacy WAL chunk would have to match all of them).
+        /// </summary>
+        [Fact]
+        public void Frame_is_recognised_by_its_magic_position_and_crc()
+        {
+            var legacy = Fixture("plain.db");
+            using var data = new MemoryStream();
+            data.Write(legacy, 0, legacy.Length);
+            using var log = new MemoryStream();
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log })))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 900002 });
+                var wal = log.ToArray();
+                var frame = wal.Take(WalChecksum.FrameSize).ToArray();
+                WalChecksum.IsFrame(frame, 0).Should().BeTrue();
+                WalChecksum.IsFrame(frame, Constants.PAGE_SIZE).Should().BeFalse("another position");
+                foreach (var offset in new[] { 100, Constants.PAGE_SIZE + 4, Constants.PAGE_SIZE + 60 })
+                {
+                    var changed = (byte[])frame.Clone();
+                    changed[offset] ^= 1;
+                    WalChecksum.IsFrame(changed, 0).Should().BeFalse("byte {0} changed", offset);
+                }
+            }
+        }
+
         private static string Connection(string filename, string password, bool readOnly) =>
             $"Filename={filename}" + (password == null ? "" : $";Password={password}") +
             (readOnly ? ";readonly=true;legacy index scan=true" : "");

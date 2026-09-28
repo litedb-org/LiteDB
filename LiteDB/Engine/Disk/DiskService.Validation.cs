@@ -57,7 +57,9 @@ namespace LiteDB.Engine
         /// A legacy header next to a WAL of checksummed frames: a conversion's header never reached
         /// the device while frames written after it did (storage that cannot sync, #2242, or a data
         /// file restored without its log). Legacy rules would replay those frames as pages at
-        /// positions read from their trailers, so refuse the open; it changes neither file.
+        /// positions read from their trailers, so refuse the open; it changes neither file. A converted
+        /// WAL starts over at its first frame, whose trailer lands on a legacy page's page ID, which
+        /// no document controls; later frames overlap legacy page content, so only the first is read.
         /// </summary>
         private void RejectConvertedWal()
         {
@@ -69,16 +71,13 @@ namespace LiteDB.Engine
             {
                 var log = reader.RawStream;
                 var frame = new byte[WalChecksum.FrameSize];
-                for (long offset = 0, position = 0; offset + frame.Length <= log.Length; offset += frame.Length, position += PAGE_SIZE)
-                {
-                    log.Position = offset;
-                    log.ReadRequired(frame, 0, frame.Length);
-                    if (!WalChecksum.IsFrame(frame, position)) continue;
+                log.Position = 0;
+                log.ReadRequired(frame, 0, frame.Length);
+                if (WalChecksum.IsFrame(frame, 0))
                     throw new LiteException(LiteException.INVALID_DATABASE, "Cannot open this database: its log file holds " +
                         "WAL frames of a converted database while its data file still has the legacy (v5) header, so the " +
                         "conversion's header never reached the device. Replaying those frames would corrupt the data file. " +
                         "Move the log file aside to open the database as it was before the conversion.");
-                }
             }
             finally { _logPool.Return(reader); }
         }
