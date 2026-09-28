@@ -168,9 +168,10 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A restart over a kept WAL: before it tried a data sync, the engine reported walKept=false,
-        /// and its first checkpoint scanned the whole WAL before its data sync failed. Its report and
-        /// its checkpoint now try the data sync first; the checkpoint stops there.
+        /// A restart over a kept WAL reported walKept=false before it tried a data sync: its report now
+        /// tries one first. Its first checkpoint cannot know that the data file cannot sync (another
+        /// process found it), so it scans the WAL and stops at its pre-write sync; later checkpoints of
+        /// the engine retry the data sync before they take a lock or scan, and stop there.
         /// </summary>
         [Fact]
         public void Restart_over_a_kept_wal_reports_it_and_checkpoints_without_scanning()
@@ -193,7 +194,10 @@ namespace LiteDB.Tests.Regressions
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
                 db.Checkpoint();
-                scans.Should().Be(0, "the checkpoint stopped at its data sync");
+                scans.Should().Be(1, "the first checkpoint found out at its pre-write sync");
+                db.Checkpoint();
+                db.Checkpoint();
+                scans.Should().Be(1, "later checkpoints stopped at their data sync");
                 SyncPowerLossModel.AssertRows(db, Rows, 1);
             }
             using (var db = new LiteDatabase(new LiteEngine(settings)))
@@ -237,6 +241,32 @@ namespace LiteDB.Tests.Regressions
             SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
             using var again = new LiteDatabase(engine, disposeOnClose: false);
             SyncPowerLossModel.AssertRows(again, Rows, 1);
+        }
+
+        /// <summary>The same for a legacy WAL that holds commits (a read-only engine of a 5.0.21 crash image).</summary>
+        [Fact]
+        public void Wal_reset_refuses_a_legacy_wal_that_holds_frames()
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            File.WriteAllBytes(file.Filename, WalCrash("crash.db"));
+            File.WriteAllBytes(logName, WalCrash("crash-log.db"));
+            try
+            {
+                var data = File.ReadAllBytes(file.Filename);
+                var log = File.ReadAllBytes(logName);
+                log.Length.Should().BeGreaterThan(0);
+                using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, ReadOnly = true, LegacyIndexScan = true }))
+                {
+                    Action reset = () => engine.GetWalIndex().Clear();
+                    reset.Should().Throw<InvalidOperationException>().WithMessage("Only a drained legacy WAL can be reset.");
+                    using var db = new LiteDatabase(engine, disposeOnClose: false);
+                    db.GetCollection("docs").Count().Should().Be(101);
+                }
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                File.ReadAllBytes(logName).Should().Equal(log);
+            }
+            finally { File.Delete(logName); }
         }
 
         /// <summary>
@@ -440,6 +470,16 @@ namespace LiteDB.Tests.Regressions
             Info(db)["checksums"].AsBoolean.Should().BeTrue();
             Contents(db).Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
             return expected.Count;
+        }
+
+        private static byte[] WalCrash(string name)
+        {
+            using var resource = typeof(KeptWalStop_Tests).Assembly.GetManifestResourceStream("LiteDB.Tests.Resources.WalCrash_5_0_21.zip");
+            using var zip = new ZipArchive(resource, ZipArchiveMode.Read);
+            using var entry = zip.GetEntry(name).Open();
+            using var bytes = new MemoryStream();
+            entry.CopyTo(bytes);
+            return bytes.ToArray();
         }
 
         private static byte[] Fixture(string name)

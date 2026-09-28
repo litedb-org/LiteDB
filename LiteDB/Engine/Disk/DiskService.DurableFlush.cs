@@ -90,6 +90,15 @@ namespace LiteDB.Engine
         internal bool DataSyncConfirmed => _dataBarrierTried && _dataBarrierSynced;
 
         /// <summary>
+        /// Once this engine or, in shared mode, an earlier engine of the connection found that the data
+        /// file cannot sync, a checkpoint retries the data sync first and does nothing while it still
+        /// fails, instead of scanning the growing WAL again. Storage that syncs pays nothing here; an
+        /// engine that knows nothing yet finds out at its checkpoint's pre-write sync.
+        /// </summary>
+        internal bool DefersCheckpoint() =>
+            !_volatileLog && (!_dataBarrierSynced || (_sharedDurability?.DataUnsynced ?? false)) && !this.DataFileSyncs();
+
+        /// <summary>
         /// Sync the data file now: false when it answers "cannot sync" (#2242). A checkpoint calls it
         /// right before it writes anything, so that it writes to a data file that just synced, whatever
         /// an earlier engine or process found (see <see cref="KeepsWal"/>).
@@ -113,15 +122,15 @@ namespace LiteDB.Engine
         /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine
         /// whose latest data sync did not succeed, or that tried none yet (a reopen, a restart or a
         /// shared-mode operation after an engine that kept the WAL), retries one first, as its next
-        /// checkpoint would. A read-only engine (also a shared-mode read) never syncs: it reports what
-        /// the connection's engines found.
+        /// checkpoint would. A read-only engine (also a shared-mode read) or one over storage that
+        /// cannot be written never syncs: it reports what the connection's engines found.
         /// </summary>
         internal bool WalKeptReport
         {
             get
             {
                 if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
-                if (_readOnly) return _sharedDurability?.DataUnsynced ?? false;
+                if (_readOnly || _readOnlyStorage) return _sharedDurability?.DataUnsynced ?? false;
                 return !this.DataSyncConfirmed && !this.DataFileSyncs();
             }
         }
@@ -141,8 +150,7 @@ namespace LiteDB.Engine
         internal bool ProveRetirementSyncs()
         {
             if (this.FlushDegraded || _logDirectoryUnsyncable) return false;
-            var data = _dataPool.Writer.Value;
-            lock (data) this.SyncDataBarrier(data);
+            this.SyncDataFile();
             if (!this.FlushDegraded && !this.LogSyncUnverified) this.SyncRawLog();
             if (!this.FlushDegraded) this.SyncLogDirectory();
             return !this.FlushDegraded && !_logDirectoryUnsyncable;

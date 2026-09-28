@@ -65,8 +65,10 @@ and writes nothing while that sync fails, in every
 engine, including a restart or a shared-mode operation: the WAL is kept and grows until the
 data file syncs again, and `$database.walKept` reports it: a writable engine that has not
 seen a data sync succeed tries one first, and a read-only engine (also a shared-mode read)
-reports what its connection's engines found, so a new shared connection knows after its
-first write (`logFileSize` and `dataFileSize` are now 64-bit). A data sync that fails later in the same
+reports what its connection's engines found, so a new shared connection may report false
+until one of its checkpoints tried the data file (`logFileSize` and `dataFileSize` are now
+64-bit). Once an engine, or an engine of the same shared connection, found that the data file
+cannot sync, its checkpoints retry the data sync before they scan the WAL. A data sync that fails later in the same
 checkpoint stops the engine with the WAL and the journal intact, and an open that must
 repair or retire a header journal while the data file cannot sync is refused
 (`readonly=true` still opens). On storage that never syncs the WAL therefore never shrinks

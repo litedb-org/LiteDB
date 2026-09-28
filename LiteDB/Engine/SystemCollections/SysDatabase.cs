@@ -32,6 +32,8 @@ namespace LiteDB.Engine
 
                 ["dataFileSize"] = _disk.GetFileLength(FileOrigin.Data),
                 ["logFileSize"] = _disk.GetFileLength(FileOrigin.Log),
+                // durableLogFlush: the mode commits ran in so far. walKept may try a data sync first;
+                // one that fails shows in the next read's durableLogFlush.
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
                 ["walKept"] = _disk.WalKeptReport,
                 ["checksums"] = _disk.ChecksumsEnabled,

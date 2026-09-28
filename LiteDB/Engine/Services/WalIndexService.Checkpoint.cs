@@ -106,16 +106,11 @@ namespace LiteDB.Engine
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
 
-            // The WAL is kept until a data sync succeeds (DiskService.KeepsWal), and a checkpoint writes
-            // only to a data file that just synced. An engine that has not seen its latest data sync
-            // succeed (its first checkpoint, or any after "cannot sync", which an earlier engine or
-            // process may have met) syncs it now, before scanning a WAL that grows while it cannot.
-            var dataSynced = false;
-            if (!_disk.LogIsVolatile && !_disk.DataSyncConfirmed)
-            {
-                if (!_disk.DataFileSyncs()) return 0;
-                dataSynced = true;
-            }
+            // The WAL is kept until a data sync succeeds (DiskService.KeepsWal). Once this engine or, in
+            // shared mode, an earlier engine of the connection found that the data file cannot sync, a
+            // checkpoint retries the data sync first and changes nothing while it still fails, instead
+            // of scanning a WAL that grows at every commit.
+            if (_disk.DefersCheckpoint()) return 0;
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
@@ -186,9 +181,9 @@ namespace LiteDB.Engine
                 if (!proven) obsolete.Clear();
                 if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
 
-                // Write only to a data file that just synced (above, or by the retirement proof): one
+                // Write only to a data file that just synced (the retirement proof syncs it too): one
                 // that cannot, also one another engine or process found so, keeps the WAL untouched.
-                if (!proven && !dataSynced && !_disk.LogIsVolatile && !_disk.DataFileSyncs()) return 0;
+                if (!proven && !_disk.LogIsVolatile && !_disk.DataFileSyncs()) return 0;
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
