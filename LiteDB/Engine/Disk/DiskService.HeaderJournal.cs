@@ -90,10 +90,16 @@ namespace LiteDB.Engine
                 using var structural = new StructuralScope(_signals);
                 // Repair and sync the header before removing its recovery copy.
                 // Legacy redo stays until checkpoint also repairs converted pages.
-                if (_recoveredHeader != null)
+                // A header that looks published may be in the page cache only: after a sync that failed
+                // with an I/O error, Linux marks the pages it could not write back clean, so no later
+                // sync writes them ("fsyncgate"). Before the sync that lets the journal go, write the
+                // header back as read: the same bytes (an encrypted page is encrypted per 16-byte block,
+                // the same plaintext giving the same bytes). A torn header is repaired from the journal.
+                var rewrite = _recoveredHeader != null || !(journal.Legacy && !published);
+                if (rewrite)
                 {
-                    // Make an OS-cached recovery copy durable before repairing its primary. The primary
-                    // is torn: no data sync may come first (the data barrier below proves the file),
+                    // Make an OS-cached recovery copy durable before writing its primary. No data sync may
+                    // come first while the primary is torn (the data barrier below proves the file),
                     // and an encrypted data writer syncs its file when it is created, so it comes after.
                     SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
@@ -101,7 +107,7 @@ namespace LiteDB.Engine
                 var repaired = header;
                 this.UseDataWriter(data =>
                 {
-                    if (_recoveredHeader != null)
+                    if (rewrite)
                     {
                         this.CrashPoint("promotion-recovery-before-header-write");
                         data.Position = 0;
