@@ -19,6 +19,8 @@ The first prerelease that precedes the 6.0.0 release (commit `a0298891ddcaf7ba48
 - `publish-release.yml` is manual (`workflow_dispatch`). It computes the release version and can optionally push to NuGet and/or create a GitHub release via boolean inputs. GitHub releases use a zero-padded prerelease counter for predictable sorting in the UI, while NuGet publishing keeps the standard GitVersion output. By default it performs a dry run (build + pack only) so we keep the publishing path disabled until explicitly requested.
 - `tag-version.yml` lets you start a manual major/minor/patch bump. It tags the specified ref (defaults to `master`) with the next `v*` version so future builds pick up the new baseline. Use this after validating a release candidate.
 
+GitVersion's `prerelease` label enables `LiteDBPreDev=true` during compilation, and the prerelease workflow also sets the property explicitly. That compilation property adds the development-build safety guard and its explicit acknowledgement API to the package. Stable builds have no prerelease label and do not set the property, so neither the guard nor `LiteDBPragmas` is present in their binaries.
+
 ## Dry-running versions
 
 GitVersion is registered as a local dotnet tool. Restore the tool once (`dotnet tool restore`) and use one of the helpers:
@@ -54,4 +56,3 @@ Both scripts resolve the git ref to a SHA, execute GitVersion with the repositor
 - When you are ready to publish a prerelease, push to `dev` and let the workflow take care of packing and nuget push.
 
 For historical reference, the `v6.0.0-prerelease.0001` tag remains anchored to commit `a0298891ddcaf7ba48c679f1052a6f442f6c094f`, ensuring version ordering continues correctly from the original timeline.
-
