@@ -49,7 +49,14 @@ namespace LiteDB.Client.Shared
                     // symlink. Never abandon that WAL or bypass its recovery marker.
                     RebuildRecovery.EnsureAvailable(settings);
                     var aliasLog = FileHelper.GetLogFile(original);
-                    if (FileHelper.ExistsOrThrow(aliasLog) && !string.Equals(
+                    // A directory alias still selects the same data/WAL pair.
+                    // Avoid probing an impossible WAL name beside a maximum-
+                    // length read-only database merely because its parent moved.
+                    var resolvedParent = Path.Combine(DatabaseFileIdentity.CanonicalPath(Path.GetDirectoryName(original)),
+                        Path.GetFileName(original));
+                    if (!string.Equals(resolvedParent, canonical, DatabaseFileIdentity.Windows
+                        ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) &&
+                        FileHelper.ExistsOrThrow(aliasLog) && !string.Equals(
                         DatabaseFileIdentity.CanonicalPath(aliasLog),
                         DatabaseFileIdentity.CanonicalPath(FileHelper.GetLogFile(canonical)),
                         DatabaseFileIdentity.Windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))

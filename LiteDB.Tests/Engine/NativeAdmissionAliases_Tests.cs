@@ -72,6 +72,32 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Directory_alias_preserves_maximum_length_read_only_filenames()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            using var seed = new TempFile();
+            NativeAdmission_Tests.Seed(seed);
+            var directory = seed.Filename + "-directory";
+            var alias = seed.Filename + "-alias";
+            Directory.CreateDirectory(directory);
+            Directory.CreateSymbolicLink(alias, directory);
+            var name = new string('x', 252) + ".db";
+            var filename = Path.Combine(directory, name);
+            File.Copy(seed, filename);
+            try
+            {
+                using var original = new LiteDatabase(new ConnectionString { Filename = filename, ReadOnly = true });
+                using var throughAlias = new LiteDatabase(new ConnectionString
+                    { Filename = Path.Combine(alias, name), ReadOnly = true });
+                foreach (var db in new[] { original, throughAlias })
+                    db.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(42);
+                TempFile.ReadAllBytesShared(filename).Should().Equal(File.ReadAllBytes(seed));
+                Directory.GetFiles(directory).Should().Equal(filename);
+            }
+            finally { Directory.Delete(alias); Directory.Delete(directory, true); }
+        }
+
+        [Fact]
         public void Hard_links_are_rejected_before_a_second_WAL_can_be_selected()
         {
             using var file = new TempFile();
