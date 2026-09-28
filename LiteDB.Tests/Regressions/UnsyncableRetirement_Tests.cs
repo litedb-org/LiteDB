@@ -25,7 +25,10 @@ namespace LiteDB.Tests.Regressions
         /// engine), so a partial checkpoint under a live reader on storage that answers "cannot sync"
         /// neither retires frames (no v13 promotion, no witness root, no cleared slot) nor lets
         /// later commits reuse slots - also when that checkpoint is the first to find out, and when
-        /// commits opted out of syncs. Control: storage that syncs retires and reuses slots.
+        /// commits opted out of syncs. Control: storage that syncs retires and reuses slots. With
+        /// durable commits, a WAL directory that cannot sync fails the first commit before it writes
+        /// (decision 9 of docs/decisions/durability-policy.md), so nothing is written, retired or
+        /// reused there at all.
         /// </summary>
         [Theory]
         [InlineData("syncs")]
@@ -49,38 +52,14 @@ namespace LiteDB.Tests.Regressions
             if (mode == "opted-out-commits") NativeFileSync.SimulateErrno = _ => 22;
             if (mode == "opted-out-log") NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
             if (mode.EndsWith("directory")) NativeFileSync.SimulateDirectoryErrno = _ => 13;
+            // As in a new process: the setup's engine proved the log's directory synced.
+            if (mode == "directory") DurableLogs.Forget(Path.GetFullPath(FileHelper.GetLogFile(file.Filename)));
             try
             {
                 using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = !mode.StartsWith("opted-out") });
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
-                db.CheckpointSize = 0;
-                if (mode == "data-detected-earlier")
-                {
-                    Update(db, 1);
-                    db.Checkpoint();
-                }
-                for (var value = 2; value <= 5; value++) Update(db, value);
-
-                using (var reader = engine.Query("rows", new Query()))
-                {
-                    Worker(() =>
-                    {
-                        for (var value = 6; value <= 8; value++) Update(db, value);
-                        var start = LogFileSize(db);
-                        Update(db, 9);
-                        var perUpdate = LogFileSize(db) - start;
-                        perUpdate.Should().BeGreaterThan(0);
-
-                        engine.Checkpoint();
-                        if (mode != "syncs") BlankFrames(ReadShared(FileHelper.GetLogFile(file.Filename))).Should().Be(0,
-                            "no committed frame is cleared without durable syncs");
-                        var before = LogFileSize(db);
-                        for (var value = 10; value <= 13; value++) Update(db, value);
-                        var growth = LogFileSize(db) - before;
-                        if (mode == "syncs") growth.Should().BeLessThan(4 * perUpdate, "syncing storage reuses retired slots");
-                        else growth.Should().Be(4 * perUpdate, "commits after a checkpoint that could not sync append");
-                    });
-                }
+                if (mode == "directory") AssertDurableCommitRefusedBeforeItWrites(db, file.Filename);
+                else RetireUnderAReader(engine, db, file.Filename, mode);
 
                 var header = Header(file.Filename);
                 var promoted = header[HeaderPage.P_FILE_VERSION] == HeaderPage.MVCC_FILE_VERSION;
@@ -99,7 +78,69 @@ namespace LiteDB.Tests.Regressions
             }
 
             using var reopened = new LiteDatabase(file.Filename);
-            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().HaveCount(8).And.OnlyContain(x => x == 13);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().HaveCount(8)
+                .And.OnlyContain(x => x == (mode == "directory" ? 0 : 13));
+        }
+
+        /// <summary>
+        /// Commit values 2..9 (1 and a checkpoint first for "data-detected-earlier"), checkpoint
+        /// under a live reader, then commit 10..13: storage that cannot sync clears no frame and the
+        /// later commits append; storage that syncs reuses retired slots.
+        /// </summary>
+        private static void RetireUnderAReader(LiteEngine engine, LiteDatabase db, string filename, string mode)
+        {
+            db.CheckpointSize = 0;
+            if (mode == "data-detected-earlier")
+            {
+                Update(db, 1);
+                db.Checkpoint();
+            }
+            for (var value = 2; value <= 5; value++) Update(db, value);
+
+            using var reader = engine.Query("rows", new Query());
+            Worker(() =>
+            {
+                for (var value = 6; value <= 8; value++) Update(db, value);
+                var start = LogFileSize(db);
+                Update(db, 9);
+                var perUpdate = LogFileSize(db) - start;
+                perUpdate.Should().BeGreaterThan(0);
+
+                engine.Checkpoint();
+                if (mode != "syncs") BlankFrames(ReadShared(FileHelper.GetLogFile(filename))).Should().Be(0,
+                    "no committed frame is cleared without durable syncs");
+                var before = LogFileSize(db);
+                for (var value = 10; value <= 13; value++) Update(db, value);
+                var growth = LogFileSize(db) - before;
+                if (mode == "syncs") growth.Should().BeLessThan(4 * perUpdate, "syncing storage reuses retired slots");
+                else growth.Should().Be(4 * perUpdate, "commits after a checkpoint that could not sync append");
+            });
+        }
+
+        /// <summary>
+        /// Decision 9 of docs/decisions/durability-policy.md: with durable commits, a WAL directory that
+        /// cannot be synced (EACCES) fails the first commit loudly, before it writes a frame. The
+        /// failure is recorded (decision 6): the engine reads every row, reports the failure in
+        /// $database, and refuses every later write with it; neither changes a file.
+        /// </summary>
+        private static void AssertDurableCommitRefusedBeforeItWrites(LiteDatabase db, string filename)
+        {
+            var logName = FileHelper.GetLogFile(filename);
+            byte[] Log() => File.Exists(logName) ? ReadShared(logName) : Array.Empty<byte>();
+            var files = (Data: ReadShared(filename), Log: Log());
+
+            Action commit = () => Update(db, 1);
+            var failure = commit.Should().Throw<IOException>()
+                .WithMessage("This commit was not written: the log file's directory cannot sync to the device (#2242)*").Which;
+            ReadShared(filename).Should().Equal(files.Data, "the commit failed before it wrote");
+            Log().Should().Equal(files.Log, "no frame was written");
+
+            db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().HaveCount(8).And.OnlyContain(x => x == 0);
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A commit", "log",
+                "This commit was not written: the log file's directory cannot sync", walKept: files.Log.Length > 0);
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, 2), record).InnerException.Should().BeSameAs(failure);
+            ReadShared(filename).Should().Equal(files.Data, "the refused write changes nothing");
+            Log().Should().Equal(files.Log);
         }
 
         /// <summary>
@@ -156,11 +197,11 @@ namespace LiteDB.Tests.Regressions
         /// the OS cache only, so the checkpoint must not clear the retired frames, and later
         /// operations of the connection, fresh engines whose own log syncs succeed, must not reuse
         /// those slots. The checkpoint now stops ("stopped syncing") with its header journal kept,
-        /// and the connection's next operation, whose open cannot retire that journal while the
-        /// data file cannot sync, opens read-only: its write is refused with the WAL unchanged and
-        /// the connection keeps reading every commit; once the data file syncs, the connection
-        /// recovers and writes again. RetiredSlotPowerLoss_Tests covers other connections and
-        /// power loss.
+        /// and records the failure, which the connection keeps (decision 6 and default C of
+        /// docs/decisions/durability-policy.md): its later operations open read-only, so its write
+        /// is refused with that record and the WAL unchanged, and it keeps reading every commit,
+        /// also once the data file syncs. A new connection then recovers and writes again.
+        /// RetiredSlotPowerLoss_Tests covers other connections and power loss.
         /// </summary>
         [Theory]
         [InlineData("checkpoint-before-page-write")]   // found before the root is published: none is
@@ -209,14 +250,25 @@ namespace LiteDB.Tests.Regressions
                 frames.Should().BeGreaterThan(0);
 
                 var data = ReadShared(file.Filename);
-                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update64(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A checkpoint", "data",
+                    "The data file stopped syncing to the device during a checkpoint");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update64(db, 10), record);
                 SyncPowerLossModel.AssertRows(db, 64, 9); // the connection keeps reading
                 ReadShared(logName).Should().Equal(retired, "slots retired by a checkpoint whose data sync failed must not be reused");
                 ReadShared(file.Filename).Should().Equal(data);
 
-                dataFails = false; // the storage syncs again: the next operation recovers
-                Update64(db, 10);
-                DurableLogFlush(db).Should().BeFalse("the connection found the data file unsyncable");
+                dataFails = false; // the storage syncs again: the connection keeps its failure until it is reopened
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update64(db, 10), record);
+                SyncPowerLossModel.AssertRows(db, 64, 9);
+                ReadShared(logName).Should().Equal(retired);
+                ReadShared(file.Filename).Should().Equal(data);
+
+                using var reconnected = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                SyncPowerLossModel.AssertRows(reconnected, 64, 9);
+                Update64(reconnected, 10); // a new connection retries: its open recovers
+                SyncPowerLossModel.AssertRows(reconnected, 64, 10);
+                DurableLogFlush(reconnected).Should().BeTrue("the data file syncs again");
+                reconnected.GetCollection("$database").FindAll().Single()["writeFailure"].IsNull.Should().BeTrue();
             }
             finally
             {
