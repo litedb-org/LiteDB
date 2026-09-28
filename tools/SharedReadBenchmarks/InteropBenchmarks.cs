@@ -8,7 +8,10 @@ internal static class InteropBenchmarks
     // Both old and new production DLLs execute this identical public-API protocol.
     internal static void Run(string filename)
     {
-        using var db = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared, TransactionPageLimit = 3 });
+        var settings = new ConnectionString { Filename = filename, Connection = ConnectionType.Shared };
+        // Release baselines before v6 do not expose this tuning property.
+        settings.GetType().GetProperty("TransactionPageLimit")?.SetValue(settings, 3);
+        using var db = new LiteDatabase(settings);
         var rows = db.GetCollection("rows");
         var readers = new Dictionary<int, IEnumerator<BsonDocument>>();
         try

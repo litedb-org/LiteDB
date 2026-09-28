@@ -55,7 +55,9 @@ if ($PartitionSuite) {
         engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index'
         'query-not-equal' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
-        shared = 'FullyQualifiedName~LiteDB.Internals.Shared'
+        # Keep process-heavy Shared coverage within the per-session timeout on Windows x86.
+        'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process'
+        shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process'
         mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
