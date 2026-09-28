@@ -58,6 +58,45 @@ namespace LiteDB.Tests.Regressions
             power.AfterPowerLoss(Rows).Should().Be(10);
         }
 
+        /// <summary>
+        /// A kept WAL is rewritten by every full checkpoint. Automatic checkpoints wait until it has
+        /// doubled instead of running on every commit once it exceeds the checkpoint size.
+        /// </summary>
+        [Fact]
+        public void Automatic_checkpoints_are_rationed_while_the_wal_is_kept()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename) { DataFails = true };
+            var checkpoints = 0;
+            var settings = power.Settings();
+            settings.CheckpointStage = stage => { if (stage == "before-commit-lock") checkpoints++; };
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                db.CheckpointSize = 10;
+                for (var id = 1; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
+                db.GetCollection("log").Count().Should().Be(300);
+            }
+            checkpoints.Should().BeLessThan(20, "a kept WAL of n pages costs O(log n) automatic checkpoints, not one per commit");
+            power.AfterPowerLoss(Rows).Should().Be(0);
+        }
+
+        /// <summary>
+        /// A WAL the engine keeps in memory (LiteDatabase(Stream) without a log stream) protects
+        /// nothing, so a data stream that cannot sync does not keep it: it stays bounded.
+        /// </summary>
+        [Fact]
+        public void In_memory_wal_is_still_emptied_on_a_data_stream_that_cannot_sync()
+        {
+            using var data = new UnsyncableStream();
+            using var db = new LiteDatabase(data);
+            db.CheckpointSize = 10;
+            for (var id = 1; id <= 200; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
+            data.Rejected.Should().BeGreaterThan(0);
+            db.GetCollection("$database").FindAll().Single()["logFileSize"].AsInt64.Should().BeLessThan(40 * Constants.PAGE_SIZE);
+            db.GetCollection("log").Count().Should().Be(200);
+        }
+
         /// <summary>Control: storage where neither file syncs still empties the WAL, as before.</summary>
         [Fact]
         public void Full_checkpoint_empties_the_wal_when_neither_file_syncs()
@@ -111,6 +150,17 @@ namespace LiteDB.Tests.Regressions
                 docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
             }
             finally { File.Delete(logName); }
+        }
+
+        private sealed class UnsyncableStream : MemoryStream, IDurableStream
+        {
+            internal int Rejected;
+
+            public void FlushToDisk()
+            {
+                Rejected++;
+                throw new UnauthorizedAccessException("sync unsupported");
+            }
         }
 
         private const int Rows = 64;

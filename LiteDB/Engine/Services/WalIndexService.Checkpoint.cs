@@ -67,20 +67,22 @@ namespace LiteDB.Engine
 
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
-        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
+        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true, automatic: true);
 
         /// <summary>
         /// Checkpoint on engine close. A close that can reclaim always runs; shared
         /// engines ration partial work under live leases like commits do.
         /// </summary>
-        public int TryCloseCheckpoint() => this.TryCheckpoint(rationed: _rationClose);
+        public int TryCloseCheckpoint() => this.TryCheckpoint(rationed: _rationClose, automatic: _rationClose);
 
         /// <summary>
         /// Backfill only committed versions visible to every snapshot. Frames that
         /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
-        private int TryCheckpoint(bool rationed, bool drain = false)
+        private int TryCheckpoint(bool rationed, bool drain = false, bool automatic = false)
         {
+            // A kept WAL is rewritten by every full checkpoint: automatic ones wait until it doubled.
+            if (automatic && _backoff.DefersKeptWal(_disk.GetFileLength(FileOrigin.Log))) return 0;
             try { return TryCheckpointCore(rationed, drain); }
             catch (Exception error)
             {
@@ -172,7 +174,11 @@ namespace LiteDB.Engine
                 // syncs: an emptied WAL would become durable at the next log sync, the backfill
                 // never. Keep the WAL, as a partial checkpoint does, so every commit it holds stays
                 // recoverable. Storage where neither file syncs empties it as before.
-                if (reclaim && _disk.DataUnsyncedWhileLogSyncs) reclaim = false;
+                if (reclaim && _disk.DataUnsyncedWhileLogSyncs)
+                {
+                    reclaim = false;
+                    _backoff.KeptWal(_disk.GetFileLength(FileOrigin.Log));
+                }
 
                 // Storage that stopped syncing after the retirement's proof may not have made its
                 // witness records durable: a root published now could leave a durable header naming
@@ -201,6 +207,7 @@ namespace LiteDB.Engine
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif
                     _disk.SetLength(0, FileOrigin.Log);
+                    _backoff.WalEmptied();
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-after-clear");
 #endif

@@ -50,6 +50,7 @@ namespace LiteDB.Engine
             _readOnlyStorage = settings.ReadOnlyStorage && !settings.ReadOnly;
             _durableCommits = settings.DurableCommits;
             _sharedDurability = settings.SharedDurability;
+            _volatileLog = settings.VolatileLog;
             _signals = settings.CoordinationSignals;
 
             try

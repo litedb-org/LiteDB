@@ -17,7 +17,7 @@ namespace LiteDB.Engine
 
         private readonly bool _durableCommits;
         private readonly SharedDurabilityState _sharedDurability;
-        private readonly bool _dataIsFile;
+        private readonly bool _dataIsFile, _volatileLog;
         private volatile bool _logFlushDegraded;
 
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
@@ -66,9 +66,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// The latest data barrier answered "cannot sync" (#2242) while the latest log barrier
         /// synced: a backfill has not become durable, but a WAL change that discards its frames
-        /// would at the next log sync.
+        /// would at the next log sync. A WAL the engine keeps in memory protects nothing.
         /// </summary>
-        internal bool DataUnsyncedWhileLogSyncs => !_dataBarrierSynced && _logBarrierSynced;
+        internal bool DataUnsyncedWhileLogSyncs => !_volatileLog && !_dataBarrierSynced && _logBarrierSynced;
 
         /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
