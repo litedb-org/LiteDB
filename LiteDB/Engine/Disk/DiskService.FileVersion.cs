@@ -17,8 +17,10 @@ namespace LiteDB.Engine
         /// Writes hold the header lock and an active transaction; startup migration
         /// owns the disk exclusively. Only the persisted header is copied, never
         /// uncommitted header fields. Flush before publishing dependent WAL pages.
+        /// A checkpoint (<paramref name="checkpointStops"/>) holds the WAL writer until it stopped
+        /// the engine after any failure, so the promotion leaves the stop to it.
         /// </summary>
-        internal void PromoteFileFormat(byte version)
+        internal void PromoteFileFormat(byte version, bool checkpointStops = false)
         {
             if (FileVersion >= version) return;
             if (!ChecksumsEnabled) throw new InvalidOperationException("Enable checksums before promoting index storage.");
@@ -26,7 +28,7 @@ namespace LiteDB.Engine
             _signals?.StructuralBegin();
             try
             {
-                this.WriteFileVersion(writer, version);
+                this.WriteFileVersion(writer, version, checkpointStops);
             }
             finally
             {
@@ -34,7 +36,17 @@ namespace LiteDB.Engine
             }
         }
 
-        private void WriteFileVersion(Stream writer, byte version)
+        /// <summary>
+        /// The promotion keeps its header journal (the log's recovery copy of the header) until a
+        /// data sync covered the new header, like a checkpoint (<see cref="KeepsWal"/>): it writes only
+        /// to a data file that just synced, is refused unchanged while the data file cannot sync, and
+        /// stops the engine with the journal kept when the data file stops syncing in between.
+        /// </summary>
+        internal static IOException UnsyncedPromotion() => new IOException("Cannot upgrade this database's " +
+            "file format now: its data file cannot sync to the device, and the upgrade keeps its header's recovery " +
+            "copy in the log file until the new header synced. Retry once the storage syncs.");
+
+        private void WriteFileVersion(Stream writer, byte version, bool checkpointStops)
         {
             Exception failure = null;
             var ownsFailure = false;
@@ -52,6 +64,7 @@ namespace LiteDB.Engine
                         _ = new HeaderPage(header);
                         var rawLog = ((ChecksummedWalStream)writer).RawStream;
                         var originalLength = rawLog.Length;
+                        if (!_volatileLog && !this.DataFileSyncs()) throw UnsyncedPromotion();
                         var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                         if (compact) this.CrashPoint("promotion-before-journal-write");
                         BeginHeaderJournal(header.Array, promotion: compact);
@@ -64,6 +77,7 @@ namespace LiteDB.Engine
                         stream.Write(header.Array, 0, PAGE_SIZE);
                         if (compact) this.CrashPoint("promotion-after-header-write");
                         this.SyncDataBarrier(stream);
+                        if (this.KeepsWal) throw DataStoppedSyncing("a file format promotion");
                         if (compact) this.CrashPoint("promotion-after-header-flush");
                         rawLog.SetLength(originalLength);
                         if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
@@ -72,7 +86,7 @@ namespace LiteDB.Engine
                         _checksums.JournalBytes = 0;
                         FileVersion = version;
                     }
-                    catch (Exception ex) when (_checksums.JournalBytes != 0)
+                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops)
                     {
                         // The journal is the only recovery copy of a header this write may have torn.
                         // Whatever the exception type, stop before releasing the writer: a rollback or

@@ -182,8 +182,9 @@ the state of a crash at that point; the next open repairs a torn header from the
 and an open that would have to retire a journal while the data file cannot sync is refused
 (`readonly=true` still opens). A conversion and a rebuild, which empty a log, are refused
 there with both files unchanged. Only a WAL the engine keeps in memory, which survives no
-power loss, is emptied. A format promotion still retires its journal after a data sync that
-may have answered "cannot sync"; its header change is confined to the first sector. A legacy header
+power loss, is emptied. A format promotion keeps its journal the same way: it writes only
+right after a data sync that succeeded, is refused otherwise, and stops the engine with the
+journal kept when the data file stops syncing after its header write. A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.

@@ -147,9 +147,9 @@ the frames it retired and publishes no root once it found out. Before its first 
 every engine (of any connection) syncs the WAL, and before its first log sync an engine
 whose data is a file proves the data file (once per data header in the process). Remove a
 file WAL or a header journal only after a data sync that covers what it protects succeeded;
-never infer that no earlier engine or process synced its frames. A checkpoint syncs the data
-file before it writes and writes nothing while that fails; a failure later in the checkpoint
-stops the engine before any removal; recovery that would retire a journal without a data
+never infer that no earlier engine or process synced its frames. A checkpoint or format
+promotion syncs the data file before it writes and writes nothing while that fails; a failure
+later in either stops the engine before any removal; recovery that would retire a journal without a data
 sync refuses the open; a conversion or rebuild is refused unchanged; and after "cannot sync"
 a log sync waits for a data sync that succeeds.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.

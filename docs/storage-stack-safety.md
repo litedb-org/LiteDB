@@ -123,8 +123,8 @@ sync stops them. Storage that answers "cannot sync" (#2242), for the WAL or the 
 to ordered OS-cache flushes that survive a process crash, not power loss, as before
 #2818; encrypted preambles still require a successful sync. A file WAL is emptied only after
 a data sync that covers its backfill succeeded, so there it is kept and grows
-(`$database.walKept`), a checkpoint writes only right after a data sync that succeeded (a
-later failure in it stops the engine with the WAL and journal intact), recovery that would
+(`$database.walKept`), a checkpoint or format promotion writes only right after a data sync
+that succeeded (a later failure in it stops the engine with the WAL and journal intact), recovery that would
 retire a header journal without a data sync refuses the open, and a conversion or rebuild
 is refused unchanged. A WAL directory the process
 cannot open for reading (EACCES/EPERM) counts as a directory that cannot sync. On Unix, released .NET
