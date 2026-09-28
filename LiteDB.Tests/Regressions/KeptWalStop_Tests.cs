@@ -15,7 +15,8 @@ namespace LiteDB.Tests.Regressions
     /// The WAL and its header journal (the log's recovery copy of the data header) are removed only
     /// after a data sync that covers what they protect succeeded (#2242). A checkpoint writes only
     /// to a data file that just synced; one whose data file stops syncing after it wrote throws
-    /// "stopped syncing" and stops the engine with both kept; an open whose repaired header cannot
+    /// "stopped syncing" and stops the engine with both kept, which then continues read-only
+    /// (decision 6 of docs/decisions/durability-policy.md); an open whose repaired header cannot
     /// sync keeps the journal; a conversion whose header cannot sync keeps its journal. Power-loss
     /// images keep each file as of its last successful sync, or take the WAL as written back and
     /// tear the data header.
@@ -28,9 +29,10 @@ namespace LiteDB.Tests.Regressions
         /// The data file stops syncing at a full checkpoint's salt rotation ("before-reclaim"), after
         /// its backfill synced. The checkpoint then emptied the WAL with its header journal while the
         /// rotated header was in the OS cache only. It now throws "stopped syncing" and stops the
-        /// engine with both kept. The data file as last synced or with its header torn, with the WAL
-        /// as written back or as last synced, opens with every collection and document, the drop
-        /// acknowledged durable included. The rotation changes only the header's first sector, so a
+        /// engine with both kept; the engine continues read-only, reads every collection and refuses
+        /// writes without changing a file. The data file as last synced or with its header torn,
+        /// with the WAL as written back or as last synced, opens with every collection and document,
+        /// the drop acknowledged durable included. The rotation changes only the header's first sector, so a
         /// 512- or 4096-byte tear holds all of it; a 64-byte tear leaves a header whose checksum
         /// fails, which only the kept journal repairs.
         /// </summary>
@@ -337,7 +339,10 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Drop the first collection (acknowledged durable), then checkpoint with the data file
         /// failing from <paramref name="stage"/> on: the checkpoint throws "stopped syncing" and the
-        /// engine stops. Returns the files as last synced, and the data file and WAL as they are.
+        /// engine stops. The failure is recorded (decision 6), so the next call reopens the engine
+        /// read-only: it reads every collection, reports the failure, and refuses a write, and
+        /// neither changes a file. Returns the files as last synced, and the data file and WAL as
+        /// they are.
         /// </summary>
         private static ((byte[] Data, byte[] Log) Synced, byte[] Data, byte[] Log) StopCheckpoint(string filename, string stage)
         {
@@ -350,9 +355,19 @@ namespace LiteDB.Tests.Regressions
             Action checkpoint = () => db.Checkpoint();
             checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
             power.DataFails.Should().BeTrue("the checkpoint reached " + stage);
-            Action query = () => db.GetCollectionNames().ToArray();
-            query.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*", "the failed checkpoint stopped the engine");
-            return (power.Capture(), SyncPowerLossModel.ReadShared(filename), SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(filename)));
+            var synced = power.Capture();
+            var (data, log) = (SyncPowerLossModel.ReadShared(filename), SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(filename)));
+
+            AssertCollections(db);
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A checkpoint", "data", "The data file stopped syncing to the device during a checkpoint");
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => db.GetCollection(Name(1)).Insert(new BsonDocument { ["_id"] = 2 }), record);
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => db.DropCollection(Name(1)), record);
+            AssertCollections(db);
+            SyncPowerLossModel.ReadShared(filename).Should().Equal(data, "the read-only engine writes nothing");
+            SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(filename)).Should().Equal(log);
+            power.Capture().Data.Should().Equal(synced.Data);
+            power.Capture().Log.Should().Equal(synced.Log);
+            return (synced, data, log);
         }
 
         /// <summary>The data file as last synced with the first <paramref name="bytes"/> of its header written back.</summary>

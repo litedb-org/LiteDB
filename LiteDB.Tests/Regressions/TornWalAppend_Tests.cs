@@ -11,10 +11,13 @@ namespace LiteDB.Tests.Regressions
     /// A WAL append that fails part-way can leave a torn frame at the end of the WAL; the failed
     /// write then truncates it. If that truncation fails too, the torn frame stays, and recovery
     /// stops at it: a commit written behind it would be lost. Such a write now stops the engine
-    /// before the WAL writer is released, whatever the exception type, so no commit is written
-    /// after it; the reopen's recovery discards the torn tail. When the truncation succeeds, a
-    /// non-I/O failure of a safepoint write only rolls back, and the failed append's position is
-    /// released, so the next append rewrites that slot instead of leaving a hole behind it.
+    /// before the WAL writer is released, whatever the exception type, and records the failure: the
+    /// engine's next call reopens it read-only (decision 6 of docs/decisions/durability-policy.md),
+    /// so it reads what the files hold and refuses every write before it changes anything, and no
+    /// commit is written after the torn frame; a later open's recovery discards the torn tail.
+    /// When the truncation succeeds, a non-I/O failure of a safepoint write only rolls back, and
+    /// the failed append's position is released, so the next append rewrites that slot instead
+    /// of leaving a hole behind it.
     /// Checked with a frame torn at half its length and with a complete frame whose write still
     /// reported failure, for the first and second frame written after the failure is armed.
     /// </summary>
@@ -30,7 +33,7 @@ namespace LiteDB.Tests.Regressions
         [InlineData(2, false, true)]
         [InlineData(1, true, true)]
         [InlineData(2, true, true)]
-        public void Failed_truncation_of_a_torn_append_stops_the_engine(int frame, bool completeFrame, bool ioFailure)
+        public void Failed_truncation_of_a_torn_append_leaves_the_engine_read_only(int frame, bool completeFrame, bool ioFailure)
         {
             using var data = new MemoryStream();
             using var log = new TornLog { IoFailure = ioFailure };
@@ -50,8 +53,18 @@ namespace LiteDB.Tests.Regressions
                 log.SetLengthFailed.Should().BeTrue("the truncation of the torn frame failed too");
                 log.Disarm();
 
-                Action later = () => db.GetCollection("rows").Insert(Row(300, 0));
-                later.Should().Throw<IOException>().WithMessage("Engine closed*", "no commit may follow a torn frame");
+                // No commit may follow the torn frame: the engine continues read-only, reads the rows
+                // acknowledged before the failure, and refuses every write before it changes a byte.
+                var files = (Data: data.ToArray(), Log: log.ToArray());
+                var rows = db.GetCollection("rows");
+                rows.FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 20).Select(id => Row(id, 0)), o => o.WithStrictOrdering());
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log",
+                    ioFailure ? "injected torn frame write" : "WAL frame write failed.");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => rows.Insert(Row(300, 0)), record);
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => rows.Update(Row(1, 7)), record);
+                rows.Count().Should().Be(20);
+                data.ToArray().Should().Equal(files.Data, "the read-only engine writes nothing");
+                log.ToArray().Should().Equal(files.Log, "nothing is appended behind the torn frame");
             }
 
             using (var reopened = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log })))

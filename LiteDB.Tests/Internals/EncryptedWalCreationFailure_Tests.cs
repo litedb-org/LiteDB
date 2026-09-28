@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Regressions;
 using Xunit;
 
 namespace LiteDB.Internals
@@ -33,9 +35,26 @@ namespace LiteDB.Internals
                 data.ToArray().Should().Equal(original);
                 var retainedWal = log.ToArray();
                 Action nextWrite = () => rows.Insert(new BsonDocument { ["_id"] = 1000 });
-                nextWrite.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
-                Action rollback = () => db.Rollback();
-                rollback.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
+                if (unsupported)
+                {
+                    // A non-I/O failure is not recorded as a write failure: the engine stays closed.
+                    nextWrite.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
+                    Action rollback = () => db.Rollback();
+                    rollback.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
+                }
+                else
+                {
+                    // The failed sync is recorded (decision 6 of docs/decisions/durability-policy.md): the
+                    // engine continues read-only, reads the old rows, and refuses writes with the record,
+                    // whose inner exception is the failure itself.
+                    rows.FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1, 2, 3, 4);
+                    rows.Find(Query.EQ("value", 1)).Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 3 });
+                    var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A commit", null, "preamble sync failed", walKept: false);
+                    ReadOnlyAfterWriteFailure.AssertWriteRefused(nextWrite, record).InnerException.Should().BeSameAs(log.Failure);
+                    db.Rollback().Should().BeFalse("the failed commit left no transaction");
+                    rows.Count().Should().Be(4, "neither write is visible");
+                    data.ToArray().Should().Equal(original, "the read-only engine writes nothing");
+                }
                 log.ToArray().Should().Equal(retainedWal);
             }
 

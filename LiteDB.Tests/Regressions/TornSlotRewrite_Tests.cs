@@ -18,14 +18,17 @@ namespace LiteDB.Tests.Regressions
     ///   the transaction was rolled back and the engine kept committing;
     /// - with an IOException, a committer already waiting for the WAL writer got in before the
     ///   engine stopped.
-    /// A failed overwrite now stops the engine before the WAL writer is released.
+    /// A failed overwrite now stops the engine before the WAL writer is released and records the
+    /// failure: the engine's next call reopens it read-only (decision 6 of
+    /// docs/decisions/durability-policy.md), so it reads what the files hold and refuses every write,
+    /// and the explicit transaction the failure ended at its Commit, before anything is written.
     /// 5.0.21 only appended WAL frames and had no frame CRC, so later commits were recovered.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     public class TornSlotRewrite_Tests
     {
         [Fact]
-        public void Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit()
+        public void Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit()
         {
             using var data = new MemoryStream();
             using var log = new FailingLogStream(() => throw new UnauthorizedAccessException("injected partial overwrite (EACCES)"));
@@ -44,14 +47,24 @@ namespace LiteDB.Tests.Regressions
                 (length - log.FailedPosition).Should().BeGreaterOrEqualTo(WalChecksum.FrameSize,
                     "the failure must tear an existing frame in place, not an append into the tail padding");
 
-                // Nothing may be appended behind the torn frame: the stopped engine rethrows its failure.
-                Action insert = () => db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
-                insert.Should().Throw<IOException>().WithMessage("*WAL frame write failed*")
-                    .Where(ex => ex.GetBaseException() is UnauthorizedAccessException);
-
                 // Process crash: take the bytes before any close-time work.
                 crashData = data.ToArray();
                 crashLog = log.ToArray();
+
+                // Nothing may be appended behind the torn frame: the engine continues read-only. It
+                // reads the commits acknowledged before the failure (not the aborted transaction) and
+                // refuses a write, and the explicit transaction the failure ended at its Commit, with
+                // the recorded failure, before either changes a byte.
+                db.GetCollection("a").FindById(1)["value"].AsInt32.Should().Be(0, "the aborted transaction is absent");
+                ((object)db.GetCollection("b").FindById(1)).Should().NotBeNull();
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log", "WAL frame write failed.");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 }), record)
+                    .GetBaseException().Should().BeOfType<UnauthorizedAccessException>();
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => db.Commit(), record);
+                db.Rollback().Should().BeFalse("the transaction ended at the refused Commit");
+                ((object)db.GetCollection("b").FindById(2)).Should().BeNull();
+                data.ToArray().Should().Equal(crashData, "the read-only engine writes nothing");
+                log.ToArray().Should().Equal(crashLog, "nothing is appended behind the torn frame");
             }
 
             var (value, second) = Recover(crashData, crashLog);
@@ -61,9 +74,11 @@ namespace LiteDB.Tests.Regressions
 
 #if DEBUG || TESTING
         /// <summary>
-        /// The IOException case: a commit that reaches the WAL writer right after the failed rewrite
-        /// released it, before the engine's teardown, finds the engine stopped. A test hook runs the
-        /// commit on another thread in exactly that window.
+        /// The IOException case: a commit that starts right after the failed rewrite released the WAL
+        /// writer, before the engine's teardown, finds the engine stopped: it waits for the teardown,
+        /// then the engine reopens read-only (decision 6) and the commit throws the recorded failure
+        /// without writing. A test hook starts the commit on another thread in exactly that window and
+        /// lets the teardown go on once the commit waits for it.
         /// </summary>
         [Fact]
         public void Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost()
@@ -74,7 +89,9 @@ namespace LiteDB.Tests.Regressions
 
             byte[] crashData, crashLog;
             var acknowledged = false;
-            var windowRan = false;
+            var waited = false;
+            Exception refused = null;
+            Thread committer = null;
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -82,32 +99,39 @@ namespace LiteDB.Tests.Regressions
                 engine.SimulateAfterFailedWalWrite = () =>
                 {
                     engine.SimulateAfterFailedWalWrite = null;
-                    windowRan = true;
-                    var committer = new Thread(() =>
+                    committer = new Thread(() =>
                     {
                         try
                         {
                             db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 });
                             acknowledged = true;
                         }
-                        catch (Exception) { }
+                        catch (Exception ex) { refused = ex; }
                     });
                     committer.Start();
-                    committer.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
+                    // The commit blocks in the engine until this thread's teardown completes.
+                    waited = SpinWait.SpinUntil(() => (committer.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(30));
                 };
 
                 log.Armed = true;
                 Action update = () => db.GetCollection("a").Update(new BsonDocument { ["_id"] = 1, ["value"] = 3 });
-                update.Should().Throw<IOException>();
-                windowRan.Should().BeTrue("the commit ran after the failed write released the WAL writer");
+                update.Should().Throw<IOException>().WithMessage("injected partial overwrite");
+                committer.Should().NotBeNull("the failed write released the WAL writer before its teardown");
+                waited.Should().BeTrue("the commit started before the teardown and waited for it");
+                committer.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
 
                 crashData = data.ToArray();
                 crashLog = log.ToArray();
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log", "injected partial overwrite");
+                refused.Should().BeOfType<IOException>().Which.Message.Should().Be(LiteEngine.WriteFailedPrefix + record,
+                    "the commit found the engine stopped and wrote nothing");
+                data.ToArray().Should().Equal(crashData);
+                log.ToArray().Should().Equal(crashLog);
             }
 
             var (value, second) = Recover(crashData, crashLog);
             value.Should().Be(0);
-            if (acknowledged) second.Should().BeTrue("an acknowledged commit must survive crash recovery");
+            second.Should().BeFalse("the refused commit wrote nothing");
             acknowledged.Should().BeFalse("the engine stopped before it released the WAL writer");
         }
 #endif

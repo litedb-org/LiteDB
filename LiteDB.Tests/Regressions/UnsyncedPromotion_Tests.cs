@@ -33,7 +33,8 @@ namespace LiteDB.Tests.Regressions
         /// first; the data file stops syncing right after the promotion wrote its header. The
         /// checkpoint then wrote its whole backfill to that data file. It now stops: no page is
         /// written, the promotion's journal is kept, and every image opens with commit 9, which was
-        /// acknowledged durable.
+        /// acknowledged durable. The failure is recorded (decision 6): the engine continues
+        /// read-only, reads commit 9 and refuses writes without changing a file.
         /// </summary>
         [Fact]
         public void Retiring_checkpoint_stops_when_its_promotion_header_does_not_sync()
@@ -75,12 +76,13 @@ namespace LiteDB.Tests.Regressions
             thrown.Should().BeOfType<IOException>().Which.Message.Should().StartWith(
                 "The data file stopped syncing to the device during a file format promotion");
             pages.Should().Be(0, "no page is written to a data file whose sync just failed");
-            Action query = () => db.GetCollection("rows").Count();
-            query.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*");
 
             var synced = power.Capture();
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
+            AssertReadOnly(db, "A checkpoint", "The data file stopped syncing to the device during a file format promotion", 9, 5);
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
+            SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
             HasJournal(synced.Log).Should().BeTrue("the promotion's journal synced and is kept");
             data.Skip(PAGE_SIZE).Should().Equal(synced.Data.Skip(PAGE_SIZE), "only the promoted header was written");
             var torn = TearBeforeLastChange(synced.Data, data);
@@ -98,9 +100,11 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A compact-storage write would promote a legacy-storage file while the data file cannot sync:
         /// the promotion is refused before it writes anything, and the write falls back to BSON (as
-        /// whenever compact storage does not pay) instead of failing and closing the engine; the engine
-        /// does not retry the refused promotion until a data sync succeeds (the next commit's log sync
-        /// retries it first). Once the data file syncs, the compact write after that commit promotes.
+        /// whenever compact storage does not pay) instead of failing and closing the engine; its commit
+        /// stays durable in the WAL (decision 4 of docs/decisions/durability-policy.md), which is kept.
+        /// The engine does not retry the refused promotion until a data sync succeeds: a commit's log
+        /// sync no longer retries it, a checkpoint does. Once the data file syncs, the compact write
+        /// after that checkpoint promotes.
         /// </summary>
         [Fact]
         public void Compact_write_stays_bson_while_the_data_file_cannot_sync()
@@ -119,11 +123,14 @@ namespace LiteDB.Tests.Regressions
                 SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the promotion wrote nothing");
                 db.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 4).Select(Compact), o => o.WithStrictOrdering());
                 SyncPowerLossModel.AssertRows(db, Rows, 0);
-                Info(db)["durableLogFlush"].AsBoolean.Should().BeFalse("the data file cannot sync");
+                Info(db)["durableLogFlush"].AsBoolean.Should().BeTrue("the commit is durable in the WAL while only the data file cannot sync");
+                Info(db)["walKept"].AsBoolean.Should().BeTrue("the data file cannot sync");
+                Info(db)["writeFailure"].IsNull.Should().BeTrue("a refused promotion is not a failure");
 
                 power.DataFails = false;
                 db.GetCollection("compact").Insert(Enumerable.Range(5, 4).Select(Compact));
                 Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeLessThan(HeaderPage.COMPACT_FILE_VERSION, "no data sync succeeded before this write");
+                db.Checkpoint(); // retries the data sync first
                 db.GetCollection("compact").Insert(Enumerable.Range(9, 4).Select(Compact));
                 Header(file.Filename)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.COMPACT_FILE_VERSION);
             }
@@ -137,19 +144,64 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A retiring checkpoint whose data file stops syncing between its retirement proof and the
         /// MVCC promotion's own data sync: the promotion is refused before it writes anything, and the
-        /// checkpoint stops the engine with both files unchanged; every commit acknowledged durable
-        /// opens from them.
+        /// checkpoint throws the refusal with both files unchanged; the engine keeps reading every
+        /// commit, and every commit acknowledged durable opens from the files.
         /// </summary>
         [Fact]
         public void Retiring_checkpoint_stops_unchanged_when_its_promotion_is_refused()
         {
             using var file = new TempFile();
-            using (var setup = new LiteDatabase(file.Filename))
-                setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
-            var logName = FileHelper.GetLogFile(file.Filename);
+            SetupRows(file.Filename);
             using var power = new FilePowerLossModel(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
+            var (data, log) = RefusePromotionInCheckpoint(file.Filename, power, engine, db);
+            SyncPowerLossModel.AssertRows(db, Rows, 9);
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
+            SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
+            power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 9));
+        }
+
+        /// <summary>
+        /// Suspected engine defect, left failing: implementation note 6 of
+        /// docs/decisions/durability-policy.md says a data sync that answers "cannot sync" before a
+        /// checkpoint or promotion writes is not a failure, and decision 4 keeps commits durable in the
+        /// WAL while only the data file cannot sync. The refused promotion above writes nothing, yet the
+        /// checkpoint records it as a write failure ("A checkpoint failed ...: Cannot upgrade this
+        /// database's file format now ...") and the engine refuses every later write until reopened
+        /// (DiskService.BeginCheckpointStop records every IOException). Expected: nothing is recorded
+        /// and the next commit is durable in the WAL.
+        /// </summary>
+        [Fact]
+        public void Refused_promotion_of_a_retiring_checkpoint_is_not_a_write_failure()
+        {
+            using var file = new TempFile();
+            SetupRows(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            RefusePromotionInCheckpoint(file.Filename, power, engine, db);
+            Info(db)["writeFailure"].IsNull.Should().BeTrue("the refused promotion wrote nothing (note 6)");
+            Info(db)["readOnly"].AsBoolean.Should().BeFalse();
+            Update(db, 10);
+            Info(db)["durableLogFlush"].AsBoolean.Should().BeTrue();
+            power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 10));
+        }
+
+        private static void SetupRows(string filename)
+        {
+            using var setup = new LiteDatabase(filename);
+            setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+        }
+
+        /// <summary>
+        /// Commits 1 to 9 under a live reader, then a retiring checkpoint whose data file stops syncing
+        /// between its retirement proof and the promotion's own data sync: the checkpoint throws the
+        /// refusal, which wrote nothing. Returns both files as they were before the checkpoint.
+        /// </summary>
+        private static (byte[] Data, byte[] Log) RefusePromotionInCheckpoint(string filename, FilePowerLossModel power, LiteEngine engine, LiteDatabase db)
+        {
+            var logName = FileHelper.GetLogFile(filename);
             db.CheckpointSize = 0;
             for (var value = 1; value <= 5; value++) Update(db, value);
             Exception thrown = null;
@@ -161,26 +213,25 @@ namespace LiteDB.Tests.Regressions
                 {
                     for (var value = 6; value <= 9; value++) Update(db, value);
                     Info(db)["durableLogFlush"].AsBoolean.Should().BeTrue("commit 9 is acknowledged durable");
-                    data = SyncPowerLossModel.ReadShared(file.Filename);
+                    data = SyncPowerLossModel.ReadShared(filename);
                     log = SyncPowerLossModel.ReadShared(logName);
                     power.DataFailsFromSync = power.DataSyncs + 2; // the proof's data sync, then the promotion's
                     try { db.Checkpoint(); } catch (Exception ex) { thrown = ex; }
                 });
             }
             thrown.Should().BeOfType<IOException>().Which.Message.Should().StartWith("Cannot upgrade this database's file format now");
-            Action query = () => db.GetCollection("rows").Count();
-            query.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*");
-            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
+            SyncPowerLossModel.ReadShared(filename).Should().Equal(data, "the refused promotion wrote nothing");
             SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
-            power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 9));
+            return (data, log);
         }
 
         /// <summary>
         /// The data file stops syncing right after a compact-storage write's promotion wrote the new
         /// header. The promotion retired its journal anyway, leaving the header change in the OS cache
         /// with no durable recovery copy. It now stops the engine with the journal kept: the write is
-        /// not acknowledged, and every image, also one with the header torn, opens with the rows as
-        /// they were.
+        /// not acknowledged, the engine continues read-only (decision 6) with the rows as they were and
+        /// refuses writes without changing a file, and every image, also one with the header torn,
+        /// opens with the rows as they were.
         /// </summary>
         [Fact]
         public void Promotion_whose_header_does_not_sync_stops_with_its_journal()
@@ -196,12 +247,14 @@ namespace LiteDB.Tests.Regressions
             Action insert = () => db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
             insert.Should().Throw<IOException>().WithMessage(
                 "The data file stopped syncing to the device during a file format promotion*");
-            Action query = () => db.GetCollection("rows").Count();
-            query.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*");
 
             var synced = power.Capture();
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
+            AssertReadOnly(db, "A file format promotion", "The data file stopped syncing to the device during a file format promotion", 0, 0);
+            db.GetCollectionNames().Should().NotContain("compact");
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
+            SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
             HasJournal(synced.Log).Should().BeTrue("the journal synced before the header was written, and is kept");
             HasJournal(log).Should().BeTrue();
             var torn = TearBeforeLastChange(synced.Data, data);
@@ -334,6 +387,21 @@ namespace LiteDB.Tests.Regressions
         private static BsonDocument Extra(int id) => new BsonDocument { ["_id"] = id, ["p"] = new string('e', 3000) };
 
         private static BsonDocument Info(LiteDatabase db) => db.GetCollection("$database").FindAll().Single();
+
+        /// <summary>
+        /// After a recorded failure of <paramref name="operation"/> on the data file (decision 6) the
+        /// engine continues read-only: it reads commit <paramref name="value"/> and the extra rows of
+        /// commits 1 to <paramref name="extras"/>, reports the failure, and refuses a write.
+        /// </summary>
+        private static void AssertReadOnly(LiteDatabase db, string operation, string error, int value, int extras)
+        {
+            SyncPowerLossModel.AssertRows(db, Rows, value);
+            db.GetCollection("extra").FindAll().Select(d => d["_id"].AsInt32).Should().BeEquivalentTo(
+                Enumerable.Range(1, extras).SelectMany(v => Enumerable.Range(v * 100 + 1, 10)));
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, operation, "data", error);
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, value + 1), record);
+            SyncPowerLossModel.AssertRows(db, Rows, value);
+        }
 
         private static byte[] Header(string filename) => SyncPowerLossModel.ReadShared(filename).Take(PAGE_SIZE).ToArray();
 
