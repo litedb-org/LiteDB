@@ -215,6 +215,31 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// Only the legacy conversion resets the WAL, once drained: a reset of a WAL that holds frames
+        /// would empty it without a data sync, so it throws before changing anything.
+        /// </summary>
+        [Fact]
+        public void Wal_reset_refuses_a_wal_that_holds_frames()
+        {
+            using var file = new TempFile();
+            SetupRows(file.Filename);
+            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                UpdateRows(db, 1);
+            }
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var log = SyncPowerLossModel.ReadShared(logName);
+            log.Length.Should().BeGreaterThan(0);
+            Action reset = () => engine.GetWalIndex().Clear();
+            reset.Should().Throw<InvalidOperationException>().WithMessage("Only a drained legacy WAL can be reset.");
+            SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
+            using var again = new LiteDatabase(engine, disposeOnClose: false);
+            SyncPowerLossModel.AssertRows(again, Rows, 1);
+        }
+
+        /// <summary>
         /// A shared connection reports its kept WAL connection-wide, since each operation's engine
         /// is fresh, and stops once a data sync succeeds: here a partial checkpoint (a live reader
         /// keeps the WAL) syncs the data file, and the WAL left is no longer a kept one.
