@@ -15,7 +15,8 @@ namespace LiteDB.Tests.Regressions
     ///
     /// 5.0.21: the database opens, documents 1 and 3 are readable, and db.Rebuild() keeps all three
     /// documents - document 2 with the fields read before the damage ({_id: 2, a: "keep-2"}) - and
-    /// records one _rebuild_errors entry. A writable open of this version must migrate every index
+    /// records one _rebuild_errors entry (this version adds one naming document 2 as kept partially:
+    /// it reads like a complete document). A writable open of this version must migrate every index
     /// from its documents, which the damage prevents; it cannot stamp unverified indexes as migrated.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
@@ -238,8 +239,10 @@ namespace LiteDB.Tests.Regressions
                 col.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 2, 4 });
                 col.FindById(2).Keys.Should().BeEquivalentTo(new[] { "_id" });
                 col.FindById(4)["b"].AsString.Should().Be("u-4");
-                db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
-                    .Should().Contain(x => x.Contains("damaged document 3 was not kept") && x.Contains("unique index 'b'"));
+                var errors = db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString).ToList();
+                errors.Should().Contain(x => x.Contains("damaged document 3 was not kept") && x.Contains("unique index 'b'"));
+                errors.Should().Contain(x => x.Contains("Only the readable part of damaged document 2 was kept"));
+                errors.Should().NotContain(x => x.Contains("Only the readable part of damaged document 3"));
                 col.Insert(new BsonDocument { ["_id"] = 5, ["b"] = "u-5" });
             }
 
@@ -289,7 +292,8 @@ namespace LiteDB.Tests.Regressions
             var partial = col.FindById(2);
             partial["a"].AsString.Should().Be("keep-2");
             partial.ContainsKey("b").Should().BeFalse();
-            db.GetCollection("_rebuild_errors").Count().Should().BeGreaterOrEqualTo(1);
+            db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                .Should().Contain(x => x.Contains("Only the readable part of damaged document 2 was kept"), "it reads like a complete document");
         }
 
         private static byte[] Fixture(string name = "DamagedDocument_5_0_21.zip")

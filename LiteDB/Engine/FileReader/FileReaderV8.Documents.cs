@@ -14,6 +14,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<string, HashSet<BsonValue>> _completeIDs =
             new Dictionary<string, HashSet<BsonValue>>(StringComparer.OrdinalIgnoreCase);
         private (BsonDocument Document, PageInfo Page) _current;
+        private bool _currentRejected;
 
         public IEnumerable<BsonDocument> GetDocuments(string collection)
         {
@@ -184,7 +185,11 @@ namespace LiteDB.Engine
                         continue;
                     }
                     _current = item;
+                    _currentRejected = false;
                     yield return item.Document;
+                    // Kept: it reads like a complete document, so say which one lost its later fields.
+                    if (!_currentRejected)
+                        this.HandleError($"Only the readable part of damaged document {id} was kept: its fields after the damage are missing.", item.Page);
                 }
             }
             finally
@@ -199,6 +204,7 @@ namespace LiteDB.Engine
         public void RejectSalvagedDocument(string collection, BsonDocument document, string reason)
         {
             // Called for the document just yielded by GetSalvagedDocuments.
+            if (ReferenceEquals(_current.Document, document)) _currentRejected = true;
             var page = ReferenceEquals(_current.Document, document)
                 ? _current.Page
                 : _salvaged[collection].First(x => ReferenceEquals(x.Document, document)).Page;
