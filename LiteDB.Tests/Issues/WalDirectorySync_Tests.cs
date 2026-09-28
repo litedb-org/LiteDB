@@ -34,7 +34,7 @@ namespace LiteDB.Tests.Issues
                     var rows = db.GetCollection("rows");
                     rows.Insert(new BsonDocument { ["_id"] = 1 });
                     syncs.Should().HaveCount(1, "the first durable commit publishes the new WAL's name");
-                    syncs[0].Should().Be(Path.GetDirectoryName(Path.GetFullPath(file.Filename)));
+                    syncs[0].Should().Be(Path.GetDirectoryName(Client.Shared.DatabaseFileIdentity.CanonicalPath(file.Filename)));
 
                     rows.Insert(new BsonDocument { ["_id"] = 2 });
                     db.Checkpoint();

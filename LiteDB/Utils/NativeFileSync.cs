@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using LiteDB.Client.Shared;
 
 namespace LiteDB
 {
@@ -45,8 +46,8 @@ namespace LiteDB
             if (simulate != null)
             {
                 stream.Flush(true);
-                var injected = simulate(stream.Name);
-                if (injected != 0) throw new FileSyncException(stream.Name, injected, _bsd);
+                var injected = simulate(AdmittedFileStream.GetName(stream));
+                if (injected != 0) throw new FileSyncException(AdmittedFileStream.GetName(stream), injected, _bsd);
                 return;
             }
 #endif
@@ -69,7 +70,7 @@ namespace LiteDB
             // Push managed buffers to the OS, then sync the descriptor ourselves.
             stream.Flush(false);
             var errno = Sync(stream.SafeFileHandle, fsync, fcntl);
-            if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
+            if (errno != 0) throw new FileSyncException(AdmittedFileStream.GetName(stream), errno, _bsd);
         }
 
         private static bool OverridesFlush(Type type)

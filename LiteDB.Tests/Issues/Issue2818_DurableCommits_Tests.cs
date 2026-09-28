@@ -391,13 +391,7 @@ namespace LiteDB.Tests.Issues
         }
 
         // The engine still holds both files open.
-        private static byte[] ReadShared(string filename)
-        {
-            using var input = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var output = new MemoryStream();
-            input.CopyTo(output);
-            return output.ToArray();
-        }
+        private static byte[] ReadShared(string filename) => TempFile.ReadAllBytesShared(filename);
 
         private static string LogOf(TempFile file)
         {

@@ -17,7 +17,11 @@ namespace LiteDB.Internals
         private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-abi-process-" + Guid.NewGuid().ToString("N"));
         private bool _passed;
         private string Filename => Path.Combine(_directory, "test.db");
-        public SharedCoordinationUpgradeProcess_Tests() => Directory.CreateDirectory(_directory);
+        public SharedCoordinationUpgradeProcess_Tests()
+        {
+            Directory.CreateDirectory(_directory);
+            _directory = DatabaseFileIdentity.CanonicalPath(_directory);
+        }
 
         public static System.Collections.Generic.IEnumerable<object[]> UpgradeBoundaries()
         {

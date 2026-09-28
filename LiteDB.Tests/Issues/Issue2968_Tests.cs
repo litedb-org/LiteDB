@@ -17,6 +17,7 @@ namespace LiteDB.Tests.Issues
         {
             using var file = new TempFile();
             var settings = new EngineSettings { Filename = file.Filename };
+            SharedModeGuard.Normalize(settings);
             using var engine = new SharedEngine(settings);
             var mutexName = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);
@@ -69,6 +70,7 @@ namespace LiteDB.Tests.Issues
         {
             using var file = new TempFile();
             var settings = new EngineSettings { Filename = file.Filename };
+            SharedModeGuard.Normalize(settings);
             using var engine = new SharedEngine(settings);
             var mutexName = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);

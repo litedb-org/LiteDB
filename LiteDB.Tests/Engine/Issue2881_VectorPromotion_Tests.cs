@@ -128,14 +128,7 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("vectors").Count().Should().Be(1);
         }
 
-        private static byte[] ReadDataFile(string filename)
-        {
-            // Inspect the flushed bytes while the database still owns its writable handle.
-            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var copy = new MemoryStream();
-            stream.CopyTo(copy);
-            return copy.ToArray();
-        }
+        private static byte[] ReadDataFile(string filename) => TempFile.ReadAllBytesShared(filename);
 
         private static LiteDatabase OpenLegacy(string filename)
         {
@@ -148,7 +141,7 @@ namespace LiteDB.Tests.Engine
 
         private static byte ReadVersion(string filename, string password)
         {
-            using var factory = new FileStreamFactory(filename, password, true, false);
+            using var factory = new FileStreamFactory(filename, password, true, false, nativeAdmission: true);
             using var stream = factory.GetStream(false, true);
             var header = new byte[Constants.PAGE_SIZE];
             stream.Read(header, 0, header.Length);

@@ -16,7 +16,11 @@ namespace LiteDB.Internals
         private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-mapped-process-" + Guid.NewGuid().ToString("N"));
         private bool _passed;
         private string Filename => Path.Combine(_directory, "test.db");
-        public SharedMappedProcess_Tests() => Directory.CreateDirectory(_directory);
+        public SharedMappedProcess_Tests()
+        {
+            Directory.CreateDirectory(_directory);
+            _directory = DatabaseFileIdentity.CanonicalPath(_directory);
+        }
 
         public static System.Collections.Generic.IEnumerable<object[]> CreationBoundaries()
         {

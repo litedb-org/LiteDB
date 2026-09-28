@@ -52,7 +52,7 @@ namespace LiteDB.Engine
         public AesStream(string password, Stream stream, bool allowRecovery = true)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
-            _name = _stream is FileStream fileStream ? Path.GetFileName(fileStream.Name) : null;
+            _name = _stream is FileStream fileStream ? Path.GetFileName(Client.Shared.AdmittedFileStream.GetName(fileStream)) : null;
             const int checkBufferSize = 32;
             byte[] checkBuffer = null;
             byte[] msBuffer = null;
