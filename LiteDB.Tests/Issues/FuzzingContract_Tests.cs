@@ -156,14 +156,24 @@ namespace LiteDB.Tests.Issues
             using var file = new TempFile();
             using var engine = new LiteEngine(file.Filename);
             using var exclusiveWaiting = new ManualResetEventSlim();
+            using var exclusiveAdmitted = new ManualResetEventSlim();
             engine.SimulateBeforeExclusiveAdmission = exclusiveWaiting.Set;
+            engine.SimulateAfterExclusiveAdmission = () =>
+            {
+                engine.GetMonitor().Dispose();
+                exclusiveAdmitted.Set();
+            };
+            engine.GetMonitor().AfterTransactionExit = () =>
+                exclusiveAdmitted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
             engine.BeginTrans().Should().BeTrue();
-            var rebuild = Task.Run(() => engine.Rebuild());
+            var rebuild = Task.Factory.StartNew(() => engine.Rebuild(), CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
             exclusiveWaiting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
             engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" } },
                 BsonAutoId.Int32).Should().Be(1);
             engine.Commit().Should().BeTrue();
+            exclusiveAdmitted.IsSet.Should().BeTrue();
 
             await rebuild;
             var query = Query.All();
