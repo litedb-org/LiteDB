@@ -20,8 +20,9 @@ namespace LiteDB.Tests.Regressions
     /// successful sync) lost those commits. An engine now proves the data file before its first
     /// log sync of any kind. A checkpoint now also writes only to a data file that just synced, so
     /// this engine no longer leaves such a truncation behind: the first two tests check that the
-    /// acknowledged commits stay recoverable, and the torn-header tests reach a header journal in
-    /// the OS cache only through a log that stops syncing.
+    /// acknowledged commits stay recoverable. Nor does it write a header journal the log cannot
+    /// sync (decision D; external review, point 1), so the torn-header tests build that image
+    /// directly: a journal in the log file that never synced, next to a torn header.
     /// A commit or checkpoint on a log that cannot sync now fails loudly with durable commits
     /// (decision 3 of docs/decisions/durability-policy.md), so the engines that write while it
     /// cannot sync opted out ("durable commits=false"): "cannot sync" is not a failure for them
@@ -72,9 +73,11 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The one log sync that must precede the data proof: an open that repairs a torn header from
         /// its journal makes the journal durable first. Proving the data file before it made the torn
-        /// header durable while the journal, its only repair, was still in the OS cache. The journal
-        /// reaches the OS cache only where the log stops syncing: a checkpoint writes only to a data
-        /// file that just synced, so the data file still syncs here.
+        /// header durable while the journal, its only repair, was still in the OS cache. LiteDB no
+        /// longer leaves such a journal: a checkpoint whose log cannot sync refuses before it writes
+        /// one, in both modes (decision D; external review, point 1). The image is built directly (see
+        /// <see cref="CheckpointBehindAJournalThatNeverSynced"/>), as an engine before that change left
+        /// it with durable commits off on a log that could not sync.
         /// </summary>
         [Fact]
         public void Open_repairing_a_torn_header_makes_its_journal_durable_first()
@@ -92,17 +95,7 @@ namespace LiteDB.Tests.Regressions
                     db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
             }
 
-            power.LogFails = true;
-            // Opted out: with durable commits the commit and the journal's barrier would fail loudly.
-            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = false };
-            settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
-            using (var db = new LiteDatabase(new LiteEngine(settings)))
-            {
-                db.CheckpointSize = 0;
-                db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
-                Action checkpoint = () => db.Checkpoint();
-                checkpoint.Should().Throw<IOException>().WithMessage("the writer dies mid-checkpoint"); // its header journal reached the OS cache only
-            }
+            CheckpointBehindAJournalThatNeverSynced(power, new EngineSettings { Filename = file.Filename }, password: null);
             // That checkpoint's header write, torn in the OS cache.
             using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
             {
@@ -110,7 +103,6 @@ namespace LiteDB.Tests.Regressions
                 data.Write(Enumerable.Repeat((byte)0xA5, 3000).ToArray(), 0, 3000);
             }
 
-            power.DataFails = power.LogFails = false; // the storage syncs again
             (byte[] Data, byte[] Log) image = default;
             var hook = NativeFileSync.SimulateErrno;
             var log = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
@@ -134,9 +126,9 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// The same with encryption: creating the encrypted data writer syncs the data file, so the
-        /// open created it before the journal sync and made the torn header durable first. The log
-        /// stops syncing once both writers exist (an encrypted writable open needs syncs); the tear
-        /// lands in page 0's ciphertext (physical page 1).
+        /// open created it before the journal sync and made the torn header durable first. The tear
+        /// lands in page 0's ciphertext (physical page 1). The journal that never synced is built as
+        /// above: LiteDB no longer writes one (decision D).
         /// </summary>
         [Fact]
         public void Encrypted_open_repairing_a_torn_header_makes_its_journal_durable_first()
@@ -155,24 +147,13 @@ namespace LiteDB.Tests.Regressions
                     db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
             }
 
-            // Opted out: with durable commits the journal's barrier would fail loudly.
-            var settings = new EngineSettings { Filename = file.Filename, Password = "secret", DurableCommits = false };
-            settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
-            using (var db = new LiteDatabase(new LiteEngine(settings)))
-            {
-                db.CheckpointSize = 0;
-                db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
-                power.LogFails = true;
-                Action checkpoint = () => db.Checkpoint();
-                checkpoint.Should().Throw<IOException>().WithMessage("the writer dies mid-checkpoint");
-            }
+            CheckpointBehindAJournalThatNeverSynced(power, new EngineSettings { Filename = file.Filename, Password = "secret" }, "secret");
             using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
             {
                 data.Position = Constants.PAGE_SIZE + 208;
                 data.Write(Enumerable.Repeat((byte)0xA5, 3008).ToArray(), 0, 3008);
             }
 
-            power.DataFails = power.LogFails = false;
             (byte[] Data, byte[] Log) image = default;
             var hook = NativeFileSync.SimulateErrno;
             var log = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
@@ -194,6 +175,48 @@ namespace LiteDB.Tests.Regressions
         }
 
         private const int Rows = 64;
+
+        /// <summary>
+        /// A writer that commits, then dies in its checkpoint's backfill behind a header journal that is
+        /// in the log file but never reached the device. Its commit syncs as usual. The checkpoint's log
+        /// syncs answer success, so it writes its journal and starts the backfill, but the power-loss
+        /// model keeps the log as of before them: its image is the one taken before the journal's sync.
+        /// The data file syncs right before the journal, as every checkpoint's does.
+        /// </summary>
+        private static void CheckpointBehindAJournalThatNeverSynced(FilePowerLossModel power, EngineSettings settings, string password)
+        {
+            var hook = NativeFileSync.SimulateErrno;
+            var logName = Path.GetFullPath(FileHelper.GetLogFile(settings.Filename));
+            var checkpointing = false;
+            settings.CheckpointStage = stage =>
+            {
+                if (stage == "before-commit-lock") checkpointing = true;
+                if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint");
+            };
+            NativeFileSync.SimulateErrno = path =>
+                checkpointing && string.Equals(Path.GetFullPath(path), logName, StringComparison.OrdinalIgnoreCase) ? 0 : hook(path);
+            try
+            {
+                using var db = new LiteDatabase(new LiteEngine(settings));
+                db.CheckpointSize = 0;
+                db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
+                var synced = power.Capture().Log;
+                HasJournal(synced, password).Should().BeFalse();
+                Action checkpoint = () => db.Checkpoint();
+                checkpoint.Should().Throw<IOException>().WithMessage("the writer dies mid-checkpoint");
+                power.Capture().Log.Should().Equal(synced, "the journal never reached the device");
+                HasJournal(SyncPowerLossModel.ReadShared(logName), password).Should().BeTrue("the journal is in the log file");
+            }
+            finally { NativeFileSync.SimulateErrno = hook; }
+        }
+
+        private static bool HasJournal(byte[] log, string password)
+        {
+            using var raw = new MemoryStream(log);
+            if (password == null) return HeaderJournal.Read(raw) != null;
+            using var plain = new AesStream(password, raw, allowRecovery: false);
+            return HeaderJournal.Read(plain) != null;
+        }
 
         /// <summary>
         /// Commits 1..5 acknowledged durable, then a full checkpoint and a commit while neither file
