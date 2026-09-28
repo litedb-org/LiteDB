@@ -136,8 +136,10 @@ earlier head or base is not evidence for a later integrated tree; relevant head,
 base or stack changes invalidate it. `ci.yml` and the Safety section workflow
 accept `merge_group`, so a merge queue for `dev` needs only the repository
 setting. Enabling it means requiring **build-and-test / Safety evidence** and
-**Safety section**. Fuzz and index-migration workflows have no `merge_group`
-trigger and must not be made queue-required checks as they are. Until a queue is
+**Safety section**. Queue runs carry no PR labels, so they use the PR tier; a
+change that needs the full tier on its candidate tree must get it before it is
+queued. Fuzz and index-migration workflows have no `merge_group` trigger and must
+not be made queue-required checks as they are. Until a queue is
 enabled, serialize high-risk merges: update the branch with `dev`, wait for a
 fresh green Safety evidence run on that merge ref, then merge. The scheduled full
 CI run is the post-merge backstop.

@@ -25,6 +25,8 @@ jobs:
     name: Safety policy
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     env:
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
 
@@ -163,6 +165,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
@@ -248,6 +251,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
@@ -415,6 +419,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
@@ -485,6 +490,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.xml
             LiteDB.Tests/TestResults/evidence-leg.json
@@ -534,6 +540,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
@@ -549,6 +556,9 @@ jobs:
     needs: [safety-policy, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       - name: Check out repository
@@ -575,5 +585,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: safety-evidence
+          overwrite: true
           path: evidence-report/safety-evidence.json
           if-no-files-found: warn
