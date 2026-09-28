@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import shutil
@@ -44,9 +45,24 @@ class BadgeTests(unittest.TestCase):
 
     def test_harness_changes_are_recognized(self):
         self.assertTrue(evidence.harness_changed([".github/scripts/pr_evidence.py"]))
+        self.assertTrue(evidence.harness_changed([".github/scripts/repro_scaffold.py"]))
         self.assertTrue(evidence.harness_changed(["LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Program.cs"]))
         self.assertFalse(evidence.harness_changed(["LiteDB.ReproRunner/Repros/Issue_1/Program.cs",
                                                    ".github/safety/regression-proofs.json", "LiteDB/Engine/X.cs"]))
+
+    def test_the_harness_list_covers_the_whole_import_closure(self):
+        scripts = Path(__file__).parent
+        seen, pending = set(), ["pr_evidence"]
+        while pending:
+            module = pending.pop()
+            if module in seen or not (scripts / f"{module}.py").is_file():
+                continue
+            seen.add(module)
+            tree = ast.parse((scripts / f"{module}.py").read_text(encoding="utf-8"))
+            pending += [alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names]
+            pending += [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module]
+        self.assertEqual({f".github/scripts/{module}.py" for module in seen},
+                         {path for path in evidence.HARNESS_FILES if path.startswith(".github/scripts/")})
 
     def test_labels_command_reads_trusted_inputs(self):
         directory = Path(tempfile.mkdtemp())

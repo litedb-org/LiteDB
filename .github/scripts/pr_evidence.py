@@ -26,10 +26,12 @@ import safety_common as common
 PROVEN = "regression: proven"
 NEEDS_PROOF = "regression: needs proof"
 # The evidence comes from PR-controlled code; a PR that changes any of this code
-# could forge it, so its evidence never earns the "proven" label.
+# could forge it, so its evidence never earns the "proven" label. The scripts are
+# the full import closure of pr_evidence.py; a new import must edit one of them.
 HARNESS_FILES = {
     ".github/workflows/regression-proof.yml", ".github/workflows/pr-evidence-labels.yml",
-    ".github/scripts/regression_proof.py", ".github/scripts/pr_evidence.py", ".github/scripts/safety_common.py",
+    ".github/scripts/regression_proof.py", ".github/scripts/pr_evidence.py", ".github/scripts/repro_scaffold.py",
+    ".github/scripts/safety_common.py",
 }
 HARNESS_DIRS = ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/", "LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/")
 

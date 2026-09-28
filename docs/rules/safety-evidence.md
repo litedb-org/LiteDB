@@ -136,8 +136,10 @@ The **Regression proof** workflow runs this lifecycle:
 - **After merge.** The push to `dev` repeats the proof on the integrated revision.
   That run is the retirement evidence.
 - **Retired.** The historical comparison runs again only when its proof or repro
-  changes, or on manual dispatch. The permanent guard stays in the ordinary
-  suites, and removing part of it is a coverage finding.
+  changes, when the proving harness changes (the workflow, its scripts or the
+  ReproRunner CLI and shared code; this re-proves every entry), or on manual
+  dispatch. The permanent guard stays in the ordinary suites, and removing part
+  of it is a coverage finding.
 
 **A PR labelled `bug` must add at least one regression proof**: a new proof, or an
 existing one re-pinned to a new known-bad state. A PR fixing several bugs adds one

@@ -35,7 +35,8 @@ import safety_common as common
 LEDGER = f"{common.SAFETY_DIR}/regression-proofs.json"
 REPROS = "LiteDB.ReproRunner/Repros"
 HARNESS = ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/", "LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/",
-           ".github/scripts/regression_proof.py")
+           ".github/scripts/regression_proof.py", ".github/scripts/safety_common.py",
+           ".github/workflows/regression-proof.yml")
 NUGET_INDEX = "https://api.nuget.org/v3-flatcontainer/litedb/index.json"
 KINDS = ("package", "dev-commit", "pr-commit")
 OUTCOMES = ["Reproduce", "NoRepro", "HardFail", "Intermittent"]

@@ -90,9 +90,12 @@ class LedgerTests(unittest.TestCase):
         code, output = self.run_check({f"{FOLDER}/Program.cs": "return 1;"}, argv=("select",),
                                       base_files={LEDGER: ledger(entry())})
         self.assertIn(f"`{REPRO}`", output)
-        code, output = self.run_check({"LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Evaluator.cs": "// changed"},
-                                      argv=("select",), base_files={LEDGER: ledger(entry())})
-        self.assertIn(f"`{REPRO}`", output)  # a harness change re-proves every entry
+        for harness in ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Evaluator.cs",
+                        ".github/workflows/regression-proof.yml"):
+            with self.subTest(harness):
+                code, output = self.run_check({harness: "# changed"}, argv=("select",),
+                                              base_files={LEDGER: ledger(entry())})
+                self.assertIn(f"`{REPRO}`", output)  # a harness change re-proves every entry
 
 
 class BugPullRequestTests(unittest.TestCase):
