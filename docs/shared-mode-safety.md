@@ -150,8 +150,8 @@ Shared connections never create or rewrite a mode identity. If the identity is
 absent or idle but mismatched, repeated reads remain protected; mapped attachment
 requires an existing matching lease and keeps it until disposal. Protected read-only
 fallback can run without holding a mode guard. Direct read-only connections also
-bypass admission. Thus read-only mixing is not universally rejected: only mapped
-participants have the additional lifetime protection against Direct writers.
+bypass admission. Thus read-only mixing is not universally rejected: lifetime
+protection against Direct writers requires a successfully acquired mode lease.
 `ReadOnly` combined with `Upgrade` or `AutoRebuild` can write during open and must
 acquire writable admission. Private rebuild/upgrade candidates do not create guard
 files; the live engine retains admission across publication.
@@ -161,6 +161,9 @@ snapshots share that lease rather than reopening the guard; an escaping snapshot
 keeps admission until its own disposal, including disposal on another thread.
 Failed inner opens release their references. A read-only connection without an
 admissible identity still checks again on subsequent operations.
+The [admission lifetime tests](../LiteDB.Tests/Engine/SharedAdmissionLifetime_Tests.cs)
+cover idle protected connections, multiple escaping readers, cross-thread disposal,
+encrypted files, failed inner opens and cold indexed reopens.
 Memory databases, caller data streams, and names outside the supported control
 path limits retain their existing behavior.
 

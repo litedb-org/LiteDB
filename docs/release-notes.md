@@ -29,7 +29,10 @@ The guard remains after close. Offline backups may omit it, and offline cleanup
 may delete it; never delete or replace it while connections are open. Private
 rebuild/upgrade candidates do not create their own guard files. No data/WAL
 format migration is involved. Writable Shared connections acquire admission even
-for their first read and retain it through streaming snapshot disposal. Rejected
+for their first read and retain it between operations until connection disposal;
+streaming snapshots share that lease and retain it until their own disposal.
+Switching an idle protected Shared connection to a conflicting Direct writer now
+requires closing the Shared connection and its readers first. Rejected
 participants do not revoke peers and can retry after the conflict ends.
 An orphan `-shared-state` blocks Direct with its filename and offline cleanup
 instructions; see [orphan recovery](shared-mode-safety.md#orphan-coordination-recovery).
