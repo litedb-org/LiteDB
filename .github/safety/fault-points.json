@@ -1636,14 +1636,9 @@
       "protocol": "data-file page writes",
       "evidence": [
         {
-          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#Control_HookSeesEveryBackfilledDataPage",
-          "model": "exception",
-          "proves": "The hook sees exactly the checkpoint's backfilled data pages."
-        },
-        {
           "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedDataPageWrite_StopsTheEngine_AndTheWalRecoversEveryCommit",
           "model": "exception",
-          "proves": "A failed first or later data-page write stops the engine without further writes; a fresh open recovers every commit from the unchanged WAL and a later checkpoint leaves a self-sufficient data file. Removing the hook's Invoke fails 8/8."
+          "proves": "A failed first or later data-page write stops the engine without further writes; the committed WAL frames stay unchanged (the checkpoint only appends its header journal), a fresh open recovers every commit and a later checkpoint leaves a self-sufficient data file. Removing the hook's Invoke fails 8/8; Control_HookSeesEveryBackfilledDataPage pins that the hook sees every backfilled page."
         },
         {
           "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedCloseCheckpoint_LeavesTheWalToRecoverEveryCommit",
