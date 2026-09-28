@@ -83,15 +83,17 @@ namespace LiteDB.Engine
         {
             // A kept WAL is rewritten by every full checkpoint: automatic ones wait until it doubled.
             if (automatic && _backoff.DefersKeptWal(_disk.GetFileLength(FileOrigin.Log))) return 0;
-            try { return TryCheckpointCore(rationed, drain); }
+            var stopBegun = false;
+            var stopOwned = false;
+            try { return TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned); }
             catch (Exception error)
             {
-                _disk.StopAfterCheckpointFailure(error);
+                _disk.StopAfterCheckpointFailure(error, stopBegun, stopOwned);
                 throw;
             }
         }
 
-        private int TryCheckpointCore(bool rationed, bool drain)
+        private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
 
@@ -220,6 +222,12 @@ namespace LiteDB.Engine
                     _backfillVersion = 0;
                 }
                 return pages.Count;
+            }
+            catch (Exception error) when (writerEntered)
+            {
+                // Stop before the WAL writer is released (see DiskService.BeginCheckpointStop).
+                stopBegun = _disk.BeginCheckpointStop(error, out stopOwned);
+                throw;
             }
             finally
             {

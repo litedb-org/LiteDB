@@ -24,6 +24,10 @@ namespace LiteDB.Engine
         public Action<string> CheckpointStage;
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
+
+        // Test hook: a failed checkpoint stops the engine only after releasing its locks (the timing
+        // before the stop moved inside the WAL writer), to reach defences behind that stop.
+        public bool DeferCheckpointStop;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
