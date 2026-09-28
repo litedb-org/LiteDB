@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -251,7 +252,7 @@ namespace LiteDB.Engine
                 transactionAnchored = true;
                 count++;
             }
-            catch
+            catch (Exception failure)
             {
                 // The producer transferred ownership before yielding.
                 // Recycle failed frames and undo unpublished reservations.
@@ -262,12 +263,21 @@ namespace LiteDB.Engine
                     // The stream length excludes an outstanding header journal: never truncate it away.
                     if (previousStreamLength.HasValue && _checksums.JournalBytes == 0)
                     {
-                        this.PublishWalReuse(ref reusePublished);
-                        stream.SetLength(previousStreamLength.Value);
-                        _logFactory.TrimCapacity(stream);
-                        // The truncation removes a torn append, not a torn overwrite of an earlier slot
-                        // nor an earlier frame of this batch that a buffering stream still held.
-                        if (!overwrite && (count == 0 || !_logMayBuffer)) uncertain = false;
+                        try
+                        {
+                            this.PublishWalReuse(ref reusePublished);
+                            stream.SetLength(previousStreamLength.Value);
+                            _logFactory.TrimCapacity(stream);
+                            // The truncation removes a torn append, not a torn overwrite of an earlier
+                            // slot nor an earlier frame of this batch that a buffering stream still held.
+                            if (!overwrite && (count == 0 || !_logMayBuffer)) uncertain = false;
+                        }
+                        catch (Exception cleanup)
+                        {
+                            // The torn frame stays: report the write failure that left it, not its cleanup.
+                            LOG($"truncating a failed WAL write failed too: {cleanup.Message}", "ERROR");
+                            ExceptionDispatchInfo.Capture(failure).Throw();
+                        }
                     }
                 }
 

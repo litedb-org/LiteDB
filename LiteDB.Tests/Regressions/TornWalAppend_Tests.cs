@@ -43,7 +43,8 @@ namespace LiteDB.Tests.Regressions
 
                 log.Arm(frame, completeFrame, failSetLength: true);
                 Action failed = () => db.GetCollection("rows").Insert(Enumerable.Range(100, 30).Select(id => Row(id, 0)));
-                failed.Should().Throw<IOException>();
+                failed.Should().Throw<IOException>().Where(x => x.ToString().Contains("injected torn frame write"),
+                    "the failure reported is the write that tore the frame, not its failed cleanup");
                 log.Torn.Should().BeTrue("the write tore a frame");
                 log.SetLengthFailed.Should().BeTrue("the truncation of the torn frame failed too");
                 log.Disarm();
