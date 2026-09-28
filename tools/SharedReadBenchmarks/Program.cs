@@ -226,7 +226,11 @@ internal static class Program
         // Verify an explicitly requested protected-path measurement outside timing.
         // Reflection keeps this runner compatible with older production baselines.
         var coordinationFallbackReason = engine?.GetType().GetProperty("CoordinationFallbackReason")?.GetValue(engine) as string;
-        if (mode == "shared" && scenario != "open-close" && Environment.GetEnvironmentVariable("LITEDB_DISABLE_SHARED_MAPPED_READS") == "1" &&
+        var disableSetting = Environment.GetEnvironmentVariable("LITEDB_DISABLE_SHARED_MAPPED_READS");
+        var optOutRequested = AppContext.TryGetSwitch("LiteDB.DisableSharedMappedReads", out var appContextDisabled)
+            ? appContextDisabled
+            : disableSetting == "1" || string.Equals(disableSetting, "true", StringComparison.OrdinalIgnoreCase);
+        if (mode == "shared" && scenario != "open-close" && optOutRequested &&
             (coordinationFallbackReason == null || !coordinationFallbackReason.Contains("LiteDB.DisableSharedMappedReads")))
             throw new InvalidOperationException("Protected-read benchmark did not disable mapped attachment.");
 
