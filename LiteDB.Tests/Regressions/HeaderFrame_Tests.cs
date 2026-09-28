@@ -108,6 +108,34 @@ namespace LiteDB.Tests.Regressions
             File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
         }
 
+        /// <summary>
+        /// Recovery never reads the header frame as a page, whatever the header it copies holds: here
+        /// its page carries the confirmation flag, which as a page would be a confirmation with no
+        /// pages and end recovery before every commit after it.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Header_frame_is_never_read_as_a_page(bool readOnly)
+        {
+            using var file = new TempFile();
+            WriteUncheckpointed(file.Filename, 20);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var log = File.ReadAllBytes(logName);
+            var frame = log.Take(WalChecksum.FrameSize).ToArray();
+            var page = new BufferSlice(frame, 0, PAGE_SIZE);
+            page[BasePage.P_IS_CONFIRMED] = 1;
+            PageChecksum.Write(page);
+            WalChecksum.PrepareHeaderFrame(frame, frame.Skip(PAGE_SIZE + 8).Take(16).ToArray());
+            WalChecksum.ReadHeaderFrame(frame).Should().NotBeNull("the edited copy is still a valid header frame");
+            Buffer.BlockCopy(frame, 0, log, 0, frame.Length);
+            File.WriteAllBytes(logName, log);
+
+            using var db = new LiteDatabase($"Filename={file.Filename};ReadOnly={readOnly}");
+            db.GetCollection("rows").Count().Should().Be(20);
+            db.Execute("SELECT $ FROM $database").Single()["recoveryInvalidWalTail"].AsBoolean.Should().BeFalse();
+        }
+
         [Fact]
         public void Read_only_open_of_an_empty_data_file_explains_the_restore_and_writes_nothing()
         {
