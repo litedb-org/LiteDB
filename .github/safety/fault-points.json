@@ -1591,6 +1591,53 @@
           "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-before-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame before its write (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (an empty WAL) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-after-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame after its write, while it is in the OS cache only (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (a WAL holding only the header frame) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "invalid-state-before-mark",
+      "protocol": "invalid-state header mark",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Open_is_not_repeated_when_the_rebuild_mark_cannot_be_written",
+          "model": "exception",
+          "proves": "The mark write fails at the hook during an AutoRebuild open of a damaged 5.0.21 file: the open throws INVALID_DATAFILE_STATE naming the collection, is not retried, and the data file stays byte-identical."
+        }
+      ],
+      "gap": "Only the exception model is claimed; a power loss between the mark's write and its sync is not modeled."
     }
   ],
   "injectors": [
@@ -1673,9 +1720,14 @@
           "proves": "A failed directory sync fails the commit."
         },
         {
-          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
           "model": "capability",
-          "proves": "Unsupported directory sync degrades durability visibly and keeps committing."
+          "proves": "Without durable commits, a WAL directory that cannot sync keeps committing and reports the log as not durable (decision 9)."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes",
+          "model": "capability",
+          "proves": "With durable commits, a WAL directory that cannot sync fails the commit before it writes a frame (decision 9)."
         }
       ]
     },
@@ -1689,14 +1741,27 @@
           "proves": "Volumes without POSIX delete semantics open files per operation."
         }
       ]
+    },
+    {
+      "name": "AfterFailedWalWrite",
+      "protocol": "WAL write failure teardown",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
+          "model": "interleaving",
+          "proves": "A commit waiting for the WAL writer is released into the window after a failed slot rewrite and before the engine's teardown; it is never acknowledged, and recovery keeps every acknowledged commit."
+        }
+      ]
     }
   ],
   "observers": {
+    "AtCrashPoint": "Per-engine delivery of the process-crash family's named points (CrashPoint also calls SimulateProcessCrash); each name is registered under hooks with its own evidence, so this delegate adds no boundary of its own.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
     "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
+    "DataBarrierRan": "Counts runs of the best-effort data barrier before a first commit per data file (decision 14) to pin its once-per-connection cost; measurement only, not a fault boundary.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
