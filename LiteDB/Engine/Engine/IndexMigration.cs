@@ -87,7 +87,14 @@ namespace LiteDB.Engine
             _disk.TrimTrailingPages();
             if (!_disk.ChecksumsEnabled)
             {
-                _walIndex.Checkpoint();
+                // Conversion replaces the legacy WAL, so it must be drained completely first.
+                // A lease-aware checkpoint skips or limits its work while other connections may
+                // read the WAL; discarding what it left would lose committed transactions.
+                if (!_walIndex.TryDrain())
+                    throw new LiteException(LiteException.LOCK_TIMEOUT,
+                        "Cannot convert this legacy database while another connection may still read its log " +
+                        "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
+                        "Close the other connections, or make the registry readable, and open it again.");
                 _walIndex.Clear();
                 _disk.EnableChecksums(ref _header);
                 _monitor.Dispose();
