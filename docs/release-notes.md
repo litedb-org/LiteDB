@@ -35,10 +35,11 @@ files independently, and keep a data/WAL pair together.
 Retired frames keep durable witnesses (56 bytes each, up to 145 per WAL frame) so
 recovery and rebuild still verify complete transactions after slot reuse.
 Reclamation reuses WAL capacity but does not shrink the file; long-lived readers
-can grow witness metadata and recovery work until a full checkpoint. On log
-storage that rejects device sync (#2242), snapshot checkpoints and retirement
-still run, but reclaimed slots are never reused: the WAL appends as before v13
-until a full checkpoint truncates it. Larger
+can grow witness metadata and recovery work until a full checkpoint. On storage
+that rejects device sync (#2242), snapshot checkpoints still run, but no frame is
+retired and no slot reused: the WAL appends as before v13 until a full checkpoint
+truncates it. An engine syncs the data file, the WAL and its directory once before
+it first retires frames, so such storage is found before any witness depends on it. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
 host with working file-sharing locks, use the same mutex naming strategy and this

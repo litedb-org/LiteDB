@@ -13,8 +13,10 @@ namespace LiteDB.Internals
     /// the WAL slots an earlier engine cleared without a durable sync. Those slots must
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
     /// reporting the weaker guarantee. Each fresh engine still makes one real sync
-    /// attempt per write. Once the log is known unable to sync, a checkpoint retires and
-    /// clears nothing: without reuse, clearing would only add unsynced writes.
+    /// attempt per write. An engine proves its syncs before it first retires frames, so a
+    /// log known unable to sync makes a checkpoint retire and clear nothing; slots are cleared
+    /// without a durable sync only when the log stops syncing during that checkpoint. A second
+    /// connection, which does not share the first one's diagnostic, relies on its own probe.
     /// </summary>
     public class SharedUnsyncableLog_Tests
     {
@@ -22,9 +24,10 @@ namespace LiteDB.Internals
         private const int LaterWrites = 5;
 
         [Theory]
-        [InlineData(false)] // the checkpoint's own sync finds out and clears slots
-        [InlineData(true)]  // earlier commits found out: the checkpoint clears nothing
-        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync(bool knownBeforeCheckpoint)
+        [InlineData(false, false)] // the log stops syncing during the checkpoint, which clears slots
+        [InlineData(false, true)]  // same, and a second connection writes afterwards
+        [InlineData(true, false)]  // earlier commits found out: the checkpoint clears nothing
+        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync(bool knownBeforeCheckpoint, bool secondConnection)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
@@ -45,6 +48,8 @@ namespace LiteDB.Internals
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
             int[] cleared = null;
+            // Let the checkpoint's proof sync succeed; its retirement then meets the failure.
+            if (!knownBeforeCheckpoint) log.AllowedSyncs = 1;
             log.Failure = unsupported;
             MvccCheckpoint_Tests.RunThread(() =>
             {
@@ -56,9 +61,15 @@ namespace LiteDB.Internals
             IsDurable(db).Should().BeFalse();
 
             var rejectedBefore = log.RejectedSyncs;
+            using var second = secondConnection ? new SharedEngine(new EngineSettings
+            {
+                Filename = file.Filename, DataStream = data, LogStream = log,
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
+            }) : null;
+            using var writer = second == null ? db : new LiteDatabase(second, disposeOnClose: false);
             MvccCheckpoint_Tests.RunThread(() =>
             {
-                for (var value = 1; value <= LaterWrites; value++) Write(db, "cold", value);
+                for (var value = 1; value <= LaterWrites; value++) Write(writer, "cold", value);
             });
 
             var written = ReadAll(log);
@@ -67,6 +78,7 @@ namespace LiteDB.Internals
             (log.RejectedSyncs - rejectedBefore).Should().Be(LaterWrites,
                 "every fresh engine retries a real sync once, and no more than once, per write");
             IsDurable(db).Should().BeFalse("the connection keeps reporting the weaker guarantee across reopens");
+            IsDurable(writer).Should().BeFalse();
 
             var count = 1;
             while (reader.Read())
@@ -121,6 +133,7 @@ namespace LiteDB.Internals
         {
             internal Exception Failure;
             internal int RejectedSyncs;
+            internal int AllowedSyncs;
 
             internal SyncFile(string filename)
                 : base(filename, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite,
@@ -128,7 +141,8 @@ namespace LiteDB.Internals
 
             public override void Flush(bool flushToDisk)
             {
-                if (flushToDisk && Failure != null)
+                if (flushToDisk && Failure != null && AllowedSyncs > 0) AllowedSyncs--;
+                else if (flushToDisk && Failure != null)
                 {
                     base.Flush(false);
                     RejectedSyncs++;

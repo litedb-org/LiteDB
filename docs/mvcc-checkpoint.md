@@ -263,10 +263,12 @@ placed under `/dev/shm` to avoid sustained physical disk writes.
 The fault model assumes successful durable flushes persist addressed bytes and
 power-safe overwrite preserves previously synced bytes outside the write range.
 Retirement barriers always attempt a real sync, and a failed sync stops the
-engine with redo intact. Log storage that answers "cannot sync" (#2242) degrades
-them to ordered OS-cache flushes, which survive a process crash but not power
-loss, as before #2818; on such storage reclaimed slots are never reused, so the
-WAL appends until a full checkpoint truncates it. Before an engine, including each
+engine with redo intact. Before an engine first retires frames it syncs the data
+file, the log and the log's directory once; storage that answers "cannot sync"
+(#2242) then retires nothing and never reuses slots, so the WAL appends until a
+full checkpoint truncates it. Only storage that stops syncing during a checkpoint
+degrades that checkpoint's barriers to ordered OS-cache flushes, which survive a
+process crash but not power loss, as before #2818. Before an engine, including each
 short-lived shared-mode engine, first reuses a slot found blank at open, it syncs the
 raw log once. That sync proves the storage can sync and makes earlier non-durable
 clears durable; storage that answers "cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent

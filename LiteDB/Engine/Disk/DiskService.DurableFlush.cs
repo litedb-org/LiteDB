@@ -21,6 +21,9 @@ namespace LiteDB.Engine
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
         private volatile bool _dataFlushDegraded;
 
+        // Set by this engine's first successful data device sync (see ProveRetirementSyncs).
+        private volatile bool _dataSyncProven;
+
         // Set by this engine's first successful log device sync. That sync also makes
         // blank slots found at open durable, even if an earlier engine cleared them on
         // storage that could not sync, so reclaimed slots are reused only after it
@@ -55,6 +58,27 @@ namespace LiteDB.Engine
         /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
         /// </summary>
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
+
+        /// <summary>
+        /// Before this engine first retires frames, sync the data file, the log and the log's
+        /// directory once each, so storage that answers "cannot sync" (#2242) is found before a
+        /// witness or a cleared slot depends on it. Retirement then does not run: a rooted data
+        /// file needs its WAL, whose name is not durable without a directory sync. Only storage
+        /// that stops syncing during the checkpoint itself is detected later.
+        /// Caller holds the log writer lock.
+        /// </summary>
+        internal bool ProveRetirementSyncs()
+        {
+            if (this.FlushDegraded || _logDirectoryUnsyncable) return false;
+            if (!_dataSyncProven)
+            {
+                var data = _dataPool.Writer.Value;
+                lock (data) this.SyncDataBarrier(data);
+            }
+            if (!_logSyncProven && !this.LogSyncUnverified) this.ProveLogSync();
+            if (!this.FlushDegraded) this.SyncLogDirectory();
+            return !this.FlushDegraded && !_logDirectoryUnsyncable;
+        }
 
         /// <summary>
         /// Flush a confirmed WAL batch: to the device, or to the OS cache only when the caller opted out.
@@ -169,6 +193,7 @@ namespace LiteDB.Engine
             try
             {
                 data.FlushToDisk();
+                _dataSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

@@ -40,8 +40,13 @@ namespace LiteDB
 
         internal static void FlushToDisk(FileStream stream)
         {
-            // Like FileStream.Flush(true): a handle that cannot write has nothing to sync.
-            if (!stream.CanWrite) return;
+            // A handle that cannot write has nothing to sync: FileStream.Flush(true) skips it (and
+            // still throws for a disposed handle).
+            if (!stream.CanWrite)
+            {
+                stream.Flush(true);
+                return;
+            }
 #if DEBUG || TESTING
             var simulate = SimulateErrno;
             if (simulate != null)

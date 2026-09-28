@@ -1,0 +1,206 @@
+#if DEBUG || TESTING
+using System;
+using System.IO;
+using System.Linq;
+using FluentAssertions;
+using LiteDB.Engine;
+using LiteDB.Internals;
+using LiteDB.Tests.Issues;
+using Xunit;
+
+namespace LiteDB.Tests.Regressions
+{
+    /// <summary>
+    /// Since data barriers degrade on storage that answers "cannot sync" (#2242), MVCC retirement
+    /// must not publish witnesses or clear WAL slots that such storage cannot make durable, and
+    /// no engine may reuse slots that were cleared without durable syncs.
+    /// </summary>
+    [Trait("Category", "RegressionSince5021")]
+    [Collection(NativeFileSyncCollection.Name)]
+    public class UnsyncableRetirement_Tests
+    {
+        /// <summary>
+        /// Retirement witnesses need a durable sync and a reused WAL slot a durable clear. Before an
+        /// engine first retires frames it syncs the data file, the log and the log's directory
+        /// once, so a partial checkpoint under a live reader on storage that answers "cannot sync"
+        /// neither retires frames (no v13 promotion, no witness root, no cleared slot) nor lets
+        /// later commits reuse slots - also when that checkpoint is the first to find out, and when
+        /// commits opted out of syncs. Control: storage that syncs retires and reuses slots.
+        /// </summary>
+        [Theory]
+        [InlineData("syncs")]
+        [InlineData("data-detected-earlier")]  // by a checkpoint before the reader
+        [InlineData("data-detected-by-partial")]
+        [InlineData("opted-out-commits")]      // DurableCommits=false: nothing synced before the checkpoint
+        [InlineData("directory")]              // the WAL's directory cannot be synced (EACCES)
+        [InlineData("opted-out-directory")]    // same, found only by the checkpoint's proof
+        public void Storage_that_cannot_sync_neither_retires_nor_reuses_wal_frames(string mode)
+        {
+            using var file = new TempFile();
+            using (var setup = new LiteDatabase(file.Filename))
+            {
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, 8).Select(id => MvccRetirementScenario.Document(id, 0)));
+            }
+            var version = Header(file.Filename)[HeaderPage.P_FILE_VERSION];
+            version.Should().BeLessThan(HeaderPage.MVCC_FILE_VERSION);
+
+            if (mode.StartsWith("data")) NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
+            if (mode == "opted-out-commits") NativeFileSync.SimulateErrno = _ => 22;
+            if (mode.EndsWith("directory")) NativeFileSync.SimulateDirectoryErrno = _ => 13;
+            try
+            {
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = !mode.StartsWith("opted-out") });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                if (mode == "data-detected-earlier")
+                {
+                    Update(db, 1);
+                    db.Checkpoint();
+                }
+                for (var value = 2; value <= 5; value++) Update(db, value);
+
+                using (var reader = engine.Query("rows", new Query()))
+                {
+                    Worker(() =>
+                    {
+                        for (var value = 6; value <= 8; value++) Update(db, value);
+                        var start = LogFileSize(db);
+                        Update(db, 9);
+                        var perUpdate = LogFileSize(db) - start;
+                        perUpdate.Should().BeGreaterThan(0);
+
+                        engine.Checkpoint();
+                        if (mode != "syncs") BlankFrames(ReadShared(FileHelper.GetLogFile(file.Filename))).Should().Be(0,
+                            "no committed frame is cleared without durable syncs");
+                        var before = LogFileSize(db);
+                        for (var value = 10; value <= 13; value++) Update(db, value);
+                        var growth = LogFileSize(db) - before;
+                        if (mode == "syncs") growth.Should().BeLessThan(4 * perUpdate, "syncing storage reuses retired slots");
+                        else growth.Should().Be(4 * perUpdate, "commits after a checkpoint that could not sync append");
+                    });
+                }
+
+                var header = Header(file.Filename);
+                var promoted = header[HeaderPage.P_FILE_VERSION] == HeaderPage.MVCC_FILE_VERSION;
+                var root = BitConverter.ToInt64(header, WalRetirement.RootPosition);
+                if (mode == "syncs") promoted.Should().BeTrue("the control retires frames");
+                else
+                {
+                    promoted.Should().BeFalse("no retirement is prepared without durable syncs");
+                    root.Should().Be(0, "no retirement witness is published without durable syncs");
+                }
+            }
+            finally
+            {
+                NativeFileSync.SimulateErrno = null;
+                NativeFileSync.SimulateDirectoryErrno = null;
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
+        }
+
+        /// <summary>
+        /// Shared mode: a data file that stops syncing during a partial checkpoint is found only
+        /// after that checkpoint retired and cleared WAL slots. Later operations of the connection
+        /// run fresh engines that find those slots blank; they must not reuse them, although their
+        /// own log syncs succeed.
+        /// </summary>
+        [Fact]
+        public void Shared_connection_never_reuses_slots_cleared_while_the_data_file_stopped_syncing()
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using (var setup = new LiteDatabase(file.Filename))
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, 64).Select(id => MvccRetirementScenario.Document(id, 0)));
+
+            var dataFails = false;
+            NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) || !dataFails ? 0 : 22;
+            EngineState.SimulateProcessCrash = phase => { if (phase == "checkpoint-before-page-write") dataFails = true; };
+            try
+            {
+                using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++) Update64(db, value);
+                int[] cleared;
+                using (var reader = engine.Query("rows", new Query()))
+                {
+                    reader.Read().Should().BeTrue();
+                    Worker(() =>
+                    {
+                        for (var value = 6; value <= 9; value++) Update64(db, value);
+                        db.Checkpoint();
+                    });
+                    cleared = BlankOffsets(ReadShared(logName));
+                }
+                EngineState.SimulateProcessCrash = null;
+                cleared.Should().NotBeEmpty("the checkpoint retired frames before the data file stopped syncing");
+
+                Update64(db, 10);
+                var written = ReadShared(logName);
+                cleared.Count(offset => offset < written.Length && !IsBlank(written, offset)).Should().Be(0,
+                    "slots cleared by a checkpoint whose data sync failed must not be reused");
+                DurableLogFlush(db).Should().BeFalse();
+            }
+            finally
+            {
+                EngineState.SimulateProcessCrash = null;
+                NativeFileSync.SimulateErrno = null;
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 10);
+        }
+
+        private static void Update64(LiteDatabase db, int value) =>
+            db.GetCollection("rows").Upsert(Enumerable.Range(1, 64).Select(id => MvccRetirementScenario.Document(id, value)));
+
+        private static int BlankFrames(byte[] log) => BlankOffsets(log).Length;
+
+        private static int[] BlankOffsets(byte[] log) => Enumerable.Range(0, log.Length / WalChecksum.FrameSize)
+            .Select(frame => frame * WalChecksum.FrameSize).Where(offset => IsBlank(log, offset)).ToArray();
+
+        private static bool IsBlank(byte[] log, int offset) =>
+            log.Skip(offset).Take(WalChecksum.FrameSize).All(value => value == 0);
+
+        private static byte[] ReadShared(string filename)
+        {
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var bytes = new byte[stream.Length];
+            stream.ReadFully(bytes, 0, bytes.Length);
+            return bytes;
+        }
+
+        private static void Update(LiteDatabase db, int value) =>
+            db.GetCollection("rows").Update(Enumerable.Range(1, 8).Select(id => MvccRetirementScenario.Document(id, value))).Should().Be(8);
+
+        private static long LogFileSize(LiteDatabase db) =>
+            db.GetCollection("$database").FindAll().Single()["logFileSize"].AsInt64;
+
+        private static void Worker(Action action)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try { action(); }
+                catch (Exception ex) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex); }
+            });
+            thread.Start();
+            thread.Join();
+            failure?.Throw();
+        }
+
+        private static byte[] Header(string filename)
+        {
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var header = new byte[Constants.PAGE_SIZE];
+            stream.ReadFully(header, 0, header.Length);
+            return header;
+        }
+
+        private static bool DurableLogFlush(LiteDatabase db) =>
+            db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean;
+    }
+}
+#endif
