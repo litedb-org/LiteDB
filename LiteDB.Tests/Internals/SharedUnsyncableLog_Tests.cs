@@ -12,14 +12,16 @@ namespace LiteDB.Internals
     /// #2242 in shared mode: every operation opens a fresh engine whose recovery registers
     /// the WAL slots an earlier engine cleared without a durable sync. Those slots must
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
-    /// reporting the weaker guarantee. Each fresh engine still makes one real sync
-    /// attempt per write. Every retiring checkpoint first proves its syncs, so a log known
-    /// unable to sync makes a checkpoint retire nothing. A log that stops syncing during the
-    /// checkpoint keeps the retired frames, unless it stops only at the sync of the clears
-    /// themselves; either way no later engine reuses those slots. A second connection, which
-    /// does not share the first one's diagnostic, relies on its own proof.
+    /// reporting the weaker guarantee. Every retiring checkpoint first proves its syncs, so a
+    /// log known unable to sync makes a checkpoint retire nothing. A log that stops syncing
+    /// during the checkpoint keeps the retired frames, unless it stops only at the sync of the
+    /// clears themselves; either way no later engine reuses those slots. A second connection,
+    /// which does not share the first one's diagnostic, relies on its own proof.
+    /// Opted out of durable commits "cannot sync" is not a failure (proposed default A of
+    /// docs/decisions/durability-policy.md) and writes continue; with durable commits the
+    /// checkpoint fails loudly and the connection continues read-only (decisions 3 and 6).
     /// </summary>
-    public class SharedUnsyncableLog_Tests
+    public partial class SharedUnsyncableLog_Tests
     {
         private const int DocumentCount = 64; // Streams past the shared buffered-result budget.
         private const int LaterWrites = 5;
@@ -29,8 +31,8 @@ namespace LiteDB.Internals
         [InlineData("clear", true)]       // same, and a second connection writes afterwards
         [InlineData("retirement", false)] // the log stops syncing before the clears: none is written
         [InlineData("retirement", true)]
-        [InlineData("known", false)]      // earlier commits found out: the checkpoint retires nothing
-        public void Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync(string stopsAt, bool secondConnection)
+        [InlineData("known", false)]      // the checkpoint's proof finds out: it retires nothing
+        public void Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits(string stopsAt, bool secondConnection)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
@@ -40,7 +42,7 @@ namespace LiteDB.Internals
             using var engine = new SharedEngine(new EngineSettings
             {
                 Filename = file.Filename, DataStream = data, LogStream = log,
-                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1,
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1, DurableCommits = false,
                 CheckpointStage = stage => { if (armed && stage == "wal-slot-cleared") log.Failure = unsupported; }
             });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
@@ -81,7 +83,7 @@ namespace LiteDB.Internals
             using var second = secondConnection ? new SharedEngine(new EngineSettings
             {
                 Filename = file.Filename, DataStream = data, LogStream = log,
-                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1, DurableCommits = false
             }) : null;
             using var writer = second == null ? db : new LiteDatabase(second, disposeOnClose: false);
             MvccCheckpoint_Tests.RunThread(() =>
@@ -92,10 +94,14 @@ namespace LiteDB.Internals
             var written = ReadAll(log);
             ChangedFrames(retired, written, frames).Should().Be(0,
                 "slots retired without durable syncs must not be reused by later engines");
-            (log.RejectedSyncs - rejectedBefore).Should().Be(LaterWrites,
-                "every fresh engine retries a real sync once, and no more than once, per write");
+            // An opted-out commit never asks for a device sync. Only an engine that has not learned of
+            // the rejection (the second connection's first) asks, once, to prove the log before it
+            // would reuse a cleared slot; the answer makes its connection append instead.
+            (log.RejectedSyncs - rejectedBefore).Should().Be(secondConnection && stopsAt == "clear" ? 1 : 0);
             IsDurable(db).Should().BeFalse("the connection keeps reporting the weaker guarantee across reopens");
             IsDurable(writer).Should().BeFalse();
+            WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+            WriteFailureAssert.NoneRecorded(writer);
 
             var count = 1;
             while (reader.Read())

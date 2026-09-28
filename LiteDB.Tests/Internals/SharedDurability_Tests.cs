@@ -53,10 +53,19 @@ namespace LiteDB.Internals
             rows.FindById(1)["value"].AsString.Should().Be("after");
         }
 
+        /// <summary>
+        /// A shared connection's commit whose log sync answers "cannot sync" after the log was proven:
+        /// with durable commits (the default) it is not acknowledged (decision 3). Its frames reached
+        /// the operating system, so its error says the outcome is unknown (implementation note 4). The
+        /// connection keeps the failure across its short-lived engines (decision 6, proposed default
+        /// C): every later operation opens read-only, reads return the files as they are, $database
+        /// reports the failure, and the next write throws with it before it asks the storage anything.
+        /// A new connection starts fresh.
+        /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
-        public void UnsupportedSync_RemainsVisibleAfterSharedEngineReopens(string password)
+        public void UnsupportedSync_FailsTheCommitAndStaysVisibleAfterSharedEngineReopens(string password)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
@@ -70,12 +79,17 @@ namespace LiteDB.Internals
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");
             rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "before" });
+            var rejection = new UnauthorizedAccessException("sync unsupported");
             EngineState.SimulateProcessCrash = stage =>
             {
-                if (stage == "wal-before-durable-flush")
-                    log.Failure = new UnauthorizedAccessException("sync unsupported");
+                if (stage == "wal-before-durable-flush") log.Failure = rejection;
             };
-            try { rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = "after" }).Should().BeTrue(); }
+            try
+            {
+                Action update = () => rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = "after" });
+                update.Should().Throw<IOException>().WithMessage(WriteFailureAssert.OutcomeUnknown + "*")
+                    .Which.InnerException.Should().BeSameAs(rejection);
+            }
             finally
             {
                 EngineState.SimulateProcessCrash = null;
@@ -83,24 +97,67 @@ namespace LiteDB.Internals
             }
             log.RejectedSyncs.Should().Be(1);
 
+            rows.FindAll().Select(x => x["value"].AsString).Should().Equal(new[] { "after" }, "its frames reached the operating system");
+            var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
             IsDurable(db).Should().BeFalse("reopening for diagnostics must retain the weaker guarantee");
-            var before = -1;
-            var after = -1;
+            var syncs = log.DurableSyncs;
+            var dataBytes = data.Length;
+            var logBytes = log.Length;
+            WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 2 }), reason);
+            WriteFailureAssert.Refused(() => rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = "again" }), reason);
+            log.DurableSyncs.Should().Be(syncs, "a refused write asks the storage nothing");
+            data.Length.Should().Be(dataBytes);
+            log.Length.Should().Be(logBytes);
+            rows.FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
+
+            using var fresh = new LiteDatabase(new SharedEngine(settings));
+            WriteFailureAssert.NoneRecorded(fresh, "the failure belongs to the connection, not the file or caller settings");
+            IsDurable(fresh).Should().BeTrue("the diagnostic belongs to the connection, not the file or caller settings");
+            fresh.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("after");
+            fresh.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+            fresh.GetCollection("rows").Count().Should().Be(2);
+        }
+
+        /// <summary>
+        /// Opted out of durable commits, "cannot sync" is not a failure (proposed default A): a shared
+        /// connection's commit on storage that rejects device syncs never asks for one, is acknowledged,
+        /// and nothing is recorded, so the connection's later engines keep writing.
+        /// </summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void UnsupportedSync_IsNotAFailureForASharedConnectionWithoutDurableCommits(string password)
+        {
+            using var file = new TempFile();
+            using var data = new SyncFile(file.Filename);
+            using var log = new SyncFile(file.Filename + "-wal");
+            var settings = new EngineSettings
+            {
+                Filename = file.Filename, DataStream = data, LogStream = log, Password = password, DurableCommits = false
+            };
+            using var engine = new SharedEngine(settings);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            var rows = db.GetCollection("rows");
+            rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "before" });
+            // Armed once the fresh engine opened its log: opening an encrypted log syncs its preamble.
             EngineState.SimulateProcessCrash = stage =>
             {
-                if (stage == "wal-before-durable-flush") before = log.DurableSyncs;
-                if (stage == "wal-after-durable-flush") after = log.DurableSyncs;
+                if (stage == "wal-before-durable-flush") log.Failure = new UnauthorizedAccessException("sync unsupported");
             };
-            try { rows.Insert(new BsonDocument { ["_id"] = 2 }); }
-            finally { EngineState.SimulateProcessCrash = null; }
-            before.Should().BeGreaterThanOrEqualTo(0);
-            after.Should().Be(before + 1, "the new commit must retry device sync, independently of preamble syncs");
+            try { rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = "after" }).Should().BeTrue(); }
+            finally
+            {
+                EngineState.SimulateProcessCrash = null;
+                log.Failure = null;
+            }
+            log.RejectedSyncs.Should().Be(0, "an opted-out commit never asks for a device sync");
+
+            WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+            IsDurable(db).Should().BeFalse();
+            rows.Insert(new BsonDocument { ["_id"] = 2 });
+            rows.FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1, 2);
             rows.FindById(1)["value"].AsString.Should().Be("after");
-            IsDurable(db).Should().BeFalse("the shared connection previously acknowledged a degraded commit");
-            db.Checkpoint();
-            using var fresh = new LiteDatabase(new SharedEngine(settings));
-            IsDurable(fresh).Should().BeTrue("the diagnostic belongs to the connection, not the file or caller settings");
-            fresh.GetCollection("rows").Count().Should().Be(2);
         }
 
         private static bool IsDurable(LiteDatabase db) =>
