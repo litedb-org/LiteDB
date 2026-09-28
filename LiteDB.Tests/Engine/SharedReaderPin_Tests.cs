@@ -200,23 +200,22 @@ namespace LiteDB.Tests.Engine
         }
 
         /// <summary>
-        /// A thread of the same instance must repeatedly get the mutex before the pin's
-        /// fallback hold limit. A one-shot release request is lost when the owner re-pins
-        /// first, so the pin must end for every counted waiter.
+        /// Each competing insert must follow a fresh owner update, so consecutive
+        /// inserts cannot share one handoff. Pin expiry is outside the test session
+        /// limit; event timeouts only guard against deadlocks.
         /// </summary>
         [Fact]
-        public void Tight_write_loop_hands_off_to_repeated_waiters_before_the_hold_limit()
+        public void Pin_owner_hands_off_to_each_repeated_waiter()
         {
-            using var engine = this.Open(expire: true);
-            var fallback = TimeSpan.FromSeconds(30);
-            engine.PinIdleLimit = fallback;
-            engine.PinHoldLimit = fallback;
-            engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
+            using var engine = this.Seed();
             using var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue();
-            engine.Update("docs", new[] { Doc(1, 1) });
 
             const int attempts = 4;
+            using var ready = new AutoResetEvent(false);
+            using var release = new AutoResetEvent(false);
+            using var inserted = new AutoResetEvent(false);
+            using var stop = new ManualResetEventSlim();
             var completed = 0;
             Exception failure = null;
             var other = new Thread(() =>
@@ -225,36 +224,57 @@ namespace LiteDB.Tests.Engine
                 {
                     for (var id = 1; id <= attempts; id++)
                     {
+                        ready.Set();
+                        release.WaitOne(Prompt).Should().BeTrue("the owner must release attempt {0}", id);
+                        if (stop.IsSet) return;
                         engine.Insert("other", new[] { new BsonDocument { ["_id"] = id } }, BsonAutoId.Int32);
                         Interlocked.Increment(ref completed);
+                        inserted.Set();
                     }
                 }
-                catch (Exception ex) { failure = ex; }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                    ready.Set();
+                    inserted.Set();
+                }
             }) { IsBackground = true };
             other.Start();
 
-            bool finished;
             try
             {
-                var deadline = DateTime.UtcNow + Prompt;
-                var value = 2;
-                while (other.IsAlive && DateTime.UtcNow < deadline)
+                for (var id = 1; id <= attempts; id++)
                 {
-                    engine.Update("docs", new[] { Doc(1, value++) });
-                    Thread.Yield();
+                    ready.WaitOne(Prompt).Should().BeTrue("the writer must be ready for attempt {0}", id);
+                    failure.Should().BeNull();
+                    Volatile.Read(ref completed).Should().Be(id - 1);
+
+                    // The writer is gated while this update pins (or re-pins) the
+                    // owner's open reader. Only then may it request this handoff.
+                    engine.Update("docs", new[] { Doc(1, id) }).Should().Be(1);
+                    release.Set();
+                    inserted.WaitOne(Prompt).Should().BeTrue("attempt {0} must complete its handoff", id);
+                    failure.Should().BeNull();
+                    Volatile.Read(ref completed).Should().Be(id);
                 }
-                finished = !other.IsAlive;
             }
             finally
             {
-                // On failure, end the pin before joining so cleanup never leaves a
-                // background thread using an engine that the test is disposing.
+                // Unblock a writer waiting at either the test gate or the mutex
+                // before joining, including when an assertion fails mid-attempt.
+                stop.Set();
+                release.Set();
                 if (other.IsAlive) reader.Dispose();
                 other.Join(Prompt).Should().BeTrue();
             }
             failure.Should().BeNull();
-            finished.Should().BeTrue("counted waiters must get repeated handoffs before the 30-second fallback");
-            Volatile.Read(ref completed).Should().Be(attempts);
+            reader.Dispose();
+            using var reopened = this.Open();
+            reopened.Query("other", new Query()).ToEnumerable().Select(doc => doc["_id"].AsInt32)
+                .Should().BeEquivalentTo(Enumerable.Range(1, attempts));
+            var docs = reopened.Query("docs", new Query()).ToEnumerable().ToArray();
+            docs.Should().HaveCount(Count);
+            docs.Single(doc => doc["_id"] == 1)["value"].AsInt32.Should().Be(attempts);
         }
 
         [Fact]
