@@ -213,7 +213,7 @@ namespace LiteDB.Internals
             }
         }
 
-        [Fact (Skip = "Verificar loop")]
+        [Fact]
         public Task Disk_ExclusiveScheduler_Write() => Task.Factory.StartNew(Disk_Read_Write,
             CancellationToken.None, TaskCreationOptions.DenyChildAttach,
             new ConcurrentExclusiveSchedulerPair().ExclusiveScheduler);

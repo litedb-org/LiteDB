@@ -3,6 +3,11 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  # Validates the queued candidate tree once a merge queue is enabled for dev
+  # (a repository setting; see docs/rules/safety-evidence.md). Without a queue
+  # GitHub never sends this event.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 concurrency:

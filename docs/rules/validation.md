@@ -22,6 +22,9 @@ the following levels accumulate as the change crosses more boundaries.
 Add cases for newly introduced states and their combinations. Verify the tests
 reach the changed path and would detect the unsafe behavior they are meant to
 exclude. A test that merely mirrors the implementation is insufficient evidence.
+Removing, skipping, narrowing or repinning coverage needs a disposition in the
+coverage ledger, and new fault hooks need registered evidence; see
+[safety evidence](safety-evidence.md).
 
 ## Tests that distinguish a fix from a workaround
 

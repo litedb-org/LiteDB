@@ -13,6 +13,7 @@ below when working in that area; there is no need to load every rule file.
 | Work area | Guidance |
 | --- | --- |
 | Reproductions, tests, fuzzing, CI evidence | [Validation](docs/rules/validation.md) |
+| PR safety section, removing/skipping tests, fault hooks, CI changes | [Safety evidence](docs/rules/safety-evidence.md) |
 | File formats, upgrades, persisted indexes | [Compatibility](docs/rules/compatibility.md) |
 | Transactions, cursors, WAL, disposal, buffers | [Storage and ownership](docs/rules/storage-ownership.md) |
 | LINQ/SQL translation, expression and statement caches | [Query expressions](docs/rules/query-expressions.md) |

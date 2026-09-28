@@ -1,0 +1,1718 @@
+{
+  "schemaVersion": 1,
+  "description": "Registered fault/crash hooks in LiteDB/ and the evidence that claims each one. Maintained by .github/scripts/check_fault_points.py; see docs/rules/safety-evidence.md.",
+  "models": {
+    "exception": "An API or I/O operation fails and unwinding/cleanup runs.",
+    "process-death": "The process or owner dies without graceful disposal; OS cache and surviving processes remain.",
+    "modeled-power-loss": "A fault-model stream/device keeps only durable bytes (lost, torn or reordered unsynced writes).",
+    "device": "An actual OS/VM reset or physical-device campaign.",
+    "corrupt-input": "Damaged or unsupported persisted input must be detected without silent acceptance.",
+    "interleaving": "The hook pauses or orders work to force a concurrent interleaving; not a failure by itself.",
+    "capability": "The hook simulates a platform capability (for example unsupported sync), not a failure."
+  },
+  "hooks": [
+    {
+      "family": "checkpoint-stage",
+      "name": "after-reclaim",
+      "protocol": "checkpoint reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+          "model": "exception",
+          "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
+        }
+      ],
+      "gap": "Only the checkpoint exception model is claimed; process death and modeled power loss after reclamation are not."
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "before-commit-lock",
+      "protocol": "checkpoint admission",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecoveredCommitLock_Tests.cs#RecoveredHeaderKeepsCheckpointOutsideCommitPublication",
+          "model": "interleaving",
+          "proves": "Checkpoint must wait for a paused commit's index publication."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_FailedJournalSyncPreservesOriginalGeneration",
+          "model": "exception",
+          "proves": "A failed journal sync preserves the original generation."
+        },
+        {
+          "fuzz": "mvcc-checkpoint",
+          "model": "modeled-power-loss",
+          "proves": "Generated rooted checkpoints cut at scenario phases with repeated repairs.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "before-index-lock",
+      "protocol": "checkpoint admission",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccCheckpoint_Tests.cs#CheckpointCannotPassVersionCaptureBeforePinPublication",
+          "model": "interleaving",
+          "proves": "Checkpoint cannot pass a version capture before the reader pin is published."
+        },
+        {
+          "fuzz": "cursor-handoff",
+          "model": "interleaving",
+          "proves": "Cursor handoffs overlap checkpoint admission."
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "before-reclaim",
+      "protocol": "checkpoint reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+          "model": "exception",
+          "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#TornRootRemoval_ToleratesRepeatedTornHeaderRepairs",
+          "model": "modeled-power-loss",
+          "proves": "Torn root removal tolerates repeated torn header repairs."
+        },
+        {
+          "fuzz": "mvcc-checkpoint",
+          "model": "modeled-power-loss",
+          "proves": "Generated rooted checkpoints cut at scenario phases with repeated repairs.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "before-wal-reclaim-lock",
+      "protocol": "WAL slot reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+          "model": "process-death",
+          "proves": "Stream images copied at the stage (after the data flush, before any slot is cleared) recover every committed row with a fresh engine, plain and encrypted."
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "data-flushed",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+          "model": "exception",
+          "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "data-page",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+          "model": "exception",
+          "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccSharedProcess_Tests.cs#KillingPartialCheckpointerDoesNotInvalidateAnotherProcessesReader",
+          "model": "process-death",
+          "proves": "Killing a partial checkpointer does not invalidate another process's reader."
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-after-header-write",
+      "protocol": "MVCC retirement root publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-after-record-write",
+      "protocol": "MVCC retirement witness",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-before-header-write",
+      "protocol": "MVCC retirement root publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+          "model": "exception",
+          "proves": "A failed durable barrier stops before unsafe slot reuse.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#TornPromotion_RemainsRecoverableAfterTwoTornRepairs",
+          "model": "modeled-power-loss",
+          "proves": "A torn root publication survives two torn repairs."
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-before-journal-retire-flush",
+      "protocol": "MVCC retirement root publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+          "model": "exception",
+          "proves": "A failed durable barrier stops before unsafe slot reuse.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-before-record-write",
+      "protocol": "MVCC retirement witness",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+          "model": "exception",
+          "proves": "A failed durable barrier stops before unsafe slot reuse.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-header-flushed",
+      "protocol": "MVCC retirement root publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCorruption_Tests.cs#DamagedOrCrcValidMalformedProofs_FailClosedWithoutChangingSources",
+          "model": "corrupt-input",
+          "proves": "Damaged or CRC-valid malformed proofs fail closed without changing sources."
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-journal-retired",
+      "protocol": "MVCC retirement root publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "retirement-records-flushed",
+      "protocol": "MVCC retirement witness",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "mvcc-retirement",
+          "model": "modeled-power-loss",
+          "proves": "Generated retirement histories cut at scenario phases.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "wal-slot-cleared",
+      "protocol": "WAL slot reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+          "model": "process-death",
+          "proves": "Recovery succeeds after interruption at every reclamation boundary."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+          "model": "process-death",
+          "proves": "A killed reclaimer cannot invalidate a live reader or reused-slot recovery."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "wal-slots-flushed",
+      "protocol": "WAL slot reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+          "model": "process-death",
+          "proves": "Recovery succeeds after interruption at every reclamation boundary."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+          "model": "process-death",
+          "proves": "A killed reclaimer cannot invalidate a live reader or reused-slot recovery."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "wal-slots-published",
+      "protocol": "WAL slot reclamation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+          "model": "process-death",
+          "proves": "Recovery succeeds after interruption at every reclamation boundary."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+          "model": "process-death",
+          "proves": "A killed reclaimer cannot invalidate a live reader or reused-slot recovery."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "created",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+          "model": "exception",
+          "proves": "A failure at each creation stage publishes only complete bytes and removes the temporary file."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "flushed",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+          "model": "exception",
+          "proves": "A failure at each creation stage publishes only complete bytes and removes the temporary file."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+          "model": "interleaving",
+          "proves": "Cleanup racing a live publisher at the rename boundary cannot remove it."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "published",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+          "model": "exception",
+          "proves": "A failure at each creation stage publishes only complete bytes and removes the temporary file."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedMappedProcess_Tests.cs#Death_during_control_creation_preserves_data_and_recovers_mapped_reads",
+          "model": "process-death",
+          "proves": "Process death during control creation preserves data and recovers mapped reads."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "publishing",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+          "model": "interleaving",
+          "proves": "Cleanup racing a live publisher at the rename boundary cannot remove it."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "retired",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationProtocol_Tests.cs#Failed_retirement_is_repeatable_without_partial_authority_admission",
+          "model": "exception",
+          "proves": "A failed retirement is repeatable without admitting a partial authority."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "written",
+      "protocol": "shared coordination sidecar publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+          "model": "exception",
+          "proves": "A failure at each creation stage publishes only complete bytes and removes the temporary file."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+          "model": "interleaving",
+          "proves": "Cleanup racing a live publisher at the rename boundary cannot remove it."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-after-clear",
+      "protocol": "checkpoint WAL clearing",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+          "model": "process-death",
+          "proves": "Only workers crashing inside checkpoint keep the native mutex after commit."
+        },
+        {
+          "fuzz": "mvcc-checkpoint",
+          "model": "modeled-power-loss",
+          "proves": "Generated rooted checkpoints cut at scenario phases with repeated repairs.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-after-data-flush",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-after-page-write",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-before-clear",
+      "protocol": "checkpoint WAL clearing",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+          "model": "process-death",
+          "proves": "Only workers crashing inside checkpoint keep the native mutex after commit."
+        },
+        {
+          "fuzz": "mvcc-checkpoint",
+          "model": "modeled-power-loss",
+          "proves": "Generated rooted checkpoints cut at scenario phases with repeated repairs.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-before-data-flush",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "checkpoint-before-page-write",
+      "protocol": "checkpoint backfill",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Rooted full checkpoint is cut at each phase; complete payloads, indexes and untouched data are compared."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-after-header-flush",
+      "protocol": "header promotion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionFileRecovery_Tests.cs#Promotion_recovery_preserves_a_later_corruption_guard",
+          "model": "modeled-power-loss",
+          "proves": "Recovery after the header flush keeps a later corruption guard."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-after-header-write",
+      "protocol": "header promotion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-after-journal-flush",
+      "protocol": "header promotion journal",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-after-journal-page-write",
+      "protocol": "header promotion journal",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Recovery_keeps_a_valid_header_when_the_journal_is_only_OS_cached",
+          "model": "modeled-power-loss",
+          "proves": "An OS-cached (unsynced) journal never replaces a valid header."
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-after-journal-retire-flush",
+      "protocol": "header promotion journal retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-before-header-write",
+      "protocol": "header promotion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Torn_header_is_recovered_from_durable_journal",
+          "model": "modeled-power-loss",
+          "proves": "A torn header is repaired from the durable journal."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionFileRecovery_Tests.cs#Torn_header_recovers_through_real_files_without_touching_unrelated_files",
+          "model": "modeled-power-loss",
+          "proves": "Real-file recovery of a torn header preserves unrelated files."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-before-journal-retire-flush",
+      "protocol": "header promotion journal retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-before-journal-write",
+      "protocol": "header promotion journal",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Torn_journal_cannot_damage_the_unpromoted_database",
+          "model": "modeled-power-loss",
+          "proves": "A torn journal leaves the unpromoted database intact."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+          "model": "modeled-power-loss",
+          "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
+          "via": [
+            "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated compact promotions cut at a random scenario phase.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-recovery-after-header-flush",
+      "protocol": "header journal recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+          "model": "modeled-power-loss",
+          "proves": "Recovery is interrupted again at each repair phase and still keeps the journal."
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated promotions interrupt recovery again."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-recovery-after-header-write",
+      "protocol": "header journal recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+          "model": "modeled-power-loss",
+          "proves": "Recovery is interrupted again at each repair phase and still keeps the journal."
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated promotions interrupt recovery again."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-recovery-before-header-write",
+      "protocol": "header journal recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+          "model": "modeled-power-loss",
+          "proves": "Recovery is interrupted again at each repair phase and still keeps the journal."
+        },
+        {
+          "fuzz": "compact-power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Generated promotions interrupt recovery again."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "startup-after-tail-trim",
+      "protocol": "startup trailing-page trim",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "process-death",
+          "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "exception",
+          "proves": "Keeping whatever the error-close left, the next open still recovers every committed row and accepts a write and checkpoint."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "startup-before-tail-trim",
+      "protocol": "startup trailing-page trim",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "process-death",
+          "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+          "model": "exception",
+          "proves": "Keeping whatever the error-close left, the next open still recovers every committed row and accepts a write and checkpoint."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-after-durable-flush",
+      "protocol": "WAL commit",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedDurability_Tests.cs#SharedCommit_HonorsDurabilitySettingAtConfirmation",
+          "model": "process-death",
+          "proves": "Shared commits honour the durability setting at confirmation."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-after-index-confirmation",
+      "protocol": "WAL commit publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+          "model": "process-death",
+          "proves": "A worker crashing after index confirmation releases the native mutex."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-durable-flush",
+      "protocol": "WAL commit",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership",
+          "model": "exception",
+          "proves": "Device failures at the commit barrier recover whole transactions and release writer ownership."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedDurability_Tests.cs#SharedCommit_HonorsDurabilitySettingAtConfirmation",
+          "model": "process-death",
+          "proves": "Shared commits honour the durability setting at confirmation."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-index-confirmation",
+      "protocol": "WAL commit publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/MvccRecoveredCommitLock_Tests.cs#RecoveredHeaderKeepsCheckpointOutsideCommitPublication",
+          "model": "interleaving",
+          "proves": "Pauses a durable commit before index confirmation and requires checkpoint to wait."
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-confirmation-after-write",
+      "protocol": "WAL append",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-confirmation-before-write",
+      "protocol": "WAL append",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-page-after-write",
+      "protocol": "WAL append",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-page-before-write",
+      "protocol": "WAL append",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+          "model": "modeled-power-loss",
+          "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
+          "via": [
+            "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+          ]
+        },
+        {
+          "fuzz": "power-loss",
+          "model": "modeled-power-loss",
+          "proves": "Acknowledged operations are recorded outside the engine; only the interrupted operation may resolve either way."
+        },
+        {
+          "fuzz": "shared",
+          "model": "process-death",
+          "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "after-log-backup",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "after-source-backup",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "after-temp-install",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-candidate-cleanup",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-candidate-republish",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+          "model": "exception",
+          "proves": "Repeated recovery failures block shared reuse and fresh opens."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-candidate-rollback",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/Issue2967_Tests.cs#Failed_candidate_rollback_keeps_the_original_wal_with_its_backup_data",
+          "model": "exception",
+          "proves": "A failed candidate rollback keeps the original WAL with its backup data."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-log-backup",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-log-rollback",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+          "model": "exception",
+          "proves": "Repeated recovery failures block shared reuse and fresh opens."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-recovery-marker",
+      "protocol": "rebuild recovery marker",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Marker_creation_failure_does_not_move_the_original_files",
+          "model": "exception",
+          "proves": "A failed marker creation leaves the original files in place."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-recovery-marker-delete",
+      "protocol": "rebuild recovery marker",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Failed_marker_cleanup_preserves_the_original_error_and_blocks_opens",
+          "model": "exception",
+          "proves": "A failed marker cleanup preserves the original error and blocks opens."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-recovery-marker-flush",
+      "protocol": "rebuild recovery marker",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Marker_flush_failure_leaves_the_original_pair_untouched_and_access_blocked",
+          "model": "exception",
+          "proves": "A failed marker flush leaves the original pair untouched and access blocked."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-source-backup",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-source-retraction",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+          "model": "exception",
+          "proves": "Repeated recovery failures block shared reuse and fresh opens."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-source-rollback",
+      "protocol": "rebuild install rollback",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallRollback_Tests.cs#Shared_handle_adopts_the_collation_of_a_republished_replacement",
+          "model": "exception",
+          "proves": "Rollback interruptions leave a shared handle on a coherent pair."
+        }
+      ]
+    },
+    {
+      "family": "rebuild-install",
+      "name": "before-temp-install",
+      "protocol": "rebuild install",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+          "model": "exception",
+          "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+          "model": "exception",
+          "proves": "Escape guard: a successful rebuild's hit list must equal the registered install faults."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+          "model": "exception",
+          "proves": "Opens are refused while the marker guards each installation phase."
+        },
+        {
+          "fuzz": "rebuild-transition",
+          "model": "exception",
+          "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
+        }
+      ]
+    }
+  ],
+  "injectors": [
+    {
+      "name": "SimulateDiskWriteFail",
+      "protocol": "WAL page writes",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CompactStorageFault_Tests.cs#Failure_at_each_wal_page_boundary_never_publishes_partial_documents_or_schemas",
+          "model": "exception",
+          "proves": "A write failure at each WAL page boundary never publishes partial documents or schemas."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/WalTransactionBoundary_Tests.cs#FailedConfirmationAfterTheLastFlush_ReleasesItsFrameAndRemainsUncommitted",
+          "model": "exception",
+          "proves": "A failed confirmation write releases its frame and stays uncommitted."
+        },
+        {
+          "fuzz": "storage",
+          "model": "exception",
+          "proves": "Throwing streams and failed writes require rollback and continued usability."
+        }
+      ]
+    },
+    {
+      "name": "SimulateDiskReadFail",
+      "protocol": "page reads",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/FrameFailure_Tests.cs#ReadHook_Failure_ReleasesAcquiredFrame",
+          "model": "exception",
+          "proves": "A failed page read releases the acquired frame."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/RecoveryMarker_Tests.cs#InvalidState_PersistsMarkerBeforeClosingDataWriter",
+          "model": "exception",
+          "proves": "An invalid-state read persists the marker before the data writer closes."
+        }
+      ]
+    },
+    {
+      "name": "SimulateDataWriteFail",
+      "protocol": "data-file page writes",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedDataPageWrite_StopsTheEngine_AndTheWalRecoversEveryCommit",
+          "model": "exception",
+          "proves": "A failed first or later data-page write stops the engine without further writes; the committed WAL frames stay unchanged (the checkpoint only appends its header journal), a fresh open recovers every commit and a later checkpoint leaves a self-sufficient data file. Removing the hook's Invoke fails 8/8; Control_HookSeesEveryBackfilledDataPage pins that the hook sees every backfilled page."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedCloseCheckpoint_LeavesTheWalToRecoverEveryCommit",
+          "model": "exception",
+          "proves": "A failed close-time checkpoint leaves the WAL to recover every commit."
+        }
+      ]
+    },
+    {
+      "name": "SimulateErrno",
+      "protocol": "file sync (fsync)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Failed_log_sync_stops_checkpoint_before_the_data_file_changes",
+          "model": "exception",
+          "proves": "A failed log sync stops checkpoint before the data file changes."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
+          "model": "exception",
+          "proves": "Failed initialization releases the file handle and allows a retry."
+        }
+      ]
+    },
+    {
+      "name": "SimulateDirectoryErrno",
+      "protocol": "WAL directory entry sync",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_failed_directory_sync_fails_the_commit",
+          "model": "exception",
+          "proves": "A failed directory sync fails the commit."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
+          "model": "capability",
+          "proves": "Unsupported directory sync degrades durability visibly and keeps committing."
+        }
+      ]
+    },
+    {
+      "name": "SimulatePosixDelete",
+      "protocol": "shared file handles",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedFileHandles_Tests.cs#Volumes_without_posix_delete_open_files_per_operation",
+          "model": "capability",
+          "proves": "Volumes without POSIX delete semantics open files per operation."
+        }
+      ]
+    }
+  ],
+  "observers": {
+    "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
+    "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
+    "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
+    "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
+    "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
+    "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
+    "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
+    "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
+    "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
+    "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
+  },
+  "unhookedTransitions": [
+    {
+      "protocol": "rebuild install",
+      "transition": "Directory-entry persistence of the recovery marker and the backup/install renames: rebuild-install hooks fault the operations, but the model does not lose unsynced directory entries.",
+      "issue": 3011
+    },
+    {
+      "protocol": "shared reader leases",
+      "transition": "Reader lease-file publication, renewal and expiry have observer stages only (CoordinationStage); no registered fault point interrupts them."
+    }
+  ]
+}

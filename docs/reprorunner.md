@@ -120,6 +120,19 @@ manual `include-regressions`; it is not a claim of general power-loss coverage.
 Storage compatibility scripts and the normal recovery/fault-injection suites remain
 in CI. No storage implementation changes are needed for this consolidation.
 
+### Regression proofs
+
+A fixed (`green`) repro can prove its fix against a real known-bad state: a
+published package, a `dev` commit or an originating-PR commit, never a mutant.
+`.github/safety/regression-proofs.json` pins the state and names the permanent
+regression guard. The **Regression proof** workflow requires the known-bad package
+variant to reproduce and the candidate source to pass, on the PR and once more on
+the merged `dev` revision; after that it runs only when the proof, its repro or
+the proving harness changes. A bug-fix PR (labelled `bug` or `bugfix-fix`) must
+add at least one proof; `python .github/scripts/regression_proof.py new ...`
+scaffolds the repro and its entry. See
+[safety evidence](rules/safety-evidence.md#regression-proofs).
+
 ### Job layout
 
 1. **generate-matrix**
