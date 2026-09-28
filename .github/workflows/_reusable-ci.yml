@@ -50,9 +50,8 @@ jobs:
             8.0.x
       - name: Verify every stable v5 and v4 database
         run: python scripts/test-release-compatibility.py
-      - name: Verify macOS rebuild ownership and process death
-        if: runner.os == 'macOS'
-        run: dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter FullyQualifiedName~RebuildOwnership
+      - name: Verify rebuild admission, ownership, and rollback
+        run: dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter "FullyQualifiedName~RebuildOwnership|FullyQualifiedName~RebuildAdmissionPlatform|FullyQualifiedName~Rebuild_InstallRollback"
 
   build-linux:
     name: Build (Linux)
