@@ -13,6 +13,40 @@ namespace LiteDB.Tests.Engine
 {
     public class NativeAdmissionAliases_Tests
     {
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Windows_paths_beyond_MAX_PATH_preserve_admission_and_read_only_access(bool shared)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            var root = Path.Combine(Path.GetTempPath(), "litedb-native-long-" + Guid.NewGuid().ToString("N"));
+            var directory = root;
+            while (directory.Length < 300) directory = Path.Combine(directory, new string('x', 40));
+            var filename = Path.Combine(directory, "data.db");
+            Directory.CreateDirectory(directory);
+            try
+            {
+                NativeAdmission_Tests.Seed(filename);
+                var canonical = DatabaseFileIdentity.CanonicalPath(filename);
+                canonical.Length.Should().BeGreaterThan(260);
+                canonical.Should().NotStartWith(@"\\?\");
+                var original = File.ReadAllBytes(filename);
+                using (var db = new LiteDatabase(new ConnectionString
+                    { Filename = filename, ReadOnly = true, Connection = shared ? ConnectionType.Shared : ConnectionType.Direct }))
+                    db.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(42);
+                File.ReadAllBytes(filename).Should().Equal(original);
+                Directory.GetFiles(directory).Should().Equal(filename);
+                using (var db = new LiteDatabase(new ConnectionString
+                    { Filename = filename, Connection = shared ? ConnectionType.Shared : ConnectionType.Direct }))
+                {
+                    db.GetCollection("rows").Count().Should().Be(1);
+                    await MvccProcess.Run("native-rejected", filename, null, shared ? "direct" : "shared");
+                }
+                NativeAdmission_Tests.Verify(filename);
+            }
+            finally { Directory.Delete(root, true); }
+        }
+
         [Fact]
         public void Overlong_native_paths_preserve_the_path_length_diagnostic()
         {

@@ -133,7 +133,7 @@ namespace LiteDB.Client.Shared
             {
                 var root = new StringBuilder(32768);
                 var format = new StringBuilder(64);
-                if (!GetVolumePathNameW(filename, root, root.Capacity) || GetDriveTypeW(root.ToString()) == 4 ||
+                if (!GetVolumePathNameW(WindowsPath(filename), root, root.Capacity) || GetDriveTypeW(root.ToString()) == 4 ||
                     !GetVolumeInformationW(root.ToString(), null, 0, out _, out _, out _, format, format.Capacity) ||
                     (format.ToString() != "NTFS" && format.ToString() != "ReFS"))
                     throw new IOException("Database admission requires a local NTFS or ReFS volume.");
