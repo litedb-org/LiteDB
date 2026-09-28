@@ -37,7 +37,9 @@ namespace LiteDB.Tests.Engine
                         database.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(73);
                     engine.CoordinatedReadHits.Should().Be(0);
                 }
-                using (var cold = new LiteDatabase(file))
+                // An unreadable participation authority now blocks Direct writers;
+                // protected Shared writes and a cold read-only inspection remain valid.
+                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, ReadOnly = true }))
                     cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(73);
                 if (!longName)
                 {
@@ -152,7 +154,10 @@ namespace LiteDB.Tests.Engine
                     File.Exists(SharedCoordinationFallback.LivePath(file)).Should().BeFalse();
                 }
                 File.ReadAllBytes(page).Should().Equal(foreign);
-                using (var cold = new LiteDatabase(file))
+                Action directWriter = () => { using var direct = new LiteEngine(file); };
+                directWriter.Should().Throw<IOException>().WithMessage("*Cannot safely admit*");
+                File.ReadAllBytes(page).Should().Equal(foreign);
+                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, ReadOnly = true }))
                     cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(71);
             });
         }

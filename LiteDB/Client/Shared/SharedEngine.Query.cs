@@ -36,6 +36,7 @@ namespace LiteDB
             {
                 var coordinated = this.TryQueryCoordinated(collection, query);
                 if (coordinated != null) return coordinated;
+                System.Threading.Interlocked.Increment(ref _coordinatedReadMisses);
             }
 #endif
             SharedMutexPin use;
@@ -335,6 +336,7 @@ namespace LiteDB
             try
             {
                 RebuildRecovery.EnsureAvailable(_settings);
+                _settings.SharedAdmission.Ensure();
 #if NET8_0_OR_GREATER
                 this.EnsureReadCoordination();
 #endif

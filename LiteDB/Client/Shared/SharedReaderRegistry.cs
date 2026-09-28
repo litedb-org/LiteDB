@@ -23,6 +23,8 @@ namespace LiteDB.Client.Shared
         private readonly object _gate = new object();
         private SharedReaderSlots _slots;
         private bool _disposed;
+        private int _activeLeases;
+        internal int ActiveLeases => System.Threading.Volatile.Read(ref _activeLeases);
 
         internal SharedReaderRegistry(string filename, Func<string, string, string[]> getFiles = null)
         {
@@ -45,7 +47,7 @@ namespace LiteDB.Client.Shared
         internal IDisposable Register(int version)
         {
             // An open slot file already proved the registry usable.
-            lock (_gate) if (_slots != null && !_disposed) return _slots.Lease(version);
+            lock (_gate) if (_slots != null && !_disposed) return this.Track(_slots.Lease(version));
             try { _getFiles(_directory, "*.lease"); }
             catch (DirectoryNotFoundException) { }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -66,7 +68,27 @@ namespace LiteDB.Client.Shared
             {
                 if (_disposed) throw new ObjectDisposedException(nameof(SharedReaderRegistry));
                 if (_slots == null) _slots = SharedReaderSlots.Create(_directory);
-                return _slots.Lease(version);
+                return this.Track(_slots.Lease(version));
+            }
+        }
+
+        private IDisposable Track(IDisposable lease)
+        {
+            System.Threading.Interlocked.Increment(ref _activeLeases);
+            return new ObservedLease(this, lease);
+        }
+
+        private sealed class ObservedLease : IDisposable
+        {
+            private readonly SharedReaderRegistry _owner;
+            private IDisposable _lease;
+            internal ObservedLease(SharedReaderRegistry owner, IDisposable lease) { _owner = owner; _lease = lease; }
+            public void Dispose()
+            {
+                var lease = System.Threading.Interlocked.Exchange(ref _lease, null);
+                if (lease == null) return;
+                try { lease.Dispose(); }
+                finally { System.Threading.Interlocked.Decrement(ref _owner._activeLeases); }
             }
         }
 

@@ -101,6 +101,7 @@ namespace LiteDB.Engine
                 using (var engine = new LiteEngine(new EngineSettings
                 {
                     Filename = tempFilename,
+                    RebuildCandidate = true,
                     CompactStorage = compactStorage,
                     Collation = options.Collation ?? currentCollation,
                     Password = options.ResolvePassword(_settings.Password),

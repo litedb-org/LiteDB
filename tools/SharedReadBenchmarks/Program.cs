@@ -65,8 +65,8 @@ internal static class Program
                 "same-key", "random", "buffered", "indexed", "write", "transaction", "balanced", "write-heavy", "churn", "open-close", "checkpoint" }.Contains(args[2]))
             throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <scenario> <count> [warmup-seconds|active-slots]");
 
-        if (args[1] != "shared" && new[] { "slots", "holder", "open-close" }.Contains(args[2]))
-            throw new ArgumentException("The slots, holder and open-close diagnostics require shared mode.");
+        if (args[1] != "shared" && new[] { "slots", "holder" }.Contains(args[2]))
+            throw new ArgumentException("The slots and holder diagnostics require shared mode.");
         if (args[2] == "slots" && (args.Length != 5 || !int.TryParse(args[4], out var activeSlots) || activeSlots < 1 || activeSlots > 65536))
             throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> shared slots <count> <active-slots:1..65536>");
         var warmupSeconds = args.Length == 5 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
@@ -105,9 +105,11 @@ internal static class Program
         }
 
         var settings = new EngineSettings { Filename = filename };
-        using ILiteEngine engine = mode == "shared" ? new SharedEngine(settings) : new LiteEngine(settings);
-        using var db = new LiteDatabase(engine);
-        var rows = db.GetCollection("rows");
+        // Open-close operations own every handle; do not retain a second Direct engine.
+        using ILiteEngine engine = scenario == "open-close" ? null :
+            mode == "shared" ? new SharedEngine(settings) : new LiteEngine(settings);
+        using var db = engine == null ? null : new LiteDatabase(engine);
+        var rows = db?.GetCollection("rows");
         var expected = new int[Rows + 1];
         var changesRows = new[] { "mixed", "write", "transaction", "balanced", "write-heavy", "churn", "checkpoint" }.Contains(scenario);
         var minimumWarmup = scenario == "scan" || scenario == "phases" ? 20 : 1000;
@@ -119,7 +121,7 @@ internal static class Program
                 ? (int)((uint)i * 2654435761U % Rows) + 1 : i % Rows + 1;
             if (scenario == "open-close")
             {
-                using var connection = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared });
+                using var connection = new LiteDatabase(new ConnectionString { Filename = filename, Connection = mode == "shared" ? ConnectionType.Shared : ConnectionType.Direct });
                 Validate(connection.GetCollection("rows").FindById(id), id, expected);
             }
             else if (scenario == "churn")
@@ -228,14 +230,25 @@ internal static class Program
         if (changesRows)
             for (var id = 1; id <= Rows; id++) Validate(rows.FindById(id), id, expected);
 
+        // Verify an explicitly requested protected-path measurement outside timing.
+        // Reflection keeps this runner compatible with older production baselines.
+        var coordinationFallbackReason = engine?.GetType().GetProperty("CoordinationFallbackReason")?.GetValue(engine) as string;
+        var disableSetting = Environment.GetEnvironmentVariable("LITEDB_DISABLE_SHARED_MAPPED_READS");
+        var optOutRequested = AppContext.TryGetSwitch("LiteDB.DisableSharedMappedReads", out var appContextDisabled)
+            ? appContextDisabled
+            : disableSetting == "1" || string.Equals(disableSetting, "true", StringComparison.OrdinalIgnoreCase);
+        if (mode == "shared" && scenario != "open-close" && optOutRequested &&
+            (coordinationFallbackReason == null || !coordinationFallbackReason.Contains("LiteDB.DisableSharedMappedReads")))
+            throw new InvalidOperationException("Protected-read benchmark did not disable mapped attachment.");
+
         var log = Path.Combine(Path.GetDirectoryName(filename),
             Path.GetFileNameWithoutExtension(filename) + "-log" + Path.GetExtension(filename));
         long LogBytes() => File.Exists(log) ? new FileInfo(log).Length : 0;
         var walBytesBeforeClose = LogBytes();
         var closeCpu = process.TotalProcessorTime;
         var closing = Stopwatch.GetTimestamp();
-        db.Dispose();
-        engine.Dispose();
+        db?.Dispose();
+        engine?.Dispose();
         var closeMs = Milliseconds(Stopwatch.GetTimestamp() - closing);
         var closeCpuMs = (process.TotalProcessorTime - closeCpu).TotalMilliseconds;
         var walBytesAfterClose = LogBytes();
@@ -252,7 +265,7 @@ internal static class Program
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
-            mode, scenario, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
+            mode, scenario, coordinationFallbackReason, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
             coldMs, meanMs = samples.Average(), windows,
             p50Ms = samples[count / 2], p95Ms = samples[Math.Min(count - 1, (int)(count * 0.95))], worstMs = samples[count - 1], p99Ms = samples[Math.Min(count - 1, (int)(count * 0.99))],
             bytesPerOperation = bytes / (double)count, cpuMsPerOperation = cpuMs / count,

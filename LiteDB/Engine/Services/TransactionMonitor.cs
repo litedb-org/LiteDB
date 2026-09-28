@@ -124,13 +124,21 @@ namespace LiteDB.Engine
             }
             finally
             {
-                if (removed) _locker.ExitTransaction(transaction.OwnerThread);
-                if (!transaction.QueryOnly)
+                try
                 {
-                    ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-                    _slot.Value = null;
+                    // Rebuild can dispose these services as soon as admission is
+                    // released. Finish owner-local cleanup while still admitted.
+                    if (!transaction.QueryOnly)
+                    {
+                        ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                        _slot.Value = null;
+                    }
+                    _disk.Cache.TrimToLimit();
                 }
-                _disk.Cache.TrimToLimit();
+                finally
+                {
+                    if (removed) _locker.ExitTransaction(transaction.OwnerThread);
+                }
             }
         }
 

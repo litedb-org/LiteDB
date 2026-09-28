@@ -15,8 +15,11 @@ namespace LiteDB
         private void OpenEngine(bool recoveredAbandonedOwner, bool final = false, bool writing = false)
         {
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
+            // Admission must span fallback revocation and the operation engine's open.
+            // Even a transient conflict cannot permit an unadmitted writer to revoke peers.
+            using var admission = _settings.SharedAdmission.Retain();
 #if NET8_0_OR_GREATER
-            this.EnsureCoordination(allowCreate: !final, writing: true);
+            this.EnsureCoordination(allowCreate: !final, writing: !_settings.SharedModeReadOnly);
             // A fresh connection can attach only under ownership. Announce before
             // replay/open so cached peers yield during this writer's expensive work.
             if (writing) this.StartWriterPressure();
@@ -24,7 +27,7 @@ namespace LiteDB
             // mutations announce their own structural regions before touching storage.
             var recovering = _coordination?.BeginOpenRecovery() ?? false;
 #else
-            SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+            if (!_settings.SharedModeReadOnly) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
 #endif
             LiteDB.Engine.LiteEngine opened = null;
             try

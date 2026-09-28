@@ -179,6 +179,7 @@ namespace LiteDB.Tests.Issues
                 CreateDatabase(file, OldPassword);
 
                 var bytesBefore = File.ReadAllBytes(file);
+                var filesBefore = Directory.GetFiles(Path.GetDirectoryName(file));
 
                 using (var db = Open(file, OldPassword))
                 {
@@ -202,7 +203,7 @@ namespace LiteDB.Tests.Issues
                 }
 
                 File.ReadAllBytes(file).Should().Equal(bytesBefore);
-                Directory.GetFiles(Path.GetDirectoryName(file)).Should().Equal(file);
+                Directory.GetFiles(Path.GetDirectoryName(file)).Should().BeEquivalentTo(filesBefore);
             });
         }
 

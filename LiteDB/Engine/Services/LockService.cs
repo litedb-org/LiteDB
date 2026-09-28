@@ -66,12 +66,19 @@ namespace LiteDB.Engine
             }
         }
 
+#if DEBUG || TESTING
+        internal Action AfterTransactionRelease;
+#endif
+
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
         public void ExitTransaction(Thread owner)
         {
             _transaction.ExitReadLock(owner);
+#if DEBUG || TESTING
+            AfterTransactionRelease?.Invoke();
+#endif
         }
 
         /// <summary>

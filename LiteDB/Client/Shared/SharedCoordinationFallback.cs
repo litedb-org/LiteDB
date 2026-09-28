@@ -40,6 +40,7 @@ namespace LiteDB.Client.Shared
         {
             if (File.Exists(DisabledPath(filename))) return;
             SharedCoordinationFile.Publish(DisabledPath(filename), BitConverter.GetBytes(Magic));
+            SharedCoordinationEvents.Log.Transition(filename, "revoked", "fallback writer");
         }
 
         /// <summary>Caller owns the database mutex and has closed its participation handle.</summary>

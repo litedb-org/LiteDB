@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using LiteDB.Client.Shared;
 
 using static LiteDB.Constants;
 
@@ -27,6 +28,12 @@ namespace LiteDB.Engine
         internal Func<bool> AutoRebuildAllowed { get; set; }
         // Shared mode: outlives each short-lived engine; rations close checkpoints too.
         internal CheckpointBackoff CheckpointBackoff { get; set; }
+        // Private rebuild/upgrade output; the live engine retains admission through publication.
+        internal bool RebuildCandidate { get; set; }
+        internal bool SharedMode { get; set; }
+        internal SharedModeAdmission SharedAdmission { get; set; }
+        // Preserve connection admission intent when a query clones read-only snapshot settings.
+        internal bool SharedModeReadOnly { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
         internal SharedDurabilityState SharedDurability { get; set; }

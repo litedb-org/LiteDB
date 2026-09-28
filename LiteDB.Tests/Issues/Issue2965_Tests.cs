@@ -35,6 +35,32 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public async Task Rebuild_can_finish_before_transaction_release_returns_without_disposing_owner_cleanup()
+        {
+            using var file = new TempFile();
+            using var engine = new LiteEngine(file.Filename);
+            using var waiting = new ManualResetEventSlim();
+            using var finished = new ManualResetEventSlim();
+            engine.BeginTrans().Should().BeTrue();
+            engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" } }, BsonAutoId.Int32);
+            var locker = (LockService)typeof(LiteEngine).GetField("_locker",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(engine);
+            engine.SimulateBeforeExclusiveAdmission = waiting.Set;
+            var rebuild = Task.Run(() =>
+            {
+                try { engine.Rebuild(); }
+                finally { finished.Set(); }
+            });
+            waiting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            locker.AfterTransactionRelease = () => finished.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            engine.Commit().Should().BeTrue();
+            await rebuild;
+            engine.Dispose();
+            using var cold = new LiteDatabase(file.Filename);
+            cold.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("acknowledged");
+        }
+
+        [Fact]
         public async Task Rebuild_waits_for_an_active_reader()
         {
             using var file = new TempFile();

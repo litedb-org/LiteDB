@@ -26,6 +26,12 @@ namespace LiteDB
         /// </summary>
         public BsonMapper Mapper => _context.Mapper;
 
+        /// <summary>
+        /// Observe Shared-mode admission without opening storage. Returns null when
+        /// this database was constructed with an engine other than SharedEngine.
+        /// </summary>
+        public SharedDiagnostics GetSharedDiagnostics() => (_engine as SharedEngine)?.GetDiagnostics();
+
         internal LiteDatabaseContext Context => _context;
 
         #endregion

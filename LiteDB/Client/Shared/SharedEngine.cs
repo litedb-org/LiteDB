@@ -48,10 +48,12 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
-            // Reopens must use the same path as the mutex and snapshot registry,
-            // even if the process changes its working directory between calls.
+            _settings.SharedMode = true;
+            _settings.SharedModeReadOnly = settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
+            // Reopens bind to the same absolute path as the mutex and snapshot registry.
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
+            _settings.SharedAdmission = new SharedModeAdmission(_settings);
             _settings.SharedDurability = new SharedDurabilityState();
             _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
@@ -70,7 +72,6 @@ namespace LiteDB
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
-
             try
             {
                 _mutex = SharedMutexFactory.Create(name);
@@ -437,64 +438,5 @@ namespace LiteDB
             Dispose(false);
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
-
-            this.RetireCoordinatedReads();
-            // Any thread can end a pin; its holder closes the engine and releases. Read
-            // under the lock that orders a starting pin's publication with this Dispose.
-            SharedMutexPin pin;
-            lock (_useLock) pin = _pin;
-            if (pin != null)
-            {
-                pin.RequestRelease(force: true);
-                if (!pin.CanWaitFrom(Thread.CurrentThread))
-                {
-                    // The pin's holder still closes its engine; its streams close on return.
-                    _handles?.Dispose();
-                    _readers.Dispose();
-                    return;
-                }
-                pin.WaitReleased();
-            }
-
-            // Calls admitted before Dispose started finish first; later ones are refused.
-            this.WaitForAdmittedCalls();
-            var closed = false;
-            lock (_useLock)
-            {
-                if (_engine != null)
-                {
-                    _engine.Close(final: true);
-                    _engine = null;
-                    closed = true;
-                }
-                this.CloseMutexSnapshotsLocked();
-                _databaseUsers = 0;
-            }
-            // Open readers and transactions of any thread end with the connection.
-            _owner.ReleaseAll();
-            // Operations left a WAL below the close threshold: checkpoint it now, so
-            // the data file alone is the database again once every connection closed.
-            if (!closed) this.CheckpointOnDispose();
-            _handles?.Dispose();
-            // Leased readers may outlive the connection; the slot file closes after the last.
-            _readers.Dispose();
-            // A disposed connection holds no mutex, even for the moment its holder
-            // needs to release it; another connection's final close may try it next.
-            _owner.WaitForRelease();
-            this.DisposeCoordination();
-        }
-
-        /// <summary>
-        /// Readers streaming under the mutex end with their ownership, like the
-        /// operation engine: a later read would no longer be ordered with writers.
-        /// </summary>
-        private void CloseMutexSnapshotsLocked()
-        {
-            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
-            _mutexSnapshots.Clear();
-        }
     }
 }

@@ -23,6 +23,7 @@ namespace LiteDB.Engine
         private LockService _locker;
 
         private DiskService _disk;
+        private IDisposable _modeGuard;
 
         private WalIndexService _walIndex;
 
@@ -96,6 +97,9 @@ namespace LiteDB.Engine
                 // A failed rebuild may have left stale data or no canonical file.
                 // Check before upgrade, recovery, or DiskService can create a new file.
                 RebuildRecovery.EnsureAvailable(_settings);
+                _modeGuard ??= !_settings.RebuildCandidate && _settings.SharedAdmission != null
+                    ? _settings.SharedAdmission.Retain()
+                    : LiteDB.Client.Shared.SharedModeGuard.Open(_settings);
 
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
@@ -208,7 +212,7 @@ namespace LiteDB.Engine
         /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
         internal bool InvalidDatafileState { get; private set; }
 
-        internal List<Exception> Close(bool checkpoint = true, bool final = false)
+        internal List<Exception> Close(bool checkpoint = true, bool final = false, bool releaseMode = true)
         {
             if (_state.Disposed) return new List<Exception>();
 
@@ -234,6 +238,7 @@ namespace LiteDB.Engine
             // dispose lockers
             tc.Catch(() => _locker?.Dispose());
 
+            if (releaseMode) tc.Catch(this.ReleaseModeGuard);
             return tc.Exceptions;
         }
 
@@ -284,7 +289,15 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
+            tc.Catch(this.ReleaseModeGuard);
             return tc.Exceptions;
+        }
+
+        private void ReleaseModeGuard()
+        {
+            var guard = _modeGuard;
+            _modeGuard = null;
+            guard?.Dispose();
         }
 
         #endregion

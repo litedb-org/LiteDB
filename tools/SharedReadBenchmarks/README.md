@@ -198,3 +198,14 @@ transaction. Its operation latency includes construction, transaction work and d
 (including the final checkpoint); the Begin/update/Commit phase counters cover only
 those calls. Use it alongside `writer` to distinguish connection-per-operation costs
 from a warm writer. Correctness oracles and the reader workload are unchanged.
+
+To measure guard/open cost on every Shared operation, run the `point` workload
+with `LITEDB_DISABLE_SHARED_MAPPED_READS=1` for both baseline and candidate. This
+retains a single connection but forces each read through the protected inner-engine
+open/close path. The runner checks the production fallback reason after timing
+and includes it as `coordinationFallbackReason`; it fails if the requested opt-out
+was not honored. Compare fresh processes with the same warmup and data, as above.
+
+The `open-close` workload also supports `direct`: each measured operation creates
+a Direct connection, validates one point read, and closes it. Use this separately
+from retained-connection point reads when evaluating admission setup/teardown cost.
