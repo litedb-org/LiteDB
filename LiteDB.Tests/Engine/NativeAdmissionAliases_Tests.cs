@@ -14,6 +14,19 @@ namespace LiteDB.Tests.Engine
     public class NativeAdmissionAliases_Tests
     {
         [Fact]
+        public void Overlong_native_paths_preserve_the_path_length_diagnostic()
+        {
+            // A component over NAME_MAX fails before a database can be created.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            var path = Path.Combine(Path.GetTempPath(), new string('x', 256));
+            Action canonicalize = () => DatabaseFileIdentity.CanonicalPath(path);
+            Action open = () => { using var handle = DatabaseFileIdentity.Open(path, false, true); };
+            canonicalize.Should().Throw<PathTooLongException>();
+            open.Should().Throw<PathTooLongException>();
+            File.Exists(path).Should().BeFalse();
+        }
+
+        [Fact]
         public async Task Canonical_path_aliases_cannot_bypass_a_direct_owner()
         {
             using var file = new TempFile();

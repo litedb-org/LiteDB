@@ -25,11 +25,7 @@ namespace LiteDB.Client.Shared
             {
                 var flags = (readOnly ? 0 : 2) | (Darwin ? 0x1000000 : 0x80000); // O_CLOEXEC
                 if (create) flags |= Darwin ? 0x200 : 0x40;
-                // Darwin arm64 passes variadic arguments on the stack. Fill the
-                // remaining argument registers so mode occupies the first stack slot.
-                var descriptor = Darwin && RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                    ? OpenDarwinArm64(filename, flags, 0, 0, 0, 0, 0, 0, 0x1b6)
-                    : open(filename, flags, 0x1b6); // 0666 + umask
+                var descriptor = DatabaseUnixNative.Api.Open(filename, flags, 0x1b6); // 0666 + umask
                 handle = new SafeFileHandle((IntPtr)descriptor, true);
             }
             if (!handle.IsInvalid) return handle;
@@ -39,7 +35,7 @@ namespace LiteDB.Client.Shared
                 throw new DirectoryNotFoundException("Database directory does not exist: " + filename);
             if (code == 2) throw new FileNotFoundException("Database does not exist.", filename);
             if (code == (Windows ? 5 : 13)) throw new UnauthorizedAccessException("Database access denied: " + filename);
-            if (code == (Windows ? 206 : 36)) throw new PathTooLongException("Database path is too long: " + filename);
+            if (code == (Windows ? 206 : Darwin ? 63 : 36)) throw new PathTooLongException("Database path is too long: " + filename);
             throw DatabaseFileLock.Error("Opening database admission handle");
         }
 
@@ -58,8 +54,7 @@ namespace LiteDB.Client.Shared
             // Only the supported 64-bit Unix ABIs reach here. Reserve more than
             // sizeof(stat); never marshal an OS structure using another OS's layout.
             var bytes = new byte[256];
-            var result = Darwin && RuntimeInformation.ProcessArchitecture == Architecture.X64
-                ? fstatDarwin(handle, bytes) : fstat(handle, bytes);
+            var result = DatabaseUnixNative.Stat(handle, bytes);
             if (result != 0) throw DatabaseFileLock.Error("fstat");
             var links = Darwin ? BitConverter.ToUInt16(bytes, 6) :
                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? BitConverter.ToUInt32(bytes, 20) :
@@ -81,21 +76,21 @@ namespace LiteDB.Client.Shared
             filename = System.IO.Path.GetFullPath(filename);
             if (!Windows)
             {
-                var pointer = realpath(filename, IntPtr.Zero);
+                var pointer = DatabaseUnixNative.Api.RealPath(filename, IntPtr.Zero);
                 if (pointer != IntPtr.Zero)
                 {
                     try { return Marshal.PtrToStringAnsi(pointer); }
-                    finally { free(pointer); }
+                    finally { DatabaseUnixNative.Api.Free(pointer); }
                 }
                 var code = Marshal.GetLastWin32Error();
                 if (code == 13) throw new UnauthorizedAccessException("Database path access denied: " + filename);
-                if (code == 36) throw new PathTooLongException("Database path is too long: " + filename);
+                if (code == (Darwin ? 63 : 36)) throw new PathTooLongException("Database path is too long: " + filename);
                 if (code == 20) throw new DirectoryNotFoundException("Database directory does not exist: " + filename);
                 if (code != 2) throw DatabaseFileLock.Error("realpath");
                 // A dangling file symlink can point into a guarded rebuild gap.
                 // Treating it as a new filename would create the target while
                 // consulting the alias's unrelated WAL/recovery marker names.
-                if (readlink(filename, out _, (UIntPtr)1).ToInt64() >= 0)
+                if (DatabaseUnixNative.Api.ReadLink(filename, out _, (UIntPtr)1).ToInt64() >= 0)
                     throw new IOException("Cannot admit a database through an unresolved symlink: " + filename);
                 var linkError = Marshal.GetLastWin32Error();
                 if (linkError != 2 && linkError != 22) throw DatabaseFileLock.Error("readlink");
@@ -145,8 +140,7 @@ namespace LiteDB.Client.Shared
                 return;
             }
             var bytes = new byte[4096];
-            var result = Darwin && RuntimeInformation.ProcessArchitecture == Architecture.X64
-                ? fstatfsDarwin(handle, bytes) : fstatfs(handle, bytes);
+            var result = DatabaseUnixNative.Api.FileSystemStat(handle, bytes);
             if (result != 0) throw DatabaseFileLock.Error("fstatfs");
             if (Darwin)
             {
@@ -187,25 +181,6 @@ namespace LiteDB.Client.Shared
             internal uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
         }
 
-        [DllImport("libc", SetLastError = true)]
-        private static extern int open(string filename, int flags, int mode);
-        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        private static extern int OpenDarwinArm64(string filename, int flags,
-            long x2, long x3, long x4, long x5, long x6, long x7, int mode);
-        [DllImport("libc", SetLastError = true)]
-        private static extern int fstat(SafeFileHandle handle, [Out] byte[] data);
-        [DllImport("libc", EntryPoint = "fstat$INODE64", SetLastError = true)]
-        private static extern int fstatDarwin(SafeFileHandle handle, [Out] byte[] data);
-        [DllImport("libc", SetLastError = true)]
-        private static extern int fstatfs(SafeFileHandle handle, [Out] byte[] data);
-        [DllImport("libc", EntryPoint = "fstatfs$INODE64", SetLastError = true)]
-        private static extern int fstatfsDarwin(SafeFileHandle handle, [Out] byte[] data);
-        [DllImport("libc", SetLastError = true)]
-        private static extern IntPtr realpath(string filename, IntPtr result);
-        [DllImport("libc", SetLastError = true)]
-        private static extern IntPtr readlink(string filename, out byte value, UIntPtr size);
-        [DllImport("libc")]
-        private static extern void free(IntPtr pointer);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern SafeFileHandle CreateFileW(string filename, uint access, uint share,
             IntPtr security, uint creation, uint flags, IntPtr template);

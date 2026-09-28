@@ -93,15 +93,13 @@ namespace LiteDB.Client.Shared
                 if (Darwin)
                 {
                     var value = new DarwinFlock { Start = offset, Length = 1, Type = type };
-                    result = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                        ? DarwinArm64Fcntl(_handle, query ? 92 : 90, 0, 0, 0, 0, 0, 0, ref value)
-                        : DarwinFcntl(_handle, query ? 92 : 90, ref value);
+                    result = DatabaseUnixNative.Api.LockDarwin(_handle, query ? 92 : 90, ref value);
                     actual = value.Type;
                 }
                 else
                 {
                     var value = new LinuxFlock { Start = offset, Length = 1, Type = type };
-                    result = LinuxFcntl(_handle, query ? 36 : 37, ref value);
+                    result = DatabaseUnixNative.Api.LockLinux(_handle, query ? 36 : 37, ref value);
                     actual = value.Type;
                 }
             } while (result < 0 && Marshal.GetLastWin32Error() == 4); // EINTR
@@ -120,7 +118,7 @@ namespace LiteDB.Client.Shared
         public void Dispose() => _handle.Dispose();
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct LinuxFlock
+        internal struct LinuxFlock
         {
             internal short Type, Whence;
             internal long Start, Length;
@@ -128,7 +126,7 @@ namespace LiteDB.Client.Shared
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct DarwinFlock
+        internal struct DarwinFlock
         {
             internal long Start, Length;
             internal int Pid;
@@ -146,15 +144,6 @@ namespace LiteDB.Client.Shared
         private static Overlapped Position(long offset) => new Overlapped
             { Offset = (uint)offset, OffsetHigh = (uint)(offset >> 32) };
 
-        [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-        private static extern int LinuxFcntl(SafeFileHandle handle, int command, ref LinuxFlock value);
-        [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-        private static extern int DarwinFcntl(SafeFileHandle handle, int command, ref DarwinFlock value);
-        // Apple's arm64 variadic ABI places the third argument on the stack,
-        // unlike its fixed-argument ABI. x2..x7 intentionally occupy registers.
-        [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-        private static extern int DarwinArm64Fcntl(SafeFileHandle handle, int command,
-            long x2, long x3, long x4, long x5, long x6, long x7, ref DarwinFlock value);
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool LockFileEx(SafeFileHandle handle, uint flags, uint reserved,

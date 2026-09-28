@@ -82,7 +82,9 @@ locks to be enabled.
 
 Darwin x64 uses the INODE64 stat entry points; arm64 uses the native stat ABI.
 The arm64 open/fcntl bindings place their variadic argument on the stack, as
-required by Apple's ABI.
+required by Apple's ABI. Admission reuses the native-sync library's soname
+resolution, including netstandard hosts without a libc alias. On glibc before
+2.33, `__fxstat` supplies the architecture-specific file identity layout.
 
 Sources: [LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex),
 [Linux OFD locking](https://man7.org/linux/man-pages/man2/F_OFD_SETLK.2const.html),
@@ -142,8 +144,11 @@ of power loss or a dishonest filesystem server.
 | Aliases do not select a second WAL or admission identity. | Lexical aliases, Unix file/directory symlinks, Windows/Unix hard-link rejection, cross-process conflicts and rebuild through an alias. |
 | Replacement cannot transiently admit a conflicting user or strand recovery data. | Cross-process pauses and kills at installation boundaries, a prechecked opener in the rename gap, failed downgrade exclusion, remote idle Shared rejection, local retained admission; existing rebuild install fault matrix, crash suite and #2979 repeated rollback recovery tests. |
 | Unsupported locking never silently weakens writable safety. | Injected unsupported volume, actual conflict probes on every initial lease, existing runtime-disabled-locking tests. |
+| Native identity and locking work when glibc lacks an exported `fstat`. | The full CI tier runs admission, competing-process, crash, and rebuild tests under glibc 2.31 on standard Ubuntu x64 and ARM64 runners. `scripts/test-native-admission-glibc.sh` verifies the native library version and actual .NET runtime/architecture. |
 
 The process harness is packaged by the existing Windows/Linux/macOS CI matrix and
-runs with the test host's selected runtime and architecture. Local Linux results
+runs with the test host's selected runtime and architecture. The full tier also
+runs focused admission/rebuild suites on standard Intel macOS runners, in addition
+to the complete ARM64 macOS suites. Local Linux results
 do not establish execution on Windows/macOS or Framework CLR. See the task's
 validation report for the exact executed configurations and any outstanding gaps.

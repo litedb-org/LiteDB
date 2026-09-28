@@ -124,6 +124,33 @@ jobs:
           path: LiteDB.Tests/TestResults/*.trx
           if-no-files-found: warn
 
+  test-native-glibc231:
+    if: inputs.tier == 'full'
+    name: Native admission (glibc 2.31 - ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: build-linux
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tests-build-linux
+      - name: Extract test build
+        run: tar -xzf tests-build-linux.tar.gz
+      - name: Verify old glibc symbol compatibility and native admission
+        run: bash scripts/test-native-admission-glibc.sh
+      - name: Upload native admission results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-admission-glibc231-${{ matrix.os }}
+          path: LiteDB.Tests/TestResults/NativeAdmission-glibc231-*.trx
+          if-no-files-found: warn
+
   build-macos:
     if: inputs.tier == 'full'
     name: Build (macOS)
