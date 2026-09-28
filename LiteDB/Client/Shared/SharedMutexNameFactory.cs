@@ -17,6 +17,12 @@ internal static class SharedMutexNameFactory
     // Adjust if your caller prepends something longer.
     private const int CONSERVATIVE_EXTERNAL_PREFIX_LENGTH = 13; // e.g., "Global\\" + name + ".Mutex"
 
+    // Unix runtimes keep a named mutex as a file: the name after "Global\" has at most 255
+    // characters. The longest name SharedEngine derives adds ".Turn" + ".Mutex" (11 characters).
+    // Longer escaped names never worked there, so hashing them changes no working mutex identity.
+    private const int UNIX_MUTEX_NAME_MAX = 255;
+    private const int LONGEST_SUFFIX_LENGTH = 11;
+
     internal static string Create(string fileName, SharedMutexNameStrategy strategy)
     {
         return strategy switch
@@ -33,8 +39,7 @@ internal static class SharedMutexNameFactory
         var normalized = Normalize(fileName);
         var uri = Uri.EscapeDataString(normalized);
 
-        if (IsWindows() &&
-            uri.Length + CONSERVATIVE_EXTERNAL_PREFIX_LENGTH > WINDOWS_MUTEX_NAME_MAX)
+        if (ExceedsMutexNameLimit(uri))
         {
             // Short, stable fallback well under the limit.
             return "sha1-" + ComputeSha1Hex(normalized);
@@ -48,15 +53,18 @@ internal static class SharedMutexNameFactory
         var normalized = Normalize(fileName);
         var uri = Uri.EscapeDataString(normalized);
 
-        if (IsWindows() &&
-            uri.Length + CONSERVATIVE_EXTERNAL_PREFIX_LENGTH > WINDOWS_MUTEX_NAME_MAX)
+        if (ExceedsMutexNameLimit(uri))
         {
-            // Fallback to SHA to avoid ArgumentException on Windows.
+            // Fallback to SHA to avoid ArgumentException from the Mutex constructor.
             return "sha1-" + ComputeSha1Hex(normalized);
         }
 
         return uri;
     }
+
+    private static bool ExceedsMutexNameLimit(string uri) => IsWindows()
+        ? uri.Length + CONSERVATIVE_EXTERNAL_PREFIX_LENGTH > WINDOWS_MUTEX_NAME_MAX
+        : uri.Length + LONGEST_SUFFIX_LENGTH > UNIX_MUTEX_NAME_MAX;
 
     private static bool IsWindows()
     {

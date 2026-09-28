@@ -1,7 +1,10 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using FluentAssertions;
+using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using Xunit;
 
 namespace LiteDB.Tests.Regressions
@@ -18,6 +21,27 @@ namespace LiteDB.Tests.Regressions
     [Trait("Category", "RegressionSince5021")]
     public class SharedMutexNameLength_Tests
     {
+        [Fact]
+        public void Unix_names_are_hashed_only_beyond_the_runtime_limit()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+            // The runtime keeps at most 255 characters after "Global\"; SharedEngine adds up to
+            // ".Turn.Mutex". An escaped name of 244 characters keeps its existing identity.
+            var longest = "/" + new string('a', 241);
+            var name = SharedMutexNameFactory.Create(longest, SharedMutexNameStrategy.Default);
+            name.Should().Be(Uri.EscapeDataString(longest)).And.HaveLength(244);
+            using (SharedMutexFactory.Create(name))
+            using (SharedMutexFactory.Create(name + ".Turn")) { }
+
+            var tooLong = "/" + new string('a', 242);
+            var hashed = SharedMutexNameFactory.Create(tooLong, SharedMutexNameStrategy.Default);
+            hashed.Should().StartWith("sha1-");
+            SharedMutexNameFactory.Create(tooLong, SharedMutexNameStrategy.UriEscape).Should().Be(hashed);
+            using (SharedMutexFactory.Create(hashed))
+            using (SharedMutexFactory.Create(hashed + ".Turn")) { }
+        }
+
         [Fact]
         public void Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name()
         {
