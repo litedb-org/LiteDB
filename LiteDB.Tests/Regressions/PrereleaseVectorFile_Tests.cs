@@ -107,6 +107,25 @@ namespace LiteDB.Tests.Regressions
             NearestComputed(db.GetCollection("computed"), 7f).Should().Contain(7);
         }
 
+        /// <summary>
+        /// vector-salvage.db (prerelease.114): collection "vectors" with {_id: 1..3, a, b: "u-i",
+        /// v: [i, 1]} and vector index "vv" on IIF(SUBSTRING(COALESCE($.b, 'x'), 1, 2) = '-0', $.v, $.v);
+        /// then the length of "b" of document 2 was damaged. Its readable part makes the vector
+        /// expression throw; it is reported instead of failing the rebuild.
+        /// </summary>
+        [Fact]
+        public void Rebuild_reports_a_damaged_document_whose_vector_value_cannot_be_computed()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture("vector-salvage.db"));
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            db.GetCollection("vectors").FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 3 });
+            db.GetCollection("$indexes").Find(Query.EQ("name", "vv")).Single()["indexType"].AsInt32.Should().Be(1);
+            db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                .Should().Contain(x => x.Contains("damaged document 2 was not kept") && x.Contains("vector index 'vv'"));
+        }
+
         private static void AssertVectorIndexes(LiteDatabase db)
         {
             var indexes = db.GetCollection("$indexes").FindAll().ToDictionary(x => x["collection"].AsString + "." + x["name"].AsString);

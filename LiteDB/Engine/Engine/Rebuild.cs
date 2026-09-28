@@ -177,6 +177,11 @@ namespace LiteDB.Engine
                         return $"unique index '{index.Name}' already holds key {key}.";
                 }
             }
+            foreach (var (index, _) in snapshot.CollectionPage.GetVectorIndexes())
+            {
+                try { index.BsonExpr.ExecuteScalar(doc, _header.Pragmas.Collation); }
+                catch (Exception ex) { return $"the value of vector index '{index.Name}' cannot be computed ({ex.Message})"; }
+            }
             return null;
         }
     }
