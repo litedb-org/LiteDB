@@ -36,12 +36,18 @@ namespace LiteDB.Tests.Regressions
         }
 
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Blocked_conversion_changes_nothing_and_recovers_once_unblocked(bool liveLease)
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)] // a crash image whose files end in a partial page
+        public void Blocked_conversion_changes_nothing_and_recovers_once_unblocked(bool liveLease, bool partialTail)
         {
             using var data = Entry("crash.db");
             using var log = Entry("crash-log.db");
+            if (partialTail)
+            {
+                data.Seek(0, SeekOrigin.End); data.Write(new byte[100], 0, 100);
+                log.Seek(0, SeekOrigin.End); log.Write(new byte[100], 0, 100);
+            }
             var originalData = data.ToArray();
             var originalLog = log.ToArray();
             var settings = new EngineSettings
