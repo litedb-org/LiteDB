@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
                 // Validate identity and the complete header before permitting any repair.
                 this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
+                if (!ChecksumsEnabled) this.RejectConvertedWal();
                 _openingHeader = (byte[])bytes.Clone();
                 return new HeaderPage(new PageBuffer(bytes, 0, 0));
             }
@@ -50,5 +51,34 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// A legacy header next to a WAL of checksummed frames: a conversion's header never reached
+        /// the device while frames written after it did (storage that cannot sync, #2242, or a data
+        /// file restored without its log). Legacy rules would replay those frames as pages at
+        /// positions read from their trailers, so refuse the open; it changes neither file.
+        /// </summary>
+        private void RejectConvertedWal()
+        {
+            // Like the header journal, never open a log shorter than a frame: an interrupted
+            // encrypted preamble must stay as it is until recovery completes it.
+            if (!_logFactory.Exists() || _logFactory.GetLength() < WalChecksum.FrameSize) return;
+            var reader = (ChecksummedWalStream)_logPool.Rent();
+            try
+            {
+                var log = reader.RawStream;
+                var frame = new byte[WalChecksum.FrameSize];
+                for (long offset = 0, position = 0; offset + frame.Length <= log.Length; offset += frame.Length, position += PAGE_SIZE)
+                {
+                    log.Position = offset;
+                    log.ReadRequired(frame, 0, frame.Length);
+                    if (!WalChecksum.IsFrame(frame, position)) continue;
+                    throw new LiteException(LiteException.INVALID_DATABASE, "Cannot open this database: its log file holds " +
+                        "WAL frames of a converted database while its data file still has the legacy (v5) header, so the " +
+                        "conversion's header never reached the device. Replaying those frames would corrupt the data file. " +
+                        "Move the log file aside to open the database as it was before the conversion.");
+                }
+            }
+            finally { _logPool.Return(reader); }
+        }
     }
 }
