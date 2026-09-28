@@ -34,9 +34,7 @@ namespace LiteDB.Tests.Regressions
             var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
 
-            using ILiteEngine first = mode == "direct"
-                ? new LiteEngine(new EngineSettings { Filename = file.Filename })
-                : new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using ILiteEngine first = mode == "direct" ? new LiteEngine(power.Settings()) : new SharedEngine(power.Settings());
             using var firstDb = new LiteDatabase(first, disposeOnClose: false);
             firstDb.CheckpointSize = 0;
             for (var value = 1; value <= 9; value++)
@@ -49,14 +47,14 @@ namespace LiteDB.Tests.Regressions
             DurableLogFlush(firstDb).Should().BeFalse("the data file cannot sync");
             new FileInfo(logName).Length.Should().BeGreaterThan(0, "the WAL keeps what the data file could not make durable");
 
-            using var second = mode == "second" ? new SharedEngine(new EngineSettings { Filename = file.Filename }) : null;
+            using var second = mode == "second" ? new SharedEngine(power.Settings()) : null;
             using var writer = second == null ? firstDb : new LiteDatabase(second, disposeOnClose: false);
             Update(writer, 10);
 
             power.AfterPowerLoss(Rows).Should().Be(10, "the synced WAL holds every commit");
             power.DataFails = false;
             writer.Checkpoint();
-            (!File.Exists(logName) || new FileInfo(logName).Length == 0).Should().BeTrue("once the data file syncs again, a full checkpoint empties the WAL");
+            new FileInfo(logName).Length.Should().Be(0, "once the data file syncs again, a full checkpoint empties the WAL");
             power.AfterPowerLoss(Rows).Should().Be(10);
         }
 
@@ -69,15 +67,15 @@ namespace LiteDB.Tests.Regressions
             var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
 
-            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { Filename = file.Filename })))
+            using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
             {
                 db.CheckpointSize = 0;
                 for (var value = 1; value <= 3; value++) Update(db, value);
                 power.DataFails = power.LogFails = true;
                 db.Checkpoint();
-                (!File.Exists(logName) || new FileInfo(logName).Length == 0).Should().BeTrue();
+                new FileInfo(logName).Length.Should().Be(0);
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = new LiteDatabase(new LiteEngine(power.Settings()));
             reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 3);
         }
 
@@ -99,11 +97,11 @@ namespace LiteDB.Tests.Regressions
             {
                 using (var power = new SyncPowerLossModel(file.Filename) { DataFails = true })
                 {
-                    Action open = () => new LiteDatabase(file.Filename).Dispose();
+                    Action open = () => new LiteEngine(power.Settings()).Dispose();
                     open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*");
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
                 }
-                File.ReadAllBytes(file.Filename).Should().Equal(data);
-                File.ReadAllBytes(logName).Should().Equal(log);
 
                 using var db = new LiteDatabase(file.Filename);
                 var docs = db.GetCollection("docs").FindAll().ToList();

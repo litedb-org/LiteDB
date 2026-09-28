@@ -9,40 +9,29 @@ namespace LiteDB.Tests.Regressions
 {
     /// <summary>
     /// Power loss that drops every write a file has not synced: each file keeps the bytes it held
-    /// at its last successful sync (writes after it are lost whole, not torn). Syncs of the data
-    /// file (the WAL) answer EINVAL ("cannot sync", #2242) while <see cref="DataFails"/>
-    /// (<see cref="LogFails"/>) is set. Tests using it belong to the NativeFileSync collection.
+    /// at its last successful sync (writes after it are lost whole, not torn). Engines use the
+    /// data file and its WAL as caller streams (<see cref="Settings"/>), whose Flush(true) the
+    /// engine calls for every device sync on every platform; it answers "cannot sync" (#2242)
+    /// while <see cref="DataFails"/> (<see cref="LogFails"/>) is set.
     /// </summary>
     internal sealed class SyncPowerLossModel : IDisposable
     {
-        private readonly string _data, _log;
-        private readonly object _gate = new object();
-        private byte[] _durableData, _durableLog;
-        internal volatile bool DataFails, LogFails;
-        internal string DataFile => _data;
+        private readonly string _filename;
+        private readonly DurableFile _data, _log;
 
-        internal SyncPowerLossModel(string data)
+        internal SyncPowerLossModel(string filename)
         {
-            _data = Path.GetFullPath(data);
-            _log = Path.GetFullPath(FileHelper.GetLogFile(data));
-            _durableData = ReadShared(_data);
-            _durableLog = File.Exists(_log) ? ReadShared(_log) : new byte[0];
-            NativeFileSync.SimulateErrno = path =>
-            {
-                var name = Path.GetFullPath(path);
-                if (name == _log)
-                {
-                    if (LogFails) return 22;
-                    lock (_gate) _durableLog = ReadShared(_log);
-                }
-                else if (name == _data)
-                {
-                    if (DataFails) return 22;
-                    lock (_gate) _durableData = ReadShared(_data);
-                }
-                return 0;
-            };
+            _filename = filename;
+            _data = new DurableFile(filename);
+            _log = new DurableFile(FileHelper.GetLogFile(filename));
         }
+
+        internal bool DataFails { get => _data.Fails; set => _data.Fails = value; }
+        internal bool LogFails { get => _log.Fails; set => _log.Fails = value; }
+        internal string DataFile => _filename;
+
+        /// <summary>Settings of an engine (or a shared connection) over the two files.</summary>
+        internal EngineSettings Settings() => new EngineSettings { Filename = _filename, DataStream = _data, LogStream = _log };
 
         /// <summary>
         /// Open the files a power loss now leaves behind, as a copy; every row of "rows" holds
@@ -51,11 +40,8 @@ namespace LiteDB.Tests.Regressions
         internal int AfterPowerLoss(int rows)
         {
             using var image = new TempFile();
-            lock (_gate)
-            {
-                File.WriteAllBytes(image.Filename, _durableData);
-                File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), _durableLog);
-            }
+            File.WriteAllBytes(image.Filename, _data.Durable);
+            File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), _log.Durable);
             try
             {
                 using var db = new LiteDatabase(image.Filename);
@@ -75,7 +61,43 @@ namespace LiteDB.Tests.Regressions
             return bytes;
         }
 
-        public void Dispose() => NativeFileSync.SimulateErrno = null;
+        public void Dispose()
+        {
+            _data.Dispose();
+            _log.Dispose();
+        }
+
+        /// <summary>An unbuffered file whose successful device sync records its content.</summary>
+        private sealed class DurableFile : FileStream
+        {
+            private readonly object _gate = new object();
+            private byte[] _durable;
+            internal volatile bool Fails;
+
+            internal DurableFile(string path)
+                : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1)
+            {
+                _durable = ReadShared(path);
+            }
+
+            internal byte[] Durable { get { lock (_gate) return _durable; } }
+
+            public override void Flush(bool flushToDisk)
+            {
+                if (!flushToDisk)
+                {
+                    base.Flush(false);
+                    return;
+                }
+                if (Fails)
+                {
+                    base.Flush(false);
+                    throw new UnauthorizedAccessException("sync unsupported");
+                }
+                base.Flush(true);
+                lock (_gate) _durable = ReadShared(this.Name);
+            }
+        }
     }
 }
 #endif

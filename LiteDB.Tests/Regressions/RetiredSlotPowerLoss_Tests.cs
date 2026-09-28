@@ -29,7 +29,7 @@ namespace LiteDB.Tests.Regressions
             using var power = new SyncPowerLossModel(file.Filename);
             try
             {
-                using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var engine = new SharedEngine(power.Settings());
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 var durable = RetireWhileTheDataFileStopsSyncing(engine, db, power);
                 DurableLogFlush(db).Should().BeFalse("the data file stopped syncing");
@@ -53,12 +53,12 @@ namespace LiteDB.Tests.Regressions
             using var power = new SyncPowerLossModel(file.Filename);
             try
             {
-                using var first = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var first = new SharedEngine(power.Settings());
                 using var firstDb = new LiteDatabase(first, disposeOnClose: false);
                 RetireWhileTheDataFileStopsSyncing(first, firstDb, power);
 
                 var before = SyncPowerLossModel.ReadShared(logName);
-                using var second = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var second = new SharedEngine(power.Settings());
                 using var secondDb = new LiteDatabase(second, disposeOnClose: false);
                 Update(secondDb, 10);
 
@@ -83,13 +83,13 @@ namespace LiteDB.Tests.Regressions
             using var power = new SyncPowerLossModel(file.Filename);
             try
             {
-                using var first = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var first = new SharedEngine(power.Settings());
                 using var firstDb = new LiteDatabase(first, disposeOnClose: false);
                 RetireWhileTheDataFileStopsSyncing(first, firstDb, power);
                 power.DataFails = false;
 
                 var before = SyncPowerLossModel.ReadShared(logName);
-                using var second = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var second = new SharedEngine(power.Settings());
                 using var secondDb = new LiteDatabase(second, disposeOnClose: false);
                 Update(secondDb, 10);
 
