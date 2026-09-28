@@ -202,3 +202,34 @@ until the owner confirms them.
    is not a file, when this engine already synced it, and, in a shared connection, after the
    connection's first barrier or once it found the data file cannot sync. A real I/O error fails that
    commit and is recorded (decision 6).
+12. **No overwrite behind a recovery copy that is only in the OS cache (1, D; external review point 1).**
+   A checkpoint's backfill, a format promotion, a conversion and the invalid-state mark overwrite the data
+   file behind its header journal and WAL. When the log answers "cannot sync", they refuse before the
+   journal is written, also with `durable commits=false`: a checkpoint writes nothing and keeps the WAL
+   (quietly, decision 5), a promotion or conversion is refused with both files unchanged. `durable
+   commits=false` gives up recent commits, never the data file's integrity (SQLite's `synchronous=NORMAL`
+   keeps its checkpoint barriers too). The WAL limit then holds, as no checkpoint can drain the WAL. A WAL
+   directory that cannot sync does not block a checkpoint: once the file's own sync succeeded, its name
+   is durable in practice (ext4, xfs, btrfs), though POSIX does not promise it, so a durable commit still
+   refuses there (decision 9).
+13. **A sync that failed with an I/O error ("fsyncgate").** Linux marks the pages it could not write back
+   clean: they stay in the page cache, and a later sync writes nothing. Recovery never takes a header it
+   reads as durable on that ground: before the sync that retires a header journal, it makes the journal
+   durable and writes the header back as it read it. WAL pages are copied again by the first checkpoint of
+   every reopen, and the engine never retries a sync on a handle whose sync failed (decision 6).
+14. **The outcome of a failed commit** is in `Exception.Data["LiteDB.CommitOutcome"]`: `"NotCommitted"` when
+   no frame of it can be in the log (refused before its first frame, or a failed append truncated away),
+   `"Unknown"` when frames may have reached the log (a write that threw, a failed sync after the
+   confirmation). After `"Unknown"` a reopen may show the commit: retries need idempotent writes, or a check
+   after reopening. Decision 3's "fails before any frame is written" holds for a log known not to sync
+   (the proof before an engine's first commit); a log that stops syncing later fails the commit with its
+   outcome unknown (note 4).
+15. **Reusing a retired WAL slot needs no proof of its own.** A retiring checkpoint syncs its witness
+   records before the root that names them, syncs the root before its journal goes, and a pending journal
+   makes the next open sync the data file or open read-only; a clear that did not reach the device leaves
+   a witnessed slot, which recovery skips. So reuse costs no sync per engine or shared operation; storage
+   known not to sync still never reuses slots.
+16. **Power-safe overwrite is assumed** (see `docs/header-publication.md`, "Encoding and durability
+   limits", and the fault model in `docs/storage-stack-safety.md`): a 8,256-byte frame shares sectors
+   with its neighbours, and a write that tears a sector must not damage the bytes of that sector it did
+   not write. Checksums detect such damage; they cannot repair it.
