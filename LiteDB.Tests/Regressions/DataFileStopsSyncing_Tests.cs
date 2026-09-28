@@ -147,6 +147,26 @@ namespace LiteDB.Tests.Regressions
             (power.DataSyncs, power.LogSyncs).Should().Be((dataSyncs, logSyncs), "six concurrent readers open streams of their own");
         }
 
+        /// <summary>
+        /// A rebuild installs a new data file at the database's path. The process remembers the
+        /// header the old file synced there (DurableHeaders); the installed file has another one, so
+        /// an engine proves it before its first log sync instead of taking it as synced.
+        /// </summary>
+        [Fact]
+        public void File_a_rebuild_installs_is_proven_again()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using (var db = new LiteDatabase(file.Filename)) db.Rebuild();
+
+            using var power = new FilePowerLossModel(file.Filename);
+            using var reopened = new LiteDatabase(file.Filename);
+            var atOpen = power.DataSyncs;
+            Update(reopened, 1);
+            DurableLogFlush(reopened).Should().BeTrue();
+            (power.DataSyncs - atOpen).Should().Be(1, "the installed file's header is not the one the old file synced at this path");
+        }
+
         private const int Rows = 64;
 
         private static void Setup(string filename)
