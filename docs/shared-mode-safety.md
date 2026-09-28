@@ -108,12 +108,11 @@ real device sync. Only storage that answers "cannot sync" (#2242) falls back to
 ordered OS-cache flushing there, which survives a process crash but not power
 loss; any other sync error stops the barrier before data is overwritten. On such
 storage reclaimed WAL slots are never reused. Every shared operation opens a fresh
-engine, and another connection's engines share none of its diagnostics. So before
-its first log sync an engine whose data is a file proves the data file syncs, which
-makes durable a data header (salt, witness root, format version) or a backfill that
-an earlier engine left in the OS cache only; it skips this while the data header is
-one a successful data sync in this process left, so healthy storage pays it once per
-header change, not per operation. Before its first slot reuse an engine also syncs
+engine, and another connection's engines share none of its diagnostics. Commits do
+not depend on a data header an earlier engine left in the OS cache only: every WAL
+starts with a header frame, a copy of the data header synced with the first commit
+(decision 11). The data barrier before the first commit is best effort and runs once
+per shared connection, never per operation (decision 14). Before its first slot reuse an engine also syncs
 the raw log once. A "cannot sync" answer makes it append instead; with durable
 commits a log that cannot sync fails the commit before it writes. A write or sync
 failure of one operation is kept connection-wide: the connection's later operations

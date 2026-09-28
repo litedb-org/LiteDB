@@ -95,9 +95,11 @@ loads, caches, test suites and other data that can be rebuilt:
   engine continues read-only until it is reopened ([decisions](decisions/durability-policy.md),
   decision 6); an automatic checkpoint or `Dispose` does not throw for it,
   `$database.writeFailure` reports it. With `durable commits=false`, log
-  storage that rejects sync as unsupported (#2242) instead checkpoints without
-  the log sync, as before, with no power-loss guarantee: that answer is the
-  reason to opt out, not a failure. With durable commits (the default) the same
+  storage that rejects sync as unsupported (#2242) is not a failure (that
+  answer is the reason to opt out), but it backs no overwrite of the data file:
+  a checkpoint then writes nothing and keeps the WAL, a compact write stores
+  BSON instead of upgrading the file format, and a conversion opens read-only,
+  until the log syncs again. With durable commits (the default) the same
   answer is a failure: the commit or checkpoint that meets it fails before it
   writes to the data file, and the engine continues read-only.
   The WAL is still removed only after a data sync that covers the checkpoint's
@@ -117,11 +119,13 @@ makes a commit throw before it writes: open such a database with
 
 While the data file cannot sync to the device, checkpoints cannot move the WAL
 into it: the WAL keeps every commit (durably, with durable commits) and grows.
+With `durable commits=false` the same holds while the log cannot sync.
 `wal limit` (`ConnectionString.WalLimit`, `EngineSettings.WalLimit`; sizes in
 bytes or with `KB`, `MB`, `GB`; default 1 GB) is how large it may grow: past
 it, a write that starts throws an `IOException` and reads keep working. Each
-refused write first retries the data sync, so writes resume on their own once
-the data file syncs, and the next checkpoint drains the WAL. `$database.walKept`,
+refused write first retries the sync that failed (the log's, then the data
+file's), so writes resume on their own once the storage syncs, and the next
+checkpoint drains the WAL. `$database.walKept`,
 `logFileSize` and `walLimit` show how close a kept WAL is to the limit. The
 limit is not stored in the data file.
 

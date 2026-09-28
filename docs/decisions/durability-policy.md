@@ -215,9 +215,14 @@ until the owner confirms them.
    A checkpoint's backfill, a format promotion, a conversion and the invalid-state mark overwrite the data
    file behind its header journal and WAL. When the log answers "cannot sync", they refuse before the
    journal is written, also with `durable commits=false`: a checkpoint writes nothing and keeps the WAL
-   (quietly, decision 5), a promotion or conversion is refused with both files unchanged. `durable
+   (quietly, decision 5), a compact write skips the v12 promotion and stores BSON (as while the data file
+   cannot sync), a conversion opens read-only, and any other promotion is refused with both files
+   unchanged. Refused before it wrote, none of these is a failure (note 6): nothing is recorded and the
+   engine keeps writing. The log stopping to sync after the journal was written is one. `durable
    commits=false` gives up recent commits, never the data file's integrity (SQLite's `synchronous=NORMAL`
-   keeps its checkpoint barriers too). The WAL limit then holds, as no checkpoint can drain the WAL. A WAL
+   keeps its checkpoint barriers too). The WAL limit then holds, as no checkpoint can drain the WAL; a
+   write past it tries a log sync first, as it tries the data sync (note 8), and `$database.walKept`
+   reports the kept WAL. The log counts as unsyncable only while its latest sync answered so. A WAL
    directory that cannot sync does not block a checkpoint: once the file's own sync succeeded, its name
    is durable in practice (ext4, xfs, btrfs), though POSIX does not promise it, so a durable commit still
    refuses there (decision 9).

@@ -65,16 +65,16 @@ The durability rules follow the maintainer's decisions in
   succeed tries one first; a read-only engine reports what its connection's engines found),
   with `logFileSize` (now 64-bit, like `dataFileSize`) and `walLimit`. Past the WAL limit
   (`wal limit`, `EngineSettings.WalLimit`, 1 GiB by default) a write that starts throws an
-  `IOException` while reads keep working; each refused write retries the data sync, and writes
-  resume once it succeeds (the next checkpoint drains the WAL). This requires the data header
-  the WAL depends on (its WAL salt, version and creation time) to be on the device: the engine
-  synced it, or it is the header a successful sync in this process left. The process
-  remembers that header per path: a file replaced at that path with a byte-identical header
-  (a copy of the same checkpoint restored over it) is taken as that synced file, so whoever
-  replaces a database file must sync it (`File.Copy` does not). Where the header is not known
-  to be on the device (a database created there, or a new process) and the data file cannot
-  sync, a commit with durable commits throws before it writes. On storage where neither file
-  syncs, opted-out commits keep the WAL the same way (before, it was emptied as before #2818).
+  `IOException` while reads keep working; each refused write retries the sync that failed, and
+  writes resume once it succeeds (the next checkpoint drains the WAL). The WAL carries the data
+  header its frames depend on (its WAL salt, version and creation time): every WAL now starts
+  with a header frame, a copy of the data header made durable by the first commit's log sync.
+  An open restores a data header the device lost (a data file left empty, shorter than its
+  header, or with a torn header) from it, and refuses to initialize a new database over a WAL
+  whose data file is gone or lost pages the frame names. An engine still syncs the data file
+  once before its first commit, best effort (once per data header in the process, once per
+  shared connection); no commit depends on it. On storage where neither file syncs,
+  opted-out commits keep the WAL the same way (before, it was emptied as before #2818).
 - **Failures are sticky.** A write or sync that failed (a torn WAL write, a failed flush, a
   checkpoint or promotion whose data sync fails after it wrote, disk full, also at a
   safepoint of a large transaction, and a data sync that fails with an I/O error where a
@@ -90,7 +90,13 @@ The durability rules follow the maintainer's decisions in
   shared connection keeps it for its later operations until it is reopened; two shared
   connections do not share it. The read-only engine never rebuilds (`auto-rebuild`) and never
   retries a sync on the handle that failed. Before, the engine closed and every later call,
-  reads included, threw. A refusal found before anything was written (a format promotion whose
+  reads included, threw. A commit that fails carries its outcome in
+  `Exception.Data["LiteDB.CommitOutcome"]`: `"NotCommitted"` when nothing of it reached the
+  operating system, `"Unknown"` when its frames did (a later open may recover it). The read-only
+  engine that replaces the failed one shows only the commits acknowledged before the failure,
+  while the files are exactly as the failure left them; a later open lets the files decide. An
+  open that recovers a header after a failed sync writes it back before the sync that retires
+  its journal, since Linux may have marked the failed pages clean. A refusal found before anything was written (a format promotion whose
   data file cannot sync, a write past the WAL limit) is not a failure: it throws to the
   operation's caller (an automatic checkpoint does not), and the engine keeps writing.
 - **Opens that would need a data sync open read-only.** A writable open that would first
@@ -340,7 +346,11 @@ proves, once per log file per process, that the log and its directory sync; stor
 syncs pays that once. A log that stops syncing later fails the commit that finds out, whose
 outcome is then unknown (its frames reached the operating system). Set
 `durable commits=false` to use such storage: commits then reach the OS cache only and a
-"cannot sync" answer is not a failure. `$database.durableLogFlush` reports whether commits are
+"cannot sync" answer is not a failure. No in-place overwrite of the data file goes on behind a
+log that cannot sync, in either mode: with `durable commits=false` a checkpoint writes nothing
+and keeps the WAL (up to `wal limit`), a compact write stays BSON and a conversion opens
+read-only, until the log syncs again (before, they proceeded without a power-loss guarantee).
+`$database.durableLogFlush` reports whether commits are
 made durable. A sync that fails with an I/O error fails the operation in both modes, before
 data is overwritten.
 On Linux and macOS this requires LiteDB's own device sync: released .NET runtimes

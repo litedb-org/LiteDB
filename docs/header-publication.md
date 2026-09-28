@@ -160,17 +160,22 @@ maintainer's decisions ([decisions/durability-policy.md](decisions/durability-po
 With durable commits (the default) a log that answers "cannot sync" is a failure: a commit
 throws before it writes a frame (an engine proves, before its first commit, that the log and
 its directory sync), a checkpoint stops before it writes on, and an open that must sync the
-log first opens read-only. With `durable commits=false` that answer is not a failure:
-conversion, checkpoint and marker writes proceed in the same write order without the device
-sync, as before #2818. The ordered writes reach the operating system, so a killed process
-still recovers; power loss can lose recent commits, the risk the caller accepted.
+log first opens read-only. With `durable commits=false` that answer is not a failure, but it
+backs no in-place overwrite (decision D): a checkpoint writes nothing and keeps the WAL, a
+compact write stores BSON instead of promoting the file format, a conversion opens read-only
+and the invalid-state marker is refused, each before it writes, until a log sync succeeds
+again (every checkpoint, and every write past `wal limit`, tries one). Commits reach the
+operating system in order, so a killed process still recovers them; power loss can lose recent
+commits, the risk the caller accepted, never the data file's integrity.
 
 A data file that answers "cannot sync" never loses what the WAL holds. Commits stay durable
-in the WAL, whose syncs continue, as long as the data header the WAL depends on (its salt,
-version and creation time) is on the device: an engine whose data is a file proves it before
-its first log sync (skipped while the header is one a successful data sync in this process
-left); where it cannot (a database created there, or a new process), a durable commit throws
-before it writes. The OS can write an emptied WAL back ahead of the backfill, and no engine
+in the WAL, whose syncs continue: every WAL starts with a header frame, a copy of the data
+header its frames depend on (salt, version and creation time), made durable by the first
+commit's log sync, and an open restores a data header the device lost from it (decisions 11
+and 14; see [the header frame](page-and-wal-checksums.md#the-header-frame)). An engine still
+syncs the data file once before its first commit, best effort (skipped while the header is one
+a successful data sync in this process left, and once per shared connection); no commit
+depends on it. The OS can write an emptied WAL back ahead of the backfill, and no engine
 knows whether an earlier one (of any connection or process) synced the WAL's frames, so the
 WAL, its header journal and a legacy header backup are removed only after a data sync that
 covers every data write of the engine succeeded; every log shrink goes through that check.
