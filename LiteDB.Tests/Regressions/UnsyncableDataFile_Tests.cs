@@ -187,6 +187,33 @@ namespace LiteDB.Tests.Regressions
             reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 13);
         }
 
+        /// <summary>
+        /// NativeFileSync synced read-only handles too, so the AES stream's preamble sync failed a
+        /// read-only open of an encrypted database on storage that answers "cannot sync".
+        /// FileStream.Flush(true), used by 5.0.21, skips handles that cannot write. A writable open
+        /// still needs a successful preamble sync (documented) and fails without changing the file.
+        /// </summary>
+        [Fact]
+        public void Encrypted_database_opens_read_only_on_storage_that_cannot_sync()
+        {
+            using var file = new TempFile();
+            using (var db = new LiteDatabase($"Filename={file.Filename};Password=secret"))
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "kept" });
+            var original = File.ReadAllBytes(file.Filename);
+
+            NativeFileSync.SimulateErrno = _ => 22;
+            try
+            {
+                using (var db = new LiteDatabase($"Filename={file.Filename};Password=secret;ReadOnly=true"))
+                    db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("kept");
+
+                Action writable = () => new LiteDatabase($"Filename={file.Filename};Password=secret").Dispose();
+                writable.Should().Throw<IOException>();
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+            File.ReadAllBytes(file.Filename).Should().Equal(original);
+        }
+
         [Fact]
         public void Shared_connection_keeps_reporting_a_data_file_that_cannot_sync()
         {
