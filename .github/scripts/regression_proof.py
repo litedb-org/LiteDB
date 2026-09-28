@@ -15,7 +15,8 @@ revision, and afterwards the historical comparison retires: it only runs again
 when its entry or repro changes. The permanent guard named by each entry keeps
 the regression covered in the ordinary suites.
 
-Subcommands: validate, select, pack-known-bad, verify.
+Subcommands: validate, select, new, pack-known-bad, verify. A PR labelled bug must add
+at least one proof (select --require-new-proof).
 """
 import argparse
 import json
@@ -28,6 +29,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import repro_scaffold
 import safety_common as common
 
 LEDGER = f"{common.SAFETY_DIR}/regression-proofs.json"
@@ -39,6 +41,7 @@ KINDS = ("package", "dev-commit", "pr-commit")
 OUTCOMES = ["Reproduce", "NoRepro", "HardFail", "Intermittent"]
 STATES = ["Red", "Green", "Flaky"]
 SHA = re.compile(r"[0-9a-f]{40}\Z")
+MIN_BUG_PROOFS = 1  # per PR labelled bug; add one proof per bug a PR fixes
 
 
 def known_bad_version(bad):
@@ -190,6 +193,49 @@ def select(base, head, entries):
     return selected
 
 
+def new_proofs(base, entries):
+    """Proofs this change adds, or whose known-bad pin it changes (a bug fix's own proof)."""
+    old = {entry.get("repro"): entry for entry in load(common.Tree(base), common.Report(""))}
+    return [entry for entry in entries
+            if entry.get("repro") not in old or old[entry.get("repro")].get("knownBad") != entry.get("knownBad")]
+
+
+def published_versions():
+    with urllib.request.urlopen(NUGET_INDEX, timeout=30) as response:
+        return json.load(response).get("versions", [])
+
+
+def parse_known_bad(value, reason):
+    """'latest', 'package:5.0.21', 'dev-commit:<sha>' or 'pr-commit:<sha>@<pr>'."""
+    if value == "latest":
+        return {"kind": "package", "version": published_versions()[-1]}
+    kind, _, reference = value.partition(":")
+    if kind == "package":
+        return {"kind": "package", "version": reference}
+    if kind in ("dev-commit", "pr-commit"):
+        commit, _, pr = reference.partition("@")
+        commit = common.git("rev-parse", "--verify", f"{commit}^{{commit}}").strip()
+        bad = {"kind": kind, "commit": commit, "reason": reason or ""}
+        if kind == "pr-commit":
+            bad["pr"] = int(pr)
+        return bad
+    raise SystemExit("--known-bad must be latest, package:<version>, dev-commit:<sha> or pr-commit:<sha>@<pr>")
+
+
+def write_ledger(entries):
+    """Rewrite the ledger in its compact style (one line per known-bad state)."""
+    path = Path(common.repo_root()) / LEDGER
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"schemaVersion": 1}
+    blocks = []
+    for entry in entries:
+        guard = ",\n".join(f"        {json.dumps(item)}" for item in entry.get("permanentGuard", []))
+        blocks.append(f'    {{\n      "repro": {json.dumps(entry["repro"])},\n'
+                      f'      "knownBad": {json.dumps(entry["knownBad"])},\n'
+                      f'      "permanentGuard": [' + (f"\n{guard}\n      " if guard else "") + "]\n    }")
+    header = "".join(f'  {json.dumps(key)}: {json.dumps(value)},\n' for key, value in data.items() if key != "proofs")
+    path.write_text("{\n" + header + '  "proofs": [\n' + ",\n".join(blocks) + "\n  ]\n}\n", encoding="utf-8")
+
+
 def matrix_item(tree, entry):
     manifest = _json(tree, f"{REPROS}/{entry['repro']}/repro.json") or {}
     supports = [str(value).lower() for value in manifest.get("supports") or ["any"]]
@@ -286,6 +332,17 @@ def main(argv=None):
     choose.add_argument("--base", required=True)
     choose.add_argument("--head", default="HEAD")
     choose.add_argument("--only", help="Select this repro regardless of changes (manual re-proof)")
+    choose.add_argument("--require-new-proof", action="store_true",
+                        help=f"Fail unless the change adds at least {MIN_BUG_PROOFS} proof (PRs labelled bug)")
+    scaffold = commands.add_parser("new", help="Scaffold a repro and its proof entry for a bug fix")
+    scaffold.add_argument("--id", required=True, help="Issue_<number>_<ShortName>")
+    scaffold.add_argument("--issue", required=True, type=int)
+    scaffold.add_argument("--title", required=True)
+    scaffold.add_argument("--known-bad", default="latest",
+                          help="latest (newest published package), package:<v>, dev-commit:<sha>, pr-commit:<sha>@<pr>")
+    scaffold.add_argument("--reason", help="Why no published package can be used (commit states)")
+    scaffold.add_argument("--guard", action="append", default=[],
+                          help="Permanent regression test 'path#Method', 'fuzz:<target>' or a script (repeatable)")
     pack = commands.add_parser("pack-known-bad", help="Pack LiteDB at a commit into a local feed")
     pack.add_argument("--commit", required=True)
     pack.add_argument("--feed", required=True)
@@ -297,6 +354,16 @@ def main(argv=None):
 
     if args.command == "pack-known-bad":
         print(pack_known_bad(args.commit, args.feed))
+        return 0
+    if args.command == "new":
+        bad = parse_known_bad(args.known_bad, args.reason)
+        entries = load(common.Tree(common.WORKTREE), common.Report(""))
+        entries.append(repro_scaffold.create(common.repo_root(), args.id, args.issue, args.title, bad,
+                                             known_bad_version(bad), args.guard))
+        write_ledger(entries)
+        print(f"Created {REPROS}/{args.id} (known bad: {known_bad_version(bad)}). Write the reproduction in "
+              f"Program.cs, name the permanent guard with --guard or in {LEDGER}, then run:\n"
+              f"  dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run {args.id}")
         return 0
     report = common.Report("Regression proof")
     if args.command == "verify":
@@ -323,6 +390,11 @@ def main(argv=None):
         else select(args.base, head, entries)
     if args.only and not chosen:
         report.error(f"No regression proof for {args.only} in {LEDGER}", LEDGER)
+    if args.require_new_proof and len(new_proofs(args.base, entries)) < MIN_BUG_PROOFS:
+        report.error(f"A PR labelled 'bug' must add at least {MIN_BUG_PROOFS} regression proof: a ReproRunner repro "
+                     "that fails on a real known-bad state and passes at the PR head. Scaffold one with "
+                     "`python .github/scripts/regression_proof.py new --id Issue_<n>_<Name> --issue <n> "
+                     "--title <title>` (see docs/rules/safety-evidence.md#regression-proofs).")
     matrix = [matrix_item(head, entry) for entry in chosen if not report.errors]
     output = os.environ.get("GITHUB_OUTPUT")
     if output:

@@ -95,6 +95,62 @@ class LedgerTests(unittest.TestCase):
         self.assertIn(f"`{REPRO}`", output)  # a harness change re-proves every entry
 
 
+class BugPullRequestTests(unittest.TestCase):
+    """A PR labelled bug must add (or re-pin) at least one proof."""
+
+    def select_bug_pr(self, base_files, head_files):
+        with GitRepo() as repo:
+            base = repo.commit({**BASE, **base_files})
+            repo.commit(head_files)
+            return run_quietly(proof.main, ["select", "--base", base, "--require-new-proof"])
+
+    def test_a_bug_pr_without_a_new_proof_fails(self):
+        for label, base, head in (
+                ("no proofs at all", {LEDGER: ledger()}, {"LiteDB/Fix.cs": "fixed"}),
+                ("only an existing proof", {LEDGER: ledger(entry())}, {"LiteDB/Fix.cs": "fixed"}),
+                ("only a touched repro", {LEDGER: ledger(entry())}, {f"{FOLDER}/Program.cs": "return 1;"})):
+            with self.subTest(label):
+                code, output = self.select_bug_pr(base, head)
+                self.assertEqual(code, 1)
+                self.assertIn("must add at least 1 regression proof", output)
+
+    def test_a_bug_pr_with_a_new_or_repinned_proof_passes_selection(self):
+        repinned = {LEDGER: ledger(entry(knownBad={"kind": "package", "version": "5.0.21"})),
+                    f"{FOLDER}/{REPRO}.csproj": csproj("5.0.21")}
+        for label, base, head in (("new proof", {LEDGER: ledger()}, {LEDGER: ledger(entry())}),
+                                  ("re-pinned proof", {LEDGER: ledger(entry())}, repinned)):
+            with self.subTest(label):
+                code, output = self.select_bug_pr(base, head)
+                self.assertEqual(code, 0, output)
+                self.assertIn(f"`{REPRO}`", output)
+
+
+class ScaffoldTests(unittest.TestCase):
+    def test_new_creates_a_valid_pinned_repro_that_fails_until_written(self):
+        with GitRepo() as repo:
+            repo.commit({**BASE, LEDGER: json.dumps({"schemaVersion": 1, "description": "d", "proofs": [entry()]})})
+            code, output = run_quietly(proof.main, [
+                "new", "--id", "Issue_42_Lost_update", "--issue", "42", "--title", "Update is lost",
+                "--known-bad", "package:5.0.21", "--guard", GUARD])
+            self.assertEqual(code, 0, output)
+            folder = repo.path / "LiteDB.ReproRunner/Repros/Issue_42_Lost_update"
+            self.assertIn(">5.0.21</LiteDBPackageVersion>", (folder / "Issue_42_Lost_update.csproj").read_text())
+            self.assertIn("throw new NotImplementedException", (folder / "Program.cs").read_text())
+            self.assertIn("ReproConfigurationReporter.SendConfiguration(host)", (folder / "Program.cs").read_text())
+            data = json.loads((repo.path / LEDGER).read_text())
+            self.assertEqual([item["repro"] for item in data["proofs"]], [REPRO, "Issue_42_Lost_update"])
+            self.assertEqual(data["description"], "d")
+            code, output = run_quietly(proof.main, ["validate", "--head", common.WORKTREE])
+            self.assertEqual(code, 0, output)
+
+    def test_new_rejects_ids_that_do_not_name_an_issue(self):
+        with GitRepo() as repo:
+            repo.commit(BASE)
+            with self.assertRaises(SystemExit):
+                run_quietly(proof.main, ["new", "--id", "MyRepro", "--issue", "1", "--title", "t",
+                                         "--known-bad", "package:5.0.21"])
+
+
 class ProvenanceTests(unittest.TestCase):
     def test_commit_states_must_match_their_classification(self):
         with GitRepo() as repo:

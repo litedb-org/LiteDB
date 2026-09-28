@@ -128,7 +128,9 @@ published package, a `dev` commit or an originating-PR commit, never a mutant.
 regression guard. The **Regression proof** workflow requires the known-bad package
 variant to reproduce and the candidate source to pass, on the PR and once more on
 the merged `dev` revision; after that it runs only when the proof or repro
-changes. See [safety evidence](rules/safety-evidence.md#regression-proofs).
+changes. A PR labelled `bug` must add at least one proof; `python
+.github/scripts/regression_proof.py new ...` scaffolds the repro and its entry.
+See [safety evidence](rules/safety-evidence.md#regression-proofs).
 
 ### Job layout
 

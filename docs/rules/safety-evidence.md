@@ -139,6 +139,23 @@ The **Regression proof** workflow runs this lifecycle:
   changes, or on manual dispatch. The permanent guard stays in the ordinary
   suites, and removing part of it is a coverage finding.
 
+**A PR labelled `bug` must add at least one regression proof**: a new proof, or an
+existing one re-pinned to a new known-bad state. A PR fixing several bugs adds one
+per bug. Without it, the Regression proof check fails. The check runs on every PR
+and again when labels change, so the rule also applies when the label is added
+later. Scaffold the repro and its entry in one step:
+
+```bash
+python .github/scripts/regression_proof.py new --id Issue_1234_ShortName --issue 1234 \
+  --title "What goes wrong" --guard "LiteDB.Tests/Issues/Issue1234_Tests.cs#The_regression_test"
+```
+
+It pins the newest published package by default (`--known-bad` accepts
+`package:<version>`, `dev-commit:<sha>` or `pr-commit:<sha>@<pr>`), and its
+`Program.cs` throws until the reproduction is written, so an unfinished repro
+fails the proof. Do not add new repros to `LiteDB.sln`: a repro pinned to a
+packed commit cannot restore in the ordinary build.
+
 To reproduce a commit state locally, run
 `python .github/scripts/regression_proof.py pack-known-bad --commit <sha> --feed
 <dir>`, set `RestoreAdditionalProjectSources=<dir>`, then run the repro with

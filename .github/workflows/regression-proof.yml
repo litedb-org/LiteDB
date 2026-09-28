@@ -5,15 +5,13 @@ name: Regression proof
 # MUST FAIL, candidate MUST PASS); the push to dev proves them once more on the
 # integrated revision. After that the historical comparison retires, while the
 # permanent guard named in the ledger stays in the ordinary suites.
+#
+# A PR labelled `bug` must add at least one proof. The workflow therefore runs on
+# every PR (selecting nothing is cheap) and again when labels change; a label
+# event re-evaluates everything, so it can never leave a stale green result.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'LiteDB.ReproRunner/**'
-      - '.github/safety/regression-proofs.json'
-      - '.github/scripts/regression_proof.py'
-      - '.github/scripts/safety_common.py'
-      - '.github/workflows/regression-proof.yml'
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [dev]
     paths:
@@ -55,13 +53,16 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           ONLY: ${{ inputs.repro }}
+          BUG_PR: ${{ contains(github.event.pull_request.labels.*.name, 'bug') }}
         run: |
           if [ -n "$ONLY" ]; then
             python .github/scripts/regression_proof.py select --base HEAD --only "$ONLY"
           else
             base="$BASE_SHA"
             if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base="HEAD^"; fi
-            python .github/scripts/regression_proof.py select --base "$base"
+            require=()
+            if [ "$BUG_PR" = "true" ]; then require=(--require-new-proof); fi
+            python .github/scripts/regression_proof.py select --base "$base" "${require[@]}"
           fi
 
   prove:
