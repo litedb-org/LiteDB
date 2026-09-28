@@ -179,6 +179,38 @@ namespace LiteDB.Tests.Regressions
             reopened.GetCollection("$indexes").Find(Query.EQ("name", "b")).Single()["unique"].AsBoolean.Should().BeTrue();
         }
 
+        /// <summary>
+        /// Fixture DamagedIndexKeys_5_0_21.zip: written by the LiteDB 5.0.21 package, collections
+        /// "maxed", "long" and "throws" with {_id: 1..3, a: "keep-i", b: "u-i"} and an index "k" on
+        /// COALESCE($.b, MAXVALUE()), COALESCE($.b, 1100 characters) and
+        /// SUBSTRING(COALESCE($.b, 'x'), 1, 2); then the BSON length of "b" of document 2 was
+        /// overwritten in each. The readable part {_id: 2, a: "keep-2"} has an invalid key, a key
+        /// too long, or a key that cannot be computed: it is reported, never inserted.
+        /// </summary>
+        [Fact]
+        public void Rebuild_reports_a_damaged_document_whose_keys_cannot_be_indexed()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("DamagedIndexKeys_5_0_21.zip");
+            bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            var errors = db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString).ToList();
+            foreach (var (collection, reason) in new[]
+            {
+                ("maxed", "its key is not valid in index 'k'"),
+                ("long", "its key is not valid in index 'k'"),
+                ("throws", "the keys of index 'k' cannot be computed"),
+            })
+            {
+                var col = db.GetCollection(collection);
+                col.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 3 }, collection);
+                db.GetCollection("$indexes").Find(Query.And(Query.EQ("collection", collection), Query.EQ("name", "k"))).Should().ContainSingle();
+                errors.Should().Contain(x => x.Contains("damaged document 2 was not kept") && x.Contains(reason), collection);
+            }
+        }
+
         private static void AssertSalvaged(LiteDatabase db)
         {
             var col = db.GetCollection("c");

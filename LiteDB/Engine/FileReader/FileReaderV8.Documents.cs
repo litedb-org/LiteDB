@@ -13,6 +13,7 @@ namespace LiteDB.Engine
             new Dictionary<string, List<(BsonDocument, PageInfo)>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, HashSet<BsonValue>> _completeIDs =
             new Dictionary<string, HashSet<BsonValue>>(StringComparer.OrdinalIgnoreCase);
+        private (BsonDocument Document, PageInfo Page) _current;
 
         public IEnumerable<BsonDocument> GetDocuments(string collection)
         {
@@ -166,25 +167,41 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<BsonDocument> GetSalvagedDocuments(string collection)
         {
-            if (!_salvaged.TryGetValue(collection, out var salvaged)) yield break;
-
-            var complete = _completeIDs[collection];
-            var kept = new HashSet<BsonValue>();
-            foreach (var (document, page) in salvaged)
+            if (!_salvaged.TryGetValue(collection, out var salvaged) || !_completeIDs.TryGetValue(collection, out var complete))
             {
-                var id = document["_id"];
-                if (complete.Contains(id) || !kept.Add(id))
+                yield break;
+            }
+
+            try
+            {
+                var kept = new HashSet<BsonValue>();
+                foreach (var item in salvaged)
                 {
-                    this.HandleError($"The readable part of damaged document {id} was not kept: another document has the same _id.", page);
-                    continue;
+                    var id = item.Document["_id"];
+                    if (complete.Contains(id) || !kept.Add(id))
+                    {
+                        this.HandleError($"The readable part of damaged document {id} was not kept: another document has the same _id.", item.Page);
+                        continue;
+                    }
+                    _current = item;
+                    yield return item.Document;
                 }
-                yield return document;
+            }
+            finally
+            {
+                // The collection is done: release its _id set and readable parts.
+                _salvaged.Remove(collection);
+                _completeIDs.Remove(collection);
+                _current = default;
             }
         }
 
         public void RejectSalvagedDocument(string collection, BsonDocument document, string reason)
         {
-            var page = _salvaged[collection].First(x => ReferenceEquals(x.Document, document)).Page;
+            // Called for the document just yielded by GetSalvagedDocuments.
+            var page = ReferenceEquals(_current.Document, document)
+                ? _current.Page
+                : _salvaged[collection].First(x => ReferenceEquals(x.Document, document)).Page;
             this.HandleError($"The readable part of damaged document {document["_id"]} was not kept: {reason}", page);
         }
 
