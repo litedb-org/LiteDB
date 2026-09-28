@@ -118,13 +118,14 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Stop the engine after <paramref name="ex"/>. A write or sync failure (one that names its file,
-        /// <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>, so the
-        /// next call reopens the engine read-only instead of finding it closed (decision 6).
+        /// Stop the engine after <paramref name="ex"/>. An I/O failure of a write or sync (one that names its
+        /// file, <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>, so
+        /// the next call reopens the engine read-only instead of finding it closed (decision 6). A damaged
+        /// file keeps it closed, also when a write found it.
         /// </summary>
         internal void StopAfter(string operation, Exception ex)
         {
-            if (WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
+            if (ex is IOException && WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
             this.Stop(ex);
         }
 

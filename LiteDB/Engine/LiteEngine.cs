@@ -308,8 +308,10 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            // A failure stopped the engine (its teardown is pending): nothing may be written after it.
-            if (checkpoint && !_settings.ReadOnly && !_state.Stopped && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
+            // After a failure (its stop pending, or recorded by a $database read) nothing may be written,
+            // and no sync retried on the handle that failed.
+            if (checkpoint && !_settings.ReadOnly && !_state.Stopped && _state.WriteFailure == null &&
+                _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
