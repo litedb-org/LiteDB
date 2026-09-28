@@ -168,6 +168,53 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// A restart over a kept WAL: before it tried a data sync, the engine reported walKept=false,
+        /// and its first checkpoint scanned the whole WAL before its data sync failed. Its report and
+        /// its checkpoint now try the data sync first; the checkpoint stops there.
+        /// </summary>
+        [Fact]
+        public void Restart_over_a_kept_wal_reports_it_and_checkpoints_without_scanning()
+        {
+            using var file = new TempFile();
+            SetupRows(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
+            {
+                db.CheckpointSize = 0;
+                UpdateRows(db, 1);
+                power.DataFails = true;
+                db.Checkpoint();
+            }
+            DurableHeaders.Forget(file.Filename); // a new process
+
+            var scans = 0;
+            var settings = power.Settings();
+            settings.CheckpointStage = stage => { if (stage == "before-commit-lock") scans++; };
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                db.Checkpoint();
+                scans.Should().Be(0, "the checkpoint stopped at its data sync");
+                SyncPowerLossModel.AssertRows(db, Rows, 1);
+            }
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                var syncs = power.DataSyncs;
+                Info(db)["walKept"].AsBoolean.Should().BeTrue("the report tried the data sync");
+                power.DataSyncs.Should().Be(syncs + 1);
+            }
+
+            power.DataFails = false;
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                Info(db)["walKept"].AsBoolean.Should().BeFalse("the data file syncs again");
+                db.Checkpoint();
+                Info(db)["logFileSize"].AsInt64.Should().Be(0);
+                SyncPowerLossModel.AssertRows(db, Rows, 1);
+            }
+            power.AssertAfterPowerLoss(Rows, 1);
+        }
+
+        /// <summary>
         /// A shared connection reports its kept WAL connection-wide, since each operation's engine
         /// is fresh, and stops once a data sync succeeds: here a partial checkpoint (a live reader
         /// keeps the WAL) syncs the data file, and the WAL left is no longer a kept one.

@@ -40,6 +40,9 @@ namespace LiteDB.Engine
         // false after "cannot sync" (#2242), and for the log also while its sync waits for the data file.
         private volatile bool _dataBarrierSynced = true, _logBarrierSynced;
 
+        // Set by this engine's first data barrier, whatever it answered.
+        private volatile bool _dataBarrierTried;
+
         // Set once this engine made the WAL's directory entry durable. Until then a durable
         // commit is not acknowledged: syncing a new WAL does not persist its name on Unix.
         private volatile bool _logDirectorySynced;
@@ -80,10 +83,11 @@ namespace LiteDB.Engine
         internal bool KeepsWal => !_volatileLog && !_dataBarrierSynced;
 
         /// <summary>
-        /// While the WAL is kept, a checkpoint first retries the data sync and does nothing while
-        /// the data file still cannot sync, instead of scanning the growing WAL again at every commit.
+        /// This engine's latest data sync succeeded. False before its first one: an earlier engine or
+        /// process may have found that the data file cannot sync and kept the WAL, which this one
+        /// cannot tell from the files.
         /// </summary>
-        internal bool DefersCheckpoint() => this.KeepsWal && !this.DataFileSyncs();
+        internal bool DataSyncConfirmed => _dataBarrierTried && _dataBarrierSynced;
 
         /// <summary>
         /// Sync the data file now: false when it answers "cannot sync" (#2242). A checkpoint calls it
@@ -105,9 +109,22 @@ namespace LiteDB.Engine
             $"The data file stopped syncing to the device during {operation}: the log file and its header recovery " +
             "copy are kept, and the database must be reopened once the storage syncs.");
 
-        /// <summary>For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds.</summary>
-        internal bool WalKeptReport => this.GetFileLength(FileOrigin.Log) > 0 &&
-            (this.KeepsWal || (!_volatileLog && (_sharedDurability?.DataUnsynced ?? false)));
+        /// <summary>
+        /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine
+        /// whose latest data sync did not succeed, or that tried none yet (a reopen, a restart or a
+        /// shared-mode operation after an engine that kept the WAL), retries one first, as its next
+        /// checkpoint would. A read-only engine (also a shared-mode read) never syncs: it reports what
+        /// the connection's engines found.
+        /// </summary>
+        internal bool WalKeptReport
+        {
+            get
+            {
+                if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
+                if (_readOnly) return _sharedDurability?.DataUnsynced ?? false;
+                return !this.DataSyncConfirmed && !this.DataFileSyncs();
+            }
+        }
 
         /// <summary>The engine keeps its WAL in memory (<see cref="EngineSettings.VolatileLog"/>).</summary>
         internal bool LogIsVolatile => _volatileLog;
@@ -353,6 +370,7 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncDataBarrier(Stream data)
         {
+            _dataBarrierTried = true;
             try
             {
                 data.FlushToDisk();

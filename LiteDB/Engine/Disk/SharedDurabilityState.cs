@@ -16,8 +16,8 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// The latest data sync of an engine of this connection answered "cannot sync": its WAL is
-        /// kept until one succeeds (reported by <c>$database.walKept</c>, which later engines of the
-        /// connection could not know otherwise).
+        /// kept until one succeeds. Reported by <c>$database.walKept</c> of the connection's read-only
+        /// engines (its reads), which never sync.
         /// </summary>
         internal volatile bool DataUnsynced;
     }
