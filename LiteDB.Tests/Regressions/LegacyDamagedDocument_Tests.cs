@@ -164,6 +164,27 @@ namespace LiteDB.Tests.Regressions
             error.Data["state"].Should().Be("kept");
         }
 
+        /// <summary>
+        /// A repeated open that fails with an exception callers retry on (here an IOException) keeps
+        /// its type and HResult; the damage that required the rebuild is not lost with it.
+        /// </summary>
+        [Fact]
+        public void Failed_repeated_open_with_an_io_error_keeps_the_damage_in_its_data()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture());
+
+            var settings = new EngineSettings
+            {
+                Filename = file.Filename, AutoRebuild = true,
+                AutoRebuildAllowed = () => throw new IOException("transient rebuild failure")
+            };
+            Action open = () => new LiteEngine(settings).Dispose();
+            var error = open.Should().Throw<IOException>().Which;
+            error.Message.Should().Be("transient rebuild failure");
+            error.Data[LiteEngine.RebuildCauseDataKey].As<string>().Should().Contain("Collection 'c'");
+        }
+
         [Fact]
         public void Read_only_legacy_scan_surfaces_the_damage_without_changing_the_file()
         {

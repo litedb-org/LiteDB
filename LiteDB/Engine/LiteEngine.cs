@@ -109,14 +109,23 @@ namespace LiteDB.Engine
                 catch (LiteException retry)
                 {
                     // Keep the damage that required the rebuild visible next to the rebuild failure.
-                    // Other failures (e.g. a transient IOException) keep their type for callers' retries.
                     var failure = new LiteException(ex.ErrorCode, new AggregateException(ex, retry),
                         "{0} The automatic rebuild failed: {1}", ex.Message, retry.Message);
                     foreach (System.Collections.DictionaryEntry entry in retry.Data) failure.Data[entry.Key] = entry.Value;
                     throw failure;
                 }
+                catch (Exception retry)
+                {
+                    // Other failures (e.g. a transient IOException) keep their type and HResult for
+                    // callers' retries; the damage that required the rebuild travels in their Data.
+                    retry.Data[RebuildCauseDataKey] = ex.Message;
+                    throw;
+                }
             }
         }
+
+        /// <summary>Data key of a failed automatic rebuild's exception: the damage that required it.</summary>
+        internal const string RebuildCauseDataKey = "LiteDB.RebuildCause";
 
         // A rebuild replaces files; caller streams are never rebuilt.
         private bool RebuildAfterFailedOpen(LiteException ex) =>
