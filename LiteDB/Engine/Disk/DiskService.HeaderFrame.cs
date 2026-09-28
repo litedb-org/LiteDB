@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -27,13 +28,34 @@ namespace LiteDB.Engine
                 if (header[WalChecksum.SaltPosition + i] != _checksums.Salt[i]) throw new PageChecksumException(FileOrigin.Data, 0);
             Buffer.BlockCopy(header, 0, frame, 0, PAGE_SIZE);
             WalChecksum.PrepareHeaderFrame(frame, _checksums.Salt);
+            this.CrashPoint("header-frame-before-write");
             uncertain = true;
             Interlocked.Exchange(ref _logLength, 0);
-            this.CrashPoint("header-frame-before-write");
-            raw.Position = 0;
-            raw.Write(frame, 0, frame.Length);
-            this.CrashPoint("header-frame-after-write");
+            try
+            {
+                raw.Position = 0;
+                raw.Write(frame, 0, frame.Length);
+            }
+            catch (Exception failure)
+            {
+                // As for a failed append (WriteLogPage): truncate what the write may have left, and the
+                // engine goes on; if that fails too, the torn frame stays and the caller stops the engine.
+                Interlocked.Exchange(ref _logLength, -PAGE_SIZE);
+                try
+                {
+                    stream.SetLength(0);
+                    _logFactory.TrimCapacity(stream);
+                    uncertain = false;
+                }
+                catch (Exception cleanup)
+                {
+                    LOG($"truncating a failed header frame write failed too: {cleanup.Message}", "ERROR");
+                    ExceptionDispatchInfo.Capture(failure).Throw();
+                }
+                throw;
+            }
             uncertain = false;
+            this.CrashPoint("header-frame-after-write");
         }
 
         /// <summary>
@@ -52,6 +74,7 @@ namespace LiteDB.Engine
             var header = this.ReadLogHeaderFrame();
             if (header == null) return false;
             var state = !exists ? "missing" : dataLength == 0 ? "empty" : "shorter than its header page";
+            if (exists && dataLength > 0 && !HeaderFrame.Completes(this.ReadDataPrefix(dataLength), header)) return false;
             if (!exists || !HeaderFrame.Fits(header, 0))
                 throw new LiteException(LiteException.INVALID_DATABASE, $"Cannot open this database: its data file is {state}, " +
                     "while its log file holds the WAL of a database whose pages were in that data file. Restore the data " +
@@ -74,7 +97,7 @@ namespace LiteDB.Engine
         {
             if (_recoveredHeader != null || HeaderFrame.IsIntact(header)) return;
             var frame = this.ReadLogHeaderFrame();
-            if (frame == null || !HeaderFrame.Fits(frame, dataLength)) return;
+            if (frame == null || !HeaderFrame.Completes(header, frame) || !HeaderFrame.Fits(frame, dataLength)) return;
             header = frame;
             if (_readOnly)
             {
@@ -97,6 +120,19 @@ namespace LiteDB.Engine
                 data.Write(header, 0, PAGE_SIZE);
                 this.SyncDataBarrier(data);
             });
+        }
+
+        private byte[] ReadDataPrefix(long dataLength)
+        {
+            var bytes = new byte[dataLength];
+            var stream = _dataPool.Rent();
+            try
+            {
+                stream.Position = 0;
+                stream.ReadRequired(bytes, 0, bytes.Length);
+            }
+            finally { _dataPool.Return(stream); }
+            return bytes;
         }
 
         private byte[] ReadLogHeaderFrame()

@@ -29,7 +29,7 @@ namespace LiteDB.Engine
             // A data header a power loss dropped: the WAL's header frame holds it (decision 11).
             if (_recoveredHeader == null && _logStream != null && !HeaderFrame.IsIntact(bytes) &&
                 HeaderFrame.Read(((ChecksummedWalStream)_logStream).RawStream) is byte[] frame &&
-                HeaderFrame.Fits(frame, _dataStream.Length))
+                HeaderFrame.Completes(bytes, frame) && HeaderFrame.Fits(frame, _dataStream.Length))
             {
                 bytes = _recoveredHeader = frame;
             }

@@ -11,6 +11,9 @@ namespace LiteDB.Internals
 {
     public class WalPowerLoss_Tests
     {
+        private static int AcknowledgedEnd(byte[] log, int preamble) =>
+            (log.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble;
+
         [Theory]
         [InlineData(null, 512)]
         [InlineData("secret", 512)]
@@ -23,10 +26,14 @@ namespace LiteDB.Internals
             source.Database.GetCollection("docs").EnsureIndex("value");
             source.Database.Checkpoint();
             source.Update("docs", 1);
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            // Frame counts depend on the layout (every WAL starts with a header frame, decision 11):
+            // when the acknowledged end falls on a sector boundary, one more commit moves it off.
+            if (AcknowledgedEnd(source.Log.ToArray(), preamble) % sectorSize == 0)
+                source.Database.GetCollection("pad").Insert(new BsonDocument { ["_id"] = 1 });
             var acknowledged = source.Log.ToArray();
             var expected = source.Database.GetCollection("docs").FindAll().ToArray();
-            var preamble = password == null ? 0 : PAGE_SIZE;
-            var end = (acknowledged.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble;
+            var end = AcknowledgedEnd(acknowledged, preamble);
             (end % sectorSize).Should().NotBe(0, "the next append must share a physical sector with the acknowledged confirmation");
             source.Update("docs", 2);
             var torn = source.Log.ToArray();

@@ -138,7 +138,9 @@ namespace LiteDB.Tests.Regressions
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                if (FailNextFrame && count == WalChecksum.FrameSize)
+                // The header frame that starts a WAL (decision 11) is not one of the transaction's frames.
+                if (FailNextFrame && count == WalChecksum.FrameSize &&
+                    BitConverter.ToUInt32(buffer, offset + Constants.PAGE_SIZE + 52) != WalChecksum.HeaderFrameMagic)
                 {
                     FailNextFrame = false;
                     Failed = true;

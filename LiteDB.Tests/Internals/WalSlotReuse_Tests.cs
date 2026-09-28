@@ -117,18 +117,19 @@ namespace LiteDB.Internals
                     positions[pageID] = new PagePosition(pageID, position), positions);
             }
 
+            // Frame 0 is the header frame that starts the WAL (decision 11).
             Write(1, 10);
             Write(2, 20);
             Write(1, 30);
-            log.Length.Should().Be(WalPadding.AlignedLength(2 * WalChecksum.FrameSize));
-            positions[1].Position.Should().Be(0);
-            var updated = reader.ReadPage(0, false, FileOrigin.Log);
+            log.Length.Should().Be(WalPadding.AlignedLength(3 * WalChecksum.FrameSize));
+            positions[1].Position.Should().Be(PAGE_SIZE);
+            var updated = reader.ReadPage(PAGE_SIZE, false, FileOrigin.Log);
             updated.ReadInt32(PAGE_SIZE - sizeof(int)).Should().Be(30);
             updated.Release();
 
             Write(1, 40, confirmed: true);
-            positions[1].Position.Should().Be(2 * PAGE_SIZE, "confirmation must follow every transaction page");
-            log.Length.Should().Be(WalPadding.AlignedLength(3 * WalChecksum.FrameSize));
+            positions[1].Position.Should().Be(3 * PAGE_SIZE, "confirmation must follow every transaction page");
+            log.Length.Should().Be(WalPadding.AlignedLength(4 * WalChecksum.FrameSize));
             disk.Cache.PinnedPages.Should().Be(0);
             disk.Cache.WritablePages.Should().Be(0);
             disk.Cache.LostFrames.Should().Be(0);

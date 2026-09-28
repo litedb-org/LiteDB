@@ -51,6 +51,32 @@ namespace LiteDB.Engine
                 string.CompareOrdinal(page.ReadString(HeaderPage.P_HEADER_INFO, HeaderPage.HEADER_INFO.Length), HeaderPage.HEADER_INFO) == 0;
         }
 
+        private const int Sector = 512;
+
+        /// <summary>
+        /// Whether <paramref name="header"/> (the data file's first bytes, maybe fewer than a page) is
+        /// the header frame's header as a power loss leaves a header that never reached the device:
+        /// every 512-byte sector either as written or never written (zeros; a file shorter than a page
+        /// reads zeros past its end). Nothing else is restored: a header a drive defect damaged holds
+        /// other bytes, and its open fails as before instead of taking a copy that may be older.
+        /// </summary>
+        internal static bool Completes(byte[] header, byte[] frame)
+        {
+            for (var sector = 0; sector < PAGE_SIZE; sector += Sector)
+            {
+                var zeros = true;
+                var same = true;
+                for (var i = sector; i < sector + Sector; i++)
+                {
+                    var value = i < header.Length ? header[i] : (byte)0;
+                    zeros &= value == 0;
+                    same &= value == frame[i];
+                }
+                if (!zeros && !same) return false;
+            }
+            return true;
+        }
+
         /// <summary>
         /// The data file must still hold every page this header names, the pages that were in it
         /// when the WAL generation started: the WAL holds only what changed since.
