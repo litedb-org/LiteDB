@@ -101,3 +101,34 @@ Copies: the PR description, and `pull-requests/3027-io-regressions-since-5021/de
     salt that validates the following frames, from it when the data file's header is missing or
     invalid. It stays until a checkpoint whose data sync succeeded empties the WAL. Older 6.x
     prereleases do not read it (older versions are out of scope).
+
+## Third round (2026-09-28, after an independent second opinion)
+
+The owner asked for an independent review that trusted none of the earlier decisions. Its findings
+and the owner's answers:
+
+11. **Every WAL starts with the header frame (replaces the condition in 8).** The WAL describes
+    itself, as SQLite's WAL header does: the first frame of every WAL generation (from empty until
+    it is emptied again) is the header frame of decision 10, in both modes, written by the first
+    batch that extends an empty WAL and synced with that batch's commit. Not only when the data
+    header is unproven. At open:
+    - Data header intact, same salt: normal recovery.
+    - Data header missing, empty or torn, and no header journal applies: recovery takes the header
+      (and the salt that validates the frames) from the header frame.
+    - Data header intact with another salt: a stale WAL generation, discarded as before (a salt
+      changes only after a data sync covered the backfill).
+    - Empty data file next to a log whose WAL holds frames: never initialized over. Restored from
+      the header frame when it can be; otherwise the open fails loudly and changes neither file.
+      Before this, such an open created a new database and silently discarded every frame (for
+      example `durable commits=false` on storage that cannot sync, then a power loss).
+    Commits no longer depend on the data header being on the device, so the "header not proven"
+    refusal and its per-process proof go away for commits. Volatile logs have no header frame.
+12. **No unsafe mode in this PR.** On storage that never syncs, writes stop at the WAL limit
+    (decision D stays). An explicitly named unsafe option that restores checkpoints flushed to the
+    OS cache only (like SQLite's `synchronous=OFF`) may come later as a separate change.
+13. **The read-only reopen shows only acknowledged commits.** When a commit fails after its frames
+    reached the operating system ("outcome unknown"), the read-only engine that replaces the failed
+    one replays the WAL only up to the last commit acknowledged before the failure, so this process
+    never sees a transaction its caller saw fail. A later open (a new connection, a restart) lets
+    the device decide, as recovery always does. If the WAL grew past the failed batch meanwhile
+    (another process committed on top of it), the files win.
