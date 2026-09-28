@@ -133,6 +133,10 @@ namespace LiteDB.Engine
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
                 if (drain && !reclaim) return 0;
+                // A drain (legacy conversion) runs before the open trims partial pages. Trim them
+                // now, before this checkpoint appends its header journal at the physical WAL end:
+                // a torn legacy frame completed by journal bytes would pass as a committed page.
+                if (drain) _disk.TrimTrailingPages();
                 // Exclusion alone does not mean readers are gone: snapshots and
                 // shared leases survive it. Only a reclaiming checkpoint ends the
                 // back-off; otherwise an unclaimed commit skips partial work, which

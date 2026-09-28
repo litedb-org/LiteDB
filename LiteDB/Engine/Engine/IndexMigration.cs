@@ -110,7 +110,7 @@ namespace LiteDB.Engine
             // Conversion replaces the legacy WAL, so it must be drained completely first.
             // A lease-aware checkpoint skips or limits its work while other connections may
             // read the WAL; discarding what it left would lose committed transactions. A
-            // refused conversion changes neither file (not even a partial trailing page).
+            // refused conversion changes neither file; a drain trims partial pages first.
             if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain())
                 throw new LiteException(LiteException.LOCK_TIMEOUT,
                     "Cannot convert this legacy database while another connection may still read its log " +
