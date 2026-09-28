@@ -35,6 +35,13 @@ namespace LiteDB.Engine
         // Shared mode: an operation's engine close checkpoints only once the WAL holds this
         // many pages (at most the CHECKPOINT pragma); the connection's final close always does.
         internal int CloseCheckpointPages { get; set; }
+
+        /// <summary>
+        /// Checkpoint after every commit without changing the persisted CHECKPOINT pragma. Used when
+        /// the WAL is volatile (a caller's data stream without a log stream), so commits reach the
+        /// caller's stream before they are acknowledged.
+        /// </summary>
+        internal bool CheckpointEachCommit { get; set; }
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();

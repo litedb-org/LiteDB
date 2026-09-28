@@ -219,7 +219,7 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
+            if (checkpoint && !_settings.ReadOnly && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
@@ -237,6 +237,9 @@ namespace LiteDB.Engine
             return tc.Exceptions;
         }
 
+        /// <summary>WAL size (in pages) that triggers a checkpoint; 0 disables automatic checkpoints.</summary>
+        private int CheckpointPages => _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
+
         /// <summary>
         /// Every close checkpoints unless a shared connection set a threshold: its short-lived
         /// engines leave a smaller WAL to the next operation, whose replay costs less than the
@@ -246,7 +249,7 @@ namespace LiteDB.Engine
         {
             var threshold = _settings.CloseCheckpointPages;
             if (threshold <= 0) return true;
-            var pages = Math.Min(threshold, _header.Pragmas.Checkpoint);
+            var pages = Math.Min(threshold, this.CheckpointPages);
             return _disk.GetFileLength(FileOrigin.Log) >= (long)pages * PAGE_SIZE;
         }
 
