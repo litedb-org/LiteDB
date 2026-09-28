@@ -229,6 +229,7 @@ namespace LiteDB.Engine
             var recovery = new WalRecovery();
             var pages = _disk.ReadFull(FileOrigin.Log);
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
+            var legacyLimit = _disk.ChecksumsEnabled ? uint.MaxValue : this.LegacyPageLimit(header);
             foreach (var buffer in pages)
             {
                 var current = buffer.Position;
@@ -258,6 +259,8 @@ namespace LiteDB.Engine
                     // Their witnesses still confirm the surviving frames at the same
                     // stable physical version as before reclamation.
                     var version = checked((int)(current / PAGE_SIZE + 1));
+                    foreach (var entry in list)
+                        if (entry.PageID > legacyLimit) throw LegacyPageOutOfRange(entry.PageID, legacyLimit);
                     _confirmTransactions.Add(transactionID);
                     _currentReadVersion = version;
                     if (!buffer.WalFrame.Retired) _confirmationPositions[version] = current;
@@ -294,6 +297,24 @@ namespace LiteDB.Engine
             }
         }
 
+
+        /// <summary>
+        /// Legacy WAL pages carry no checksum: a torn or foreign page can name any page ID, and the
+        /// drain would write it that far into the data file. A committed page is an existing page
+        /// or one a transaction in this WAL allocated, each of which the WAL holds.
+        /// </summary>
+        private uint LegacyPageLimit(HeaderPage header)
+        {
+            var dataPages = _disk.GetFileLength(FileOrigin.Data) / PAGE_SIZE;
+            var logPages = _disk.GetFileLength(FileOrigin.Log) / PAGE_SIZE;
+            return (uint)Math.Min(uint.MaxValue, Math.Max(header.LastPageID, dataPages - 1) + logPages);
+        }
+
+        private static LiteException LegacyPageOutOfRange(uint pageID, uint limit) => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file holds a committed page (ID {0}) beyond any page the data and log " +
+            "files can hold (up to {1}), so the log is damaged or belongs to another data file. Replaying it would write " +
+            "that page far past the end of the data file. Nothing was changed; move the log file aside to open the " +
+            "database without its uncheckpointed transactions.", pageID, limit);
 
         private static void CopyConfirmedHeader(ref HeaderPage header, PageBuffer buffer)
         {
