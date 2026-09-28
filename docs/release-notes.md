@@ -76,15 +76,23 @@ The durability rules follow the maintainer's decisions in
   sync, a commit with durable commits throws before it writes. On storage where neither file
   syncs, opted-out commits keep the WAL the same way (before, it was emptied as before #2818).
 - **Failures are sticky.** A write or sync that failed (a torn WAL write, a failed flush, a
-  checkpoint or promotion whose data sync fails after it wrote, disk full) is recorded: file,
-  operation, error, time, and whether the WAL was kept. The operation that hit it throws when
-  it was the caller's own (a commit, an explicit `Checkpoint()`); an automatic checkpoint after
-  a successful commit and `Dispose` do not throw. The engine then continues read-only until
-  the database is reopened: reads keep working, every write throws an `IOException` with the
-  recorded failure before it changes anything, an explicit transaction the failure ended
-  throws at `Commit`, and `$database.writeFailure` reports the record without a write. A
-  shared connection keeps it for its later operations until it is reopened. Before, the
-  engine closed and every later call, reads included, threw.
+  checkpoint or promotion whose data sync fails after it wrote, disk full, also at a
+  safepoint of a large transaction, and a data sync that fails with an I/O error where a
+  write at the WAL limit, a rebuild or `$database` retried it) is recorded: file, operation,
+  error, time, and whether the log file was kept. The operation that hit it throws when it was
+  the caller's own (a commit, an explicit `Checkpoint()`); an automatic checkpoint after a
+  successful commit, `Dispose` and a `$database` read do not throw. The engine then continues
+  read-only until the database is reopened: reads keep working, every write throws an
+  `IOException` with the recorded failure (its inner exception) before it changes anything, so
+  does an explicit `Checkpoint()`, an explicit transaction the failure ended throws at
+  `Commit` (or at the next `BeginTrans` on its thread), and `$database.writeFailure` reports
+  the record without a write (`durableLogFlush` reads false after a failure on the log). A
+  shared connection keeps it for its later operations until it is reopened; two shared
+  connections do not share it. The read-only engine never rebuilds (`auto-rebuild`) and never
+  retries a sync on the handle that failed. Before, the engine closed and every later call,
+  reads included, threw. A refusal found before anything was written (a format promotion whose
+  data file cannot sync, a write past the WAL limit) is not a failure: it throws to the
+  operation's caller (an automatic checkpoint does not), and the engine keeps writing.
 - **Opens that would need a data sync open read-only.** A writable open that would first
   have to convert a 5.x file, migrate its indexes, or repair or retire a header journal while
   the data file cannot sync opens read-only instead (a refusal found before the open wrote
@@ -100,7 +108,10 @@ The durability rules follow the maintainer's decisions in
   no format conversion). A format promotion (a compact or vector write, an index migration,
   or the first retiring checkpoint, that raises the file version) keeps its header journal the
   same way: it first syncs the data file (one more data sync per promotion). While the data
-  file cannot sync, a compact write stays BSON and an index migration opens read-only.
+  file cannot sync, a compact write stays BSON and an index migration opens read-only. A vector
+  write to a file older than the vector format (a 5.x file, which such an open cannot convert)
+  is refused with an `IOException`, and the engine stays usable: reads keep working, and
+  nothing is recorded as a failure.
 
 A data sync that fails with an I/O error fails the operation, in both modes. Encrypted streams
 opened to read no longer sync their file. A 5.x data file found beside its conversion's WAL (whose

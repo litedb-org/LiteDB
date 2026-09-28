@@ -169,10 +169,14 @@ until the owner confirms them.
 5. **Sticky failure mechanics (6).** The failing operation stops the engine as before; the next call
    reopens it read-only from the files as they are (after a failed WAL batch, only up to the last
    commit acknowledged before it, decision 13). Operations running on other threads at that moment
-   fail with the stop error. An explicit transaction the failure ended throws at `Commit` (and `Rollback`
-   returns true). An explicit `Checkpoint()` is the caller's own operation and throws; an automatic
-   checkpoint after a successful commit and the one in `Dispose` do not. A shared connection keeps the
-   failure: its later operations open read-only until the connection is reopened.
+   fail with the stop error; calls that arrive during the reopen wait for it. An explicit transaction the
+   failure ended throws at `Commit` or at the next `BeginTrans` on its thread, whichever comes first (and
+   `Rollback` returns true). An explicit `Checkpoint()` is the caller's own operation and throws, also
+   after the reopen; an automatic checkpoint after a successful commit and the one in `Dispose` do not. A
+   data sync that fails where no write can throw it (a `$database` read) is recorded and reported there,
+   and the next call stops the engine. A shared connection keeps the failure: its later operations open
+   read-only until the connection is reopened (per connection: two shared connections do not share it).
+   A read-only engine never auto-rebuilds.
 6. **What counts as a failure (A, D).** A data sync that answers "cannot sync" before a checkpoint or
    promotion writes is not a failure: the checkpoint writes nothing and the WAL is kept. After it wrote,
    it is a failure in both modes: the engine's state (for example a rotated WAL salt) no longer matches
@@ -180,7 +184,8 @@ until the owner confirms them.
    the engine as before, without a read-only reopen.
 7. **Diagnostics.** `$database.writeFailure` is `{file, operation, error, time, walKept}` or null;
    after the reopen `readOnly` is true and `readOnlyReason` is the failure. `walKept`, `logFileSize` and
-   `walLimit` show how far a kept WAL is from the limit.
+   `walLimit` show how far a kept WAL is from the limit. The record's `walKept` counts whatever the log
+   file holds (an outstanding header journal too); `durableLogFlush` is false after a failure on the log.
 8. **The WAL limit** is checked when a write starts: a transaction already running may commit past it.
    Each refused write first retries the data sync, so writes resume on their own once the data file
    syncs; the next checkpoint then drains the WAL.

@@ -117,7 +117,10 @@ header change, not per operation. Before its first slot reuse an engine also syn
 the raw log once. A "cannot sync" answer makes it append instead; with durable
 commits a log that cannot sync fails the commit before it writes. A write or sync
 failure of one operation is kept connection-wide: the connection's later operations
-open read-only and report it in `$database.writeFailure` until it is reopened.
+open read-only and report it in `$database.writeFailure` until it is reopened. The
+record belongs to that connection (`SharedDurabilityState`): another shared connection
+to the same file, also in the same process, does not see it and finds a failing device
+on its own.
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
 or its log fell back to OS-cache flushes (only possible after opting out; with

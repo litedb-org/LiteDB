@@ -94,9 +94,12 @@ loads, caches, test suites and other data that can be rebuilt:
   A checkpoint whose sync fails with an I/O error writes no further, and the
   engine continues read-only until it is reopened ([decisions](decisions/durability-policy.md),
   decision 6); an automatic checkpoint or `Dispose` does not throw for it,
-  `$database.writeFailure` reports it. Log storage that rejects sync as
-  unsupported (#2242) instead checkpoints without the log sync, as before, with
-  no power-loss guarantee: that answer is the reason to opt out, not a failure.
+  `$database.writeFailure` reports it. With `durable commits=false`, log
+  storage that rejects sync as unsupported (#2242) instead checkpoints without
+  the log sync, as before, with no power-loss guarantee: that answer is the
+  reason to opt out, not a failure. With durable commits (the default) the same
+  answer is a failure: the commit or checkpoint that meets it fails before it
+  writes to the data file, and the engine continues read-only.
   The WAL is still removed only after a data sync that covers the checkpoint's
   writes, so where the data file cannot sync the WAL keeps growing up to
   `wal limit`. File creation is synced as before.
