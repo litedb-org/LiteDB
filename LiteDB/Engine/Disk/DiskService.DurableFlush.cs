@@ -21,11 +21,8 @@ namespace LiteDB.Engine
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
         private volatile bool _dataFlushDegraded;
 
-        // Set by this engine's first successful log device sync. That sync also makes
-        // blank slots found at open durable, even if an earlier engine cleared them on
-        // storage that could not sync, so reclaimed slots are reused only after it
-        // (see ProveLogSync).
-        private volatile bool _logSyncProven;
+        // Set once this engine proved what reusing a WAL slot needs (see ProveSlotReuse).
+        private volatile bool _slotReuseProven;
 
         // Set once this engine made the WAL's directory entry durable. Until then a durable
         // commit is not acknowledged: syncing a new WAL does not persist its name on Unix.
@@ -45,7 +42,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
         /// sync is still attempted, but a failure would go unreported, so it never proves
-        /// durability. Such a log is not used for slot reuse (see <see cref="ProveLogSync"/>).
+        /// durability. Such a log is not used for slot reuse (see <see cref="ProveSlotReuse"/>).
         /// </summary>
         private bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
@@ -139,7 +136,6 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
-                if (!this.LogSyncUnverified) _logSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -150,20 +146,28 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Before this engine first reuses a slot found blank at open, prove that the log can
-        /// sync. The sync also makes clears an earlier engine wrote without one durable. It
-        /// targets the raw log, so it adds no padding between a transaction's frames. Storage
-        /// that answers "cannot sync" (#2242) degrades, and the caller appends instead; that
-        /// engine's commits then skip their own rejected sync, so the probe costs nothing extra.
-        /// Caller holds the log writer lock.
+        /// Before this engine first reuses a WAL slot, prove that the data file and the log sync.
+        /// Slots found at open were retired by an earlier engine, maybe of another connection,
+        /// whose data file may have stopped syncing after that checkpoint's proof: the witness root
+        /// that lets recovery skip a slot's old frame is then in the OS cache only, and this data
+        /// sync makes it durable before the frame is overwritten. The log sync makes durable any
+        /// clear an earlier engine wrote without one; it targets the raw log, so it adds no padding
+        /// between a transaction's frames. (The WAL's name needs no sync here: the checkpoint that
+        /// retired a slot synced its directory, and a WAL is deleted only when empty.) Storage that
+        /// answers "cannot sync" (#2242) degrades, and the caller appends instead; that engine's
+        /// commits then report reduced durability. Slots this engine retires later are proven again
+        /// by their own checkpoint. Caller holds the log writer lock.
         /// </summary>
-        private bool ProveLogSync()
+        private bool ProveSlotReuse()
         {
-            if (_logSyncProven) return true;
-            // An unverifiable sync proves nothing, and retrying it per allocation would only cost.
-            if (_logFlushDegraded || this.LogSyncUnverified) return false;
-            this.SyncRawLog();
-            return _logSyncProven;
+            if (_slotReuseProven) return true;
+            // An unverifiable log sync proves nothing. A failed proof leaves the engine degraded,
+            // so a retry per allocation costs no sync.
+            if (this.FlushDegraded || this.LogSyncUnverified) return false;
+            var data = _dataPool.Writer.Value;
+            lock (data) this.SyncDataBarrier(data);
+            if (!this.FlushDegraded) this.SyncRawLog();
+            return _slotReuseProven = !this.FlushDegraded;
         }
 
         /// <summary>
@@ -177,7 +181,6 @@ namespace LiteDB.Engine
             try
             {
                 raw.FlushToDisk();
-                _logSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

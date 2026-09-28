@@ -80,10 +80,10 @@ namespace LiteDB.Engine
             // its earlier frames. LiteDB 5.0.21 restores its counter from the last
             // physical frame rather than the maximum observed ID.
             // Storage that cannot sync (#2242) never reuses slots; see ReclaimLogPages.
-            // A fresh engine (every shared-mode operation) has not yet learned that, so it
-            // proves one log sync before reusing slots found at open.
+            // A fresh engine (every shared-mode operation, and every engine of another
+            // connection) has not yet learned that: see ProveSlotReuse.
             if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !this.FlushDegraded &&
-                _freeLogPositions.Count > 0 && this.ProveLogSync())
+                _freeLogPositions.Count > 0 && this.ProveSlotReuse())
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.
@@ -110,6 +110,11 @@ namespace LiteDB.Engine
             this.CheckpointStage("before-wal-reclaim-lock");
             lock (stream)
             {
+                // Storage that stopped syncing during this checkpoint (#2242) may have left the
+                // witness root in the OS cache only. A durable clear would then make recovery
+                // after a power loss stop at the cleared slot and discard every later commit.
+                // Keep the retired frames: while the root names them, reads skip them.
+                if (this.FlushDegraded) return;
                 var empty = new byte[ChecksumsEnabled ? WalChecksum.FrameSize : PAGE_SIZE];
                 var target = ChecksumsEnabled ? ((ChecksummedWalStream)stream).RawStream : stream;
                 foreach (var position in positions)
@@ -125,9 +130,9 @@ namespace LiteDB.Engine
                 // write must never resurrect an old transaction's confirmation.
                 SyncLogBarrier(stream);
                 this.CheckpointStage("wal-slots-flushed");
-                // Storage that cannot sync (#2242) keeps appending like dev: without a
-                // durable clear, reusing a slot could overwrite a retired version that
-                // unsynced data pages still depend on after a power loss.
+                // A log that stopped syncing during the clear (#2242) keeps appending like
+                // dev: without a durable clear, reusing a slot could overwrite a retired
+                // version that unsynced data pages still depend on after a power loss.
                 if (this.FlushDegraded) return;
                 foreach (var position in positions) _freeLogPositions.Add(position);
                 this.CheckpointStage("wal-slots-published");

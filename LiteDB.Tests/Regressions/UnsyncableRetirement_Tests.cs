@@ -152,12 +152,13 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// Shared mode: a data file that stops syncing during a partial checkpoint is found only
-        /// after that checkpoint retired and cleared WAL slots. Later operations of the connection
-        /// run fresh engines that find those slots blank; they must not reuse them, although their
-        /// own log syncs succeed.
+        /// after that checkpoint proved it and retired WAL frames. The witness root may then be in
+        /// the OS cache only, so the checkpoint keeps the retired frames instead of clearing them,
+        /// and later operations of the connection, fresh engines whose own log syncs succeed, must
+        /// not reuse those slots. RetiredSlotPowerLoss_Tests covers other connections and power loss.
         /// </summary>
         [Fact]
-        public void Shared_connection_never_reuses_slots_cleared_while_the_data_file_stopped_syncing()
+        public void Shared_connection_never_reuses_slots_retired_while_the_data_file_stopped_syncing()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
@@ -173,7 +174,7 @@ namespace LiteDB.Tests.Regressions
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 db.CheckpointSize = 0;
                 for (var value = 1; value <= 5; value++) Update64(db, value);
-                int[] cleared;
+                byte[] retired;
                 using (var reader = engine.Query("rows", new Query()))
                 {
                     reader.Read().Should().BeTrue();
@@ -182,15 +183,20 @@ namespace LiteDB.Tests.Regressions
                         for (var value = 6; value <= 9; value++) Update64(db, value);
                         db.Checkpoint();
                     });
-                    cleared = BlankOffsets(ReadShared(logName));
+                    retired = ReadShared(logName);
                 }
                 EngineState.SimulateProcessCrash = null;
-                cleared.Should().NotBeEmpty("the checkpoint retired frames before the data file stopped syncing");
+                dataFails.Should().BeTrue("the checkpoint wrote data pages");
+                BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition).Should().BeGreaterThan(0,
+                    "the checkpoint retired frames before the data file stopped syncing");
+                BlankFrames(retired).Should().Be(0, "no slot is cleared while the witness root may not be durable");
 
                 Update64(db, 10);
                 var written = ReadShared(logName);
-                cleared.Count(offset => offset < written.Length && !IsBlank(written, offset)).Should().Be(0,
-                    "slots cleared by a checkpoint whose data sync failed must not be reused");
+                Enumerable.Range(0, retired.Length / WalChecksum.FrameSize).Count(frame =>
+                    !retired.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
+                        .SequenceEqual(written.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)))
+                    .Should().Be(0, "slots retired by a checkpoint whose data sync failed must not be reused");
                 DurableLogFlush(db).Should().BeFalse();
             }
             finally

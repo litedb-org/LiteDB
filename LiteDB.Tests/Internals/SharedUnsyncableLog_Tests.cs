@@ -14,9 +14,10 @@ namespace LiteDB.Internals
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
     /// reporting the weaker guarantee. Each fresh engine still makes one real sync
     /// attempt per write. Every retiring checkpoint first proves its syncs, so a log known
-    /// unable to sync makes a checkpoint retire and clear nothing; slots are cleared without a
-    /// durable sync only when the log stops syncing during that checkpoint. A second
-    /// connection, which does not share the first one's diagnostic, relies on its own probe.
+    /// unable to sync makes a checkpoint retire nothing. A log that stops syncing during the
+    /// checkpoint keeps the retired frames, unless it stops only at the sync of the clears
+    /// themselves; either way no later engine reuses those slots. A second connection, which
+    /// does not share the first one's diagnostic, relies on its own proof.
     /// </summary>
     public class SharedUnsyncableLog_Tests
     {
@@ -24,19 +25,23 @@ namespace LiteDB.Internals
         private const int LaterWrites = 5;
 
         [Theory]
-        [InlineData(false, false)] // the log stops syncing during the checkpoint, which clears slots
-        [InlineData(false, true)]  // same, and a second connection writes afterwards
-        [InlineData(true, false)]  // earlier commits found out: the checkpoint clears nothing
-        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync(bool knownBeforeCheckpoint, bool secondConnection)
+        [InlineData("clear", false)]      // the log rejects only the sync of the checkpoint's clears
+        [InlineData("clear", true)]       // same, and a second connection writes afterwards
+        [InlineData("retirement", false)] // the log stops syncing before the clears: none is written
+        [InlineData("retirement", true)]
+        [InlineData("known", false)]      // earlier commits found out: the checkpoint retires nothing
+        public void Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync(string stopsAt, bool secondConnection)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
             var unsupported = new UnauthorizedAccessException("sync unsupported");
-            using var log = new SyncFile(file.Filename + "-wal") { Failure = knownBeforeCheckpoint ? unsupported : null };
+            using var log = new SyncFile(file.Filename + "-wal") { Failure = stopsAt == "known" ? unsupported : null };
+            var armed = false;
             using var engine = new SharedEngine(new EngineSettings
             {
                 Filename = file.Filename, DataStream = data, LogStream = log,
-                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1,
+                CheckpointStage = stage => { if (armed && stage == "wal-slot-cleared") log.Failure = unsupported; }
             });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             // No automatic or close checkpoints: every rejected sync below is a commit or a probe.
@@ -47,17 +52,26 @@ namespace LiteDB.Internals
             using var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
-            int[] cleared = null;
+            byte[] retired = null;
             // Let the checkpoint's proof sync succeed; its retirement then meets the failure.
-            if (!knownBeforeCheckpoint) log.AllowedSyncs = 1;
-            log.Failure = unsupported;
+            if (stopsAt == "retirement")
+            {
+                log.AllowedSyncs = 1;
+                log.Failure = unsupported;
+            }
+            armed = stopsAt == "clear";
             MvccCheckpoint_Tests.RunThread(() =>
             {
                 db.Checkpoint();
-                cleared = BlankFrames(ReadAll(log));
+                retired = ReadAll(log);
             });
-            if (knownBeforeCheckpoint) cleared.Should().BeEmpty("storage known unable to sync never retires frames");
-            else cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
+            armed = false;
+            log.Failure.Should().BeSameAs(unsupported);
+            var cleared = BlankFrames(retired);
+            if (stopsAt == "clear") cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
+            else cleared.Should().BeEmpty(stopsAt == "known"
+                ? "storage known unable to sync never retires frames"
+                : "a checkpoint whose log stopped syncing keeps the frames it retired");
             IsDurable(db).Should().BeFalse();
 
             var rejectedBefore = log.RejectedSyncs;
@@ -73,8 +87,8 @@ namespace LiteDB.Internals
             });
 
             var written = ReadAll(log);
-            cleared.Count(offset => !IsBlank(written, offset)).Should().Be(0,
-                "slots cleared without a durable sync must not be reused by later engines");
+            ChangedFrames(retired, written).Should().Be(0,
+                "slots retired without durable syncs must not be reused by later engines");
             (log.RejectedSyncs - rejectedBefore).Should().Be(LaterWrites,
                 "every fresh engine retries a real sync once, and no more than once, per write");
             IsDurable(db).Should().BeFalse("the connection keeps reporting the weaker guarantee across reopens");
@@ -128,6 +142,11 @@ namespace LiteDB.Internals
 
         private static bool IsBlank(byte[] log, int offset) =>
             log.Skip(offset).Take(WalChecksum.FrameSize).All(value => value == 0);
+
+        /// <summary>Complete frames of <paramref name="before"/> that were rewritten since (a reused slot).</summary>
+        private static int ChangedFrames(byte[] before, byte[] after) => Enumerable.Range(0, before.Length / WalChecksum.FrameSize)
+            .Count(frame => !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
+                .SequenceEqual(after.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)));
 
         private sealed class SyncFile : FileStream
         {

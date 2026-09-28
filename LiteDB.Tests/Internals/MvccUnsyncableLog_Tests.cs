@@ -79,7 +79,8 @@ namespace LiteDB.Internals
         public void Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced(bool syncable)
         {
             using var data = new MemoryStream();
-            // Commits and the checkpoint's proof sync; the log then rejects its retirement syncs.
+            // Commits and the checkpoint's proof and retirement sync; the log then rejects the
+            // sync that would make the checkpoint's slot clears durable.
             using var log = new UnsyncableLog { Syncable = true };
             byte[] crashedData, crashedLog;
             using (var engine = Open(data, log))
@@ -90,9 +91,9 @@ namespace LiteDB.Internals
                 Write(db, "docs", 0);
                 for (var value = 1; value <= 20; value++) Write(db, "docs", value);
                 using var reader = engine.Query("docs", new Query());
-                log.Syncable = false;
-                log.AllowedSyncs = 1;
+                engine.CheckpointStage = stage => { if (stage == "wal-slot-cleared") log.Syncable = false; };
                 MvccCheckpoint_Tests.RunThread(() => engine.Checkpoint());
+                log.Rejections.Should().Be(1, "only the sync of the clears was rejected");
 
                 // A killed process: the cleared slots stay in the WAL.
                 crashedData = data.ToArray();
