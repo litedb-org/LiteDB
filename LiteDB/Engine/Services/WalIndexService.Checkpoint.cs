@@ -174,6 +174,15 @@ namespace LiteDB.Engine
                 // recoverable. Storage where neither file syncs empties it as before.
                 if (reclaim && _disk.DataUnsyncedWhileLogSyncs) reclaim = false;
 
+                // Storage that stopped syncing after the retirement's proof may not have made its
+                // witness records durable: a root published now could leave a durable header naming
+                // records a power loss dropped. Keep the frames it would have retired.
+                if (retirement != null && _disk.FlushDegraded)
+                {
+                    retirement = null;
+                    obsolete.Clear();
+                }
+
                 if (!reclaim) _disk.CompletePartialCheckpoint(retirement);
 
                 if (obsolete.Count > 0)

@@ -21,8 +21,10 @@ namespace LiteDB.Tests.Regressions
     [Collection(NativeFileSyncCollection.Name)]
     public class RetiredSlotPowerLoss_Tests
     {
-        [Fact]
-        public void Retiring_checkpoint_whose_data_sync_fails_keeps_commits_a_power_loss_must_not_lose()
+        [Theory]
+        [InlineData(BeforeBackfill)] // found before the root is published: none is
+        [InlineData(AtRootPublication)] // the root reaches the OS cache only
+        public void Retiring_checkpoint_whose_data_sync_fails_keeps_commits_a_power_loss_must_not_lose(string stage)
         {
             using var file = new TempFile();
             Setup(file.Filename);
@@ -31,7 +33,7 @@ namespace LiteDB.Tests.Regressions
             {
                 using var engine = new SharedEngine(power.Settings());
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
-                var durable = RetireWhileTheDataFileStopsSyncing(engine, db, power);
+                var durable = RetireWhileTheDataFileStopsSyncing(engine, db, power, stage);
                 DurableLogFlush(db).Should().BeFalse("the data file stopped syncing");
 
                 power.AfterPowerLoss(64).Should().Be(durable, "commits acknowledged as durable survive the power loss");
@@ -55,7 +57,7 @@ namespace LiteDB.Tests.Regressions
             {
                 using var first = new SharedEngine(power.Settings());
                 using var firstDb = new LiteDatabase(first, disposeOnClose: false);
-                RetireWhileTheDataFileStopsSyncing(first, firstDb, power);
+                RetireWhileTheDataFileStopsSyncing(first, firstDb, power, AtRootPublication);
 
                 var before = SyncPowerLossModel.ReadShared(logName);
                 using var second = new SharedEngine(power.Settings());
@@ -85,7 +87,7 @@ namespace LiteDB.Tests.Regressions
             {
                 using var first = new SharedEngine(power.Settings());
                 using var firstDb = new LiteDatabase(first, disposeOnClose: false);
-                RetireWhileTheDataFileStopsSyncing(first, firstDb, power);
+                RetireWhileTheDataFileStopsSyncing(first, firstDb, power, AtRootPublication);
                 power.DataFails = false;
 
                 var before = SyncPowerLossModel.ReadShared(logName);
@@ -101,11 +103,43 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The WAL stops syncing after the checkpoint's proof, at its retirement records: publishing
+        /// their root in a data file that still syncs would make a durable header name records a
+        /// power loss dropped, and the database could not be opened. The root is not published.
+        /// </summary>
+        [Fact]
+        public void Retiring_checkpoint_whose_log_stops_syncing_publishes_no_root()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            var settings = power.Settings();
+            settings.CheckpointStage = stage => { if (stage == "retirement-before-record-write") power.LogFails = true; };
+            using var engine = new SharedEngine(settings);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            for (var value = 1; value <= 5; value++) Update(db, value);
+            using (var reader = engine.Query("rows", new Query()))
+            {
+                reader.Read().Should().BeTrue();
+                Worker(() =>
+                {
+                    for (var value = 6; value <= 9; value++) Update(db, value);
+                    db.Checkpoint();
+                });
+            }
+            power.LogFails.Should().BeTrue("the checkpoint reached its retirement records");
+            RetirementRoot(SyncPowerLossModel.ReadShared(power.DataFile)).Should().Be(0, "no root names records that may not be durable");
+
+            power.AfterPowerLoss(64).Should().Be(9, "every commit acknowledged before the log stopped syncing survives");
+        }
+
+        /// <summary>
         /// Commit values 1..9 under a live reader, then run a partial checkpoint during which the
         /// data file stops syncing after the checkpoint proved it could. Returns the last value
         /// acknowledged while durableLogFlush was true.
         /// </summary>
-        private static int RetireWhileTheDataFileStopsSyncing(SharedEngine engine, LiteDatabase db, SyncPowerLossModel power)
+        private static int RetireWhileTheDataFileStopsSyncing(SharedEngine engine, LiteDatabase db, SyncPowerLossModel power, string stage)
         {
             db.CheckpointSize = 0;
             var durable = 0;
@@ -124,16 +158,23 @@ namespace LiteDB.Tests.Regressions
                         Update(db, value);
                         if (DurableLogFlush(db)) durable = value;
                     }
-                    EngineState.SimulateProcessCrash = phase => { if (phase == "checkpoint-before-page-write") power.DataFails = true; };
+                    EngineState.SimulateProcessCrash = phase => { if (phase == stage) power.DataFails = true; };
+                    power.RetirementStage = stage;
                     db.Checkpoint();
                     EngineState.SimulateProcessCrash = null;
+                    power.RetirementStage = null;
                 });
             }
-            power.DataFails.Should().BeTrue("the checkpoint wrote data pages");
-            RetirementRoot(SyncPowerLossModel.ReadShared(power.DataFile)).Should().BeGreaterThan(0, "the checkpoint published a witness root (in the OS cache)");
+            power.DataFails.Should().BeTrue("the checkpoint reached " + stage);
+            var root = RetirementRoot(SyncPowerLossModel.ReadShared(power.DataFile));
+            if (stage == BeforeBackfill) root.Should().Be(0, "a checkpoint that lost its data sync before the root publishes none");
+            else root.Should().BeGreaterThan(0, "the witness root reached the OS cache");
             durable.Should().Be(9);
             return durable;
         }
+
+        private const string BeforeBackfill = "checkpoint-before-page-write";
+        private const string AtRootPublication = "retirement-before-header-write";
 
         private static void Setup(string filename)
         {

@@ -53,6 +53,9 @@ namespace LiteDB.Internals
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
             byte[] retired = null;
+            // Frames written before the checkpoint; the witness records it appends are discarded by
+            // the next open when no root names them.
+            var frames = ReadAll(log).Length / WalChecksum.FrameSize;
             // Let the checkpoint's proof sync succeed; its retirement then meets the failure.
             if (stopsAt == "retirement")
             {
@@ -87,7 +90,7 @@ namespace LiteDB.Internals
             });
 
             var written = ReadAll(log);
-            ChangedFrames(retired, written).Should().Be(0,
+            ChangedFrames(retired, written, frames).Should().Be(0,
                 "slots retired without durable syncs must not be reused by later engines");
             (log.RejectedSyncs - rejectedBefore).Should().Be(LaterWrites,
                 "every fresh engine retries a real sync once, and no more than once, per write");
@@ -143,8 +146,8 @@ namespace LiteDB.Internals
         private static bool IsBlank(byte[] log, int offset) =>
             log.Skip(offset).Take(WalChecksum.FrameSize).All(value => value == 0);
 
-        /// <summary>Complete frames of <paramref name="before"/> that were rewritten since (a reused slot).</summary>
-        private static int ChangedFrames(byte[] before, byte[] after) => Enumerable.Range(0, before.Length / WalChecksum.FrameSize)
+        /// <summary>The first <paramref name="frames"/> frames of <paramref name="before"/> rewritten since (a reused slot).</summary>
+        private static int ChangedFrames(byte[] before, byte[] after, int frames) => Enumerable.Range(0, frames)
             .Count(frame => !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
                 .SequenceEqual(after.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)));
 

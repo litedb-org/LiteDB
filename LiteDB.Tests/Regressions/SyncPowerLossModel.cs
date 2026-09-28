@@ -27,11 +27,18 @@ namespace LiteDB.Tests.Regressions
         }
 
         internal bool DataFails { get => _data.Fails; set => _data.Fails = value; }
+
+        /// <summary>A checkpoint stage at which the data file stops syncing (see <see cref="Settings"/>).</summary>
+        internal volatile string RetirementStage;
         internal bool LogFails { get => _log.Fails; set => _log.Fails = value; }
         internal string DataFile => _filename;
 
         /// <summary>Settings of an engine (or a shared connection) over the two files.</summary>
-        internal EngineSettings Settings() => new EngineSettings { Filename = _filename, DataStream = _data, LogStream = _log };
+        internal EngineSettings Settings() => new EngineSettings
+        {
+            Filename = _filename, DataStream = _data, LogStream = _log,
+            CheckpointStage = stage => { if (stage == RetirementStage) DataFails = true; }
+        };
 
         /// <summary>
         /// Open the files a power loss now leaves behind, as a copy; every row of "rows" holds

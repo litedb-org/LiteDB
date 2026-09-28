@@ -157,8 +157,10 @@ namespace LiteDB.Tests.Regressions
         /// and later operations of the connection, fresh engines whose own log syncs succeed, must
         /// not reuse those slots. RetiredSlotPowerLoss_Tests covers other connections and power loss.
         /// </summary>
-        [Fact]
-        public void Shared_connection_never_reuses_slots_retired_while_the_data_file_stopped_syncing()
+        [Theory]
+        [InlineData("checkpoint-before-page-write")]   // found before the root is published: none is
+        [InlineData("retirement-before-header-write")] // the root reaches the OS cache only
+        public void Shared_connection_never_reuses_slots_retired_while_the_data_file_stopped_syncing(string stage)
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
@@ -167,33 +169,41 @@ namespace LiteDB.Tests.Regressions
 
             var dataFails = false;
             NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) || !dataFails ? 0 : 22;
-            EngineState.SimulateProcessCrash = phase => { if (phase == "checkpoint-before-page-write") dataFails = true; };
+            EngineState.SimulateProcessCrash = phase => { if (phase == stage) dataFails = true; };
             try
             {
-                using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var engine = new SharedEngine(new EngineSettings
+                {
+                    Filename = file.Filename, CheckpointStage = phase => { if (phase == stage) dataFails = true; }
+                });
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 db.CheckpointSize = 0;
                 for (var value = 1; value <= 5; value++) Update64(db, value);
                 byte[] retired;
+                var frames = 0;
                 using (var reader = engine.Query("rows", new Query()))
                 {
                     reader.Read().Should().BeTrue();
                     Worker(() =>
                     {
                         for (var value = 6; value <= 9; value++) Update64(db, value);
+                        // Frames written before the checkpoint; the witness records it appends are
+                        // discarded by the next open when no root names them.
+                        frames = ReadShared(logName).Length / WalChecksum.FrameSize;
                         db.Checkpoint();
                     });
                     retired = ReadShared(logName);
                 }
                 EngineState.SimulateProcessCrash = null;
-                dataFails.Should().BeTrue("the checkpoint wrote data pages");
-                BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition).Should().BeGreaterThan(0,
-                    "the checkpoint retired frames before the data file stopped syncing");
+                dataFails.Should().BeTrue("the checkpoint reached " + stage);
+                var root = BitConverter.ToInt64(Header(file.Filename), WalRetirement.RootPosition);
+                if (stage == "checkpoint-before-page-write") root.Should().Be(0, "a checkpoint that lost its data sync before the root publishes none");
+                else root.Should().BeGreaterThan(0, "the witness root reached the OS cache");
                 BlankFrames(retired).Should().Be(0, "no slot is cleared while the witness root may not be durable");
 
                 Update64(db, 10);
                 var written = ReadShared(logName);
-                Enumerable.Range(0, retired.Length / WalChecksum.FrameSize).Count(frame =>
+                Enumerable.Range(0, frames).Count(frame =>
                     !retired.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
                         .SequenceEqual(written.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)))
                     .Should().Be(0, "slots retired by a checkpoint whose data sync failed must not be reused");
