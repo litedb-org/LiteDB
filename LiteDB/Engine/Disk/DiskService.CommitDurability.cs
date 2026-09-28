@@ -50,10 +50,21 @@ namespace LiteDB.Engine
             }
             catch (IOException error)
             {
+                error.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
                 this.RecordWriteFailure("A commit", error);
                 throw;
             }
         }
+
+        /// <summary>
+        /// Exception.Data key on a failed commit or WAL batch: <see cref="NotCommittedOutcome"/> when no
+        /// frame of it can have reached the log, <see cref="UnknownOutcome"/> when frames may have (its
+        /// confirmation included): recovery may then show the commit after a reopen, so an application
+        /// that retries needs idempotent writes, or checks after reopening (decision 13).
+        /// </summary>
+        internal const string CommitOutcomeDataKey = "LiteDB.CommitOutcome";
+        internal const string NotCommittedOutcome = "NotCommitted";
+        internal const string UnknownOutcome = "Unknown";
 
         /// <summary>
         /// Decision 14: the header frame covers what the WAL depends on, not what it builds on. A WAL

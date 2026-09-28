@@ -147,8 +147,17 @@ namespace LiteDB.Engine
                     // frame. Whatever the exception type, stop before releasing the writer: no later
                     // commit may be appended (and acknowledged) behind it.
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
+                    // A frame may have reached the log whole although its write threw.
+                    flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
                     this.RecordWriteFailure("A WAL write", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
                     ownsFailure = _state.BeginStop(flushFailure);
+                }
+                catch (IOException ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
+                {
+                    // Nothing torn stayed behind (a failed append was truncated): this batch's
+                    // confirmation is not in the log, so the commit is not there either.
+                    ex.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
+                    throw;
                 }
 
                 // A confirmation makes this WAL batch recoverable. Make all preceding
@@ -169,6 +178,7 @@ namespace LiteDB.Engine
                         // defer teardown: cleanup can need the WAL-index lock while a
                         // partial checkpoint owns it and waits for this monitor.
                         flushFailure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
+                        flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
                         this.RecordWriteFailure("A commit's log flush", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
