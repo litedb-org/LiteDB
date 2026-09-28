@@ -98,7 +98,7 @@ namespace LiteDB.Engine
                     data.Write(header, 0, header.Length);
                     this.CrashPoint("promotion-recovery-after-header-write");
                 }
-                data.FlushToDisk();
+                this.SyncDataBarrier(data);
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;

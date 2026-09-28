@@ -23,7 +23,8 @@ namespace LiteDB.Engine
             var stream = pool.Writer.Value;
             this.CrashPoint("startup-before-tail-trim");
             stream.SetLength(length);
-            stream.FlushToDisk();
+            if (pool == _dataPool) this.SyncDataBarrier(stream);
+            else this.SyncLogBarrier(stream);
             this.CrashPoint("startup-after-tail-trim");
             trailingLength = 0;
         }

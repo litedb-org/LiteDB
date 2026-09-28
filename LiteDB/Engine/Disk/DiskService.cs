@@ -215,7 +215,7 @@ namespace LiteDB.Engine
                     this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
                     stream.Position = 0;
                     stream.Write(buffer, 0, PAGE_SIZE);
-                    stream.FlushToDisk();
+                    this.SyncDataBarrier(stream);
                 }
                 finally
                 {
@@ -328,7 +328,7 @@ namespace LiteDB.Engine
                 }
 
                 this.CrashPoint("checkpoint-before-data-flush");
-                stream.FlushToDisk();
+                this.SyncDataBarrier(stream);
                 this.CrashPoint("checkpoint-after-data-flush");
                 this.CheckpointStage("data-flushed");
             }

@@ -82,7 +82,7 @@ namespace LiteDB.Engine
             // Successful syncs are required before crossing the format boundary,
             // unless the log storage cannot sync at all (#2242): then the
             // ordered writes keep conversion process-crash safe only.
-            stream.FlushToDisk();
+            this.SyncDataBarrier(stream);
             SyncLogBarrier(log);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
@@ -93,7 +93,7 @@ namespace LiteDB.Engine
             StampDataPage(buffer);
             stream.Position = 0;
             stream.Write(buffer.Array, 0, PAGE_SIZE);
-            stream.FlushToDisk();
+            this.SyncDataBarrier(stream);
             SetLength(0, FileOrigin.Log);
             SyncLogBarrier(log);
             _recoveredHeader = null;
@@ -115,7 +115,7 @@ namespace LiteDB.Engine
             StampDataPage(header);
             stream.Position = 0;
             stream.Write(header.Array, 0, PAGE_SIZE);
-            stream.FlushToDisk();
+            this.SyncDataBarrier(stream);
         }
 
         internal void DiscardWalTail(long end, bool invalidTail)

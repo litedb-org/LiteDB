@@ -21,13 +21,13 @@ namespace LiteDB.Tests.Regressions
     [Collection(NativeFileSyncCollection.Name)]
     public class UnreadableWalDirectory_Tests
     {
-        private const int EACCES = 13;
-
-        [Fact]
-        public void Commit_succeeds_when_the_wal_directory_cannot_be_opened_for_reading()
+        [Theory]
+        [InlineData(13)] // EACCES
+        [InlineData(1)]  // EPERM
+        public void Commit_succeeds_when_the_wal_directory_cannot_be_opened_for_reading(int errno)
         {
             using var file = new TempFile();
-            NativeFileSync.SimulateDirectoryErrno = _ => EACCES;
+            NativeFileSync.SimulateDirectoryErrno = _ => errno;
             try
             {
                 using (var db = new LiteDatabase(file.Filename))
@@ -35,6 +35,8 @@ namespace LiteDB.Tests.Regressions
                     var rows = db.GetCollection("rows");
                     rows.Insert(new BsonDocument { ["_id"] = 1 });
                     rows.Insert(new BsonDocument { ["_id"] = 2 });
+                    db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean
+                        .Should().BeFalse("the new WAL's name is not claimed durable");
                 }
             }
             finally { NativeFileSync.SimulateDirectoryErrno = null; }
@@ -47,7 +49,7 @@ namespace LiteDB.Tests.Regressions
         public void Checkpoint_without_durable_commits_succeeds_when_the_wal_directory_cannot_be_opened_for_reading()
         {
             using var file = new TempFile();
-            NativeFileSync.SimulateDirectoryErrno = _ => EACCES;
+            NativeFileSync.SimulateDirectoryErrno = _ => 13; // EACCES
             try
             {
                 using (var db = new LiteDatabase($"Filename={file.Filename};Durable Commits=false"))

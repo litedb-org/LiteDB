@@ -109,7 +109,7 @@ namespace LiteDB
             if (simulate != null)
             {
                 var injected = simulate(directory);
-                if (injected != 0) throw new FileSyncException(directory, injected, _bsd);
+                if (injected != 0) throw FileSyncException.Directory(directory, injected, _bsd);
                 return;
             }
 #endif
@@ -121,7 +121,7 @@ namespace LiteDB
             while ((descriptor = open(directory, O_RDONLY)) < 0)
             {
                 var errno = Marshal.GetLastWin32Error();
-                if (errno != EINTR) throw new FileSyncException(directory, errno, _bsd);
+                if (errno != EINTR) throw FileSyncException.Directory(directory, errno, _bsd);
             }
             try
             {
@@ -169,6 +169,8 @@ namespace LiteDB
     /// <summary>A failed device sync of a file, carrying the raw errno as HResult.</summary>
     internal sealed class FileSyncException : IOException
     {
+        private const int EPERM = 1;
+        private const int EACCES = 13;
         private const int EINVAL = 22;
         private const int EROFS = 30;
         private const int ENOTSUP_BSD = 45;
@@ -181,6 +183,18 @@ namespace LiteDB
             Errno = errno;
             IsUnsupported = errno == EINVAL || errno == EROFS ||
                 (bsd ? errno == ENOTSUP_BSD || errno == EOPNOTSUPP_BSD : errno == ENOTSUP_LINUX);
+        }
+
+        /// <summary>
+        /// A directory sync must first open the directory for reading. A directory the process may
+        /// write and search but not list (EACCES/EPERM, e.g. mode 0300 or a confining security
+        /// profile) cannot be synced by this process; fsync itself never reports these errnos.
+        /// </summary>
+        internal static FileSyncException Directory(string path, int errno, bool bsd)
+        {
+            var exception = new FileSyncException(path, errno, bsd);
+            if (errno == EACCES || errno == EPERM) exception.IsUnsupported = true;
+            return exception;
         }
 
         private FileSyncException(string message) : base(message)
@@ -197,6 +211,6 @@ namespace LiteDB
         /// <summary>
         /// True when the answer means "this file cannot be synced" (#2242), not that a sync failed.
         /// </summary>
-        internal bool IsUnsupported { get; }
+        internal bool IsUnsupported { get; private set; }
     }
 }

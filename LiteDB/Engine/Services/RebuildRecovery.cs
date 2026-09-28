@@ -66,7 +66,16 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-flush");
 #endif
-                stream.FlushToDisk();
+                try
+                {
+                    stream.FlushToDisk();
+                }
+                catch (Exception ex) when (DiskService.IsDurableFlushUnsupported(ex))
+                {
+                    // Storage that cannot sync (#2242) keeps the ordered-write guarantee of its
+                    // database files: the marker reaches the OS cache before the first rename.
+                    stream.Flush();
+                }
             }
         }
 

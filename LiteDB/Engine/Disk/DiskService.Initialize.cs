@@ -38,7 +38,7 @@ namespace LiteDB.Engine
                 stream.SetLength(initialSize);
             }
 
-            stream.FlushToDisk();
+            this.SyncDataBarrier(stream);
         }
     }
 }

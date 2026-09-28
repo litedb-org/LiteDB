@@ -18,6 +18,9 @@ namespace LiteDB.Engine
         private readonly SharedDurabilityState _sharedDurability;
         private volatile bool _logFlushDegraded;
 
+        // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
+        private volatile bool _dataFlushDegraded;
+
         // Set by this engine's first successful log device sync. That sync also makes
         // blank slots found at open durable, even if an earlier engine cleared them on
         // storage that could not sync, so reclaimed slots are reused only after it
@@ -37,7 +40,7 @@ namespace LiteDB.Engine
         /// flush or its directory sync, or the log's syncs cannot report failures.
         /// </summary>
         internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
-            !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false);
+            !_dataFlushDegraded && !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false);
 
         /// <summary>
         /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
@@ -148,6 +151,28 @@ namespace LiteDB.Engine
             return _logSyncProven;
         }
 
+        /// <summary>
+        /// Sync the data file at a barrier: creation, checkpoint, conversion, header publication and
+        /// recovery. Storage that answers "cannot sync" (#2242) degrades like the log: the ordered
+        /// writes reach the OS cache, which keeps the file consistent after a process crash, but
+        /// power-loss safety is no longer claimed. Any other failure propagates.
+        /// </summary>
+        private void SyncDataBarrier(Stream data)
+        {
+            try
+            {
+                data.FlushToDisk();
+            }
+            catch (Exception ex) when (IsDurableFlushUnsupported(ex))
+            {
+                data.Flush();
+                if (_sharedDurability != null) _sharedDurability.Degraded = true;
+                if (_dataFlushDegraded) return;
+                _dataFlushDegraded = true;
+                LOG($"data storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); checkpoints now flush to the OS cache only", "DISK");
+            }
+        }
+
         private void MarkLogFlushDegraded(Exception ex)
         {
             if (_sharedDurability != null) _sharedDurability.Degraded = true;
@@ -188,7 +213,7 @@ namespace LiteDB.Engine
         /// <see cref="NativeFileSync"/> for file handles (released .NET runtimes lose Unix sync errors)
         /// and as a raw-errno HResult by other Unix streams.
         /// </summary>
-        private static bool IsDurableFlushUnsupported(Exception ex)
+        internal static bool IsDurableFlushUnsupported(Exception ex)
         {
             // Unix file handles are synced natively and report the raw errno.
             if (ex is FileSyncException sync) return sync.IsUnsupported;

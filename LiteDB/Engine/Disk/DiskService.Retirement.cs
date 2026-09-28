@@ -91,7 +91,7 @@ namespace LiteDB.Engine
                 CheckpointStage("retirement-before-header-write");
                 data.Write(header.Array, 0, PAGE_SIZE);
                 CheckpointStage("retirement-after-header-write");
-                data.FlushToDisk();
+                this.SyncDataBarrier(data);
                 CheckpointStage("retirement-header-flushed");
                 FileVersion = header[HeaderPage.P_FILE_VERSION];
                 _checksums.Retirement = WalRetirement.Load(header, raw, _checksums);

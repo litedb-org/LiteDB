@@ -148,9 +148,10 @@ ordering, encoding, temporary space, and durability limits.
 
 With `DurableCommits=false`, power loss may lose recent commits, but a partially
 present transaction is not recovered. Storage must still honor successful syncs
-for the usual durable-commit and checkpoint guarantees. Log storage that rejects
-sync as unsupported (#2242) converts and checkpoints in write order without the
-log sync: a killed process still recovers, power loss is not covered. A failed
+for the usual durable-commit and checkpoint guarantees. Log or data storage that
+rejects sync as unsupported (#2242) converts and checkpoints in write order without
+that sync: a killed process still recovers, power loss is not covered, and
+`durableLogFlush` reports false. A failed
 sync still stops before data is overwritten. On Unix the file sync is issued natively
 (`fsync`, or `F_FULLFSYNC` on macOS), because `FileStream.Flush(true)` in released .NET
 runtimes reports success for every failed `fsync`.

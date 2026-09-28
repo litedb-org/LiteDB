@@ -118,9 +118,10 @@ bytes in a physical sector shared by WAL frames. CRCs detect accidental damage,
 not adversarial rewriting. Independent damage to required data and recovery copies
 can be unrecoverable. Ordinary commit fallback reports reduced durability.
 Checkpoint, publication and preamble barriers attempt an actual sync; a failed
-sync stops them. Storage that answers "cannot sync" (#2242) degrades them to
-ordered OS-cache flushes that survive a process crash, not power loss, as before
-#2818; encrypted preambles still require a successful sync. On Unix, released .NET
+sync stops them. Storage that answers "cannot sync" (#2242), for the WAL or the data file, degrades them
+to ordered OS-cache flushes that survive a process crash, not power loss, as before
+#2818; encrypted preambles still require a successful sync. A WAL directory the process
+cannot open for reading (EACCES/EPERM) counts as a directory that cannot sync. On Unix, released .NET
 runtimes report every fsync failure as success (dotnet/runtime#124725), so file
 handles are synced natively (`fsync`; `F_FULLFSYNC` with `fsync` fallback on macOS)
 and the raw errno decides between "cannot sync" and a failed sync.

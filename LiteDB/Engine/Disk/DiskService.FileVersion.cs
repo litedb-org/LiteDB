@@ -59,7 +59,7 @@ namespace LiteDB.Engine
                     if (compact) this.CrashPoint("promotion-before-header-write");
                     stream.Write(header.Array, 0, PAGE_SIZE);
                     if (compact) this.CrashPoint("promotion-after-header-write");
-                    stream.FlushToDisk();
+                    this.SyncDataBarrier(stream);
                     if (compact) this.CrashPoint("promotion-after-header-flush");
                     rawLog.SetLength(originalLength);
                     if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
