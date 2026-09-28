@@ -8,6 +8,20 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        /// <summary>
+        /// A writable open must migrate every index from its documents, and damaged data prevents
+        /// that. Released versions opened such files and failed only when the damage was read.
+        /// Keep the error code: the failed open marks the file for rebuild (AutoRebuild then
+        /// rebuilds it in the same open), and name the remedies.
+        /// </summary>
+        private static LiteException DamagedLegacyData(string collection, LiteException ex) =>
+            new LiteException(LiteException.INVALID_DATAFILE_STATE, ex,
+                "{0} contains damaged data, so the index migration this version needs for writable access cannot run: {1} " +
+                "The data file is marked for rebuild: open it with `auto-rebuild=true` to rebuild it (unreadable documents " +
+                "are listed in `_rebuild_errors` and a backup is kept), or read-only with `legacy index scan=true` to read " +
+                "its undamaged collections.",
+                collection == null ? "The database" : "Collection '" + collection + "'", ex.Message);
+
         private void MigrateIndexOrdering()
         {
             if (_header.Pragmas.IndexOrderVersion == EnginePragmas.INDEX_ORDER_VERSION)
@@ -29,56 +43,64 @@ namespace LiteDB.Engine
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
-            this.ValidateLegacyCollation(migrating: true);
+            try { this.ValidateLegacyCollation(migrating: true); }
+            catch (LiteException ex) when (ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE) { throw DamagedLegacyData(null, ex); }
             var capacity = new IndexMigrationCapacity(_header, _settings.IndexMigrationLimitSize);
             var validation = _monitor.GetTransaction(true, true, out _);
             try
             {
                 foreach (var collection in _header.GetCollections())
                 {
-                    var snapshot = validation.CreateSnapshot(LockMode.Read, collection.Key, false);
-                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-                    foreach (var index in snapshot.CollectionPage.GetCollectionIndexes())
+                    try
                     {
-                        if (index.IndexType != 0)
+                        var snapshot = validation.CreateSnapshot(LockMode.Read, collection.Key, false);
+                        var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                        foreach (var index in snapshot.CollectionPage.GetCollectionIndexes())
                         {
-                            this.ValidateVectorMigration(snapshot, indexer, index, capacity);
-                            continue;
-                        }
-                        var memberPath = IndexExpressionIdentity.IsMemberPath(index.BsonExpr);
-                        if (memberPath && !index.Unique) continue;
-                        using (var sort = index.Unique ? new SortService(_sortDisk,
-                            new[] { LiteDB.Query.Ascending }, _header.Pragmas) : null)
-                        {
-                            var keys = this.GetMigrationKeys(snapshot, indexer, index);
-                            if (sort != null)
+                            if (index.IndexType != 0)
                             {
-                                sort.Insert(keys);
-                                keys = sort.Sort();
+                                this.ValidateVectorMigration(snapshot, indexer, index, capacity);
+                                continue;
                             }
-                            BsonValue previous = null;
-                            long maximumNodeBytes = 0;
-                            foreach (var item in keys)
+                            var memberPath = IndexExpressionIdentity.IsMemberPath(index.BsonExpr);
+                            if (memberPath && !index.Unique) continue;
+                            using (var sort = index.Unique ? new SortService(_sortDisk,
+                                new[] { LiteDB.Query.Ascending }, _header.Pragmas) : null)
                             {
-                                if (index.Unique && previous != null &&
-                                    previous.CompareTo(item.Key, _header.Pragmas.Collation) == 0)
-                                    throw LiteException.IndexDuplicateKey(index.Name, item.Key);
-                                maximumNodeBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, item.Key, out _) + BasePage.SLOT_SIZE;
-                                previous = item.Key;
-                            }
-                            if (!memberPath)
-                            {
-                                var pages = new HashSet<uint> { index.Head.PageID, index.Tail.PageID };
-                                foreach (var node in indexer.FindAll(index, LiteDB.Query.Ascending))
+                                var keys = this.GetMigrationKeys(snapshot, indexer, index);
+                                if (sort != null)
                                 {
-                                    pages.Add(node.Position.PageID);
-                                    snapshot.Safepoint();
+                                    sort.Insert(keys);
+                                    keys = sort.Sort();
                                 }
-                                capacity.AddOrdinaryIndex(maximumNodeBytes, pages.Count);
+                                BsonValue previous = null;
+                                long maximumNodeBytes = 0;
+                                foreach (var item in keys)
+                                {
+                                    if (index.Unique && previous != null &&
+                                        previous.CompareTo(item.Key, _header.Pragmas.Collation) == 0)
+                                        throw LiteException.IndexDuplicateKey(index.Name, item.Key);
+                                    maximumNodeBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, item.Key, out _) + BasePage.SLOT_SIZE;
+                                    previous = item.Key;
+                                }
+                                if (!memberPath)
+                                {
+                                    var pages = new HashSet<uint> { index.Head.PageID, index.Tail.PageID };
+                                    foreach (var node in indexer.FindAll(index, LiteDB.Query.Ascending))
+                                    {
+                                        pages.Add(node.Position.PageID);
+                                        snapshot.Safepoint();
+                                    }
+                                    capacity.AddOrdinaryIndex(maximumNodeBytes, pages.Count);
+                                }
                             }
                         }
+                        this.FindStaleMemberPathDocuments(snapshot, indexer, capacity);
                     }
-                    this.FindStaleMemberPathDocuments(snapshot, indexer, capacity);
+                    catch (LiteException ex) when (ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
+                    {
+                        throw DamagedLegacyData(collection.Key, ex);
+                    }
                 }
                 capacity.Validate(validation.CreateSnapshot(LockMode.Read, "$migration_capacity", false), _header);
             }

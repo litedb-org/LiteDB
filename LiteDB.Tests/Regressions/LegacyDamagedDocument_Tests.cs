@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -14,31 +15,76 @@ namespace LiteDB.Tests.Regressions
     ///
     /// 5.0.21: the database opens, documents 1 and 3 are readable, and db.Rebuild() keeps all three
     /// documents - document 2 with the fields read before the damage ({_id: 2, a: "keep-2"}) - and
-    /// records one _rebuild_errors entry.
+    /// records one _rebuild_errors entry. A writable open of this version must migrate every index
+    /// from its documents, which the damage prevents; it cannot stamp unverified indexes as migrated.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     public class LegacyDamagedDocument_Tests
     {
         /// <summary>
-        /// Regression: the writable open runs the index-ordering migration, which reads every
-        /// document (IndexMigration.GetMigrationKeys) and fails on the damaged one; the header is
-        /// then marked invalid. AutoRebuild does not run on that first open, so with default settings
-        /// the whole database, including every undamaged collection, cannot be opened at all.
+        /// Regression: the failed migration surfaced only an internal ENSURE message and AutoRebuild
+        /// could repair the file only on a later open. The failure now names the damaged collection
+        /// and the remedies, and changes nothing but the rebuild mark (which 5.0.21 ignores unless
+        /// its own AutoRebuild is set).
         /// </summary>
         [Fact]
-        public void Database_with_one_damaged_document_still_opens_and_serves_the_other_documents()
+        public void Default_open_reports_the_damage_and_only_marks_the_file_for_rebuild()
+        {
+            using var file = new TempFile();
+            var original = Fixture();
+            File.WriteAllBytes(file.Filename, original);
+
+            Action open = () => new LiteDatabase(file.Filename).Dispose();
+            var error = open.Should().Throw<LiteException>().Which;
+            error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            error.Message.Should().Contain("Collection 'c'").And.Contain("auto-rebuild=true").And.Contain("legacy index scan=true");
+
+            var after = File.ReadAllBytes(file.Filename);
+            after[HeaderPage.P_INVALID_DATAFILE_STATE].Should().Be(1);
+            after[HeaderPage.P_INVALID_DATAFILE_STATE] = original[HeaderPage.P_INVALID_DATAFILE_STATE];
+            after.Should().Equal(original, "the refused migration must not change anything else");
+            File.Exists(FileHelper.GetLogFile(file.Filename)).Should().BeFalse();
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            AssertSalvaged(db);
+        }
+
+        [Fact]
+        public void Auto_rebuild_repairs_the_damage_on_the_first_open()
         {
             using var file = new TempFile();
             File.WriteAllBytes(file.Filename, Fixture());
 
-            using var db = new LiteDatabase(file.Filename);
-            var col = db.GetCollection("c");
-            col.FindById(1)["a"].AsString.Should().Be("keep-1");
-            col.FindById(3)["a"].AsString.Should().Be("keep-3");
+            using (var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true"))
+            {
+                AssertSalvaged(db);
+                db.GetCollection("c").Insert(new BsonDocument { ["_id"] = 4 });
+            }
+
+            File.Exists(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().BeTrue();
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("c").Count().Should().Be(4);
+        }
+
+        [Fact]
+        public void Read_only_legacy_scan_surfaces_the_damage_without_changing_the_file()
+        {
+            using var file = new TempFile();
+            var original = Fixture();
+            File.WriteAllBytes(file.Filename, original);
+
+            using (var db = new LiteDatabase($"Filename={file.Filename};ReadOnly=true;Legacy Index Scan=true"))
+            {
+                // Unmigrated indexes are not trusted, so every query scans the collection; the
+                // damaged document is reported (and stops the engine), never skipped.
+                Action scan = () => db.GetCollection("c").FindAll().ToList();
+                scan.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            }
+            File.ReadAllBytes(file.Filename).Should().Equal(original, "a read-only open never marks or changes the file");
         }
 
         /// <summary>
-        /// Regression: FileReaderV8 now discards a document whose BSON read fails
+        /// Regression: FileReaderV8 discarded a document whose BSON read failed
         /// (FileReaderV8.Documents.cs, 05d34f058); 5.0.21 yielded the partial document.
         /// </summary>
         [Fact]
@@ -50,9 +96,18 @@ namespace LiteDB.Tests.Regressions
             File.WriteAllBytes(file.Filename, bytes);
 
             using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            AssertSalvaged(db);
+        }
+
+        private static void AssertSalvaged(LiteDatabase db)
+        {
             var col = db.GetCollection("c");
             col.Count().Should().Be(3);
-            col.FindById(2)["a"].AsString.Should().Be("keep-2");
+            col.FindById(1)["b"].AsString.Should().StartWith("tail-1-");
+            var partial = col.FindById(2);
+            partial["a"].AsString.Should().Be("keep-2");
+            partial.ContainsKey("b").Should().BeFalse();
+            db.GetCollection("_rebuild_errors").Count().Should().BeGreaterOrEqualTo(1);
         }
 
         private static byte[] Fixture()

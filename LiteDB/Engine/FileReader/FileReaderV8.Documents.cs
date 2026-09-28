@@ -120,8 +120,13 @@ namespace LiteDB.Engine
                                 if (docResult.Fail)
                                 {
                                     this.HandleError(docResult.Exception, pageInfo);
-                                    doc = null;
-                                    continue;
+                                    // Like released versions, keep the fields read before the damage
+                                    // when they still identify the document; the error stays recorded.
+                                    if (!IsSalvageable(docResult.Value, uniqueIDs))
+                                    {
+                                        doc = null;
+                                        continue;
+                                    }
                                 }
 
                                 var id = docResult.Value["_id"];
@@ -149,5 +154,10 @@ namespace LiteDB.Engine
             }
         }
 
+        private static bool IsSalvageable(BsonDocument partial, HashSet<BsonValue> uniqueIDs)
+        {
+            if (partial == null || !partial.TryGetValue("_id", out var id)) return false;
+            return !(id.IsNull || id.IsMinValue || id.IsMaxValue) && !uniqueIDs.Contains(id);
+        }
     }
 }

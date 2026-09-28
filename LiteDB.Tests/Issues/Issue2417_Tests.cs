@@ -23,22 +23,8 @@ namespace LiteDB.Tests.Issues
                     AutoRebuild = true,
                 };
 
-                try
-                {
-                    using (var db = new LiteEngine(settings))
-                    {
-                        // infinite loop here
-                        var col = db.Query("customers", Query.All()).ToList();
-
-                        // never run here
-                        Assert.Fail("not expected");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
-                }
-
+                // Opening detects the index loop (INVALID_DATAFILE_STATE) and, with AutoRebuild,
+                // rebuilds in the same open.
                 using (var db = new LiteEngine(settings))
                 {
                     var col = db.Query("customers", Query.All()).ToList().Count;
@@ -47,6 +33,8 @@ namespace LiteDB.Tests.Issues
                     col.Should().Be(4);
                     errors.Should().Be(0);
                 }
+
+                File.Exists(FileHelper.GetSuffixFile(filename, "-backup", false)).Should().BeTrue("the loop must have been detected and rebuilt");
             }
         }
 
@@ -64,22 +52,8 @@ namespace LiteDB.Tests.Issues
                     AutoRebuild = true,
                 };
 
-                try
-                {
-                    using (var db = new LiteEngine(settings))
-                    {
-                        // infinite loop here
-                        var col = db.Query("hubData$AppOperations", Query.All()).ToList();
-
-                        // never run here
-                        Assert.Fail("not expected");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999, ex.ToString());
-                }
-
+                // Opening detects the index loop (INVALID_DATAFILE_STATE) and, with AutoRebuild,
+                // rebuilds in the same open.
                 using (var db = new LiteEngine(settings))
                 {
                     var col = db.Query("hubData$AppOperations", Query.All()).ToList().Count;
@@ -88,6 +62,8 @@ namespace LiteDB.Tests.Issues
                     col.Should().Be(408);
                     errors.Should().Be(0);
                 }
+
+                File.Exists(FileHelper.GetSuffixFile(filename, "-backup", false)).Should().BeTrue("the loop must have been detected and rebuilt");
             }
         }
     }

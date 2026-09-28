@@ -74,8 +74,22 @@ namespace LiteDB.Engine
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-            this.Open();
+            try
+            {
+                this.Open();
+            }
+            catch (LiteException ex) when (this.RebuildAfterFailedOpen(ex))
+            {
+                // Damage found while opening (e.g. by the index migration of a legacy file) marked
+                // the data file for rebuild. With AutoRebuild this open rebuilds it, once, instead of
+                // failing and leaving the rebuild to the next open.
+                this.Open();
+            }
         }
+
+        private bool RebuildAfterFailedOpen(LiteException ex) =>
+            ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE && _settings.AutoRebuild &&
+            !_settings.ReadOnly && !this.InvalidDatafileState;
 
         #endregion
 
