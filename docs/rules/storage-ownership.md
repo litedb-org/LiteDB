@@ -57,6 +57,11 @@ Read [explicit transactions](../explicit-transactions.md),
   to the same construction-time absolute filename across every reopen. Retain
   degraded durability diagnostics across those reopenings without suppressing
   future device-sync attempts. See [shared-mode safety](../shared-mode-safety.md).
+- Validate native admission together with the runtime's file-sharing locks on
+  each OS. Darwin combines OFD and `flock` locks; admitted data streams must not
+  add whole-file locks that conflict with admission or obscure family probes.
+  Keep admission through ordinary buffered-stream finalization and transfer it
+  across replacement before publication. See [native admission](../native-database-admission.md).
 
 ## Buffers and cleanup
 

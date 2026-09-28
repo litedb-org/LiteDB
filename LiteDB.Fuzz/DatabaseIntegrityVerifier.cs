@@ -1,4 +1,5 @@
 using LiteDB.Engine;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Fuzz;
 
@@ -6,7 +7,10 @@ internal static class DatabaseIntegrityVerifier
 {
     internal static void Verify(FuzzContext context, string filename, string password = null)
     {
-        using var file = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        // The target may retain Direct admission while checking checkpointed
+        // bytes. Avoid adding Darwin's conflicting whole-file flock here.
+        using var file = AdmittedFileStream.Open(filename, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite, Constants.PAGE_SIZE, FileOptions.SequentialScan);
         using Stream stream = password == null ? file : new AesStream(password, file, allowRecovery: false);
         context.Check(stream.Length >= Constants.PAGE_SIZE && stream.Length % Constants.PAGE_SIZE == 0,
             "Datafile length is not a whole number of pages.");
