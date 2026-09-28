@@ -143,8 +143,8 @@ checkpoint first syncs the data file and WAL (the WAL directory once per engine)
 storage that answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage
 that stops syncing during a retiring checkpoint degrades its barriers; that checkpoint keeps
 the frames it retired and publishes no root once it found out. Before its first slot reuse
-every engine (of any connection) syncs the WAL, and before its first durable commit a
-file-backed engine proves the data file (a shared connection once per data header). Never
+every engine (of any connection) syncs the WAL, and before its first log sync an engine
+whose data is a file proves the data file (once per data header in the process). Never
 make a WAL change durable that discards frames the data file could not make durable: a full
 checkpoint whose data file cannot sync while the WAL can keeps the WAL.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.

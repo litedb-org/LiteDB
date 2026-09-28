@@ -161,9 +161,10 @@ without the device sync, as before #2818, reported by
 `$database.durableLogFlush=false`. The ordered writes reach the operating system,
 so a killed process still recovers; power loss can lose recent commits or leave a
 checkpoint partially applied, the same risk as before #2818. Every barrier still
-attempts a real sync first, and a file-backed engine proves the data file before its
-first durable commit, so commits acknowledged after the storage syncs again regain the
-full guarantee. A data file that answers the same degrades its barriers the same way.
+attempts a real sync first, and an engine whose data is a file proves the data file
+before its first log sync (so no log sync makes an earlier engine's unsynced WAL change
+durable ahead of its backfill), so commits acknowledged after the storage syncs again
+regain the full guarantee. A data file that answers the same degrades its barriers the same way.
 A WAL that still syncs then keeps what the data file could not make durable: a full
 checkpoint does not empty it, since the emptied WAL would become durable at the next
 log sync and the backfill never. A 5.x file is not converted there: its converted

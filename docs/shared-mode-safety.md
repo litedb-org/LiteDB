@@ -108,12 +108,13 @@ ordered OS-cache flushing there, which survives a process crash but not power
 loss; any other sync error stops the barrier before data is overwritten. On such
 storage reclaimed WAL slots are never reused. Every shared operation opens a fresh
 engine, and another connection's engines share none of its diagnostics. So before
-its first durable commit a file-backed engine proves the data file syncs, which makes
-durable a data header (salt, witness root, format version) that an earlier engine
-left in the OS cache only; a shared connection skips this while the data header is
-the one its latest data sync left, so healthy storage pays it once per connection and
-header change. Before its first slot reuse an engine also syncs the raw log once. A
-"cannot sync" answer makes it report reduced durability and append instead.
+its first log sync an engine whose data is a file proves the data file syncs, which
+makes durable a data header (salt, witness root, format version) or a backfill that
+an earlier engine left in the OS cache only; it skips this while the data header is
+one a successful data sync in this process left, so healthy storage pays it once per
+header change, not per operation. Before its first slot reuse an engine also syncs
+the raw log once. A "cannot sync" answer makes it report reduced durability and
+append instead.
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
 or has acknowledged a commit after that fallback. Shared connections retain this

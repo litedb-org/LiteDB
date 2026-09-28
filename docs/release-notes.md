@@ -41,9 +41,9 @@ retired and no slot reused: the WAL appends as before v13 until a full checkpoin
 truncates it. Every retiring checkpoint first syncs the data file and the WAL (and
 once the WAL's directory), so such storage is found before any witness depends on it;
 storage that stops syncing during the checkpoint keeps the retired frames and publishes
-no root once it found out. A file-backed engine proves its data file syncs before its
-first durable commit (a shared connection once per data header) and syncs the WAL once
-before it first reuses a slot. If only the data file cannot sync, a full checkpoint
+no root once it found out. An engine whose data is a file (opened by it or passed as a
+`FileStream`) proves the data file syncs before its first log sync, once per data header
+in the process, and syncs the WAL once before it first reuses a slot. If only the data file cannot sync, a full checkpoint
 keeps the WAL, since emptying it would outlast the unsynced backfill; automatic
 checkpoints then wait until the WAL has doubled, and a rebuild or the conversion of a
 5.x file is refused. A 5.x data file found beside its conversion's WAL (whose converted
