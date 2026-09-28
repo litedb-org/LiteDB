@@ -13,6 +13,8 @@ import zipfile
 root = pathlib.Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--artifacts", type=pathlib.Path, help="Local compatibility/released directory (otherwise use pinned GitHub files)")
+parser.add_argument("--check-issue-attachment", action="store_true",
+                    help="Also fetch and verify the original damaged deployment attachment (not required by CI)")
 args = parser.parse_args()
 revision = (root / "tools/ReleaseCompatibility/artifacts-revision.txt").read_text().strip()
 base = "https://raw.githubusercontent.com/litedb-org/LiteDB-Artifacts/" + revision + "/compatibility/released/"
@@ -50,8 +52,12 @@ for fixture in manifest["fixtures"]:
         subprocess.run(["dotnet", str(runner), str(filename), fixture["variant"], fixture["version"]], check=True, timeout=180)
 print("PASS: all 56 released-writer databases")
 
-# Keep the deployment attachment at its original public issue URL; the artifacts
-# repository contains synthetic healthy databases only.
+# Required CI uses the immutable synthetic corpus and file-backed corruption
+# regressions in LiteDB.Tests. An optional reproduction keeps the deployment
+# attachment at its original URL without making its availability a CI dependency.
+if not args.check_issue_attachment:
+    raise SystemExit(0)
+
 with urllib.request.urlopen("https://github.com/mbdavid/LiteDB/files/4405515/damaged.database.zip", timeout=60) as response:
     damaged = response.read()
 if hashlib.sha256(damaged).hexdigest() != "a6e104bb90962d7d7ffb3eb049e7df455015a6cd59841a663b08d8ad5bf783d1":

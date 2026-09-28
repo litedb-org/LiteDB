@@ -38,8 +38,17 @@ This is the recovery entry point when construction fails before an instance
 protocol, retains the original backup, and records the opening diagnostic along
 with salvage errors in `_rebuild_errors`. Preserve the backup and review that
 report: a successful salvage does not mean every original record was readable.
+Each report entry has a `stage`: `opening` describes the reason recovery started,
+while `salvage` describes a problem encountered while rebuilding. The opening
+entry can exist even when every record was recovered. Do not interpret a nonempty
+report alone as record loss. Known document failures identify `pageType=Data` and
+the data page ID, index-order failures identify `Index` and the index page ID, and
+unclassified structural failures use `Empty` with a null page ID.
 Shared-mode replacement admission still applies. Replacement validation cannot
 recursively trigger another opening rebuild.
+Cleanup errors block replacement and retain the original opening exception in an
+aggregate. Replacement releases its structural scope before reopening; a failed
+candidate reopen closes without stamping the rebuilt file invalid.
 
 Opening index validation does not mark or checkpoint a rejected source.
 `ReadOnly=true` prevents automatic salvage, even when `AutoRebuild=true` or the
@@ -47,6 +56,12 @@ invalid-state flag is already set. Healthy v5 files awaiting index migration can
 be inspected with `ReadOnly=true; LegacyIndexScan=true`; the scan fallback avoids
 seeking with a different comparer. A normal writable open migrates indexes and
 allows new writes. V4 files require the explicit `Upgrade=true` boundary.
+The unmigrated read-only scan path does not eagerly validate every index at open;
+queries still detect structural damage they encounter. It is not an integrity
+inspection. Files already at the current ordering revision but without a runtime
+stamp still undergo ordering validation before index seeks are allowed.
+The [release notes](release-notes.md#legacy-damage-diagnostics-and-opening-recovery-3022)
+describe changes to read-only recovery, first-open salvage and error-report counts.
 
 ## Automated evidence
 
@@ -56,6 +71,12 @@ data/WAL backup pairs, recorded loss, persisted new writes, denied shared admiss
 promotion headers, and repeated installation failures at seven rebuild phases.
 `Issue2812*` retains genuine collation rejection and recovery coverage; `Issue2417`
 retains plain/encrypted loop salvage with the opening error now recorded.
+`Issue3022OpeningSafety_Tests` injects data/log pool cleanup failures twice,
+verifies no replacement and unchanged source/WAL bytes, and then retries salvage
+and new writes. It also injects 999 and I/O failures before candidate WAL restore,
+verifies the replacement scope is released and candidate/backup bytes preserved,
+and reopens twice without another rebuild. Read-only invalid-state markers and
+ineligible replacement signals have separate regression cases.
 The broader index migration and rebuild suites cover durable publication,
 interrupted recovery, and replacement rollback. The fault model uses injected
 I/O/install failures and the existing simulated power-loss streams; it is not a
@@ -64,7 +85,7 @@ claim about arbitrary storage devices ignoring durable flushes.
 `scripts/test-release-compatibility.py` consumes the immutable artifacts revision
 in `tools/ReleaseCompatibility/artifacts-revision.txt`, verifying archive and
 database SHA-256 values before opening disposable copies. CI runs it on Linux/ICU
-and Windows/NLS for every PR and full run. The manifest must contain exactly one
+and Windows with both ICU and NLS for every PR and full run. The manifest must contain exactly one
 plain and one encrypted database for all 22 stable v5 and six stable v4 packages.
 
 Each database contains 1,024 documents across integer, Guid, ObjectId and string
@@ -76,9 +97,15 @@ against scans, verify sorted traversal and array membership, append a document t
 each existing collection, roll back an extra insert, and reopen twice (including
 read-only). V5 read-only inspection preserves bytes; v4 read-only rejection also
 preserves bytes before the separate writable upgrade.
+This is a clean-file corpus, not exhaustive compatibility coverage for every
+historical WAL, interrupted operation or stale index layout. Those states need
+their own focused migration and recovery regressions.
 
-The original #1603 attachment linked by #3022 is downloaded from its original
-public URL with a pinned hash, never republished in the synthetic corpus. Baseline
+The optional `--check-issue-attachment` reproduction downloads the original #1603
+attachment linked by #3022 from its public URL with a pinned hash. It is never
+republished in the synthetic corpus. Required CI uses the immutable healthy
+corpus and synthetic file-backed damage tests, so attachment availability cannot
+break those checks. Baseline
 `11e9ffacc` reports code 0 for writable/read-only opens with and without AutoRebuild.
 The fixed engine salvages 6,824 directory documents, records six diagnostics and
 preserves a newly inserted record after reopen.
