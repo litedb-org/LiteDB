@@ -147,12 +147,15 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip) whose data file stops syncing while
         /// the conversion drains its synced WAL (after the drain's data sync before its first page):
-        /// the drain's checkpoint stops before it removes any of the legacy WAL, and the open is
-        /// refused with a diagnostic naming the storage (not as a blocked drain). Every commit stays,
-        /// in the power-loss image and once the storage syncs.
+        /// the drain's checkpoint stops before it removes any of the legacy WAL. The open was then
+        /// refused ("stopped syncing", not as a blocked drain) and nothing could be read; it now
+        /// opens read-only with that refusal as $database.readOnlyReason: every commit reads, a write
+        /// throws naming the refusal and the instance keeps reading, and the read-only engine writes
+        /// nothing. Every commit stays, in the power-loss image and once the storage syncs, when a
+        /// writable open converts the file.
         /// </summary>
         [Fact]
-        public void Conversion_whose_data_file_stops_syncing_during_the_drain_is_refused()
+        public void Conversion_whose_data_file_stops_syncing_during_the_drain_opens_read_only()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
@@ -165,14 +168,22 @@ namespace LiteDB.Tests.Regressions
                 {
                     var settings = power.Settings();
                     settings.CheckpointStage = stage => { if (stage == "data-page") power.DataFails = true; };
-                    Action open = () => new LiteEngine(settings).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
-                    power.DataFails.Should().BeTrue("the drain wrote a page");
-                    SyncPowerLossModel.ReadShared(logName).Take(legacyLog.Length).Should().Equal(legacyLog, "the legacy WAL is kept");
+                    byte[] data, log;
+                    using (var db = new LiteDatabase(new LiteEngine(settings)))
+                    {
+                        power.DataFails.Should().BeTrue("the drain wrote a page");
+                        (data, log) = (SyncPowerLossModel.ReadShared(file.Filename), SyncPowerLossModel.ReadShared(logName));
+                        UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.StoppedSyncing,
+                            x => AssertLegacyCommits(x), "docs");
+                    }
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine wrote nothing");
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
+                    log.Take(legacyLog.Length).Should().Equal(legacyLog, "the legacy WAL is kept");
                     FilePowerLossModel.Open(power.Capture(), AssertLegacyCommits);
                 }
-                using var db = new LiteDatabase(file.Filename);
-                AssertLegacyCommits(db);
+                using var converted = new LiteDatabase(file.Filename);
+                AssertLegacyCommits(converted);
+                converted.GetCollection("$database").FindAll().Single()["readOnly"].AsBoolean.Should().BeFalse();
             }
             finally { File.Delete(logName); }
         }

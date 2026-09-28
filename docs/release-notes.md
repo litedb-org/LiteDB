@@ -36,9 +36,9 @@ Retired frames keep durable witnesses (56 bytes each, up to 145 per WAL frame) s
 recovery and rebuild still verify complete transactions after slot reuse.
 Reclamation reuses WAL capacity but does not shrink the file; long-lived readers
 can grow witness metadata and recovery work until a full checkpoint. On storage
-that rejects device sync (#2242), snapshot checkpoints still run, but no frame is
-retired and no slot reused: the WAL appends as before v13 until a full checkpoint
-truncates it. Every retiring checkpoint first syncs the data file and the WAL (and
+that rejects device sync (#2242) no frame is retired and no slot reused: the WAL appends as
+before v13 until a full checkpoint whose data file synced truncates it (see below: while the
+data file cannot sync, checkpoints write nothing). Every retiring checkpoint first syncs the data file and the WAL (and
 once the WAL's directory), so such storage is found before any witness depends on it;
 storage that stops syncing during the checkpoint keeps the retired frames and publishes
 no root once it found out. An engine whose data is a file (opened by it or passed as a
@@ -69,22 +69,24 @@ reports what its connection's engines found, so a new shared connection may repo
 until one of its checkpoints tried the data file (`logFileSize` and `dataFileSize` are now
 64-bit). Once an engine, or an engine of the same shared connection, found that the data file
 cannot sync, its checkpoints retry the data sync before they scan the WAL. A data sync that fails later in the same
-checkpoint stops the engine with the WAL and the journal intact, and an open that must
-repair or retire a header journal while the data file cannot sync is refused
-(`readonly=true` still opens). On storage that never syncs the WAL therefore never shrinks
-(before, it was emptied as before #2818). For the same reason a 5.x conversion is refused
-with an `IOException` while the data file cannot sync (open such a file with
-`readonly=true;legacy index scan=true`), and so is a rebuild, which leaves the database open
-and unchanged; 5.0.21 converted and rebuilt there. A WAL the engine keeps in memory
+checkpoint stops the engine with the WAL and the journal intact. On storage that never syncs
+the WAL therefore never shrinks (before, it was emptied as before #2818). A writable open that
+would first have to convert a 5.x file, migrate its indexes, or repair or retire a header
+journal while the data file cannot sync opens read-only instead, changing neither file: reads
+work (indexes in the old order are scanned, as with `legacy index scan=true`), explicit
+transactions are accepted, and every write throws an `IOException` naming the cause without
+stopping the engine, so the application can catch it and keep reading. `$database.readOnly`
+and `$database.readOnlyReason` report it without a write. Once the data file syncs, the next
+open converts or repairs the file. A rebuild there is refused with an `IOException` and leaves
+the database open and unchanged (5.0.21 rebuilt there without a power-loss guarantee; it had
+no format conversion). A WAL the engine keeps in memory
 (`:memory:`, `:temp:`, `LiteDatabase(Stream)` without a log stream) survives no power loss
 and is still emptied, also by a conversion. A format promotion (a compact or vector write,
 an index migration, or the first retiring checkpoint, that raises the file version) keeps its
 header journal the same way: it first syncs the data file (one more data sync per promotion)
 and stops the engine with the journal kept when the data file stops syncing after its header
-write. While the data file cannot sync, a compact write stays BSON, an index migration refuses
-the open (`readonly=true;legacy index scan=true` opens), and a vector write to a file older
-than the vector format is refused with an `IOException`, which, as every I/O failure in a
-transaction, closes the engine with both files unchanged. Encrypted streams
+write. While the data file cannot sync, a compact write stays BSON and an index migration
+opens read-only (above). Encrypted streams
 opened to read no longer sync their file. A 5.x data file found beside its conversion's WAL (whose
 converted header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease
@@ -302,9 +304,10 @@ collection does not release abandoned thread-affine locks in a live engine.
 
 Every committed transaction is now synced to the storage device before the
 commit returns, so acknowledged commits survive power loss on storage that can
-sync. Storage that rejects the sync (some network shares and virtual file
-systems, #2242) falls back to the earlier behaviour for commits, checkpoints and
-format conversion; `$database.durableLogFlush` reports which one is in effect. A
+sync. On storage that rejects the sync (some network shares and virtual file
+systems, #2242) commits fall back to the earlier behaviour (the OS cache only), while the WAL
+is kept until the data file syncs and conversions open read-only (see above);
+`$database.durableLogFlush` reports which one is in effect. A
 sync that fails with an I/O error still stops the engine before data is overwritten.
 On Linux and macOS this requires LiteDB's own device sync: released .NET runtimes
 lose every `fsync` error in `FileStream.Flush(true)` (dotnet/runtime#124725), which

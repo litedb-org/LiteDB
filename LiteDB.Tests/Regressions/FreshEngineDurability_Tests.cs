@@ -31,9 +31,11 @@ namespace LiteDB.Tests.Regressions
         /// durable that depended on the rotated header in the OS cache only. The checkpoint now stops
         /// ("stopped syncing", the engine closes) before it removes the WAL or its header journal, so
         /// the data file as last synced with the WAL, as last synced or as written back, holds every
-        /// commit. A fresh engine over the kept journal is refused while the data file still cannot
-        /// sync, acknowledging nothing and leaving the journal; once the data file syncs, it recovers
-        /// every commit, and a commit it reports durable survives the power loss.
+        /// commit. A fresh engine over the kept journal cannot recover while the data file still
+        /// cannot sync: it opens read-only ($database.readOnlyReason "Cannot recover this database
+        /// now") and reads every commit, its write throws before any change, and it writes nothing,
+        /// leaving the journal; once the data file syncs, it recovers every commit, and a commit it
+        /// reports durable survives the power loss.
         /// </summary>
         [Theory]
         [InlineData(false)]
@@ -68,8 +70,10 @@ namespace LiteDB.Tests.Regressions
                 power.DataFails = !dataSyncsAgain;
                 if (!dataSyncsAgain)
                 {
-                    Action open = () => new LiteDatabase(file.Filename).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                    var data = SyncPowerLossModel.ReadShared(file.Filename);
+                    using (var readOnly = new LiteDatabase(file.Filename))
+                        UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(readOnly, UnsyncedReadOnlyOpen_Tests.RecoveryRefused, db => AssertRows(db, 5));
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only open wrote nothing");
                     SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays until the repaired header synced");
                     power.AfterPowerLoss(db => AssertRows(db, 5));
                     power.DataFails = false; // the storage syncs again
@@ -90,11 +94,12 @@ namespace LiteDB.Tests.Regressions
         /// sync while its WAL can. The converted header reached the OS cache only while the
         /// checksummed frames written after it became durable, so a power loss left them beside the
         /// legacy header. The conversion empties the log only after a data sync that succeeds, so it
-        /// is now refused, the legacy file unchanged; once the data file syncs, it converts and
-        /// commits are durable.
+        /// is not run: the open falls back to read-only ("Cannot convert this legacy database now"),
+        /// reads every row, refuses writes, and leaves the legacy file unchanged; once the data file
+        /// syncs, it converts and commits are durable.
         /// </summary>
         [Fact]
-        public void Conversion_is_refused_where_only_the_data_file_cannot_sync()
+        public void Conversion_opens_read_only_where_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
             var original = Fixture("plain.db");
@@ -103,19 +108,16 @@ namespace LiteDB.Tests.Regressions
             using var power = new FilePowerLossModel(file.Filename) { DataFails = true };
             try
             {
-                Action open = () => new LiteDatabase(file.Filename).Dispose();
-                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                using (var legacy = new LiteDatabase(file.Filename))
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(legacy, UnsyncedReadOnlyOpen_Tests.ConversionRefused,
+                        db => UnsyncedReadOnlyOpen_Tests.AssertPlainRows(db)).Should().Contain("cannot sync");
                 File.ReadAllBytes(file.Filename).Should().Equal(original);
                 (File.Exists(logName) ? new FileInfo(logName).Length : 0).Should().Be(0);
-                int rows;
-                using (var legacy = new LiteDatabase($"Filename={file.Filename};ReadOnly=true;Legacy Index Scan=true"))
-                    rows = legacy.GetCollection("rows").Count();
-                rows.Should().BeGreaterThan(0);
 
                 power.DataFails = false;
                 using (var converted = new LiteDatabase(file.Filename))
                 {
-                    converted.GetCollection("rows").Count().Should().Be(rows);
+                    UnsyncedReadOnlyOpen_Tests.AssertPlainRows(converted);
                     converted.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 900002, ["value"] = 1 });
                     DurableLogFlush(converted).Should().BeTrue();
                 }
@@ -189,8 +191,9 @@ namespace LiteDB.Tests.Regressions
         /// Another connection's checkpoint stops at its salt rotation, the rotated header in the OS
         /// cache only and the header journal kept. The next operation of a shared connection whose
         /// engines saw the old header durable must not report a commit durable on that header: while
-        /// the data file cannot sync, its open is refused (the journal cannot be retired) and it
-        /// acknowledges nothing, and the connection reports its later commits non-durable. Once the
+        /// the data file cannot sync, its engine cannot recover (the journal cannot be retired) and
+        /// opens read-only, so the write throws before any change, acknowledging nothing, and the
+        /// connection keeps reading every commit; it reports its later commits non-durable. Once the
         /// data file syncs, it recovers, and a commit it reports durable survives the power loss.
         /// </summary>
         [Theory]
@@ -228,8 +231,10 @@ namespace LiteDB.Tests.Regressions
                 power.DataFails = !dataSyncsAgain;
                 if (!dataSyncsAgain)
                 {
-                    Action update = () => Update(db, 3);
-                    update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                    var data = SyncPowerLossModel.ReadShared(file.Filename);
+                    UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 3), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                    AssertRows(db, 2); // the connection keeps reading
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the refused write changed nothing");
                     SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays");
                     power.AfterPowerLoss(image => AssertRows(image, 2));
                     power.DataFails = false; // the storage syncs again
@@ -246,9 +251,10 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The salt rotation case with the files passed as caller FileStreams: a fresh engine over
         /// them reported its commit durable without proving the data file. The checkpoint now stops
-        /// with the WAL and its header journal kept, a fresh engine over the streams is refused
-        /// while the data file cannot sync, and every durable commit survives the power loss; once
-        /// the data file syncs, a fresh engine recovers and its durable commit survives too.
+        /// with the WAL and its header journal kept, a fresh engine over the streams cannot recover
+        /// while the data file cannot sync and opens read-only (reads every commit, refuses writes,
+        /// writes nothing), and every durable commit survives the power loss; once the data file
+        /// syncs, a fresh engine recovers and its durable commit survives too.
         /// </summary>
         [Fact]
         public void Fresh_engine_over_caller_file_streams_after_a_salt_rotation_whose_data_sync_failed()
@@ -268,9 +274,11 @@ namespace LiteDB.Tests.Regressions
                 checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
             }
             var kept = SyncPowerLossModel.ReadShared(logName);
+            var data = SyncPowerLossModel.ReadShared(file.Filename);
 
-            Action open = () => new LiteDatabase(new LiteEngine(power.Settings())).Dispose();
-            open.Should().Throw<IOException>().WithMessage("Cannot recover this database now*", "the data file still cannot sync the rotated header");
+            using (var readOnly = new LiteDatabase(new LiteEngine(power.Settings()))) // the data file still cannot sync the rotated header
+                UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(readOnly, UnsyncedReadOnlyOpen_Tests.RecoveryRefused, db => AssertRows(db, 5));
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only open wrote nothing");
             SyncPowerLossModel.ReadShared(logName).Should().Equal(kept);
             power.AssertAfterPowerLoss(Rows, 5);
             FilePowerLossModel.Open((power.Capture().Data, kept), db => AssertRows(db, 5));
@@ -325,10 +333,11 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// The data file syncs for the conversion's check at open, then stops before the conversion's
-        /// own first sync: the conversion is still refused before it writes anything.
+        /// own first sync: the conversion is still refused before it writes anything, and the open
+        /// falls back to read-only, which reads every row, refuses writes, and syncs and writes nothing.
         /// </summary>
         [Fact]
-        public void Conversion_whose_data_file_stops_syncing_after_its_check_is_refused_unchanged()
+        public void Conversion_whose_data_file_stops_syncing_after_its_check_opens_read_only_unchanged()
         {
             using var file = new TempFile();
             var original = Fixture("plain.db");
@@ -340,8 +349,9 @@ namespace LiteDB.Tests.Regressions
                 string.Equals(Path.GetFullPath(path), dataName, StringComparison.OrdinalIgnoreCase) && ++dataSyncs > 1 ? 22 : 0;
             try
             {
-                Action open = () => new LiteDatabase(file.Filename).Dispose();
-                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                using (var db = new LiteDatabase(file.Filename))
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused,
+                        x => UnsyncedReadOnlyOpen_Tests.AssertPlainRows(x)).Should().Contain("cannot sync");
                 dataSyncs.Should().Be(2, "the check at open synced, the conversion's own first sync did not");
             }
             finally { NativeFileSync.SimulateErrno = null; }

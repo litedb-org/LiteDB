@@ -24,6 +24,8 @@ namespace LiteDB.Engine
                 ["name"] = _disk.GetName(FileOrigin.Data),
                 ["encrypted"] = _settings.Password != null,
                 ["readOnly"] = _settings.ReadOnly,
+                // Why a writable open opened read-only instead (the data file cannot sync); null otherwise.
+                ["readOnlyReason"] = _settings.ReadOnlyCause,
 
                 ["lastPageID"] = (int)_header.LastPageID,
                 ["freeEmptyPageID"] = (int)_header.FreeEmptyPageList,

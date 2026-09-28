@@ -53,6 +53,15 @@ namespace LiteDB.Engine
         /// </summary>
         internal bool ReadOnlyStorage { get; set; }
 
+        /// <summary>
+        /// Why a writable open opened read-only instead (set by the engine on its own copy of the
+        /// settings): the data file cannot sync to the device (#2242), and the open had to convert,
+        /// migrate or repair the file first, which removes a log or its header's recovery copy only
+        /// after a data sync. Reads work, explicit transactions that only read are accepted, writes
+        /// throw; <c>$database.readOnlyReason</c> reports it. Null otherwise.
+        /// </summary>
+        internal string ReadOnlyCause { get; set; }
+
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();

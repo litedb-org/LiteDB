@@ -99,13 +99,14 @@ namespace LiteDB.Engine
             _cache.Clear();
         }
 
-        internal static IOException UnsyncedHeaderRecovery() => new IOException("Cannot recover this database now: " +
-            "its data file cannot sync to the device, and the header's recovery copy in the log file stays until the " +
-            "repaired header synced. Reopen it once the storage syncs, or open it with \"readonly=true\".");
+        internal static IOException UnsyncedHeaderRecovery() => UnsyncedStorage(new IOException("Cannot recover this " +
+            "database now: its data file cannot sync to the device, and the header's recovery copy in the log file " +
+            "stays until the repaired header synced. Reopen it once the storage syncs, or open it with \"readonly=true\"."));
 
-        internal static IOException UnsyncedDataConversion() => new IOException("Cannot convert this legacy database now: " +
-            "its data file cannot sync to the device, and the conversion empties the log file only after the data file " +
-            "synced. Reopen it once the storage syncs, or open it with \"readonly=true;legacy index scan=true\".");
+        internal static IOException UnsyncedDataConversion() => UnsyncedStorage(new IOException("Cannot convert this " +
+            "legacy database now: its data file cannot sync to the device, and the conversion empties the log file only " +
+            "after the data file synced. Reopen it once the storage syncs, or open it with " +
+            "\"readonly=true;legacy index scan=true\"."));
 
         /// <summary>Called only after checkpoint synced all data, before recycling the WAL.</summary>
         internal void RotateWalSalt()

@@ -21,7 +21,8 @@ namespace LiteDB.Tests.Regressions
     /// database worked. Data barriers now degrade like log barriers, for commits and checkpoints.
     /// Emptying a log still needs a data sync that succeeds (DiskService.KeepsWal): there a full
     /// checkpoint keeps the WAL, and a conversion or rebuild, which would empty one, is refused
-    /// with both files unchanged (5.0.21 converted, unaware of what the log last synced).
+    /// with both files unchanged (5.0.21 converted, unaware of what the log last synced); an open
+    /// whose conversion is refused opens the file read-only instead.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -79,6 +80,15 @@ namespace LiteDB.Tests.Regressions
             finally { NativeFileSync.SimulateErrno = null; }
         }
 
+        /// <summary>
+        /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip) where nothing syncs: its conversion
+        /// empties the legacy WAL, which needs a data sync, so a plain open threw "Cannot convert
+        /// this legacy database now" and only an explicit "readonly=true;legacy index scan=true"
+        /// open could read it. The plain open now falls back to that read-only open on its own:
+        /// $database says why, every commit reads, a write throws naming the refusal and the
+        /// instance keeps reading, and both files stay byte for byte. Once the storage syncs, a
+        /// plain open converts.
+        /// </summary>
         [Fact]
         public void Real_5_0_21_file_with_a_wal_opens_read_only_on_storage_that_cannot_sync()
         {
@@ -97,14 +107,13 @@ namespace LiteDB.Tests.Regressions
             NativeFileSync.SimulateErrno = _ => 22;
             try
             {
-                Action open = () => new LiteDatabase(file.Filename).Dispose();
-                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                using (var db = new LiteDatabase(file.Filename))
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused, AssertLegacyCommits, "docs")
+                        .Should().Contain("cannot sync");
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
                 File.ReadAllBytes(logName).Should().Equal(log);
                 using var legacy = new LiteDatabase($"Filename={file.Filename};ReadOnly=true;Legacy Index Scan=true");
-                var docs = legacy.GetCollection("docs").FindAll().ToList();
-                docs.Should().HaveCount(101);
-                docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
+                AssertLegacyCommits(legacy);
             }
             finally { NativeFileSync.SimulateErrno = null; }
 
@@ -175,6 +184,13 @@ namespace LiteDB.Tests.Regressions
                 DurableLogFlush(db).Should().BeFalse("a later operation's engine must not claim durability again");
             }
             finally { NativeFileSync.SimulateErrno = null; }
+        }
+
+        private static void AssertLegacyCommits(LiteDatabase db)
+        {
+            var docs = db.GetCollection("docs").FindAll().ToList();
+            docs.Should().HaveCount(101);
+            docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
         }
 
         private static bool DurableLogFlush(LiteDatabase db) =>

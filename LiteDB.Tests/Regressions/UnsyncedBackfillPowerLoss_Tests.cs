@@ -263,11 +263,13 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip, see LegacyWalSharedMigration_Tests) on
         /// storage whose data file cannot sync while its WAL can. The conversion empties the legacy
-        /// WAL once drained, which needs a data sync that succeeds: it is refused, both files byte
-        /// for byte, and a power loss leaves the legacy pair, which opens with every commit.
+        /// WAL once drained, which needs a data sync that succeeds: it is not run, and the open
+        /// falls back to read-only ("Cannot convert this legacy database now"), which reads every
+        /// commit and refuses writes; both files stay byte for byte, and a power loss leaves the
+        /// legacy pair, which opens with every commit.
         /// </summary>
         [Fact]
-        public void Legacy_conversion_is_refused_where_only_the_wal_syncs()
+        public void Legacy_conversion_opens_read_only_where_only_the_wal_syncs()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
@@ -280,8 +282,9 @@ namespace LiteDB.Tests.Regressions
                 (byte[] Data, byte[] Log) image;
                 using (var power = new SyncPowerLossModel(file.Filename) { DataFails = true })
                 {
-                    Action open = () => new LiteDatabase(new LiteEngine(power.Settings())).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                    using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
+                        UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused, AssertLegacyCommits, "docs")
+                            .Should().Contain("cannot sync");
                     image = power.Capture();
                 }
                 image.Data.Should().Equal(data);

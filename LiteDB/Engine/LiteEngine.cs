@@ -97,6 +97,17 @@ namespace LiteDB.Engine
                 _settings.LegacyIndexScan = true;
                 this.Open();
             }
+            catch (IOException ex) when (!_settings.ReadOnly && DiskService.IsUnsyncedStorage(ex))
+            {
+                // The data file cannot sync (#2242) and this open had to convert, migrate or repair the
+                // file first: it removed neither the log nor its header's recovery copy. Read the files
+                // as they are instead of failing; writes throw and $database.readOnlyReason says why.
+                _settings = _settings.Clone();
+                _settings.ReadOnly = true;
+                _settings.LegacyIndexScan = true;
+                _settings.ReadOnlyCause = ex.Message;
+                this.Open();
+            }
             catch (LiteException ex) when (this.RebuildAfterFailedOpen(ex))
             {
                 // Damage found while opening (e.g. by the index migration of a legacy file) marked

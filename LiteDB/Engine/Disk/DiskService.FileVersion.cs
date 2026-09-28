@@ -48,7 +48,7 @@ namespace LiteDB.Engine
                 "to the device, and the upgrade keeps its header's recovery copy in the log file until the new header " +
                 "synced. Retry once the storage syncs.");
             error.Data[UnsyncedPromotionDataKey] = true;
-            return error;
+            return UnsyncedStorage(error);
         }
 
         /// <summary>Exception.Data key of <see cref="UnsyncedPromotion"/>: refused before anything was written.</summary>

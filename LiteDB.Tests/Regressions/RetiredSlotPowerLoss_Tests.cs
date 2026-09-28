@@ -17,8 +17,9 @@ namespace LiteDB.Tests.Regressions
     /// needs the root: a power loss (modelled by keeping each file as of its last successful
     /// sync) must keep every commit acknowledged while durableLogFlush was true. Such a checkpoint
     /// now stops ("stopped syncing", its engine closes) before it retires a frame or removes its
-    /// header journal, and an engine that opens over that journal is refused until the data file
-    /// syncs, so no connection reuses a slot or acknowledges a commit meanwhile.
+    /// header journal, and an engine that opens over that journal cannot recover until the data
+    /// file syncs: it opens read-only and refuses every write, so no connection reuses a slot or
+    /// acknowledges a commit meanwhile, while every connection still reads every commit.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -26,8 +27,10 @@ namespace LiteDB.Tests.Regressions
     {
         /// <summary>
         /// Every commit acknowledged durable survives, with the WAL as last synced or as written
-        /// back; the connection's next write is refused while the data file cannot sync, and once
-        /// it syncs the connection recovers every commit and writes again.
+        /// back; while the data file cannot sync, the connection's next write is refused (its
+        /// engine opens read-only: "Cannot modify this database", naming the refused recovery)
+        /// without changing either file, and the connection keeps reading every commit; once the
+        /// data file syncs, the connection recovers every commit and writes again.
         /// </summary>
         [Theory]
         [InlineData(BeforeBackfill)] // found before the root is published: none is
@@ -47,9 +50,11 @@ namespace LiteDB.Tests.Regressions
                 power.AssertAfterPowerLoss(64, durable); // commits acknowledged as durable survive the power loss
                 FilePowerLossModel.Open((power.Capture().Data, kept), image => SyncPowerLossModel.AssertRows(image, 64, durable));
 
-                Action update = () => Update(db, 10);
-                update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*", "the header journal stays until a data sync");
-                SyncPowerLossModel.ReadShared(logName).Should().Equal(kept);
+                var data = SyncPowerLossModel.ReadShared(file.Filename);
+                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                SyncPowerLossModel.AssertRows(db, 64, durable); // the connection keeps reading
+                SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays until a data sync");
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
                 power.AssertAfterPowerLoss(64, durable);
 
                 power.DataFails = false;
@@ -64,7 +69,8 @@ namespace LiteDB.Tests.Regressions
         /// An independent connection opens a fresh engine that knows nothing of the failed sync.
         /// While the data file still cannot sync, it must not reuse a slot (the slot's witness is
         /// not durable) nor report a commit durable: its open finds the header journal the stopped
-        /// checkpoint kept and is refused, the WAL unchanged.
+        /// checkpoint kept and cannot recover, so it opens read-only and the write is refused, the
+        /// WAL unchanged; the connection still reads every commit.
         /// </summary>
         [Fact]
         public void Independent_connection_does_not_reuse_retired_slots_while_the_data_file_cannot_sync()
@@ -82,10 +88,12 @@ namespace LiteDB.Tests.Regressions
                 var before = SyncPowerLossModel.ReadShared(logName);
                 using var second = new SharedEngine(power.Settings());
                 using var secondDb = new LiteDatabase(second, disposeOnClose: false);
-                Action update = () => Update(secondDb, 10);
-                update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                var data = SyncPowerLossModel.ReadShared(file.Filename);
+                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(secondDb, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                SyncPowerLossModel.AssertRows(secondDb, 64, 9);
 
                 SyncPowerLossModel.ReadShared(logName).Should().Equal(before, "no retired slot is reused before the data file syncs");
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
                 power.AssertAfterPowerLoss(64, 9); // commit 10 was not acknowledged
             }
             finally { EngineState.SimulateProcessCrash = null; }
@@ -125,8 +133,9 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The same two independent connections in the default configuration: files the engines
         /// open themselves through shared file handles, no caller streams. The first connection's
-        /// checkpoint stops with its root in the OS cache; the second is refused while the data
-        /// file cannot sync, and reuses slots and acknowledges a durable commit only once it syncs.
+        /// checkpoint stops with its root in the OS cache; while the data file cannot sync, the
+        /// second's engine opens read-only, so it reads every commit and its write is refused; it
+        /// reuses slots and acknowledges a durable commit only once the data file syncs.
         /// </summary>
         [Theory]
         [InlineData(false)]
@@ -175,9 +184,11 @@ namespace LiteDB.Tests.Regressions
             }
             else
             {
-                Action update = () => Update(secondDb, 10);
-                update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                var data = SyncPowerLossModel.ReadShared(file.Filename);
+                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(secondDb, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                SyncPowerLossModel.AssertRows(secondDb, 64, 9);
                 SyncPowerLossModel.ReadShared(logName).Should().Equal(before, "no retired slot is reused before the data file syncs");
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
             }
             // Every commit reported durable is in the durable WAL; a log sync waits for the data file.
             power.AfterPowerLoss(image => SyncPowerLossModel.AssertRows(image, 64, dataSyncsAgain ? 10 : 9));

@@ -157,9 +157,10 @@ namespace LiteDB.Tests.Regressions
         /// operations of the connection, fresh engines whose own log syncs succeed, must not reuse
         /// those slots. The checkpoint now stops ("stopped syncing") with its header journal kept,
         /// and the connection's next operation, whose open cannot retire that journal while the
-        /// data file cannot sync, is refused with the WAL unchanged; once the data file syncs, the
-        /// connection recovers and writes again. RetiredSlotPowerLoss_Tests covers other
-        /// connections and power loss.
+        /// data file cannot sync, opens read-only: its write is refused with the WAL unchanged and
+        /// the connection keeps reading every commit; once the data file syncs, the connection
+        /// recovers and writes again. RetiredSlotPowerLoss_Tests covers other connections and
+        /// power loss.
         /// </summary>
         [Theory]
         [InlineData("checkpoint-before-page-write")]   // found before the root is published: none is
@@ -207,9 +208,11 @@ namespace LiteDB.Tests.Regressions
                 BlankFrames(retired).Should().Be(0, "no slot is cleared while the witness root may not be durable");
                 frames.Should().BeGreaterThan(0);
 
-                Action update = () => Update64(db, 10);
-                update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                var data = ReadShared(file.Filename);
+                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update64(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                SyncPowerLossModel.AssertRows(db, 64, 9); // the connection keeps reading
                 ReadShared(logName).Should().Equal(retired, "slots retired by a checkpoint whose data sync failed must not be reused");
+                ReadShared(file.Filename).Should().Equal(data);
 
                 dataFails = false; // the storage syncs again: the next operation recovers
                 Update64(db, 10);

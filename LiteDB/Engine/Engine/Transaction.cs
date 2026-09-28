@@ -17,9 +17,10 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            // Storage opened read-only because it cannot be written accepts explicit transactions,
-            // as released versions did; writes are still rejected.
-            if (_settings.ReadOnly && !_settings.ReadOnlyStorage) throw new IOException("Cannot start a transaction in a read-only database.");
+            // Storage opened read-only because it cannot be written, or because its data file cannot
+            // sync, accepts explicit transactions, as released versions did; writes are still rejected.
+            if (_settings.ReadOnly && !_settings.ReadOnlyStorage && _settings.ReadOnlyCause == null)
+                throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -92,11 +93,16 @@ namespace LiteDB.Engine
 
         private T AutoReadTransaction<T>(Func<TransactionService, T> fn) => this.ExecuteAutoTransaction(fn, false);
 
+        /// <summary>A write to a read-only engine; one that opened read-only on its own says why.</summary>
+        private IOException ReadOnlyWrite() => new IOException(_settings.ReadOnlyCause == null
+            ? "Cannot modify a read-only database."
+            : "Cannot modify this database: it opened read-only because the writable open was refused. " + _settings.ReadOnlyCause);
+
         private T ExecuteAutoTransaction<T>(Func<TransactionService, T> fn, bool write)
         {
             _state.Validate();
 
-            if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
+            if (write && _settings.ReadOnly) throw ReadOnlyWrite();
 
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 

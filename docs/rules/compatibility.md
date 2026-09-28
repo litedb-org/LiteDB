@@ -149,8 +149,9 @@ whose data is a file proves the data file (once per data header in the process).
 file WAL or a header journal only after a data sync that covers what it protects succeeded;
 never infer that no earlier engine or process synced its frames. A checkpoint or format
 promotion syncs the data file before it writes and writes nothing while that fails; a failure
-later in either stops the engine before any removal; recovery that would retire a journal without a data
-sync refuses the open; a conversion or rebuild is refused unchanged; and after "cannot sync"
+later in either stops the engine before any removal; an open that would retire a journal, convert or
+migrate without a data sync opens read-only instead (writes throw, reads work); a rebuild is
+refused unchanged; and after "cannot sync"
 a log sync waits for a data sync that succeeds.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a

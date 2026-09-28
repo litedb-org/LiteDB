@@ -117,9 +117,24 @@ namespace LiteDB.Engine
         /// the data file stopped syncing since the sync that let it start. What the WAL and its header
         /// journal hold is the only durable copy, so the caller stops before removing any of it.
         /// </summary>
-        internal static IOException DataStoppedSyncing(string operation) => new IOException(
+        internal static IOException DataStoppedSyncing(string operation) => UnsyncedStorage(new IOException(
             $"The data file stopped syncing to the device during {operation}: the log file and its header recovery " +
-            "copy are kept, and the database must be reopened once the storage syncs.");
+            "copy are kept, and the database must be reopened once the storage syncs."));
+
+        /// <summary>Exception.Data key: refused or stopped because the data file cannot sync (#2242).</summary>
+        internal const string UnsyncedStorageDataKey = "LiteDB.UnsyncedStorage";
+
+        internal static IOException UnsyncedStorage(IOException error)
+        {
+            error.Data[UnsyncedStorageDataKey] = true;
+            return error;
+        }
+
+        /// <summary>
+        /// The operation was refused or stopped because the data file cannot sync (#2242), before it
+        /// removed the log or its header's recovery copy: an open that failed so can read instead.
+        /// </summary>
+        internal static bool IsUnsyncedStorage(Exception error) => error.Data.Contains(UnsyncedStorageDataKey);
 
         /// <summary>
         /// For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds. An engine

@@ -114,6 +114,7 @@ namespace LiteDB.Tests.Regressions
             {
                 power.DataFails = true;
                 db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
+                HasJournal(SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename))).Should().BeFalse("the refused promotion wrote no header journal");
                 SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the promotion wrote nothing");
                 db.GetCollection("compact").FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 4).Select(Compact), o => o.WithStrictOrdering());
                 SyncPowerLossModel.AssertRows(db, Rows, 0);
@@ -214,28 +215,23 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A file whose checksums an earlier engine enabled but whose indexes still need the migration
         /// (v10): the migration's promotion needs a data sync, so while the data file cannot sync the
-        /// writable open is refused up front, both files unchanged, with the read-only remedy named;
-        /// that read-only open works, and once the data file syncs the file migrates.
+        /// writable migration is refused up front, and the open falls back to the read-only remedy
+        /// the refusal names: it reads every row, refuses writes, and leaves both files unchanged;
+        /// an explicit read-only open works too, and once the data file syncs the file migrates.
         /// </summary>
         [Fact]
-        public void Index_migration_of_a_checksummed_file_is_refused_while_the_data_file_cannot_sync()
+        public void Index_migration_of_a_checksummed_file_opens_read_only_while_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
-            using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
-                db.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
-            LiteDB.Tests.Engine.IndexMigration_Tests.RewriteHeaders(file.Filename, null, header =>
-            {
-                header[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
-                header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
-                Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
-            });
+            SetupIndexMigration(file.Filename);
             var logName = FileHelper.GetLogFile(file.Filename);
             var data = File.ReadAllBytes(file.Filename);
             using (var power = new FilePowerLossModel(file.Filename))
             {
                 power.DataFails = true;
-                Action open = () => LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null).Dispose();
-                open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*readonly=true;legacy index scan=true*");
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused, x => SyncPowerLossModel.AssertRows(x, Rows, 0))
+                        .Should().Contain("readonly=true;legacy index scan=true");
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
                 (File.Exists(logName) ? File.ReadAllBytes(logName).Length : 0).Should().Be(0);
                 using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { Filename = file.Filename, ReadOnly = true, LegacyIndexScan = true })))
@@ -245,6 +241,72 @@ namespace LiteDB.Tests.Regressions
                     SyncPowerLossModel.AssertRows(db, Rows, 0);
             }
             LiteDB.Tests.Engine.IndexMigration_Tests.ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+        }
+
+        /// <summary>
+        /// The same migration where the data file syncs for the migration's check at open, then not
+        /// for the promotion's own sync (refused before it writes anything: "Cannot upgrade this
+        /// database's file format now"), or only up to the promotion's header write (it stops with
+        /// its header journal kept: "stopped syncing"). Either failed the open; it now opens
+        /// read-only with that refusal as its reason, reads every row, refuses writes, and writes
+        /// nothing itself. The files as last synced are the original ones and open with every row;
+        /// once the data file syncs, the file migrates.
+        /// </summary>
+        [Theory]
+        [InlineData(2, "Cannot upgrade this database's file format now")]
+        [InlineData(3, "The data file stopped syncing to the device during a file format promotion")]
+        public void Index_migration_whose_promotion_cannot_sync_opens_read_only(int failsFromSync, string cause)
+        {
+            using var file = new TempFile();
+            SetupIndexMigration(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var original = File.ReadAllBytes(file.Filename);
+            try
+            {
+                using var power = new FilePowerLossModel(file.Filename) { DataFailsFromSync = failsFromSync };
+                byte[] data, log;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                {
+                    power.DataSyncs.Should().Be(failsFromSync, "the migration's check synced, the promotion's last sync did not");
+                    (data, log) = (File.ReadAllBytes(file.Filename), File.Exists(logName) ? File.ReadAllBytes(logName) : null);
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, cause, x => SyncPowerLossModel.AssertRows(x, Rows, 0));
+                }
+                File.ReadAllBytes(file.Filename).Should().Equal(data, "the read-only engine wrote nothing");
+                if (failsFromSync == 2)
+                {
+                    data.Should().Equal(original, "the refused promotion wrote nothing");
+                    File.Exists(logName).Should().BeFalse();
+                }
+                else
+                {
+                    File.ReadAllBytes(logName).Should().Equal(log);
+                    HasJournal(log).Should().BeTrue("the stopped promotion keeps its header journal");
+                }
+                power.Capture().Data.Should().Equal(original, "no promoted header synced");
+                power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 0));
+
+                power.DataFailsFromSync = 0;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                {
+                    Info(db)["readOnly"].AsBoolean.Should().BeFalse();
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                }
+            }
+            finally { File.Delete(logName); }
+            LiteDB.Tests.Engine.IndexMigration_Tests.ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+        }
+
+        /// <summary>A file whose checksums an earlier engine enabled, whose indexes still need the migration (v10).</summary>
+        private static void SetupIndexMigration(string filename)
+        {
+            using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(filename, null))
+                db.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            LiteDB.Tests.Engine.IndexMigration_Tests.RewriteHeaders(filename, null, header =>
+            {
+                header[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
+                header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
+                Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
+            });
         }
 
         private static void SetupLegacyStorage(string filename)

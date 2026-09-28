@@ -179,9 +179,9 @@ it: the WAL grows until the data file syncs again (`$database.walKept`), also on
 never syncs. A data sync that fails later in the same checkpoint (after the backfill, the
 salt rotation or a retirement root) stops the engine before anything is removed, leaving
 the state of a crash at that point; the next open repairs a torn header from the journal,
-and an open that would have to retire a journal while the data file cannot sync is refused
-(`readonly=true` still opens). A conversion and a rebuild, which empty a log, are refused
-there with both files unchanged. Only a WAL the engine keeps in memory, which survives no
+and a writable open that would have to retire a journal while the data file cannot sync opens
+read-only instead (writes throw, `$database.readOnlyReason` says why). A conversion, which
+empties a log, likewise opens read-only there, and a rebuild is refused, both files unchanged. Only a WAL the engine keeps in memory, which survives no
 power loss, is emptied. A format promotion keeps its journal the same way: it writes only
 right after a data sync that succeeded, is refused otherwise, and stops the engine with the
 journal kept when the data file stops syncing after its header write. A legacy header
