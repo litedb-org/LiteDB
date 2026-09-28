@@ -59,6 +59,7 @@ namespace LiteDB.Engine
                 // caller streams (memory, devices) are the caller's to share.
                 _dataIsFile = _dataFactory is FileStreamFactory || settings.DataStream is FileStream;
                 _dataPath = DurablePath(settings);
+                _logPath = DurableLogPath(settings);
                 _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);
@@ -355,7 +356,7 @@ namespace LiteDB.Engine
                 Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
                 if (length == 0)
                 {
-                    _walSynced = false;
+                    this.WalSynced = false;
                     _freeLogPositions.Clear();
                     _lastLogPositions.Clear();
                     _lastWalTransactionID = 0;

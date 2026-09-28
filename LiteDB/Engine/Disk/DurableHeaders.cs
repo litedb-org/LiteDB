@@ -20,8 +20,14 @@ namespace LiteDB.Engine
     {
         private const int Capacity = 1024;
 
-        private static readonly Dictionary<string, byte[]> _hashes = new Dictionary<string, byte[]>(
-            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        private static readonly StringComparer _paths =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+        private static readonly Dictionary<string, byte[]> _hashes = new Dictionary<string, byte[]>(_paths);
+
+        // WALs (by full path) holding bytes a log sync in this process made durable, until an engine
+        // empties them: the next engine over the same files keeps such a WAL too (KeepsSyncedWal).
+        private static readonly HashSet<string> _syncedWals = new HashSet<string>(_paths);
 
         internal static void Record(string path, byte[] header)
         {
@@ -42,6 +48,30 @@ namespace LiteDB.Engine
             }
             return hash.SequenceEqual(Hash(header));
         }
+
+        internal static bool IsWalSynced(string path)
+        {
+            lock (_syncedWals) return _syncedWals.Contains(path);
+        }
+
+        internal static void SetWalSynced(string path, bool synced)
+        {
+            lock (_syncedWals)
+            {
+                if (synced) _syncedWals.Add(path);
+                else _syncedWals.Remove(path);
+            }
+        }
+
+#if DEBUG || TESTING
+        /// <summary>Forget what this process synced for these files, as a new process would.</summary>
+        internal static void Forget(string dataPath)
+        {
+            var full = System.IO.Path.GetFullPath(dataPath);
+            lock (_hashes) _hashes.Remove(full);
+            SetWalSynced(FileHelper.GetLogFile(full), false);
+        }
+#endif
 
         private static byte[] Hash(byte[] header)
         {

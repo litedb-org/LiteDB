@@ -33,9 +33,21 @@ namespace LiteDB.Engine
         // data file's OS cache is durable since (see ProveDataFile).
         private volatile bool _dataSyncProven;
 
-        // Set by a successful log sync, cleared when the WAL is emptied: the WAL holds frames that
-        // are durable, maybe of commits acknowledged durable (see KeepsSyncedWal).
+        // Set by a log sync that made WAL bytes durable, cleared when the WAL is emptied: the WAL
+        // holds frames that are durable, maybe of commits acknowledged durable (see KeepsSyncedWal).
+        // Kept per process by the WAL's path, so the next engine over the same files knows it too.
         private volatile bool _walSynced;
+        private readonly string _logPath;
+
+        private bool WalSynced
+        {
+            get => _logPath == null ? _walSynced : DurableHeaders.IsWalSynced(_logPath);
+            set
+            {
+                if (_logPath == null) _walSynced = value;
+                else DurableHeaders.SetWalSynced(_logPath, value);
+            }
+        }
 
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
         // false after "cannot sync" (#2242), and for the log also while its sync waits for the data file.
@@ -77,7 +89,7 @@ namespace LiteDB.Engine
         /// WAL back ahead of the backfill, which would lose them. A WAL no log sync reached, such as
         /// on storage where neither file ever synced, is emptied as before #2818.
         /// </summary>
-        internal bool KeepsSyncedWal => _walSynced && !_dataBarrierSynced;
+        internal bool KeepsSyncedWal => !_dataBarrierSynced && this.WalSynced;
 
         /// <summary>
         /// A kept WAL is only emptied after a data sync that succeeds: an automatic checkpoint first
@@ -186,7 +198,8 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
-                _logBarrierSynced = _walSynced = true;
+                _logBarrierSynced = true;
+                this.WalSynced = log.Length > 0;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -273,6 +286,15 @@ namespace LiteDB.Engine
             log.Flush();
         }
 
+        /// <summary>The WAL file's full path, for DurableHeaders; null for a WAL in memory or a caller stream without one.</summary>
+        private static string DurableLogPath(EngineSettings settings)
+        {
+            if (settings.LogStream == null) return settings.DataStream == null && DurablePath(settings) is string data ? FileHelper.GetLogFile(data) : null;
+            var name = (settings.LogStream as FileStream)?.Name;
+            try { return name != null && Path.IsPathRooted(name) ? Path.GetFullPath(name) : null; }
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
+        }
+
         private static string DurablePath(EngineSettings settings)
         {
             var path = settings.DataStream == null ? settings.Filename : (settings.DataStream as FileStream)?.Name;
@@ -314,7 +336,8 @@ namespace LiteDB.Engine
             try
             {
                 raw.FlushToDisk();
-                _logBarrierSynced = _walSynced = true;
+                _logBarrierSynced = true;
+                this.WalSynced = raw.Length > 0;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {

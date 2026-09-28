@@ -177,8 +177,8 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A WAL an earlier engine synced (commit 1, no checkpoint since): a fresh engine on storage
-        /// where neither file syncs empties it (it synced none of its frames) and deletes it at close.
+        /// A WAL an earlier engine synced (commit 1, no checkpoint since): an engine of a new process
+        /// (which cannot know that) on storage where neither file syncs empties it and deletes it at close.
         /// A directory sync would make that deletion durable, and with it the loss of commit 1:
         /// while a log sync waits for the data file, so does the directory entry of the next WAL.
         /// </summary>
@@ -200,6 +200,7 @@ namespace LiteDB.Tests.Regressions
                     DurableLogFlush(db).Should().BeTrue();
                 }
                 power.DataFails = power.LogFails = true;
+                DurableHeaders.Forget(file.Filename);
                 using (var db = new LiteDatabase(file.Filename)) db.Checkpoint();
                 File.Exists(logName).Should().BeFalse("closing the engine deleted its empty WAL");
                 power.LogFails = false;

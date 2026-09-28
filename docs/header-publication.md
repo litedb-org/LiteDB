@@ -175,9 +175,11 @@ read never syncs. The OS can still write an emptied WAL back ahead of the backfi
 checkpoint whose backfill did not sync keeps a WAL whose frames the engine synced, and its
 automatic checkpoints wait for a data sync that succeeds, until the data file syncs again
 (the WAL grows meanwhile). A WAL no log sync of the engine reached, such as on storage where
-neither file ever synced, is emptied as before #2818, which keeps it bounded. An engine cannot
-know which frames an earlier engine synced, so an emptied WAL written back ahead of its
-backfill can still lose them across engines. While the data file cannot sync, a checkpoint's
+neither file ever synced, is emptied as before #2818, which keeps it bounded. The process
+remembers a WAL with synced bytes by its path, so the next engine over the same files (a
+reopen, a shared connection's next operation) keeps it too; a new process cannot know which
+frames an earlier one synced, so an emptied WAL written back ahead of its backfill can still
+lose them after a restart. While the data file cannot sync, a checkpoint's
 header journal is not synced either: a header the OS writes back torn has no durable repair
 copy, as where neither file syncs. A rebuild there installs its replacement without a
 power-loss guarantee, like every write there; the original files stay under their `-backup`

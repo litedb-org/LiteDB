@@ -56,7 +56,7 @@ sync waits for the data file (each one retries its sync first and otherwise flus
 to the OS cache only), so no log sync makes an emptied or converted WAL durable ahead of
 its unsynced backfill or header: commits acknowledged durable before the storage stopped
 syncing survive a power loss, also when the WAL alone syncs again. A full checkpoint whose
-backfill did not sync keeps a WAL whose frames the engine synced (the OS could write the
+backfill did not sync keeps a WAL whose frames the process synced (the OS could write the
 emptied WAL back first) until the data file syncs again, and automatic checkpoints wait for
 that data sync meanwhile; otherwise it empties the WAL as before #2818, so storage that never
 synced keeps a bounded WAL. A 5.x conversion whose drain keeps such a WAL is refused with an

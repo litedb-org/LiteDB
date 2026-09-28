@@ -57,6 +57,48 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The next engine over the same files (a reopen, the next operation of a shared connection)
+        /// did not sync the kept WAL itself, and its data proof failed on the header the backfill
+        /// rewrote: it emptied the WAL, and the commit acknowledged durable was lost to the WAL
+        /// written back ahead of the backfill. The process now remembers a WAL with synced bytes by
+        /// its path until an engine empties it after a data sync.
+        /// </summary>
+        [Theory]
+        [InlineData("reopen")]
+        [InlineData("shared")]
+        public void Wal_kept_by_one_engine_is_kept_by_the_next(string mode)
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            if (mode == "reopen")
+            {
+                using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
+                {
+                    db.CheckpointSize = 0;
+                    CommitWithNewPages(db);
+                    DurableLogFlush(db).Should().BeTrue();
+                    power.DataFails = true;
+                    db.Checkpoint();
+                }
+                new FileInfo(logName).Length.Should().BeGreaterThan(0, "the first engine kept its synced WAL");
+                using (var db = new LiteDatabase(new LiteEngine(power.Settings()))) db.Checkpoint();
+            }
+            else
+            {
+                using var shared = new SharedEngine(power.Settings());
+                using var db = new LiteDatabase(shared, disposeOnClose: false);
+                power.DataFails = true;
+                CommitWithNewPages(db); // its log sync still runs: its data proof matches the synced header
+                for (var i = 0; i < 3; i++) db.Checkpoint();
+            }
+
+            var image = (power.Capture().Data, SyncPowerLossModel.ReadShared(logName));
+            FilePowerLossModel.Open(image, db => (Values(db).Single(), db.GetCollection("extra").Count())).Should().Be((1, 40));
+        }
+
+        /// <summary>
         /// While the WAL is kept, an automatic checkpoint first retries the data sync and does
         /// nothing while it fails, instead of rescanning the growing WAL at every commit; the first
         /// one after the data file syncs again empties it.
@@ -177,6 +219,15 @@ namespace LiteDB.Tests.Regressions
 
         private static void Update(LiteDatabase db, int value) =>
             db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
+
+        /// <summary>Updates every row and inserts pages of a new collection, so the backfill rewrites the header.</summary>
+        private static void CommitWithNewPages(LiteDatabase db)
+        {
+            db.BeginTrans();
+            db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 1)));
+            db.GetCollection("extra").Insert(Enumerable.Range(1, 40).Select(id => new BsonDocument { ["_id"] = id, ["p"] = new string('e', 3000) }));
+            db.Commit().Should().BeTrue();
+        }
 
         private static int[] Values(LiteDatabase db) =>
             db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray();
