@@ -105,14 +105,14 @@ namespace LiteDB.Tests.Engine
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
-                var data = File.ReadAllBytes(file.Filename);
-                var log = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
+                var data = ReadWhileOpen(file.Filename);
+                var log = ReadWhileOpen(FileHelper.GetLogFile(file.Filename));
                 for (var retry = 0; retry < 2; retry++)
                 {
                     Action rebuild = () => engine.Rebuild();
                     rebuild.Should().Throw<PlatformNotSupportedException>();
-                    File.ReadAllBytes(file.Filename).Should().Equal(data);
-                    File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
+                    ReadWhileOpen(file.Filename).Should().Equal(data);
+                    ReadWhileOpen(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
                     db.GetCollection("rows").Count().Should().Be(2);
                 }
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3, ["value"] = "after rejection" });
@@ -120,6 +120,17 @@ namespace LiteDB.Tests.Engine
             }
             using var reopened = new LiteDatabase(new LiteEngine(settings));
             reopened.GetCollection("rows").FindById(3)["value"].AsString.Should().Be("after rejection");
+        }
+
+        private static byte[] ReadWhileOpen(string filename)
+        {
+            // On Windows the inspection handle must also share the engine's write
+            // access. File.ReadAllBytes uses FileShare.Read and denies that access.
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var bytes = new MemoryStream();
+            stream.CopyTo(bytes);
+            return bytes.ToArray();
         }
 
         [Theory]
