@@ -33,6 +33,9 @@ namespace LiteDB.Engine
             // admitted between that wait and Close(). Close disposes the old lock,
             // so this exclusive lease intentionally is not released here.
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            // A replacement that cannot sync is refused (RebuildService): find out before this engine
+            // closes, so that a refusal leaves it open.
+            if (!_disk.DataFileSyncs()) throw RebuildService.UnsyncedRebuild();
             _locker.EnterExclusive();
 
             this.Close();

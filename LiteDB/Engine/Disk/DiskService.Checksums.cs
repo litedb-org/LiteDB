@@ -78,7 +78,7 @@ namespace LiteDB.Engine
             // ordered writes keep conversion process-crash safe only. The log is
             // emptied below, which needs a data file that syncs (KeepsWal).
             this.SyncDataBarrier(stream);
-            if (!_dataBarrierSynced) throw UnsyncedDataConversion();
+            if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
             SyncLogBarrier(log);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
@@ -89,6 +89,8 @@ namespace LiteDB.Engine
             stream.Position = 0;
             stream.Write(buffer.Array, 0, PAGE_SIZE);
             this.SyncDataBarrier(stream);
+            // The legacy header backup and the conversion journal go only once the new header synced.
+            if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
             SetLength(0, FileOrigin.Log);
             SyncLogBarrier(log);
             _recoveredHeader = null;
@@ -96,6 +98,10 @@ namespace LiteDB.Engine
             header = new HeaderPage(buffer);
             _cache.Clear();
         }
+
+        internal static IOException UnsyncedHeaderRecovery() => new IOException("Cannot recover this database now: " +
+            "its data file cannot sync to the device, and the header's recovery copy in the log file stays until the " +
+            "repaired header synced. Reopen it once the storage syncs, or open it with \"readonly=true\".");
 
         internal static IOException UnsyncedDataConversion() => new IOException("Cannot convert this legacy database now: " +
             "its data file cannot sync to the device, and the conversion empties the log file only after the data file " +

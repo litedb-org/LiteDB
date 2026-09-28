@@ -107,6 +107,8 @@ namespace LiteDB.Engine
                 this.SyncDataBarrier(data);
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
+                // The journal is the header's only recovery copy until a data sync covers it (#2242).
+                if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedHeaderRecovery();
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
                 writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
                 SyncLogBarrier(writer);

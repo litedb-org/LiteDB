@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Internals;
 
 namespace LiteDB.Tests.Regressions
 {
@@ -62,6 +63,33 @@ namespace LiteDB.Tests.Regressions
                 return values[0];
             }
             finally { File.Delete(FileHelper.GetLogFile(image.Filename)); }
+        }
+
+        /// <summary>
+        /// Open the files a power loss now leaves behind, as a copy, and check them with
+        /// <see cref="AssertRows"/>; returns the value every row holds.
+        /// </summary>
+        internal int AssertAfterPowerLoss(int rows, int? value = null) =>
+            FilePowerLossModel.Open(this.Capture(), db => AssertRows(db, rows, value));
+
+        /// <summary>
+        /// Exact state: "rows" holds ids 1..<paramref name="count"/>, each
+        /// <see cref="MvccRetirementScenario.Document"/> of <paramref name="value"/> (of the first
+        /// row's value when none is given) byte for byte, and a query on value finds each (through
+        /// the value index where the test created one). Returns the value.
+        /// </summary>
+        internal static int AssertRows(LiteDatabase db, int count, int? value = null)
+        {
+            var rows = db.GetCollection("rows");
+            var all = rows.FindAll().OrderBy(x => x["_id"].AsInt32).ToArray();
+            all.Should().HaveCount(count);
+            var expected = value ?? all[0]["value"].AsInt32;
+            all.Should().BeEquivalentTo(Enumerable.Range(1, count).Select(id => MvccRetirementScenario.Document(id, expected)),
+                o => o.WithStrictOrdering());
+            rows.Count().Should().Be(count);
+            rows.Find(Query.EQ("value", expected)).Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, count));
+            rows.Count(Query.Not("value", expected)).Should().Be(0);
+            return expected;
         }
 
         /// <summary>The files a power loss would leave behind now.</summary>

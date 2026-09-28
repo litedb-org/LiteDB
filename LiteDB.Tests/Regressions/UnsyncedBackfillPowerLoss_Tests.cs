@@ -13,17 +13,27 @@ namespace LiteDB.Tests.Regressions
 {
     /// <summary>
     /// Since data barriers degrade on storage that answers "cannot sync" (#2242), a full checkpoint
-    /// can write its backfill to a data file that never syncs it. If the WAL still syncs, emptying
+    /// could write its backfill to a data file that never syncs it. If the WAL still syncs, emptying
     /// it became durable at the next log sync, before the backfill ever did: a power loss (each
     /// file as of its last successful sync) then lost every commit the WAL held, also commits
-    /// acknowledged while durableLogFlush was true. A log sync now waits for a data sync that
-    /// succeeds, and a full checkpoint keeps the WAL until one does, so the WAL that last synced
-    /// stays the durable one.
+    /// acknowledged while durableLogFlush was true. A checkpoint now syncs the data file before it
+    /// writes anything and writes nothing while it cannot, a log sync waits for a data sync that
+    /// succeeds, and the WAL is kept until one does, so the WAL that last synced stays the durable
+    /// one beside the data file as last synced.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
     public class UnsyncedBackfillPowerLoss_Tests
     {
+        /// <summary>
+        /// Commits 1..9 acknowledged durable, then a full checkpoint finds the data file cannot sync:
+        /// it writes nothing, so every durable commit is in the WAL beside the data file as last
+        /// synced. Commit 10 is reported durable only where a power loss keeps it: the engine or
+        /// connection that saw the failure reports it non-durable (a direct engine's log sync waits
+        /// for the data file); an independent connection's fresh engine finds the header the last
+        /// data sync left (DurableHeaders), syncs the WAL and reports it durable, which it is, as the
+        /// data file is exactly as last synced.
+        /// </summary>
         [Theory]
         [InlineData("shared")]
         [InlineData("second")] // the commit after the checkpoint comes from an independent connection
@@ -31,7 +41,7 @@ namespace LiteDB.Tests.Regressions
         public void Full_checkpoint_whose_data_sync_fails_keeps_every_durable_commit(string mode)
         {
             using var file = new TempFile();
-            Setup(file.Filename);
+            Setup(file.Filename, index: true);
             var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
 
@@ -45,21 +55,25 @@ namespace LiteDB.Tests.Regressions
             }
             power.DataFails = true;
             firstDb.Checkpoint();
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(power.Capture().Data, "a checkpoint writes nothing to a data file that cannot sync");
             DurableLogFlush(firstDb).Should().BeFalse("the data file cannot sync");
-            power.AfterPowerLoss(Rows).Should().Be(9, "the WAL that last synced holds every durable commit");
+            AssertAfterPowerLoss(power, 9);
 
             using var second = mode == "second" ? new SharedEngine(power.Settings()) : null;
             using var writer = second == null ? firstDb : new LiteDatabase(second, disposeOnClose: false);
             Update(writer, 10);
-            DurableLogFlush(writer).Should().BeFalse();
-            power.AfterPowerLoss(Rows).Should().Be(9, "commit 10 is not durable: its log sync waits for the data file");
+            var durable = DurableLogFlush(writer);
+            durable.Should().Be(mode == "second", "only a connection that did not see the failure proves the data file by its synced header");
+            if (durable) AssertAfterPowerLoss(power, 10);
+            else if (mode == "direct") AssertAfterPowerLoss(power, 9); // its log sync waits for the data file
+            else AssertAfterPowerLoss(power).Should().BeOneOf(9, 10);
 
             power.DataFails = false;
             Update(writer, 11);
-            power.AfterPowerLoss(Rows).Should().Be(11, "once the data file syncs again, the next log sync follows a data sync");
+            AssertAfterPowerLoss(power, 11); // once the data file syncs again, the next log sync follows a data sync
             writer.Checkpoint();
             new FileInfo(logName).Length.Should().Be(0, "a full checkpoint empties the WAL");
-            power.AfterPowerLoss(Rows).Should().Be(11);
+            AssertAfterPowerLoss(power, 11);
         }
 
         /// <summary>
@@ -140,12 +154,16 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// Commits acknowledged durable (1..5), then neither file syncs during a full checkpoint: its
-        /// backfill and the emptied WAL reach the OS cache only, which is all such storage offers.
-        /// Then the WAL syncs again while the data file still does not. A later log sync (a commit,
-        /// a checkpoint's journal, another connection's first sync, a reopen) made the emptied WAL
-        /// durable while the backfill never was: a power loss lost commits 1..5. A log sync now
-        /// waits for a data sync that succeeds, so the WAL they are in stays the durable one.
+        /// Commits acknowledged durable (1..5), then neither file syncs during a full checkpoint, then
+        /// the WAL syncs again while the data file still does not. The checkpoint's backfill and the
+        /// emptied WAL reached the OS cache only, and a later log sync (a commit, a checkpoint's
+        /// journal, another connection's first sync, a reopen) made the emptied WAL durable while the
+        /// backfill never was: a power loss lost commits 1..5. The checkpoint now finds the data file
+        /// cannot sync before it writes anything and changes neither file, and a log sync waits for a
+        /// data sync that succeeds. The engine that saw the failure reports commit 6 non-durable; a
+        /// fresh engine (an independent connection, a reopen) proves the untouched data file by its
+        /// synced header and reports it durable, and it survives. Commit 7, after that engine's own
+        /// checkpoint found the data file cannot sync, is not durable.
         /// </summary>
         [Theory]
         [InlineData("direct")] // one long-lived engine
@@ -154,8 +172,7 @@ namespace LiteDB.Tests.Regressions
         public void Commits_durable_before_neither_file_synced_survive_when_only_the_wal_syncs_again(string mode)
         {
             using var file = new TempFile();
-            Setup(file.Filename);
-            using (var setup = new LiteDatabase(file.Filename)) setup.GetCollection("rows").EnsureIndex("value");
+            Setup(file.Filename, index: true);
             using var power = new SyncPowerLossModel(file.Filename);
 
             var first = new LiteEngine(power.Settings());
@@ -169,7 +186,11 @@ namespace LiteDB.Tests.Regressions
                     DurableLogFlush(firstDb).Should().BeTrue();
                 }
                 power.DataFails = power.LogFails = true;
+                var synced = power.Capture();
+                var wal = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
                 firstDb.Checkpoint();
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(synced.Data, "the checkpoint wrote no page");
+                SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(wal, "nor changed the WAL");
                 power.LogFails = false;
                 if (mode == "reopen")
                 {
@@ -180,12 +201,15 @@ namespace LiteDB.Tests.Regressions
                 using var other = mode == "direct" ? null : new LiteEngine(power.Settings());
                 var writer = other == null ? firstDb : new LiteDatabase(other, disposeOnClose: false);
                 Update(writer, 6);
-                DurableLogFlush(writer).Should().BeFalse("the data file cannot sync");
+                var durable = DurableLogFlush(writer);
+                durable.Should().Be(other != null, "only a fresh engine proves the untouched data file by its synced header");
                 writer.Checkpoint();
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(synced.Data, "no checkpoint writes to a data file that cannot sync");
                 Update(writer, 7);
+                DurableLogFlush(writer).Should().BeFalse("the data file cannot sync");
                 if (other != null) writer.Dispose();
 
-                AssertAfterPowerLoss(power, 5);
+                AssertAfterPowerLoss(power, durable ? 6 : 5);
             }
             finally
             {
@@ -198,8 +222,9 @@ namespace LiteDB.Tests.Regressions
         /// A WAL an earlier engine synced (commit 1, no checkpoint since), then the storage stops
         /// syncing and the process restarts: the new process cannot know the WAL was synced. Its full
         /// checkpoint emptied the WAL (and its close deleted it); the OS could write that back ahead
-        /// of the backfill, which never synced, and lose commit 1. It now keeps the WAL, which is
-        /// written back as it is (the data file as of its last sync).
+        /// of the backfill, which never synced, and lose commit 1. Its checkpoint now finds the data
+        /// file cannot sync before it writes anything: the data file stays as last synced and the WAL
+        /// is kept, which is written back as it is. Every row, whole, and the value index survive.
         /// </summary>
         [Theory]
         [InlineData(true)]  // neither file syncs
@@ -207,7 +232,7 @@ namespace LiteDB.Tests.Regressions
         public void Wal_an_earlier_process_synced_is_kept_after_a_restart(bool neither)
         {
             using var file = new TempFile();
-            Setup(file.Filename);
+            Setup(file.Filename, index: true);
             var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new FilePowerLossModel(file.Filename);
             try
@@ -223,33 +248,17 @@ namespace LiteDB.Tests.Regressions
                 DurableHeaders.Forget(file.Filename); // a new process
                 using (var db = new LiteDatabase(file.Filename)) db.Checkpoint();
                 File.Exists(logName).Should().BeTrue("the WAL is kept");
+                File.ReadAllBytes(file.Filename).Should().Equal(power.Capture().Data, "the checkpoint wrote no page");
 
                 var image = (power.Capture().Data, File.ReadAllBytes(logName));
-                FilePowerLossModel.Open(image, db => db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray())
-                    .Should().Equal(1);
+                FilePowerLossModel.Open(image, db => AssertRows(db, 1));
             }
             finally { File.Delete(logName); }
         }
 
-        /// <summary>Every row holds <paramref name="value"/>, whole, and the index on value finds each one.</summary>
-        private static void AssertAfterPowerLoss(SyncPowerLossModel power, int value)
-        {
-            power.AfterPowerLoss(Rows).Should().Be(value);
-            using var image = new TempFile();
-            var (data, log) = power.Capture();
-            File.WriteAllBytes(image.Filename, data);
-            File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), log);
-            try
-            {
-                using var db = new LiteDatabase(image.Filename);
-                var rows = db.GetCollection("rows");
-                rows.FindAll().OrderBy(x => x["_id"].AsInt32).Should().BeEquivalentTo(
-                    Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)), o => o.WithStrictOrdering());
-                rows.Find(Query.EQ("value", value)).Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, Rows));
-                rows.Count(Query.Not("value", value)).Should().Be(0);
-            }
-            finally { File.Delete(FileHelper.GetLogFile(image.Filename)); }
-        }
+        private static int AssertAfterPowerLoss(SyncPowerLossModel power, int? value = null) => power.AssertAfterPowerLoss(Rows, value);
+
+        private static int AssertRows(LiteDatabase db, int value) => SyncPowerLossModel.AssertRows(db, Rows, value);
 
         /// <summary>
         /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip, see LegacyWalSharedMigration_Tests) on
@@ -304,10 +313,11 @@ namespace LiteDB.Tests.Regressions
 
         private const int Rows = 64;
 
-        private static void Setup(string filename)
+        private static void Setup(string filename, bool index = false)
         {
             using var setup = new LiteDatabase(filename);
             setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            if (index) setup.GetCollection("rows").EnsureIndex("value");
         }
 
         private static void Update(LiteDatabase db, int value) =>

@@ -153,9 +153,13 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Shared mode: a data file that stops syncing during a partial checkpoint is found only
         /// after that checkpoint proved it and retired WAL frames. The witness root may then be in
-        /// the OS cache only, so the checkpoint keeps the retired frames instead of clearing them,
-        /// and later operations of the connection, fresh engines whose own log syncs succeed, must
-        /// not reuse those slots. RetiredSlotPowerLoss_Tests covers other connections and power loss.
+        /// the OS cache only, so the checkpoint must not clear the retired frames, and later
+        /// operations of the connection, fresh engines whose own log syncs succeed, must not reuse
+        /// those slots. The checkpoint now stops ("stopped syncing") with its header journal kept,
+        /// and the connection's next operation, whose open cannot retire that journal while the
+        /// data file cannot sync, is refused with the WAL unchanged; once the data file syncs, the
+        /// connection recovers and writes again. RetiredSlotPowerLoss_Tests covers other
+        /// connections and power loss.
         /// </summary>
         [Theory]
         [InlineData("checkpoint-before-page-write")]   // found before the root is published: none is
@@ -190,7 +194,8 @@ namespace LiteDB.Tests.Regressions
                         // Frames written before the checkpoint; the witness records it appends are
                         // discarded by the next open when no root names them.
                         frames = ReadShared(logName).Length / WalChecksum.FrameSize;
-                        db.Checkpoint();
+                        Action checkpoint = () => db.Checkpoint();
+                        checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
                     });
                     retired = ReadShared(logName);
                 }
@@ -200,14 +205,15 @@ namespace LiteDB.Tests.Regressions
                 if (stage == "checkpoint-before-page-write") root.Should().Be(0, "a checkpoint that lost its data sync before the root publishes none");
                 else root.Should().BeGreaterThan(0, "the witness root reached the OS cache");
                 BlankFrames(retired).Should().Be(0, "no slot is cleared while the witness root may not be durable");
+                frames.Should().BeGreaterThan(0);
 
+                Action update = () => Update64(db, 10);
+                update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                ReadShared(logName).Should().Equal(retired, "slots retired by a checkpoint whose data sync failed must not be reused");
+
+                dataFails = false; // the storage syncs again: the next operation recovers
                 Update64(db, 10);
-                var written = ReadShared(logName);
-                Enumerable.Range(0, frames).Count(frame =>
-                    !retired.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
-                        .SequenceEqual(written.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)))
-                    .Should().Be(0, "slots retired by a checkpoint whose data sync failed must not be reused");
-                DurableLogFlush(db).Should().BeFalse();
+                DurableLogFlush(db).Should().BeFalse("the connection found the data file unsyncable");
             }
             finally
             {
@@ -216,7 +222,7 @@ namespace LiteDB.Tests.Regressions
             }
 
             using var reopened = new LiteDatabase(file.Filename);
-            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(x => x == 10);
+            SyncPowerLossModel.AssertRows(reopened, 64, 10);
         }
 
         private static void Update64(LiteDatabase db, int value) =>

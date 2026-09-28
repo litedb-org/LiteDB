@@ -175,8 +175,13 @@ namespace LiteDB.Engine
                 // Retiring frames only lets their slots be reused, which storage that cannot
                 // sync never does; its witness could not be published durably either.
                 var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(live);
-                if (obsolete.Count > 0 && !_disk.ProveRetirementSyncs()) obsolete.Clear();
+                var proven = obsolete.Count > 0 && _disk.ProveRetirementSyncs();
+                if (!proven) obsolete.Clear();
                 if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
+
+                // Write only to a data file that just synced (the retirement proof syncs it too): one
+                // that cannot, also one another engine or process found so, keeps the WAL untouched.
+                if (!proven && !_disk.DataFileSyncs() && !_disk.LogIsVolatile) return 0;
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
@@ -185,10 +190,10 @@ namespace LiteDB.Engine
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
-                // A backfill the data file could not sync (#2242): the WAL is emptied only after a
-                // data sync that covers the backfill succeeded (KeepsWal), so it is kept, as a
-                // partial checkpoint keeps its frames.
-                if (reclaim && _disk.KeepsWal) reclaim = false;
+                // The data file stopped syncing since the sync above (#2242): the backfill may be torn
+                // and the WAL and its header journal are its only durable copy. Stop before removing
+                // any of it; the next open recovers from them (DiskService.KeepsWal).
+                if (_disk.KeepsWal) throw DiskService.DataStoppedSyncing("a checkpoint");
 
                 // Storage that stopped syncing after the retirement's proof may not have made its
                 // witness records durable: a root published now could leave a durable header naming
@@ -213,6 +218,8 @@ namespace LiteDB.Engine
                     _disk.Cache.Clear();
                     _disk.CheckpointStage("before-reclaim");
                     _disk.RotateWalSalt();
+                    // The new salt must be durable before the WAL of the old one goes.
+                    if (_disk.KeepsWal) throw DiskService.DataStoppedSyncing("a checkpoint");
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif

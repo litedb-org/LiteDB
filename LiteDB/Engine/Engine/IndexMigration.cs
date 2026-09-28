@@ -55,7 +55,7 @@ namespace LiteDB.Engine
             if (!_disk.ChecksumsEnabled && _walIndex.DrainBlocked()) throw ConversionBlocked();
             // The conversion empties the log only after a data sync that succeeds (KeepsWal): a data
             // file that cannot sync (#2242) refuses it here, both files unchanged.
-            if (!_disk.ChecksumsEnabled && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
+            if (!_disk.ChecksumsEnabled && !_disk.LogIsVolatile && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.

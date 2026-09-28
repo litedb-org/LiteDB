@@ -13,5 +13,12 @@ namespace LiteDB.Engine
         /// earlier checkpoints reached the device, so they neither retire nor reuse WAL frames.
         /// </summary>
         internal volatile bool FileSyncUnsupported;
+
+        /// <summary>
+        /// The latest data sync of an engine of this connection answered "cannot sync": its WAL is
+        /// kept until one succeeds (reported by <c>$database.walKept</c>, which later engines of the
+        /// connection could not know otherwise).
+        /// </summary>
+        internal volatile bool DataUnsynced;
     }
 }

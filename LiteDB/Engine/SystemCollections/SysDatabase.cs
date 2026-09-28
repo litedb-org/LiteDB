@@ -30,10 +30,10 @@ namespace LiteDB.Engine
 
                 ["creationTime"] = _header.CreationTime,
 
-                ["dataFileSize"] = (int)_disk.GetFileLength(FileOrigin.Data),
-                ["logFileSize"] = (int)_disk.GetFileLength(FileOrigin.Log),
+                ["dataFileSize"] = _disk.GetFileLength(FileOrigin.Data),
+                ["logFileSize"] = _disk.GetFileLength(FileOrigin.Log),
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
-                ["walKept"] = _disk.KeepsWal,
+                ["walKept"] = _disk.WalKeptReport,
                 ["checksums"] = _disk.ChecksumsEnabled,
                 ["checksumCoverage"] = _disk.ChecksumCoverage,
                 ["legacyLastPageID"] = (long)_disk.LegacyLastPageID,

@@ -172,15 +172,18 @@ only flushes the log to the OS cache while the data file still cannot sync, so t
 last synced stays the durable one, with every commit acknowledged durable before, also if
 the WAL alone syncs again, and a stream opened to read never syncs. The OS can still write
 an emptied WAL back ahead of the backfill, and no engine knows whether an earlier one (of any
-connection or process) synced the WAL's frames. So the WAL is emptied only after a data sync
-that covers its backfill succeeded: a full checkpoint whose backfill did not sync keeps it,
-and every later checkpoint first retries the data sync and writes nothing while it fails. The
-WAL grows until the data file syncs again (`$database.walKept`), also on storage that never
-syncs. A conversion and a rebuild, which empty a log, are refused there with both files
-unchanged. Only a WAL the engine keeps in memory, which survives no power loss, is emptied.
-The checkpoint that first finds the data file cannot sync may have written the header with
-its journal no longer synced (log syncs wait for the data file): a header the OS writes back
-torn then has no durable repair copy, as where neither file syncs. A legacy header
+connection or process) synced the WAL's frames. So the WAL and its header journal are removed
+only after a data sync that covers what they protect succeeded. Every checkpoint that writes
+first syncs the data file and writes nothing while that sync fails, whichever engine runs
+it: the WAL grows until the data file syncs again (`$database.walKept`), also on storage that
+never syncs. A data sync that fails later in the same checkpoint (after the backfill, the
+salt rotation or a retirement root) stops the engine before anything is removed, leaving
+the state of a crash at that point; the next open repairs a torn header from the journal,
+and an open that would have to retire a journal while the data file cannot sync is refused
+(`readonly=true` still opens). A conversion and a rebuild, which empty a log, are refused
+there with both files unchanged. Only a WAL the engine keeps in memory, which survives no
+power loss, is emptied. A format promotion still retires its journal after a data sync that
+may have answered "cannot sync"; its header change is confined to the first sector. A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.

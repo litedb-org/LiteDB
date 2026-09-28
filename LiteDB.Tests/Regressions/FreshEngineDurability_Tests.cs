@@ -25,42 +25,64 @@ namespace LiteDB.Tests.Regressions
     [Collection(NativeFileSyncCollection.Name)]
     public class FreshEngineDurability_Tests
     {
+        /// <summary>
+        /// The data file stops syncing at a full checkpoint's salt rotation, after its backfill
+        /// synced. The checkpoint emptied the WAL anyway, and a fresh engine then reported commits
+        /// durable that depended on the rotated header in the OS cache only. The checkpoint now stops
+        /// ("stopped syncing", the engine closes) before it removes the WAL or its header journal, so
+        /// the data file as last synced with the WAL, as last synced or as written back, holds every
+        /// commit. A fresh engine over the kept journal is refused while the data file still cannot
+        /// sync, acknowledging nothing and leaving the journal; once the data file syncs, it recovers
+        /// every commit, and a commit it reports durable survives the power loss.
+        /// </summary>
         [Theory]
         [InlineData(false)]
         [InlineData(true)] // the data file syncs again for the fresh engine
         public void Fresh_engine_after_a_salt_rotation_whose_data_sync_failed(bool dataSyncsAgain)
         {
             using var file = new TempFile();
-            Setup(file.Filename);
+            Setup(file.Filename, index: true);
+            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new FilePowerLossModel(file.Filename);
-
-            var settings = new EngineSettings { Filename = file.Filename };
-            settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
-            using (var first = new LiteDatabase(new LiteEngine(settings)))
+            try
             {
-                first.CheckpointSize = 0;
-                for (var value = 1; value <= 5; value++)
+                var settings = new EngineSettings { Filename = file.Filename };
+                settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
+                using (var first = new LiteDatabase(new LiteEngine(settings)))
                 {
-                    Update(first, value);
-                    DurableLogFlush(first).Should().BeTrue();
+                    first.CheckpointSize = 0;
+                    for (var value = 1; value <= 5; value++)
+                    {
+                        Update(first, value);
+                        DurableLogFlush(first).Should().BeTrue();
+                    }
+                    Action checkpoint = () => first.Checkpoint(); // the backfill syncs, the new salt's header does not
+                    checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
+                    power.DataFails.Should().BeTrue("the checkpoint reached its salt rotation");
                 }
-                first.Checkpoint(); // the backfill syncs, the new salt's header does not
-                DurableLogFlush(first).Should().BeFalse();
-            }
+                var kept = SyncPowerLossModel.ReadShared(logName);
+                kept.Length.Should().BeGreaterThan(0, "the WAL and its header journal are kept");
+                power.AfterPowerLoss(db => AssertRows(db, 5));
+                FilePowerLossModel.Open((power.Capture().Data, kept), db => AssertRows(db, 5));
 
-            power.DataFails = !dataSyncsAgain;
-            bool durable;
-            using (var second = new LiteDatabase(file.Filename))
-            {
-                Update(second, 6);
-                durable = DurableLogFlush(second);
+                power.DataFails = !dataSyncsAgain;
+                if (!dataSyncsAgain)
+                {
+                    Action open = () => new LiteDatabase(file.Filename).Dispose();
+                    open.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays until the repaired header synced");
+                    power.AfterPowerLoss(db => AssertRows(db, 5));
+                    power.DataFails = false; // the storage syncs again
+                }
+                using (var second = new LiteDatabase(file.Filename))
+                {
+                    AssertRows(second, 5);
+                    Update(second, 6);
+                    DurableLogFlush(second).Should().BeTrue("a fresh engine proves the data file before its first durable commit");
+                }
+                power.AfterPowerLoss(db => AssertRows(db, 6));
             }
-            durable.Should().Be(dataSyncsAgain, "a fresh engine proves the data file before its first durable commit");
-
-            var values = power.AfterPowerLoss(Values);
-            values.Should().HaveCount(1);
-            if (durable) values.Single().Should().Be(6, "a commit reported durable survives the power loss");
-            else values.Single().Should().BeOneOf(5, 6);
+            finally { File.Delete(logName); }
         }
 
         /// <summary>
@@ -164,8 +186,12 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// Another connection's checkpoint left a rotated header in the OS cache only: the next
-        /// operation of a shared connection whose engines saw the old header durable proves again.
+        /// Another connection's checkpoint stops at its salt rotation, the rotated header in the OS
+        /// cache only and the header journal kept. The next operation of a shared connection whose
+        /// engines saw the old header durable must not report a commit durable on that header: while
+        /// the data file cannot sync, its open is refused (the journal cannot be retired) and it
+        /// acknowledges nothing, and the connection reports its later commits non-durable. Once the
+        /// data file syncs, it recovers, and a commit it reports durable survives the power loss.
         /// </summary>
         [Theory]
         [InlineData(false)]
@@ -173,38 +199,63 @@ namespace LiteDB.Tests.Regressions
         public void Shared_connection_proves_again_after_another_connection_left_its_header_unsynced(bool dataSyncsAgain)
         {
             using var file = new TempFile();
-            Setup(file.Filename);
+            Setup(file.Filename, index: true);
+            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new FilePowerLossModel(file.Filename);
-            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
-            using var db = new LiteDatabase(engine, disposeOnClose: false);
-            db.CheckpointSize = 0;
-            Update(db, 1);
-            DurableLogFlush(db).Should().BeTrue();
-
-            var settings = new EngineSettings { Filename = file.Filename };
-            settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
-            using (var otherEngine = new SharedEngine(settings))
-            using (var other = new LiteDatabase(otherEngine, disposeOnClose: false))
+            try
             {
-                Update(other, 2);
-                other.Checkpoint();
+                using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                Update(db, 1);
+                DurableLogFlush(db).Should().BeTrue();
+
+                var settings = new EngineSettings { Filename = file.Filename };
+                settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
+                using (var otherEngine = new SharedEngine(settings))
+                using (var other = new LiteDatabase(otherEngine, disposeOnClose: false))
+                {
+                    Update(other, 2);
+                    DurableLogFlush(other).Should().BeTrue();
+                    Action checkpoint = () => other.Checkpoint();
+                    checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
+                }
+                power.DataFails.Should().BeTrue("the checkpoint reached its salt rotation");
+                var kept = SyncPowerLossModel.ReadShared(logName);
+                power.AfterPowerLoss(image => AssertRows(image, 2));
+                FilePowerLossModel.Open((power.Capture().Data, kept), image => AssertRows(image, 2));
+
+                power.DataFails = !dataSyncsAgain;
+                if (!dataSyncsAgain)
+                {
+                    Action update = () => Update(db, 3);
+                    update.Should().Throw<IOException>().WithMessage("Cannot recover this database now*");
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(kept, "the header journal stays");
+                    power.AfterPowerLoss(image => AssertRows(image, 2));
+                    power.DataFails = false; // the storage syncs again
+                }
+                Update(db, 3);
+                var durable = DurableLogFlush(db);
+                durable.Should().Be(dataSyncsAgain, "a connection whose engine found the data file unsyncable reports its commits non-durable");
+                if (durable) power.AfterPowerLoss(image => AssertRows(image, 3)); // a commit reported durable survives the power loss
+                else power.AfterPowerLoss(image => SyncPowerLossModel.AssertRows(image, Rows)).Should().BeOneOf(2, 3);
             }
-            power.DataFails = !dataSyncsAgain;
-            Update(db, 3);
-            var durable = DurableLogFlush(db);
-            durable.Should().Be(dataSyncsAgain);
-            if (durable) power.AfterPowerLoss(Values).Should().Equal(new[] { 3 }, "a commit reported durable survives the power loss");
+            finally { File.Delete(logName); }
         }
 
         /// <summary>
         /// The salt rotation case with the files passed as caller FileStreams: a fresh engine over
-        /// them reported its commit durable without proving the data file.
+        /// them reported its commit durable without proving the data file. The checkpoint now stops
+        /// with the WAL and its header journal kept, a fresh engine over the streams is refused
+        /// while the data file cannot sync, and every durable commit survives the power loss; once
+        /// the data file syncs, a fresh engine recovers and its durable commit survives too.
         /// </summary>
         [Fact]
         public void Fresh_engine_over_caller_file_streams_after_a_salt_rotation_whose_data_sync_failed()
         {
             using var file = new TempFile();
-            Setup(file.Filename);
+            Setup(file.Filename, index: true);
+            var logName = FileHelper.GetLogFile(file.Filename);
             using var power = new SyncPowerLossModel(file.Filename);
             var settings = power.Settings();
             settings.CheckpointStage = stage => { if (stage == "before-reclaim") power.DataFails = true; };
@@ -212,16 +263,26 @@ namespace LiteDB.Tests.Regressions
             {
                 first.CheckpointSize = 0;
                 for (var value = 1; value <= 5; value++) Update(first, value);
-                first.Checkpoint();
-                DurableLogFlush(first).Should().BeFalse();
+                DurableLogFlush(first).Should().BeTrue();
+                Action checkpoint = () => first.Checkpoint();
+                checkpoint.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
             }
+            var kept = SyncPowerLossModel.ReadShared(logName);
 
+            Action open = () => new LiteDatabase(new LiteEngine(power.Settings())).Dispose();
+            open.Should().Throw<IOException>().WithMessage("Cannot recover this database now*", "the data file still cannot sync the rotated header");
+            SyncPowerLossModel.ReadShared(logName).Should().Equal(kept);
+            power.AssertAfterPowerLoss(Rows, 5);
+            FilePowerLossModel.Open((power.Capture().Data, kept), db => AssertRows(db, 5));
+
+            power.DataFails = false;
             using (var second = new LiteDatabase(new LiteEngine(power.Settings())))
             {
+                AssertRows(second, 5);
                 Update(second, 6);
-                DurableLogFlush(second).Should().BeFalse("the data file still cannot sync the rotated header");
+                DurableLogFlush(second).Should().BeTrue();
             }
-            power.AfterPowerLoss(Rows).Should().BeOneOf(5, 6);
+            power.AssertAfterPowerLoss(Rows, 6);
         }
 
         /// <summary>
@@ -293,7 +354,9 @@ namespace LiteDB.Tests.Regressions
         /// A rebuild installs its replacement without the replacement's WAL. Where the data file
         /// cannot sync, the replacement's full checkpoint keeps that WAL (a data sync must cover the
         /// backfill), so installing the data file alone would lose every row: the rebuild is refused
-        /// and the database is unchanged. Once the data file syncs, it rebuilds.
+        /// and the database is unchanged. The refusal comes before the engine closes, so the
+        /// instance stays open and usable, and no replacement, backup or marker is left. Once the
+        /// data file syncs, it rebuilds.
         /// </summary>
         [Fact]
         public void Rebuild_is_refused_where_only_the_data_file_cannot_sync()
@@ -307,6 +370,8 @@ namespace LiteDB.Tests.Regressions
                 using var db = new LiteDatabase(file.Filename);
                 Action rebuild = () => db.Rebuild();
                 rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
+                AssertRows(db, 0); // the instance is still open
+                db.GetCollection("rows").Count().Should().Be(Rows);
             }
             finally { NativeFileSync.SimulateErrno = null; }
             File.ReadAllBytes(file.Filename).Should().Equal(original);
@@ -321,20 +386,20 @@ namespace LiteDB.Tests.Regressions
 
         private const int Rows = 64;
 
-        private static void Setup(string filename)
+        private static void Setup(string filename, bool index = false)
         {
             using var setup = new LiteDatabase(filename);
             setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            if (index) setup.GetCollection("rows").EnsureIndex("value");
         }
+
+        private static int AssertRows(LiteDatabase db, int value) => SyncPowerLossModel.AssertRows(db, Rows, value);
 
         private static void Update(LiteDatabase db, int value) =>
             db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
 
         private static void Insert(LiteDatabase db, int id) =>
             db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id });
-
-        private static int[] Values(LiteDatabase db) =>
-            db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray();
 
         private static bool DurableLogFlush(LiteDatabase db) =>
             db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean;

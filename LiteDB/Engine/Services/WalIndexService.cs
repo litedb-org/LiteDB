@@ -100,6 +100,7 @@ namespace LiteDB.Engine
 
                 // Invalidate the old generation only after checkpoint synced data.
                 _disk.RotateWalSalt();
+                if (_disk.KeepsWal) throw DiskService.DataStoppedSyncing("a WAL reset");
                 // clear log file (sync)
                 _disk.SetLength(0, FileOrigin.Log);
             }

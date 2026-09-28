@@ -22,6 +22,9 @@ namespace LiteDB.Tests.Regressions
         private int _dataSyncs;
         internal volatile bool DataFails, LogFails;
 
+        /// <summary>When positive, the data file's syncs from this one on (counted from 1) fail as while <see cref="DataFails"/>.</summary>
+        internal volatile int DataFailsFromSync;
+
         internal FilePowerLossModel(string filename)
         {
             _data = Path.GetFullPath(filename);
@@ -38,8 +41,8 @@ namespace LiteDB.Tests.Regressions
                 }
                 else if (string.Equals(name, _data, StringComparison.OrdinalIgnoreCase))
                 {
-                    Interlocked.Increment(ref _dataSyncs);
-                    if (DataFails) return 22;
+                    var sync = Interlocked.Increment(ref _dataSyncs);
+                    if (DataFails || (DataFailsFromSync > 0 && sync >= DataFailsFromSync)) return 22;
                     lock (_gate) _durableData = Read(_data);
                 }
                 return 0;

@@ -16,8 +16,9 @@ namespace LiteDB.Tests.Regressions
     /// A data file that stops syncing (#2242) after commits were acknowledged durable. No log sync
     /// makes an emptied WAL durable before a data sync succeeds (UnsyncedBackfillPowerLoss_Tests),
     /// but that alone does not stop the OS from writing the emptied WAL back ahead of the backfill,
-    /// nor a sync outside the engine's barriers. The WAL is kept until a data sync that covers the
-    /// backfill succeeds, and a stream the engine opens to read never syncs.
+    /// nor a sync outside the engine's barriers. A checkpoint writes only to a data file that just
+    /// synced, the WAL is kept until a data sync that covers the backfill succeeds, and a stream the
+    /// engine opens to read never syncs.
     /// </summary>
     [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -26,7 +27,10 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The OS writes the WAL back as it is after the full checkpoint, the backfill never reaches
         /// the device: the WAL was emptied, and commits acknowledged durable were lost (every row
-        /// back at 0). The checkpoint now keeps the WAL until the data file syncs.
+        /// back at 0). The checkpoint now syncs the data file first and, as it cannot, writes no
+        /// page and keeps the WAL: the data file as last synced with the WAL as written back holds
+        /// every row, whole, and the value index finds each. Once the data file syncs, the next
+        /// checkpoint empties the WAL.
         /// </summary>
         [Theory]
         [InlineData(false)] // only the data file cannot sync
@@ -47,21 +51,25 @@ namespace LiteDB.Tests.Regressions
             power.DataFails = true;
             power.LogFails = neither;
             db.Checkpoint();
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(power.Capture().Data, "the checkpoint wrote no page");
 
             var image = (power.Capture().Data, SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)));
-            FilePowerLossModel.Open(image, Values).Should().Equal(5);
+            FilePowerLossModel.Open(image, db => AssertState(db, 5, extra: false));
 
             power.DataFails = power.LogFails = false;
             db.Checkpoint();
             new FileInfo(FileHelper.GetLogFile(file.Filename)).Length.Should().Be(0, "once the data file syncs, the WAL is emptied");
+            AssertState(db, 5, extra: false);
         }
 
         /// <summary>
         /// The next engine over the same files (a reopen, the next operation of a shared connection,
         /// an engine of a new process) did not sync the kept WAL itself, and its data proof failed on
         /// the header the backfill rewrote: it emptied the WAL, and the commit acknowledged durable
-        /// was lost to the WAL written back ahead of the backfill. Every engine now keeps the WAL
-        /// until a data sync succeeds, whoever synced it.
+        /// was lost to the WAL written back ahead of the backfill. Every checkpoint now syncs the data
+        /// file before it writes, so every engine keeps the WAL and writes no page until a data sync
+        /// succeeds, whoever synced it: the data file as last synced with the WAL as written back
+        /// holds every row and every document of the new collection, whole.
         /// </summary>
         [Theory]
         [InlineData("reopen")]
@@ -93,11 +101,13 @@ namespace LiteDB.Tests.Regressions
                 using var db = new LiteDatabase(shared, disposeOnClose: false);
                 power.DataFails = true;
                 CommitWithNewPages(db); // its log sync still runs: its data proof matches the synced header
+                DurableLogFlush(db).Should().BeTrue();
                 for (var i = 0; i < 3; i++) db.Checkpoint();
             }
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(power.Capture().Data, "no engine wrote a page");
 
             var image = (power.Capture().Data, SyncPowerLossModel.ReadShared(logName));
-            FilePowerLossModel.Open(image, db => (Values(db).Single(), db.GetCollection("extra").Count())).Should().Be((1, 40));
+            FilePowerLossModel.Open(image, db => AssertState(db, 1, extra: true));
         }
 
         /// <summary>
@@ -136,16 +146,19 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip) whose data file stops syncing while
-        /// the conversion drains its synced WAL: the drain keeps the WAL, and the open is refused
-        /// with a diagnostic naming the storage (not as a blocked drain). Every commit stays.
+        /// the conversion drains its synced WAL (after the drain's data sync before its first page):
+        /// the drain's checkpoint stops before it removes any of the legacy WAL, and the open is
+        /// refused with a diagnostic naming the storage (not as a blocked drain). Every commit stays,
+        /// in the power-loss image and once the storage syncs.
         /// </summary>
         [Fact]
         public void Conversion_whose_data_file_stops_syncing_during_the_drain_is_refused()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
+            var legacyLog = Entry("crash-log.db");
             File.WriteAllBytes(file.Filename, Entry("crash.db"));
-            File.WriteAllBytes(logName, Entry("crash-log.db"));
+            File.WriteAllBytes(logName, legacyLog);
             try
             {
                 using (var power = new SyncPowerLossModel(file.Filename))
@@ -153,7 +166,9 @@ namespace LiteDB.Tests.Regressions
                     var settings = power.Settings();
                     settings.CheckpointStage = stage => { if (stage == "data-page") power.DataFails = true; };
                     Action open = () => new LiteEngine(settings).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database now*cannot sync*");
+                    open.Should().Throw<IOException>().WithMessage("The data file stopped syncing*");
+                    power.DataFails.Should().BeTrue("the drain wrote a page");
+                    SyncPowerLossModel.ReadShared(logName).Take(legacyLog.Length).Should().Equal(legacyLog, "the legacy WAL is kept");
                     FilePowerLossModel.Open(power.Capture(), AssertLegacyCommits);
                 }
                 using var db = new LiteDatabase(file.Filename);
@@ -219,7 +234,24 @@ namespace LiteDB.Tests.Regressions
         {
             using var setup = new LiteDatabase(filename);
             setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            setup.GetCollection("rows").EnsureIndex("value");
         }
+
+        /// <summary>
+        /// Every row holds <paramref name="value"/>, whole, and the value index finds each; the
+        /// collection <see cref="CommitWithNewPages"/> adds holds each of its documents, whole, or
+        /// does not exist.
+        /// </summary>
+        private static int AssertState(LiteDatabase db, int value, bool extra)
+        {
+            SyncPowerLossModel.AssertRows(db, Rows, value);
+            if (!extra) db.CollectionExists("extra").Should().BeFalse();
+            else db.GetCollection("extra").FindAll().OrderBy(x => x["_id"].AsInt32).Should().BeEquivalentTo(
+                Enumerable.Range(1, 40).Select(Extra), o => o.WithStrictOrdering());
+            return value;
+        }
+
+        private static BsonDocument Extra(int id) => new BsonDocument { ["_id"] = id, ["p"] = new string('e', 3000) };
 
         private static void Update(LiteDatabase db, int value) =>
             db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
@@ -229,12 +261,9 @@ namespace LiteDB.Tests.Regressions
         {
             db.BeginTrans();
             db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 1)));
-            db.GetCollection("extra").Insert(Enumerable.Range(1, 40).Select(id => new BsonDocument { ["_id"] = id, ["p"] = new string('e', 3000) }));
+            db.GetCollection("extra").Insert(Enumerable.Range(1, 40).Select(Extra));
             db.Commit().Should().BeTrue();
         }
-
-        private static int[] Values(LiteDatabase db) =>
-            db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray();
 
         private static bool DurableLogFlush(LiteDatabase db) =>
             db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean;

@@ -81,22 +81,36 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// While the WAL is kept, a checkpoint first retries the data sync and does nothing while
-        /// the data file still cannot sync: it writes no page to a file that cannot make it durable,
-        /// and does not scan the growing WAL again at every commit.
+        /// the data file still cannot sync, instead of scanning the growing WAL again at every commit.
         /// </summary>
-        internal bool DefersCheckpoint()
-        {
-            if (!this.KeepsWal) return false;
-            this.SyncDataFile();
-            return !_dataBarrierSynced;
-        }
+        internal bool DefersCheckpoint() => this.KeepsWal && !this.DataFileSyncs();
 
-        /// <summary>Sync the data file now: false when it answers "cannot sync" (#2242).</summary>
+        /// <summary>
+        /// Sync the data file now: false when it answers "cannot sync" (#2242). A checkpoint calls it
+        /// right before it writes anything, so that it writes to a data file that just synced, whatever
+        /// an earlier engine or process found (see <see cref="KeepsWal"/>).
+        /// </summary>
         internal bool DataFileSyncs()
         {
-            this.SyncDataFile();
+            lock (this.WalWriterLock) this.SyncDataFile();
             return _dataBarrierSynced;
         }
+
+        /// <summary>
+        /// A data sync of a checkpoint (or a recovery) that already wrote pages answered "cannot sync":
+        /// the data file stopped syncing since the sync that let it start. What the WAL and its header
+        /// journal hold is the only durable copy, so the caller stops before removing any of it.
+        /// </summary>
+        internal static IOException DataStoppedSyncing(string operation) => new IOException(
+            $"The data file stopped syncing to the device during {operation}: the log file and its header recovery " +
+            "copy are kept, and the database must be reopened once the storage syncs.");
+
+        /// <summary>For <c>$database.walKept</c>: the WAL holds frames kept until a data sync succeeds.</summary>
+        internal bool WalKeptReport => this.GetFileLength(FileOrigin.Log) > 0 &&
+            (this.KeepsWal || (!_volatileLog && (_sharedDurability?.DataUnsynced ?? false)));
+
+        /// <summary>The engine keeps its WAL in memory (<see cref="EngineSettings.VolatileLog"/>).</summary>
+        internal bool LogIsVolatile => _volatileLog;
 
         /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
@@ -343,13 +357,14 @@ namespace LiteDB.Engine
             {
                 data.FlushToDisk();
                 _dataBarrierSynced = _dataSyncProven = true;
+                if (_sharedDurability != null) _sharedDurability.DataUnsynced = false;
                 if (_dataPath != null && data.Length >= PAGE_SIZE) DurableHeaders.Record(_dataPath, ReadDataHeader(data));
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 _dataBarrierSynced = false;
                 data.Flush();
-                if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
+                if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = _sharedDurability.DataUnsynced = true;
                 if (_dataFlushDegraded) return;
                 _dataFlushDegraded = true;
                 LOG($"data storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); checkpoints now flush to the OS cache only", "DISK");

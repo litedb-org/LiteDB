@@ -18,7 +18,10 @@ namespace LiteDB.Tests.Regressions
     /// its checkpoint journaled the header: once the storage synced again, that sync made the
     /// earlier truncation durable, never the backfill, and a power loss (each file as of its last
     /// successful sync) lost those commits. An engine now proves the data file before its first
-    /// log sync of any kind.
+    /// log sync of any kind. A checkpoint now also writes only to a data file that just synced, so
+    /// this engine no longer leaves such a truncation behind: the first two tests check that the
+    /// acknowledged commits stay recoverable, and the torn-header tests reach a header journal in
+    /// the OS cache only through a log that stops syncing.
     /// </summary>
     [Trait("Category", "IoSafety")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -65,7 +68,9 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// The one log sync that must precede the data proof: an open that repairs a torn header from
         /// its journal makes the journal durable first. Proving the data file before it made the torn
-        /// header durable while the journal, its only repair, was still in the OS cache.
+        /// header durable while the journal, its only repair, was still in the OS cache. The journal
+        /// reaches the OS cache only where the log stops syncing: a checkpoint writes only to a data
+        /// file that just synced, so the data file still syncs here.
         /// </summary>
         [Fact]
         public void Open_repairing_a_torn_header_makes_its_journal_durable_first()
@@ -83,7 +88,7 @@ namespace LiteDB.Tests.Regressions
                     db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
             }
 
-            power.DataFails = power.LogFails = true;
+            power.LogFails = true;
             var settings = new EngineSettings { Filename = file.Filename };
             settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
             using (var db = new LiteDatabase(new LiteEngine(settings)))
@@ -91,7 +96,7 @@ namespace LiteDB.Tests.Regressions
                 db.CheckpointSize = 0;
                 db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
                 Action checkpoint = () => db.Checkpoint();
-                checkpoint.Should().Throw<IOException>(); // its header journal reached the OS cache only
+                checkpoint.Should().Throw<IOException>().WithMessage("the writer dies mid-checkpoint"); // its header journal reached the OS cache only
             }
             // That checkpoint's header write, torn in the OS cache.
             using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
@@ -124,9 +129,9 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// The same with encryption: creating the encrypted data writer syncs the data file, so the
-        /// open created it before the journal sync and made the torn header durable first. The
-        /// storage stops syncing once both writers exist (an encrypted writable open needs syncs);
-        /// the tear lands in page 0's ciphertext (physical page 1).
+        /// open created it before the journal sync and made the torn header durable first. The log
+        /// stops syncing once both writers exist (an encrypted writable open needs syncs); the tear
+        /// lands in page 0's ciphertext (physical page 1).
         /// </summary>
         [Fact]
         public void Encrypted_open_repairing_a_torn_header_makes_its_journal_durable_first()
@@ -151,9 +156,9 @@ namespace LiteDB.Tests.Regressions
             {
                 db.CheckpointSize = 0;
                 db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
-                power.DataFails = power.LogFails = true;
+                power.LogFails = true;
                 Action checkpoint = () => db.Checkpoint();
-                checkpoint.Should().Throw<IOException>();
+                checkpoint.Should().Throw<IOException>().WithMessage("the writer dies mid-checkpoint");
             }
             using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
             {
@@ -186,7 +191,8 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// Commits 1..5 acknowledged durable, then a full checkpoint and a commit while neither file
-        /// syncs: the backfill and the WAL truncation reach the OS cache only.
+        /// syncs. The backfill and the WAL truncation reached the OS cache only; the checkpoint now
+        /// finds the data file cannot sync before it writes, and keeps the WAL.
         /// </summary>
         private static FilePowerLossModel TruncatedWhileNothingSynced(string filename)
         {
