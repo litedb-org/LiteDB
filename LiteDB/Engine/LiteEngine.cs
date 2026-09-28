@@ -83,7 +83,7 @@ namespace LiteDB.Engine
             }
             catch (ReadOnlyOpenRequiredException)
             {
-                // Opening a non-writable data stream would have changed the file; nothing was written.
+                // Opening storage that cannot be written would have changed it; nothing was written.
                 _settings.ReadOnly = true;
                 _settings.LegacyIndexScan = true;
                 this.Open();
@@ -105,9 +105,6 @@ namespace LiteDB.Engine
                 }
             }
         }
-
-        /// <summary>Thrown before the first write when a non-writable data stream would change.</summary>
-        private sealed class ReadOnlyOpenRequiredException : Exception { }
 
         private bool RebuildAfterFailedOpen(LiteException ex) =>
             ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE && _settings.AutoRebuild &&
@@ -212,8 +209,6 @@ namespace LiteDB.Engine
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
                 this.MigrateIndexOrdering();
-                if (_settings.ReadOnlyDataStream && !_settings.ReadOnly && _disk.HasTrailingDataPage)
-                    throw new ReadOnlyOpenRequiredException();
                 _disk.TrimTrailingPages();
 
                 // register system collections
@@ -225,7 +220,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
-                LOG(ex.Message, "ERROR");
+                if (!(ex is ReadOnlyOpenRequiredException)) LOG(ex.Message, "ERROR");
 
                 this.Close(ex);
                 throw;
@@ -277,7 +272,8 @@ namespace LiteDB.Engine
         }
 
         /// <summary>WAL size (in pages) that triggers a checkpoint; 0 disables automatic checkpoints.</summary>
-        private int CheckpointPages => _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
+        // Storage that cannot be written is never checkpointed: its changes stay in the log, as in 5.x.
+        private int CheckpointPages => _settings.ReadOnlyStorage ? 0 : _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
 
         /// <summary>
         /// Every close checkpoints unless a shared connection set a threshold: its short-lived
@@ -350,6 +346,9 @@ namespace LiteDB.Engine
         public int Checkpoint()
         {
             _state.Validate();
+            // Fail before a checkpoint journals the header into a caller's log it cannot finish.
+            if (_settings.ReadOnlyStorage && !_settings.ReadOnly)
+                throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
             try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
             catch (Exception ex)
             {

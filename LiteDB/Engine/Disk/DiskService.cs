@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
         private readonly bool _readOnly;
+        private readonly bool _readOnlyStorage;
         private readonly ICoordinationSignals _signals;
         internal bool CompactStorage { get; }
 
@@ -46,6 +47,7 @@ namespace LiteDB.Engine
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
+            _readOnlyStorage = settings.ReadOnlyStorage && !settings.ReadOnly;
             _durableCommits = settings.DurableCommits;
             _sharedDurability = settings.SharedDurability;
             _signals = settings.CoordinationSignals;

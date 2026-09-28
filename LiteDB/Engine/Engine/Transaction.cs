@@ -17,7 +17,9 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
+            // Storage opened read-only because it cannot be written accepts explicit transactions,
+            // as released versions did; writes are still rejected.
+            if (_settings.ReadOnly && !_settings.ReadOnlyStorage) throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
