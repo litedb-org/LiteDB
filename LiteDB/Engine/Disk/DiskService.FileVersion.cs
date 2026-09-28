@@ -36,38 +36,57 @@ namespace LiteDB.Engine
 
         private void WriteFileVersion(Stream writer, byte version)
         {
+            Exception failure = null;
+            var ownsFailure = false;
             lock (writer)
             {
                 var stream = _dataPool.Writer.Value;
                 lock (stream)
                 {
-                    var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-                    stream.Position = 0;
-                    stream.ReadRequired(header.Array, 0, PAGE_SIZE);
-                    PageChecksum.Validate(header, 0);
-                    _ = new HeaderPage(header);
-                    var rawLog = ((ChecksummedWalStream)writer).RawStream;
-                    var originalLength = rawLog.Length;
-                    var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
-                    if (compact) this.CrashPoint("promotion-before-journal-write");
-                    BeginHeaderJournal(header.Array, promotion: compact);
-                    if (compact) this.CrashPoint("promotion-after-journal-flush");
-                    header[HeaderPage.P_FILE_VERSION] = version;
-                    if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
-                    PageChecksum.Write(header);
-                    stream.Position = 0;
-                    if (compact) this.CrashPoint("promotion-before-header-write");
-                    stream.Write(header.Array, 0, PAGE_SIZE);
-                    if (compact) this.CrashPoint("promotion-after-header-write");
-                    this.SyncDataBarrier(stream);
-                    if (compact) this.CrashPoint("promotion-after-header-flush");
-                    rawLog.SetLength(originalLength);
-                    if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
-                    SyncLogBarrier(rawLog);
-                    if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
-                    _checksums.JournalBytes = 0;
-                    FileVersion = version;
+                    try
+                    {
+                        var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
+                        stream.Position = 0;
+                        stream.ReadRequired(header.Array, 0, PAGE_SIZE);
+                        PageChecksum.Validate(header, 0);
+                        _ = new HeaderPage(header);
+                        var rawLog = ((ChecksummedWalStream)writer).RawStream;
+                        var originalLength = rawLog.Length;
+                        var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
+                        if (compact) this.CrashPoint("promotion-before-journal-write");
+                        BeginHeaderJournal(header.Array, promotion: compact);
+                        if (compact) this.CrashPoint("promotion-after-journal-flush");
+                        header[HeaderPage.P_FILE_VERSION] = version;
+                        if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
+                        PageChecksum.Write(header);
+                        stream.Position = 0;
+                        if (compact) this.CrashPoint("promotion-before-header-write");
+                        stream.Write(header.Array, 0, PAGE_SIZE);
+                        if (compact) this.CrashPoint("promotion-after-header-write");
+                        this.SyncDataBarrier(stream);
+                        if (compact) this.CrashPoint("promotion-after-header-flush");
+                        rawLog.SetLength(originalLength);
+                        if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
+                        SyncLogBarrier(rawLog);
+                        if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
+                        _checksums.JournalBytes = 0;
+                        FileVersion = version;
+                    }
+                    catch (Exception ex) when (_checksums.JournalBytes != 0)
+                    {
+                        // The journal is the only recovery copy of a header this write may have torn.
+                        // Whatever the exception type, stop before releasing the writer: a rollback or
+                        // another write must not append to (or truncate) the WAL behind it. The next
+                        // open restores the header from the journal.
+                        failure = ex as IOException ?? new IOException("File format promotion failed.", ex);
+                        ownsFailure = _state.BeginStop(failure);
+                    }
                 }
+            }
+            if (failure != null)
+            {
+                _state.CompleteStop(failure, ownsFailure);
+                throw failure;
             }
         }
 
