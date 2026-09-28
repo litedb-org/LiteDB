@@ -307,6 +307,30 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The same fixture with "b" of document 7 back at "u-7": its readable part fits and is kept,
+        /// so the later part with _id 7 is reported as a duplicate. Only a rejected part frees its _id.
+        /// </summary>
+        [Fact]
+        public void Readable_part_with_the_id_of_a_kept_one_is_reported_as_a_duplicate()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("DamagedSalvageDuplicate_5_0_21.zip");
+            // {_id: 7, b: "u-1"}: the _id element, then b's string.
+            var changed = System.Text.Encoding.ASCII.GetBytes("\u0010_id\0\u0007\0\0\0\u0002b\0\u0004\0\0\0u-1\0");
+            var at = Enumerable.Range(0, bytes.Length - changed.Length).Single(i => bytes.Skip(i).Take(changed.Length).SequenceEqual(changed));
+            bytes[at + changed.Length - 2] = (byte)'7';
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            var col = db.GetCollection("c");
+            col.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 7, 9 });
+            col.FindById(7)["b"].AsString.Should().Be("u-7", "the first readable part is kept");
+            var errors = db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString).ToList();
+            errors.Should().Contain(x => x.Contains("damaged document 7 was not kept: another document has the same _id"));
+            errors.Count(x => x.Contains("Only the readable part of damaged document 7 was kept")).Should().Be(1);
+        }
+
+        /// <summary>
         /// Fixture DamagedIndexKeys_5_0_21.zip: written by the LiteDB 5.0.21 package, collections
         /// "maxed", "mined", "long" and "throws" with {_id: 1..3, a: "keep-i", b: "u-i"} and an index
         /// "k" on COALESCE($.b, MAXVALUE()), COALESCE($.b, MINVALUE()), COALESCE($.b, 1100 characters) and
