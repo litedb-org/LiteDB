@@ -31,6 +31,10 @@ namespace LiteDB.Tests.Regressions
         /// <summary>A checkpoint stage at which the data file stops syncing (see <see cref="Settings"/>).</summary>
         internal volatile string RetirementStage;
         internal bool LogFails { get => _log.Fails; set => _log.Fails = value; }
+
+        /// <summary>Device syncs attempted on the data file and on the WAL so far.</summary>
+        internal int DataSyncs => _data.Syncs;
+        internal int LogSyncs => _log.Syncs;
         internal string DataFile => _filename;
 
         /// <summary>Settings of an engine (or a shared connection) over the two files.</summary>
@@ -83,6 +87,9 @@ namespace LiteDB.Tests.Regressions
             private readonly object _gate = new object();
             private byte[] _durable;
             internal volatile bool Fails;
+            private int _syncs;
+
+            internal int Syncs => System.Threading.Volatile.Read(ref _syncs);
 
             internal DurableFile(string path)
                 : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1)
@@ -99,6 +106,7 @@ namespace LiteDB.Tests.Regressions
                     base.Flush(false);
                     return;
                 }
+                System.Threading.Interlocked.Increment(ref _syncs);
                 if (Fails)
                 {
                     base.Flush(false);
