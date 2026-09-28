@@ -93,7 +93,9 @@ cannot be written (`LiteDatabase(Stream)` or `EngineSettings` streams) does the 
 itself when opening would change a stream (recovery, repair, migration or conversion):
 explicit transactions still work, but write operations are rejected. Otherwise it opens
 as before; it never checkpoints into, marks or promotes such storage, and keeps writes
-in the log. Damaged data that prevents migration
+in the log. An engine opened read-only writes nothing to its streams, not even the
+invalid-state mark after it finds damage (5.0.21 wrote that mark into a writable caller
+stream, which is never rebuilt). Damaged data that prevents migration
 fails the open with the damaged collection named and marks the file for rebuild;
 with `auto-rebuild=true` the same open rebuilds it, keeping the readable fields of a
 damaged document as 5.x did, after every complete document: a part that repeats the
