@@ -174,18 +174,13 @@ namespace LiteDB.Tests.Issues
         /// journal. Opted out of durable commits, it used to publish v12 in write order behind a journal
         /// in the OS cache only, which a power loss mid-promotion could leave torn (external review,
         /// point 1); decision D keeps the recovery rule for callers that opted out, so a log that cannot
-        /// sync refuses the promotion before its journal, and the write that needed it throws. Both
-        /// files stay byte for byte, the file stays v11, and no failure is recorded ("cannot sync" is
-        /// the reason to opt out, proposed default A). Reading is possible, so it is allowed (decision
-        /// 2): every row reads. Once the log syncs, a checkpoint drains the WAL and the promotion goes
-        /// through.
-        /// Fails today (engine defect, as with durable commits below): the refusal thrown by
-        /// DiskService.BeginHeaderJournal inside the insert reaches ExecuteAutoTransaction, whose
-        /// EngineState.Handle stops the engine for any IOException, so it closes for good and the read
-        /// throws "Engine closed after an I/O failure".
+        /// sync refuses the promotion before its journal. The write falls back to BSON, as while the data
+        /// file cannot sync (Snapshot.TryRequireCompactVersion): it succeeds, the data file stays byte
+        /// for byte and v11, and no failure is recorded ("cannot sync" is the reason to opt out, proposed
+        /// default A). Once the log syncs, a checkpoint drains the WAL and the next compact write promotes.
         /// </summary>
         [Fact]
-        public void Compact_promotion_on_a_log_that_never_syncs_is_refused_and_keeps_reading_without_durable_commits()
+        public void Compact_promotion_on_a_log_that_never_syncs_falls_back_to_bson_without_durable_commits()
         {
             using var data = new MemoryStream();
             using var log = new UnsyncableLog();
@@ -196,19 +191,20 @@ namespace LiteDB.Tests.Issues
             {
                 db.CheckpointSize = 0;
                 var dataBefore = data.ToArray();
-                var logBefore = log.ToArray();
+                var syncsBefore = log.Rejections;
                 var rows = db.GetCollection("rows");
-                Action insert = () => rows.Insert(CompactDocuments());
-                insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogCannotSync + "an overwrite of the data file writes nothing*")
-                    .Which.Data.Contains(DiskService.LogCannotBackOverwriteDataKey).Should().BeTrue();
-                data.ToArray().Should().Equal(dataBefore, "the promotion was refused before it wrote");
-                log.ToArray().Should().Equal(logBefore, "no journal, no frame of the refused insert");
+                rows.Insert(CompactDocuments());
+                rows.Insert(CompactDocuments(32));
+                log.Rejections.Should().Be(syncsBefore + 1, "the promotion tried the log once; later compact writes skip it while it cannot sync");
+                data.ToArray().Should().Equal(dataBefore, "the promotion was refused before it wrote, and no checkpoint ran");
 
-                AssertRows(db, count: 16, value: 0);
+                rows.FindAll().Select(x => x["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 48));
+                rows.Find(Query.GTE("_id", 16)).Should().BeEquivalentTo(CompactDocuments().Concat(CompactDocuments(32)));
+                rows.Find(Query.EQ("value", 1)).Should().HaveCount(32);
                 WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
                 DurableLogFlush(db).Should().BeFalse();
             }
-            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the file stays v11");
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the file stays v11: BSON only");
 
             log.Syncs = true;
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Compact, DurableCommits = false }))
@@ -218,12 +214,12 @@ namespace LiteDB.Tests.Issues
                 db.Checkpoint();
                 log.Length.Should().Be(0, "once the log syncs, a checkpoint drains the WAL");
                 var rows = db.GetCollection("rows");
-                rows.Insert(CompactDocuments());
+                rows.Update(CompactDocuments());
                 data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION, "and the promotion goes through");
                 rows.Update(Documents(0, 16, value: 1));
                 WriteFailureAssert.NoneRecorded(db);
             }
-            AssertDocuments(data, log, count: 32, value: 1);
+            AssertDocuments(data, log, count: 48, value: 1);
         }
 
         /// <summary>
@@ -283,7 +279,7 @@ namespace LiteDB.Tests.Issues
         }
 
         // Repeated field names make the compact representation beneficial.
-        private static BsonDocument[] CompactDocuments() => Enumerable.Range(16, 16).Select(id =>
+        private static BsonDocument[] CompactDocuments(int first = 16) => Enumerable.Range(first, 16).Select(id =>
         {
             var document = LiteDB.Tests.Engine.CompactStorage_Tests.Document(id);
             document["value"] = 1;

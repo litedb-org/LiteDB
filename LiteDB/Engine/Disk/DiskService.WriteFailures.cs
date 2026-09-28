@@ -63,6 +63,8 @@ namespace LiteDB.Engine
                 if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
                 if (_readOnly || _readOnlyStorage)
                     return (_sharedDurability?.DataUnsynced ?? false) || (_state.ReopenedAfter?.WalKept ?? false);
+                // A log that cannot sync keeps the WAL too: a checkpoint writes nothing behind it.
+                if (this.LogKnownUnsyncable) return true;
                 if (this.DataSyncConfirmed) return false;
                 try { return !this.DataFileSyncs(); }
                 catch (IOException ex)

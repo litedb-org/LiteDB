@@ -174,7 +174,8 @@ namespace LiteDB.Tests.Regressions
         /// although the data file syncs (decision D). With a 64 KiB limit, every write that starts at or
         /// below it is accepted; past it an insert, an update and a new index throw a plain IOException
         /// before they change anything, and nothing is recorded: the limit is not a write failure. Reads
-        /// keep working. Once the log syncs, a checkpoint drains the WAL and writes resume.
+        /// keep working, and $database reports the WAL kept. Once the log syncs, the next write passes (it
+        /// tries the log sync first, as for the data file), and a checkpoint drains the WAL.
         /// </summary>
         [Fact]
         public void Wal_limit_holds_while_the_log_cannot_sync_though_the_data_file_syncs()
@@ -210,12 +211,15 @@ namespace LiteDB.Tests.Regressions
                 var info = Info(db);
                 info["readOnly"].AsBoolean.Should().BeFalse("the limit is not a write failure");
                 info["writeFailure"].IsNull.Should().BeTrue();
+                info["walKept"].AsBoolean.Should().BeTrue("no checkpoint can drain the WAL while the log cannot sync");
 
                 power.LogFails = false;
+                // A write past the limit tries the log sync first: once it syncs, a checkpoint can drain the WAL.
+                db.GetCollection("rows").Insert(Row(++rows));
+                Info(db)["walKept"].AsBoolean.Should().BeFalse();
                 engine.Checkpoint().Should().BeGreaterThan(0);
                 new FileInfo(logName).Length.Should().Be(0, "once the log syncs, a checkpoint drains the WAL");
                 power.AfterPowerLoss(x => AssertRows(x, rows));
-                db.GetCollection("rows").Insert(Row(++rows));
                 db.GetCollection("rows").Update(Row(1, value: 9));
                 db.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(9, "writes resume");
             }
@@ -225,14 +229,12 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// Opted out, the first compact write to a v11 file (compact storage=auto) needs the v12 format,
         /// whose promotion overwrites the header behind a header journal: on a log that cannot sync it is
-        /// refused, and the write throws. Both files stay byte for byte, the file stays v11, and nothing
-        /// is recorded (proposed default A). Reading is possible, so it is allowed (decision 2).
-        /// Fails today (engine defect): the refusal thrown by DiskService.BeginHeaderJournal inside the
-        /// insert reaches LiteEngine.ExecuteAutoTransaction, whose EngineState.Handle stops the engine on
-        /// any IOException, so it closes for good and the read throws "Engine closed after an I/O failure".
+        /// refused before the journal, and the write falls back to BSON, as while the data file cannot
+        /// sync. The write succeeds, the data file stays byte for byte and v11, and nothing is recorded
+        /// (proposed default A). A refusal that reached the insert used to stop the engine for good.
         /// </summary>
         [Fact]
-        public void Compact_promotion_on_a_log_that_cannot_sync_is_refused_and_keeps_reading_without_durable_commits()
+        public void Compact_promotion_on_a_log_that_cannot_sync_falls_back_to_bson_without_durable_commits()
         {
             using var data = new MemoryStream();
             using var log = new UnsyncableLog();
@@ -245,22 +247,22 @@ namespace LiteDB.Tests.Regressions
             }
             data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             var dataBefore = data.ToArray();
-            var logBefore = log.ToArray();
 
+            var compact = Enumerable.Range(100, 16).Select(Engine.CompactStorage_Tests.Document).ToArray();
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Auto, DurableCommits = false }))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
-                Action insert = () => db.GetCollection("rows").Insert(Enumerable.Range(100, 16).Select(Engine.CompactStorage_Tests.Document));
-                insert.Should().Throw<IOException>().WithMessage("The log file cannot sync to the device (#2242): an overwrite of the data file writes nothing*")
-                    .Which.Data.Contains(DiskService.LogCannotBackOverwriteDataKey).Should().BeTrue();
+                db.CheckpointSize = 0;
+                db.GetCollection("compact").Insert(compact);
                 data.ToArray().Should().Equal(dataBefore, "the promotion was refused before it wrote");
-                log.ToArray().Should().Equal(logBefore, "no journal, no frame of the refused insert");
 
                 AssertRows(db, 16);
+                db.GetCollection("compact").FindAll().Should().BeEquivalentTo(compact);
                 Info(db)["writeFailure"].IsNull.Should().BeTrue("\"cannot sync\" is the reason to opt out, not a failure");
+                Info(db)["readOnly"].AsBoolean.Should().BeFalse();
+                Info(db)["walKept"].AsBoolean.Should().BeTrue("no checkpoint can drain the WAL while the log cannot sync");
             }
-            data.ToArray().Should().Equal(dataBefore);
-            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the file stays v11");
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the file stays v11: BSON only");
         }
 
         /// <summary>A database with the value index and rows 1..<paramref name="rows"/>, checkpointed and synced on close.</summary>
@@ -293,7 +295,8 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>A write that started past the WAL limit threw a plain IOException before it changed anything.</summary>
         private static void AssertRefused(Action write) =>
-            write.Should().Throw<IOException>().WithMessage("Cannot modify this database now: its log file (* MB) passed the WAL limit (* MB)*")
+            write.Should().Throw<IOException>().WithMessage("Cannot modify this database now: its log file (*) passed the WAL limit (64 KB) " +
+                "while the log file cannot sync to the device (#2242)*")
                 .Which.GetType().Should().Be(typeof(IOException));
 
         /// <summary>The WAL's bytes up to its last whole frame; the padding behind them is never a frame.</summary>

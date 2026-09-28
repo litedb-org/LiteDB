@@ -146,11 +146,12 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A retiring checkpoint whose data file stops syncing between its retirement proof and the
         /// MVCC promotion's own data sync: the promotion is refused before it writes anything, and the
-        /// checkpoint throws the refusal with both files unchanged; the engine keeps reading every
-        /// commit, and every commit acknowledged durable opens from the files.
+        /// checkpoint keeps the WAL and returns 0 with both files unchanged, as one whose data file
+        /// cannot sync at its start; the engine keeps reading every commit, and every commit
+        /// acknowledged durable opens from the files.
         /// </summary>
         [Fact]
-        public void Retiring_checkpoint_stops_unchanged_when_its_promotion_is_refused()
+        public void Retiring_checkpoint_writes_nothing_when_its_promotion_is_refused()
         {
             using var file = new TempFile();
             SetupRows(file.Filename);
@@ -165,14 +166,12 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// Suspected engine defect, left failing: implementation note 6 of
-        /// docs/decisions/durability-policy.md says a data sync that answers "cannot sync" before a
-        /// checkpoint or promotion writes is not a failure, and decision 4 keeps commits durable in the
-        /// WAL while only the data file cannot sync. The refused promotion above writes nothing, yet the
-        /// checkpoint records it as a write failure ("A checkpoint failed ...: Cannot upgrade this
-        /// database's file format now ...") and the engine refuses every later write until reopened
-        /// (DiskService.BeginCheckpointStop records every IOException). Expected: nothing is recorded
-        /// and the next commit is durable in the WAL.
+        /// Implementation note 6 of docs/decisions/durability-policy.md: a data sync that answers
+        /// "cannot sync" before a checkpoint or promotion writes is not a failure, and decision 4 keeps
+        /// commits durable in the WAL while only the data file cannot sync. The refused promotion above
+        /// writes nothing; it used to be recorded as a write failure ("A checkpoint failed ...: Cannot
+        /// upgrade this database's file format now ..."), and the engine refused every later write until
+        /// reopened. Nothing is recorded, and the next commit is durable in the WAL.
         /// </summary>
         [Fact]
         public void Refused_promotion_of_a_retiring_checkpoint_is_not_a_write_failure()
@@ -198,8 +197,8 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// Commits 1 to 9 under a live reader, then a retiring checkpoint whose data file stops syncing
-        /// between its retirement proof and the promotion's own data sync: the checkpoint throws the
-        /// refusal, which wrote nothing. Returns both files as they were before the checkpoint.
+        /// between its retirement proof and the promotion's own data sync: the checkpoint returns 0, and
+        /// the refusal wrote nothing. Returns both files as they were before the checkpoint.
         /// </summary>
         private static (byte[] Data, byte[] Log) RefusePromotionInCheckpoint(string filename, FilePowerLossModel power, LiteEngine engine, LiteDatabase db)
         {
@@ -207,6 +206,7 @@ namespace LiteDB.Tests.Regressions
             db.CheckpointSize = 0;
             for (var value = 1; value <= 5; value++) Update(db, value);
             Exception thrown = null;
+            var checkpointed = -1;
             byte[] data = null, log = null;
             using (var reader = engine.Query("rows", new Query()))
             {
@@ -218,10 +218,12 @@ namespace LiteDB.Tests.Regressions
                     data = SyncPowerLossModel.ReadShared(filename);
                     log = SyncPowerLossModel.ReadShared(logName);
                     power.DataFailsFromSync = power.DataSyncs + 2; // the proof's data sync, then the promotion's
-                    try { db.Checkpoint(); } catch (Exception ex) { thrown = ex; }
+                    try { checkpointed = engine.Checkpoint(); } catch (Exception ex) { thrown = ex; }
                 });
             }
-            thrown.Should().BeOfType<IOException>().Which.Message.Should().StartWith("Cannot upgrade this database's file format now");
+            thrown.Should().BeNull("a checkpoint refused before it wrote keeps the WAL, as one whose data file cannot sync at its start");
+            checkpointed.Should().Be(0);
+            power.DataSyncs.Should().BeGreaterOrEqualTo(power.DataFailsFromSync, "the promotion tried its data sync");
             SyncPowerLossModel.ReadShared(filename).Should().Equal(data, "the refused promotion wrote nothing");
             SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
             return (data, log);

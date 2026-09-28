@@ -190,7 +190,7 @@ namespace LiteDB.Engine
                 // failed sync stops the checkpoint before any data overwrite; a log that cannot sync
                 // (#2242) refuses it before the journal is written: false, nothing written, WAL kept.
                 try { this.PrepareCheckpointHeader(); }
-                catch (IOException ex) when (IsLogCannotBackOverwrite(ex) && _checksums.JournalBytes == 0) { return false; }
+                catch (IOException ex) when (IsQuietOverwriteRefusal(ex)) { return false; }
                 return true;
             }
         }

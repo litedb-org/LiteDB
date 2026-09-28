@@ -58,7 +58,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exception.Data key: refused because the data file cannot sync (#2242) before anything was
         /// written. Not a failure (implementation note 6 of docs/decisions/durability-policy.md, in both
-        /// modes): nothing is recorded, the engine keeps writing, and the operation's caller gets it.
+        /// modes): nothing is recorded, the engine keeps writing, and the operation's caller gets it. So
+        /// is an overwrite refused before it wrote because the log cannot sync, without durable commits
+        /// (<see cref="IsQuietOverwriteRefusal"/>).
         /// </summary>
         internal const string RefusedBeforeWriteDataKey = "LiteDB.RefusedBeforeWrite";
 

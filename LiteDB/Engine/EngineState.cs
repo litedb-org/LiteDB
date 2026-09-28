@@ -101,9 +101,10 @@ namespace LiteDB.Engine
         {
             LOG(ex.Message, "ERROR");
 
-            // Refused because the data file cannot sync, before anything was written (#2242): not a
-            // failure (implementation note 6). The transaction rolls back and the caller gets the
-            // refusal, as at the WAL limit. A refusal its throw site recorded stops the engine below.
+            // Refused because the data file (or, without durable commits, the log) cannot sync, before
+            // anything was written (#2242): not a failure (implementation note 6). The transaction rolls
+            // back and the caller gets the refusal, as at the WAL limit. A refusal its throw site
+            // recorded stops the engine below.
             if (DiskService.IsRefusedBeforeWrite(ex) && this.WriteFailure == null) return true;
 
             if (ex is IOException ||

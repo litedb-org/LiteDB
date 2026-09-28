@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace LiteDB.Engine
@@ -187,7 +188,10 @@ namespace LiteDB.Engine
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
-                var retirement = _disk.PrepareRetirement(obsolete);
+                WalRetirement retirement;
+                // Its format promotion refused before it wrote (DiskService.IsRefusedBeforeWrite): keep the WAL.
+                try { retirement = _disk.PrepareRetirement(obsolete); }
+                catch (IOException ex) when (DiskService.IsRefusedBeforeWrite(ex)) { return 0; }
                 // A log that cannot sync backs no overwrite (decision D): write nothing, keep the WAL.
                 if (!_disk.SyncLogBeforeCheckpoint()) return 0;
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));

@@ -17,7 +17,7 @@ namespace LiteDB.Engine
             if (_checksums.JournalBytes != 0)
             {
                 SyncLogBarrier(_writer.Value);
-                this.RequireLogSynced("an overwrite of the data file");
+                this.RequireLogSynced("an overwrite of the data file", wroteNothing: true);
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -32,11 +32,12 @@ namespace LiteDB.Engine
             }
             else SyncLogBarrier(log);
             // Before the journal: a refusal leaves no footer that would block the WAL.
-            this.RequireLogSynced("an overwrite of the data file");
+            this.RequireLogSynced("an overwrite of the data file", wroteNothing: true);
             HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
-            this.RequireLogSynced("an overwrite of the data file");
+            // The log stopped syncing after its journal was written: a failure, the journal stays.
+            this.RequireLogSynced("an overwrite of the data file", wroteNothing: false);
             SyncLogDirectory();
         }
 

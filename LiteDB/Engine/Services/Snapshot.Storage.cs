@@ -26,17 +26,18 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Compact writes need the v12 format. While the data file cannot sync its promotion is refused
-        /// before it writes anything (DiskService.UnsyncedPromotion): the caller then writes BSON, as
-        /// whenever compact storage does not pay.
+        /// before it writes anything (DiskService.UnsyncedPromotion), and so it is without durable
+        /// commits while the log cannot sync (DiskService.IsQuietOverwriteRefusal): the caller then
+        /// writes BSON, as whenever compact storage does not pay.
         /// </summary>
         internal bool TryRequireCompactVersion()
         {
             if (_header.FileVersion >= HeaderPage.COMPACT_FILE_VERSION) return true;
-            // Known to be refused: skip the promotion's data sync for every document meanwhile. The next
-            // data sync that succeeds (a checkpoint retries it first) clears this.
-            if (_disk.KeepsWal) return false;
+            // Known to be refused: skip the promotion's syncs for every document meanwhile. The next
+            // sync that succeeds (a checkpoint retries both first) clears this.
+            if (_disk.KeepsWal || _disk.LogKnownUnsyncable) return false;
             try { RequireFileVersion(HeaderPage.COMPACT_FILE_VERSION); return true; }
-            catch (IOException ex) when (ex.Data.Contains(DiskService.UnsyncedPromotionDataKey)) { return false; }
+            catch (IOException ex) when (ex.Data.Contains(DiskService.UnsyncedPromotionDataKey) || DiskService.IsQuietOverwriteRefusal(ex)) { return false; }
         }
 
         internal void CommitSchemas(List<StorageSchema> schemas)
