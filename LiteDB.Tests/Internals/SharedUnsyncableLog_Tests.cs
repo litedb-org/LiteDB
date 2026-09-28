@@ -20,18 +20,31 @@ namespace LiteDB.Internals
     /// Opted out of durable commits "cannot sync" is not a failure (proposed default A of
     /// docs/decisions/durability-policy.md) and writes continue; with durable commits the
     /// checkpoint fails loudly and the connection continues read-only (decisions 3 and 6).
+    /// Either way no checkpoint overwrites the data file behind a recovery copy the log cannot
+    /// sync (decision D; external review, point 1): opted out, one whose log cannot sync before it
+    /// writes returns quietly and leaves the data file byte for byte.
     /// </summary>
     public partial class SharedUnsyncableLog_Tests
     {
         private const int DocumentCount = 64; // Streams past the shared buffered-result budget.
         private const int LaterWrites = 5;
 
+        /// <summary>
+        /// Where the log cannot sync before the checkpoint writes ("retirement", "known"), the checkpoint
+        /// returns quietly and the data file stays byte for byte. It used to backfill in write order
+        /// behind a header journal in the OS cache only (external review, point 1; decision D).
+        /// Fails today for "retirement" (engine defect): the log stops syncing after the retirement's
+        /// proof, and the retirement's MVCC format promotion (DiskService.PrepareRetirement, before
+        /// SyncLogBeforeCheckpoint, the one place that takes the refusal quietly) throws the refusal out
+        /// of the checkpoint, whose stop records it as "A checkpoint" failure (DiskService.BeginCheckpointStop):
+        /// db.Checkpoint() throws, and the connection continues read-only.
+        /// </summary>
         [Theory]
         [InlineData("clear", false)]      // the log rejects only the sync of the checkpoint's clears
         [InlineData("clear", true)]       // same, and a second connection writes afterwards
-        [InlineData("retirement", false)] // the log stops syncing before the clears: none is written
+        [InlineData("retirement", false)] // the log stops syncing after the proof: the checkpoint writes nothing
         [InlineData("retirement", true)]
-        [InlineData("known", false)]      // the checkpoint's proof finds out: it retires nothing
+        [InlineData("known", false)]      // the checkpoint's proof finds out: it retires and writes nothing
         public void Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits(string stopsAt, bool secondConnection)
         {
             using var file = new TempFile();
@@ -55,9 +68,11 @@ namespace LiteDB.Internals
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
             byte[] retired = null;
+            var dataBefore = ReadAll(data);
             // Frames written before the checkpoint; the witness records it appends are discarded by
             // the next open when no root names them.
-            var frames = ReadAll(log).Length / WalChecksum.FrameSize;
+            var walBefore = ReadAll(log);
+            var frames = walBefore.Length / WalChecksum.FrameSize;
             // Let the checkpoint's proof sync succeed; its retirement then meets the failure.
             if (stopsAt == "retirement")
             {
@@ -74,9 +89,16 @@ namespace LiteDB.Internals
             log.Failure.Should().BeSameAs(unsupported);
             var cleared = BlankFrames(retired);
             if (stopsAt == "clear") cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
-            else cleared.Should().BeEmpty(stopsAt == "known"
-                ? "storage known unable to sync never retires frames"
-                : "a checkpoint whose log stopped syncing keeps the frames it retired");
+            else
+            {
+                cleared.Should().BeEmpty(stopsAt == "known"
+                    ? "storage known unable to sync never retires frames"
+                    : "a checkpoint whose log stopped syncing keeps the frames it would have retired");
+                // Decision D: its retirement's format promotion and its backfill overwrite the data file
+                // behind a header journal the log cannot sync; the checkpoint refuses both before either.
+                ReadAll(data).Should().Equal(dataBefore, "a checkpoint whose log cannot sync writes nothing to the data file");
+                retired.Take(frames * WalChecksum.FrameSize).Should().Equal(walBefore.Take(frames * WalChecksum.FrameSize), "the WAL is kept");
+            }
             IsDurable(db).Should().BeFalse();
 
             var rejectedBefore = log.RejectedSyncs;
