@@ -64,9 +64,7 @@ namespace LiteDB.Tests.Regressions
                 Action insert = () => db.GetCollection("rows").Insert(Row(rows + 1));
                 Action update = () => db.GetCollection("rows").Update(Row(1));
                 Action index = () => db.GetCollection("rows").EnsureIndex("payload");
-                foreach (var write in new[] { insert, update, index })
-                    write.Should().Throw<IOException>().WithMessage("Cannot modify this database now: its log file (* MB) passed the WAL limit (1 MB) " +
-                        "while the data file cannot sync to the device (#2242)*");
+                foreach (var write in new[] { insert, update, index }) AssertRefused(write);
                 (power.DataSyncs - dataSyncs).Should().BeGreaterOrEqualTo(3, "each refused write first retried the data sync");
                 SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(files.Item1, "a refused write changes nothing");
                 SyncPowerLossModel.ReadShared(logName).Should().Equal(files.Item2);
@@ -92,6 +90,81 @@ namespace LiteDB.Tests.Regressions
             }
             finally { File.Delete(logName); }
         }
+
+        /// <summary>
+        /// The limit is checked when a write starts (implementation note 8): an explicit transaction
+        /// whose writes started below it commits past it, durable in the WAL, and the write after it
+        /// throws. Past the limit an explicit transaction still starts and reads, its write throws
+        /// before it changes anything, and it rolls back. Closing writes nothing and does not throw
+        /// (decision 5). A reopen and a shared connection, whose engines know nothing of the earlier
+        /// refusals, refuse writes the same way while reads stay exact and neither file changes; once
+        /// the data file syncs, the shared connection's next write is accepted, a checkpoint drains
+        /// the WAL, and a power loss keeps every row.
+        /// </summary>
+        [Fact]
+        public void Transaction_started_below_the_wal_limit_commits_past_it_and_the_limit_holds_for_every_engine()
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var connection = $"Filename={file.Filename};wal limit=1MB";
+            using (var setup = new LiteDatabase(connection)) setup.GetCollection("rows").EnsureIndex("value"); // its header synced
+            using var power = new FilePowerLossModel(file.Filename) { DataFails = true };
+            const int count = 400; // about 1.6 MB of documents: the transaction's commit passes the limit
+            try
+            {
+                using (var db = new LiteDatabase(connection))
+                {
+                    db.BeginTrans().Should().BeTrue();
+                    db.GetCollection("rows").Insert(Enumerable.Range(1, count).Select(Row));
+                    Info(db)["logFileSize"].AsInt64.Should().BeLessOrEqualTo(Limit, "the transaction's pages reach the WAL at its commit");
+                    db.Commit().Should().BeTrue("a transaction already running may commit past the limit");
+                    var info = Info(db);
+                    info["logFileSize"].AsInt64.Should().BeGreaterThan(Limit);
+                    info["durableLogFlush"].AsBoolean.Should().BeTrue();
+                    power.AfterPowerLoss(x => AssertRows(x, count));
+                    AssertRefused(() => db.GetCollection("rows").Insert(Row(count + 1)));
+
+                    db.BeginTrans().Should().BeTrue("an explicit transaction starts past the limit");
+                    AssertRows(db, count);
+                    AssertRefused(() => db.GetCollection("rows").Delete(1));
+                    db.Rollback().Should().BeTrue();
+                    AssertRows(db, count);
+                }
+                var files = (SyncPowerLossModel.ReadShared(file.Filename), SyncPowerLossModel.ReadShared(logName));
+                files.Item2.Length.Should().BeGreaterThan((int)Limit, "closing kept the WAL");
+
+                using (var reopened = new LiteDatabase(connection))
+                {
+                    AssertRows(reopened, count);
+                    AssertRefused(() => reopened.GetCollection("rows").Insert(Row(count + 1)));
+                    AssertRows(reopened, count);
+                }
+                using (var shared = new LiteDatabase(connection + ";connection=shared"))
+                {
+                    AssertRows(shared, count);
+                    AssertRefused(() => shared.GetCollection("rows").Insert(Row(count + 1)));
+                    AssertRefused(() => shared.GetCollection("rows").EnsureIndex("payload"));
+                    AssertRows(shared, count);
+                    Info(shared)["writeFailure"].IsNull.Should().BeTrue("the limit is not a write failure");
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(files.Item1, "no refused write changed anything");
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(files.Item2);
+                    power.AfterPowerLoss(x => AssertRows(x, count));
+
+                    power.DataFails = false;
+                    shared.GetCollection("rows").Insert(Row(count + 1)); // its engine's data sync now succeeds
+                    shared.Checkpoint();
+                    (File.Exists(logName) ? new FileInfo(logName).Length : 0).Should().Be(0, "once the data file syncs, a checkpoint drains the WAL");
+                    AssertRows(shared, count + 1);
+                }
+                power.AfterPowerLoss(x => AssertRows(x, count + 1));
+            }
+            finally { File.Delete(logName); }
+        }
+
+        /// <summary>A write that started past the WAL limit threw before it changed anything.</summary>
+        private static void AssertRefused(Action write) =>
+            write.Should().Throw<IOException>().WithMessage("Cannot modify this database now: its log file (* MB) passed the WAL limit (1 MB) " +
+                "while the data file cannot sync to the device (#2242)*");
 
         private static BsonDocument Row(int id) => new BsonDocument
         {
