@@ -279,6 +279,67 @@ namespace LiteDB.Tests.Regressions
             }
         }
 
+        /// <summary>
+        /// A header frame whose write fails part-way is truncated like a failed append. The failed
+        /// write is recorded either way (decision 6: the device is taken as bad) and the engine
+        /// continues read-only; if the truncation fails too, the torn frame stays, and the next open
+        /// discards it: no acknowledged commit depended on it.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Failed_header_frame_write_is_truncated_or_stops_the_engine(bool truncationFails)
+        {
+            var data = new MemoryStream();
+            var log = new TearingLog();
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(Row(1));
+                db.Checkpoint();
+                log.Length.Should().Be(0);
+                log.TearNextFrame = true;
+                log.SetLengthFails = truncationFails;
+                Action insert = () => db.GetCollection("rows").Insert(Row(2));
+                insert.Should().Throw<IOException>();
+                log.SetLengthFails = false;
+
+                var info = db.Execute("SELECT $ FROM $database").Single();
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                info["writeFailure"].IsNull.Should().BeFalse();
+                log.Length.Should().Be(truncationFails ? WalChecksum.FrameSize / 2 : 0,
+                    truncationFails ? "the torn frame 0 stays: nothing may be appended behind it" : "the torn bytes were truncated");
+                db.GetCollection("rows").Count().Should().Be(1);
+            }
+            using var reopened = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log });
+            reopened.Query("rows", Query.All()).ToList().Select(x => x["_id"].AsInt32).Should().Equal(1);
+            reopened.Insert("rows", new[] { Row(4) }, BsonAutoId.Int32);
+            reopened.Query("rows", Query.All()).ToList().Select(x => x["_id"].AsInt32).Should().Equal(1, 4);
+        }
+
+        private sealed class TearingLog : MemoryStream
+        {
+            internal bool TearNextFrame, SetLengthFails;
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                if (TearNextFrame && count == WalChecksum.FrameSize)
+                {
+                    TearNextFrame = false;
+                    base.Write(buffer, offset, count / 2);
+                    throw new IOException("injected torn write");
+                }
+                base.Write(buffer, offset, count);
+            }
+
+            public override void SetLength(long value)
+            {
+                if (SetLengthFails) throw new IOException("injected truncation failure");
+                base.SetLength(value);
+            }
+        }
+
         private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["value"] = id % 7 };
 
         /// <summary>Leave the files a process crash leaves after <paramref name="rows"/> commits: the WAL not checkpointed.</summary>
