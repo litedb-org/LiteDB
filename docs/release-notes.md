@@ -43,11 +43,19 @@ once the WAL's directory), so such storage is found before any witness depends o
 storage that stops syncing during the checkpoint keeps the retired frames and publishes
 no root once it found out. An engine whose data is a file (opened by it or passed as a
 `FileStream`) proves the data file syncs before its first log sync, once per data header
-in the process, and syncs the WAL once before it first reuses a slot. If only the data file cannot sync, a full checkpoint
-keeps the WAL, since emptying it would outlast the unsynced backfill; automatic
-checkpoints then wait until the WAL has doubled, and a rebuild or the conversion of a
-5.x file is refused. A 5.x data file found beside its conversion's WAL (whose converted
-header never reached the device) fails to open instead of being replayed. Larger
+in the process, and syncs the WAL once before it first reuses a slot. On storage that
+syncs, a retiring checkpoint costs one extra data and log sync and an engine's first slot
+reuse one log sync; the data file proof costs nothing while its header is unchanged. A
+data sync that fails with an I/O error during that proof fails the operation and stops
+the engine, as it does in a checkpoint. If only the data file cannot sync, a full checkpoint
+keeps the WAL, since emptying it would outlast the unsynced backfill; the WAL file then
+never shrinks until the data file syncs again (every open scans all of it: about 230 MB
+after 6,000 inserts of 2 KB), automatic checkpoints wait until the WAL has doubled, and a
+rebuild or the conversion of a 5.x file is refused. Where neither file syncs, a full
+checkpoint empties the WAL as before #2818; if the WAL later syncs again while the data
+file still does not, a power loss can lose commits acknowledged as durable before the
+storage stopped syncing. A 5.x data file found beside its conversion's WAL (whose
+converted header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
 host with working file-sharing locks, use the same mutex naming strategy and this
@@ -108,7 +116,20 @@ fails the open with the damaged collection named and marks the file for rebuild;
 with `auto-rebuild=true` the same open rebuilds it, keeping the readable fields of a
 damaged document as 5.x did, after every complete document: a part that repeats the
 `_id` of a complete document or a key of a unique index is listed in `_rebuild_errors`
-instead of failing the rebuild. Unique-key
+instead of failing the rebuild. A kept part reads like a complete document, so it is
+also listed there by `_id`; a unique index gets its missing key as null, and a later
+document without that field then conflicts with it. When the rebuild's repeated open
+fails with an exception other than a `LiteException`, that exception keeps its type
+and carries the damage in `Data["LiteDB.RebuildCause"]`. A vector index whose section a
+release without vector support (5.0.21) displaced when it rewrote the index list has no
+metadata: read-only opens work, a writable open reports it as damage, and the rebuild
+drops only that index. Conversion first drains a legacy WAL completely. While another
+shared connection may still read it (a reader's lease, or a reader registry that cannot
+be inspected) the open is refused with `LOCK_TIMEOUT` before any document is validated,
+changing neither file; an unreadable registry keeps refusing until it can be read. It is
+refused with an `IOException` where only the data file cannot sync. A legacy WAL page
+that names a page beyond both files fails the open with `INVALID_DATABASE`, changing
+neither file (5.0.21 wrote it that far into the data file). Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages after keys that
 released updates left stale (for example `19.99` for a stored `19.99m`, including
@@ -214,6 +235,15 @@ Repeated safepoints reuse the transaction's existing unconfirmed WAL page
 positions. A confirmation page is always appended after the transaction's
 other pages, retaining the existing recovery format and ordering. Readers of
 committed versions continue to use separate, immutable WAL positions.
+
+A WAL write that may have left a torn frame stops the engine before the WAL writer is
+released, whatever the exception type: a failed overwrite of a slot, an append whose
+truncation failed, any failure while a caller log stream that buffers (any caller stream
+but a `MemoryStream`) may still hold frames of the batch, and a checkpoint that fails
+while writing the WAL. 5.0.21 rolled back and continued after a non-I/O failure; a later
+commit could then land behind the torn frame and be lost at recovery. A transaction
+whose safepoint failed to write its pages can only roll back: later reads and writes in
+it throw "can only be rolled back", and `Commit` rolls it back and throws.
 
 Transaction cleanup errors no longer prevent removal from the transaction
 registry, clearing the thread's transaction slot, or releasing its transaction

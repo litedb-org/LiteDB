@@ -10,7 +10,10 @@ namespace LiteDB.Engine
     /// The data header each data file had at its latest successful sync in this process (a
     /// SHA-256 hash, by full path). While a file's header still matches, whatever an earlier
     /// engine left in its OS cache before that sync is durable (see DiskService.ProveDataFile).
-    /// A missing or stale entry only costs a sync.
+    /// A missing or stale entry only costs a sync. Assumes a file at the same path with the same
+    /// header is the same file: every WAL-emptying checkpoint, rebuild and new database draws a
+    /// random salt, but a copy restored over the file (or a template) with a byte-identical header
+    /// and different pages is taken as proven.
     /// </summary>
     internal static class DurableHeaders
     {
