@@ -13,10 +13,11 @@ namespace LiteDB.Engine
             // Every caller overwrites existing data or its sole header. Commit
             // fallback may lose recent transactions, but a failed sync must never
             // let an in-place overwrite proceed without durable recovery information.
-            // Storage that cannot sync at all proceeds in write order (#2242).
+            // A log that cannot sync (#2242) refuses the overwrite, in both modes.
             if (_checksums.JournalBytes != 0)
             {
                 SyncLogBarrier(_writer.Value);
+                this.RequireLogSynced("an overwrite of the data file");
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -29,9 +30,13 @@ namespace LiteDB.Engine
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
+            else SyncLogBarrier(log);
+            // Before the journal: a refusal leaves no footer that would block the WAL.
+            this.RequireLogSynced("an overwrite of the data file");
             HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
+            this.RequireLogSynced("an overwrite of the data file");
             SyncLogDirectory();
         }
 

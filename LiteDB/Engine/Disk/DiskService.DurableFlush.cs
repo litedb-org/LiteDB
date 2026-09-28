@@ -195,18 +195,20 @@ namespace LiteDB.Engine
         /// Sync the log first, so that a power loss during the checkpoint can still be redone from it.
         /// Caller holds the exclusive database lock.
         /// </summary>
-        internal void SyncLogBeforeCheckpoint()
+        internal bool SyncLogBeforeCheckpoint()
         {
-            if (_readOnly) return;
+            if (_readOnly) return true;
 
             var stream = _writer.Value;
 
             lock (stream)
             {
-                // Sync both the header recovery copy and preceding WAL before
-                // overwriting data. A failed sync stops checkpoint before any data
-                // overwrite; storage that cannot sync at all proceeds degraded (#2242).
-                this.PrepareCheckpointHeader();
+                // Sync both the header recovery copy and preceding WAL before overwriting data. A
+                // failed sync stops the checkpoint before any data overwrite; a log that cannot sync
+                // (#2242) refuses it before the journal is written: false, nothing written, WAL kept.
+                try { this.PrepareCheckpointHeader(); }
+                catch (IOException ex) when (IsLogCannotBackOverwrite(ex) && _checksums.JournalBytes == 0) { return false; }
+                return true;
             }
         }
 

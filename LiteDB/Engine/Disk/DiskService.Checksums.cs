@@ -82,6 +82,7 @@ namespace LiteDB.Engine
             this.SyncDataFile();
             if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
             SyncLogBarrier(log);
+            this.RequireLogSynced("a conversion");
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;

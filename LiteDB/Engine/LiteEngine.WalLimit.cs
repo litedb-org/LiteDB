@@ -13,7 +13,8 @@ namespace LiteDB.Engine
         private void RequireWalBelowLimit()
         {
             var log = _disk.GetFileLength(FileOrigin.Log);
-            if (log <= _settings.WalLimit || _disk.DataSyncConfirmed || _disk.DataFileSyncs()) return;
+            // Only a WAL a checkpoint can drain may pass the limit: its data file syncs, and its log too.
+            if (log <= _settings.WalLimit || (!_disk.LogKnownUnsyncable && (_disk.DataSyncConfirmed || _disk.DataFileSyncs()))) return;
             throw new IOException(
                 $"Cannot modify this database now: its log file ({log / (1024 * 1024)} MB) passed the WAL limit " +
                 $"({_settings.WalLimit / (1024 * 1024)} MB) while the data file cannot sync to the device (#2242), so no " +

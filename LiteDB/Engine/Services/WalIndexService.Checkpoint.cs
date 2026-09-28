@@ -188,7 +188,8 @@ namespace LiteDB.Engine
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
                 var retirement = _disk.PrepareRetirement(obsolete);
-                _disk.SyncLogBeforeCheckpoint();
+                // A log that cannot sync backs no overwrite (decision D): write nothing, keep the WAL.
+                if (!_disk.SyncLogBeforeCheckpoint()) return 0;
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
