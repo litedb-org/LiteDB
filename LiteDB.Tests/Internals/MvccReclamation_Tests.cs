@@ -75,6 +75,8 @@ namespace LiteDB.Internals
         }
 
         [Theory]
+        [InlineData(null, "before-wal-reclaim-lock")]
+        [InlineData("secret", "before-wal-reclaim-lock")]
         [InlineData(null, "wal-slot-cleared")]
         [InlineData("secret", "wal-slot-cleared")]
         [InlineData(null, "wal-slots-flushed")]
