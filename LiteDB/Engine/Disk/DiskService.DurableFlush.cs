@@ -133,7 +133,6 @@ namespace LiteDB.Engine
                 return;
             }
 
-            if (!_dataSyncProven && _dataIsFile) this.ProveDataFile();
             this.SyncLogBarrier(stream);
             // The WAL may have been created (or recreated after a checkpoint deleted it) by
             // this or a crashed engine: make its name durable before a commit depends on it.
@@ -151,6 +150,7 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncLogBarrier(Stream log)
         {
+            this.ProveDataBeforeLog();
             try
             {
                 log.FlushToDisk();
@@ -193,11 +193,12 @@ namespace LiteDB.Engine
         /// A commit also depends on the data file, where an earlier engine, maybe of another
         /// connection or process, may have left a header in the OS cache only: a data file that
         /// answered "cannot sync" (#2242) for a salt rotation, a retirement root or a format
-        /// conversion. Before this engine first acknowledges a commit as durable, make it durable;
-        /// a "cannot sync" answer degrades this engine's commits instead. Only a header change can
-        /// make earlier WAL content obsolete (a checkpoint that does not change it keeps every
-        /// frame), so a shared connection whose latest data sync left this exact header skips it.
-        /// Caller streams are the caller's to share. Caller holds the log writer lock.
+        /// conversion. Make it durable before this engine's first log sync (see
+        /// <see cref="ProveDataBeforeLog"/>); a "cannot sync" answer degrades this engine's commits
+        /// instead. Only a header change can make earlier WAL content obsolete (a checkpoint that
+        /// does not change it keeps every frame), so a shared connection whose latest data sync
+        /// left this exact header skips it. Caller streams are the caller's to share.
+        /// Caller holds the log writer lock, or opens the engine.
         /// </summary>
         private void ProveDataFile()
         {
@@ -208,6 +209,17 @@ namespace LiteDB.Engine
                 if (durable != null && ReadDataHeader(data).SequenceEqual(durable)) _dataSyncProven = true;
                 else this.SyncDataBarrier(data);
             }
+        }
+
+        /// <summary>
+        /// An engine's first log sync can make durable a WAL change an earlier engine left in the
+        /// OS cache only: a truncation on storage where neither file synced, whose backfill is
+        /// still in the data file's OS cache. Prove the data file first, once per engine; an
+        /// engine whose data file already answered "cannot sync" has nothing left to prove.
+        /// </summary>
+        private void ProveDataBeforeLog()
+        {
+            if (!_dataSyncProven && _dataIsFile && !_readOnly && !_dataFlushDegraded) this.ProveDataFile();
         }
 
         /// <summary>Sync the data file as a barrier. Caller holds the log writer lock (order: log, then data).</summary>
@@ -233,6 +245,7 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncRawLog()
         {
+            this.ProveDataBeforeLog();
             var stream = _writer.Value;
             var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
             try

@@ -10,8 +10,9 @@ namespace LiteDB.Tests.Regressions
     /// <summary>
     /// <see cref="SyncPowerLossModel"/> for engines that open the database files themselves: each
     /// file keeps the bytes it held at its last successful sync, observed through the NativeFileSync
-    /// hook. Syncs of the data file answer EINVAL ("cannot sync", #2242) while
-    /// <see cref="DataFails"/> is set. Tests using it belong to the NativeFileSync collection.
+    /// hook. Syncs of the data file (the WAL) answer EINVAL ("cannot sync", #2242) while
+    /// <see cref="DataFails"/> (<see cref="LogFails"/>) is set. Tests using it belong to the
+    /// NativeFileSync collection.
     /// </summary>
     internal sealed class FilePowerLossModel : IDisposable
     {
@@ -19,7 +20,7 @@ namespace LiteDB.Tests.Regressions
         private readonly object _gate = new object();
         private byte[] _durableData, _durableLog;
         private int _dataSyncs;
-        internal volatile bool DataFails;
+        internal volatile bool DataFails, LogFails;
 
         internal FilePowerLossModel(string filename)
         {
@@ -32,6 +33,7 @@ namespace LiteDB.Tests.Regressions
                 var name = Path.GetFullPath(path);
                 if (string.Equals(name, _log, StringComparison.OrdinalIgnoreCase))
                 {
+                    if (LogFails) return 22;
                     lock (_gate) _durableLog = Read(_log);
                 }
                 else if (string.Equals(name, _data, StringComparison.OrdinalIgnoreCase))
@@ -48,14 +50,20 @@ namespace LiteDB.Tests.Regressions
         internal int DataSyncs => Volatile.Read(ref _dataSyncs);
 
         /// <summary>Open the files a power loss now leaves behind, as a copy, and read them.</summary>
-        internal T AfterPowerLoss<T>(Func<LiteDatabase, T> read)
+        internal T AfterPowerLoss<T>(Func<LiteDatabase, T> read) => Open(this.Capture(), read);
+
+        /// <summary>The files a power loss would leave behind now.</summary>
+        internal (byte[] Data, byte[] Log) Capture()
+        {
+            lock (_gate) return (_durableData, _durableLog);
+        }
+
+        /// <summary>Open a captured power-loss image, as a copy, and read it.</summary>
+        internal static T Open<T>((byte[] Data, byte[] Log) captured, Func<LiteDatabase, T> read)
         {
             using var image = new TempFile();
-            lock (_gate)
-            {
-                File.WriteAllBytes(image.Filename, _durableData);
-                File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), _durableLog);
-            }
+            File.WriteAllBytes(image.Filename, captured.Data);
+            File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), captured.Log);
             var hook = NativeFileSync.SimulateErrno;
             NativeFileSync.SimulateErrno = null;
             try
