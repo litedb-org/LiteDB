@@ -58,14 +58,15 @@ namespace LiteDB.Internals
         /// with durable commits (the default) it is not acknowledged (decision 3). Its frames reached
         /// the operating system, so its error says the outcome is unknown (implementation note 4). The
         /// connection keeps the failure across its short-lived engines (decision 6, proposed default
-        /// C): every later operation opens read-only, reads return the files as they are, $database
-        /// reports the failure, and the next write throws with it before it asks the storage anything.
-        /// A new connection starts fresh.
+        /// C): every later operation opens read-only, reads return what was acknowledged before the
+        /// failure (decision 13: the caller saw this commit fail), $database reports the failure, and
+        /// the next write throws with it before it asks the storage anything. A new connection starts
+        /// fresh and lets the files decide: the commit's frames reached them.
         /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
-        public void UnsupportedSync_FailsTheCommitAndStaysVisibleAfterSharedEngineReopens(string password)
+        public void UnsupportedSync_FailsTheCommitAndItsConnectionShowsOnlyAcknowledgedCommits(string password)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
@@ -97,7 +98,7 @@ namespace LiteDB.Internals
             }
             log.RejectedSyncs.Should().Be(1);
 
-            rows.FindAll().Select(x => x["value"].AsString).Should().Equal(new[] { "after" }, "its frames reached the operating system");
+            rows.FindAll().Select(x => x["value"].AsString).Should().Equal(new[] { "before" }, "the caller saw the update fail");
             var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
             IsDurable(db).Should().BeFalse("reopening for diagnostics must retain the weaker guarantee");
             var syncs = log.DurableSyncs;

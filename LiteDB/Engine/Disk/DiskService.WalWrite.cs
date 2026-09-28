@@ -42,6 +42,9 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                // The end of what earlier batches acknowledged: a read-only reopen after this batch
+                // failed replays only up to it (decision 13).
+                var acknowledgedEnd = Interlocked.Read(ref _logLength) + PAGE_SIZE;
                 var uncertain = false;
                 try
                 {
@@ -144,7 +147,7 @@ namespace LiteDB.Engine
                     // frame. Whatever the exception type, stop before releasing the writer: no later
                     // commit may be appended (and acknowledged) behind it.
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
-                    this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log));
+                    this.RecordWriteFailure("A WAL write", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
 
@@ -166,7 +169,7 @@ namespace LiteDB.Engine
                         // defer teardown: cleanup can need the WAL-index lock while a
                         // partial checkpoint owns it and waits for this monitor.
                         flushFailure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
-                        this.RecordWriteFailure("A commit's log flush", WriteFailure.InFile(flushFailure, FileOrigin.Log));
+                        this.RecordWriteFailure("A commit's log flush", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }

@@ -20,7 +20,30 @@ namespace LiteDB.Engine
             this.Error = error.Message;
             this.Time = DateTime.UtcNow;
             this.WalKept = walKept;
+            if (error.Data[AcknowledgedEndKey] is long end && error.Data[AcknowledgedRawKey] is long raw && error.Data[AcknowledgedSaltKey] is byte[] salt)
+            {
+                this.AcknowledgedLogEnd = end;
+                this.FailedRawLogLength = raw;
+                this.FailedSalt = salt;
+            }
         }
+
+        // Exception.Data keys (serializable values on every target) that bound the read-only reopen (decision 13).
+        internal const string AcknowledgedEndKey = "LiteDB.AcknowledgedLogEnd";
+        internal const string AcknowledgedRawKey = "LiteDB.FailedRawLogLength";
+        internal const string AcknowledgedSaltKey = "LiteDB.FailedLogSalt";
+
+        /// <summary>
+        /// Decision 13: the WAL's logical end after the last batch acknowledged before a failed WAL
+        /// batch, -1 when the failure was not one. With <see cref="FailedRawLogLength"/> and
+        /// <see cref="FailedSalt"/>, the raw log as the failure left it: a read-only reopen replays only
+        /// up to this end while the log is still exactly so (DiskService.BoundLogToAcknowledged).
+        /// </summary>
+        internal long AcknowledgedLogEnd { get; } = -1;
+
+        internal long FailedRawLogLength { get; }
+
+        internal byte[] FailedSalt { get; }
 
         /// <summary>"data", "log", or null when the failure did not say.</summary>
         internal string File { get; }

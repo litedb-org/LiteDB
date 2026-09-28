@@ -119,6 +119,8 @@ namespace LiteDB.Engine
                 {
                     _logLength = -PAGE_SIZE;
                 }
+                // A shared connection's read snapshots are read-only already: its record applies too.
+                if (settings.ReadOnly) this.BoundLogToAcknowledged(settings.WriteFailure ?? settings.SharedDurability?.WriteFailure);
             }
             catch
             {
