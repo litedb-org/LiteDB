@@ -125,6 +125,8 @@ namespace LiteDB.Tests.Regressions
                 var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log", "injected partial overwrite");
                 refused.Should().BeOfType<IOException>().Which.Message.Should().Be(LiteEngine.WriteFailedPrefix + record,
                     "the commit found the engine stopped and wrote nothing");
+                refused.InnerException.Should().BeOfType<IOException>().Which.Message.Should().Be("injected partial overwrite",
+                    "the refusal carries the recorded failure");
                 data.ToArray().Should().Equal(crashData);
                 log.ToArray().Should().Equal(crashLog);
             }

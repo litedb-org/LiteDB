@@ -155,7 +155,11 @@ namespace LiteDB.Tests.Regressions
                         db.GetCollection("rows").Insert(Row(id, 0));
                         acknowledged.Add(id);
                     }
-                    catch (Exception ex) when (ex.Message.StartsWith("Engine closed")) { }
+                    // A refused write is not acknowledged: after a recorded write failure the engine
+                    // continues read-only (decision 6 of docs/decisions/durability-policy.md); after a
+                    // safepoint's failed I/O it stays closed instead (a suspected defect, see
+                    // Issue2821_Tests.Disk_full_safepoint_write_leaves_the_engine_read_only).
+                    catch (Exception ex) when (ex.Message.StartsWith(LiteEngine.WriteFailedPrefix) || ex.Message.StartsWith("Engine closed")) { }
                 }
                 // A killed process loses what the stream holds; the device keeps what reached it.
                 image = (data.ToArray(), device.ToArray());

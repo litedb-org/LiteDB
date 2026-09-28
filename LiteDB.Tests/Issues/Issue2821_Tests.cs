@@ -101,6 +101,58 @@ namespace LiteDB.Tests.Issues
             subsequent.ToString().Should().Contain("injected disk full", "the original I/O cause must remain available");
         }
 
+        /// <summary>
+        /// Suspected engine defect, left failing: a transaction larger than its page limit writes
+        /// safepoints to the WAL before its commit. When such a safepoint append fails (disk full) and
+        /// its cleanup truncates it, the IOException is not recorded as a write failure
+        /// (EngineState.Handle stops the engine for every IOException without recording it), so the
+        /// engine stays closed and even reads throw "Engine closed after an I/O failure". Decision 6
+        /// and default B of docs/decisions/durability-policy.md: disk full is a sticky failure, reads
+        /// keep working and later writes are refused with the record, as after a commit's failed
+        /// append (above).
+        /// </summary>
+        [Fact]
+        public void Disk_full_safepoint_write_leaves_the_engine_read_only()
+        {
+            using var data = new MemoryStream();
+            using var log = new DiskFullStream();
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 1 }));
+            db.CheckpointSize = 0;
+            var rows = db.GetCollection("rows");
+            rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" });
+            log.FailNextWrite = true;
+            Action write = () => rows.Insert(Enumerable.Range(2, 20).Select(id => new BsonDocument { ["_id"] = id, ["p"] = new string('p', 3000) }));
+            write.Should().Throw<IOException>().WithMessage("injected disk full");
+
+            rows.FindAll().Select(row => row["_id"].AsInt32).Should().Equal(1);
+            var info = db.GetCollection("$database").FindAll().Single();
+            info["readOnly"].AsBoolean.Should().BeTrue();
+            info["writeFailure"]["error"].AsString.Should().Be("injected disk full");
+            Action next = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
+            next.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix);
+        }
+
+        /// <summary>
+        /// Suspected engine defect, left failing: decision 6 of docs/decisions/durability-policy.md
+        /// records the file of a failed write, but a commit whose WAL append fails (disk full) records
+        /// none: $database.writeFailure.file is null and the refusal omits "on the log file"
+        /// (LiteEngine.CommitAndReleaseTransaction records the commit's IOException without naming the
+        /// file, and DiskService.WriteLogPage does not name it when its cleanup truncated the append).
+        /// </summary>
+        [Fact]
+        public void Disk_full_failure_record_names_the_log_file()
+        {
+            using var data = new MemoryStream();
+            using var log = new DiskFullStream();
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log }));
+            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            log.FailNextWrite = true;
+            Action write = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+            write.Should().Throw<IOException>().WithMessage("injected disk full");
+            var file = db.GetCollection("$database").FindAll().Single()["writeFailure"]["file"];
+            (file.IsNull ? null : file.AsString).Should().Be("log", "the append to the log file failed");
+        }
+
         [Fact]
         public void Reopening_after_disk_full_preserves_commits_and_accepts_new_writes_without_deleting_WAL()
         {

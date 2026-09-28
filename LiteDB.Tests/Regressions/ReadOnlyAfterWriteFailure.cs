@@ -16,10 +16,11 @@ namespace LiteDB.Tests.Regressions
     {
         /// <summary>
         /// <c>$database</c> of <paramref name="db"/> reports readOnly and a writeFailure of
-        /// <paramref name="operation"/> on <paramref name="file"/> ("data", "log", or null when the
-        /// failure named none) whose error starts with <paramref name="error"/>, with the log file
-        /// kept (<paramref name="walKept"/>) or empty (null: not checked here); readOnlyReason is that
-        /// record. Returns the record.
+        /// <paramref name="operation"/> on <paramref name="file"/> ("data" or "log"; null: not checked
+        /// here, for failures on paths where the engine names no file, see
+        /// FailedPromotionJournal_Tests.Failed_promotion_header_write_names_the_data_file) whose error
+        /// starts with <paramref name="error"/>, with the log file kept (<paramref name="walKept"/>) or
+        /// empty (null: not checked here); readOnlyReason is that record. Returns the record.
         /// </summary>
         internal static string AssertReported(LiteDatabase db, string operation, string file, string error, bool? walKept = true)
         {
@@ -28,11 +29,12 @@ namespace LiteDB.Tests.Regressions
             info["writeFailure"].IsDocument.Should().BeTrue("$database reports the failure without a write");
             var failure = info["writeFailure"].AsDocument;
             failure["operation"].AsString.Should().Be(operation);
-            (failure["file"].IsNull ? null : failure["file"].AsString).Should().Be(file);
+            var reportedFile = failure["file"].IsNull ? null : failure["file"].AsString;
+            if (file != null) reportedFile.Should().Be(file);
             failure["error"].AsString.Should().StartWith(error);
             if (walKept.HasValue) failure["walKept"].AsBoolean.Should().Be(walKept.Value);
             var time = failure["time"].AsDateTime.ToUniversalTime();
-            var record = $"{operation} failed at {time:yyyy-MM-dd HH:mm:ss} UTC" + (file == null ? "" : $" on the {file} file") +
+            var record = $"{operation} failed at {time:yyyy-MM-dd HH:mm:ss} UTC" + (reportedFile == null ? "" : $" on the {reportedFile} file") +
                 $": {failure["error"].AsString} " + (failure["walKept"].AsBoolean ? "The log file was kept." : "The log file was empty.");
             info["readOnlyReason"].AsString.Should().Be(record);
             return record;
