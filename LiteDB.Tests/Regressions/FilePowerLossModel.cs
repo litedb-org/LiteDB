@@ -59,7 +59,7 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>Open a captured power-loss image, as a copy, and read it.</summary>
-        internal static T Open<T>((byte[] Data, byte[] Log) captured, Func<LiteDatabase, T> read)
+        internal static T Open<T>((byte[] Data, byte[] Log) captured, Func<LiteDatabase, T> read, string password = null)
         {
             using var image = new TempFile();
             File.WriteAllBytes(image.Filename, captured.Data);
@@ -68,7 +68,7 @@ namespace LiteDB.Tests.Regressions
             NativeFileSync.SimulateErrno = null;
             try
             {
-                using var db = new LiteDatabase(image.Filename);
+                using var db = new LiteDatabase(password == null ? image.Filename : $"Filename={image.Filename};Password={password}");
                 return read(db);
             }
             finally

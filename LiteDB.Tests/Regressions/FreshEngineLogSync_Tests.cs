@@ -122,6 +122,66 @@ namespace LiteDB.Tests.Regressions
             File.Delete(FileHelper.GetLogFile(file.Filename));
         }
 
+        /// <summary>
+        /// The same with encryption: creating the encrypted data writer syncs the data file, so the
+        /// open created it before the journal sync and made the torn header durable first. The
+        /// storage stops syncing once both writers exist (an encrypted writable open needs syncs);
+        /// the tear lands in page 0's ciphertext (physical page 1).
+        /// </summary>
+        [Fact]
+        public void Encrypted_open_repairing_a_torn_header_makes_its_journal_durable_first()
+        {
+            using var file = new TempFile();
+            var connection = $"Filename={file.Filename};Password=secret";
+            using (var setup = new LiteDatabase(connection))
+            {
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)));
+            }
+            using var power = new FilePowerLossModel(file.Filename);
+            using (var db = new LiteDatabase(connection))
+            {
+                db.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++)
+                    db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
+            }
+
+            var settings = new EngineSettings { Filename = file.Filename, Password = "secret" };
+            settings.CheckpointStage = stage => { if (stage == "data-page") throw new IOException("the writer dies mid-checkpoint"); };
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["text"] = new string('x', 5000) });
+                power.DataFails = power.LogFails = true;
+                Action checkpoint = () => db.Checkpoint();
+                checkpoint.Should().Throw<IOException>();
+            }
+            using (var data = new FileStream(file.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+            {
+                data.Position = Constants.PAGE_SIZE + 208;
+                data.Write(Enumerable.Repeat((byte)0xA5, 3008).ToArray(), 0, 3008);
+            }
+
+            power.DataFails = power.LogFails = false;
+            (byte[] Data, byte[] Log) image = default;
+            var hook = NativeFileSync.SimulateErrno;
+            var log = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
+            NativeFileSync.SimulateErrno = path =>
+            {
+                if (image.Data == null && string.Equals(Path.GetFullPath(path), log, StringComparison.OrdinalIgnoreCase)) image = power.Capture();
+                return hook(path);
+            };
+            try
+            {
+                using var reopened = new LiteDatabase(connection);
+                Values(reopened).Should().Equal(new[] { 5 }, "the open restores the header from its journal");
+            }
+            finally { NativeFileSync.SimulateErrno = hook; }
+
+            image.Data.Should().NotBeNull("the open synced the log");
+            FilePowerLossModel.Open(image, Values, "secret").Should().Equal(new[] { 5 }, "value 5 was acknowledged durable");
+            File.Delete(FileHelper.GetLogFile(file.Filename));
+        }
+
         private const int Rows = 64;
 
         /// <summary>
