@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -202,57 +200,61 @@ namespace LiteDB.Tests.Engine
         }
 
         /// <summary>
-        /// With the production idle and hold limits, a thread of the same instance must not
-        /// wait for the pin's hold limit behind a tight write loop: a one-shot release request
-        /// is lost when the owner re-pins first, so the pin ends for any counted waiter.
+        /// A thread of the same instance must repeatedly get the mutex before the pin's
+        /// fallback hold limit. A one-shot release request is lost when the owner re-pins
+        /// first, so the pin must end for every counted waiter.
         /// </summary>
         [Fact]
-        public void Tight_write_loop_bounds_another_threads_wait_under_production_limits()
+        public void Tight_write_loop_hands_off_to_repeated_waiters_before_the_hold_limit()
         {
             using var engine = this.Open(expire: true);
+            var fallback = TimeSpan.FromSeconds(30);
+            engine.PinIdleLimit = fallback;
+            engine.PinHoldLimit = fallback;
             engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
             using var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
-            var waits = new List<TimeSpan>();
+            const int attempts = 4;
+            var completed = 0;
             Exception failure = null;
             var other = new Thread(() =>
             {
                 try
                 {
-                    var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
-                    for (var id = 1; DateTime.UtcNow < until; id++)
+                    for (var id = 1; id <= attempts; id++)
                     {
-                        // Do not charge a voluntary scheduler handoff to the mutex wait.
-                        // This matters on single-core and oversubscribed CI runners.
-                        Thread.Yield();
-                        var wait = Stopwatch.StartNew();
                         engine.Insert("other", new[] { new BsonDocument { ["_id"] = id } }, BsonAutoId.Int32);
-                        waits.Add(wait.Elapsed);
+                        Interlocked.Increment(ref completed);
                     }
                 }
                 catch (Exception ex) { failure = ex; }
             }) { IsBackground = true };
             other.Start();
 
+            bool finished;
             try
             {
+                var deadline = DateTime.UtcNow + Prompt;
                 var value = 2;
-                while (other.IsAlive)
+                while (other.IsAlive && DateTime.UtcNow < deadline)
                 {
                     engine.Update("docs", new[] { Doc(1, value++) });
-                    // Keep the loop tight while allowing the measured waiter to run.
                     Thread.Yield();
                 }
+                finished = !other.IsAlive;
             }
             finally
             {
+                // On failure, end the pin before joining so cleanup never leaves a
+                // background thread using an engine that the test is disposing.
+                if (other.IsAlive) reader.Dispose();
                 other.Join(Prompt).Should().BeTrue();
             }
             failure.Should().BeNull();
-            waits.Count.Should().BeGreaterThan(3);
-            waits.Max().Should().BeLessThan(TimeSpan.FromMilliseconds(900), "a waiting thread must not wait for the pin's hold limit");
+            finished.Should().BeTrue("counted waiters must get repeated handoffs before the 30-second fallback");
+            Volatile.Read(ref completed).Should().Be(attempts);
         }
 
         [Fact]
