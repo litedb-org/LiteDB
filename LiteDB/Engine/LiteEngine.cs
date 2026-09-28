@@ -154,7 +154,8 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                // A rebuild replaces files: a caller's stream is opened as it is.
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && _settings.DataStream == null)
                 {
                     // Announce replacement before checking the external leases: a
                     // later admission must not pass a scan that permitted rebuilding.

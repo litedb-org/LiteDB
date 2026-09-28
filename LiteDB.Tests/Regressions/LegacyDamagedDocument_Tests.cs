@@ -99,6 +99,49 @@ namespace LiteDB.Tests.Regressions
             error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
             error.Message.Should().Contain("Collection 'c'").And.NotContain("automatic rebuild");
             error.InnerException.Should().NotBeOfType<AggregateException>();
+            if (!writable) return;
+
+            // The stream now carries the mark: a later open reports the damage again, with remedies
+            // that work for a stream, instead of failing inside a file rebuild.
+            data.Position = 0;
+            var again = open.Should().Throw<LiteException>().Which;
+            again.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            again.Message.Should().Contain("Collection 'c'").And.Contain("A stream is not rebuilt in place");
+        }
+
+        [Fact]
+        public void Failed_repeated_open_keeps_a_non_LiteDB_exception_type()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture());
+
+            // e.g. a transient Windows lock violation, which the shared engine's open retries on
+            var settings = new EngineSettings { Filename = file.Filename, AutoRebuild = true, AutoRebuildAllowed = () => throw new IOException("sharing violation") };
+            Action open = () => new LiteEngine(settings).Dispose();
+            open.Should().Throw<IOException>().WithMessage("sharing violation");
+            File.ReadAllBytes(file.Filename)[HeaderPage.P_INVALID_DATAFILE_STATE].Should().Be(1, "the next open still rebuilds");
+        }
+
+        [Fact]
+        public void Failed_repeated_open_keeps_the_data_of_its_LiteException()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture());
+
+            var settings = new EngineSettings
+            {
+                Filename = file.Filename, AutoRebuild = true,
+                AutoRebuildAllowed = () =>
+                {
+                    var failure = new LiteException(0, "rebuild state");
+                    failure.Data["state"] = "kept";
+                    throw failure;
+                }
+            };
+            Action open = () => new LiteEngine(settings).Dispose();
+            var error = open.Should().Throw<LiteException>().Which;
+            error.Message.Should().Contain("Collection 'c'").And.Contain("The automatic rebuild failed: rebuild state");
+            error.Data["state"].Should().Be("kept");
         }
 
         [Fact]
@@ -188,8 +231,8 @@ namespace LiteDB.Tests.Regressions
 
         /// <summary>
         /// Fixture DamagedIndexKeys_5_0_21.zip: written by the LiteDB 5.0.21 package, collections
-        /// "maxed", "long" and "throws" with {_id: 1..3, a: "keep-i", b: "u-i"} and an index "k" on
-        /// COALESCE($.b, MAXVALUE()), COALESCE($.b, 1100 characters) and
+        /// "maxed", "mined", "long" and "throws" with {_id: 1..3, a: "keep-i", b: "u-i"} and an index
+        /// "k" on COALESCE($.b, MAXVALUE()), COALESCE($.b, MINVALUE()), COALESCE($.b, 1100 characters) and
         /// SUBSTRING(COALESCE($.b, 'x'), 1, 2); then the BSON length of "b" of document 2 was
         /// overwritten in each. The readable part {_id: 2, a: "keep-2"} has an invalid key, a key
         /// too long, or a key that cannot be computed: it is reported, never inserted.
@@ -207,6 +250,7 @@ namespace LiteDB.Tests.Regressions
             foreach (var (collection, reason) in new[]
             {
                 ("maxed", "its key is not valid in index 'k'"),
+                ("mined", "its key is not valid in index 'k'"),
                 ("long", "its key is not valid in index 'k'"),
                 ("throws", "the keys of index 'k' cannot be computed"),
             })

@@ -14,12 +14,16 @@ namespace LiteDB.Engine
         /// Keep the error code: the failed open marks the file for rebuild (AutoRebuild then
         /// rebuilds it in the same open), and name the remedies.
         /// </summary>
-        private static LiteException DamagedLegacyData(string collection, LiteException ex) =>
+        private LiteException DamagedLegacyData(string collection, LiteException ex) =>
             new LiteException(LiteException.INVALID_DATAFILE_STATE, ex,
                 "{0} contains damaged data, so the index migration this version needs for writable access cannot run: {1} " +
-                "The data file is marked for rebuild: open it with `auto-rebuild=true` to rebuild it (unreadable documents " +
-                "are listed in `_rebuild_errors` and a backup is kept), or read-only with `legacy index scan=true` to read " +
-                "its undamaged collections.",
+                (_settings.DataStream == null
+                    ? "The data file is marked for rebuild: open it with `auto-rebuild=true` to rebuild it (unreadable documents " +
+                      "are listed in `_rebuild_errors` and a backup is kept), or read-only with `legacy index scan=true` to read " +
+                      "its undamaged collections."
+                    : "A stream is not rebuilt in place: copy it to a file and open that with `auto-rebuild=true` (unreadable " +
+                      "documents are listed in `_rebuild_errors`), or open the stream read-only with `legacy index scan=true` " +
+                      "to read its undamaged collections."),
                 collection == null ? "The database" : "Collection '" + collection + "'", ex.Message);
 
         private void MigrateIndexOrdering()
