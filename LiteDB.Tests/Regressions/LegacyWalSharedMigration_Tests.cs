@@ -39,6 +39,7 @@ namespace LiteDB.Tests.Regressions
         [InlineData(false, false)]
         [InlineData(true, false)]
         [InlineData(false, true)] // a crash image whose files end in a partial page
+        [InlineData(true, true)]
         public void Blocked_conversion_changes_nothing_and_recovers_once_unblocked(bool liveLease, bool partialTail)
         {
             using var data = Entry("crash.db");
