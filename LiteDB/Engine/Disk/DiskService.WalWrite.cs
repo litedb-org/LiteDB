@@ -41,86 +41,99 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
-                using (var iterator = pages.GetEnumerator())
+                var tornOverwrite = false;
+                try
                 {
-                    if (!iterator.MoveNext()) return 0;
-
-                    var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
-                    var rebase = !ChecksumsEnabled && transactionState != null &&
-                        transactionState.TransactionID < _lastWalTransactionID;
-                    var previousPositions = rebase
-                        ? transactionPages.Values.Select(x => x.Position).Distinct().ToArray()
-                        : Array.Empty<long>();
-
-                    if (rebase)
+                    using (var iterator = pages.GetEnumerator())
                     {
-                        do transactionState.TransactionID = nextTransactionID();
-                        while (transactionState.TransactionID <= _lastWalTransactionID);
+                        if (!iterator.MoveNext()) return 0;
 
-                        // The first new-ID frame must append before old frames are
-                        // rewritten, otherwise a crash could leave the high ID only
-                        // in an earlier slot that legacy recovery does not observe.
-                        transactionAnchored = false;
-                    }
+                        var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
+                        var rebase = !ChecksumsEnabled && transactionState != null &&
+                            transactionState.TransactionID < _lastWalTransactionID;
+                        var previousPositions = rebase
+                            ? transactionPages.Values.Select(x => x.Position).Distinct().ToArray()
+                            : Array.Empty<long>();
 
-                    PageBuffer delayedConfirmation = null;
-                    var first = true;
-
-                    try
-                    {
-                        do
+                        if (rebase)
                         {
-                            var page = iterator.Current;
-                            if (transactionState != null)
-                            {
-                                page.Write(transactionState.TransactionID, BasePage.P_TRANSACTION_ID);
-                            }
+                            do transactionState.TransactionID = nextTransactionID();
+                            while (transactionState.TransactionID <= _lastWalTransactionID);
 
-                            if (first && rebase && page.ReadBool(BasePage.P_IS_CONFIRMED))
-                            {
-                                delayedConfirmation = _cache.NewPage();
-                                Buffer.BlockCopy(page.Array, page.Offset, delayedConfirmation.Array,
-                                    delayedConfirmation.Offset, PAGE_SIZE);
-                                page.Write(false, BasePage.P_IS_CONFIRMED);
-                            }
-
-                            this.WriteLogPage(stream, page, written, transactionPages,
-                                ref transactionAnchored, first && rebase,
-                                ref count, ref hasConfirmation, ref reusePublished);
-
-                            if (first && rebase)
-                            {
-                                // Old frames may already be durable from a safepoint.
-                                // Make their new-ID tail anchor equally durable first.
-                                this.FlushLogToDisk(stream);
-                                this.RewriteLogTransactionIDs(stream, previousPositions,
-                                    transactionState.TransactionID, ref reusePublished);
-                            }
-
-                            first = false;
+                            // The first new-ID frame must append before old frames are
+                            // rewritten, otherwise a crash could leave the high ID only
+                            // in an earlier slot that legacy recovery does not observe.
+                            transactionAnchored = false;
                         }
-                        while (iterator.MoveNext());
 
-                        if (delayedConfirmation != null)
+                        PageBuffer delayedConfirmation = null;
+                        var first = true;
+
+                        try
                         {
-                            this.WriteLogPage(stream, delayedConfirmation, written,
-                                transactionPages, ref transactionAnchored, false,
-                                ref count, ref hasConfirmation, ref reusePublished);
-                            delayedConfirmation = null;
+                            do
+                            {
+                                var page = iterator.Current;
+                                if (transactionState != null)
+                                {
+                                    page.Write(transactionState.TransactionID, BasePage.P_TRANSACTION_ID);
+                                }
+
+                                if (first && rebase && page.ReadBool(BasePage.P_IS_CONFIRMED))
+                                {
+                                    delayedConfirmation = _cache.NewPage();
+                                    Buffer.BlockCopy(page.Array, page.Offset, delayedConfirmation.Array,
+                                        delayedConfirmation.Offset, PAGE_SIZE);
+                                    page.Write(false, BasePage.P_IS_CONFIRMED);
+                                }
+
+                                this.WriteLogPage(stream, page, written, transactionPages,
+                                    ref transactionAnchored, first && rebase,
+                                    ref count, ref hasConfirmation, ref reusePublished, ref tornOverwrite);
+
+                                if (first && rebase)
+                                {
+                                    // Old frames may already be durable from a safepoint.
+                                    // Make their new-ID tail anchor equally durable first.
+                                    this.FlushLogToDisk(stream);
+                                    this.RewriteLogTransactionIDs(stream, previousPositions,
+                                        transactionState.TransactionID, ref reusePublished);
+                                }
+
+                                first = false;
+                            }
+                            while (iterator.MoveNext());
+
+                            if (delayedConfirmation != null)
+                            {
+                                this.WriteLogPage(stream, delayedConfirmation, written,
+                                    transactionPages, ref transactionAnchored, false,
+                                    ref count, ref hasConfirmation, ref reusePublished, ref tornOverwrite);
+                                delayedConfirmation = null;
+                            }
+                        }
+                        finally
+                        {
+                            if (delayedConfirmation?.State == FrameState.Writable)
+                            {
+                                _cache.DiscardPage(delayedConfirmation);
+                            }
                         }
                     }
-                    finally
-                    {
-                        if (delayedConfirmation?.State == FrameState.Writable)
-                        {
-                            _cache.DiscardPage(delayedConfirmation);
-                        }
-                    }
+                }
+                catch (Exception ex) when (tornOverwrite)
+                {
+                    // A failed overwrite of an existing frame can leave a torn frame in the middle
+                    // of the WAL, and recovery stops at the first invalid frame. Whatever the
+                    // exception type, stop before releasing the writer: no later commit may be
+                    // appended (and acknowledged) behind it.
+                    flushFailure = ex as IOException ?? new IOException("WAL frame overwrite failed.", ex);
+                    ownsFailure = _state.BeginStop(flushFailure);
                 }
 
                 // A confirmation makes this WAL batch recoverable. Make all preceding
                 // pages durable before WAL-index confirmation or acknowledging commit.
-                if (hasConfirmation)
+                if (flushFailure == null && hasConfirmation)
                 {
                     try
                     {
@@ -139,7 +152,7 @@ namespace LiteDB.Engine
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }
-                else stream.Flush();
+                else if (flushFailure == null) stream.Flush();
             }
 
             if (flushFailure != null)
@@ -153,7 +166,8 @@ namespace LiteDB.Engine
 
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
-            bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished)
+            bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
+            ref bool tornOverwrite)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
@@ -198,7 +212,10 @@ namespace LiteDB.Engine
 
                 this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
                 this.PreserveFileVersion(page);
+                // From here a failure can leave part of the frame on the stream.
+                tornOverwrite = page.Position < previousStreamLength.Value;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                tornOverwrite = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
                 hasConfirmation |= isConfirmed;
 
