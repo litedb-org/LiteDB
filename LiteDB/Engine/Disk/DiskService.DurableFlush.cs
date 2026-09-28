@@ -105,7 +105,10 @@ namespace LiteDB.Engine
         /// </summary>
         internal bool DataFileSyncs()
         {
-            lock (this.WalWriterLock) this.SyncDataFile();
+            // Ordered with the WAL writer's barriers once it exists. Taking its lock would create it,
+            // and an encrypted WAL writes and syncs its preamble when created: not for a sync alone.
+            if (_writer.IsValueCreated) lock (_writer.Value) this.SyncDataFile();
+            else this.SyncDataFile();
             return _dataBarrierSynced;
         }
 
