@@ -36,6 +36,9 @@ jobs:
           - os: windows-latest
             globalization: NLS
             use-nls: '1'
+          - os: macos-latest
+            globalization: ICU
+            use-nls: '0'
     env:
       DOTNET_SYSTEM_GLOBALIZATION_USENLS: ${{ matrix.use-nls }}
     steps:
@@ -47,6 +50,9 @@ jobs:
             8.0.x
       - name: Verify every stable v5 and v4 database
         run: python scripts/test-release-compatibility.py
+      - name: Verify macOS rebuild ownership and process death
+        if: runner.os == 'macOS'
+        run: dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter FullyQualifiedName~RebuildOwnership
 
   build-linux:
     name: Build (Linux)

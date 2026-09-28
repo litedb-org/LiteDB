@@ -85,7 +85,7 @@ claim about arbitrary storage devices ignoring durable flushes.
 `scripts/test-release-compatibility.py` consumes the immutable artifacts revision
 in `tools/ReleaseCompatibility/artifacts-revision.txt`, verifying archive and
 database SHA-256 values before opening disposable copies. CI runs it on Linux/ICU
-and Windows with both ICU and NLS for every PR and full run. The manifest must contain exactly one
+and macOS/ICU, plus Windows with both ICU and NLS, for every PR and full run. The manifest must contain exactly one
 plain and one encrypted database for all 22 stable v5 and six stable v4 packages.
 
 Each database contains 1,024 documents across integer, Guid, ObjectId and string

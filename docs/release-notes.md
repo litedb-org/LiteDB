@@ -2,6 +2,14 @@
 
 ## Legacy damage diagnostics and opening recovery (#3022)
 
+File-backed opening and rebuild now hold a shared admission claim across
+replacement and reopen. Direct rebuild keeps source data/WAL handles exclusive
+through installation, closing the gap between finishing the scan and publishing
+the recovery marker. Other Direct connections must close before rebuilding;
+ineffective OS file-sharing locks cause rebuild to fail before copying records.
+The claim is released on process death, while an incomplete-installation marker
+still blocks access. See [ownership and path limits](rebuild-recovery.md).
+
 Legacy ordering failures now distinguish corruption (`INVALID_DATAFILE_STATE`,
 999) from collation incompatibility (`COLLATION_MISMATCH`, 141, previously 0).
 Writable `AutoRebuild=true` can salvage corruption detected during opening index
