@@ -97,18 +97,22 @@ namespace LiteDB.Engine
                 {
                     this.Open();
                 }
-                catch (Exception retry)
+                catch (LiteException retry)
                 {
                     // Keep the damage that required the rebuild visible next to the rebuild failure.
-                    throw new LiteException(ex.ErrorCode, new AggregateException(ex, retry),
+                    // Other failures (e.g. a transient IOException) keep their type for callers' retries.
+                    var failure = new LiteException(ex.ErrorCode, new AggregateException(ex, retry),
                         "{0} The automatic rebuild failed: {1}", ex.Message, retry.Message);
+                    foreach (System.Collections.DictionaryEntry entry in retry.Data) failure.Data[entry.Key] = entry.Value;
+                    throw failure;
                 }
             }
         }
 
+        // A rebuild replaces files; caller streams are never rebuilt.
         private bool RebuildAfterFailedOpen(LiteException ex) =>
             ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE && _settings.AutoRebuild &&
-            !_settings.ReadOnly && !this.InvalidDatafileState && _markedForRebuild;
+            !_settings.ReadOnly && _settings.DataStream == null && !this.InvalidDatafileState && _markedForRebuild;
 
         #endregion
 

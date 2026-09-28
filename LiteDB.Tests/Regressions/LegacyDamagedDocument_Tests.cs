@@ -81,11 +81,18 @@ namespace LiteDB.Tests.Regressions
             error.InnerException.Should().BeOfType<AggregateException>().Which.InnerExceptions.Should().HaveCount(2);
         }
 
-        [Fact]
-        public void Open_is_not_repeated_when_the_rebuild_mark_cannot_be_written()
+        [Theory]
+        [InlineData(false)] // the mark cannot be written
+        [InlineData(true)]  // a caller stream is marked but never rebuilt (a rebuild replaces files)
+        public void Open_is_not_repeated_without_a_rebuild_it_could_run(bool writable)
         {
             var original = Fixture();
-            using var data = new MemoryStream(original, writable: false);
+            using var data = writable ? new MemoryStream() : new MemoryStream(original, writable: false);
+            if (writable)
+            {
+                data.Write(original, 0, original.Length);
+                data.Position = 0;
+            }
 
             Action open = () => new LiteEngine(new EngineSettings { DataStream = data, AutoRebuild = true }).Dispose();
             var error = open.Should().Throw<LiteException>().Which;
