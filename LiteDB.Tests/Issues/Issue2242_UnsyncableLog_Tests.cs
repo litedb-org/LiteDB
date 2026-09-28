@@ -11,12 +11,17 @@ namespace LiteDB.Tests.Issues
     /// <summary>
     /// #2242: some network shares and virtual file systems reject FlushFileBuffers/fsync. Opened
     /// with "durable commits=false" (the caller accepts commits a power loss may lose), such a log
-    /// keeps working as before #2818: writes stay ordered in the OS cache, which survives a process
-    /// crash, but no power-loss guarantee is claimed, and "cannot sync" is not a failure (proposed
-    /// default A of docs/decisions/durability-policy.md). With durable commits (the default) no
-    /// commit is acknowledged there (decision 3): a commit throws before it writes a frame, and an
-    /// open that must convert or promote the file first opens read-only instead; either way the
-    /// files stay byte for byte and every row reads.
+    /// keeps taking commits: they stay ordered in the OS cache, which survives a process crash, no
+    /// power-loss guarantee is claimed, and "cannot sync" is not a failure (proposed default A of
+    /// docs/decisions/durability-policy.md). What it no longer backs is an in-place overwrite of the
+    /// data file (a checkpoint's backfill, a conversion, a format promotion): its recovery copy, the
+    /// header journal and WAL, would be in the OS cache only, and a power loss mid-overwrite would
+    /// tear the data file (external review, point 1; decision D protects the data file's integrity
+    /// for callers that opted out too). A checkpoint writes nothing and keeps the WAL; an open that
+    /// must convert or promote the file opens read-only, and a write that must promote it is
+    /// refused, both files byte for byte. With durable commits (the default) no commit is
+    /// acknowledged there (decision 3): a commit throws before it writes a frame, and an open that
+    /// must convert or promote the file first opens read-only instead. Either way every row reads.
     /// </summary>
     public class Issue2242_UnsyncableLog_Tests
     {
@@ -75,19 +80,55 @@ namespace LiteDB.Tests.Issues
             data.ToArray().Should().Equal(created);
         }
 
+        /// <summary>
+        /// The conversion of a legacy file overwrites its header in place behind a header journal. Opted
+        /// out of durable commits, it used to proceed in write order behind a journal in the OS cache
+        /// only, which a power loss mid-conversion could leave torn (external review, point 1); decision
+        /// D keeps the recovery rule for callers that opted out, so a log that cannot sync refuses it
+        /// before the journal, as with durable commits. The refusal is tagged as unsynced storage, so the
+        /// open falls back to read-only (decision 2): every row reads, through the index too, $database
+        /// says why and records no failure (proposed default A), a write throws naming the refusal, and
+        /// neither file changes. Once the log syncs, the next open converts the file and writes.
+        /// </summary>
         [Theory]
         [InlineData(8)]
         [InlineData(9)]
-        public void Legacy_database_on_a_log_that_never_syncs_converts_and_keeps_writing_without_durable_commits(byte version)
+        public void Legacy_database_on_a_log_that_never_syncs_opens_read_only_without_durable_commits(byte version)
         {
             using var data = Legacy(version, out var log);
+            var dataBefore = data.ToArray();
+            var logBefore = log.ToArray();
 
             using (var db = Open(data, log, durableCommits: false))
             {
-                db.GetCollection("$database").FindAll().Single()["checksumCoverage"].AsString.Should().Be("Mixed");
+                var info = WriteFailureAssert.Info(db);
+                info["checksumCoverage"].AsString.Should().Be("Legacy", "the conversion was refused before it wrote");
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                info["durableLogFlush"].AsBoolean.Should().BeFalse();
+                var reason = info["readOnlyReason"].AsString;
+                reason.Should().StartWith(WriteFailureAssert.LogCannotSync + "a conversion writes nothing");
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+                AssertRows(db, count: WalTestDatabase.DocumentCount, value: 0);
+
+                Action update = () => db.GetCollection("rows").UpdateMany("{ value: 1 }", "true");
+                update.Should().Throw<IOException>().Which.Message.Should().Be(WriteFailureAssert.OpenRefused + reason);
+                AssertRows(db, count: WalTestDatabase.DocumentCount, value: 0);
+            }
+            data.ToArray().Should().Equal(dataBefore);
+            log.ToArray().Should().Equal(logBefore);
+            log.Rejections.Should().BeGreaterThan(0);
+
+            log.Syncs = true;
+            using (var db = Open(data, log, durableCommits: false))
+            {
+                var info = WriteFailureAssert.Info(db);
+                info["readOnly"].AsBoolean.Should().BeFalse();
+                info["checksumCoverage"].AsString.Should().Be("Mixed", "the conversion goes through once the log syncs");
                 db.GetCollection("rows").UpdateMany("{ value: 1 }", "true");
                 db.Checkpoint();
+                log.Length.Should().Be(0, "a checkpoint drains the WAL once the log syncs");
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 100, ["value"] = 1 });
+                WriteFailureAssert.NoneRecorded(db);
             }
 
             AssertDocuments(data, log, count: WalTestDatabase.DocumentCount + 1, value: 1);
@@ -128,8 +169,23 @@ namespace LiteDB.Tests.Issues
             log.Dispose();
         }
 
+        /// <summary>
+        /// The first compact write promotes v11 to v12, overwriting the header in place behind a header
+        /// journal. Opted out of durable commits, it used to publish v12 in write order behind a journal
+        /// in the OS cache only, which a power loss mid-promotion could leave torn (external review,
+        /// point 1); decision D keeps the recovery rule for callers that opted out, so a log that cannot
+        /// sync refuses the promotion before its journal, and the write that needed it throws. Both
+        /// files stay byte for byte, the file stays v11, and no failure is recorded ("cannot sync" is
+        /// the reason to opt out, proposed default A). Reading is possible, so it is allowed (decision
+        /// 2): every row reads. Once the log syncs, a checkpoint drains the WAL and the promotion goes
+        /// through.
+        /// Fails today (engine defect, as with durable commits below): the refusal thrown by
+        /// DiskService.BeginHeaderJournal inside the insert reaches ExecuteAutoTransaction, whose
+        /// EngineState.Handle stops the engine for any IOException, so it closes for good and the read
+        /// throws "Engine closed after an I/O failure".
+        /// </summary>
         [Fact]
-        public void Compact_promotion_on_a_log_that_never_syncs_publishes_v12_and_keeps_writing_without_durable_commits()
+        public void Compact_promotion_on_a_log_that_never_syncs_is_refused_and_keeps_reading_without_durable_commits()
         {
             using var data = new MemoryStream();
             using var log = new UnsyncableLog();
@@ -139,15 +195,34 @@ namespace LiteDB.Tests.Issues
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.CheckpointSize = 0;
+                var dataBefore = data.ToArray();
+                var logBefore = log.ToArray();
+                var rows = db.GetCollection("rows");
+                Action insert = () => rows.Insert(CompactDocuments());
+                insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogCannotSync + "an overwrite of the data file writes nothing*")
+                    .Which.Data.Contains(DiskService.LogCannotBackOverwriteDataKey).Should().BeTrue();
+                data.ToArray().Should().Equal(dataBefore, "the promotion was refused before it wrote");
+                log.ToArray().Should().Equal(logBefore, "no journal, no frame of the refused insert");
+
+                AssertRows(db, count: 16, value: 0);
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+                DurableLogFlush(db).Should().BeFalse();
+            }
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the file stays v11");
+
+            log.Syncs = true;
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Compact, DurableCommits = false }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                db.Checkpoint();
+                log.Length.Should().Be(0, "once the log syncs, a checkpoint drains the WAL");
                 var rows = db.GetCollection("rows");
                 rows.Insert(CompactDocuments());
-                db.Checkpoint();
+                data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION, "and the promotion goes through");
                 rows.Update(Documents(0, 16, value: 1));
-                DurableLogFlush(db).Should().BeFalse();
                 WriteFailureAssert.NoneRecorded(db);
             }
-
-            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION, "the first compact write promotes v11");
             AssertDocuments(data, log, count: 32, value: 1);
         }
 
@@ -194,7 +269,8 @@ namespace LiteDB.Tests.Issues
             log.ToArray().Should().Equal(logBefore);
         }
 
-        // A v11 file whose checkpointed rows 0..15 live on a log that never syncs (opted out to write them).
+        // A v11 file with rows 0..15 on a log that never syncs (opted out to write them). The checkpoint
+        // writes nothing there (decision D), so the rows stay in the WAL.
         private static void V11(MemoryStream data, UnsyncableLog log)
         {
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Legacy, DurableCommits = false }))
@@ -246,6 +322,15 @@ namespace LiteDB.Tests.Issues
             rows.Count().Should().Be(count + 1);
         }
 
+        /// <summary>"rows" holds exactly <see cref="Documents"/> 0..<paramref name="count"/>-1 of <paramref name="value"/>, and a query on value finds each and no other.</summary>
+        private static void AssertRows(LiteDatabase db, int count, int value)
+        {
+            var rows = db.GetCollection("rows");
+            rows.FindAll().Should().BeEquivalentTo(Documents(0, count, value));
+            rows.Find(Query.EQ("value", value)).Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(0, count));
+            rows.Find(Query.Not("value", value)).Should().BeEmpty();
+        }
+
         private static LiteDatabase Open(Stream data, Stream log, bool durableCommits = true)
         {
             var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, DurableCommits = durableCommits });
@@ -264,13 +349,15 @@ namespace LiteDB.Tests.Issues
         private static bool DurableLogFlush(LiteDatabase db) =>
             db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean;
 
-        /// <summary>A log whose storage answers every device sync with ERROR_ACCESS_DENIED.</summary>
+        /// <summary>A log whose storage answers every device sync with ERROR_ACCESS_DENIED, until <see cref="Syncs"/> is set.</summary>
         private sealed class UnsyncableLog : MemoryStream, IDurableStream
         {
             internal int Rejections;
+            internal bool Syncs;
 
             public void FlushToDisk()
             {
+                if (Syncs) return;
                 Rejections++;
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }
