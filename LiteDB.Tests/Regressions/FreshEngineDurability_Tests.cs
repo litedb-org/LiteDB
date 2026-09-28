@@ -124,6 +124,32 @@ namespace LiteDB.Tests.Regressions
             DurableLogFlush(db).Should().BeTrue();
         }
 
+        /// <summary>
+        /// A rebuild installs its replacement without the replacement's WAL. Where only the data file
+        /// cannot sync, that WAL is kept, so the rebuilt file could never be durable: the rebuild is
+        /// refused and the database is left as it was.
+        /// </summary>
+        [Fact]
+        public void Rebuild_is_refused_where_only_the_data_file_cannot_sync()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var temp = FileHelper.GetSuffixFile(file.Filename, "-temp", true);
+            NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 0 : 22;
+            try
+            {
+                using var db = new LiteDatabase(file.Filename);
+                Action rebuild = () => db.Rebuild();
+                rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database*");
+                File.Exists(temp).Should().BeFalse();
+                File.Exists(FileHelper.GetLogFile(temp)).Should().BeFalse();
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").Count().Should().Be(Rows);
+        }
+
         private const int Rows = 64;
 
         private static void Setup(string filename)
