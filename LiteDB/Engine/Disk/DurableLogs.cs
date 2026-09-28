@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace LiteDB.Engine
@@ -17,31 +18,41 @@ namespace LiteDB.Engine
         private static readonly HashSet<string> _paths = new HashSet<string>(
             RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
-        // Recording order: past the capacity the oldest path is forgotten, never one just proven.
-        private static readonly Queue<string> _order = new Queue<string>();
+        // Recording order: past the capacity the oldest path is forgotten, never one just proven. Each
+        // entry carries the record it was queued for, so an entry a Forget and a later Record left behind
+        // is skipped instead of evicting the newer record.
+        private static readonly Queue<KeyValuePair<string, long>> _order = new Queue<KeyValuePair<string, long>>();
+        private static readonly Dictionary<string, long> _records = new Dictionary<string, long>(
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        private static long _next;
 
         internal static void Record(string path)
         {
             lock (_paths)
             {
                 if (!_paths.Add(path)) return;
-                _order.Enqueue(path);
-                // Forgotten paths stay queued until they reach the front; skip them there.
-                while (_paths.Count > Capacity || (_order.Count > 0 && !_paths.Contains(_order.Peek())))
-                    _paths.Remove(_order.Dequeue());
-                if (_order.Count > 4 * Capacity) Compact();
+                var record = ++_next;
+                _records[path] = record;
+                _order.Enqueue(new KeyValuePair<string, long>(path, record));
+                while (_order.Count > 0 && (_paths.Count > Capacity || !IsLive(_order.Peek())))
+                {
+                    var oldest = _order.Dequeue();
+                    if (!IsLive(oldest)) continue;
+                    _paths.Remove(oldest.Key);
+                    _records.Remove(oldest.Key);
+                }
+                // Skipped entries behind a live front: drop them before they pile up.
+                if (_order.Count > 4 * Capacity)
+                {
+                    var live = _order.Where(IsLive).ToList();
+                    _order.Clear();
+                    foreach (var entry in live) _order.Enqueue(entry);
+                }
             }
         }
 
-        // Forget and re-record can leave stale queue entries behind the front: drop them.
-        private static void Compact()
-        {
-            var live = new List<string>(_order);
-            _order.Clear();
-            var seen = new HashSet<string>(_paths.Comparer);
-            foreach (var path in live)
-                if (_paths.Contains(path) && seen.Add(path)) _order.Enqueue(path);
-        }
+        private static bool IsLive(KeyValuePair<string, long> entry) =>
+            _records.TryGetValue(entry.Key, out var record) && record == entry.Value;
 
         internal static bool Contains(string path)
         {
@@ -51,7 +62,11 @@ namespace LiteDB.Engine
         internal static void Forget(string path)
         {
             if (path == null) return;
-            lock (_paths) _paths.Remove(path);
+            lock (_paths)
+            {
+                _paths.Remove(path);
+                _records.Remove(path);
+            }
         }
     }
 }

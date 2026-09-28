@@ -85,6 +85,54 @@ namespace LiteDB.Tests.Regressions
             finally { NativeFileSync.SimulateErrno = null; }
         }
 
+        /// <summary>
+        /// Another engine (another connection or process) recovers the failed commit from the files,
+        /// whole, and a partial checkpoint (a reader holds an older snapshot) copies its pages into the
+        /// data file without changing the log's length or salt. The reopened engine then must not mix
+        /// the data file's copy of the failed commit with a log bounded before it: its view is one
+        /// state of the database, here the files'. Review finding B1.
+        /// </summary>
+        [Theory]
+        [InlineData("y")] // the failed commit supersedes an acknowledged commit's page: nothing is retired
+        [InlineData("z")] // it supersedes that commit's confirmation frame
+        [InlineData(null)] // it touches no page that has a version in the WAL
+        public void Reopen_after_another_engine_checkpointed_the_failed_commit_shows_one_state(string touched)
+        {
+            using var file = new TempFile();
+            var logName = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
+            var fail = false;
+            NativeFileSync.SimulateErrno = path => fail && Path.GetFullPath(path) == logName ? EIO : 0;
+            try
+            {
+                using var a = new LiteDatabase(file.Filename);
+                a.CheckpointSize = 0;
+                a.GetCollection("x").Insert(new BsonDocument { ["_id"] = 1 });
+                a.GetCollection("y").Insert(new BsonDocument { ["_id"] = 1, ["v"] = "a" });
+                a.GetCollection("z").Insert(new BsonDocument { ["_id"] = 1, ["v"] = "a" });
+                a.Checkpoint();
+                a.BeginTrans();
+                a.GetCollection("y").Update(new BsonDocument { ["_id"] = 1, ["v"] = "b" });
+                a.GetCollection("z").Update(new BsonDocument { ["_id"] = 1, ["v"] = "b" });
+                a.Commit();
+                fail = true;
+                a.BeginTrans();
+                a.GetCollection("x").Insert(new BsonDocument { ["_id"] = 2 });
+                if (touched != null) a.GetCollection(touched).Update(new BsonDocument { ["_id"] = 1, ["v"] = "c" });
+                Action commit = () => a.Commit();
+                commit.Should().Throw<IOException>();
+                fail = false;
+
+                using (var b = new LiteEngine(new EngineSettings { Filename = file.Filename, SharedReaderVersions = () => new[] { int.MaxValue } }))
+                    b.Checkpoint();
+
+                var x = a.GetCollection("x").FindAll().Select(d => d["_id"].AsInt32).OrderBy(i => i).ToArray();
+                var value = a.GetCollection(touched ?? "y").FindById(1)["v"].AsString;
+                x.Should().Equal(new[] { 1, 2 }, "another engine built on the failed commit: the files win, whole");
+                value.Should().Be(touched == null ? "b" : "c");
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+        }
+
         /// <summary>A commit refused before its first frame is marked as not committed.</summary>
         [Fact]
         public void Commit_refused_before_it_writes_is_marked_not_committed()

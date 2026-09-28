@@ -45,6 +45,7 @@ namespace LiteDB.Engine
                 // The end of what earlier batches acknowledged: a read-only reopen after this batch
                 // failed replays only up to it (decision 13).
                 var acknowledgedEnd = Interlocked.Read(ref _logLength) + PAGE_SIZE;
+                var batchPages = new List<uint>();
                 var uncertain = false;
                 try
                 {
@@ -105,6 +106,7 @@ namespace LiteDB.Engine
                                     page.Write(false, BasePage.P_IS_CONFIRMED);
                                 }
 
+                                batchPages.Add(page.ReadUInt32(BasePage.P_PAGE_ID));
                                 this.WriteLogPage(stream, page, written, transactionPages,
                                     ref transactionAnchored, first && rebase,
                                     ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
@@ -149,7 +151,8 @@ namespace LiteDB.Engine
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
                     // A frame may have reached the log whole although its write threw.
                     flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
-                    this.RecordWriteFailure("A WAL write", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
+                    this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log),
+                        this.AcknowledgedLogAt(acknowledgedEnd, transactionPages, batchPages));
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
                 catch (IOException ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
@@ -179,7 +182,8 @@ namespace LiteDB.Engine
                         // partial checkpoint owns it and waits for this monitor.
                         flushFailure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
                         flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
-                        this.RecordWriteFailure("A commit's log flush", this.WithAcknowledgedLog(WriteFailure.InFile(flushFailure, FileOrigin.Log), acknowledgedEnd));
+                        this.RecordWriteFailure("A commit's log flush", WriteFailure.InFile(flushFailure, FileOrigin.Log),
+                            this.AcknowledgedLogAt(acknowledgedEnd, transactionPages, batchPages));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }

@@ -71,7 +71,7 @@ namespace LiteDB.Engine
 
                 var dataLength = _dataFactory.GetLength();
                 // Decision 11: never initialize over the WAL of a database whose data file lost its header.
-                if (dataLength < PAGE_SIZE && this.RestoreDataFileFromLog(dataLength)) dataLength = _dataFactory.GetLength();
+                if (dataLength < PAGE_SIZE && this.RestoreDataFileFromLog(dataLength, settings.Password != null)) dataLength = _dataFactory.GetLength();
                 var isNew = dataLength == 0L;
 
                 if (isNew)

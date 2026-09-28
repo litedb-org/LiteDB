@@ -65,15 +65,26 @@ namespace LiteDB.Engine
         /// nothing else when the WAL started, or refuse the open, changing neither file. A WAL without
         /// a header frame holds no commit of this version, and the database is new as before.
         /// </summary>
-        private bool RestoreDataFileFromLog(long dataLength)
+        private bool RestoreDataFileFromLog(long dataLength, bool encrypted)
         {
             if (!_logFactory.Exists()) return false;
-            var exists = _dataFactory.Exists();
+            // A caller's stream exists, also when empty.
+            var exists = !(_dataFactory is FileStreamFactory) || _dataFactory.Exists();
             // A read-only open of a missing file reports the path error as before.
             if (_readOnly && !exists) return false;
             var header = this.ReadLogHeaderFrame();
-            if (header == null) return false;
             var state = !exists ? "missing" : dataLength == 0 ? "empty" : "shorter than its header page";
+            if (header == null)
+            {
+                // No readable header frame (torn, never written back, or an encrypted log opened without
+                // its password), but frames of a WAL: never initialize over them either.
+                if (this.LogHoldsFrames(encrypted))
+                    throw new LiteException(LiteException.INVALID_DATABASE, $"Cannot open this database: its data file is {state}, " +
+                        "while its log file holds WAL frames this open cannot read without the data file's header (the log's " +
+                        "header frame is missing or damaged, or the log is encrypted and needs the password). Restore the " +
+                        "data file or open it with its password, or move the log file aside to create a new database.");
+                return false;
+            }
             if (exists && dataLength > 0 && !HeaderFrame.Completes(this.ReadDataPrefix(dataLength), header)) return false;
             if (!exists || !HeaderFrame.Fits(header, 0))
                 throw new LiteException(LiteException.INVALID_DATABASE, $"Cannot open this database: its data file is {state}, " +
@@ -120,6 +131,49 @@ namespace LiteDB.Engine
                 data.Write(header, 0, PAGE_SIZE);
                 this.SyncDataBarrier(data);
             });
+        }
+
+        /// <summary>
+        /// Whether the log holds a WAL frame (checked by its own trailer, <see cref="WalChecksum.IsFrame"/>),
+        /// or, opened without a password, starts like an encrypted file. A log with neither holds no commit.
+        /// </summary>
+        private bool LogHoldsFrames(bool encrypted)
+        {
+            if (!_logFactory.Exists()) return false;
+            var reader = (ChecksummedWalStream)_logPool.Rent();
+            try
+            {
+                var raw = reader.RawStream;
+                var frame = new byte[WalChecksum.FrameSize];
+                if (!encrypted && LooksEncrypted(raw)) return true;
+                for (long position = 0; (position / PAGE_SIZE + 1) * WalChecksum.FrameSize <= raw.Length; position += PAGE_SIZE)
+                {
+                    raw.Position = position / PAGE_SIZE * WalChecksum.FrameSize;
+                    raw.ReadRequired(frame, 0, frame.Length);
+                    if (WalChecksum.IsFrame(frame, position)) return true;
+                }
+                return false;
+            }
+            finally { _logPool.Return(reader); }
+        }
+
+        /// <summary>
+        /// An encryption preamble, read without the password: the marker 1, the salt, zeros, the
+        /// password check at <see cref="AesPreamble.CHECK_START"/>, and zeros to the end of the page. A
+        /// legacy (v5) WAL page starts with its page ID and does not look like this.
+        /// </summary>
+        private static bool LooksEncrypted(Stream raw)
+        {
+            if (raw.Length < PAGE_SIZE) return false;
+            var page = new byte[PAGE_SIZE];
+            raw.Position = 0;
+            raw.ReadRequired(page, 0, PAGE_SIZE);
+            const int saltEnd = 1 + ENCRYPTION_SALT_SIZE, checkEnd = AesPreamble.CHECK_START + AesPreamble.CHECK_SIZE;
+            if (page[0] != 1) return false;
+            for (var i = saltEnd; i < AesPreamble.CHECK_START; i++) if (page[i] != 0) return false;
+            for (var i = checkEnd; i < PAGE_SIZE; i++) if (page[i] != 0) return false;
+            for (var i = AesPreamble.CHECK_START; i < checkEnd; i++) if (page[i] != 0) return true;
+            return false;
         }
 
         private byte[] ReadDataPrefix(long dataLength)

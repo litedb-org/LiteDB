@@ -88,12 +88,12 @@ namespace LiteDB.Engine
         /// docs/decisions/durability-policy.md): the engine then reopens read-only on its next call and
         /// refuses writes until the database is reopened.
         /// </summary>
-        internal void RecordWriteFailure(string operation, Exception error)
+        internal void RecordWriteFailure(string operation, Exception error, AcknowledgedLog acknowledged = null)
         {
             bool walKept;
             try { walKept = this.GetFileLength(FileOrigin.Log) > 0; }
             catch (Exception) { walKept = true; }
-            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept));
+            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept, acknowledged));
         }
 
         /// <summary>For an exception filter: name the file of a failed write or sync, and let it pass.</summary>

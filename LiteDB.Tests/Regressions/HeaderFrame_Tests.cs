@@ -184,6 +184,63 @@ namespace LiteDB.Tests.Regressions
             File.ReadAllBytes(logName).Should().Equal(log);
         }
 
+        /// <summary>
+        /// Frame 0 of the log never reached the device while later frames did: no header frame can be
+        /// read, but the log holds WAL frames, so the empty data file is not initialized over them.
+        /// The same for an encrypted log opened without its password. Review finding B2.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Log_whose_header_frame_cannot_be_read_is_never_initialized_over(bool encryptedWithoutPassword)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var password = encryptedWithoutPassword ? ";Password=secret" : "";
+            using (var db = new LiteDatabase($"Filename={file.Filename};Durable Commits=false{password}"))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(Enumerable.Range(1, 12).Select(Row));
+            }
+            File.WriteAllBytes(file.Filename, new byte[0]);
+            var log = File.ReadAllBytes(logName);
+            if (!encryptedWithoutPassword) Array.Clear(log, 0, WalChecksum.FrameSize); // frame 0 never written back
+            File.WriteAllBytes(logName, log);
+
+            Action open = () => new LiteDatabase(file.Filename).Dispose();
+            open.Should().Throw<LiteException>().WithMessage("*log file holds WAL frames*");
+            new FileInfo(file.Filename).Length.Should().Be(0, "the refused open writes nothing");
+            File.ReadAllBytes(logName).Should().Equal(log);
+
+            if (encryptedWithoutPassword)
+            {
+                using var db = new LiteDatabase($"Filename={file.Filename}{password}");
+                db.GetCollection("rows").Count().Should().Be(12, "with its password the header is restored");
+            }
+        }
+
+        /// <summary>
+        /// An encrypted data file whose header page was never written back reads as zeros through its
+        /// encryption (a zero block decrypts to zeros), which the header frame completes.
+        /// </summary>
+        [Fact]
+        public void Encrypted_header_page_never_written_back_is_restored()
+        {
+            using var file = new TempFile();
+            var connection = $"Filename={file.Filename};Password=secret;Durable Commits=false";
+            using (var db = new LiteDatabase(connection))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(Enumerable.Range(1, 12).Select(Row));
+            }
+            var data = File.ReadAllBytes(file.Filename);
+            Array.Clear(data, PAGE_SIZE, PAGE_SIZE); // the header page, after the encryption preamble
+            File.WriteAllBytes(file.Filename, data);
+
+            using var reopened = new LiteDatabase(connection);
+            reopened.GetCollection("rows").Count().Should().Be(12);
+        }
+
         [Fact]
         public void Encrypted_data_file_left_empty_is_restored_from_its_log()
         {

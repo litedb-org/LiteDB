@@ -189,15 +189,19 @@ until the owner confirms them.
    A header with other bytes (a drive defect) fails the open as before, instead of taking a copy that
    may be older. The header frame must not name pages the data file lost (its `LastPageID` must fit the
    file); an empty data file beside a WAL whose header frame names pages, and a missing data file
-   beside a WAL, refuse the open and change neither file. An encrypted data file whose header page was
-   never written back (its bytes zeros, which decrypt to other bytes) is not restored and fails the
-   open; an empty encrypted data file is restored. A header frame whose write fails is truncated like a
-   failed append.
-10. **Which reopens are bounded (13).** A failed WAL write and a failed commit log flush carry the end of
-   the WAL before their batch; the read-only engine that replaces the failed one, and a shared
-   connection's later read-only engines (its read snapshots included), replay up to it while the raw
-   log has the length and salt the failure left. Other failures (a checkpoint, a promotion) wrote no
-   commit and are not bounded.
+   beside a WAL, refuse the open and change neither file, and so does a log whose header frame cannot be
+   read (torn, never written back, or encrypted and opened without its password) while it holds WAL
+   frames. An encrypted data file whose header page was never written back reads as zeros through its
+   encryption and is restored like a plain one; an empty encrypted data file is restored too. A header
+   frame whose write fails is truncated like a failed append.
+10. **Which reopens are bounded (13).** A failed WAL write and a failed commit log flush record the end of
+   the WAL before their batch and the files as the failure left them: the raw log from that end on,
+   its salt, the data file's length and header, and its copy of every page the failed transaction
+   wrote. The read-only engine that replaces the failed one, and a shared connection's later read-only
+   engines (its read snapshots included), replay up to that end only while all of these still match:
+   another connection or process can recover the failed commit and checkpoint it into the data file
+   without changing the log's length or salt, and a view bounded then would mix the two. Otherwise the
+   files win, whole. Other failures (a checkpoint, a promotion) wrote no commit and are not bounded.
 11. **The data barrier (14)** runs before an engine's first durable commit, skipped when the data file
    is not a file, when this engine already synced it, and, in a shared connection, after the
    connection's first barrier or once it found the data file cannot sync. A real I/O error fails that
