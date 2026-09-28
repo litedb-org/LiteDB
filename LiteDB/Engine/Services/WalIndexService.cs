@@ -259,8 +259,15 @@ namespace LiteDB.Engine
                     // Their witnesses still confirm the surviving frames at the same
                     // stable physical version as before reclamation.
                     var version = checked((int)(current / PAGE_SIZE + 1));
-                    foreach (var entry in list)
-                        if (entry.PageID > legacyLimit) throw LegacyPageOutOfRange(entry.PageID, legacyLimit);
+                    if (!_disk.ChecksumsEnabled)
+                    {
+                        // A 5.x commit that allocated pages confirms with its header, whose LastPageID
+                        // counts every ID handed out so far, also to transactions still open whose
+                        // pages never reached the WAL (concurrent writers).
+                        if (pageID == 0) legacyLimit = Math.Max(legacyLimit, buffer.ReadUInt32(HeaderPage.P_LAST_PAGE_ID));
+                        foreach (var entry in list)
+                            if (entry.PageID > legacyLimit) throw LegacyPageOutOfRange(entry.PageID, legacyLimit);
+                    }
                     _confirmTransactions.Add(transactionID);
                     _currentReadVersion = version;
                     if (!buffer.WalFrame.Retired) _confirmationPositions[version] = current;
@@ -300,8 +307,9 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Legacy WAL pages carry no checksum: a torn or foreign page can name any page ID, and the
-        /// drain would write it that far into the data file. A committed page is an existing page
-        /// or one a transaction in this WAL allocated, each of which the WAL holds.
+        /// drain would write it that far into the data file. A committed page is an existing page,
+        /// one a transaction in this WAL allocated (each of which the WAL holds), or one below the
+        /// LastPageID of a committed header in the WAL (raised while reading it).
         /// </summary>
         private uint LegacyPageLimit(HeaderPage header)
         {

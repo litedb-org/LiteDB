@@ -37,6 +37,7 @@
     <EmbeddedResource Include="Resources\IndexMigrationLegacyKeys_5_0_21.zip" />
     <EmbeddedResource Include="Resources\DropIndex_5_0_21.zip" />
     <EmbeddedResource Include="Resources\WalCrash_5_0_21.zip" />
+    <EmbeddedResource Include="Resources\ConcurrentWalCrash_5_0_21.zip" />
     <EmbeddedResource Include="Resources\EncryptedWalCrash_5_0_21.zip" />
     <EmbeddedResource Include="Resources\DamagedDocument_5_0_21.zip" />
     <EmbeddedResource Include="Resources\DamagedUniqueDocuments_5_0_21.zip" />

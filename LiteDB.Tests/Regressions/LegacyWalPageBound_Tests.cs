@@ -48,10 +48,38 @@ namespace LiteDB.Tests.Regressions
             finally { File.Delete(logName); }
         }
 
-        private static byte[] Entry(string name)
+        /// <summary>
+        /// ConcurrentWalCrash_5_0_21.zip, written by the LiteDB 5.0.21 package: a worker thread held an
+        /// explicit transaction on "a" open (300 inserts, page IDs taken from the shared header but
+        /// never written), the main thread committed 3 inserts into "b" (new pages 58 and 59), then
+        /// the process was killed (Environment.FailFast). The data file has 7 pages (LastPageID 6),
+        /// the WAL 13; pages 7..57 were handed out but never written. 5.0.21 reopens the pair with
+        /// b = 13 documents. The bound counts pages up to a committed header's LastPageID.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Committed_pages_after_ones_an_open_transaction_took_stay_within_the_bound(bool readOnly)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            try
+            {
+                File.WriteAllBytes(file.Filename, Entry("c.db", "ConcurrentWalCrash_5_0_21.zip"));
+                File.WriteAllBytes(logName, Entry("c-log.db", "ConcurrentWalCrash_5_0_21.zip"));
+                var connection = $"Filename={file.Filename}" + (readOnly ? ";readonly=true;legacy index scan=true" : "");
+                using var db = new LiteDatabase(connection);
+                db.GetCollection("b").Count().Should().Be(13);
+                db.GetCollection("b").Count(Query.GTE("_id", 100)).Should().Be(3, "the commits the WAL alone holds");
+                db.GetCollection("a").Count().Should().Be(10);
+            }
+            finally { File.Delete(logName); }
+        }
+
+        private static byte[] Entry(string name, string archive = "WalCrash_5_0_21.zip")
         {
             using var zip = new ZipArchive(typeof(LegacyWalPageBound_Tests).Assembly.GetManifestResourceStream(
-                "LiteDB.Tests.Resources.WalCrash_5_0_21.zip"), ZipArchiveMode.Read);
+                "LiteDB.Tests.Resources." + archive), ZipArchiveMode.Read);
             using var entry = zip.GetEntry(name).Open();
             using var bytes = new MemoryStream();
             entry.CopyTo(bytes);
