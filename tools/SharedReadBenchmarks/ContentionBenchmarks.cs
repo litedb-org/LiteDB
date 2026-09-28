@@ -32,7 +32,7 @@ internal static class ContentionBenchmarks
             if (wait.Elapsed.TotalSeconds > 30) throw new TimeoutException("Start barrier");
             Thread.Sleep(1);
         }
-        var startUtc = new DateTime(long.Parse(File.ReadAllText(signal)), DateTimeKind.Utc);
+        var startUtc = BenchmarkStartSignal.Read(signal);
         while (DateTime.UtcNow < startUtc) Thread.Sleep(1);
         var clock = Stopwatch.StartNew();
         var api = new List<double>();

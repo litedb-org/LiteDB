@@ -69,6 +69,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\tools\SharedReadBenchmarks\BenchmarkStartSignal.cs" Link="Tools\BenchmarkStartSignal.cs" />
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 

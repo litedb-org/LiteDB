@@ -67,7 +67,7 @@ internal static class ReaderContentionBenchmarks
             if (waiting.Elapsed.TotalSeconds > 30) throw new TimeoutException("Reader benchmark barrier");
             Thread.Sleep(1);
         }
-        var start = new DateTime(long.Parse(File.ReadAllText(signal)), DateTimeKind.Utc);
+        var start = BenchmarkStartSignal.Read(signal);
         while (DateTime.UtcNow < start) Thread.Sleep(1);
         var clock = Stopwatch.StartNew();
         var samples = new List<double>();
