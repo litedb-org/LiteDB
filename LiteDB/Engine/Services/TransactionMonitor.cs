@@ -27,6 +27,9 @@ namespace LiteDB.Engine
 #if TESTING
         internal Action BeforeTransactionRegistration { get; set; }
 #endif
+#if DEBUG || TESTING
+        internal Action AfterTransactionExit { get; set; }
+#endif
 
         // expose open transactions
         public ICollection<TransactionService> Transactions => _transactions.Snapshot();
@@ -124,13 +127,27 @@ namespace LiteDB.Engine
             }
             finally
             {
-                if (removed) _locker.ExitTransaction(transaction.OwnerThread);
-                if (!transaction.QueryOnly)
+                try
                 {
-                    ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-                    _slot.Value = null;
+                    // Rebuild may dispose the monitor and disk as soon as the transaction
+                    // lease is released. Finish service cleanup before admitting it.
+                    if (!transaction.QueryOnly)
+                    {
+                        ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                        _slot.Value = null;
+                    }
+                    _disk.Cache.TrimToLimit();
                 }
-                _disk.Cache.TrimToLimit();
+                finally
+                {
+                    if (removed)
+                    {
+                        _locker.ExitTransaction(transaction.OwnerThread);
+#if DEBUG || TESTING
+                        AfterTransactionExit?.Invoke();
+#endif
+                    }
+                }
             }
         }
 
