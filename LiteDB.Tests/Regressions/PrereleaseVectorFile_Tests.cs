@@ -97,7 +97,7 @@ namespace LiteDB.Tests.Regressions
             Action open = () => new LiteDatabase(file.Filename).Dispose();
             var error = open.Should().Throw<LiteException>().Which;
             error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
-            error.Message.Should().Contain("Collection 'docs'").And.Contain("'embedding' has no vector metadata");
+            error.Message.Should().Contain("Collection 'docs'").And.Contain("'embedding' has no vector metadata. ");
 
             using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
             db.GetCollection("$indexes").Find(Query.EQ("name", "embedding")).Should().BeEmpty();

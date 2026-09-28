@@ -24,7 +24,10 @@ namespace LiteDB.Engine
                     : "A stream is not rebuilt in place: copy it to a file and open that with `auto-rebuild=true` (unreadable " +
                       "documents are listed in `_rebuild_errors`), or pass a stream that cannot be written (or EngineSettings " +
                       "ReadOnly with LegacyIndexScan) to read its undamaged collections."),
-                collection == null ? "The database" : "Collection '" + collection + "'", ex.Message);
+                collection == null ? "The database" : "Collection '" + collection + "'", Sentence(ex.Message));
+
+        /// <summary>An internal check's message, which may lack its full stop, as a sentence.</summary>
+        private static string Sentence(string message) => message.TrimEnd().EndsWith(".") ? message.TrimEnd() : message.TrimEnd() + ".";
 
         private void MigrateIndexOrdering()
         {
