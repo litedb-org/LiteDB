@@ -132,3 +132,14 @@ and the owner's answers:
     never sees a transaction its caller saw fail. A later open (a new connection, a restart) lets
     the device decide, as recovery always does. If the WAL grew past the failed batch meanwhile
     (another process committed on top of it), the files win.
+14. **The data barrier before the first commit stays, best effort (refines 11).** The header frame
+    covers what the WAL depends on (the data header), not what it builds on: a WAL holds changed
+    pages only, and every other page must already be on the device. So before an engine's first
+    durable commit LiteDB syncs the data file once, so that a database file someone copied into
+    place (a backup restore, a deployment, a container image) is on the device before commits build
+    on it. It never refuses a commit: a data file that cannot sync proceeds (the header frame covers
+    the header), and a real I/O error is a recorded failure (decision 6). Cost: one data sync per
+    process and data header in direct mode. Shared mode adds no work per operation: the barrier
+    runs once per shared connection, and a connection that found the data file cannot sync does not
+    retry it per operation. A copy restored while the process runs, with a header byte-identical to
+    one it synced, is not synced again (best effort, documented).
