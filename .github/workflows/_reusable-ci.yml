@@ -160,7 +160,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-admission-glibc231-${{ matrix.os }}
-          path: LiteDB.Tests/TestResults/NativeAdmission-glibc231-*.trx
+          path: |
+            LiteDB.Tests/TestResults/NativeAdmission-glibc231-*.trx
+            LiteDB.Tests/TestResults/NativeAdmission-bind-*
           if-no-files-found: warn
 
   build-macos:
