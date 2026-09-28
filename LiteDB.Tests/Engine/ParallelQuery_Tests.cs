@@ -10,7 +10,7 @@ namespace LiteDB.Tests.Engine
 {
     public class ParallelQuery_Tests
     {
-        [Fact(Skip = "Must fix parallel query fetch")]
+        [Fact]
         public void Query_Parallel()
         {
             using(var db = new LiteDatabase(new MemoryStream()))
