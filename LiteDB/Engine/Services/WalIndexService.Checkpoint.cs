@@ -168,6 +168,12 @@ namespace LiteDB.Engine
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
+                // A data file that answered "cannot sync" (#2242) for this backfill while the WAL
+                // syncs: an emptied WAL would become durable at the next log sync, the backfill
+                // never. Keep the WAL, as a partial checkpoint does, so every commit it holds stays
+                // recoverable. Storage where neither file syncs empties it as before.
+                if (reclaim && _disk.DataUnsyncedWhileLogSyncs) reclaim = false;
+
                 if (!reclaim) _disk.CompletePartialCheckpoint(retirement);
 
                 if (obsolete.Count > 0)

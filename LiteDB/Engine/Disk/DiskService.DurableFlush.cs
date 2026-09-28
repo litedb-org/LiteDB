@@ -24,6 +24,10 @@ namespace LiteDB.Engine
         // Set once this engine proved what reusing a WAL slot needs (see ProveSlotReuse).
         private volatile bool _slotReuseProven;
 
+        // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
+        // false after "cannot sync" (#2242).
+        private volatile bool _dataBarrierSynced = true, _logBarrierSynced;
+
         // Set once this engine made the WAL's directory entry durable. Until then a durable
         // commit is not acknowledged: syncing a new WAL does not persist its name on Unix.
         private volatile bool _logDirectorySynced;
@@ -52,6 +56,26 @@ namespace LiteDB.Engine
         /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
         /// </summary>
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
+
+        /// <summary>
+        /// The latest data barrier answered "cannot sync" (#2242) while the latest log barrier
+        /// synced: a backfill has not become durable, but a WAL change that discards its frames
+        /// would at the next log sync.
+        /// </summary>
+        internal bool DataUnsyncedWhileLogSyncs => !_dataBarrierSynced && _logBarrierSynced;
+
+        /// <summary>
+        /// Sync the data file and a non-empty log, as barriers, and report <see cref="DataUnsyncedWhileLogSyncs"/>.
+        /// </summary>
+        internal bool ProbeDataUnsyncedWhileLogSyncs()
+        {
+            if (this.GetFileLength(FileOrigin.Log) == 0) return false;
+            var data = _dataPool.Writer.Value;
+            lock (data) this.SyncDataBarrier(data);
+            var log = _writer.Value;
+            lock (log) this.SyncLogBarrier(log);
+            return this.DataUnsyncedWhileLogSyncs;
+        }
 
         /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
@@ -136,10 +160,12 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
+                _logBarrierSynced = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 // The pages were written successfully; only the sync request was refused.
+                _logBarrierSynced = false;
                 log.Flush();
                 this.MarkLogFlushDegraded(ex);
             }
@@ -181,9 +207,11 @@ namespace LiteDB.Engine
             try
             {
                 raw.FlushToDisk();
+                _logBarrierSynced = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
+                _logBarrierSynced = false;
                 raw.Flush();
                 this.MarkLogFlushDegraded(ex);
             }
@@ -200,9 +228,11 @@ namespace LiteDB.Engine
             try
             {
                 data.FlushToDisk();
+                _dataBarrierSynced = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
+                _dataBarrierSynced = false;
                 data.Flush();
                 if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
                 if (_dataFlushDegraded) return;
