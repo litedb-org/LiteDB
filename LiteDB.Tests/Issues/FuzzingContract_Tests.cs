@@ -163,6 +163,8 @@ namespace LiteDB.Tests.Issues
                 engine.GetMonitor().Dispose();
                 exclusiveAdmitted.Set();
             };
+            engine.GetMonitor().AfterTransactionExit = () =>
+                exclusiveAdmitted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
             engine.BeginTrans().Should().BeTrue();
             var rebuild = Task.Factory.StartNew(() => engine.Rebuild(), CancellationToken.None,
@@ -171,7 +173,7 @@ namespace LiteDB.Tests.Issues
             engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" } },
                 BsonAutoId.Int32).Should().Be(1);
             engine.Commit().Should().BeTrue();
-            exclusiveAdmitted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            exclusiveAdmitted.IsSet.Should().BeTrue();
 
             await rebuild;
             var query = Query.All();
