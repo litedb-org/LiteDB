@@ -42,9 +42,9 @@ namespace LiteDB.Tests.Database
 
         private static void CheckNullableId<T>(int path) where T : struct
         {
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var rows = new[] { new NullableRow<T>(), new NullableRow<T> { Id = default(T) } };
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = storage.Open())
             {
                 var collection = db.GetCollection<NullableRow<T>>("rows");
                 foreach (var row in rows)
@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Database
                 }
                 rows[0].Id.Should().NotBe(rows[1].Id);
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             var restored = reopened.GetCollection<NullableRow<T>>("rows");
             restored.Count().Should().Be(2);
             foreach (var row in rows)
@@ -83,15 +83,15 @@ namespace LiteDB.Tests.Database
                 member.Setter = (target, value) => ((CustomRow)target).Id = ((ObjectId)value).ToString();
             };
 
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var row = new CustomRow { Id = "", Name = "custom" };
-            using (var db = new LiteDatabase(file.Filename, mapper))
+            using (var db = storage.Open(mapper))
             {
                 Write(db.GetCollection<CustomRow>("rows"), row, path);
                 row.Id.Should().NotBeNullOrEmpty();
                 db.GetCollection("rows").FindById(new ObjectId(row.Id))["Name"].AsString.Should().Be("custom");
             }
-            using var reopened = new LiteDatabase(file.Filename, mapper);
+            using var reopened = storage.Open(mapper);
             reopened.GetCollection<CustomRow>("rows").FindById(new ObjectId(row.Id)).Id.Should().Be(row.Id);
             reopened.GetCollection("rows").Count().Should().Be(1);
         }
@@ -109,8 +109,8 @@ namespace LiteDB.Tests.Database
         [InlineData(4, true)]
         public void Throwing_setter_rolls_back_before_caller_can_commit(int path, bool explicitTransaction)
         {
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open())
             {
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 91, ["Name"] = "control" });
                 if (explicitTransaction) db.BeginTrans();
@@ -119,7 +119,7 @@ namespace LiteDB.Tests.Database
                 db.Commit().Should().BeFalse();
                 db.GetCollection("rows").Count().Should().Be(1);
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             reopened.GetCollection("rows").Count().Should().Be(1);
             reopened.GetCollection("rows").FindById(91)["Name"].AsString.Should().Be("control");
         }

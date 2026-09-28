@@ -61,8 +61,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public async Task Concurrent_collection_creation_and_listing_complete_without_errors()
         {
-            using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(":memory:");
             using var start = new ManualResetEventSlim();
             var writers = Enumerable.Range(0, 4).Select(worker => Task.Run(() =>
             {

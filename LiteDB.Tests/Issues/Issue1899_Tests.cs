@@ -21,8 +21,8 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Paged_QueryAll_preserves_include_and_uses_current_referenced_data()
         {
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open())
             {
                 var targets = db.GetCollection<Target>("targets");
                 var col = db.GetCollection<Row>("rows");
@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Issues
                     targets.Update(target).Should().BeTrue();
                 }
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             var rows = reopened.GetCollection<Row>("rows").Include(x => x.Document).Find(Query.All(), 1, 2).ToArray();
             rows.Select(x => x.Id).Should().Equal(2, 3);
             rows.Select(x => x.Document.Id).Should().Equal(12, 13);

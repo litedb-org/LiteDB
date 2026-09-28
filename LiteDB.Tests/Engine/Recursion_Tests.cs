@@ -3,7 +3,6 @@ using Xunit;
 
 namespace LiteDB.Tests.Engine;
 
-[Collection("SharedDemoDatabase")]
 public class Recursion_Tests
 {
     [Fact]
@@ -43,9 +42,10 @@ public class Recursion_Tests
 
     private void Test(Action<ILiteCollection<BsonDocument>> action)
     {
+        using var file = new TempFile();
         using LiteDatabase database = new(new ConnectionString()
         {
-            Filename = "Demo.db",
+            Filename = file.Filename,
             Connection = ConnectionType.Shared,
         });
 

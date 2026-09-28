@@ -27,9 +27,8 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Readers_never_observe_a_stale_or_foreign_catalog_under_cache_eviction_and_checkpoints()
         {
-            using var file = new TempFile();
             const int collections = 40;
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = CompactStorageMode.Auto });
+            using var db = new LiteDatabase(new ConnectionString { Filename = ":memory:", CompactStorage = CompactStorageMode.Auto });
             db.CheckpointSize = 0;
             for (var c = 0; c < collections; c++)
                 db.GetCollection("col" + c).InsertBulk(Enumerable.Range(1, 4).Select(i => Doc(c, i / 2, i)));

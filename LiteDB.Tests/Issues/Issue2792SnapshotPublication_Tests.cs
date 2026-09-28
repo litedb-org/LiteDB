@@ -13,8 +13,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Already_admitted_reader_waits_for_collection_and_wal_publication_together()
         {
-            using var file = new TempFile();
-            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using var engine = new LiteEngine(new EngineSettings { Filename = ":memory:" });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
             var monitor = engine.GetMonitor();

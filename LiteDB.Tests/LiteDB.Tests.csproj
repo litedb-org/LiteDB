@@ -84,4 +84,5 @@
            Text="MVCC probe output not found. Build LiteDB.Tests.SharedMutexHarness before LiteDB.Tests." />
     <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(OutDir)mvcc-probe" SkipUnchangedFiles="true" />
   </Target>
+  <Import Project="../tests/Shared/TestStorage.props" />
 </Project>

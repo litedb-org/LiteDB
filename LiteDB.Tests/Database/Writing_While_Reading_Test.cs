@@ -9,8 +9,8 @@ public class Writing_While_Reading_Test
     [Fact]
     public void Test()
     {
-        using var f = new TempFile();
-        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+        using var f = new MemoryDatabase();
+        using (var db = f.Open())
         {
             var col = db.GetCollection<MyClass>("col");
             col.Insert(new MyClass { Name = "John", Description = "Doe" });
@@ -19,7 +19,7 @@ public class Writing_While_Reading_Test
         }
 
 
-        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+        using (var db = f.Open())
         {
             var col = db.GetCollection<MyClass>("col");
             foreach (var item in col.FindAll())
@@ -32,7 +32,7 @@ public class Writing_While_Reading_Test
         }
 
 
-        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+        using (var db = f.Open())
         {
             var col = db.GetCollection<MyClass>("col");
             foreach (var item in col.FindAll())

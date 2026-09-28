@@ -77,12 +77,12 @@ namespace LiteDB.Tests.Issues
         {
             var original = new Playlist("original") { Comment = "retained" };
             original.ImageIds.Add(Guid.Parse("0920cfcc-051b-47c5-a975-b7a74bc1d16d"));
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open(new BsonMapper()))
             {
                 db.GetCollection<Playlist>("lists").Insert(original);
             }
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var db = storage.Open(new BsonMapper()))
             {
                 db.GetCollection("lists").FindById(original.Id)["_id"].AsGuid.Should().Be(original.Id);
                 var col = db.GetCollection<Playlist>("lists");

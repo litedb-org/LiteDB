@@ -141,8 +141,8 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void UpdateMany_stores_a_reference_and_later_includes_current_target_data()
         {
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open())
             {
                 var oldTarget = new Target { Id = 1, Name = "old" };
                 var newTarget = new Target { Id = 2, Name = "new" };
@@ -154,7 +154,7 @@ namespace LiteDB.Tests.Issues
                 newTarget.Name = "changed after assignment";
                 targets.Update(newTarget).Should().BeTrue();
             }
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var db = storage.Open(new BsonMapper()))
             {
                 var raw = db.GetCollection("rows");
                 var reference = raw.FindById(11)["Reference"].AsDocument;

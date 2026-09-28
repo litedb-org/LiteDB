@@ -22,8 +22,8 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Adding_reference_field_index_cannot_remove_included_matches()
         {
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open())
             {
                 var a = new Home { Id = 10, Value = 65 };
                 var b = new Home { Id = 20, Value = 85 };
@@ -39,7 +39,7 @@ namespace LiteDB.Tests.Issues
                 col.EnsureIndex("home_value", "$.Homes[*].Value");
                 Check(col);
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             Check(reopened.GetCollection<Human>("humans"));
             reopened.GetCollection<Home>("homes").Count().Should().Be(2);
         }

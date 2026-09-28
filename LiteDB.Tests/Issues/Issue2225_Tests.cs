@@ -36,9 +36,9 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Inherited_private_setter_receives_generated_ids_without_making_hidden_getters_writable()
         {
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var row = new IntegerRow();
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var db = storage.Open(new BsonMapper()))
             {
                 db.GetCollection<IntegerRow>("rows").Insert(row).AsInt32.Should().Be(1);
                 row.Id.Should().Be(1);
@@ -46,7 +46,7 @@ namespace LiteDB.Tests.Issues
                 writeReadOnly.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.PROPERTY_READ_WRITE);
                 db.GetCollection("readonly").Count().Should().Be(0);
             }
-            using var reopened = new LiteDatabase(file.Filename, new BsonMapper());
+            using var reopened = storage.Open(new BsonMapper());
             reopened.GetCollection<IntegerRow>("rows").FindById(1).Id.Should().Be(1);
         }
 
@@ -54,13 +54,13 @@ namespace LiteDB.Tests.Issues
         public void Inherited_private_id_setter_preserves_identity_with_parameterless_constructor()
         {
             var id = Guid.Parse("85ddfae2-67ca-4117-9f9a-7527d16972c0");
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open(new BsonMapper()))
             {
                 db.GetCollection<Row>("rows").Insert(new Row(id, 42));
                 db.GetCollection<ConstructorOnly>("control").Insert(new ConstructorOnly(id, 17));
             }
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var db = storage.Open(new BsonMapper()))
             {
                 db.GetCollection<ConstructorOnly>("control").FindById(id).Id.Should().Be(id);
                 db.GetCollection("rows").FindById(id)["Value"].AsInt32.Should().Be(42);
