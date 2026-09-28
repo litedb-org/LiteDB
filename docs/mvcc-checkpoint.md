@@ -268,10 +268,13 @@ the log (and, once per engine, the log's directory); storage that answers "canno
 sync" (#2242) then retires nothing and never reuses slots, so the WAL appends until a
 full checkpoint truncates it. Only storage that stops syncing during a retiring
 checkpoint degrades that checkpoint's barriers to ordered OS-cache flushes, which
-survive a process crash but not power loss, as before #2818. Before an engine, including each
-short-lived shared-mode engine, first reuses a slot found blank at open, it syncs the
-raw log once. That sync proves the storage can sync and makes earlier non-durable
-clears durable; storage that answers "cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
+survive a process crash but not power loss, as before #2818; that checkpoint keeps the
+frames it retired, since its witness root may be in the OS cache only (reads skip them
+while the root names them). Before an engine, including each short-lived shared-mode
+engine and every engine of another connection, first reuses a slot found at open, it
+syncs the data file and the raw log once. That makes an earlier engine's witness root
+and clears durable before a retired frame is overwritten; storage that answers "cannot
+sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
 damage to both data and required recovery evidence. CRCs detect accidental damage,
 not deliberate tampering.
 

@@ -162,7 +162,10 @@ without the device sync, as before #2818, reported by
 so a killed process still recovers; power loss can lose recent commits or leave a
 checkpoint partially applied, the same risk as before #2818. Every barrier still
 attempts a real sync first, so storage that syncs again regains the full
-guarantee. Data-file syncs are never downgraded.
+guarantee. A data file that answers the same degrades its barriers the same way.
+A WAL that still syncs then keeps what the data file could not make durable: a full
+checkpoint does not empty it, since the emptied WAL would become durable at the next
+log sync and the backfill never.
 
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.

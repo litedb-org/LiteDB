@@ -39,7 +39,11 @@ can grow witness metadata and recovery work until a full checkpoint. On storage
 that rejects device sync (#2242), snapshot checkpoints still run, but no frame is
 retired and no slot reused: the WAL appends as before v13 until a full checkpoint
 truncates it. Every retiring checkpoint first syncs the data file and the WAL (and
-once the WAL's directory), so such storage is found before any witness depends on it. Larger
+once the WAL's directory), so such storage is found before any witness depends on it;
+storage that stops syncing during the checkpoint keeps the retired frames. An engine
+(also one of another shared connection) syncs the data file and the WAL once before it
+first reuses a slot found at open. If only the data file cannot sync, a full checkpoint
+keeps the WAL, since emptying it would outlast the unsynced backfill. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
 host with working file-sharing locks, use the same mutex naming strategy and this
