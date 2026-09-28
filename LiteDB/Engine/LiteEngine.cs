@@ -74,6 +74,7 @@ namespace LiteDB.Engine
         public LiteEngine(EngineSettings settings)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            LiteDB.Client.Shared.SharedModeGuard.Normalize(_settings);
 
             this.Open();
         }

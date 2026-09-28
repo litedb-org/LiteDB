@@ -301,6 +301,7 @@ namespace LiteDB.Client.Coordinated
         {
             var settings = _settings.Clone();
             settings.ReadOnly = true;
+            settings.CoordinatedReadSnapshot = true;
             settings.Upgrade = false;
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;

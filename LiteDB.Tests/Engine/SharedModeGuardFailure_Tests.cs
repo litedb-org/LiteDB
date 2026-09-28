@@ -14,11 +14,9 @@ namespace LiteDB.Tests.Engine
     public class SharedModeGuardFailure_Tests
     {
         [MappedTheory]
-        [InlineData("mode-initializing")]
-        [InlineData("mode-truncated")]
-        [InlineData("mode-written")]
-        [InlineData("mode-flushed")]
-        public async Task Interrupted_mode_identity_initialization_is_repeatable(string stage)
+        [InlineData("mode-locking")]
+        [InlineData("mode-locked")]
+        public async Task Interrupted_native_lock_acquisition_is_repeatable(string stage)
         {
             using var file = new MappedTestFile();
             using (var db = new LiteDatabase(file))
@@ -42,14 +40,14 @@ namespace LiteDB.Tests.Engine
         }
 
         [MappedFact]
-        public void Initialization_io_failure_does_not_mutate_data_or_leak_admission()
+        public void Native_lock_failure_does_not_mutate_data_or_leak_admission()
         {
             using var file = new MappedTestFile();
             using (var db = new LiteDatabase(file)) db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
             var data = File.ReadAllBytes(file);
             SharedCoordinationFile.CreationStage = (path, stage) =>
             {
-                if (stage == "mode-truncated") throw new IOException("injected mode write failure");
+                if (stage == "mode-locked") throw new IOException("injected native lock failure");
             };
             try
             {
@@ -141,7 +139,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [MappedFact]
-        public void Unknown_admission_file_is_preserved_and_writes_fail_closed()
+        public void Obsolete_admission_file_is_ignored_and_preserved()
         {
             using var file = new MappedTestFile();
             using (var db = new LiteDatabase(file)) db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
@@ -151,8 +149,7 @@ namespace LiteDB.Tests.Engine
             File.WriteAllBytes(path, foreign);
             using (var db = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
             {
-                Action write = () => db.GetCollection("rows").DeleteAll();
-                write.Should().Throw<IOException>().WithInnerException<IOException>().WithMessage("*Unrecognized Shared mode*");
+                db.GetCollection("rows").Count().Should().Be(1);
             }
             File.ReadAllBytes(path).Should().Equal(foreign);
             File.ReadAllBytes(file).Should().Equal(data);

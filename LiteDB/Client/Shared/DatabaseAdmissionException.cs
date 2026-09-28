@@ -11,8 +11,8 @@ namespace LiteDB
     {
         internal DatabaseAdmissionException(string filename, Exception inner)
             : base("Cannot safely admit database access to '" + filename +
-                "': could not acquire database admission using '" + filename + "-shared-mode'. " +
-                "An incompatible connection or unavailable coordination storage may prevent access. Cause: " + inner.Message, inner)
+                "': could not acquire the OS-native database admission lock. " +
+                "An incompatible connection or unsupported locking environment may prevent access. Cause: " + inner.Message, inner)
         {
             // Preserve the native cause so bounded sharing-violation retries can
             // distinguish contention from permissions, malformed identity, or I/O.

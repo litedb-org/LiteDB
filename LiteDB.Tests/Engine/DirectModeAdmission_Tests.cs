@@ -45,6 +45,7 @@ namespace LiteDB.Tests.Engine
             var mode = file.Filename + "-shared-mode";
             var live = SharedCoordinationFallback.LivePath(file.Filename);
             File.WriteAllBytes(live, SharedCoordinationProtocol.CreateParticipation(file.Filename));
+            File.WriteAllText(mode, "obsolete artifact");
             File.SetAttributes(mode, FileAttributes.ReadOnly);
             File.SetAttributes(live, FileAttributes.ReadOnly);
             try
@@ -104,7 +105,7 @@ namespace LiteDB.Tests.Engine
                 var data = File.ReadAllBytes(file);
                 File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserExecute);
                 Action writable = () => { using var engine = new LiteEngine(file); };
-                writable.Should().Throw<UnauthorizedAccessException>();
+                writable.Should().NotThrow("native admission does not create a sidecar");
                 using (var read = new LiteDatabase(new ConnectionString { Filename = file, ReadOnly = true }))
                     read.GetCollection("rows").Count().Should().Be(1);
                 File.ReadAllBytes(file).Should().Equal(data);

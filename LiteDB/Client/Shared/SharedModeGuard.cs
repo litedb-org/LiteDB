@@ -1,132 +1,110 @@
 using System;
 using System.IO;
-using System.Text;
+using System.Runtime.ConstrainedExecution;
+using System.Threading;
 using LiteDB.Engine;
 
 namespace LiteDB.Client.Shared
 {
-    /// <summary>
-    /// OS-backed admission for modern file connections. The file is never unlinked:
-    /// replacing it would let two inodes authorize conflicting owners. Its contents
-    /// are only a mutex identity, never database or recovery state.
-    /// </summary>
-    internal sealed class SharedModeGuard : IDisposable
+    /// <summary>One independently disposable reference to the process's database lease.</summary>
+    internal sealed class SharedModeGuard : CriticalFinalizerObject, IDisposable
     {
-        private const string IdentityMagic = "LiteDB mode admission 1\n";
-        private static readonly byte[] IdentityPrefix = Encoding.UTF8.GetBytes(IdentityMagic);
-        private readonly FileStream _lease;
-        private FileStream _legacyLease;
-        private SharedModeGuard(FileStream lease) { _lease = lease; }
+        private DatabaseAdmissionRegistry.Entry _entry;
+        private readonly bool _engine;
+
+        internal SharedModeGuard(DatabaseAdmissionRegistry.Entry entry, bool engine)
+        {
+            _entry = entry;
+            _engine = engine;
+        }
 
         internal static SharedModeGuard Open(EngineSettings settings)
         {
-            if (settings.RebuildCandidate || settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
-                settings.Filename == ":memory:" || settings.Filename == ":temp:") return null;
-            var shared = settings.SharedMode;
-            var readOnly = shared ? settings.SharedModeReadOnly : settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
-            if (readOnly && !shared) return null;
-            return SharedCoordinationFile.RetrySharingViolation(() =>
-                Open(settings.Filename, shared, settings.SharedMutexNameStrategy, readOnly));
+            if (!IsFile(settings) || settings.RebuildCandidate || settings.CoordinatedReadSnapshot) return null;
+            var readOnly = settings.SharedMode ? settings.SharedModeReadOnly :
+                settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
+            try
+            {
+                return Open(settings.Filename, settings.SharedMode, settings.SharedMutexNameStrategy,
+                    readOnly, engine: !settings.SharedMode && !readOnly, create: !settings.ReadOnly);
+            }
+            catch (IOException error) when (settings.ReadOnly && IsMissing(error))
+            { throw MissingReadOnly(settings.Filename, error); }
+        }
+
+        internal static bool IsFile(EngineSettings settings) => settings.DataStream == null &&
+            !string.IsNullOrEmpty(settings.Filename) && settings.Filename != ":memory:" && settings.Filename != ":temp:";
+
+        internal static void Normalize(EngineSettings settings)
+        {
+            try
+            {
+                if (!IsFile(settings)) return;
+                var original = Path.GetFullPath(settings.Filename);
+                var canonical = DatabaseFileIdentity.CanonicalPath(original);
+                if (!string.Equals(original, canonical, DatabaseFileIdentity.Windows
+                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                {
+                    // Older executables could have selected sidecars beside a file
+                    // symlink. Never abandon that WAL or bypass its recovery marker.
+                    RebuildRecovery.EnsureAvailable(settings);
+                    var aliasLog = FileHelper.GetLogFile(original);
+                    if (FileHelper.ExistsOrThrow(aliasLog) && !string.Equals(
+                        DatabaseFileIdentity.CanonicalPath(aliasLog),
+                        DatabaseFileIdentity.CanonicalPath(FileHelper.GetLogFile(canonical)),
+                        DatabaseFileIdentity.Windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                        throw new DatabaseAdmissionException(original, new IOException(
+                            "The alias has a separate WAL. Recover the data and matching WAL together at one canonical path before opening."));
+                }
+                settings.Filename = canonical;
+            }
+            catch (IOException error) when (settings.ReadOnly && IsMissing(error))
+            { throw MissingReadOnly(settings.Filename, error); }
         }
 
         internal static SharedModeGuard Open(string filename, bool shared, SharedMutexNameStrategy strategy,
-            bool readOnly = false)
+            bool readOnly = false, bool engine = false, bool? create = null)
         {
-            filename = Path.GetFullPath(filename);
-            if (!SharedCoordinationFallback.SupportsNames(filename)) return null;
+            filename = DatabaseFileIdentity.CanonicalPath(filename);
             SharedCoordinationPolicy.RequireFileLocking();
-            var path = filename + "-shared-mode";
-            FileStream lease = null;
-            var present = false;
             try
             {
-                if (shared)
-                {
-                    var identity = Encoding.UTF8.GetBytes(IdentityMagic + SharedMutexNameFactory.Create(filename, strategy));
-                    try
-                    {
-                        lease = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        present = true;
-                        if (Matches(lease, identity)) return new SharedModeGuard(lease);
-                        lease.Dispose();
-                        lease = null;
-                    }
-                    catch (FileNotFoundException) { }
-                    // Only exclusive ownership can initialize/change an idle identity.
-                    // A crash here leaves no live owner; the next exclusive opener retries.
-                    if (readOnly)
-                    {
-                        if (present)
-                            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None)) { }
-                        return null;
-                    }
-                    using (var initialize = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
-                    {
-                        // Never truncate an unrelated file in our reserved namespace.
-                        // Empty and prefix-only identities can be left by an interrupted
-                        // initialization; complete recognized identities are ephemeral.
-                        if (!CanInitialize(initialize)) throw new IOException("Unrecognized Shared mode admission identity: " + path);
-                        SharedCoordinationFile.Observe(path, "mode-initializing");
-                        initialize.SetLength(0);
-                        initialize.Position = 0;
-                        SharedCoordinationFile.Observe(path, "mode-truncated");
-                        initialize.Write(identity, 0, identity.Length);
-                        SharedCoordinationFile.Observe(path, "mode-written");
-                        initialize.Flush();
-                        SharedCoordinationFile.Observe(path, "mode-flushed");
-                    }
-                    lease = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    if (!Matches(lease, identity)) throw new IOException("Conflicting Shared mutex identity.");
-                }
-                else lease = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Read, FileShare.None);
-                var guard = new SharedModeGuard(lease);
-                if (!shared)
-                {
-                    // Pre-guard mapped implementations still hold the participation
-                    // file. Keep it exclusive so they cannot attach during this writer.
-                    var live = SharedCoordinationFallback.LivePath(filename);
-                    try { guard._legacyLease = new FileStream(live, FileMode.Open, FileAccess.Read, FileShare.None); }
-                    catch (FileNotFoundException)
-                    {
-                        var authority = SharedCoordinationFallback.PagePath(filename);
-                        // This cold Direct-open check uses managed I/O, independent of the
-                        // optional native hot-path revocation probe and its platform bindings.
-                        if (FileHelper.ExistsOrThrow(authority))
-                            throw new IOException("Unpaired Shared coordination authority: '" + authority +
-                                "'. Stop all connections to this database, then remove this orphan coordination file " +
-                                "before retrying. Preserve database, WAL, backup and rebuild-recovery files.");
-                    }
-                }
-                return guard;
+                return SharedCoordinationFile.RetrySharingViolation(() =>
+                    DatabaseAdmissionRegistry.Open(filename, shared, strategy, readOnly, engine, create ?? !readOnly));
             }
-            catch (IOException error) when (!(error is DirectoryNotFoundException) && !(error is PathTooLongException))
+            catch (IOException error) when (!(error is DirectoryNotFoundException) &&
+                !(error is FileNotFoundException) && !(error is PathTooLongException))
             {
-                lease?.Dispose();
                 SharedCoordinationEvents.Log.Transition(filename, "mode-conflict", error.Message);
                 throw new DatabaseAdmissionException(filename, error);
             }
-            catch { lease?.Dispose(); throw; }
-        }
-
-        private static bool CanInitialize(FileStream stream)
-        {
-            var length = Math.Min(stream.Length, IdentityPrefix.Length);
-            for (var i = 0; i < length; i++) if (stream.ReadByte() != IdentityPrefix[i]) return false;
-            return true;
-        }
-
-        private static bool Matches(FileStream stream, byte[] identity)
-        {
-            if (stream.Length != identity.Length) return false;
-            for (var i = 0; i < identity.Length; i++) if (stream.ReadByte() != identity[i]) return false;
-            return true;
         }
 
         public void Dispose()
         {
-            try { _legacyLease?.Dispose(); }
-            finally { _lease.Dispose(); }
+            var entry = Interlocked.Exchange(ref _entry, null);
+            if (entry != null) DatabaseAdmissionRegistry.Release(entry, _engine);
+            GC.SuppressFinalize(this);
         }
-    }
 
+        internal void EnsureValid()
+        {
+            lock (DatabaseAdmissionRegistry.Gate)
+            {
+                if (_entry == null) throw new ObjectDisposedException(nameof(SharedModeGuard));
+                if (_entry.Faulted) throw new DatabaseAdmissionException(_entry.Filename,
+                    new IOException("Native admission conversion failed. Close all local connections before retrying."));
+            }
+        }
+
+        private static bool IsMissing(IOException error) => error is FileNotFoundException || error is DirectoryNotFoundException;
+
+        private static LiteException MissingReadOnly(string filename, IOException error) =>
+            new LiteException(LiteException.FILE_NOT_FOUND, error,
+                "File '{0}' does not exist and cannot be created in read-only mode.", filename);
+
+        // Critical finalization follows FileStream's ordinary finalizers, which
+        // can still flush buffers. Never admit a peer before those writes finish.
+        ~SharedModeGuard() { this.Dispose(); }
+    }
 }

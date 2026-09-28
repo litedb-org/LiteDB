@@ -35,6 +35,8 @@ namespace LiteDB.Engine
         // Preserve connection admission intent when a query clones read-only snapshot settings.
         internal bool SharedModeReadOnly { get; set; }
         internal bool SharedReadSnapshot { get; set; }
+        // A coordinator snapshot already owns its host-issued remote reader lease.
+        internal bool CoordinatedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
         internal SharedDurabilityState SharedDurability { get; set; }
         // Shared mode on Windows: data/log file handles kept open between operations.

@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Runtime.ConstrainedExecution;
 using System.Threading;
 using LiteDB.Engine;
 using Protocol = LiteDB.Client.Shared.SharedCoordinationProtocol;
@@ -13,7 +14,7 @@ namespace LiteDB.Client.Shared
     /// the database mutex. Scheduling hints do not authorize storage access. Readers serialize local access with disposal. No stored page is
     /// trusted until an engine has opened under that mutex in this process.
     /// </summary>
-    internal sealed unsafe class SharedCoordinationPage : IBatchedCoordinationSignals, IDisposable
+    internal sealed unsafe class SharedCoordinationPage : CriticalFinalizerObject, IBatchedCoordinationSignals, IDisposable
     {
         private const int Size = SharedCoordinationProtocol.PageSize;
         private readonly string _revocationPath;
@@ -67,6 +68,8 @@ namespace LiteDB.Client.Shared
         /// <summary>Caller owns the database mutex. Failure requires revocation before writable fallback.</summary>
         internal static SharedCoordinationPage Open(string filename, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default, bool readOnly = false)
         {
+            if (!SharedCoordinationFallback.SupportsNames(filename))
+                throw new IOException("Mapped attachment requires a mode admission lease.");
             SharedModeGuard guard = SharedModeGuard.Open(filename, shared: true, strategy, readOnly);
             if (guard == null) throw new IOException("Mapped attachment requires a mode admission lease.");
             FileStream participation = null;

@@ -122,81 +122,64 @@ file path, including a newly recreated authority. These are opt-in lifecycle
 events, not one event per read. Listener failures cannot authorize access or
 interrupt storage cleanup.
 
-Modern writable file engines and mapped participants hold an OS file-sharing
-lease on `<database>-shared-mode`. Direct writers require exclusive admission;
-Shared participants share a lease bound to the effective mutex name. Different
-mutex strategies that resolve to the same name remain compatible. Detectable
-conflicts and unavailable authorities throw the public `DatabaseAdmissionException`
-(an `IOException`, retaining the underlying cause in `InnerException`) before
-opening writable storage, including
-upgrade/recovery, and Direct rebuild keeps its admission through replacement.
-A writable Shared connection's admission intent survives its read-only snapshot
-settings: even the first streaming read initializes/holds admission. Streaming
-snapshots retain admission after their connection is disposed. Admission is held
-before fallback revocation and through engine open. A rejected participant cannot
-revoke peers or permanently disable its own mapped path. Ordinary missing-directory,
-path-length and permission exceptions retain their types; Windows sharing/lock
-violations retain their native codes for bounded retries.
-Process termination releases the OS lease automatically. An incomplete idle
-identity can be rewritten only after obtaining exclusive admission. An unknown
-identity is preserved and refuses Shared writes instead of truncating an unrelated
-file that occupies the control path.
+File-backed connections use process-wide native database admission, described in
+[native admission](native-database-admission.md). The registry owns one lock on the
+physical database and reference-counts compatible local owners. There is no
+`-shared-mode` file to initialize, recover or clean up. Direct writers take an
+exclusive lock; Shared participants take shared locks. A different effective
+Shared mutex strategy is rejected before it can revoke or modify a peer's state.
 
-The guard file remains after close and must not be removed or replaced while
-connections are open. It contains no database data, requires no durable database
-migration, and can be recreated when the database is offline. Failed writes or
-process death while initializing it cannot change data or WAL bytes. Read-only
-Shared connections never create or rewrite a mode identity. If the identity is
-absent or idle but mismatched, repeated reads remain protected; mapped attachment
-requires an existing matching lease and keeps it until disposal. Protected read-only
-fallback can run without holding a mode guard. Direct read-only connections also
-bypass admission. Thus read-only mixing is not universally rejected: lifetime
-protection against Direct writers requires a successfully acquired mode lease.
-`ReadOnly` combined with `Upgrade` or `AutoRebuild` can write during open and must
-acquire writable admission. Private rebuild/upgrade candidates do not create guard
-files; the live engine retains admission across publication.
-Shared acquires its admission lazily under the database mutex and retains it
-between operations until connection disposal. Short-lived operation engines and
-snapshots share that lease rather than reopening the guard; an escaping snapshot
-keeps admission until its own disposal, including disposal on another thread.
-Failed inner opens release their references. A read-only connection without an
-admissible identity still checks again on subsequent operations.
-The [admission lifetime tests](../LiteDB.Tests/Engine/SharedAdmissionLifetime_Tests.cs)
-cover idle protected connections, multiple escaping readers, cross-thread disposal,
+Shared admission remains lazy: the first storage operation admits the connection,
+which retains admission between operations. Short-lived engines and streaming
+snapshots retain its lease; an escaping reader can outlive connection disposal.
+Acquisition and final release can occur on different threads. Failed opens unwind
+their acquired references and abandoned references have finalizer cleanup.
+[Admission lifetime tests](../LiteDB.Tests/Engine/SharedAdmissionLifetime_Tests.cs)
+cover idle protected connections, escaping readers, cross-thread disposal,
 encrypted files, failed inner opens and cold indexed reopens.
-Memory databases, caller data streams, and names outside the supported control
-path limits retain their existing behavior.
 
-An already active pre-guard mapped participant is detected by its held
-`-shared-live` handle when a modern Direct writer opens. Unreadable participation
-authorities and orphan status pages also block Direct writers; protected Shared
-fallback and read-only inspection remain available. Unknown coordination
-ABIs still follow the existing rejection/revocation protocol. Old executables
-that never check the guard, or start participating after a modern writer's
-checks, cannot be made safe by this library alone. Concurrent use with those
-executables remains unsupported. Physical-file aliases and external deletion of
-coordination files also remain outside the protocol: always use the same path.
-The guard depends on working OS file-sharing locks, as do snapshot leases.
+Read-only Shared connections now acquire native shared admission even when no
+coordination artifacts exist. They require only read permission on the database;
+protected reads remain available when the optional mapped files cannot be created.
+Standalone Direct read-only connections share admission with other Direct readers
+and exclude writable Direct and Shared connections. Coordinator-owned snapshots
+continue to use their existing host-issued reader lease. `ReadOnly` combined with
+`Upgrade` or `AutoRebuild` requires writable admission because opening can write.
+
+Native admission failures throw `DatabaseAdmissionException` (an `IOException`
+with the underlying cause); ordinary missing-directory and permission exceptions
+retain their types. Windows sharing/lock violations retain their codes for bounded
+retries. Memory databases and caller-owned streams retain their existing contract.
+Symlinks resolve before choosing the data/WAL/recovery paths. Hard-linked databases
+are refused because their different path names could select different WALs.
 
 ### Compatibility impact for Direct connections
 
-Ordinary writable Direct connections also require the persistent `-shared-mode`
-file, even for databases that have never used Shared. Skipping admission until a
-Shared artifact appears would race a Shared participant arriving after Direct
-opens. Guard creation/open failures stop access before data/WAL mutation; there
-is no best-effort bypass. The directory must permit creating the sidecar, or an
-existing sidecar must be readable (Direct requires an exclusive lease, not write access). Disabling .NET file-sharing locks on Unix now
-rejects writable Direct too, with an error naming Direct admission. NFS/SMB
-workarounds that disable locks do not satisfy this contract. There is deliberately
-no LiteDB-level bypass; if another component needs disabled locking, isolate it
-from file-backed LiteDB in a separate process. A second writable Direct connection
-is now rejected on Unix as well. For directories that cannot create guard files,
-open with `ReadOnly=true` when only reads are intended.
+Admission no longer needs a writable directory or a persistent mode sidecar. A
+writable engine still needs permission to modify the database and create its WAL.
+Native locks are mandatory on supported local filesystems; unqualified filesystems
+fail closed. The runtime's file-sharing locks must also remain enabled for the
+independent Shared reader/MMF protocol.
 
-Offline backup/copy tools can omit the guard because it contains no database
-state. Deleting the database file alone leaves it behind; delete it only after
-all users of that database path have closed. Do not remove a live guard to work
-around an admission error. See the [release notes](release-notes.md).
+Compatible admission references share one native lock. Independent writable Direct
+engines still have separate caches and WAL indexes, so admitting a second such
+engine locally remains unsafe and is rejected. Use the same `LiteEngine` or Shared
+connections for concurrent operations. Multiple standalone Direct read-only engines
+are compatible and share admission.
+
+Rebuild/upgrade locks the completed candidate before publication and transfers the
+registry to the resulting live inode. Shared replacement requires other processes
+to close their connections first, including idle ones; their handles cannot be
+transferred remotely. Local Shared connections follow the registry's replacement.
+The recovery marker continues to guard interrupted or incomplete installations.
+No database format change is involved.
+
+Stop all database users when updating from versions with the old sidecar protocol.
+Obsolete `-shared-mode` files are ignored and left untouched. An already active
+pre-guard mapped participant can still be detected by its `-shared-live` handle,
+but concurrent use with old executables that never acquire native admission is
+unsupported. External unlink/rename or changing symlinks while a database is live
+is also unsupported. See [release notes](release-notes.md).
 
 ### Orphan coordination recovery
 
@@ -208,23 +191,11 @@ offline. Do not remove sidecars under live readers or writers. Permission failur
 must be corrected rather than treated as missing files. Direct uses managed file
 metadata checks here and does not depend on the mapped fast-path native probe.
 
-[SharedModeDiagnostics_Tests](../LiteDB.Tests/Engine/SharedModeDiagnostics_Tests.cs)
-checks the public observations, lifecycle events, conflicting writers in real
-processes, plain/encrypted byte preservation and indexed cold reopens, Direct
-process death, failed opens, rebuild and protected read-only fallback.
-[SharedModeGuardFailure_Tests](../LiteDB.Tests/Engine/SharedModeGuardFailure_Tests.cs)
-checks process termination during initialization, injected initialization I/O
-failure, older held participation handles, readers outliving their connection,
-and admission during successful and failed rebuilds.
-[SharedModeAdmissionReview_Tests](../LiteDB.Tests/Engine/SharedModeAdmissionReview_Tests.cs)
-checks absent/mismatched read-only identities, retained mapped admission,
-unavailable Direct guards, disabled locking, and sidecar-free rebuild candidates.
-[Issue2965_Tests](../LiteDB.Tests/Issues/Issue2965_Tests.cs) forces rebuild to
-finish before transaction admission release returns; owner-local slot and cache
-cleanup must finish before that release, while those services are still alive.
-The fault model is process death and failed control-file initialization with OS
-locks intact, not malicious unlinking or unreliable network locking. No data/WAL
-publication, checkpoint, or power-loss recovery protocol is changed.
+[Native admission evidence](native-database-admission.md#validation) covers native
+conflicts, owner death, local reference lifetimes, aliases, permissions and lock
+handoff. Existing Shared mode tests retain mutex-strategy rejection, diagnostics,
+MMF fallback and readers outliving their connection. Rebuild fault tests retain
+the complete data/WAL/backup/candidate recovery oracle.
 
 ## Durability reporting
 

@@ -25,7 +25,7 @@ namespace LiteDB.Tests.Engine
             var path = file.Filename + "-shared-mode";
             File.Delete(path);
             if (mismatched)
-                using (SharedModeGuard.Open(file, true, SharedMutexNameStrategy.Sha1Hash)) { }
+                File.WriteAllText(path, "obsolete mode identity");
             var identity = mismatched ? File.ReadAllBytes(path) : null;
             var data = File.ReadAllBytes(file);
             using (var engine = new SharedEngine(new EngineSettings { Filename = file, ReadOnly = true }))
@@ -35,9 +35,7 @@ namespace LiteDB.Tests.Engine
                     db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
                 if (mismatched) File.ReadAllBytes(path).Should().Equal(identity);
                 else File.Exists(path).Should().BeFalse();
-                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Protected);
-                engine.GetDiagnostics().CoordinatedReadHits.Should().Be(0);
-                File.Exists(SharedCoordinationFallback.PagePath(file)).Should().BeFalse();
+                engine.GetDiagnostics().ReadPath.Should().Be(SharedReadPath.Mapped);
             }
             File.ReadAllBytes(file).Should().Equal(data);
             using var cold = new LiteDatabase(file);
@@ -46,7 +44,7 @@ namespace LiteDB.Tests.Engine
 #endif
 
         [Fact]
-        public void Unavailable_direct_guard_preserves_permission_exception_and_data()
+        public void Obsolete_guard_directory_does_not_block_native_admission()
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename))
@@ -58,7 +56,7 @@ namespace LiteDB.Tests.Engine
             try
             {
                 Action open = () => { using var db = new LiteDatabase(file.Filename); };
-                open.Should().Throw<UnauthorizedAccessException>();
+                open.Should().NotThrow();
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
             }
             finally { Directory.Delete(path); }
@@ -136,7 +134,7 @@ namespace LiteDB.Tests.Engine
                     }
                     finally { RebuildService.SimulateInstallFailure = null; }
                 }
-                Directory.GetFiles(directory, "*-shared-mode").Should().Equal(filename + "-shared-mode");
+                Directory.GetFiles(directory, "*-shared-mode").Should().BeEmpty();
                 using var cold = new LiteDatabase(filename);
                 cold.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("preserved");
             }

@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Engine
             var attempts = 0;
             SharedCoordinationFile.CreationStage = (path, stage) =>
             {
-                if (stage == "mode-initializing" && ++attempts < 3)
+                if (stage == "mode-locking" && ++attempts < 3)
                     throw new IOException("injected sharing violation", unchecked((int)0x80070020));
             };
             try

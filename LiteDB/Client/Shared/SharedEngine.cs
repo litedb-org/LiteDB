@@ -51,8 +51,7 @@ namespace LiteDB
             _settings.SharedMode = true;
             _settings.SharedModeReadOnly = settings.ReadOnly && !settings.Upgrade && !settings.AutoRebuild;
             // Reopens bind to the same absolute path as the mutex and snapshot registry.
-            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
-                _settings.Filename = Path.GetFullPath(_settings.Filename);
+            SharedModeGuard.Normalize(_settings);
             _settings.SharedAdmission = new SharedModeAdmission(_settings);
             _settings.SharedDurability = new SharedDurabilityState();
             _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);

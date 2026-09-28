@@ -7,39 +7,32 @@ connections; non-Shared engines return null. `SharedEngine.GetDiagnostics()` rep
 hits/misses, active leases and process-local participant/writer counters.
 `LiteDB-Shared` publishes lifecycle events; exception reasons omit stack traces.
 
-**Compatibility change for writable Direct connections:** file engines now open
-a persistent `<database>-shared-mode` sidecar even if Shared has never been used.
-The directory must permit its creation; existing guard and participation files
-need only read access for Direct admission. Conflicts/unavailable authorities fail
-with `DatabaseAdmissionException`, an `IOException` retaining the cause and native
-error code. Missing-directory, path-length and permission errors retain their
-ordinary exception types. Windows sharing/lock conflicts receive bounded retries. On Unix, disabling .NET file-sharing locks
-now rejects writable Direct as well as Shared/Coordinated access. There is no
-bypass based on absent Shared files: it would race a later mapped attachment.
-There is deliberately no LiteDB opt-out for disabled OS locking. If another
-component needs that process-wide setting, use a separate process with file
-locking enabled for file-backed LiteDB.
+File-backed admission now uses process-wide OS-native locks on the database,
+replacing the persistent `<database>-shared-mode` sidecar. The first compatible
+local owner acquires the lock and the last releases it, including cleanup after
+abandoned references. Process death releases the OS lock automatically. Direct
+writers exclude other processes and Shared participants; compatible Shared
+processes coexist. Incompatible mutex strategies still fail before storage access.
 
-A second writable Direct connection to the same path is now rejected on Unix too;
-previous .NET sharing behavior could admit both writers. For reading in a directory
-that cannot create files (including a read-only container mount), use `ReadOnly=true`
-instead of opening a default writable connection and issuing only read queries.
+Independent writable Direct engines remain incompatible because their caches and
+WAL state are separate; reuse one engine or use Shared connections. Multiple Direct
+read-only engines share admission. Direct read-only access now excludes writable
+Direct and Shared participants; read-only Shared uses Shared admission. Read-only
+opens need no writable admission artifact. Unsupported locking filesystems fail
+closed. Runtime file-sharing locks must also stay enabled for Shared coordination.
 
-The guard remains after close. Offline backups may omit it, and offline cleanup
-may delete it; never delete or replace it while connections are open. Private
-rebuild/upgrade candidates do not create their own guard files. No data/WAL
-format migration is involved. Writable Shared connections acquire admission even
-for their first read and retain it between operations until connection disposal;
-streaming snapshots share that lease and retain it until their own disposal.
-Switching an idle protected Shared connection to a conflicting Direct writer now
-requires closing the Shared connection and its readers first. Rejected
-participants do not revoke peers and can retry after the conflict ends.
-An orphan `-shared-state` blocks Direct with its filename and offline cleanup
-instructions; see [orphan recovery](shared-mode-safety.md#orphan-coordination-recovery).
-Read-only Shared connections do not initialize or
-rewrite mode identities; absent/mismatched identities retain protected reads.
-Direct read-only and protected read-only access are outside the mode-mixing
-rejection guarantee. See [mode admission and limitations](shared-mode-safety.md#diagnostics-and-mode-admission).
+Symlinks resolve to the target before choosing storage paths. Hard links are
+rejected to prevent conflicting WAL identities. Rebuild/upgrade locks both source
+and replacement through publication/rollback; Shared replacement requires other
+processes to close even idle connections first. Interrupted installation retains
+the existing recovery marker and data/WAL backups.
+
+Stop existing users before switching from the previous admission protocol. Old
+`-shared-mode` artifacts are ignored and preserved. The separately versioned
+`-shared-live`, `-shared-state` and `-shared-disabled` coordination protocol remains
+unchanged, including [orphan recovery](shared-mode-safety.md#orphan-coordination-recovery).
+No data/WAL format migration is required. See [native database admission](native-database-admission.md)
+for platform support, read-only behavior, replacement and validation.
 
 ## Shared mapped reads
 

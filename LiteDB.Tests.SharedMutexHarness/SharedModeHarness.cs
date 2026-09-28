@@ -17,9 +17,6 @@ internal static class SharedModeHarness
         }
         if (mode == "mode-initialize")
         {
-            // Force a new idle identity at every attempt, including after a crash
-            // that already wrote the complete prior one.
-            File.WriteAllBytes(filename + "-shared-mode", Array.Empty<byte>());
             var type = typeof(SharedEngine).Assembly.GetType("LiteDB.Client.Shared.SharedCoordinationFile")!;
             type.GetField("CreationStage", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
                 .SetValue(null, (Action<string, string>)((path, stage) =>
@@ -27,7 +24,7 @@ internal static class SharedModeHarness
                     if (stage != args[4]) return;
                     Console.WriteLine("ready");
                     Console.ReadLine();
-                    throw new Exception("Child must be killed at mode initialization");
+                    throw new Exception("Child must be killed at native lock acquisition");
                 }));
             using var engine = new SharedEngine(settings);
             using var db = new LiteDatabase(engine);

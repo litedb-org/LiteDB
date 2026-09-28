@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.ConstrainedExecution;
 using System.Threading;
 using LiteDB.Engine;
 
@@ -8,7 +9,7 @@ namespace LiteDB.Client.Shared
     /// Lazily admits one Shared connection. Operation engines and escaping snapshots
     /// retain the same OS lease; the last owner releases it after connection disposal.
     /// </summary>
-    internal sealed class SharedModeAdmission : IDisposable
+    internal sealed class SharedModeAdmission : CriticalFinalizerObject, IDisposable
     {
         private readonly EngineSettings _settings;
         private readonly object _gate = new object();
@@ -27,9 +28,9 @@ namespace LiteDB.Client.Shared
         private void EnsureLocked()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SharedModeAdmission));
-            // Null is not cached: an unadmitted read-only connection must recheck an
-            // absent/mismatched identity on later operations. Failed opens also retry.
+            // Failed opens remain retryable; only successful admission is cached.
             _guard ??= SharedModeGuard.Open(_settings);
+            _guard?.EnsureValid();
         }
 
         internal IDisposable Retain()
@@ -52,7 +53,10 @@ namespace LiteDB.Client.Shared
                 _disposed = true;
                 this.Release();
             }
+            GC.SuppressFinalize(this);
         }
+
+        ~SharedModeAdmission() { this.Dispose(); }
 
         private void Release()
         {
@@ -64,11 +68,16 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        private sealed class Lease : IDisposable
+        private sealed class Lease : CriticalFinalizerObject, IDisposable
         {
             private SharedModeAdmission _owner;
             internal Lease(SharedModeAdmission owner) { _owner = owner; }
-            public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Release();
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref _owner, null)?.Release();
+                GC.SuppressFinalize(this);
+            }
+            ~Lease() { this.Dispose(); }
         }
     }
 }
