@@ -384,6 +384,36 @@ namespace LiteDB.Tests.Regressions
                 Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, 0)), o => o.WithStrictOrdering());
         }
 
+        /// <summary>
+        /// The data file syncs, but the rebuilt replacement's does not: its log is kept, so the rebuild
+        /// is refused after this engine closed for it. The refusal left the instance closed ("engine
+        /// instance already disposed"); it now reopens the unchanged database.
+        /// </summary>
+        [Fact]
+        public void Rebuild_refused_by_its_replacement_reopens_the_database()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            try
+            {
+                using var db = new LiteDatabase(file.Filename);
+                Update(db, 1);
+                NativeFileSync.SimulateErrno = path => path.Contains("-temp") && !path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
+                Action rebuild = () => db.Rebuild();
+                rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
+                NativeFileSync.SimulateErrno = null;
+                AssertRows(db, 1);
+                Update(db, 2);
+                AssertRows(db, 2);
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+            Directory.GetFiles(Path.GetDirectoryName(file.Filename), Path.GetFileNameWithoutExtension(file.Filename) + "-*")
+                .Where(x => !x.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase))
+                .Should().BeEmpty("no replacement, backup or marker is left");
+            using var reopened = new LiteDatabase(file.Filename);
+            AssertRows(reopened, 2);
+        }
+
         private const int Rows = 64;
 
         private static void Setup(string filename, bool index = false)

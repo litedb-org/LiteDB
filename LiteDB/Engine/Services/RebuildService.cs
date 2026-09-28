@@ -141,9 +141,17 @@ namespace LiteDB.Engine
             if (File.Exists(tempLog) && new FileInfo(tempLog).Length > 0) throw UnsyncedRebuild();
         }
 
-        internal static IOException UnsyncedRebuild() => new IOException("Cannot rebuild this database now: its data file " +
-            "cannot sync to the device, so the rebuilt file's log could not be emptied. The database is unchanged; retry " +
-            "once the storage syncs.");
+        /// <summary>Exception.Data key on a rebuild refused before it installed anything: the original files are unchanged.</summary>
+        internal const string RefusedDataKey = "LiteDB.Rebuild.Refused";
+
+        internal static IOException UnsyncedRebuild()
+        {
+            var error = new IOException("Cannot rebuild this database now: its data file cannot sync to the device, and " +
+                "a rebuilt file's log is emptied only after its data file synced. The database is unchanged; retry once " +
+                "the storage syncs.");
+            error.Data[RefusedDataKey] = true;
+            return error;
+        }
 
         /// <summary>
         /// Publish the completed replacement at the live path, keeping the original data file and

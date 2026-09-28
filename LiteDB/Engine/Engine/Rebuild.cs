@@ -58,6 +58,13 @@ namespace LiteDB.Engine
                     _settings.Password = password;
                     _settings.Collation = collation;
                 }
+                // A refused rebuild installed nothing: reopen the unchanged database, as a refusal
+                // before Close() leaves it open.
+                if (ex.Data.Contains(RebuildService.RefusedDataKey))
+                {
+                    this.Open();
+                    _state.Disposed = false;
+                }
                 throw;
             }
 
