@@ -19,7 +19,9 @@ internal static class SharedMutexNameFactory
 
     // Unix runtimes keep a named mutex as a file: the name after "Global\" has at most 255
     // characters. The longest name SharedEngine derives adds ".Turn" + ".Mutex" (11 characters).
-    // Longer escaped names never worked there, so hashing them changes no working mutex identity.
+    // Longer escaped names never worked with this version (its ".Turn" mutex failed), so hashing
+    // them keeps every identity it could open. Prereleases without the turnstile could open
+    // names of 245..249 characters; running them together with this version is unsupported.
     private const int UNIX_MUTEX_NAME_MAX = 255;
     private const int LONGEST_SUFFIX_LENGTH = 11;
 
