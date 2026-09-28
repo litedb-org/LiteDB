@@ -72,7 +72,8 @@ def main():
             loaded = re.search(r"LiteDB loaded: (\S+)", written)
             if not loaded or not loaded.group(1).split("+")[0].lower() == version.lower():
                 raise SystemExit(f"The {version} writer loaded {loaded.group(1) if loaded else 'an unknown LiteDB'}")
-            outcome = run("dotnet", current, "check", str(fixtures), capture=True)
+            stable = ["must-open"] if "-" not in version else []  # stable files must open (policy)
+            outcome = run("dotnet", current, "check", str(fixtures), *stable, capture=True)
             print(f"== LiteDB {version}\n{outcome}")
             rows += [f"| {version} | {line.split(': ', 1)[0]} | {line.split(': ', 1)[1]} |"
                      for line in outcome.splitlines() if not line.startswith("LiteDB loaded")]

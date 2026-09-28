@@ -162,8 +162,14 @@ removed, and the regression proofs whose known-bad state failed while the PR hea
 passed). After the run, the **PR evidence labels** workflow sets
 `regression: proven` or, on a `bug` PR without a passing proof,
 `regression: needs proof`. It runs trusted code from `dev` and treats the run's
-`pr-evidence.json` as data, so it also labels fork PRs. The Evidence check's name
-changes with the counts; never make it a required check.
+`pr-evidence.json` as data, so it also labels fork PRs. The counts come from code
+the PR controls, so both the check name and the labels are advisory. The labeler
+confirms what it can itself: the PR's labels and changed files come from the API,
+and the run's conclusion from the event. A PR that changes the proving harness
+(the proof or labeler workflows, their scripts, or the ReproRunner CLI and
+shared code) never gets `regression: proven`. The repro itself is written by the
+PR, so a reviewer still checks that it reproduces the reported bug. The Evidence
+check's name changes with the counts; never make it a required check.
 
 To reproduce a commit state locally, run
 `python .github/scripts/regression_proof.py pack-known-bad --commit <sha> --feed

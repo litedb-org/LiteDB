@@ -20,16 +20,49 @@ class BadgeTests(unittest.TestCase):
         self.assertEqual(evidence.badge(0, 0, 0, 0, True, 0), "Evidence: +0 tests · bug fix without regression proof")
         self.assertEqual(evidence.badge(5, 0, 0, 0, False, 0), "Evidence: +5 tests · no regression proof")
 
-    def test_labels_follow_the_evidence(self):
-        base = {"pr": 1, "headSha": SHA, "testsAdded": 1, "testsRemoved": 0, "newProofs": 1, "bug": True}
-        self.assertEqual(evidence.wanted_labels({**base, "proofsTotal": 1, "proofsProven": 1}),
-                         {evidence.PROVEN: True, evidence.NEEDS_PROOF: False})
-        self.assertEqual(evidence.wanted_labels({**base, "proofsTotal": 1, "proofsProven": 0}),
-                         {evidence.PROVEN: False, evidence.NEEDS_PROOF: True})
-        self.assertEqual(evidence.wanted_labels({**base, "newProofs": 0, "proofsTotal": 0, "proofsProven": 0}),
-                         {evidence.PROVEN: False, evidence.NEEDS_PROOF: True})
-        self.assertEqual(evidence.wanted_labels({**base, "bug": False, "proofsTotal": 0, "proofsProven": 0}),
-                         {evidence.PROVEN: False, evidence.NEEDS_PROOF: False})
+    def test_labels_follow_the_evidence_only_as_far_as_the_trusted_side_confirms(self):
+        base = {"pr": 1, "headSha": SHA, "testsAdded": 1, "testsRemoved": 0, "newProofs": 1, "bug": False}
+        passing = {**base, "proofsTotal": 1, "proofsProven": 1}
+        cases = [
+            ("bug fix proven", passing, True, True, False, {evidence.PROVEN: True, evidence.NEEDS_PROOF: False}),
+            ("proof failed", {**base, "proofsTotal": 1, "proofsProven": 0}, True, True, False,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: True}),
+            ("no new proof", {**base, "newProofs": 0, "proofsTotal": 0, "proofsProven": 0}, True, True, False,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: True}),
+            ("not a bug", {**base, "proofsTotal": 0, "proofsProven": 0}, False, True, False,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: False}),
+            ("run failed although evidence claims success", passing, True, False, False,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: True}),
+            ("harness changed by the PR", passing, True, True, True,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: True}),
+            ("forged bug flag in evidence is ignored", {**passing, "bug": True}, False, True, True,
+             {evidence.PROVEN: False, evidence.NEEDS_PROOF: False}),
+        ]
+        for label, data, bug, succeeded, harness, expected in cases:
+            with self.subTest(label):
+                self.assertEqual(evidence.wanted_labels(data, bug, succeeded, harness), expected)
+
+    def test_harness_changes_are_recognized(self):
+        self.assertTrue(evidence.harness_changed([".github/scripts/pr_evidence.py"]))
+        self.assertTrue(evidence.harness_changed(["LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Program.cs"]))
+        self.assertFalse(evidence.harness_changed(["LiteDB.ReproRunner/Repros/Issue_1/Program.cs",
+                                                   ".github/safety/regression-proofs.json", "LiteDB/Engine/X.cs"]))
+
+    def test_labels_command_reads_trusted_inputs(self):
+        directory = Path(tempfile.mkdtemp())
+        try:
+            data = {"pr": 3, "headSha": SHA, "testsAdded": 1, "testsRemoved": 0, "proofsTotal": 1,
+                    "proofsProven": 1, "newProofs": 1, "bug": False}
+            (directory / "e.json").write_text(json.dumps(data), encoding="utf-8")
+            (directory / "labels.txt").write_text("bug\narea: storage\n", encoding="utf-8")
+            (directory / "files.txt").write_text("LiteDB/Engine/X.cs\n", encoding="utf-8")
+            code, text = run_quietly(evidence.main, [
+                "labels", "--evidence", str(directory / "e.json"), "--pr-labels", str(directory / "labels.txt"),
+                "--changed-files", str(directory / "files.txt"), "--run-conclusion", "success"])
+            self.assertEqual(code, 0, text)
+            self.assertEqual(json.loads(text)["labels"], {evidence.PROVEN: True, evidence.NEEDS_PROOF: False})
+        finally:
+            shutil.rmtree(directory)
 
     def test_untrusted_evidence_is_type_checked(self):
         valid = {"pr": 1, "headSha": SHA, "testsAdded": 1, "testsRemoved": 0, "proofsTotal": 1,

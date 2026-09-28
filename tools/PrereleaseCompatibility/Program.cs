@@ -7,10 +7,13 @@ using LiteDB;
 // docs/rules/compatibility.md#published-prereleases: a file written by any published
 // LiteDB opens correctly (read, or migrate on a writable open) or is refused with its
 // data file and WAL byte-identical; it is never misread or modified by a refused open.
-//   create <dir>  (compiled against a published package) writes four fixtures;
-//   check  <dir>  (compiled against the current source) classifies each of them.
+//   create <dir>             (compiled against a published package) writes four fixtures;
+//   check  <dir> [must-open] (compiled against the current source) classifies each of them.
+// Only documented refusals count as safe: an unsupported format version, or (read-only)
+// the migration-required refusal. Stable releases must also open writable (must-open).
 var mode = args[0];
 var directory = args[1];
+var mustOpen = args.Length > 2 && args[2] == "must-open";
 var loaded = typeof(LiteDatabase).Assembly;
 Console.WriteLine($"LiteDB loaded: {loaded.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}");
 // Published prereleases refuse to open until the caller acknowledges the risk (#3038);
@@ -38,10 +41,10 @@ foreach (var dirty in new[] { false, true })
         continue;
     }
     Require(mode == "check", "Unknown mode.");
-    Console.WriteLine($"{name}: {Classify(path, logPath, password)}");
+    Console.WriteLine($"{name}: {Classify(path, logPath, password, mustOpen)}");
 }
 
-static string Classify(string path, string logPath, string password)
+static string Classify(string path, string logPath, string password, bool mustOpen)
 {
     var data = File.ReadAllBytes(path);
     var log = BytesOrNull(logPath);
@@ -49,6 +52,7 @@ static string Classify(string path, string logPath, string password)
     Require(data.SequenceEqual(File.ReadAllBytes(path)) && SameBytes(log, BytesOrNull(logPath)),
         $"A read-only open changed the files ({(readOnly ? "opened" : "refused: " + readOnlyError)}).");
     var writable = Attempt(path, password, readOnly: false, out var writableError);
+    Require(writable || !mustOpen, $"A stable release's file must open writable, but it was refused: {writableError}");
     if (!writable)
     {
         Require(data.SequenceEqual(File.ReadAllBytes(path)) && SameBytes(log, BytesOrNull(logPath)),
@@ -59,8 +63,9 @@ static string Classify(string path, string logPath, string password)
     using (var database = Open(path, password, readOnly: false))
         database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1000, ["bucket"] = 0 });
     using (var database = Open(path, password, readOnly: true))
-        Require(database.GetCollection("rows").Count() == 49, "The write after opening did not survive a reopen.");
-    return readOnly ? "read, then written and reopened" : "migrated on a writable open, then written and reopened";
+        VerifyContents(database, new BsonDocument { ["_id"] = 1000, ["bucket"] = 0 });
+    return readOnly ? "read, then written and reopened"
+                    : $"migrated on a writable open (read-only open refused: {readOnlyError}), then written and reopened";
 }
 
 // Opens and verifies complete payloads and index results; false (with the reason) on a clean refusal.
@@ -70,19 +75,33 @@ static bool Attempt(string path, string password, bool readOnly, out string refu
     try
     {
         using var database = Open(path, password, readOnly);
-        var rows = database.GetCollection("rows");
-        Verify(rows.FindAll().ToArray(), Documents(1));
-        Verify(database.GetCollection("unrelated").FindAll().ToArray(), Documents(7));
-        foreach (var bucket in Enumerable.Range(0, 7))
-            Verify(rows.Find(Query.EQ("bucket", bucket)).ToArray(),
-                Documents(1).Where(document => document["bucket"].AsInt32 == bucket).ToArray());
+        VerifyContents(database, null);
         return true;
     }
-    catch (LiteException error)
+    catch (LiteException error) when (Documented(error, readOnly))
     {
         refusal = $"LiteException {error.ErrorCode}: {error.Message}";
         return false;
     }
+}
+
+// Any other LiteException (integrity, checksum, invalid database...) propagates and fails the check.
+static bool Documented(LiteException error, bool readOnly) =>
+    error.ErrorCode == 138 || // LiteException.UNSUPPORTED_FILE_VERSION; older packages lack the constant
+
+    (readOnly && error.Message.IndexOf("requires migration", StringComparison.OrdinalIgnoreCase) >= 0
+              && error.Message.IndexOf("writable", StringComparison.OrdinalIgnoreCase) >= 0);
+
+// Complete payloads, the untouched collection and every indexed bucket, plus an optional added document.
+static void VerifyContents(LiteDatabase database, BsonDocument added)
+{
+    var expected = added == null ? Documents(1) : Documents(1).Append(added).ToArray();
+    var rows = database.GetCollection("rows");
+    Verify(rows.FindAll().ToArray(), expected);
+    Verify(database.GetCollection("unrelated").FindAll().ToArray(), Documents(7));
+    foreach (var bucket in Enumerable.Range(0, 7))
+        Verify(rows.Find(Query.EQ("bucket", bucket)).ToArray(),
+            expected.Where(document => document["bucket"].AsInt32 == bucket).ToArray());
 }
 
 static LiteDatabase Open(string path, string password, bool readOnly) =>

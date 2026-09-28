@@ -219,19 +219,25 @@ def published_versions():
 
 def parse_known_bad(value, reason):
     """'latest', 'package:5.0.21', 'dev-commit:<sha>' or 'pr-commit:<sha>@<pr>'."""
+    usage = "--known-bad must be latest, package:<version>, dev-commit:<sha> or pr-commit:<sha>@<pr>"
     if value == "latest":
         return {"kind": "package", "version": published_versions()[-1]}
     kind, _, reference = value.partition(":")
-    if kind == "package":
+    if kind == "package" and reference:
         return {"kind": "package", "version": reference}
     if kind in ("dev-commit", "pr-commit"):
         commit, _, pr = reference.partition("@")
-        commit = common.git("rev-parse", "--verify", f"{commit}^{{commit}}").strip()
+        if kind == "pr-commit" and not pr.isdigit():
+            raise SystemExit(usage)
+        try:
+            commit = common.git("rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}").strip()
+        except subprocess.CalledProcessError:
+            raise SystemExit(f"{usage}; {reference.partition('@')[0]!r} is not a commit in this clone") from None
         bad = {"kind": kind, "commit": commit, "reason": reason or ""}
         if kind == "pr-commit":
             bad["pr"] = int(pr)
         return bad
-    raise SystemExit("--known-bad must be latest, package:<version>, dev-commit:<sha> or pr-commit:<sha>@<pr>")
+    raise SystemExit(usage)
 
 
 def write_ledger(entries):

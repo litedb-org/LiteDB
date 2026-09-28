@@ -100,8 +100,8 @@ def check_leg(leg, directory, sha, report, outcomes):
     label = f"{leg.get('job')} {json.dumps(leg.get('matrix'), sort_keys=True)}"
     if leg.get("sha") != sha:
         report.error(f"{label} tested {leg.get('sha')}, not the validated revision {sha}")
-    if leg.get("buildSha") and leg["buildSha"] != sha:
-        report.error(f"{label} ran binaries built from {leg['buildSha']}, not {sha}")
+    if leg.get("buildSha") != sha:  # a missing build record is not proof of the candidate's binaries
+        report.error(f"{label} ran binaries built from {leg.get('buildSha') or 'an unrecorded revision'}, not {sha}")
     reported, summary = _check_partitions(leg, directory, label, report, outcomes)
     if "Passed" not in reported.get(RUNTIME_GUARD, set()) and "Pass" not in reported.get(RUNTIME_GUARD, set()):
         report.error(f"{label}: the runtime/architecture guard {RUNTIME_GUARD} did not pass on this leg")

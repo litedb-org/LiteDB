@@ -8,7 +8,10 @@ counts show in the PR's checks list) and pr-evidence.json for the labeler.
 
 `labels` runs in the trusted workflow_run workflow. It treats pr-evidence.json as
 untrusted data: every field is type-checked, and the PR must still have the head
-commit the evidence was computed for.
+commit the evidence was computed for. What the trusted side can confirm itself
+comes from the API and the event (the PR's labels, its changed files, the run's
+conclusion); a PR that changes the proving harness never earns "proven". The
+label stays advisory: the repro is PR-authored and must be reviewed.
 """
 import argparse
 import json
@@ -22,8 +25,13 @@ import safety_common as common
 
 PROVEN = "regression: proven"
 NEEDS_PROOF = "regression: needs proof"
-LABELS = {PROVEN: ("0e8a16", "Every regression proof failed on its known-bad state and passed at the PR head"),
-          NEEDS_PROOF: ("d93f0b", "A bug fix without a passing regression proof")}
+# The evidence comes from PR-controlled code; a PR that changes any of this code
+# could forge it, so its evidence never earns the "proven" label.
+HARNESS_FILES = {
+    ".github/workflows/regression-proof.yml", ".github/workflows/pr-evidence-labels.yml",
+    ".github/scripts/regression_proof.py", ".github/scripts/pr_evidence.py", ".github/scripts/safety_common.py",
+}
+HARNESS_DIRS = ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/", "LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/")
 
 
 def test_counts(base, head):
@@ -90,9 +98,17 @@ def parse_evidence(text):
     return {key: data[key] for key in ints + ("bug", "headSha")}
 
 
-def wanted_labels(evidence):
-    proven = evidence["proofsTotal"] > 0 and evidence["proofsProven"] == evidence["proofsTotal"]
-    missing = evidence["bug"] and (evidence["newProofs"] < regression_proof.MIN_BUG_PROOFS or not proven)
+def harness_changed(paths):
+    """True when the PR changes code that produces or judges the evidence."""
+    return any(path in HARNESS_FILES or path.startswith(HARNESS_DIRS) for path in paths)
+
+
+def wanted_labels(evidence, bug, run_succeeded, harness):
+    """Labels from PR-produced counts, trusted only as far as the trusted side can confirm:
+    the run succeeded, the PR left the harness alone, and bug comes from the PR's labels."""
+    proven = (run_succeeded and not harness and evidence["proofsTotal"] > 0
+              and evidence["proofsProven"] == evidence["proofsTotal"])
+    missing = bug and (not proven or evidence["newProofs"] < regression_proof.MIN_BUG_PROOFS)
     return {PROVEN: proven, NEEDS_PROOF: missing}
 
 
@@ -110,11 +126,18 @@ def main(argv=None):
     run.add_argument("--output", default="pr-evidence.json")
     labels = commands.add_parser("labels", help="Print the label changes for a pr-evidence.json as JSON")
     labels.add_argument("--evidence", required=True)
+    labels.add_argument("--pr-labels", required=True, help="File with the PR's current labels, one per line (API)")
+    labels.add_argument("--changed-files", required=True, help="File with the PR's changed paths, one per line (API)")
+    labels.add_argument("--run-conclusion", required=True, help="The Regression proof run's conclusion (event)")
     args = parser.parse_args(argv)
     if args.command == "summarize":
         return summarize(args)
     evidence = parse_evidence(Path(args.evidence).read_text(encoding="utf-8"))
-    print(json.dumps({"pr": evidence["pr"], "headSha": evidence["headSha"], "labels": wanted_labels(evidence)}))
+    bug = "bug" in Path(args.pr_labels).read_text(encoding="utf-8").splitlines()
+    harness = harness_changed(Path(args.changed_files).read_text(encoding="utf-8").splitlines())
+    result = wanted_labels(evidence, bug, args.run_conclusion == "success", harness)
+    print(json.dumps({"pr": evidence["pr"], "headSha": evidence["headSha"], "labels": result,
+                      "harnessChanged": harness}))
     return 0
 
 

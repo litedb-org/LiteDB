@@ -143,6 +143,14 @@ class ScaffoldTests(unittest.TestCase):
             code, output = run_quietly(proof.main, ["validate", "--head", common.WORKTREE])
             self.assertEqual(code, 0, output)
 
+    def test_invalid_known_bad_inputs_are_usage_errors(self):
+        with GitRepo() as repo:
+            repo.commit(BASE)
+            for value in ("pr-commit:HEAD", "pr-commit:HEAD@abc", "dev-commit:not-a-commit", "package:", "mutant:x"):
+                with self.subTest(value), self.assertRaises(SystemExit) as raised:
+                    proof.parse_known_bad(value, "reason")
+                self.assertIn("--known-bad must be", str(raised.exception.code))
+
     def test_new_rejects_ids_that_do_not_name_an_issue(self):
         with GitRepo() as repo:
             repo.commit(BASE)

@@ -105,6 +105,17 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn("no evidence for the expected leg item.runtimeMajor=8", output)
         self.assertIn("no evidence for the expected leg item.runtimeMajor=10", output)
 
+    def test_a_leg_without_a_build_record_fails(self):
+        self.leg(8)
+        self.leg(10)
+        path = self.artifacts / "test-results-test-linux-10" / "evidence-leg.json"
+        leg = json.loads(path.read_text())
+        leg["buildSha"] = None
+        path.write_text(json.dumps(leg))
+        code, output = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("ran binaries built from an unrecorded revision", output)
+
     def test_evidence_from_another_revision_fails(self):
         self.leg(8)
         self.leg(10, sha="b" * 40)
