@@ -108,6 +108,57 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// 5.0.21 dropped index "name" of vectors.db: its writer rewrote the index list without the
+        /// entry and left the old bytes after it, where this version reads the vector section. Every
+        /// open (read-only, default, auto-rebuild) threw a raw DecoderFallbackException and wrote no
+        /// mark. A section that does not decode, or does not name exactly the page's vector indexes,
+        /// is now ignored: the read-only open reads every document, a writable open reports the
+        /// vector index without metadata, and the auto-rebuild drops only it.
+        /// </summary>
+        [Fact]
+        public void Vector_file_whose_index_list_5_0_21_rewrote_opens_and_reports_the_vector_index()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("vectors.db");
+            DropIndexAs5021(bytes, "name");
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using (var readOnly = new LiteDatabase($"Filename={file.Filename};readonly=true;legacy index scan=true"))
+            {
+                readOnly.GetCollection("docs").Count().Should().Be(40);
+            }
+
+            Action open = () => new LiteDatabase(file.Filename).Dispose();
+            open.Should().Throw<LiteException>().Where(x => x.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
+                .WithMessage("*'embedding' has no vector metadata*");
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            db.GetCollection("docs").Count().Should().Be(40);
+            db.GetCollection("$indexes").Find(Query.EQ("collection", "docs")).Select(x => x["name"].AsString)
+                .Should().BeEquivalentTo(new[] { "_id" }, "5.0.21 dropped \"name\", the rebuild drops \"embedding\"");
+            db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                .Should().Contain(x => x.Contains("'embedding'"));
+            NearestComputed(db.GetCollection("computed"), 7f).Should().Contain(7);
+        }
+
+        /// <summary>What 5.0.21's DropIndex writes: the index list without the entry, nothing after it.</summary>
+        private static void DropIndexAs5021(byte[] bytes, string dropped)
+        {
+            for (var start = 0; start < bytes.Length; start += Constants.PAGE_SIZE)
+            {
+                if (bytes[start + BasePage.P_PAGE_TYPE] != (byte)PageType.Collection) continue;
+                var page = new CollectionPage(new PageBuffer(bytes, start, 0));
+                if (page.GetCollectionIndex(dropped) == null) continue;
+                var kept = page.GetCollectionIndexes().Where(x => x.Name != dropped).ToArray();
+                using var writer = new BufferWriter(new BufferSlice(bytes, start + CollectionPage.P_INDEXES, Constants.PAGE_SIZE - CollectionPage.P_INDEXES));
+                writer.Write((byte)kept.Length);
+                foreach (var index in kept) index.UpdateBuffer(writer);
+                return;
+            }
+            throw new InvalidOperationException("no collection page lists " + dropped);
+        }
+
+        /// <summary>
         /// vector-salvage.db (prerelease.114): collection "vectors" with {_id: 1..3, a, b: "u-i",
         /// v: [i, 1]} and vector index "vv" on IIF(SUBSTRING(COALESCE($.b, 'x'), 1, 2) = '-0', $.v, $.v);
         /// then the length of "b" of document 2 was damaged. Its readable part makes the vector
