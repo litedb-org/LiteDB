@@ -105,6 +105,45 @@ reason, a review date and the gap it leaves. A quarantined test is a visible
 coverage gap, never passing evidence. A passed review date is reported on every
 run.
 
+## Regression proofs
+
+A fix proves its regression test against a **real** state in which the bug
+existed, not a synthetic mutant. Mutants test oracles; they do not show that the
+test detects the bug that actually occurred. Pin the strongest state available:
+
+1. a published NuGet package containing the bug (`package`);
+2. a commit that existed on `dev` (`dev-commit`);
+3. only when the defect was introduced and fixed before reaching `dev`, a commit
+   of the originating PR (`pr-commit`).
+
+Record the proof in
+[`regression-proofs.json`](../../.github/safety/regression-proofs.json). It
+names a [ReproRunner](../reprorunner.md) repro whose package variant pins the
+known-bad state: the published version, or `0.0.0-knownbad.<first 12 of the
+commit>` for commits. The repro is `green`, its package variant must reproduce and
+its latest variant must not. The proof also names the permanent guard: the tests,
+fuzz targets or scripts that keep the regression covered afterwards. The repro is
+a black-box program, so the same scenario runs against both revisions even when
+the fix adds hooks the old code lacks.
+
+The **Regression proof** workflow runs this lifecycle:
+
+- **Pull request.** For each proof the PR adds or changes, it verifies that the
+  package exists on nuget.org or that the commit is on `dev` or in the PR. Commit
+  states are packed into a local feed. Then the known-bad state **must fail** and
+  the candidate **must pass**. The repro's own configuration output proves which
+  LiteDB each run loaded.
+- **After merge.** The push to `dev` repeats the proof on the integrated revision.
+  That run is the retirement evidence.
+- **Retired.** The historical comparison runs again only when its proof or repro
+  changes, or on manual dispatch. The permanent guard stays in the ordinary
+  suites, and removing part of it is a coverage finding.
+
+To reproduce a commit state locally, run
+`python .github/scripts/regression_proof.py pack-known-bad --commit <sha> --feed
+<dir>`, set `RestoreAdditionalProjectSources=<dir>`, then run the repro with
+ReproRunner.
+
 ## CI evidence
 
 The final **Safety evidence** job of the build-and-test workflow fails unless the

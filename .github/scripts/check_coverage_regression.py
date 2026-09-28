@@ -20,6 +20,7 @@ CORPUS = "LiteDB.Fuzz/Corpus/regressions.json"
 KNOWN_FINDINGS = "LiteDB.Fuzz/Corpus/known-findings.json"
 FAULT_POINTS = f"{common.SAFETY_DIR}/fault-points.json"
 CONTRACTS = f"{common.SAFETY_DIR}/contracts.json"
+PROOFS = f"{common.SAFETY_DIR}/regression-proofs.json"
 FIXTURES = [common.glob_regex(pattern) for pattern in (
     "LiteDB.Tests/Resources/**", "LiteDB.Tests/**/*.zip", "LiteDB.Tests/**/*.db")]
 HARNESSES = [common.glob_regex(pattern) for pattern in (
@@ -35,7 +36,7 @@ KINDS = {
     "test-removed", "skip-added", "conditional-attribute", "assertions-reduced", "fixture-changed",
     "harness-changed", "corpus-case-removed", "corpus-repinned", "expected-failure-added",
     "fuzz-target-removed", "fuzz-target-unscheduled", "fault-evidence-removed",
-    "contract-evidence-removed", "ci-test-config-changed"}
+    "contract-evidence-removed", "proof-guard-removed", "ci-test-config-changed"}
 DISPOSITIONS = {
     "replaced": True, "relocated": True, "covered-elsewhere": True,
     "intentional-change": False, "obsolete": False, "strengthened": False}
@@ -196,6 +197,18 @@ def registry_findings(base, head):
     return findings
 
 
+def proof_findings(base, head):
+    """A regression proof's permanent guard may move, but not silently shrink."""
+    old = {item.get("repro"): item for item in (base.read_json(PROOFS, {}) or {}).get("proofs", [])}
+    new = {item.get("repro"): item for item in (head.read_json(PROOFS, {}) or {}).get("proofs", [])}
+    findings = []
+    for repro, item in sorted(old.items(), key=lambda pair: str(pair[0])):
+        lost = sorted(set(item.get("permanentGuard", [])) - set(new.get(repro, {}).get("permanentGuard", [])))
+        if lost:
+            findings.append(Finding("proof-guard-removed", str(repro), "; ".join(lost)))
+    return findings
+
+
 def _canonical(evidence):
     return tuple(evidence.get(name) for name in ("test", "fuzz", "script"))
 
@@ -285,7 +298,7 @@ def validate_quarantine(head, entries, report):
 def collect_findings(base, head, changes):
     return (test_findings(base, head) + assertion_findings(base, head, changes) + file_findings(changes)
             + ci_line_findings(base, head, changes) + corpus_findings(base, head) + fuzz_findings(base, head)
-            + registry_findings(base, head))
+            + registry_findings(base, head) + proof_findings(base, head))
 
 
 def main(argv=None):

@@ -88,6 +88,15 @@ class CoverageRegressionTests(unittest.TestCase):
         self.assertIn("corpus-repinned: wal:1:2", output)
         self.assertIn("expected-failure-added: wal:F", output)
 
+    def test_shrinking_a_regression_proof_guard_is_a_finding(self):
+        proofs = ".github/safety/regression-proofs.json"
+        guard = [f"{TESTS}#Keeps", f"{TESTS}#Removed"]
+        base = {proofs: json.dumps({"proofs": [{"repro": "Issue_1", "permanentGuard": guard}]})}
+        head = {proofs: json.dumps({"proofs": [{"repro": "Issue_1", "permanentGuard": guard[:1]}]})}
+        code, output = self.run_check(base, head)
+        self.assertEqual(code, 1)
+        self.assertIn(f"proof-guard-removed: Issue_1 ({TESTS}#Removed)", output)
+
     def test_ci_timeout_change_is_a_finding_but_a_new_workflow_is_not(self):
         workflow = ".github/workflows/ci.yml"
         base = {workflow: "jobs:\n  test:\n    timeout-minutes: 40\n"}

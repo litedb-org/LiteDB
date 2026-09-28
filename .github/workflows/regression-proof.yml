@@ -1,0 +1,151 @@
+name: Regression proof
+
+# docs/rules/safety-evidence.md#regression-proofs: a fix proves its repro against a
+# real known-bad state. Pull requests prove the proofs they add or change (known bad
+# MUST FAIL, candidate MUST PASS); the push to dev proves them once more on the
+# integrated revision. After that the historical comparison retires, while the
+# permanent guard named in the ledger stays in the ordinary suites.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'LiteDB.ReproRunner/**'
+      - '.github/safety/regression-proofs.json'
+      - '.github/scripts/regression_proof.py'
+      - '.github/scripts/safety_common.py'
+      - '.github/workflows/regression-proof.yml'
+  push:
+    branches: [dev]
+    paths:
+      - 'LiteDB.ReproRunner/**'
+      - '.github/safety/regression-proofs.json'
+      - '.github/scripts/regression_proof.py'
+      - '.github/scripts/safety_common.py'
+      - '.github/workflows/regression-proof.yml'
+  workflow_dispatch:
+    inputs:
+      repro:
+        description: Repro id to prove again against its known-bad state
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regression-proof-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: Select proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      count: ${{ steps.select.outputs.count }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select added or changed proofs
+        id: select
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ONLY: ${{ inputs.repro }}
+        run: |
+          if [ -n "$ONLY" ]; then
+            python .github/scripts/regression_proof.py select --base HEAD --only "$ONLY"
+          else
+            base="$BASE_SHA"
+            if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base="HEAD^"; fi
+            python .github/scripts/regression_proof.py select --base "$base"
+          fi
+
+  prove:
+    name: Prove ${{ matrix.repro }} (known bad ${{ matrix.kind }})
+    needs: select
+    if: needs.select.outputs.count != '0'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.select.outputs.matrix) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Verify the known-bad state is real and correctly classified
+        shell: bash
+        env:
+          REPRO: ${{ matrix.repro }}
+        run: |
+          git fetch -q origin +refs/heads/dev:refs/remotes/origin/dev
+          python .github/scripts/regression_proof.py validate --provenance --only "$REPRO"
+
+      - name: Build the known-bad commit into a local feed
+        if: matrix.kind != 'package'
+        shell: bash
+        env:
+          COMMIT: ${{ matrix.commit }}
+        run: |
+          feed="$RUNNER_TEMP/known-bad-feed"
+          python .github/scripts/regression_proof.py pack-known-bad --commit "$COMMIT" --feed "$feed"
+          echo "RestoreAdditionalProjectSources=$feed" >> "$GITHUB_ENV"
+
+      - name: Run the repro against the known-bad state and the candidate
+        shell: bash
+        env:
+          REPRO: ${{ matrix.repro }}
+        run: >-
+          dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -c Release --
+          run "$REPRO" --ci --report "$RUNNER_TEMP/proof.json"
+
+      - name: Verify known bad FAILED and the candidate PASSED
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          REPRO: ${{ matrix.repro }}
+          VERSION: ${{ matrix.version }}
+          MODE: ${{ github.event_name == 'push' && 'integrated dev' || 'candidate' }}
+        run: |
+          python .github/scripts/regression_proof.py verify --report "$RUNNER_TEMP/proof.json" \
+            --repro "$REPRO" --expect-version "$VERSION"
+          echo "- \`$REPRO\`: known bad \`$VERSION\` failed; $MODE \`$(git rev-parse --short HEAD)\` passed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload proof report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-proof-${{ matrix.repro }}
+          path: ${{ runner.temp }}/proof.json
+          overwrite: true
+          if-no-files-found: warn
+
+  result:
+    name: Regression proof result
+    needs: [select, prove]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every selected proof must pass
+        env:
+          SELECTED: ${{ needs.select.result }}
+          PROVED: ${{ needs.prove.result }}
+          COUNT: ${{ needs.select.outputs.count }}
+        run: |
+          echo "select=$SELECTED prove=$PROVED proofs=$COUNT"
+          test "$SELECTED" = success
+          if [ "$COUNT" = "0" ]; then test "$PROVED" = skipped; else test "$PROVED" = success; fi

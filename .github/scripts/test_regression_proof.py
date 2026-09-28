@@ -1,0 +1,186 @@
+import json
+import os
+import shutil
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+import regression_proof as proof
+import safety_common as common
+from safety_fixtures import GitRepo, csharp_class, run_quietly
+
+LEDGER = ".github/safety/regression-proofs.json"
+REPRO = "Issue_1_Sample"
+FOLDER = f"LiteDB.ReproRunner/Repros/{REPRO}"
+GUARD = "LiteDB.Tests/Issues/Issue1_Tests.cs#Guards_the_fix"
+BAD_COMMIT = "a" * 40
+
+
+def csproj(version):
+    return (f'<Project><PropertyGroup><LiteDBPackageVersion Condition="\'$(LiteDBPackageVersion)\' == \'\'">'
+            f"{version}</LiteDBPackageVersion></PropertyGroup></Project>")
+
+
+def manifest(**changes):
+    value = {"id": REPRO, "title": "Sample", "timeoutSeconds": 60, "requiresParallel": False,
+             "defaultInstances": 1, "state": "green"}
+    value.update(changes)
+    return json.dumps(value)
+
+
+def ledger(*entries):
+    return json.dumps({"proofs": list(entries)})
+
+
+def entry(**changes):
+    value = {"repro": REPRO, "knownBad": {"kind": "package", "version": "5.0.20"}, "permanentGuard": [GUARD]}
+    value.update(changes)
+    return value
+
+
+BASE = {
+    f"{FOLDER}/repro.json": manifest(),
+    f"{FOLDER}/{REPRO}.csproj": csproj("5.0.20"),
+    f"{FOLDER}/Program.cs": "return 0;",
+    "LiteDB.Tests/Issues/Issue1_Tests.cs": csharp_class("Issue1_Tests", {"Guards_the_fix": ("Fact", "")}),
+}
+
+
+class LedgerTests(unittest.TestCase):
+    def run_check(self, files, argv=("validate",), base_files=None):
+        with GitRepo() as repo:
+            base = repo.commit({**BASE, LEDGER: ledger(), **(base_files or {})})
+            repo.commit(files)
+            args = list(argv) + (["--base", base] if argv[0] == "select" else [])
+            return run_quietly(proof.main, args)
+
+    def test_a_published_package_proof_with_its_guard_is_valid(self):
+        code, output = self.run_check({LEDGER: ledger(entry())})
+        self.assertEqual(code, 0, output)
+
+    def test_invalid_proofs_are_rejected(self):
+        commit = {"kind": "dev-commit", "commit": BAD_COMMIT}
+        cases = {
+            "a mutant is not a known-bad state": ({}, entry(knownBad={"kind": "mutant"})),
+            "LiteDBPackageVersion is '5.0.20'; the known-bad state requires '5.0.21'":
+                ({}, entry(knownBad={"kind": "package", "version": "5.0.21"})),
+            "explain why no published package": ({f"{FOLDER}/{REPRO}.csproj": csproj("0.0.0-knownbad.aaaaaaaaaaaa")},
+                                                 entry(knownBad=commit)),
+            "full 40-character commit id": ({}, entry(knownBad={"kind": "dev-commit", "commit": "abc", "reason": "x" * 30})),
+            "must be 'green'": ({f"{FOLDER}/repro.json": manifest(state="red")}, entry()),
+            "must reproduce deterministically": (
+                {f"{FOLDER}/repro.json": manifest(expectedOutcomes={"package": {"kind": "intermittent"}})}, entry()),
+            "must expect 'noRepro'": (
+                {f"{FOLDER}/repro.json": manifest(expectedOutcomes={"latest": {"kind": "reproduce"}})}, entry()),
+            "name the permanent regression guard": ({}, entry(permanentGuard=[])),
+            "does not resolve": ({}, entry(permanentGuard=["LiteDB.Tests/Issues/Issue1_Tests.cs#Gone"])),
+        }
+        for expected, (files, value) in cases.items():
+            with self.subTest(expected):
+                code, output = self.run_check({**files, LEDGER: ledger(value)})
+                self.assertEqual(code, 1)
+                self.assertIn(expected, output)
+
+    def test_select_runs_only_added_or_changed_proofs(self):
+        code, output = self.run_check({LEDGER: ledger(entry())}, argv=("select",))
+        self.assertIn(f"`{REPRO}` (known bad: package 5.0.20)", output)
+        code, output = self.run_check({"docs/x.md": "y"}, argv=("select",), base_files={LEDGER: ledger(entry())})
+        self.assertIn("none (no regression proof added or changed)", output)
+        code, output = self.run_check({f"{FOLDER}/Program.cs": "return 1;"}, argv=("select",),
+                                      base_files={LEDGER: ledger(entry())})
+        self.assertIn(f"`{REPRO}`", output)
+        code, output = self.run_check({"LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Evaluator.cs": "// changed"},
+                                      argv=("select",), base_files={LEDGER: ledger(entry())})
+        self.assertIn(f"`{REPRO}`", output)  # a harness change re-proves every entry
+
+
+class ProvenanceTests(unittest.TestCase):
+    def test_commit_states_must_match_their_classification(self):
+        with GitRepo() as repo:
+            on_dev = repo.commit({"a.txt": "1"})
+            repo._git("branch", "dev")
+            repo._git("checkout", "-q", "-b", "feature")
+            off_dev = repo.commit({"a.txt": "2"})
+            repo._git("update-ref", "refs/proof/pr-7", off_dev)
+            cases = [
+                ({"kind": "dev-commit", "commit": on_dev}, None),
+                ({"kind": "dev-commit", "commit": off_dev}, "never existed on dev"),
+                ({"kind": "pr-commit", "commit": off_dev, "pr": 7}, None),
+                ({"kind": "pr-commit", "commit": on_dev, "pr": 7}, "classify it as dev-commit"),
+                ({"kind": "pr-commit", "commit": off_dev, "pr": 8}, "is not part of PR #8"),
+            ]
+            for bad, expected in cases:
+                with self.subTest(bad=bad):
+                    report = common.Report("")
+                    run_quietly(lambda _: proof.check_provenance({"repro": REPRO, "knownBad": bad}, report,
+                                                                 "dev", offline=True), None)
+                    if expected is None:
+                        self.assertEqual(report.errors, [])
+                    else:
+                        self.assertTrue(any(expected in error for error in report.errors), report.errors)
+
+
+def run_report(package_actual=0, latest_actual=1, version="5.0.20", swapped=False):
+    def variant(expected, actual, project, reported):
+        payload = {"useProjectReference": project, "liteDBPackageVersion": reported}
+        output = [{"Stream": "stdout", "Text": json.dumps({"type": "configuration", "payload": payload})}]
+        return {"Expected": expected, "Actual": actual, "Met": expected == actual,
+                "UseProjectReference": project, "Output": output}
+    package = variant(0, package_actual, swapped, version)
+    latest = variant(1, latest_actual, not swapped, version)
+    return {"Repros": [{"Id": REPRO, "State": 1, "Failed": package["Met"] is False or latest["Met"] is False,
+                        "Package": package, "Latest": latest}]}
+
+
+class VerifyTests(unittest.TestCase):
+    def verify(self, data, version="5.0.20"):
+        directory = tempfile.mkdtemp()
+        try:
+            path = os.path.join(directory, "proof.json")
+            Path(path).write_text(json.dumps(data), encoding="utf-8")
+            return run_quietly(proof.main, ["verify", "--report", path, "--repro", REPRO, "--expect-version", version])
+        finally:
+            shutil.rmtree(directory)
+
+    def test_known_bad_failing_and_candidate_passing_is_a_proof(self):
+        code, output = self.verify(run_report())
+        self.assertEqual(code, 0, output)
+
+    def test_anything_else_is_not_a_proof(self):
+        cases = {
+            "the known-bad state did not fail": run_report(package_actual=1),
+            "the candidate did not pass": run_report(latest_actual=0),
+            "not package 5.0.20": run_report(version="5.0.21"),
+            "variants are swapped": run_report(swapped=True),
+            "has no single result": {"Repros": []},
+        }
+        for expected, data in cases.items():
+            with self.subTest(expected):
+                code, output = self.verify(data)
+                self.assertEqual(code, 1)
+                self.assertIn(expected, output)
+
+
+class PackTests(unittest.TestCase):
+    def test_reversion_rewrites_only_the_package_version(self):
+        directory = Path(tempfile.mkdtemp())
+        try:
+            source, target = directory / "LiteDB.6.0.0-x.nupkg", directory / "LiteDB.0.0.0-knownbad.abc.nupkg"
+            with zipfile.ZipFile(source, "w") as package:
+                package.writestr("LiteDB.nuspec", "<package><metadata><id>LiteDB</id><version>6.0.0-x</version>"
+                                                  "<dependencies><dependency version=\"1.0\"/></dependencies>"
+                                                  "</metadata></package>")
+                package.writestr("lib/net8.0/LiteDB.dll", b"binary")
+            proof._reversion(source, "0.0.0-knownbad.abc", target)
+            with zipfile.ZipFile(target) as package:
+                nuspec = package.read("LiteDB.nuspec").decode()
+                self.assertIn("<version>0.0.0-knownbad.abc</version>", nuspec)
+                self.assertIn('<dependency version="1.0"/>', nuspec)
+                self.assertEqual(package.read("lib/net8.0/LiteDB.dll"), b"binary")
+        finally:
+            shutil.rmtree(directory)
+
+
+if __name__ == "__main__":
+    unittest.main()
