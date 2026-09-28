@@ -65,19 +65,6 @@ namespace LiteDB.Engine
         internal bool DataUnsyncedWhileLogSyncs => !_dataBarrierSynced && _logBarrierSynced;
 
         /// <summary>
-        /// Sync the data file and a non-empty log, as barriers, and report <see cref="DataUnsyncedWhileLogSyncs"/>.
-        /// </summary>
-        internal bool ProbeDataUnsyncedWhileLogSyncs()
-        {
-            if (this.GetFileLength(FileOrigin.Log) == 0) return false;
-            var data = _dataPool.Writer.Value;
-            lock (data) this.SyncDataBarrier(data);
-            var log = _writer.Value;
-            lock (log) this.SyncLogBarrier(log);
-            return this.DataUnsyncedWhileLogSyncs;
-        }
-
-        /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
         /// the log's directory), so storage that answers "cannot sync" (#2242), also storage that
         /// stopped syncing since this engine's last barrier, is found before a witness or a cleared

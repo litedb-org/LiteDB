@@ -82,16 +82,18 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip, see LegacyWalSharedMigration_Tests)
         /// on storage whose data file cannot sync while its WAL can: conversion needs an empty WAL,
-        /// so it is refused before either file changes, with a diagnostic naming the storage.
+        /// so it is refused with a diagnostic naming the storage. The legacy WAL is kept byte for
+        /// byte and the data file stays unconverted (its backfill is what 5.0.21 would write), so
+        /// the database opens with every commit once the storage syncs.
         /// </summary>
         [Fact]
-        public void Legacy_conversion_is_refused_unchanged_when_only_the_wal_syncs()
+        public void Legacy_conversion_is_refused_and_keeps_the_wal_when_only_the_wal_syncs()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
             File.WriteAllBytes(file.Filename, Entry("crash.db"));
             File.WriteAllBytes(logName, Entry("crash-log.db"));
-            var data = File.ReadAllBytes(file.Filename);
+            var version = File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION];
             var log = File.ReadAllBytes(logName);
             try
             {
@@ -99,8 +101,8 @@ namespace LiteDB.Tests.Regressions
                 {
                     Action open = () => new LiteEngine(power.Settings()).Dispose();
                     open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*");
-                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data);
                     SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
+                    SyncPowerLossModel.ReadShared(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(version);
                 }
 
                 using var db = new LiteDatabase(file.Filename);
