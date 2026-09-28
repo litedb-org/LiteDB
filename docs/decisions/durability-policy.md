@@ -78,3 +78,18 @@ Copies: the PR description, and `pull-requests/3027-io-regressions-since-5021/de
   For shared connections it is kept connection-wide, because each operation opens a fresh engine.
 - **D.** Opt-out users still get the strict WAL rule and the WAL limit (rule 1 protects the data
   file's integrity, not only recent commits). This one was an open question.
+
+## Second round (2026-09-28)
+
+8. **The header is anchored in the WAL (refines 4).** Where only the data file cannot sync and
+   the data header the WAL's frames depend on is not proven to be on the device (a database
+   created there, a new process), a durable commit does not throw. Before the first such commit,
+   the engine writes a copy of that header into the log (the header journal) and syncs the log.
+   Recovery takes the header from that copy when the device lost it, keeps the copy until a data
+   sync succeeds, and stays writable, with commits durable in the WAL; the WAL keeps growing up to
+   the WAL limit. A leftover log with such a copy next to an empty data file restores its
+   database: that only happens when someone else deletes files, which is out of scope.
+9. **A WAL directory that cannot be synced or opened** (EACCES, EPERM, "cannot sync", #2242)
+   fails a durable commit loudly, before it writes; `durable commits=false` commits there as
+   5.0.21 did. Reading, recovery and consistency are unaffected: only a new WAL's file name is
+   not provably durable, so a power loss could lose the whole WAL file.
