@@ -50,6 +50,13 @@ namespace LiteDB.Engine
 
                 if (transaction.State == TransactionState.Active)
                 {
+                    // A failed safepoint discarded pages this transaction changed: never publish the rest.
+                    if (transaction.WriteFailure != null)
+                    {
+                        this.RollbackAndReleaseTransaction(transaction);
+                        throw TransactionService.WriteFailed(transaction.WriteFailure);
+                    }
+
                     this.CommitAndReleaseTransaction(transaction);
 
                     return true;
