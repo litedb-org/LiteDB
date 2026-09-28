@@ -17,7 +17,7 @@ namespace LiteDB.Tests.Issues
         {
             var buffer = CreateBuffer(rawType);
 
-            var exception = Assert.Throws<LiteException>(() => new CollectionPage(buffer, true));
+            var exception = Assert.Throws<LiteException>(() => new CollectionPage(buffer));
 
             exception.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
             exception.Message.Should().Be($"page type must be collection page, but it is {typeName}");
@@ -48,7 +48,7 @@ namespace LiteDB.Tests.Issues
             var buffer = CreateBuffer(rawType);
 
             BasePage page = rawType == (byte)PageType.Collection
-                ? new CollectionPage(buffer, true)
+                ? new CollectionPage(buffer)
                 : new IndexPage(buffer);
 
             page.PageType.Should().Be((PageType)rawType);

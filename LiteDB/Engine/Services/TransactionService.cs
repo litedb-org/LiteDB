@@ -213,7 +213,7 @@ namespace LiteDB.Engine
                     ENSURE(_transPages.DirtyPages.TryGetValue(_transPages.LastDeletedPageID, out var position),
                         "deleted tail must have a persisted WAL position");
                     var buffer = _reader.ReadPage(position.Position, true, FileOrigin.Log);
-                    var tail = BasePage.ReadPage<BasePage>(buffer, false);
+                    var tail = BasePage.ReadPage<BasePage>(buffer);
                     ENSURE(tail.PageType == PageType.Empty, "deleted tail must be an empty page");
                     tail.NextPageID = _header.FreeEmptyPageList;
                     tail.TransactionID = this.TransactionID;

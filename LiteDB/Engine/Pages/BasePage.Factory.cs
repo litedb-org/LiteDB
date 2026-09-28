@@ -4,13 +4,12 @@ namespace LiteDB.Engine
 {
     internal partial class BasePage
     {
-        /// <param name="unmarkedVectorSection">See <see cref="CollectionPage.UnmarkedPagesHaveVectorSection"/>.</param>
-        public static T ReadPage<T>(PageBuffer buffer, bool unmarkedVectorSection)
+        public static T ReadPage<T>(PageBuffer buffer)
             where T : BasePage
         {
             if (typeof(T) == typeof(BasePage)) return (T)(object)new BasePage(buffer);
             if (typeof(T) == typeof(HeaderPage)) return (T)(object)new HeaderPage(buffer);
-            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer, unmarkedVectorSection);
+            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer);
             if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer);
             if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer);
             if (typeof(T) == typeof(SchemaPage)) return (T)(object)new SchemaPage(buffer);

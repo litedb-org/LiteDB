@@ -52,11 +52,11 @@ ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the
 checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
-coverage and the boundary; new/rebuilt files use Complete. Header byte 166 records
-the version (8/9) of the legacy pages a conversion kept; 0 means unknown or Complete.
-Collection pages mark their vector section with `LDV1` at bytes 68..71. Released v5
-engines left stale index-entry bytes after the index list on DropIndex, so unmarked
-collection pages have no vector section in v8 files or v8-origin conversions. Keep coverage Mixed
+coverage and the boundary; new/rebuilt files use Complete. Released v5 engines wrote
+only ordinary indexes (IndexType 0) and left stale index-entry bytes after the index
+list on DropIndex; every vector-index writer, v8 prereleases included, stores the vector
+section right after the list. Read a collection page's vector section only when the page
+lists a vector index (IndexType 1). Keep coverage Mixed
 conservatively until explicit rebuild; there is no background migration.
 Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use

@@ -241,11 +241,19 @@ namespace LiteDB.Engine
                 try
                 {
                     var page = result.Value;
-                    var collectionPage = new CollectionPage(page.Buffer, UnmarkedCollectionVectorSections);
+                    var collectionPage = new CollectionPage(page.Buffer);
 
                     foreach (var index in collectionPage.GetCollectionIndexes())
                     {
                         if (index.Name == "_id") continue;
+
+                        var vector = index.IndexType == 1 ? collectionPage.GetVectorIndexMetadata(index.Name) : null;
+                        if (index.IndexType == 1 && vector == null)
+                        {
+                            // Never rebuild a vector index as an ordinary one.
+                            this.HandleError($"Vector index '{index.Name}' has no vector metadata and is not rebuilt.", pageInfo);
+                            continue;
+                        }
 
                         var info = new IndexInfo
                         {
@@ -254,7 +262,7 @@ namespace LiteDB.Engine
                             Expression = index.Expression,
                             Unique = index.Unique,
                             IndexType = index.IndexType,
-                            VectorMetadata = index.IndexType == 1 ? collectionPage.GetVectorIndexMetadata(index.Name) : null
+                            VectorMetadata = vector
                         };
 
                         if (_indexes.TryGetValue(collection.Key, out var indexInfos))

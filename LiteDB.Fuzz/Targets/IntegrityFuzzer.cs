@@ -92,26 +92,19 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
     {
         using var stream = File.OpenRead(file);
         var result = new Dictionary<uint, BasePage>();
-        var vectorSections = true;
         for (uint id = 0; id < stream.Length / Constants.PAGE_SIZE; id++)
         {
             var bytes = new byte[Constants.PAGE_SIZE];
             stream.ReadExactly(bytes);
-            if (id == 0)
-            {
-                // The same rule the engine applies to unmarked collection pages.
-                vectorSections = CollectionPage.UnmarkedPagesHaveVectorSection(
-                    bytes[HeaderPage.P_FILE_VERSION], bytes[DataChecksumPolicy.LegacyVersionPosition]);
-            }
             var buffer = new PageBuffer(bytes, 0, checked((int)id + 1));
-            var basic = BasePage.ReadPage<BasePage>(buffer, vectorSections);
+            var basic = BasePage.ReadPage<BasePage>(buffer);
             result[id] = basic.PageType switch
             {
-                PageType.Header => BasePage.ReadPage<HeaderPage>(buffer, vectorSections),
-                PageType.Collection => BasePage.ReadPage<CollectionPage>(buffer, vectorSections),
-                PageType.Data => BasePage.ReadPage<DataPage>(buffer, vectorSections),
-                PageType.Index => BasePage.ReadPage<IndexPage>(buffer, vectorSections),
-                PageType.VectorIndex => BasePage.ReadPage<VectorIndexPage>(buffer, vectorSections),
+                PageType.Header => BasePage.ReadPage<HeaderPage>(buffer),
+                PageType.Collection => BasePage.ReadPage<CollectionPage>(buffer),
+                PageType.Data => BasePage.ReadPage<DataPage>(buffer),
+                PageType.Index => BasePage.ReadPage<IndexPage>(buffer),
+                PageType.VectorIndex => BasePage.ReadPage<VectorIndexPage>(buffer),
                 _ => basic
             };
         }

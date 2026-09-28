@@ -28,6 +28,10 @@ namespace LiteDB.Tests.Regressions
     /// indexes CreatedAt,Phone,Status (drop CreatedAt,Phone) and LastLogin,Score,CustomerId,
     /// Country,Status (drop CustomerId,LastLogin,Country,Score) - two of 40 random layouts that
     /// failed. All three files accept insert/update/delete/EnsureIndex under 5.0.21.
+    ///
+    /// Released 5.0.x engines wrote only ordinary indexes (IndexType 0), and every writer of a
+    /// vector index stores its section right after the index list, so a page is read with a
+    /// vector section only when it lists a vector index (see PrereleaseVectorFile_Tests).
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     public class LegacyDroppedIndex_Tests
@@ -100,11 +104,10 @@ namespace LiteDB.Tests.Regressions
             }
             device.Armed = false;
 
-            // The window this fix protects: a converted (Mixed, v8-origin) header while the
-            // collection page is still the unmarked page 5.0.21 wrote.
+            // The window this fix protects: a converted header while the collection page is
+            // still the page 5.0.21 wrote, stale tail included.
             device.Images.Should().Contain(image => image.Data[HeaderPage.P_FILE_VERSION] >= HeaderPage.CHECKSUM_FILE_VERSION &&
-                image.Data[DataChecksumPolicy.LegacyVersionPosition] == HeaderPage.FILE_VERSION &&
-                HasUnmarkedCollectionPage(image.Data));
+                KeepsLegacyCollectionPage(image.Data, original));
 
             foreach (var image in device.Images)
             {
@@ -145,7 +148,6 @@ namespace LiteDB.Tests.Regressions
 
             var header = File.ReadAllBytes(file.Filename).Take(PAGE_SIZE).ToArray();
             header[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.CHECKSUM_FILE_VERSION);
-            header[DataChecksumPolicy.LegacyVersionPosition].Should().Be(HeaderPage.FILE_VERSION);
 
             using (var db = new LiteDatabase(file.Filename))
             {
@@ -157,39 +159,13 @@ namespace LiteDB.Tests.Regressions
             }
         }
 
-        [Theory]
-        [InlineData(8, 0, false)]
-        [InlineData(9, 0, true)]
-        [InlineData(10, 8, false)]
-        [InlineData(10, 9, true)]
-        [InlineData(13, 8, false)]
-        [InlineData(13, 0, true)]
-        public void Unmarked_pages_carry_a_vector_section_only_in_files_that_stored_vectors(byte version, byte legacy, bool expected)
+        private static bool KeepsLegacyCollectionPage(byte[] data, byte[] original)
         {
-            CollectionPage.UnmarkedPagesHaveVectorSection(version, legacy).Should().Be(expected);
-        }
-
-        [Theory]
-        [InlineData(DataChecksumPolicy.MixedMarker, 7)]
-        [InlineData(DataChecksumPolicy.MixedMarker, 10)]
-        [InlineData(DataChecksumPolicy.CompleteMarker, 8)]
-        public void Unknown_legacy_version_bytes_fail_closed(byte coverage, byte legacy)
-        {
-            var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            new HeaderPage(header, 0) { LastPageID = 10 }.UpdateBuffer();
-            header[DataChecksumPolicy.CoveragePosition] = coverage;
-            if (coverage == DataChecksumPolicy.MixedMarker) header.Write(5u, DataChecksumPolicy.LegacyBoundaryPosition);
-            header[DataChecksumPolicy.LegacyVersionPosition] = legacy;
-
-            Assert.Throws<PageChecksumException>(() => new DataChecksumPolicy().Load(header));
-        }
-
-        private static bool HasUnmarkedCollectionPage(byte[] data)
-        {
-            for (var offset = PAGE_SIZE; offset + PAGE_SIZE <= data.Length; offset += PAGE_SIZE)
+            for (var offset = PAGE_SIZE; offset + PAGE_SIZE <= original.Length && offset + PAGE_SIZE <= data.Length; offset += PAGE_SIZE)
             {
-                if (data[offset + BasePage.P_PAGE_TYPE] == (byte)PageType.Collection &&
-                    BitConverter.ToUInt32(data, offset + 68) != 0x3156444C) return true;
+                if (original[offset + BasePage.P_PAGE_TYPE] != (byte)PageType.Collection) continue;
+                var content = CollectionPage.P_INDEXES;
+                if (data.Skip(offset + content).Take(PAGE_SIZE - content).SequenceEqual(original.Skip(offset + content).Take(PAGE_SIZE - content))) return true;
             }
             return false;
         }

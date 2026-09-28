@@ -11,11 +11,8 @@ internal static class DatabaseIntegrityVerifier
         context.Check(stream.Length >= Constants.PAGE_SIZE && stream.Length % Constants.PAGE_SIZE == 0,
             "Datafile length is not a whole number of pages.");
         var pages = new Dictionary<uint, BasePage>();
-        var header = ReadPage(stream, 0, true) as HeaderPage;
+        var header = ReadPage(stream, 0) as HeaderPage;
         context.Check(header != null, "Physical page zero is not a header page.");
-        // The same rule the engine applies to collection pages without a vector-section marker.
-        var vectorSections = CollectionPage.UnmarkedPagesHaveVectorSection(
-            header.Buffer[HeaderPage.P_FILE_VERSION], header.Buffer[DataChecksumPolicy.LegacyVersionPosition]);
         var physicalPageCount = checked((uint)(stream.Length / Constants.PAGE_SIZE));
         context.Check(header.LastPageID < physicalPageCount,
             "Header LastPageID exceeds the physical datafile.");
@@ -23,7 +20,7 @@ internal static class DatabaseIntegrityVerifier
         ValidateSegments(context, header);
         for (uint id = 1; id <= header.LastPageID; id++)
         {
-            pages[id] = ReadPage(stream, id, vectorSections);
+            pages[id] = ReadPage(stream, id);
             ValidateSegments(context, pages[id]);
         }
 
@@ -45,24 +42,24 @@ internal static class DatabaseIntegrityVerifier
         context.Metrics["integrityPhysicalPages"] = physicalPageCount;
     }
 
-    private static BasePage ReadPage(Stream stream, uint id, bool vectorSections)
+    private static BasePage ReadPage(Stream stream, uint id)
     {
         stream.Position = (long)id * Constants.PAGE_SIZE;
         var bytes = new byte[Constants.PAGE_SIZE];
         stream.ReadExactly(bytes);
         var buffer = new PageBuffer(bytes, 0, unchecked((int)id + 1));
-        var basic = BasePage.ReadPage<BasePage>(buffer, vectorSections);
+        var basic = BasePage.ReadPage<BasePage>(buffer);
         if (basic.PageID != id) throw new FuzzFailureException($"Physical page {id} declares page {basic.PageID}.");
         if (!Enum.IsDefined(typeof(PageType), basic.PageType))
             throw new FuzzFailureException($"Page {id} has invalid type {basic.PageType}.");
         return basic.PageType switch
         {
-            PageType.Header => BasePage.ReadPage<HeaderPage>(buffer, vectorSections),
-            PageType.Collection => BasePage.ReadPage<CollectionPage>(buffer, vectorSections),
-            PageType.Index => BasePage.ReadPage<IndexPage>(buffer, vectorSections),
-            PageType.Data => BasePage.ReadPage<DataPage>(buffer, vectorSections),
-            PageType.VectorIndex => BasePage.ReadPage<VectorIndexPage>(buffer, vectorSections),
-            PageType.Schema => BasePage.ReadPage<SchemaPage>(buffer, vectorSections),
+            PageType.Header => BasePage.ReadPage<HeaderPage>(buffer),
+            PageType.Collection => BasePage.ReadPage<CollectionPage>(buffer),
+            PageType.Index => BasePage.ReadPage<IndexPage>(buffer),
+            PageType.Data => BasePage.ReadPage<DataPage>(buffer),
+            PageType.VectorIndex => BasePage.ReadPage<VectorIndexPage>(buffer),
+            PageType.Schema => BasePage.ReadPage<SchemaPage>(buffer),
             _ => basic
         };
     }

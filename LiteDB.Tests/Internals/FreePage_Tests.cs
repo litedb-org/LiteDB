@@ -130,7 +130,7 @@ namespace LiteDB.Internals
         private static T ReadPage<T>(byte[] bytes, uint pageID) where T : BasePage
         {
             var buffer = new PageBuffer(bytes, checked((int)pageID * Constants.PAGE_SIZE), 0);
-            return BasePage.ReadPage<T>(buffer, true);
+            return BasePage.ReadPage<T>(buffer);
         }
 
         [Fact]

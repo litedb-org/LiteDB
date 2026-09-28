@@ -38,7 +38,7 @@ namespace LiteDB.Engine
             }
         }
 
-        public CollectionPage(PageBuffer buffer, bool unmarkedVectorSection)
+        public CollectionPage(PageBuffer buffer)
             : base(buffer)
         {
             if (this.PageType != PageType.Collection)
@@ -73,10 +73,10 @@ namespace LiteDB.Engine
                     _indexes[index.Name] = index;
                 }
 
-                // Released v5 engines never cleared the bytes after the index list, so a
-                // dropped index leaves a stale tail there. Only a marked page, or an unmarked
-                // page of a file that already stored vector metadata, has a vector section.
-                var vectorCount = HasVectorSection(unmarkedVectorSection) ? r.ReadByte() : 0;
+                // Released v5 engines wrote only ordinary indexes (IndexType 0) and never cleared the
+                // bytes after the index list, so a dropped index leaves a stale tail there. Every
+                // writer of a vector index (IndexType 1) stores its section right after the list.
+                var vectorCount = _indexes.Values.Any(x => x.IndexType == 1) ? r.ReadByte() : 0;
 
                 for (var i = 0; i < vectorCount; i++)
                 {
@@ -107,7 +107,6 @@ namespace LiteDB.Engine
 
                 // skip reserved area (indexes starts at position 96)
                 w.Skip(P_INDEXES - PAGE_HEADER_SIZE - w.Position);
-                this.MarkVectorSection();
 
                 w.Write((byte)_indexes.Count); // 1 byte
 

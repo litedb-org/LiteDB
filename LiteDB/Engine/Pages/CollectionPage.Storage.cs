@@ -4,23 +4,6 @@ namespace LiteDB.Engine
     {
         private const uint StorageMagic = 0x3143444C; // LDC1
         private const int StorageOffset = 52;
-        private const uint VectorSectionMagic = 0x3156444C; // LDV1
-        private const int VectorSectionOffset = 68;
-
-        /// <summary>
-        /// Collection pages written before the vector-section marker carry a vector section only
-        /// when the file already stored vector metadata (v9) while they were written. v8 files never
-        /// do, nor do the unmarked pages a v8 file keeps through checksum conversion. A conversion
-        /// recorded before the legacy version byte existed keeps the previous interpretation.
-        /// </summary>
-        internal static bool UnmarkedPagesHaveVectorSection(byte fileVersion, byte legacyVersion) =>
-            fileVersion >= HeaderPage.VECTOR_FILE_VERSION && legacyVersion != HeaderPage.FILE_VERSION;
-
-        private bool HasVectorSection(bool unmarkedVectorSection) =>
-            Buffer.ReadUInt32(VectorSectionOffset) == VectorSectionMagic || unmarkedVectorSection;
-
-        // v5 cleared the whole reserved area of every page it allocated or freed.
-        private void MarkVectorSection() => Buffer.Write(VectorSectionMagic, VectorSectionOffset);
         internal uint SchemaRoot { get; private set; } = uint.MaxValue;
         internal uint SchemaTail { get; private set; } = uint.MaxValue;
         internal uint SchemaCount { get; private set; }

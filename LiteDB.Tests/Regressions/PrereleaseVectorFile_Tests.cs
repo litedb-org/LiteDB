@@ -1,0 +1,147 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using FluentAssertions;
+using LiteDB.Engine;
+using LiteDB.Vector;
+using Xunit;
+
+namespace LiteDB.Tests.Regressions
+{
+    /// <summary>
+    /// Fixture Vectors_6_0_0_prerelease_114.zip was written by the published LiteDB
+    /// 6.0.0-prerelease.114 package, which stores vector indexes in FILE_VERSION 8 files:
+    /// vectors.db (and vectors-encrypted.db, password "vector-secret") hold collection "docs"
+    /// with 40 documents {_id: i, name: "d"+i, Embedding: [i, 1]}, index "name" and vector index
+    /// "embedding" on $.Embedding (2 dimensions), and collection "computed" with 20 documents
+    /// {_id: i, Embedding: [1, i]} (every fifth Embedding null) and vector index "coalesced" on
+    /// COALESCE($.Embedding, [0, 0]).
+    ///
+    /// The collection-page rule that ignores a 5.0.21 stale tail after the index list must still
+    /// read the vector section these files store there.
+    /// </summary>
+    [Trait("Category", "RegressionSince5021")]
+    public class PrereleaseVectorFile_Tests
+    {
+        [Theory]
+        [InlineData("vectors.db", null)]
+        [InlineData("vectors-encrypted.db", "vector-secret")]
+        public void Prerelease_vector_indexes_stay_usable_after_the_writable_open(string name, string password)
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture(name));
+            var connection = $"Filename={file.Filename}" + (password == null ? "" : $";Password={password}");
+
+            using (var db = new LiteDatabase(connection))
+            {
+                AssertVectorIndexes(db);
+                var docs = db.GetCollection("docs");
+                docs.EnsureIndex("embedding", "$.Embedding", new VectorIndexOptions(2)).Should().BeFalse();
+                docs.Insert(new BsonDocument { ["_id"] = 100, ["name"] = "d100", ["Embedding"] = new BsonVector(new[] { 100f, 1f }) });
+                db.GetCollection("computed").Insert(new BsonDocument { ["_id"] = 100, ["Embedding"] = new BsonVector(new[] { 1f, 100f }) });
+                Nearest(docs, 99f).Should().Be(100);
+            }
+
+            using (var db = new LiteDatabase(connection))
+            {
+                AssertVectorIndexes(db);
+                Nearest(db.GetCollection("docs"), 99f).Should().Be(100);
+                db.GetCollection("docs").Count(Query.EQ("name", "d7")).Should().Be(1);
+                NearestComputed(db.GetCollection("computed"), 99f).Should().Be(100);
+            }
+        }
+
+        [Fact]
+        public void Rebuild_of_a_prerelease_file_keeps_its_vector_indexes()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture("vectors.db"));
+
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.Rebuild();
+                AssertVectorIndexes(db);
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            AssertVectorIndexes(reopened);
+            reopened.GetCollection("_rebuild_errors").Count().Should().Be(0);
+        }
+
+        [Fact]
+        public void Auto_rebuild_reads_the_prerelease_vector_metadata()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("vectors.db");
+            bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1; // request rebuild on open (FileReaderV8)
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            AssertVectorIndexes(db);
+            db.GetCollection("_rebuild_errors").Count().Should().Be(0);
+        }
+
+        [Fact]
+        public void Rebuild_reports_a_vector_index_without_metadata_instead_of_indexing_it_as_ordinary()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture("vectors.db");
+            // Rename the vector section entry: the page still lists "embedding" as a vector index.
+            var name = System.Text.Encoding.UTF8.GetBytes("embedding\0");
+            var occurrences = Enumerable.Range(0, bytes.Length - name.Length).Where(i => bytes.Skip(i).Take(name.Length).SequenceEqual(name)).ToArray();
+            occurrences.Should().HaveCount(2, "the index list entry and the vector section entry");
+            bytes[occurrences[1] + name.Length - 2] = (byte)'X';
+            File.WriteAllBytes(file.Filename, bytes);
+
+            Action open = () => new LiteDatabase(file.Filename).Dispose();
+            var error = open.Should().Throw<LiteException>().Which;
+            error.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            error.Message.Should().Contain("Collection 'docs'").And.Contain("'embedding' has no vector metadata");
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            db.GetCollection("$indexes").Find(Query.EQ("name", "embedding")).Should().BeEmpty();
+            db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                .Should().Contain(x => x.Contains("'embedding'"));
+            db.GetCollection("docs").Count().Should().Be(40);
+            NearestComputed(db.GetCollection("computed"), 7f).Should().Be(7);
+        }
+
+        private static void AssertVectorIndexes(LiteDatabase db)
+        {
+            var indexes = db.GetCollection("$indexes").FindAll().ToDictionary(x => x["collection"].AsString + "." + x["name"].AsString);
+            indexes["docs.embedding"]["indexType"].AsInt32.Should().Be(1);
+            indexes["computed.coalesced"]["indexType"].AsInt32.Should().Be(1);
+            indexes["docs.name"]["indexType"].AsInt32.Should().Be(0);
+
+            var docs = db.GetCollection("docs");
+            var query = docs.Query().TopKNear(BsonExpression.Create("$.Embedding"), new[] { 20f, 1f }, 1);
+            query.GetPlan()["index"]["name"].AsString.Should().Be("embedding");
+            query.ToArray().Single()["_id"].AsInt32.Should().Be(20);
+            docs.Count().Should().BeGreaterOrEqualTo(40);
+
+            NearestComputed(db.GetCollection("computed"), 7f).Should().Be(7);
+        }
+
+        private static int Nearest(ILiteCollection<BsonDocument> docs, float x) =>
+            docs.Query().TopKNear(BsonExpression.Create("$.Embedding"), new[] { x, 1f }, 1).ToArray().Single()["_id"].AsInt32;
+
+        private static int NearestComputed(ILiteCollection<BsonDocument> computed, float y)
+        {
+            var query = computed.Query().TopKNear(BsonExpression.Create("COALESCE($.Embedding, [0, 0])"), new[] { 1f, y }, 1);
+            query.GetPlan()["index"]["name"].AsString.Should().Be("coalesced");
+            return query.ToArray().Single()["_id"].AsInt32;
+        }
+
+        private static byte[] Fixture(string name)
+        {
+            using var resource = typeof(PrereleaseVectorFile_Tests).Assembly.GetManifestResourceStream(
+                "LiteDB.Tests.Resources.Vectors_6_0_0_prerelease_114.zip");
+            using var zip = new ZipArchive(resource, ZipArchiveMode.Read);
+            using var entry = zip.GetEntry(name).Open();
+            using var bytes = new MemoryStream();
+            entry.CopyTo(bytes);
+            return bytes.ToArray();
+        }
+    }
+}

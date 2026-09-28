@@ -231,7 +231,7 @@ namespace LiteDB.Engine
             var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             try
             {
-                var page = BasePage.ReadPage<T>(buffer, _disk.UnmarkedCollectionVectorSections);
+                var page = BasePage.ReadPage<T>(buffer);
                 if (dirty)
                 {
                     ENSURE(page.TransactionID == _transPages.TransactionID, "this page must came from same transaction");

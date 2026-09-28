@@ -12,13 +12,11 @@ namespace LiteDB.Engine
     {
         private readonly HeaderPage _header;
         private readonly TransactionMonitor _monitor;
-        private readonly Func<bool> _unmarkedVectorSections;
 
-        public SysDump(HeaderPage header, TransactionMonitor monitor, Func<bool> unmarkedVectorSections) : base("$dump")
+        public SysDump(HeaderPage header, TransactionMonitor monitor) : base("$dump")
         {
             _header = header;
             _monitor = monitor;
-            _unmarkedVectorSections = unmarkedVectorSections;
         }
 
         public override IEnumerable<BsonDocument> Input(BsonValue options)
@@ -65,7 +63,7 @@ namespace LiteDB.Engine
 
                 if (page.PageType == PageType.Collection)
                 {
-                    var collectionPage = new CollectionPage(page.Buffer, _unmarkedVectorSections());
+                    var collectionPage = new CollectionPage(page.Buffer);
                     doc["dataPageList"] = new BsonArray(collectionPage.FreeDataPageList.Select(x => new BsonValue((int)x)));
                     doc["indexes"] = new BsonArray(collectionPage.GetCollectionIndexes().Select(x => new BsonDocument
                     {
