@@ -117,9 +117,9 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file.",
-      "inputHash": "9A11E4FEC30DF568A8B749FF97CAD32AEC7925FAF05A106F65358DDB26C401D3",
-      "traceHash": "11A6CB2E0FEB1EB8BA82F4FEB88F756E8B88611CC47F0B5C5B963FD8A8B90AB7",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs.",
+      "inputHash": "EC224AEAD42A49300462C726166504B2E15F7E7EB0187EFA7EAFD0891C4721C6",
+      "traceHash": "F8C47F753332706DF377705B27F5653BE40A3AD3BC314B128E50C61B5C39E024",
       "previousHashes": [
         {
           "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
@@ -145,6 +145,11 @@
           "inputHash": "76D03C6250BC2CAA506D5545F400D85F01FF55AA788998A35B12C21DD8C84921",
           "traceHash": "A3F383F23429D97C7E24B9D1D59AB6941DCB3B4D48196F3C4EB098AA2826B1B7",
           "reason": "Before encrypted streams opened to read stopped syncing their file; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10."
+        },
+        {
+          "inputHash": "9A11E4FEC30DF568A8B749FF97CAD32AEC7925FAF05A106F65358DDB26C401D3",
+          "traceHash": "11A6CB2E0FEB1EB8BA82F4FEB88F756E8B88611CC47F0B5C5B963FD8A8B90AB7",
+          "reason": "Before a conversion proved its data file syncs ahead of the legacy drain (933b0ca2e); with that check reverted these hashes match again, and the new ones agree between full-model runs and recorded-byte replays on .NET 8 and .NET 10."
         }
       ]
     },
@@ -152,9 +157,9 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file.",
-      "inputHash": "E45E21F565E8E8838DD5219A133434D8B967C3DBDF81E7B595E93F204CBE5ECA",
-      "traceHash": "7D8C5AF47BC077E311D3D9838D6CA8A32D4E7CFD1B972A087097EBBEEE8A395D",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs.",
+      "inputHash": "D2AB6D841405E00288ADDC412A925EC86EC524E7E5538A3BCE5F8FCC1177D043",
+      "traceHash": "707CE286E87BF48F42146EB2E1090E17ECFB2D60CBB323D555C1AD0FD5173C14",
       "previousHashes": [
         {
           "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
@@ -180,6 +185,11 @@
           "inputHash": "9B8F44BBE4E6A62D0A424BEE719F53E347F5216FD1F1BD583F43CEBF4B638499",
           "traceHash": "ECD2CDDA0F28EF8D481B90AB98AE8E1397C4131C73B98DE9786B1CDC9E85C0D8",
           "reason": "Before encrypted streams opened to read stopped syncing their file; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10."
+        },
+        {
+          "inputHash": "E45E21F565E8E8838DD5219A133434D8B967C3DBDF81E7B595E93F204CBE5ECA",
+          "traceHash": "7D8C5AF47BC077E311D3D9838D6CA8A32D4E7CFD1B972A087097EBBEEE8A395D",
+          "reason": "Before a conversion proved its data file syncs ahead of the legacy drain (933b0ca2e); with that check reverted these hashes match again, and the new ones agree between full-model runs and recorded-byte replays on .NET 8 and .NET 10."
         }
       ]
     },
