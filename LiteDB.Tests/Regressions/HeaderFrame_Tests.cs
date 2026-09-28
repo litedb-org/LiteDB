@@ -61,7 +61,7 @@ namespace LiteDB.Tests.Regressions
         [Theory]
         [InlineData(0)] // the data file left empty
         [InlineData(1)] // its header page never written back (zeros)
-        [InlineData(2)] // its header page torn half-way
+        [InlineData(2)] // its header page torn: its first sector never written back
         public void Opted_out_commits_survive_a_data_file_that_lost_its_header(int damage)
         {
             using var file = new TempFile();
@@ -77,8 +77,10 @@ namespace LiteDB.Tests.Regressions
             finally { NativeFileSync.SimulateErrno = null; }
 
             var data = File.ReadAllBytes(file.Filename);
+            var header = data.Take(PAGE_SIZE).ToArray();
             if (damage == 0) data = new byte[0];
-            else Array.Clear(data, damage == 1 ? 0 : PAGE_SIZE / 2, damage == 1 ? PAGE_SIZE : PAGE_SIZE / 2);
+            else Array.Clear(data, 0, damage == 1 ? PAGE_SIZE : 512);
+            if (damage != 0) data.Take(PAGE_SIZE).Should().NotEqual(header, "the damage changes the header");
             File.WriteAllBytes(file.Filename, data);
 
             using (var db = new LiteDatabase(connection))
