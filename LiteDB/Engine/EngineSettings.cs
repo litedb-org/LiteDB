@@ -225,10 +225,6 @@ namespace LiteDB.Engine
             return defaultSize;
         }
 
-        /// <summary>The engine keeps its WAL in memory: no caller log stream and no log file.</summary>
-        internal bool VolatileLog => this.LogStream == null &&
-            (string.IsNullOrEmpty(this.Filename) || this.Filename == ":memory:" || this.Filename == ":temp:");
-
         /// <summary>
         /// Create new IStreamFactory for logfile
         /// </summary>

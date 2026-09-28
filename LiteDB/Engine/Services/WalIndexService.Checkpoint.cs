@@ -78,22 +78,20 @@ namespace LiteDB.Engine
 
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
-        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true, automatic: true);
+        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
 
         /// <summary>
         /// Checkpoint on engine close. A close that can reclaim always runs; shared
         /// engines ration partial work under live leases like commits do.
         /// </summary>
-        public int TryCloseCheckpoint() => this.TryCheckpoint(rationed: _rationClose, automatic: _rationClose);
+        public int TryCloseCheckpoint() => this.TryCheckpoint(rationed: _rationClose);
 
         /// <summary>
         /// Backfill only committed versions visible to every snapshot. Frames that
         /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
-        private int TryCheckpoint(bool rationed, bool drain = false, bool automatic = false)
+        private int TryCheckpoint(bool rationed, bool drain = false)
         {
-            // A kept WAL is rewritten by every full checkpoint: automatic ones wait until it doubled.
-            if (automatic && _backoff.DefersKeptWal(_disk.GetFileLength(FileOrigin.Log))) return 0;
             var stopBegun = false;
             var stopOwned = false;
             try { return TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned); }
@@ -183,15 +181,8 @@ namespace LiteDB.Engine
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
-                // A data file that answered "cannot sync" (#2242) for this backfill while the WAL
-                // syncs: an emptied WAL would become durable at the next log sync, the backfill
-                // never. Keep the WAL, as a partial checkpoint does, so every commit it holds stays
-                // recoverable. Storage where neither file syncs empties it as before.
-                if (reclaim && _disk.DataUnsyncedWhileLogSyncs)
-                {
-                    reclaim = false;
-                    _backoff.KeptWal(_disk.GetFileLength(FileOrigin.Log));
-                }
+                // A backfill the data file could not sync (#2242) is followed by the WAL's emptying:
+                // no log sync makes that durable before a data sync succeeds (ProveDataBeforeLog).
 
                 // Storage that stopped syncing after the retirement's proof may not have made its
                 // witness records durable: a root published now could leave a durable header naming
@@ -220,7 +211,6 @@ namespace LiteDB.Engine
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif
                     _disk.SetLength(0, FileOrigin.Log);
-                    _backoff.WalEmptied();
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-after-clear");
 #endif

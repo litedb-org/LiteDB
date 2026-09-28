@@ -123,14 +123,7 @@ namespace LiteDB.Engine
             // A lease-aware checkpoint skips or limits its work while other connections may
             // read the WAL; discarding what it left would lose committed transactions. A
             // refused conversion changes neither file; a drain trims partial pages first.
-            // Storage whose data file cannot sync while its log can keeps the WAL on a full
-            // checkpoint (see DataUnsyncedWhileLogSyncs), so a drain cannot empty it either;
-            // it keeps the legacy WAL, and its backfill is what 5.0.21 itself would write.
-            if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain())
-            {
-                if (_disk.DataUnsyncedWhileLogSyncs) throw DiskService.UnsyncableConversion();
-                throw ConversionBlocked();
-            }
+            if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain()) throw ConversionBlocked();
             _disk.TrimTrailingPages();
             if (!_disk.ChecksumsEnabled)
             {

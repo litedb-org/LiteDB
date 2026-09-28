@@ -14,10 +14,10 @@ namespace LiteDB.Tests.Regressions
     /// <summary>
     /// Since data barriers degrade on storage that answers "cannot sync" (#2242), a full checkpoint
     /// can write its backfill to a data file that never syncs it. If the WAL still syncs, emptying
-    /// it becomes durable at the next log sync, before the backfill ever does: a power loss (each
-    /// file as of its last successful sync) then loses every commit the WAL held, also commits
-    /// acknowledged while durableLogFlush was true, and an independent connection's later commit,
-    /// which it reports durable. Such a checkpoint keeps the WAL instead.
+    /// it became durable at the next log sync, before the backfill ever did: a power loss (each
+    /// file as of its last successful sync) then lost every commit the WAL held, also commits
+    /// acknowledged while durableLogFlush was true. A log sync now waits for a data sync that
+    /// succeeds, so the WAL that last synced stays the durable one, and the WAL stays bounded.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Regressions
         [InlineData("shared")]
         [InlineData("second")] // the commit after the checkpoint comes from an independent connection
         [InlineData("direct")] // one long-lived engine, which also finds out when the data file syncs again
-        public void Full_checkpoint_whose_data_sync_fails_keeps_the_wal(string mode)
+        public void Full_checkpoint_whose_data_sync_fails_keeps_every_durable_commit(string mode)
         {
             using var file = new TempFile();
             Setup(file.Filename);
@@ -45,79 +45,47 @@ namespace LiteDB.Tests.Regressions
             power.DataFails = true;
             firstDb.Checkpoint();
             DurableLogFlush(firstDb).Should().BeFalse("the data file cannot sync");
-            new FileInfo(logName).Length.Should().BeGreaterThan(0, "the WAL keeps what the data file could not make durable");
+            power.AfterPowerLoss(Rows).Should().Be(9, "the WAL that last synced holds every durable commit");
 
             using var second = mode == "second" ? new SharedEngine(power.Settings()) : null;
             using var writer = second == null ? firstDb : new LiteDatabase(second, disposeOnClose: false);
             Update(writer, 10);
+            DurableLogFlush(writer).Should().BeFalse();
+            power.AfterPowerLoss(Rows).Should().Be(9, "commit 10 is not durable: its log sync waits for the data file");
 
-            power.AfterPowerLoss(Rows).Should().Be(10, "the synced WAL holds every commit");
             power.DataFails = false;
+            Update(writer, 11);
+            power.AfterPowerLoss(Rows).Should().Be(11, "once the data file syncs again, the next log sync follows a data sync");
             writer.Checkpoint();
-            new FileInfo(logName).Length.Should().Be(0, "once the data file syncs again, a full checkpoint empties the WAL");
-            power.AfterPowerLoss(Rows).Should().Be(10);
+            new FileInfo(logName).Length.Should().Be(0, "a full checkpoint empties the WAL");
+            power.AfterPowerLoss(Rows).Should().Be(11);
         }
 
         /// <summary>
-        /// A kept WAL is rewritten by every full checkpoint. Automatic checkpoints wait until it has
-        /// doubled instead of running on every commit once it exceeds the checkpoint size.
+        /// A full checkpoint on storage whose data file cannot sync empties the WAL as on storage
+        /// where neither file syncs: automatic checkpoints keep it near the checkpoint size (a kept
+        /// WAL grew to 230 MB after 6,000 inserts of 2 KB). Only what was durable before survives.
         /// </summary>
         [Fact]
-        public void Automatic_checkpoints_are_rationed_while_the_wal_is_kept()
-        {
-            using var file = new TempFile();
-            Setup(file.Filename);
-            using var power = new SyncPowerLossModel(file.Filename) { DataFails = true };
-            var checkpoints = 0;
-            var settings = power.Settings();
-            settings.CheckpointStage = stage => { if (stage == "before-commit-lock") checkpoints++; };
-            using (var db = new LiteDatabase(new LiteEngine(settings)))
-            {
-                db.CheckpointSize = 10;
-                for (var id = 1; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
-                db.GetCollection("log").Count().Should().Be(300);
-            }
-            checkpoints.Should().BeLessThan(20, "a kept WAL of n pages costs O(log n) automatic checkpoints, not one per commit");
-            power.AfterPowerLoss(Rows).Should().Be(0);
-        }
-
-        /// <summary>
-        /// A connection's rationing of a kept WAL ends when another connection empties the WAL:
-        /// its automatic checkpoints do not wait until a new WAL doubles the old kept length.
-        /// </summary>
-        [Fact]
-        public void Kept_wal_rationing_ends_when_another_connection_empties_the_wal()
+        public void Wal_stays_bounded_where_only_the_data_file_cannot_sync()
         {
             using var file = new TempFile();
             Setup(file.Filename);
             var logName = FileHelper.GetLogFile(file.Filename);
-            using var power = new SyncPowerLossModel(file.Filename);
-            try
+            using var power = new SyncPowerLossModel(file.Filename) { DataFails = true };
+            using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
             {
-                using var engine = new SharedEngine(power.Settings());
-                using var db = new LiteDatabase(engine, disposeOnClose: false);
-                db.CheckpointSize = 0;
-                for (var id = 1; id <= 200; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
-                power.DataFails = true;
-                db.Checkpoint();
-                new FileInfo(logName).Length.Should().BeGreaterThan(0, "the full checkpoint kept the WAL");
-                power.DataFails = false;
-
-                using (var other = new SharedEngine(power.Settings()))
-                using (var otherDb = new LiteDatabase(other, disposeOnClose: false))
-                    otherDb.Checkpoint();
-                new FileInfo(logName).Length.Should().Be(0);
-
                 db.CheckpointSize = 10;
-                for (var id = 201; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
-                new FileInfo(logName).Length.Should().BeLessThan(80L * Constants.PAGE_SIZE, "automatic checkpoints run again");
+                for (var id = 1; id <= 300; id++) db.GetCollection("log").Insert(new BsonDocument { ["_id"] = id, ["text"] = new string('t', 3000) });
+                db.GetCollection("log").Count().Should().Be(300);
+                new FileInfo(logName).Length.Should().BeLessThan(30L * Constants.PAGE_SIZE);
             }
-            finally { File.Delete(logName); }
+            power.AfterPowerLoss(Rows).Should().Be(0);
         }
 
         /// <summary>
-        /// A WAL the engine keeps in memory (LiteDatabase(Stream) without a log stream) protects
-        /// nothing, so a data stream that cannot sync does not keep it: it stays bounded.
+        /// A WAL the engine keeps in memory (LiteDatabase(Stream) without a log stream) stays
+        /// bounded on a data stream that cannot sync.
         /// </summary>
         [Fact]
         public void In_memory_wal_is_still_emptied_on_a_data_stream_that_cannot_sync()
@@ -153,44 +121,164 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip, see LegacyWalSharedMigration_Tests)
-        /// on storage whose data file cannot sync while its WAL can: conversion needs an empty WAL,
-        /// so it is refused with a diagnostic naming the storage. The legacy WAL is kept byte for
-        /// byte and the data file stays unconverted (its backfill is what 5.0.21 would write), so
-        /// the database opens with every commit once the storage syncs.
+        /// Commits acknowledged durable (1..5), then neither file syncs during a full checkpoint: its
+        /// backfill and the emptied WAL reach the OS cache only, which is all such storage offers.
+        /// Then the WAL syncs again while the data file still does not. A later log sync (a commit,
+        /// a checkpoint's journal, another connection's first sync, a reopen) made the emptied WAL
+        /// durable while the backfill never was: a power loss lost commits 1..5. A log sync now
+        /// waits for a data sync that succeeds, so the WAL they are in stays the durable one.
+        /// </summary>
+        [Theory]
+        [InlineData("direct")] // one long-lived engine
+        [InlineData("second")] // an independent connection syncs the WAL first
+        [InlineData("reopen")] // the first engine is closed; a new one opens the files
+        public void Commits_durable_before_neither_file_synced_survive_when_only_the_wal_syncs_again(string mode)
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using (var setup = new LiteDatabase(file.Filename)) setup.GetCollection("rows").EnsureIndex("value");
+            using var power = new SyncPowerLossModel(file.Filename);
+
+            var first = new LiteEngine(power.Settings());
+            var firstDb = new LiteDatabase(first, disposeOnClose: false);
+            try
+            {
+                firstDb.CheckpointSize = 0;
+                for (var value = 1; value <= 5; value++)
+                {
+                    Update(firstDb, value);
+                    DurableLogFlush(firstDb).Should().BeTrue();
+                }
+                power.DataFails = power.LogFails = true;
+                firstDb.Checkpoint();
+                power.LogFails = false;
+                if (mode == "reopen")
+                {
+                    firstDb.Dispose();
+                    first.Dispose();
+                }
+
+                using var other = mode == "direct" ? null : new LiteEngine(power.Settings());
+                var writer = other == null ? firstDb : new LiteDatabase(other, disposeOnClose: false);
+                Update(writer, 6);
+                DurableLogFlush(writer).Should().BeFalse("the data file cannot sync");
+                writer.Checkpoint();
+                Update(writer, 7);
+                if (other != null) writer.Dispose();
+
+                AssertAfterPowerLoss(power, 5);
+            }
+            finally
+            {
+                firstDb.Dispose();
+                first.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// On storage where neither file syncs, a full checkpoint empties the WAL and closing the
+        /// engine deletes it. A directory sync would make that deletion durable, and with it the
+        /// loss of the WAL that held the durable commits: while a log sync waits for the data file,
+        /// so does the directory entry of the WAL that replaces it.
         /// </summary>
         [Fact]
-        public void Legacy_conversion_is_refused_and_keeps_the_wal_when_only_the_wal_syncs()
+        public void New_wal_directory_entry_waits_for_the_data_file_too()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            var directorySyncs = 0;
+            NativeFileSync.SimulateDirectoryErrno = _ => { directorySyncs++; return 0; };
+            try
+            {
+                using (var db = new LiteDatabase(file.Filename))
+                {
+                    db.CheckpointSize = 0;
+                    Update(db, 1);
+                    DurableLogFlush(db).Should().BeTrue();
+                    power.DataFails = power.LogFails = true;
+                    db.Checkpoint();
+                }
+                File.Exists(logName).Should().BeFalse("closing the engine deleted its empty WAL");
+                power.LogFails = false;
+                directorySyncs = 0;
+                using (var db = new LiteDatabase(file.Filename))
+                {
+                    Update(db, 2);
+                    DurableLogFlush(db).Should().BeFalse();
+                }
+                directorySyncs.Should().Be(0, "the new WAL's name is not synced before the data file");
+                power.AfterPowerLoss(db => db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray())
+                    .Should().Equal(1);
+            }
+            finally
+            {
+                NativeFileSync.SimulateDirectoryErrno = null;
+                File.Delete(logName);
+            }
+        }
+
+        /// <summary>Every row holds <paramref name="value"/>, whole, and the index on value finds each one.</summary>
+        private static void AssertAfterPowerLoss(SyncPowerLossModel power, int value)
+        {
+            power.AfterPowerLoss(Rows).Should().Be(value);
+            using var image = new TempFile();
+            var (data, log) = power.Capture();
+            File.WriteAllBytes(image.Filename, data);
+            File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), log);
+            try
+            {
+                using var db = new LiteDatabase(image.Filename);
+                var rows = db.GetCollection("rows");
+                rows.FindAll().OrderBy(x => x["_id"].AsInt32).Should().BeEquivalentTo(
+                    Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)), o => o.WithStrictOrdering());
+                rows.Find(Query.EQ("value", value)).Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, Rows));
+                rows.Count(Query.Not("value", value)).Should().Be(0);
+            }
+            finally { File.Delete(FileHelper.GetLogFile(image.Filename)); }
+        }
+
+        /// <summary>
+        /// A 5.0.21 file with WAL commits (WalCrash_5_0_21.zip, see LegacyWalSharedMigration_Tests) on
+        /// storage whose data file cannot sync while its WAL can. The conversion drains the legacy WAL
+        /// and empties it; the converted header never syncs. Neither does the emptied WAL now, so a
+        /// power loss leaves the legacy pair byte for byte, which opens with every commit. (The
+        /// conversion was refused while a full checkpoint kept the WAL on such storage.)
+        /// </summary>
+        [Fact]
+        public void Legacy_conversion_where_only_the_wal_syncs_leaves_the_legacy_pair_durable()
         {
             using var file = new TempFile();
             var logName = FileHelper.GetLogFile(file.Filename);
-            File.WriteAllBytes(file.Filename, Entry("crash.db"));
-            File.WriteAllBytes(logName, Entry("crash-log.db"));
-            var version = File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION];
-            var log = File.ReadAllBytes(logName);
+            var data = Entry("crash.db");
+            var log = Entry("crash-log.db");
+            File.WriteAllBytes(file.Filename, data);
+            File.WriteAllBytes(logName, log);
             try
             {
+                (byte[] Data, byte[] Log) image;
                 using (var power = new SyncPowerLossModel(file.Filename) { DataFails = true })
                 {
-                    Action open = () => new LiteEngine(power.Settings()).Dispose();
-                    open.Should().Throw<IOException>().WithMessage("Cannot convert this legacy database*data file cannot be synced*readonly=true;legacy index scan=true*");
-                    SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
-                    SyncPowerLossModel.ReadShared(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(version);
+                    using (var db = new LiteDatabase(new LiteEngine(power.Settings())))
+                    {
+                        AssertLegacyCommits(db);
+                        DurableLogFlush(db).Should().BeFalse();
+                    }
+                    image = power.Capture();
                 }
-
-                // The diagnostic's way to read it meanwhile.
-                using (var readOnly = new LiteDatabase($"Filename={file.Filename};readonly=true;legacy index scan=true"))
-                {
-                    readOnly.GetCollection("docs").Count().Should().Be(101);
-                }
-                SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
-
-                using var db = new LiteDatabase(file.Filename);
-                var docs = db.GetCollection("docs").FindAll().ToList();
-                docs.Should().HaveCount(101);
-                docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
+                image.Data.Should().Equal(data);
+                image.Log.Should().Equal(log);
+                FilePowerLossModel.Open(image, db => { AssertLegacyCommits(db); return 0; });
             }
             finally { File.Delete(logName); }
+        }
+
+        private static void AssertLegacyCommits(LiteDatabase db)
+        {
+            var docs = db.GetCollection("docs").FindAll().ToList();
+            docs.Should().HaveCount(101);
+            docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
         }
 
         private sealed class UnsyncableStream : MemoryStream, IDurableStream

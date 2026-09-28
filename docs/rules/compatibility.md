@@ -47,7 +47,8 @@ See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibili
 Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout.
 MVCC reclamation lazily publishes v13 before writing retirement witnesses. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
-data-page coverage; a data file that cannot sync while its WAL can is not converted, and a
+data-page coverage (after a data sync answered "cannot sync", no log sync precedes a data
+sync that succeeds, so the unconverted pair stays the durable one), and a
 legacy header beside checksummed WAL frames fails the open without changing either file. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
@@ -145,8 +146,9 @@ that stops syncing during a retiring checkpoint degrades its barriers; that chec
 the frames it retired and publishes no root once it found out. Before its first slot reuse
 every engine (of any connection) syncs the WAL, and before its first log sync an engine
 whose data is a file proves the data file (once per data header in the process). Never
-make a WAL change durable that discards frames the data file could not make durable: a full
-checkpoint whose data file cannot sync while the WAL can keeps the WAL.
+make a WAL change durable that discards frames the data file could not make durable: after
+a data sync answered "cannot sync", a log sync (and a new WAL's directory entry) waits for
+a data sync that succeeds.
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and

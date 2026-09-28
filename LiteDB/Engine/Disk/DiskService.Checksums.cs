@@ -78,9 +78,6 @@ namespace LiteDB.Engine
             // ordered writes keep conversion process-crash safe only.
             this.SyncDataBarrier(stream);
             SyncLogBarrier(log);
-            // A converted header the data file cannot sync would be outlived by the frames written
-            // after it: a power loss would leave them beside the legacy header (RejectConvertedWal).
-            if (this.DataUnsyncedWhileLogSyncs) throw UnsyncableConversion();
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
@@ -97,11 +94,6 @@ namespace LiteDB.Engine
             header = new HeaderPage(buffer);
             _cache.Clear();
         }
-
-        internal static IOException UnsyncableConversion() => new IOException("Cannot convert this legacy database: " +
-            "its data file cannot be synced to the device while its log file can, so a power loss could leave the log " +
-            "depending on data the device never received. Move both files to storage that syncs them, or open it with " +
-            "\"readonly=true;legacy index scan=true\".");
 
         /// <summary>Called only after checkpoint synced all data, before recycling the WAL.</summary>
         internal void RotateWalSalt()

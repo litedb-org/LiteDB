@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Regressions
 
                 ChangedFrames(before, SyncPowerLossModel.ReadShared(logName)).Should().Be(0, "no retired slot is reused before the data file syncs");
                 DurableLogFlush(secondDb).Should().BeFalse("the data file cannot sync");
-                power.AfterPowerLoss(64).Should().Be(10);
+                power.AfterPowerLoss(64).Should().Be(9, "commit 10 is not durable: its log sync waits for the data file");
             }
             finally { EngineState.SimulateProcessCrash = null; }
         }
@@ -149,7 +149,7 @@ namespace LiteDB.Tests.Regressions
             else changed.Should().Be(0, "no retired slot is reused before the data file syncs");
             DurableLogFlush(secondDb).Should().Be(dataSyncsAgain);
             power.AfterPowerLoss(db => db.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Distinct().ToArray())
-                .Should().Equal(new[] { 10 }, "every commit so far is in the durable WAL");
+                .Should().Equal(new[] { dataSyncsAgain ? 10 : 9 }, "every commit reported durable is in the durable WAL; a log sync waits for the data file");
             File.Delete(logName);
         }
 

@@ -60,6 +60,9 @@ namespace LiteDB.Tests.Regressions
             finally { File.Delete(FileHelper.GetLogFile(image.Filename)); }
         }
 
+        /// <summary>The files a power loss would leave behind now.</summary>
+        internal (byte[] Data, byte[] Log) Capture() => (_data.Durable, _log.Durable);
+
         internal static byte[] ReadShared(string filename)
         {
             using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

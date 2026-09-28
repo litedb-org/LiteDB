@@ -17,7 +17,7 @@ namespace LiteDB.Engine
 
         private readonly bool _durableCommits;
         private readonly SharedDurabilityState _sharedDurability;
-        private readonly bool _dataIsFile, _volatileLog;
+        private readonly bool _dataIsFile;
 
         // The data file's full path, for DurableHeaders; null when it has none.
         private readonly string _dataPath;
@@ -34,7 +34,7 @@ namespace LiteDB.Engine
         private volatile bool _dataSyncProven;
 
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
-        // false after "cannot sync" (#2242).
+        // false after "cannot sync" (#2242), and for the log also while its sync waits for the data file.
         private volatile bool _dataBarrierSynced = true, _logBarrierSynced;
 
         // Set once this engine made the WAL's directory entry durable. Until then a durable
@@ -65,13 +65,6 @@ namespace LiteDB.Engine
         /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
         /// </summary>
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
-
-        /// <summary>
-        /// The latest data barrier answered "cannot sync" (#2242) while the latest log barrier
-        /// synced: a backfill has not become durable, but a WAL change that discards its frames
-        /// would at the next log sync. A WAL the engine keeps in memory protects nothing.
-        /// </summary>
-        internal bool DataUnsyncedWhileLogSyncs => !_volatileLog && !_dataBarrierSynced && _logBarrierSynced;
 
         /// <summary>
         /// Before a checkpoint retires frames, sync the data file and the log (and, once per engine,
@@ -139,7 +132,8 @@ namespace LiteDB.Engine
             this.SyncLogBarrier(stream);
             // The WAL may have been created (or recreated after a checkpoint deleted it) by
             // this or a crashed engine: make its name durable before a commit depends on it.
-            if (!_logDirectorySynced) this.SyncLogDirectory();
+            // Not while its sync waits for the data file: the entry could drop the WAL it replaced.
+            if (!_logDirectorySynced && _logBarrierSynced) this.SyncLogDirectory();
         }
 
         /// <summary>
@@ -153,8 +147,8 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncLogBarrier(Stream log)
         {
-            this.ProveDataBeforeLog();
-            this.SyncLogBarrierUnproven(log);
+            if (this.ProveDataBeforeLog()) this.SyncLogBarrierUnproven(log);
+            else this.SkipLogSync(log);
         }
 
         /// <summary>
@@ -228,14 +222,30 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// An engine's first log sync can make durable a WAL change an earlier engine left in the
-        /// OS cache only: a truncation on storage where neither file synced, whose backfill is
-        /// still in the data file's OS cache. Prove the data file first, once per engine; an
-        /// engine whose data file already answered "cannot sync" has nothing left to prove.
+        /// A log sync makes the WAL's current content durable, also a truncation (a full
+        /// checkpoint's emptied WAL) whose backfill is still in the data file's OS cache only:
+        /// after a data sync answered "cannot sync" (#2242), in this engine or an earlier one. A
+        /// power loss would then lose commits acknowledged durable before the storage stopped
+        /// syncing. So a log sync needs the data file synced since its latest writes: an engine's
+        /// first log sync proves the data file (earlier engines may have left such a backfill),
+        /// and after a data sync answered "cannot sync" every log sync first retries it. While
+        /// the data file still cannot sync, the log is only flushed to the OS cache (false): the
+        /// WAL that last synced stays the durable one, and this engine's commits are reported
+        /// non-durable meanwhile (<see cref="IsLogFlushDurable"/>).
         /// </summary>
-        private void ProveDataBeforeLog()
+        private bool ProveDataBeforeLog()
         {
-            if (!_dataSyncProven && _dataIsFile && !_readOnly && !_dataFlushDegraded) this.ProveDataFile();
+            if (_readOnly) return true;
+            if (!_dataBarrierSynced) this.SyncDataFile();
+            else if (!_dataSyncProven && _dataIsFile) this.ProveDataFile();
+            return _dataBarrierSynced;
+        }
+
+        /// <summary>A log sync that waits for the data file: the writes reach the OS cache only.</summary>
+        private void SkipLogSync(Stream log)
+        {
+            _logBarrierSynced = false;
+            log.Flush();
         }
 
         private static string DurablePath(EngineSettings settings)
@@ -269,9 +279,13 @@ namespace LiteDB.Engine
         /// </summary>
         private void SyncRawLog()
         {
-            this.ProveDataBeforeLog();
             var stream = _writer.Value;
             var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
+            if (!this.ProveDataBeforeLog())
+            {
+                this.SkipLogSync(raw);
+                return;
+            }
             try
             {
                 raw.FlushToDisk();

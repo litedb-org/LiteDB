@@ -47,14 +47,13 @@ in the process, and syncs the WAL once before it first reuses a slot. On storage
 syncs, a retiring checkpoint costs one extra data and log sync and an engine's first slot
 reuse one log sync; the data file proof costs nothing while its header is unchanged. A
 data sync that fails with an I/O error during that proof fails the operation and stops
-the engine, as it does in a checkpoint. If only the data file cannot sync, a full checkpoint
-keeps the WAL, since emptying it would outlast the unsynced backfill; the WAL file then
-never shrinks until the data file syncs again (every open scans all of it: about 230 MB
-after 6,000 inserts of 2 KB), automatic checkpoints wait until the WAL has doubled, and a
-rebuild or the conversion of a 5.x file is refused. Where neither file syncs, a full
-checkpoint empties the WAL as before #2818; if the WAL later syncs again while the data
-file still does not, a power loss can lose commits acknowledged as durable before the
-storage stopped syncing. A 5.x data file found beside its conversion's WAL (whose
+the engine, as it does in a checkpoint. After a data sync answered "cannot sync", a log
+sync waits for the data file (each one retries its sync first and otherwise flushes the log
+to the OS cache only), so no log sync makes an emptied or converted WAL durable ahead of
+its unsynced backfill or header: commits acknowledged durable before the storage stopped
+syncing survive a power loss, also when the WAL alone syncs again. A full checkpoint
+empties the WAL on such storage as before #2818, so the WAL stays bounded, and a rebuild or
+a 5.x conversion runs as where neither file syncs. A 5.x data file found beside its conversion's WAL (whose
 converted header never reached the device) fails to open instead of being replayed. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
@@ -126,8 +125,7 @@ metadata: read-only opens work, a writable open reports it as damage, and the re
 drops only that index. Conversion first drains a legacy WAL completely. While another
 shared connection may still read it (a reader's lease, or a reader registry that cannot
 be inspected) the open is refused with `LOCK_TIMEOUT` before any document is validated,
-changing neither file; an unreadable registry keeps refusing until it can be read. It is
-refused with an `IOException` where only the data file cannot sync. A committed legacy
+changing neither file; an unreadable registry keeps refusing until it can be read. A committed legacy
 WAL page that is not a page of its type (an unknown type, or page 0 that is not the
 header) or that names a page beyond both files and every page a committed header counts,
 and a committed header of another database (another creation time), fail the open with

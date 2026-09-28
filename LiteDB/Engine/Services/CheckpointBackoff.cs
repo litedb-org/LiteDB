@@ -21,9 +21,6 @@ namespace LiteDB.Engine
         private long _delay;
         private long _retryAt;
 
-        // WAL bytes a full checkpoint kept because the data file could not sync its backfill (#2242).
-        private long _keptWalLength;
-
 #if TESTING
         internal Func<long> Timestamp { get; set; } = Stopwatch.GetTimestamp;
 
@@ -59,30 +56,6 @@ namespace LiteDB.Engine
             {
                 _delay = 0;
                 _retryAt = 0;
-            }
-        }
-
-        /// <summary>
-        /// A full checkpoint kept a WAL of this length: every later one rewrites all of it, so
-        /// automatic checkpoints wait until the WAL has doubled (<see cref="DefersKeptWal"/>).
-        /// </summary>
-        public void KeptWal(long length)
-        {
-            lock (_sync) _keptWalLength = length;
-        }
-
-        public void WalEmptied()
-        {
-            lock (_sync) _keptWalLength = 0;
-        }
-
-        public bool DefersKeptWal(long length)
-        {
-            lock (_sync)
-            {
-                // A shorter WAL was emptied since, maybe by another connection: nothing is kept.
-                if (length < _keptWalLength) _keptWalLength = 0;
-                return _keptWalLength > 0 && length < 2 * _keptWalLength;
             }
         }
 

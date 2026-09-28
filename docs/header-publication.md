@@ -165,17 +165,16 @@ attempts a real sync first, and an engine whose data is a file proves the data f
 before its first log sync (so no log sync makes an earlier engine's unsynced WAL change
 durable ahead of its backfill), so commits acknowledged after the storage syncs again
 regain the full guarantee. A data file that answers the same degrades its barriers the same way.
-A WAL that still syncs then keeps what the data file could not make durable: a full
-checkpoint does not empty it, since the emptied WAL would become durable at the next
-log sync and the backfill never. A 5.x file is not converted there: its converted
-header would stay in the OS cache while the checksummed frames written after it
-became durable. A legacy header found beside such frames (neither file synced and
-the OS wrote the log back first, or a data file restored without its log) fails the
-open without changing either file, since legacy rules would replay the frames as
-pages at positions read from their trailers. Once neither file syncs, a full checkpoint empties
-the WAL as before #2818; if the WAL later syncs again while the data file still does
-not, a power loss can lose commits that were acknowledged as durable before the
-storage stopped syncing.
+A log sync then waits for the data file: it would make durable a WAL change (a full
+checkpoint's emptied WAL, a converted WAL) whose backfill or header is in the data file's
+OS cache only. After a data sync answered "cannot sync", every log sync first retries it and
+only flushes the log to the OS cache while the data file still cannot sync, so the WAL that
+last synced stays the durable one, with every commit acknowledged durable before, also if
+the WAL alone syncs again; the directory entry of a new WAL waits too. A full checkpoint
+empties the WAL on such storage as before #2818, which keeps it bounded. A legacy header
+found beside checksummed frames (neither file synced and the OS wrote the log back first,
+or a data file restored without its log) fails the open without changing either file, since
+legacy rules would replay the frames as pages at positions read from their trailers.
 
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
