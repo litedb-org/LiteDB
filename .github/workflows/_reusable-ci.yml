@@ -19,6 +19,32 @@ on:
           ]
 
 jobs:
+  # docs/rules/safety-evidence.md: coverage may change, but never silently. Runs
+  # beside the build so a missing disposition does not delay the test legs.
+  safety-policy:
+    name: Safety policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check coverage regressions against the ledger
+        run: python .github/scripts/check_coverage_regression.py --base "${BASE_SHA:-HEAD^}"
+
+      - name: Check the fault-point registry
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/check_fault_points.py --base "${BASE_SHA:-HEAD^}"
+
+      - name: Report implicated safety contracts
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/check_contracts.py --base "${BASE_SHA:-HEAD^}"
+
   build-linux:
     name: Build (Linux)
     runs-on: ubuntu-latest
@@ -38,7 +64,7 @@ jobs:
 
       - name: Check CI policy and changed C# file sizes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           python -m unittest discover -s .github/scripts -p 'test_*.py'
           python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
@@ -71,6 +97,11 @@ jobs:
       # hook-enabled outputs before packaging any test artifacts.
       - name: Restore test-hook assemblies
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Record build provenance
+        run: >-
+          printf '{"sha":"%s","tree":"%s","sdk":"%s"}' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')"
+          "$(dotnet --version)" > LiteDB.Tests/bin/Release/build-evidence.json
 
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release LiteDB.Tests.SharedMutexHarness/bin/Release LiteDB.Tests.SharedMutexHarness/obj/Release
@@ -119,6 +150,8 @@ jobs:
       - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
         timeout-minutes: 40
+        env:
+          LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
@@ -130,7 +163,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
-          path: LiteDB.Tests/TestResults/*.trx
+          path: |
+            LiteDB.Tests/TestResults/*.trx
+            LiteDB.Tests/TestResults/evidence-leg.json
+            LiteDB.Tests/TestResults/discovered-tests.txt
           if-no-files-found: warn
 
   build-macos:
@@ -154,6 +190,11 @@ jobs:
 
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Record build provenance
+        run: >-
+          printf '{"sha":"%s","tree":"%s","sdk":"%s"}' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')"
+          "$(dotnet --version)" > LiteDB.Tests/bin/Release/build-evidence.json
 
       - name: Package build outputs
         run: tar -czf tests-build-macos.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release LiteDB.Tests.SharedMutexHarness/bin/Release LiteDB.Tests.SharedMutexHarness/obj/Release
@@ -194,6 +235,8 @@ jobs:
       - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
         timeout-minutes: 40
+        env:
+          LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
@@ -205,7 +248,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
-          path: LiteDB.Tests/TestResults/*.trx
+          path: |
+            LiteDB.Tests/TestResults/*.trx
+            LiteDB.Tests/TestResults/evidence-leg.json
+            LiteDB.Tests/TestResults/discovered-tests.txt
           if-no-files-found: warn
 
   build-windows:
@@ -234,6 +280,12 @@ jobs:
 
       - name: Verify genuine v9 vectors through the storage stack
         run: python scripts/test-v9-compatibility.py
+
+      - name: Record build provenance
+        shell: bash
+        run: >-
+          printf '{"sha":"%s","tree":"%s","sdk":"%s"}' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')"
+          "$(dotnet --version)" > LiteDB.Tests/bin/Release/build-evidence.json
 
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
@@ -303,6 +355,8 @@ jobs:
       - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
         timeout-minutes: 40
+        env:
+          LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
@@ -361,7 +415,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
-          path: LiteDB.Tests/TestResults/*.trx
+          path: |
+            LiteDB.Tests/TestResults/*.trx
+            LiteDB.Tests/TestResults/evidence-leg.json
+            LiteDB.Tests/TestResults/discovered-tests.txt
           if-no-files-found: warn
 
   test-windows-framework:
@@ -400,12 +457,21 @@ jobs:
 
       - name: Run .NET Framework tests
         shell: pwsh
+        env:
+          LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: |
           $framework = '${{ matrix.framework }}'
           $runner = Join-Path $env:USERPROFILE ".nuget\packages\xunit.runner.console\$env:XUNIT_RUNNER_VERSION\tools\$framework\xunit.console.exe"
           $assembly = "LiteDB.Tests\bin\Release\$framework\LiteDB.Tests.dll"
           $results = "LiteDB.Tests\TestResults\TestResults-$framework.xml"
           New-Item -ItemType Directory -Force (Split-Path $results) | Out-Null
+          # Record what this leg tested for the Safety evidence job.
+          [ordered]@{
+            schemaVersion = 1; job = $env:GITHUB_JOB; matrix = ($env:LITEDB_EVIDENCE_MATRIX | ConvertFrom-Json)
+            sha = (git rev-parse HEAD); tree = (git rev-parse 'HEAD^{tree}'); buildSha = (git rev-parse HEAD)
+            framework = $framework; format = 'xunit'; discovery = $null
+            partitions = [ordered]@{ all = "TestResults-$framework.xml" }
+          } | ConvertTo-Json -Depth 8 | Set-Content 'LiteDB.Tests\TestResults\evidence-leg.json' -Encoding utf8
 
           & $runner $assembly -nologo -xml $results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -413,6 +479,16 @@ jobs:
           [xml]$report = Get-Content $results
           $total = [int]$report.assemblies.assembly.total
           if ($total -eq 0) { throw "The $framework runner discovered zero tests." }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: |
+            LiteDB.Tests/TestResults/*.xml
+            LiteDB.Tests/TestResults/evidence-leg.json
+          if-no-files-found: warn
 
   test-linux-arm64:
     if: inputs.tier == 'full'
@@ -444,6 +520,8 @@ jobs:
       - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
         timeout-minutes: 40
+        env:
+          LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
@@ -456,5 +534,46 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.job }}-${{ strategy.job-index }}
-          path: LiteDB.Tests/TestResults/*.trx
+          path: |
+            LiteDB.Tests/TestResults/*.trx
+            LiteDB.Tests/TestResults/evidence-leg.json
+            LiteDB.Tests/TestResults/discovered-tests.txt
+          if-no-files-found: warn
+
+  # docs/rules/safety-evidence.md: green must mean complete, current and executed.
+  # A skipped, cancelled or missing leg, a result from another revision, an empty
+  # or truncated partition, or a test no leg executed fails this job.
+  safety-evidence:
+    name: Safety evidence
+    if: ${{ !cancelled() }}
+    needs: [safety-policy, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          path: evidence
+
+      - name: Verify evidence completeness
+        if: ${{ !cancelled() }}
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          CI_TIER: ${{ inputs.tier }}
+          VALIDATED_SHA: ${{ github.sha }}
+        run: >-
+          python .github/scripts/check_test_evidence.py --artifacts evidence --tier "$CI_TIER"
+          --sha "$VALIDATED_SHA" --output evidence-report
+
+      - name: Upload evidence summary
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-evidence
+          path: evidence-report/safety-evidence.json
           if-no-files-found: warn
