@@ -21,6 +21,15 @@ Direct and Shared participants; read-only Shared uses Shared admission. Read-onl
 opens need no writable admission artifact. Unsupported locking filesystems fail
 closed. Runtime file-sharing locks must also stay enabled for Shared coordination.
 
+**Breaking platform restriction:** file-backed opens now require Windows on local
+NTFS/ReFS, or x64/arm64 Linux or macOS with OFD locks. Linux allows ext2/3/4, XFS,
+Btrfs, tmpfs and local overlayfs; macOS allows APFS/HFS. Other filesystems, including
+Linux ZFS, f2fs and ecryptfs, Windows FAT/exFAT and network shares, are rejected.
+32-bit Unix processes and runtimes identifying as platforms other than Windows,
+Linux or macOS (including iOS/tvOS) are rejected. Memory and caller-stream databases
+retain their existing platform contract. Copy a closed database and its matching
+WAL to a supported local filesystem before opening it with this version.
+
 Symlinks resolve to the target before choosing storage paths. Hard links are
 rejected to prevent conflicting WAL identities. Rebuild/upgrade locks both source
 and replacement through publication/rollback; Shared replacement requires other
