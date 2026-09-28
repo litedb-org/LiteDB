@@ -1,12 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
     internal partial class FileReaderV8
     {
+        // Documents read only up to their damage, per collection, and the _id of every complete one.
+        private readonly Dictionary<string, List<(BsonDocument Document, PageInfo Page)>> _salvaged =
+            new Dictionary<string, List<(BsonDocument, PageInfo)>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, HashSet<BsonValue>> _completeIDs =
+            new Dictionary<string, HashSet<BsonValue>>(StringComparer.OrdinalIgnoreCase);
+
         public IEnumerable<BsonDocument> GetDocuments(string collection)
         {
             if (!_collections.ContainsKey(collection)) yield break;
@@ -16,7 +23,8 @@ namespace LiteDB.Engine
             if (!_collectionsDataPages.ContainsKey(colID)) yield break;
 
             var dataPages = _collectionsDataPages[colID];
-            var uniqueIDs = new HashSet<BsonValue>();
+            var uniqueIDs = _completeIDs[collection] = new HashSet<BsonValue>();
+            var salvaged = _salvaged[collection] = new List<(BsonDocument, PageInfo)>();
 
             foreach (var dataPage in dataPages)
             {
@@ -122,11 +130,9 @@ namespace LiteDB.Engine
                                     this.HandleError(docResult.Exception, pageInfo);
                                     // Like released versions, keep the fields read before the damage
                                     // when they still identify the document; the error stays recorded.
-                                    if (!IsSalvageable(docResult.Value, uniqueIDs))
-                                    {
-                                        doc = null;
-                                        continue;
-                                    }
+                                    // They are offered after every complete document (GetSalvagedDocuments).
+                                    if (IsSalvageable(docResult.Value)) salvaged.Add((docResult.Value, pageInfo));
+                                    continue;
                                 }
 
                                 var id = docResult.Value["_id"];
@@ -154,10 +160,38 @@ namespace LiteDB.Engine
             }
         }
 
-        private static bool IsSalvageable(BsonDocument partial, HashSet<BsonValue> uniqueIDs)
+        /// <summary>
+        /// The readable fields of the damaged documents of a collection whose documents were read,
+        /// except those whose _id belongs to a complete document or an earlier partial one.
+        /// </summary>
+        public IEnumerable<BsonDocument> GetSalvagedDocuments(string collection)
+        {
+            if (!_salvaged.TryGetValue(collection, out var salvaged)) yield break;
+
+            var complete = _completeIDs[collection];
+            var kept = new HashSet<BsonValue>();
+            foreach (var (document, page) in salvaged)
+            {
+                var id = document["_id"];
+                if (complete.Contains(id) || !kept.Add(id))
+                {
+                    this.HandleError($"The readable part of damaged document {id} was not kept: another document has the same _id.", page);
+                    continue;
+                }
+                yield return document;
+            }
+        }
+
+        public void RejectSalvagedDocument(string collection, BsonDocument document, string reason)
+        {
+            var page = _salvaged[collection].First(x => ReferenceEquals(x.Document, document)).Page;
+            this.HandleError($"The readable part of damaged document {document["_id"]} was not kept: {reason}", page);
+        }
+
+        private static bool IsSalvageable(BsonDocument partial)
         {
             if (partial == null || !partial.TryGetValue("_id", out var id)) return false;
-            return !(id.IsNull || id.IsMinValue || id.IsMaxValue) && !uniqueIDs.Contains(id);
+            return !(id.IsNull || id.IsMinValue || id.IsMaxValue);
         }
     }
 }

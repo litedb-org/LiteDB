@@ -127,6 +127,22 @@ namespace LiteDB.Engine
                                 index.Unique);
                         }
                     }
+
+                    // then the readable part of damaged documents, unless it cannot be indexed:
+                    // a partial document must never fail the rebuild or displace a complete one
+                    foreach (var doc in reader.GetSalvagedDocuments(collection))
+                    {
+                        transaction.Safepoint();
+
+                        var conflict = this.FindSalvageConflict(snapshot, indexer, doc);
+                        if (conflict != null)
+                        {
+                            reader.RejectSalvagedDocument(collection, doc, conflict);
+                            continue;
+                        }
+
+                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data, vectorService);
+                    }
                 }
 
                 transaction.Commit();
@@ -139,6 +155,29 @@ namespace LiteDB.Engine
 
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Why a salvaged document cannot be inserted into the indexes, or null when it can.
+        /// </summary>
+        private string FindSalvageConflict(Snapshot snapshot, IndexService indexer, BsonDocument doc)
+        {
+            foreach (var index in snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0))
+            {
+                List<BsonValue> keys;
+                try { keys = index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation).ToList(); }
+                catch (Exception ex) { return $"the keys of index '{index.Name}' cannot be computed ({ex.Message})"; }
+
+                foreach (var key in keys)
+                {
+                    IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, key, out var keyLength);
+                    if (key.IsMinValue || key.IsMaxValue || keyLength > MAX_INDEX_KEY_LENGTH)
+                        return $"its key is not valid in index '{index.Name}'.";
+                    if (index.Unique && indexer.Find(index, key, false, LiteDB.Query.Ascending) != null)
+                        return $"unique index '{index.Name}' already holds key {key}.";
+                }
+            }
+            return null;
         }
     }
 }

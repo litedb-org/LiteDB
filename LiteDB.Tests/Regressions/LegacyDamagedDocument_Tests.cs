@@ -99,6 +99,58 @@ namespace LiteDB.Tests.Regressions
             AssertSalvaged(db);
         }
 
+        /// <summary>
+        /// A partial document must not displace a complete one: document 2's _id is patched to 3,
+        /// so its readable part {_id: 3, a: "keep-2"} precedes the complete document 3 on the page.
+        /// </summary>
+        [Fact]
+        public void Rebuild_keeps_the_complete_document_when_a_damaged_one_has_its_id()
+        {
+            using var file = new TempFile();
+            var bytes = Fixture();
+            var id2 = new byte[] { 0x10, (byte)'_', (byte)'i', (byte)'d', 0, 2, 0, 0, 0 };
+            var at = Enumerable.Range(0, bytes.Length - id2.Length).Single(i => bytes.Skip(i).Take(id2.Length).SequenceEqual(id2));
+            bytes[at + 5] = 3;
+            bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+            File.WriteAllBytes(file.Filename, bytes);
+
+            using var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true");
+            var col = db.GetCollection("c");
+            col.Count().Should().Be(2);
+            col.FindById(3)["b"].AsString.Should().StartWith("tail-3-");
+            db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                .Should().Contain(x => x.Contains("damaged document 3 was not kept"));
+        }
+
+        /// <summary>
+        /// Fixture DamagedUniqueDocuments_5_0_21.zip: written by the LiteDB 5.0.21 package, collection
+        /// "c" with unique index "b" and {_id: 1..4, a: "keep-i", b: "u-i"}; then the BSON length of
+        /// string field "a" of documents 2 and 3 was overwritten with 0x7FFFFFF0, so only their _id
+        /// is readable. 5.0.21's rebuild fails ("duplicate key in unique index 'b'", value null).
+        /// The first readable part is kept; the second, which would repeat the null key, is reported.
+        /// </summary>
+        [Fact]
+        public void Rebuild_reports_a_damaged_document_that_would_break_a_unique_index()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, Fixture("DamagedUniqueDocuments_5_0_21.zip"));
+
+            using (var db = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true"))
+            {
+                var col = db.GetCollection("c");
+                col.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 2, 4 });
+                col.FindById(2).Keys.Should().BeEquivalentTo(new[] { "_id" });
+                col.FindById(4)["b"].AsString.Should().Be("u-4");
+                db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                    .Should().Contain(x => x.Contains("damaged document 3 was not kept") && x.Contains("unique index 'b'"));
+                col.Insert(new BsonDocument { ["_id"] = 5, ["b"] = "u-5" });
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("c").Count(Query.EQ("b", "u-5")).Should().Be(1);
+            reopened.GetCollection("$indexes").Find(Query.EQ("name", "b")).Single()["unique"].AsBoolean.Should().BeTrue();
+        }
+
         private static void AssertSalvaged(LiteDatabase db)
         {
             var col = db.GetCollection("c");
@@ -110,10 +162,10 @@ namespace LiteDB.Tests.Regressions
             db.GetCollection("_rebuild_errors").Count().Should().BeGreaterOrEqualTo(1);
         }
 
-        private static byte[] Fixture()
+        private static byte[] Fixture(string name = "DamagedDocument_5_0_21.zip")
         {
             using var resource = typeof(LegacyDamagedDocument_Tests).Assembly.GetManifestResourceStream(
-                "LiteDB.Tests.Resources.DamagedDocument_5_0_21.zip");
+                "LiteDB.Tests.Resources." + name);
             using var zip = new ZipArchive(resource, ZipArchiveMode.Read);
             using var entry = zip.GetEntry("damaged.db").Open();
             using var bytes = new MemoryStream();

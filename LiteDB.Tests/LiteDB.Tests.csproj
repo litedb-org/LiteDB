@@ -38,6 +38,7 @@
     <EmbeddedResource Include="Resources\DropIndex_5_0_21.zip" />
     <EmbeddedResource Include="Resources\WalCrash_5_0_21.zip" />
     <EmbeddedResource Include="Resources\DamagedDocument_5_0_21.zip" />
+    <EmbeddedResource Include="Resources\DamagedUniqueDocuments_5_0_21.zip" />
     <EmbeddedResource Include="Resources\Vectors_6_0_0_prerelease_114.zip" />
   </ItemGroup>
 

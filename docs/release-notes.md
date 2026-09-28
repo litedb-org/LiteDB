@@ -92,7 +92,9 @@ that cannot be written does the latter by itself when the file would need changi
 otherwise it opens as before. Damaged data that prevents migration
 fails the open with the damaged collection named and marks the file for rebuild;
 with `auto-rebuild=true` the same open rebuilds it, keeping the readable fields of a
-damaged document as 5.x did. Unique-key
+damaged document as 5.x did, after every complete document: a part that repeats the
+`_id` of a complete document or a key of a unique index is listed in `_rebuild_errors`
+instead of failing the rebuild. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages after keys that
 released updates left stale (for example `19.99` for a stored `19.99m`, including
