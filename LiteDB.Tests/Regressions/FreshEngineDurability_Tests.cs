@@ -17,9 +17,12 @@ namespace LiteDB.Tests.Regressions
     /// When that engine left a changed data header in the OS cache only (a salt rotation, a format
     /// conversion), the fresh engine's commits depend on it, yet it reported them durable after
     /// syncing only the WAL, and a power loss (each file as of its last successful sync) lost them.
-    /// Before its first log sync an engine whose data is a file (opened by the engine or passed as
-    /// a FileStream) now proves the data file syncs; it skips that while the data header is one a
-    /// successful sync in this process left.
+    /// Before its first commit an engine whose data is a file (opened by the engine or passed as a
+    /// FileStream) now proves that the data header is on the device: it syncs the data file, or skips
+    /// that while the header is one a successful sync in this process left. Where it cannot (the data
+    /// file cannot sync and its header is not proven), a durable commit throws before it writes
+    /// (implementation note 1 and decision 3 of docs/decisions/durability-policy.md); once proven,
+    /// commits stay durable in the WAL while only the data file cannot sync (decision 4).
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     [Collection(NativeFileSyncCollection.Name)]
@@ -195,8 +198,10 @@ namespace LiteDB.Tests.Regressions
         /// engines saw the old header durable must not report a commit durable on that header: while
         /// the data file cannot sync, its engine cannot recover (the journal cannot be retired) and
         /// opens read-only, so the write throws before any change, acknowledging nothing, and the
-        /// connection keeps reading every commit; it reports its later commits non-durable. Once the
-        /// data file syncs, it recovers, and a commit it reports durable survives the power loss.
+        /// connection keeps reading every commit. Once the data file syncs, it recovers, and its next
+        /// commit is reported durable and survives the power loss: the data file's earlier "cannot
+        /// sync" does not make the connection's commits non-durable (decision 4 of
+        /// docs/decisions/durability-policy.md).
         /// </summary>
         [Theory]
         [InlineData(false)]
@@ -244,10 +249,8 @@ namespace LiteDB.Tests.Regressions
                     power.DataFails = false; // the storage syncs again
                 }
                 Update(db, 3);
-                var durable = DurableLogFlush(db);
-                durable.Should().Be(dataSyncsAgain, "a connection whose engine found the data file unsyncable reports its commits non-durable");
-                if (durable) power.AfterPowerLoss(image => AssertRows(image, 3)); // a commit reported durable survives the power loss
-                else power.AfterPowerLoss(image => SyncPowerLossModel.AssertRows(image, Rows)).Should().BeOneOf(2, 3);
+                DurableLogFlush(db).Should().BeTrue("the recovered header synced, and commits stay durable in the WAL");
+                power.AfterPowerLoss(image => AssertRows(image, 3)); // a commit reported durable survives the power loss
             }
             finally { File.Delete(logName); }
         }
@@ -399,9 +402,13 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// The data file syncs, but the rebuilt replacement's does not: its log is kept, so the rebuild
-        /// is refused after this engine closed for it. The refusal left the instance closed ("engine
-        /// instance already disposed"); it now reopens the unchanged database.
+        /// The data file syncs, but the rebuilt replacement's does not, so the rebuild is refused
+        /// after this engine closed for it: the replacement is a database created where its data
+        /// file cannot sync, whose first commit is refused before it writes (implementation note 1 of
+        /// docs/decisions/durability-policy.md; before it, its checkpoint kept its log). The refusal
+        /// left the instance closed ("engine instance already disposed"); it now reopens the
+        /// unchanged database, which reads and writes, and the refusal says the rebuild can be
+        /// retried once the storage syncs.
         /// </summary>
         [Fact]
         public void Rebuild_refused_by_its_replacement_reopens_the_database()
@@ -414,11 +421,12 @@ namespace LiteDB.Tests.Regressions
                 Update(db, 1);
                 NativeFileSync.SimulateErrno = path => path.Contains("-temp") && !path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
                 Action rebuild = () => db.Rebuild();
-                rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
+                var refusal = rebuild.Should().Throw<IOException>().Which;
                 NativeFileSync.SimulateErrno = null;
-                AssertRows(db, 1);
+                AssertRows(db, 1); // the instance reopened the unchanged database
                 Update(db, 2);
                 AssertRows(db, 2);
+                refusal.Message.Should().StartWith("Cannot rebuild this database now");
             }
             finally { NativeFileSync.SimulateErrno = null; }
             Directory.GetFiles(Path.GetDirectoryName(file.Filename), Path.GetFileNameWithoutExtension(file.Filename) + "-*")
