@@ -1,0 +1,34 @@
+{
+  "id": "Issue_3027_OverwriteBehindUnsyncedLog",
+  "title": "A checkpoint on a log that cannot sync overwrites the data file behind a recovery copy only in the OS cache",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2242",
+    "https://github.com/litedb-org/LiteDB/pull/3027",
+    "https://github.com/litedb-org/LiteDB/issues/3051"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "checkpoint",
+    "durability",
+    "power-loss"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: with durable commits=false on a log that cannot sync (EINVAL), a checkpoint (11 pages) overwrote the data file in place behind a header journal and WAL only in the OS cache: 6 of its 11 writes overwrote bytes the device held, and 19 of the 22 images a power loss mid-overwrite leaves do not hold rows 1-10 intact"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: with durable commits=false on a log that cannot sync (EINVAL), the checkpoint wrote nothing to the data file and kept the WAL: a power loss keeps rows 1-10 of the data file intact (rows 11-30 of the unsynced WAL are lost, a process crash keeps them), and once the log syncs a checkpoint drains the WAL"
+    }
+  }
+}
