@@ -16,7 +16,7 @@ namespace Issue_3027_LegacyWalConversion;
 /// not open it any more either. Fixed: the conversion drains the legacy WAL completely or refuses the
 /// open (LOCK_TIMEOUT) without changing either file.
 ///
-/// LiteDB.Tests/Resources/WalCrash_5_0_21.zip is a process-crash image written by the LiteDB 5.0.21
+/// WalCrash_5_0_21.zip (LiteDB-Artifacts, pinned in LiteDB.Tests/Resources/artifacts.json) is a process-crash image written by the LiteDB 5.0.21
 /// package: 100 documents {_id, value: 0} checkpointed, then 20 updates to value 7 and one insert
 /// (_id 100) committed to the WAL only. 5.0.21 recovers all of them (101 documents, 21 with value 7).
 ///
@@ -126,9 +126,8 @@ internal static class Program
 
     private static byte[] Fixture(string archive, string entry)
     {
-        using var resource = typeof(Program).Assembly.GetManifestResourceStream(archive)
-            ?? throw new InvalidOperationException($"{archive} is not embedded");
-        using var zip = new ZipArchive(resource, ZipArchiveMode.Read);
+        // Pinned in LiteDB.Tests/Resources/artifacts.json; LITEDB_ARTIFACTS_DIR overrides the download.
+        using var zip = new ZipArchive(File.OpenRead(LiteDB.Tests.ArtifactFixtures.Path(archive)), ZipArchiveMode.Read);
         using var source = (zip.GetEntry(entry) ?? throw new InvalidOperationException($"{archive} has no {entry}")).Open();
         using var bytes = new MemoryStream();
         source.CopyTo(bytes);

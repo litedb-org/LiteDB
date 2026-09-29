@@ -18,7 +18,7 @@ namespace Issue_3027_ForeignLegacyWal;
 /// lies beyond both files, or checksummed frames beside a legacy header) fails the open with
 /// INVALID_DATABASE and changes neither file.
 ///
-/// crash.db of LiteDB.Tests/Resources/WalCrash_5_0_21.zip was written by the LiteDB 5.0.21 package (100
+/// crash.db of WalCrash_5_0_21.zip (LiteDB-Artifacts, pinned in LiteDB.Tests/Resources/artifacts.json) was written by the LiteDB 5.0.21 package (100
 /// documents {_id, value: 0} checkpointed; its own WAL adds 20 updates to value 7 and _id 100).
 /// foreign-log.db of ForeignWal_5_0_21.zip is the WAL of another database written by 5.0.21: pages 1730
 /// to 1732 of a new collection "fresh" and its committed header (LastPageID 1732), left by a killed
@@ -79,7 +79,7 @@ internal static class Program
         var log = Path.Combine(directory, "crash-log.db");
         var original = Fixture("WalCrash_5_0_21.zip", "crash.db");
         var foreign = Fixture("ForeignWal_5_0_21.zip", "foreign-log.db");
-        Require(Digest(original) == CrashDigest && Digest(foreign) == ForeignDigest, "the embedded fixtures are not the committed 5.0.21 files");
+        Require(Digest(original) == CrashDigest && Digest(foreign) == ForeignDigest, "the resolved fixtures are not the pinned 5.0.21 files");
         Require(original[59] == 8, "crash.db is not a 5.0.21 (file version 8) file");
         var highest = Enumerable.Range(0, foreign.Length / PageSize).Max(i => BitConverter.ToUInt32(foreign, i * PageSize));
         var bound = (highest + 1L) * PageSize;
@@ -139,9 +139,8 @@ internal static class Program
 
     private static byte[] Fixture(string archive, string entry)
     {
-        using var resource = typeof(Program).Assembly.GetManifestResourceStream(archive)
-            ?? throw new InvalidOperationException($"{archive} is not embedded");
-        using var zip = new ZipArchive(resource, ZipArchiveMode.Read);
+        // Pinned in LiteDB.Tests/Resources/artifacts.json; LITEDB_ARTIFACTS_DIR overrides the download.
+        using var zip = new ZipArchive(File.OpenRead(LiteDB.Tests.ArtifactFixtures.Path(archive)), ZipArchiveMode.Read);
         using var source = (zip.GetEntry(entry) ?? throw new InvalidOperationException($"{archive} has no {entry}")).Open();
         using var bytes = new MemoryStream();
         source.CopyTo(bytes);

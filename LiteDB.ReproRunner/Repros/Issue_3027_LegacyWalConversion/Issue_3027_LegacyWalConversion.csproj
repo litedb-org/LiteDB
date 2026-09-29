@@ -22,8 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Written by the LiteDB 5.0.21 package; the permanent guard reads the same file (LiteDB.Tests/Resources/RegressionFixtures.md). -->
-    <EmbeddedResource Include="..\..\..\LiteDB.Tests\Resources\WalCrash_5_0_21.zip" LogicalName="WalCrash_5_0_21.zip" />
+    <!-- Fixtures written by the LiteDB 5.0.21 package (LiteDB.Tests/Resources/RegressionFixtures.md), stored in
+         litedb-org/LiteDB-Artifacts and resolved like the permanent guard: the same resolver and pinned manifest. -->
+    <Compile Include="..\..\..\LiteDB.Tests\Utils\ArtifactFixtures.cs" Link="ArtifactFixtures.cs" />
+    <EmbeddedResource Include="..\..\..\LiteDB.Tests\Resources\artifacts.json" LogicalName="LiteDB.Tests.Resources.artifacts.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -112,6 +112,7 @@ that normal tests cover the relevant behavior and failure paths.
 | `Issue_2586_RollbackTransaction` | Disabled | `Transactions_Tests` covers dirty/read-only safepoint buffers; `Issue2586_RollbackSafety_Tests` adds committed rows, indexed reads, subsequent writes, and file reopen. |
 | `Issue_2614_DiskServiceDispose` | Disabled | `Issue2614_InitializationCleanup_Tests` injects EIO/ENOSPC during new-header sync, checks exclusive reopen before GC, repeats failures, then writes/reopens successfully; `StreamOwnership_Tests` covers caller-owned streams. |
 | `Issue_2561_TransactionMonitor` | Full tier | Still marked `red`: verifies a known-bug reproduction, not a passing fixed-bug guard. |
+| `Issue_3027_LegacyWalConversion`, `Issue_3027_ForeignLegacyWal` | Disabled | Regression proofs of PR #3027's legacy WAL conversion fixes against `6.0.0-prerelease.319`, run by the Regression proof workflow; `LegacyWalSharedMigration_Tests`, `LegacyWalPageBound_Tests` and `ConvertedWalBesideLegacyHeader_Tests` are the permanent guard. Their 5.0.21 fixtures come from LiteDB-Artifacts (`LiteDB.Tests/Resources/artifacts.json`). `Issue_3027_ForeignLegacyWal` caps its files at 64 MiB (`RLIMIT_FSIZE`), so a far page cannot grow a sparse file. |
 
 The disk replacement tests exercise constructor cleanup through deterministic I/O
 fault injection on real files, without changing the test process's resource limits.

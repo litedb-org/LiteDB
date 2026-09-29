@@ -8,9 +8,12 @@ gone. The fix refuses such an open with `INVALID_DATABASE` and changes neither f
 cover committed legacy pages that are not pages or lie beyond both files, and checksummed frames
 beside a legacy header.
 
-The repro places `foreign-log.db` of `LiteDB.Tests/Resources/ForeignWal_5_0_21.zip` (the WAL of
-another database, written by the 5.0.21 package) beside `crash.db` of `WalCrash_5_0_21.zip` and
-opens it.
+The repro places `foreign-log.db` of `ForeignWal_5_0_21.zip` (the WAL of another database, written
+by the 5.0.21 package) beside `crash.db` of `WalCrash_5_0_21.zip` and opens it. Both archives live
+in [LiteDB-Artifacts](https://github.com/litedb-org/LiteDB-Artifacts) at the revision and SHA-256
+pinned in `LiteDB.Tests/Resources/artifacts.json` (provenance: `LiteDB.Tests/Resources/RegressionFixtures.md`).
+The repro resolves them with the tests' `ArtifactFixtures`; set `LITEDB_ARTIFACTS_DIR` to a local
+copy to run offline.
 
 Of those variants this one has bounded damage on the known bad. The foreign log names pages up to
 1732, so the data file grows to at most 14 MB. The repro checks the fixtures' SHA-256 and caps every

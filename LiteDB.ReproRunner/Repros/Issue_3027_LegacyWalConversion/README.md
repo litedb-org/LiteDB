@@ -7,9 +7,13 @@ snapshot it backfills only up to that snapshot. The conversion truncated the leg
 every transaction 5.0.21 had committed there was lost, and the converted file no longer opens in
 5.0.21 either.
 
-The repro copies `LiteDB.Tests/Resources/WalCrash_5_0_21.zip` (a crash image written by the 5.0.21
-package: 101 documents, 21 of the commits only in the WAL), holds a live reader lease as another
-process's shared reader does, and opens the file with `Connection=shared`.
+The repro copies `WalCrash_5_0_21.zip` (a crash image written by the 5.0.21 package: 101 documents,
+21 of the commits only in the WAL), holds a live reader lease as another process's shared reader
+does, and opens the file with `Connection=shared`. The archive lives in
+[LiteDB-Artifacts](https://github.com/litedb-org/LiteDB-Artifacts) at the revision and SHA-256
+pinned in `LiteDB.Tests/Resources/artifacts.json` (provenance: `LiteDB.Tests/Resources/RegressionFixtures.md`).
+The repro resolves it with the tests' `ArtifactFixtures`; set `LITEDB_ARTIFACTS_DIR` to a local copy
+to run offline.
 
 ## Expected outcome
 
