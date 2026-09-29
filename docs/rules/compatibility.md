@@ -163,9 +163,13 @@ share the verifier. Witness publication requires a durable sync: every retiring
 checkpoint first syncs the data file and WAL (the WAL directory once per engine), and
 storage that answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage
 that stops syncing during a retiring checkpoint degrades its barriers; that checkpoint keeps
-the frames it retired and publishes no root once it found out. Before its first slot reuse
-every engine (of any connection) syncs the WAL, and before its first log sync an engine
-whose data is a file proves the data file (once per data header in the process). Remove a
+the frames it retired and publishes no root once it found out. Never make a retired slot
+reusable before its witness root is on the device: a root is synced before its header
+journal goes, and an open that finds that journal writes the header back and syncs it
+before retiring the journal, or opens read-only. Reusing a slot then needs no sync of its
+own (note 15 of the durability decisions): a clear that never reached the device leaves a
+witnessed old frame, which recovery skips. Before its first commit an engine whose data is
+a file syncs the data file, best effort (once per data header in the process). Remove a
 file WAL or a header journal only after a data sync that covers what it protects succeeded;
 never infer that no earlier engine or process synced its frames; every log shrink goes
 through the one check that a data sync covered every data write. A checkpoint or format

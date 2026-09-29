@@ -271,11 +271,17 @@ checkpoint degrades that checkpoint's barriers to ordered OS-cache flushes. Such
 checkpoint never clears the frames it retired (reads skip them while the root names
 them), and it publishes no witness root once it has found out, so no durable header
 names witness records that may not be durable: commits acknowledged as durable before
-survive a power loss. Before an engine, including each short-lived shared-mode engine
-and every engine of another connection, first reuses a slot, it syncs the data file
-(unless it already did) and the raw log once. That makes an earlier engine's witness
-root and clears durable before a retired frame is overwritten; storage that answers
-"cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
+survive a power loss. Reusing a slot costs no sync, also for each short-lived
+shared-mode engine and every engine of another connection (note 15 of the
+[durability decisions](decisions/durability-policy.md)): a slot is free only while its
+witness root is on the device. The checkpoint that retired it synced the witness
+records before the root and the root before its header journal went; a root whose sync
+failed ("cannot sync", or an I/O error that left it in the page cache only) keeps that
+journal, and the next open writes the header back and syncs it before retiring the
+journal, or opens read-only. A clear that never reached the device leaves the old frame
+in a witnessed slot, which recovery skips like a torn new frame there. Storage known not
+to sync, and a log whose syncs cannot report failure, never reuse slots.
+These tests do not promise recovery from arbitrary independent
 damage to both data and required recovery evidence. CRCs detect accidental damage,
 not deliberate tampering.
 

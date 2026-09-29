@@ -36,12 +36,16 @@ Retired frames keep durable witnesses (56 bytes each, up to 145 per WAL frame) s
 recovery and rebuild still verify complete transactions after slot reuse.
 Reclamation reuses WAL capacity but does not shrink the file; long-lived readers
 can grow witness metadata and recovery work until a full checkpoint. On storage
-that rejects device sync (#2242) no frame is retired and no slot reused. Every retiring
-checkpoint first syncs the data file and the WAL (and once the WAL's directory), so such
-storage is found before any witness depends on it; storage that stops syncing during the
-checkpoint keeps the retired frames and publishes no root once it found out. An engine
-syncs the WAL once before it first reuses a slot. On storage that syncs, a retiring
-checkpoint costs one extra data and log sync and an engine's first slot reuse one log sync.
+that rejects device sync (#2242) no frame is retired, and an engine that found it out
+reuses no slot. Every retiring checkpoint first syncs the data file and the WAL (and once
+the WAL's directory), so such storage is found before any witness depends on it; storage
+that stops syncing during the checkpoint keeps the retired frames and publishes no root
+once it found out. Reusing a slot syncs nothing: a slot is free only while its witness
+root is on the device (the retiring checkpoint synced it before removing its header
+journal; if that sync failed, the next open syncs it before retiring the journal, or
+opens read-only), and a clear lost to a power loss leaves a witnessed old frame that
+recovery skips. On storage that syncs, a retiring checkpoint costs one extra data and
+log sync, and slot reuse costs none, also per shared-mode operation.
 
 The durability rules follow the maintainer's decisions in
 [decisions/durability-policy.md](decisions/durability-policy.md):

@@ -242,7 +242,7 @@ until the owner confirms them.
    records before the root that names them, syncs the root before its journal goes, and a pending journal
    makes the next open sync the data file or open read-only; a clear that did not reach the device leaves
    a witnessed slot, which recovery skips. So reuse costs no sync per engine or shared operation; storage
-   known not to sync still never reuses slots.
+   known not to sync still never reuses slots, nor does a log whose syncs cannot report failure (note 3).
 16. **Power-safe overwrite is assumed** (see `docs/header-publication.md`, "Encoding and durability
    limits", and the fault model in `docs/storage-stack-safety.md`): a 8,256-byte frame shares sectors
    with its neighbours, and a write that tears a sector must not damage the bytes of that sector it did
