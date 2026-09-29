@@ -101,7 +101,7 @@ namespace LiteDB.Engine
                 if (_settings.Upgrade) this.TryUpgrade();
 
                 // initialize disk service (will create database if needed)
-                _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                _disk = _state.Disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
                 // read page with no cache ref (has a own PageBuffer) - do not Release() support.
                 // An existing file's header was just read and validated by the disk service.
@@ -131,7 +131,7 @@ namespace LiteDB.Engine
                         this.Recovery(_header.Pragmas.Collation);
 
                         // re-initialize disk service
-                        _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+                        _disk = _state.Disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
                         // read buffer header page again
                         buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
@@ -219,7 +219,10 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
+            // After a failure (its stop in progress, or recorded) nothing may be written, and no sync
+            // retried on the handle that failed.
+            if (checkpoint && !_settings.ReadOnly && !_state.Stopped && _state.WriteFailure == null &&
+                _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
@@ -298,6 +301,9 @@ namespace LiteDB.Engine
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
         internal Action<PageBuffer> SimulateDataWriteFail { set => _state.SimulateDataWriteFail = value; }
+        internal bool SimulateDeferredCheckpointStop { set => _state.DeferCheckpointStop = value; }
+        internal Action SimulateAfterFailedWalWrite { set => _state.AfterFailedWalWrite = value; }
+        internal Action<string> SimulateCrashPoint { set => _state.AtCrashPoint = value; }
         internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
         internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
         internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }

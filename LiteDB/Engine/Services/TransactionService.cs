@@ -44,6 +44,12 @@ namespace LiteDB.Engine
         public bool QueryOnly { get; }
         internal int MaxObservedTransactionSize { get; private set; }
 
+        /// <summary>
+        /// A safepoint failed to write this transaction's dirty pages: some may be in the WAL, the
+        /// failed ones were discarded. Such a transaction can only roll back.
+        /// </summary>
+        internal Exception WriteFailure { get; private set; }
+
         // get/set
         public int MaxTransactionSize { get; set; }
 
@@ -81,6 +87,9 @@ namespace LiteDB.Engine
         public Snapshot CreateSnapshot(LockMode mode, string collection, bool addIfNotExists)
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
+            // Its snapshots still name pages the failed write handed to the disk writer: a point read
+            // (no safepoint) could return another page's document. Only Rollback may use it now.
+            if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
 
             Snapshot create() => new Snapshot(mode, collection, _header, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
@@ -123,6 +132,7 @@ namespace LiteDB.Engine
         public void Safepoint()
         {
             if (_state != TransactionState.Active) throw new LiteException(0, "This transaction are invalid state");
+            if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
 
             this.MaxObservedTransactionSize = Math.Max(this.MaxObservedTransactionSize, _transPages.TransactionSize);
 
@@ -133,7 +143,14 @@ namespace LiteDB.Engine
                 // if any snapshot are writable, persist pages
                 if (_mode == LockMode.Write)
                 {
-                    this.PersistDirtyPages(false);
+                    // Any operation can reach a safepoint, a query too, which does not roll back
+                    // the transaction it runs in when it fails.
+                    try { this.PersistDirtyPages(false); }
+                    catch (Exception ex)
+                    {
+                        this.WriteFailure = ex;
+                        throw;
+                    }
                 }
 
                 // clear local pages in all snapshots (read/write snapshosts)
@@ -146,6 +163,9 @@ namespace LiteDB.Engine
                 _transPages.TransactionSize = 0;
             }
         }
+
+        internal static LiteException WriteFailed(Exception failure) => new LiteException(0, failure,
+            "Writing this transaction's pages failed, so it can only be rolled back: {0}", failure.Message);
 
         /// <summary>
         /// Persist all dirty in-memory pages (in all snapshots) and clear local pages list (even clean pages)
@@ -260,11 +280,17 @@ namespace LiteDB.Engine
 
             // Reuse this transaction's unconfirmed slots across safepoints.
             // Disk always appends the confirmation page, preserving recovery order.
-            var count = _disk.WriteLogDisk(source(), (pageID, position) =>
+            int count;
+            try
             {
-                if (pageID == 0) _headerPosition = position;
-                else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
-            }, _transPages, _walIndex.NextTransactionID);
+                count = _disk.WriteLogDisk(source(), (pageID, position) =>
+                {
+                    if (pageID == 0) _headerPosition = position;
+                    else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
+                }, _transPages, _walIndex.NextTransactionID);
+            }
+            // A failed batch (a safepoint's or a commit's) names the log file, which its record reports.
+            catch (Exception ex) when (_disk.NameLogWriteFailure(ex)) { throw; }
 
             if (_transPages.HeaderChanged)
             {
