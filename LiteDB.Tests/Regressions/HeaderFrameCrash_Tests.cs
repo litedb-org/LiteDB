@@ -62,7 +62,7 @@ namespace LiteDB.Tests.Regressions
                         Ids(rows).Should().Equal(Enumerable.Range(1, 10), "the cut commit wrote no page frame");
                         rows.Find(Query.EQ("value", 3)).Select(x => x["_id"].AsInt32).Should().Equal(3);
                         rows.Insert(Row(100));
-                        Ids(rows).Should().Equal(Enumerable.Range(1, 10).Append(100), "the image takes the next commit");
+                        Ids(rows).Should().Equal(Enumerable.Range(1, 10).Concat(new[] { 100 }), "the image takes the next commit");
                         return 0;
                     }, password);
                 }
