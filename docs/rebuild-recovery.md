@@ -114,3 +114,62 @@ CI runs these classes on Linux, Windows and macOS for every PR. These tests mode
 process death and injected cleanup failures on supported local filesystems, not
 storage devices ignoring flushes or uncoordinated access through different
 sidecar identities.
+
+## Opening recovery and partial-document salvage
+
+When a normal open fails with corruption found by opening index validation (see
+the release notes for #3022), use a writable file connection with `AutoRebuild=true`:
+
+```csharp
+using var db = new LiteDatabase(new ConnectionString
+{
+    Filename = "damaged.db",
+    Connection = ConnectionType.Direct,
+    AutoRebuild = true
+});
+var errors = db.GetCollection("_rebuild_errors").FindAll().ToArray();
+```
+
+This is the recovery entry point when construction fails before an instance
+`Rebuild()` can be called. It uses the replacement/recovery-marker protocol above,
+retains the original backup, and records the opening diagnostic along with salvage
+errors in `_rebuild_errors`. Preserve the backup and review that report: a successful
+salvage does not mean every original record was readable. Each report entry has a
+`stage`: `opening` describes the reason recovery started, while `salvage` describes a
+problem encountered while rebuilding. The opening entry can exist even when every
+record was recovered. Known document failures identify `pageType=Data` and the data
+page ID, index-order failures identify `Index` and the index page ID, and unclassified
+structural failures use `Empty` with a null page ID.
+
+Opening validation is inspection: a rejected source is closed without a checkpoint
+and without the invalid-state mark, so an open that may not replace it leaves data
+and WAL byte-for-byte unchanged. Only a writable, file-backed `AutoRebuild` open
+recovers, and only once: it consults Shared-mode replacement admission, runs the
+rebuild with the opening error, then opens the installed candidate without allowing
+another opening rebuild. Cleanup errors block replacement and retain the original
+opening exception in an aggregate. Replacement releases its structural scope before
+reopening; a failed candidate reopen closes without stamping the rebuilt file
+invalid and is reported as it is. A failure of the recovery itself keeps the damage
+that required it: a `LiteException` is wrapped ("The automatic rebuild failed: ...")
+with its `Data` copied, and any other exception keeps its type with the damage in
+`Data["LiteDB.RebuildCause"]`. `ReadOnly=true` and caller-provided streams never
+trigger a replacement, also when the invalid-state flag is already set, and a
+read-only engine never writes that flag. Runtime corruption found after a
+successful open still marks a writable file for rebuild on its next open.
+
+The rebuild reader keeps the readable fields of a damaged document when they still
+identify it (an `_id` that is not null, MinValue or MaxValue) and offers them after
+every complete document of the collection. A part is not inserted when its `_id`
+belongs to a complete document or to a part already kept, when it would repeat a key
+of a unique index, or when its index keys are invalid or cannot be computed; each
+case is reported in `_rebuild_errors`, and a rejected part leaves its `_id` to a
+later one. A kept part is reported too, because it reads like a complete document.
+
+`Issue3022LegacyDamage_Tests`, `Issue3022WalRecovery_Tests` and
+`Issue3022OpeningSafety_Tests` cover source preservation after every refusal,
+first-open salvage with byte-identical data/WAL backups, cleanup failures, the
+bounded candidate reopen and read-only refusal. `LegacyDamagedDocument_Tests` uses
+files written by the 5.0.21 package (LiteDB-Artifacts fixtures) for the default
+refusal, first-open salvage, cause preservation, caller streams and the
+partial-document, unique and duplicate-`_id` cases; `Issue2417_Tests` and
+`Issue2812Recovery_Tests` keep the plain/encrypted loop and collation recovery.
