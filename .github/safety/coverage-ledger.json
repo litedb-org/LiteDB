@@ -235,6 +235,16 @@
       "invariant": "The pinned crash seeds replay the same generated input and I/O trace, and their crash-recovery oracle passes.",
       "reason": "The durability protocol changes which syncs and writes a checkpoint, a commit and recovery perform. Replayed at the S08 head (unchanged, so nothing is owed to S08) and at each S09 layer on .NET 10: every seed changed at the durability-accounting layer (S09a: data syncs before a checkpoint writes, header write-back before a journal is retired, overwrite barriers; disabling the checkpoint's data sync or the write-back alone changes but does not restore the S08 hashes, so the S09a change is their combination), at the header-frame layer (S09b; with WriteHeaderFrame disabled the S09a hashes return) and at the admission layer (S09c; without RequireDurableCommit's once-per-log proof of the log file and its directory the S09b hashes return, while skipping only the data barrier changes nothing). Each oracle passes, the final hashes match on .NET 8 and .NET 10 and equal #3027's final pins, and the S08-era and per-layer hashes stay under previousHashes.",
       "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-framework-test-timeout",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every .NET Framework test runs to completion and reports on each CI run.",
+      "reason": "The net481 job ran 14m32s at the S08 head (PR #3061) and 19m33s at #3027's head, which had been cancelled at the 20-minute limit after 4713 tests ran without a failure. The difference is the durability suites this layer adds (power-loss models, header frames, retirement and read-only continuation tests), which leaves no margin under 20 minutes. 30 minutes lets the whole leg finish; the .NET jobs allow 40. No filter, partition or test changed."
     }
   ]
 }
