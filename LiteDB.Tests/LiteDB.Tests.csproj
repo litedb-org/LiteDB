@@ -31,6 +31,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources\artifacts.json" />
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />
     <EmbeddedResource Include="Resources\IndexMigration_5_0_21.zip" />
@@ -39,6 +40,7 @@
 
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
   <ItemGroup>
