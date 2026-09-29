@@ -11,13 +11,13 @@ namespace LiteDB.Engine
         /// refuses writes until the database is reopened. walKept counts whatever the log file holds, not only the
         /// WAL's frames: an outstanding header journal is kept like the WAL (decision 1).
         /// </summary>
-        internal void RecordWriteFailure(string operation, Exception error)
+        internal void RecordWriteFailure(string operation, Exception error, AcknowledgedLog acknowledged = null)
         {
             bool walKept;
             // A WAL the engine keeps in memory is no log file anyone could keep.
             try { walKept = !_volatileLog && this.LogHoldsAnything(); }
             catch (Exception) { walKept = true; }
-            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept));
+            _state.RecordWriteFailure(new WriteFailure(operation, error, walKept, acknowledged));
         }
 
         /// <summary>
@@ -43,10 +43,10 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// A write or sync of the log file failed (this engine's record): no commit is durable there, so
-        /// <see cref="IsLogFlushDurable"/> reads false.
+        /// A write or sync of the log file failed (this engine's record, or the one it reopened read-only
+        /// after): no commit is durable there, so <see cref="IsLogFlushDurable"/> reads false.
         /// </summary>
-        private bool LogWriteFailed => _state.WriteFailure?.File == "log";
+        private bool LogWriteFailed => (_state.WriteFailure ?? _state.ReopenedAfter)?.File == "log";
 
         /// <summary>See <see cref="EngineState.RequireNoWriteFailure"/>.</summary>
         internal void RequireNoWriteFailure() => _state.RequireNoWriteFailure();
@@ -90,14 +90,15 @@ namespace LiteDB.Engine
         /// fails there (an I/O error, not "cannot sync") does not fail the read: the helper recorded it
         /// before it released its lock (#3052), it is reported here, every later write, sync and
         /// checkpoint is refused, and the stop is due (<see cref="EngineState.StopLater"/>). A read-only
-        /// engine never syncs: it reports what the connection's engines found.
+        /// engine never syncs: it reports what the connection's engines found, and the write failure it
+        /// reopened after.
         /// </summary>
         internal bool WalKeptReport
         {
             get
             {
                 if (_volatileLog || this.GetFileLength(FileOrigin.Log) == 0) return false;
-                if (_readOnly) return _sharedDurability?.DataUnsynced ?? false;
+                if (_readOnly) return (_sharedDurability?.DataUnsynced ?? false) || (_state.ReopenedAfter?.WalKept ?? false);
                 // After a recorded failure nothing syncs again on its handles (fsyncgate): report the record's.
                 if (_state.WriteFailure is WriteFailure failure) return failure.WalKept;
                 try

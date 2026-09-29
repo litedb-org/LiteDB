@@ -46,6 +46,9 @@ namespace LiteDB.Engine
         public bool Commit()
         {
             this.EnsureOpen();
+            // This call's engine: a reopen by another call replaces the state and monitor.
+            var state = _state;
+            var monitor = _monitor;
 
             // A write failure ended this thread's transaction before it committed.
             if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
@@ -62,11 +65,11 @@ namespace LiteDB.Engine
                     // A failed safepoint discarded pages this transaction changed: never publish the rest.
                     if (transaction.WriteFailure != null)
                     {
-                        this.RollbackAndReleaseTransaction(transaction);
+                        this.RollbackAndReleaseTransaction(transaction, state, monitor);
                         throw TransactionService.WriteFailed(transaction.WriteFailure);
                     }
 
-                    this.CommitAndReleaseTransaction(transaction);
+                    this.CommitAndReleaseTransaction(transaction, state, monitor);
 
                     return true;
                 }
@@ -81,6 +84,8 @@ namespace LiteDB.Engine
         public bool Rollback()
         {
             this.EnsureOpen();
+            var state = _state;
+            var monitor = _monitor;
 
             if (this.TakeLostTransaction()) return true;
 
@@ -88,7 +93,7 @@ namespace LiteDB.Engine
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {
-                this.RollbackAndReleaseTransaction(transaction);
+                this.RollbackAndReleaseTransaction(transaction, state, monitor);
 
                 return true;
             }
@@ -118,11 +123,12 @@ namespace LiteDB.Engine
             this.EnsureOpen();
             // This operation's engine: a failure stops it, never an engine a reopen replaced it with.
             var state = _state;
+            var monitor = _monitor;
 
             if (write && _settings.ReadOnly) throw this.ReadOnlyWrite();
             if (write) this.RequireWalBelowLimit(state);
 
-            var transaction = _monitor.GetTransaction(true, false, out var isNew);
+            var transaction = monitor.GetTransaction(true, false, out var isNew);
 
             try
             {
@@ -130,7 +136,7 @@ namespace LiteDB.Engine
 
                 // if this transaction was auto-created for this operation, commit & dispose now
                 if (isNew)
-                    this.CommitAndReleaseTransaction(transaction);
+                    this.CommitAndReleaseTransaction(transaction, state, monitor);
 
                 return result;
             }
@@ -138,9 +144,9 @@ namespace LiteDB.Engine
             {
                 if (state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
-                    this.RollbackAndReleaseTransaction(transaction);
+                    this.RollbackAndReleaseTransaction(transaction, state, monitor);
 
-                    if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
+                    if (transaction.ExplicitTransaction) monitor.MarkExplicitAbort();
                 }
 
                 throw;
@@ -154,13 +160,12 @@ namespace LiteDB.Engine
         /// </summary>
         private static bool IsStorageFailure(Exception ex) => ex is IOException || ex is UnauthorizedAccessException;
 
-        private void CommitAndReleaseTransaction(TransactionService transaction)
+        private void CommitAndReleaseTransaction(TransactionService transaction, EngineState state, TransactionMonitor monitor)
         {
-            var state = _state;
             try
             {
                 transaction.Commit();
-                _monitor.ReleaseTransaction(transaction);
+                monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
             {
@@ -171,35 +176,40 @@ namespace LiteDB.Engine
                 throw;
             }
 
-            // After another thread's failure stopped the engine, or recorded a failure whose stop is
-            // still due, nothing more may be written or synced on its handles (decision 6). A reopen
-            // follows a stop only, so the services in place are still the ones this commit wrote through.
-            if (state.Stopped || state.WriteFailure != null) return;
+            // Only this commit's engine checkpoints: after another thread's failure stopped it, or a
+            // reopen replaced it, the services in place are not the ones this commit wrote through. They
+            // are read before the check: a reopen publishes its state before its services. A failure
+            // recorded meanwhile (its stop may still be due) stops every write and sync (decision 6).
+            var disk = _disk;
+            var walIndex = _walIndex;
+            var checkpointPages = _header?.Pragmas.Checkpoint ?? 0;
+            if (state.Stopped || state.WriteFailure != null || !ReferenceEquals(state, _state)) return;
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+            if (checkpointPages > 0 &&
+                disk.GetFileLength(FileOrigin.Log) >= (checkpointPages * PAGE_SIZE))
             {
                 // This commit succeeded: a checkpoint's write or sync failure is not its caller's
-                // (decision 6). It is recorded on this commit's engine, $database reports it, and the
-                // next call stops the engine and reopens it read-only. A checkpoint refused before it
-                // wrote anything (the data file cannot sync) is no failure.
-                try { _walIndex.TryAutoCheckpoint(); }
+                // (decision 6). It is recorded on this commit's engine (captured above: a reopen assigns
+                // a new state without it), $database reports it, and the next call stops the engine and
+                // reopens it read-only. A checkpoint refused before it wrote anything (the data file
+                // cannot sync) is no failure.
+                try { walIndex.TryAutoCheckpoint(); }
                 catch (Exception ex) when (state.WriteFailure != null || DiskService.IsRefusedBeforeWrite(ex)) { }
             }
         }
 
-        private void RollbackAndReleaseTransaction(TransactionService transaction)
+        private void RollbackAndReleaseTransaction(TransactionService transaction, EngineState state, TransactionMonitor monitor)
         {
             try
             {
                 transaction.Rollback();
-                _monitor.ReleaseTransaction(transaction);
+                monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
             {
-                if (IsStorageFailure(ex)) _state.Disk?.RecordWriteFailure("A rollback", ex);
-                _state.Stop(ex);
+                if (IsStorageFailure(ex)) state.Disk?.RecordWriteFailure("A rollback", ex);
+                state.Stop(ex);
                 throw;
             }
         }

@@ -26,5 +26,17 @@ namespace LiteDB.Engine
         /// later engines skip it, so the connection's operations pay nothing for it.
         /// </summary>
         internal volatile bool DataBarrierDone;
+
+        private WriteFailure _writeFailure;
+
+        /// <summary>
+        /// A write or sync failure of an engine of this connection (decision 6 of
+        /// docs/decisions/durability-policy.md): its later engines open read-only and report it, until
+        /// the connection is reopened.
+        /// </summary>
+        internal WriteFailure WriteFailure => System.Threading.Volatile.Read(ref _writeFailure);
+
+        internal void RecordWriteFailure(WriteFailure failure) =>
+            System.Threading.Interlocked.CompareExchange(ref _writeFailure, failure, null);
     }
 }

@@ -75,6 +75,19 @@ namespace LiteDB.Engine
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
+            // An earlier operation of this shared connection hit a write or sync failure (decision 6):
+            // its later operations open read-only until the connection is reopened. The engine's own copy
+            // of the settings: the caller's stay as they were.
+            var connectionFailure = settings.SharedDurability?.WriteFailure;
+            if (connectionFailure != null && !_settings.ReadOnly)
+            {
+                _settings = _settings.Clone();
+                _settings.ReadOnly = true;
+                _settings.LegacyIndexScan = true;
+                _settings.WriteFailure = connectionFailure;
+                _settings.ReadOnlyCause = connectionFailure.ToString();
+            }
+
             try
             {
                 this.Open();
@@ -108,6 +121,9 @@ namespace LiteDB.Engine
             {
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
+#if DEBUG || TESTING
+                _settings.ReopenStage?.Invoke("state-published");
+#endif
 
                 // A failed rebuild may have left stale data or no canonical file.
                 // Check before upgrade, recovery, or DiskService can create a new file.

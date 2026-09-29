@@ -116,10 +116,14 @@ starts with a header frame, a copy of the data header synced with the first comm
 before the first commit is best effort and runs once per shared connection, never
 per operation (decision 14 of the [decisions](decisions/durability-policy.md)). With
 durable commits a log or WAL directory that cannot sync fails the commit before it
-writes; each operation's fresh engine proves the log again. A write or sync failure
-stops that operation's engine; carrying the record to the connection's later
-operations is a later layer's (until then an operation that opens over a header
-journal the failure kept, while the data file cannot sync, opens read-only).
+writes; each operation's fresh engine proves the log again. A write or sync
+failure of one operation is kept connection-wide: the connection's later operations
+open read-only, show only the commits acknowledged before a failed commit while the
+files are the ones the failure left (decision 13), report it in
+`$database.writeFailure` and refuse every write with it, also once the storage works
+again, until the connection is reopened. The record belongs to that connection
+(`SharedDurabilityState`): another shared connection to the same file, also in the
+same process, does not see it and finds a failing device on its own.
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
 or its log fell back to OS-cache flushes (only possible after opting out; with

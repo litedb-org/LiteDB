@@ -57,13 +57,16 @@ namespace LiteDB.Internals
         /// A shared connection's commit whose log sync answers "cannot sync" after the log was proven:
         /// with durable commits (the default) it is not acknowledged (decision 3). Its frames reached
         /// the operating system, so its error says the outcome is unknown (implementation note 4). The
-        /// connection's later engines report the weaker guarantee; a new connection starts fresh and
-        /// lets the files decide: the commit's frames reached them.
+        /// connection keeps the failure across its short-lived engines (decision 6, proposed default
+        /// C): every later operation opens read-only, reads return what was acknowledged before the
+        /// failure (decision 13: the caller saw this commit fail), $database reports the failure, and
+        /// the next write throws with it before it asks the storage anything. A new connection starts
+        /// fresh and lets the files decide: the commit's frames reached them.
         /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
-        public void UnsupportedSync_FailsTheCommitWithAnUnknownOutcomeOnASharedConnection(string password)
+        public void UnsupportedSync_FailsTheCommitAndItsConnectionShowsOnlyAcknowledgedCommits(string password)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
@@ -95,9 +98,18 @@ namespace LiteDB.Internals
             }
             log.RejectedSyncs.Should().Be(1);
 
-            // The connection's next operation opens a fresh engine; keeping the record connection-wide
-            // (read-only, refusing writes, showing only what was acknowledged) is a later layer's.
+            rows.FindAll().Select(x => x["value"].AsString).Should().Equal(new[] { "before" }, "the caller saw the update fail");
+            var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
             IsDurable(db).Should().BeFalse("reopening for diagnostics must retain the weaker guarantee");
+            var syncs = log.DurableSyncs;
+            var dataBytes = data.Length;
+            var logBytes = log.Length;
+            WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 2 }), reason);
+            WriteFailureAssert.Refused(() => rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = "again" }), reason);
+            log.DurableSyncs.Should().Be(syncs, "a refused write asks the storage nothing");
+            data.Length.Should().Be(dataBytes);
+            log.Length.Should().Be(logBytes);
+            rows.FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
 
             using var fresh = new LiteDatabase(new SharedEngine(settings));
             WriteFailureAssert.NoneRecorded(fresh, "the failure belongs to the connection, not the file or caller settings");

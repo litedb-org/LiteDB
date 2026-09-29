@@ -112,23 +112,17 @@ namespace LiteDB.Tests.Regressions
                     LogLength(logName).Should().Be(0, "not a frame");
 
                     db.GetCollection("rows").Count().Should().Be(0, "reads keep working");
-                    // A shared connection's later operations open a fresh engine: carrying the record to
-                    // them is the connection-wide propagation of a later layer.
-                    if (!shared)
-                    {
-                        var info = Info(db);
-                        info["readOnly"].AsBoolean.Should().BeTrue();
-                        var failure = info["writeFailure"].AsDocument;
-                        failure["file"].AsString.Should().BeOneOf(new[] { "log", "data" }, "neither file syncs");
-                        failure["operation"].AsString.Should().Be("A commit");
-                        failure["error"].AsString.Should().Match(CommitNotWritten);
-                        failure["walKept"].AsBoolean.Should().BeFalse();
-                        Action index = () => db.GetCollection("rows").EnsureIndex("value");
-                        index.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
-                        insert.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
-                        db.GetCollection("rows").FindAll().Should().BeEmpty();
-                    }
-                    else insert.Should().Throw<IOException>().WithMessage(CommitNotWritten, "each operation's engine proves the log again");
+                    var info = Info(db);
+                    info["readOnly"].AsBoolean.Should().BeTrue();
+                    var failure = info["writeFailure"].AsDocument;
+                    failure["file"].AsString.Should().BeOneOf(new[] { "log", "data" }, "neither file syncs");
+                    failure["operation"].AsString.Should().Be("A commit");
+                    failure["error"].AsString.Should().Match(CommitNotWritten);
+                    failure["walKept"].AsBoolean.Should().BeFalse();
+                    Action index = () => db.GetCollection("rows").EnsureIndex("value");
+                    index.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
+                    insert.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
+                    db.GetCollection("rows").FindAll().Should().BeEmpty();
                 }
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
 

@@ -230,6 +230,44 @@ namespace LiteDB.Tests.Regressions
             finally { File.Delete(logName); }
         }
 
+        /// <summary>
+        /// A shared connection opens an engine per operation: a failure of one operation is kept
+        /// connection-wide, so later operations open read-only, read every row, report the failure
+        /// in $database and refuse writes with it. A new connection retries.
+        /// </summary>
+        [Fact]
+        public void Shared_connection_keeps_a_write_failure_until_it_is_reopened()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            DurableLogs.Forget(Path.GetFullPath(logName));
+            try
+            {
+                using (var power = new FilePowerLossModel(file.Filename) { LogFails = true })
+                using (var db = new LiteDatabase($"Filename={file.Filename};Connection=shared"))
+                {
+                    Action insert = () => Update(db, 1);
+                    insert.Should().Throw<IOException>().WithMessage("This commit was not written: the log file cannot sync*");
+                    power.LogFails = false; // the next operations' engines would sync now: the failure still holds
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                    var info = Info(db);
+                    info["readOnly"].AsBoolean.Should().BeTrue();
+                    info["writeFailure"]["operation"].AsString.Should().Be("A commit");
+                    Action again = () => Update(db, 1);
+                    again.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix);
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                }
+                using (var db = new LiteDatabase($"Filename={file.Filename};Connection=shared"))
+                {
+                    Update(db, 1);
+                    SyncPowerLossModel.AssertRows(db, Rows, 1);
+                    Info(db)["writeFailure"].IsNull.Should().BeTrue();
+                }
+            }
+            finally { File.Delete(logName); }
+        }
+
         /// <summary>The "wal limit" option: parsed with size units, written back, and a limit that is not positive is refused.</summary>
         [Fact]
         public void Wal_limit_option_is_parsed_and_validated()

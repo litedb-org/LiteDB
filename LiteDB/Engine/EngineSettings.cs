@@ -20,6 +20,11 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
+
+        // Test hook: stages of a failure's stop and the read-only reopen after it: "stopped" (the
+        // failure's teardown closed the services), "before-open" (a reopen starts), and, in every open,
+        // "state-published" (the new state is in place, the services are not yet).
+        internal Action<string> ReopenStage { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
@@ -47,9 +52,10 @@ namespace LiteDB.Engine
         internal string ReadOnlyCause { get; set; }
 
         /// <summary>
-        /// The write or sync failure after which the engine reopened read-only (set by the engine on its
-        /// own copy of the settings; decision 6 of docs/decisions/durability-policy.md). Writes throw
-        /// with its details until the database is reopened; <c>$database.writeFailure</c> reports it.
+        /// The write or sync failure after which the engine reopened read-only, or an earlier engine of
+        /// the same shared connection failed (set by the engine on its own copy of the settings;
+        /// decision 6 of docs/decisions/durability-policy.md). Writes throw with its details until the
+        /// database is reopened; <c>$database.writeFailure</c> reports it.
         /// </summary>
         internal WriteFailure WriteFailure { get; set; }
 

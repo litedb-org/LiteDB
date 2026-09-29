@@ -354,3 +354,32 @@ a commit whose log sync failed stay in the OS cache only, and a later process ma
 ([#3048](https://github.com/litedb-org/LiteDB/issues/3048)); a rebuild whose recovery marker or
 directory cannot sync installs its replacement without a power-loss guarantee
 ([#3049](https://github.com/litedb-org/LiteDB/issues/3049)).
+
+## Read-only continuation: acknowledged commits only, and connection-wide failures
+
+This section extends the read-only continuation of "Coherent WAL durability and recovery
+protocol" above ([decisions](decisions/durability-policy.md) 13, default C and notes 5 and 10).
+
+- **The reopen shows only acknowledged commits.** After a commit fails with its outcome
+  `"Unknown"` (its WAL frames may have reached the operating system), the read-only engine that
+  replaces the failed one replays the WAL only up to the last commit acknowledged before it, so the
+  process never shows a transaction its caller saw fail. This holds only while the files are the
+  ones the failure left: the log's length, salt and tail, and the data file's header and the pages
+  the failed transaction wrote, are checked. If another connection or process committed on top of
+  the failed batch or checkpointed it, the WAL restarted, or the files were replaced, the files
+  win, whole. A later independent open (a new connection, a restart) lets the files decide, as
+  recovery always does: the failed commit may then show.
+- **A shared connection keeps a failure.** The first write or sync failure of any operation of a
+  shared connection is kept for that connection: its later operations open read-only, read
+  (only the acknowledged commits, as above), report the failure in `$database` and refuse every
+  write with it, also once the storage works again, until the connection is reopened. Another
+  connection, also in the same process, does not share it. The caller's settings are unchanged.
+- **Reopen lifecycle.** A call that arrives while the failed engine is still being torn down waits
+  for the teardown and then continues on the read-only engine (it used to get the "Engine closed"
+  error); a commit or rollback completes on the engine it started on; `Dispose` during a reopen
+  closes the reopened engine, and repeated `Dispose` is safe. `$database.durableLogFlush` and
+  `walKept` on the reopened engine report the failure it reopened after.
+
+Not in this layer: before an engine first reuses a retired WAL slot it still syncs the data file
+and the log once. [#3048](https://github.com/litedb-org/LiteDB/issues/3048) and
+[#3049](https://github.com/litedb-org/LiteDB/issues/3049) stay open.
