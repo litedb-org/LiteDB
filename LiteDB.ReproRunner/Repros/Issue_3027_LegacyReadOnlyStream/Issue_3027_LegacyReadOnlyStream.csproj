@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- ArtifactFixtures.cs is shared with LiteDB.Tests, which does not use nullable annotations. -->
+    <NoWarn>$(NoWarn);CS8600;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <!-- The known-bad state (see .github/safety/regression-proofs.json). -->
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">6.0.0-prerelease.319</LiteDBPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseProjectReference)' == 'true'">
+    <ProjectReference Include="..\..\..\LiteDB\LiteDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseProjectReference)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- DropIndex_5_0_21.zip (written by the LiteDB 5.0.21 package) lives in LiteDB-Artifacts; the permanent
+         guard resolves the same pinned, hash-verified file through the same resolver and manifest. -->
+    <Compile Include="..\..\..\LiteDB.Tests\Utils\ArtifactFixtures.cs" Link="ArtifactFixtures.cs" />
+    <EmbeddedResource Include="..\..\..\LiteDB.Tests\Resources\artifacts.json" LogicalName="LiteDB.Tests.Resources.artifacts.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="LiteDB.ReproRunner.UseProjectReference" Value="$(UseProjectReference)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.LiteDBPackageVersion" Value="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+</Project>
