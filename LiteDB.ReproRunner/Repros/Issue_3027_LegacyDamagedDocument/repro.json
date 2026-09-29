@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_LegacyDamagedDocument",
+  "title": "A 5.0.21 file with one damaged document cannot be opened, not even with Auto-Rebuild",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "legacy-5.0.21",
+    "rebuild",
+    "corrupt-input"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the first Auto-Rebuild open of a 5.0.21 file with one damaged document failed with LiteException 999: string length exceeds the document limit"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the first Auto-Rebuild open rebuilt the 5.0.21 file and kept documents 1 and 3 and the readable part of document 2"
+    }
+  }
+}

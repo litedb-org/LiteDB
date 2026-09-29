@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_LegacyDroppedIndex",
+  "title": "A collection whose index 5.0.21 dropped cannot be written: stale page bytes are read as vector metadata",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "legacy-5.0.21",
+    "vector",
+    "index"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the collection 5.0.21 dropped index Age from is not writable: request page must be less or equals lastest page in data file"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the collection 5.0.21 dropped index Age from accepts insert, update, delete and EnsureIndex"
+    }
+  }
+}
