@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_LegacyReadOnlyStream",
+  "title": "A 5.0.21 file on a read-only stream cannot be opened: the open migrates it and fails with NotSupportedException",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "legacy-5.0.21",
+    "stream",
+    "read-only"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: new LiteDatabase(stream) over a read-only stream of a 5.0.21 file failed with NotSupportedException: Stream does not support writing. (with a writable log stream too, after writing 32768 bytes into it)"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: new LiteDatabase(stream) over a read-only stream of a 5.0.21 file opened read-only, read all 200 documents and their indexed queries, rejected an insert"
+    }
+  }
+}

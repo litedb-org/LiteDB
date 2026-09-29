@@ -61,6 +61,45 @@
         "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
         "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
       ]
+    },
+    {
+      "repro": "Issue_3027_DumpInTransaction",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#System_collection_inside_an_explicit_transaction_does_not_break_the_next_commit",
+        "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#Pinned_slots_of_a_file_database_survive_commit_retirement_and_recovery"
+      ]
+    },
+    {
+      "repro": "Issue_3027_StreamDatabaseDispose",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Second_dispose_does_not_throw",
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Dispose_with_an_open_transaction_rolls_back_and_releases_the_file",
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Opening_through_a_stream_does_not_persistently_change_the_checkpoint_pragma"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyReadOnlyStream",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_can_be_queried",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_accepts_transactions_and_rejects_writes",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Crash_images_over_non_writable_streams_open_without_any_change",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_current_database_keeps_transactions_that_change_nothing"
+      ]
+    },
+    {
+      "repro": "Issue_3027_ForeignLegacyWal",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
+        "scripts/test-5021-regression-compatibility.py"
+      ]
     }
   ]
 }

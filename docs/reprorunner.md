@@ -113,6 +113,7 @@ that normal tests cover the relevant behavior and failure paths.
 | `Issue_2614_DiskServiceDispose` | Disabled | `Issue2614_InitializationCleanup_Tests` injects EIO/ENOSPC during new-header sync, checks exclusive reopen before GC, repeats failures, then writes/reopens successfully; `StreamOwnership_Tests` covers caller-owned streams. |
 | `Issue_2561_TransactionMonitor` | Full tier | Still marked `red`: verifies a known-bug reproduction, not a passing fixed-bug guard. |
 | `Issue_3027_*`, `Issue_2242_UnsyncableStorage` | Disabled | Regression proofs of PR #3027 against `6.0.0-prerelease.319`, run by the Regression proof workflow; the `LiteDB.Tests/Regressions` tests named in `.github/repro-ci.json` are the permanent guard. |
+| `Issue_3027_DumpInTransaction`, `Issue_3027_StreamDatabaseDispose`, `Issue_3027_LegacyReadOnlyStream`, `Issue_3027_ForeignLegacyWal` | Disabled | Also PR #3027 proofs against `6.0.0-prerelease.319`, guarded by `DumpPinnedWalSlot_Tests`, `StreamDatabaseDispose_Tests`, `LegacyReadOnlyStream_Tests`, `LegacyWalPageBound_Tests` and `ConvertedWalBesideLegacyHeader_Tests`. `Issue_3027_ForeignLegacyWal` caps its files at 64 MiB (`RLIMIT_FSIZE`), so a far page cannot grow a sparse file. |
 
 The disk replacement tests exercise constructor cleanup through deterministic I/O
 fault injection on real files, without changing the test process's resource limits.
