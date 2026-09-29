@@ -256,9 +256,11 @@ handed to the writer, whose batch fails. Before, the reader's seek tore a frame 
 never heard of. The engine still flushes a caller stream once per WAL batch and per sync, not
 per page. A caller stream must not replay a write that failed at another position.
 
-The stop is terminal. A write or sync failure is recorded (file, operation, error, time,
-whether the log file was kept) before the stop; after it the engine performs no further write
-or sync on its handles, no close-time checkpoint runs, and every later call, reads included,
+The stop is terminal. A failure that reaches the commit or rollback path is recorded (file,
+operation, error, time, whether the log file was kept) before the stop; a torn WAL append,
+checkpoint or promotion failure stops the engine without a record in this change (recording
+for those paths arrives with the durability protocol change). After the stop the engine
+performs no further write or sync on its handles, no close-time checkpoint runs, and every later call, reads included,
 throws `IOException("Engine closed after an I/O failure ...")` carrying the original failure
 as its inner exception. Dispose and reopen the database: recovery shows exactly the commits
 acknowledged before the failure.
