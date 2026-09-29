@@ -79,11 +79,17 @@ namespace LiteDB.Engine
             // WriteLogDisk first advances the lower transaction ID and rewrites
             // its earlier frames. LiteDB 5.0.21 restores its counter from the last
             // physical frame rather than the maximum observed ID.
-            // Storage that cannot sync (#2242) never reuses slots; see ReclaimLogPages.
-            // A fresh engine (every shared-mode operation, and every engine of another
-            // connection) has not yet learned that: see ProveSlotReuse.
+            // A free slot needs no sync of its own (implementation note 15 of
+            // docs/decisions/durability-policy.md), so a fresh engine (every shared-mode
+            // operation) pays nothing to reuse one. It is free only while a root on the device
+            // witnesses it: the checkpoint that retired it synced its witness records before
+            // the root and the root before its header journal went, and an open that finds
+            // that journal writes the header back and syncs it, or opens read-only. A clear
+            // that never reached the device leaves the old frame in a witnessed slot, which
+            // recovery skips like a torn new frame there. Storage known not to sync (#2242),
+            // and a log whose syncs cannot report failure, never reuse slots; see ReclaimLogPages.
             if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !this.FlushDegraded &&
-                _freeLogPositions.Count > 0 && this.ProveSlotReuse())
+                !this.LogSyncUnverified && _freeLogPositions.Count > 0)
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.
