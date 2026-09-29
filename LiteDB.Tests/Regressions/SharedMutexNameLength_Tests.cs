@@ -64,8 +64,11 @@ namespace LiteDB.Tests.Regressions
             var sha1 = SharedMutexNameFactory.Create(shortPath, SharedMutexNameStrategy.Sha1Hash);
             sha1.Should().MatchRegex("^[0-9A-F]{40}$").And.Be(SharedMutexNameFactory.CreateUsingSha1(shortPath));
 
-            // Beyond every platform's limit the name is the same hash on every call.
-            var longPath = "/" + new string('b', 300);
+            // Beyond every platform's limit the name is the same hash on every call. The escaped
+            // name (300+ characters) exceeds every mutex limit while the path itself stays far
+            // below MAX_PATH, which .NET Framework's Path.GetFullPath enforces (260 characters).
+            var longPath = "/" + new string('д', 50);
+            Uri.EscapeDataString(Path.GetFullPath(longPath).ToLowerInvariant()).Length.Should().BeGreaterThan(300);
             SharedMutexNameFactory.Create(longPath, SharedMutexNameStrategy.Default)
                 .Should().Be(SharedMutexNameFactory.Create(longPath, SharedMutexNameStrategy.Default))
                 .And.Be("sha1-" + SharedMutexNameFactory.CreateUsingSha1(longPath));
