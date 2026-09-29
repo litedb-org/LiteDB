@@ -11,6 +11,7 @@ namespace LiteDB.Engine
     internal class FileReaderError
     {
         public DateTime Created { get; } = DateTime.Now;
+        public string Stage { get; set; } = "salvage";
         public FileOrigin Origin { get; set; }
         public long Position { get; set;  }
         public uint? PageID { get; set; }

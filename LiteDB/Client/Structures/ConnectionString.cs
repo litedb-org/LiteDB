@@ -87,7 +87,8 @@ namespace LiteDB
         public bool Upgrade { get; set; } = false;
 
         /// <summary>
-        /// "auto-rebuild": If last close database exception result a invalid data state, rebuild datafile on next open (default: false)
+        /// "auto-rebuild": Salvage an invalid-state file or corruption found during opening index validation.
+        /// Requires writable file access; retains a backup and reports errors in _rebuild_errors (default: false).
         /// </summary>
         public bool AutoRebuild { get; set; } = false;
 

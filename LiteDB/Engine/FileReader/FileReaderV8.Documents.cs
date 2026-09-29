@@ -1,12 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
     internal partial class FileReaderV8
     {
+        // Documents read only up to their damage, per collection, and the _id of every complete one.
+        private readonly Dictionary<string, List<(BsonDocument Document, PageInfo Page)>> _salvaged =
+            new Dictionary<string, List<(BsonDocument, PageInfo)>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, HashSet<BsonValue>> _completeIDs =
+            new Dictionary<string, HashSet<BsonValue>>(StringComparer.OrdinalIgnoreCase);
+        private (BsonDocument Document, PageInfo Page) _current;
+        private bool _currentRejected;
+
         public IEnumerable<BsonDocument> GetDocuments(string collection)
         {
             if (!_collections.ContainsKey(collection)) yield break;
@@ -16,7 +25,8 @@ namespace LiteDB.Engine
             if (!_collectionsDataPages.ContainsKey(colID)) yield break;
 
             var dataPages = _collectionsDataPages[colID];
-            var uniqueIDs = new HashSet<BsonValue>();
+            var uniqueIDs = _completeIDs[collection] = new HashSet<BsonValue>();
+            var salvaged = _salvaged[collection] = new List<(BsonDocument, PageInfo)>();
 
             foreach (var dataPage in dataPages)
             {
@@ -120,7 +130,10 @@ namespace LiteDB.Engine
                                 if (docResult.Fail)
                                 {
                                     this.HandleError(docResult.Exception, pageInfo);
-                                    doc = null;
+                                    // Like released versions, keep the fields read before the damage
+                                    // when they still identify the document; the error stays recorded.
+                                    // They are offered after every complete document (GetSalvagedDocuments).
+                                    if (IsSalvageable(docResult.Value)) salvaged.Add((docResult.Value, pageInfo));
                                     continue;
                                 }
 
@@ -149,5 +162,60 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// The readable fields of the damaged documents of a collection whose documents were read,
+        /// except those whose _id belongs to a complete document or an earlier partial one that was kept.
+        /// </summary>
+        public IEnumerable<BsonDocument> GetSalvagedDocuments(string collection)
+        {
+            if (!_salvaged.TryGetValue(collection, out var salvaged) || !_completeIDs.TryGetValue(collection, out var complete))
+            {
+                yield break;
+            }
+
+            try
+            {
+                var kept = new HashSet<BsonValue>();
+                foreach (var item in salvaged)
+                {
+                    var id = item.Document["_id"];
+                    if (complete.Contains(id) || !kept.Add(id))
+                    {
+                        this.HandleError($"The readable part of damaged document {id} was not kept: another document has the same _id.", item.Page);
+                        continue;
+                    }
+                    _current = item;
+                    _currentRejected = false;
+                    yield return item.Document;
+                    // Rejected (its keys conflict or cannot be indexed): its _id stays free for a later part.
+                    if (_currentRejected) kept.Remove(id);
+                    // Kept: it reads like a complete document, so say which one lost its later fields.
+                    else this.HandleError($"Only the readable part of damaged document {id} was kept: its fields after the damage are missing.", item.Page);
+                }
+            }
+            finally
+            {
+                // The collection is done: release its _id set and readable parts.
+                _salvaged.Remove(collection);
+                _completeIDs.Remove(collection);
+                _current = default;
+            }
+        }
+
+        public void RejectSalvagedDocument(string collection, BsonDocument document, string reason)
+        {
+            // Called for the document just yielded by GetSalvagedDocuments.
+            if (ReferenceEquals(_current.Document, document)) _currentRejected = true;
+            var page = ReferenceEquals(_current.Document, document)
+                ? _current.Page
+                : _salvaged[collection].First(x => ReferenceEquals(x.Document, document)).Page;
+            this.HandleError($"The readable part of damaged document {document["_id"]} was not kept: {reason}", page);
+        }
+
+        private static bool IsSalvageable(BsonDocument partial)
+        {
+            if (partial == null || !partial.TryGetValue("_id", out var id)) return false;
+            return !(id.IsNull || id.IsMinValue || id.IsMaxValue);
+        }
     }
 }

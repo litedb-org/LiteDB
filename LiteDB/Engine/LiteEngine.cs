@@ -81,7 +81,7 @@ namespace LiteDB.Engine
 
         #region Open & Close
 
-        internal bool Open()
+        internal bool Open(bool allowOpeningRebuild = true)
         {
             using var admission = RebuildAdmission.EnterForOpen(_settings);
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
@@ -117,7 +117,10 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                // A rebuild replaces files: never from a read-only open, a caller's stream, or the
+                // open of a candidate that an opening recovery just installed.
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && !_settings.ReadOnly &&
+                    allowOpeningRebuild && _settings.DataStream == null)
                 {
                     // Announce replacement before checking the external leases: a
                     // later admission must not pass a scan that permitted rebuilding.
@@ -164,6 +167,9 @@ namespace LiteDB.Engine
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
+#if DEBUG || TESTING
+                    _settings.BeforeOpeningWalRestore?.Invoke();
+#endif
                     _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
 
@@ -175,7 +181,46 @@ namespace LiteDB.Engine
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
-                this.MigrateIndexOrdering();
+                try
+                {
+                    this.MigrateIndexOrdering();
+                }
+                catch (LiteException ex) when (ex.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
+                {
+                    // Opening validation is inspection. Do not stamp or checkpoint a
+                    // rejected source, including a read-only file requested for salvage.
+                    // Close also sets Disposed, so the outer Close(ex) cannot mark
+                    // this rejected source invalid. Cleanup failures forbid replacement.
+                    var closeErrors = this.Close(checkpoint: false);
+                    if (closeErrors.Count != 0)
+                        throw new AggregateException("Failed to close the damaged database before automatic recovery.",
+                            new[] { ex }.Concat(closeErrors));
+                    if (!allowOpeningRebuild || !_settings.AutoRebuild || _settings.ReadOnly ||
+                        string.IsNullOrEmpty(_settings.Filename) || _settings.DataStream != null) throw;
+                    try
+                    {
+                        // Announce only a possible replacement, before checking leases.
+                        // Release the scope before opening the installed candidate.
+                        using (var structural = new StructuralScope(_settings.CoordinationSignals))
+                        {
+                            if (!(_settings.AutoRebuildAllowed?.Invoke() ?? true)) throw;
+                            this.Recovery(_header.Pragmas.Collation, ex);
+                        }
+                    }
+                    catch (LiteException failure) when (!ReferenceEquals(failure, ex))
+                    {
+                        throw RebuildFailed(ex, failure);
+                    }
+                    catch (Exception failure) when (!(failure is LiteException))
+                    {
+                        // Other failures (e.g. a transient IOException) keep their type and HResult
+                        // for callers' retries; the damage that required the rebuild travels in Data.
+                        failure.Data[RebuildCauseDataKey] = ex.Message;
+                        throw;
+                    }
+                    // A failure to open the installed candidate is its own (never wrapped).
+                    return this.Open(allowOpeningRebuild: false);
+                }
                 _disk.TrimTrailingPages();
 
                 // register system collections
@@ -189,10 +234,34 @@ namespace LiteDB.Engine
             {
                 LOG(ex.Message, "ERROR");
 
-                this.Close(ex);
+                if (allowOpeningRebuild) this.Close(ex);
+                else
+                {
+                    // A failed admission of a rebuilt candidate must not stamp it
+                    // invalid and cause another salvage/backup on the next open.
+                    var closeErrors = this.Close(checkpoint: false);
+                    if (closeErrors.Count != 0)
+                        throw new AggregateException("Failed to close the rebuilt database after opening failed.",
+                            new[] { ex }.Concat(closeErrors));
+                }
                 throw;
             }
         }
+
+        /// <summary>Data key of a failed automatic rebuild's exception: the damage that required it.</summary>
+        internal const string RebuildCauseDataKey = "LiteDB.RebuildCause";
+
+        /// <summary>Keep the damage that required the opening rebuild visible next to its failure.</summary>
+        private static LiteException RebuildFailed(LiteException cause, LiteException failure)
+        {
+            var wrapped = new LiteException(cause.ErrorCode, new AggregateException(cause, failure),
+                "{0} The automatic rebuild failed: {1}", cause.Message, failure.Message);
+            foreach (System.Collections.DictionaryEntry entry in failure.Data) wrapped.Data[entry.Key] = entry.Value;
+            return wrapped;
+        }
+
+        /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
+        internal bool InvalidDatafileState { get; private set; }
 
         /// <summary>
         /// Normal close process:
@@ -206,9 +275,6 @@ namespace LiteDB.Engine
         /// A shared operation's close checkpoints only a WAL past its threshold; the
         /// connection's <paramref name="final"/> close always does (#3004).
         /// </summary>
-        /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
-        internal bool InvalidDatafileState { get; private set; }
-
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();
@@ -270,7 +336,8 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
-            if (tc.InvalidDatafileState)
+            // A read-only engine never writes: real read-only inspection never marks the file.
+            if (tc.InvalidDatafileState && !_settings.ReadOnly)
             {
                 // Keep the data writer alive until the recovery marker is durable.
                 tc.Catch(() => _disk?.MarkAsInvalidState());
