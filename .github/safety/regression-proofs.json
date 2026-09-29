@@ -18,6 +18,33 @@
         "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
         "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
       ]
+    },
+    {
+      "repro": "Issue_3027_DumpInTransaction",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#System_collection_inside_an_explicit_transaction_does_not_break_the_next_commit",
+        "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#Pinned_slots_of_a_file_database_survive_commit_retirement_and_recovery"
+      ]
+    },
+    {
+      "repro": "Issue_3027_TornWalAppend",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_stops_the_engine",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Truncated_torn_append_is_rewritten_by_the_next_commit",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost"
+      ]
+    },
+    {
+      "repro": "Issue_3027_FailedSafepointWrite",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
+        "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
+      ]
     }
   ]
 }
