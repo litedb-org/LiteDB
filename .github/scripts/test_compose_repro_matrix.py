@@ -50,12 +50,12 @@ class ReproMatrixTests(unittest.TestCase):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
                 self.assertEqual(count, len(entries))
                 self.assertEqual({"Issue_2561_TransactionMonitor"}, {e["repro"] for e in entries})
-                self.assertEqual(16, len(skipped))
+                self.assertEqual(17, len(skipped))
 
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
-        # 2561 and 2586 on all three images, 2614 and the fourteen Linux-only #3027 regression proofs on two.
-        self.assertEqual(36, len(entries))
+        # 2561 and 2586 on all three images, 2614 and the fifteen Linux-only #3027 regression proofs on two.
+        self.assertEqual(38, len(entries))
         self.assertEqual([], skipped)
 
     def test_new_repros_are_not_silently_retired(self):

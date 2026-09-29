@@ -127,5 +127,11 @@
       "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Compact_promotion_on_a_log_that_cannot_sync_falls_back_to_bson_without_durable_commits",
       "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Compact_promotion_on_a_log_that_never_syncs_falls_back_to_bson_without_durable_commits"
     ]
+  },
+  "Issue_3027_PromotionAfterFailedCheckpoint": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); a file format promotion that waited on a failed checkpoint is refused before it syncs or writes in the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/CheckpointFailureWindow_Tests.cs#Promotion_waiting_on_a_failed_checkpoint_syncs_and_writes_nothing"
+    ]
   }
 }

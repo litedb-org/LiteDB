@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_PromotionAfterFailedCheckpoint",
+  "title": "A file format promotion that waited on a checkpoint whose data sync failed syncs and writes the file again",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "checkpoint",
+    "fsyncgate",
+    "compact-storage"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: a compact insert that waited on the checkpoint whose data sync failed promoted the file after that failure: it wrote a v12 header over the v11 one and synced the data file again on the handle whose sync had just failed, which reported success"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the compact insert that waited on the checkpoint whose data sync failed was refused with that failure: nothing was written to or synced on either file after the failed sync, the data header stayed v11, and a reopen has every committed row"
+    }
+  }
+}

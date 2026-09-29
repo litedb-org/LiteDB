@@ -117,6 +117,7 @@ that normal tests cover the relevant behavior and failure paths.
 | `Issue_3027_TornWalAppend`, `Issue_3027_FailedSafepointWrite`, `Issue_3027_LostHeaderBesideWal` | Disabled | Regression proofs of PR #3027's WAL failure and recovery fixes against `6.0.0-prerelease.319`; `TornWalAppend_Tests`, `TornSlotRewrite_Tests`, `FailedSafepointWrite_Tests`, `HeaderFrame_Tests` and `HeaderFrameCrash_Tests` are the permanent guard. |
 | `Issue_3027_FailedHeaderSync` | Disabled | Regression proof of PR #3027's header-journal recovery after a failed header sync ("fsyncgate") against `6.0.0-prerelease.319`; `SyncFailureRecovery_Tests` is the permanent guard. |
 | `Issue_3027_OverwriteBehindUnsyncedLog` | Disabled | Regression proof of PR #3027's overwrite barrier against `6.0.0-prerelease.319`: a checkpoint with `durable commits=false` on a log that cannot sync, power loss mid-overwrite modeled on caller `FileStream` devices; `OverwriteBarrier_Tests` and `Issue2242_UnsyncableLog_Tests` are the permanent guard. |
+| `Issue_3027_PromotionAfterFailedCheckpoint` | Disabled | Regression proof of PR #3027 against `6.0.0-prerelease.319`: a file format promotion that waited on a checkpoint whose data sync failed wrote and synced the file again. `CheckpointFailureWindow_Tests` is the permanent guard. |
 
 The disk replacement tests exercise constructor cleanup through deterministic I/O
 fault injection on real files, without changing the test process's resource limits.
