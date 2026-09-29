@@ -154,15 +154,40 @@ preserving data and recovery frames. Semantic-error marker writes require the
 same durable journal before changing the header; a failed sync leaves that header
 intact during shutdown.
 
-Log storage that rejects sync as unsupported (some network shares and virtual
-file systems, #2242) is different: it can never make recovery information durable.
-Conversion, checkpoint and marker writes then proceed in the same write order
-without the device sync, as before #2818, reported by
-`$database.durableLogFlush=false`. The ordered writes reach the operating system,
-so a killed process still recovers; power loss can lose recent commits or leave a
-checkpoint partially applied, the same risk as before #2818. Every barrier still
-attempts a real sync first, so storage that syncs again regains the full
-guarantee. Data-file syncs are never downgraded.
+Storage that rejects sync as unsupported (some network shares and virtual file systems,
+#2242) is different: it can never make recovery information durable. The rules follow the
+maintainer's decisions ([decisions/durability-policy.md](decisions/durability-policy.md);
+its "Layer status" says which parts are in place). A log that answers "cannot sync" backs no
+in-place overwrite, in both commit modes: a checkpoint writes nothing and keeps the WAL, a
+compact write stores BSON instead of promoting the file format, and a conversion or any other
+promotion is refused, each before it writes, until a log sync succeeds again (every checkpoint
+tries one). Commits reach the operating system in order, reported by
+`$database.durableLogFlush=false`, so a killed process still recovers them; power loss can lose
+recent commits, never the data file's integrity.
+
+A data file that answers "cannot sync" never loses what the WAL holds. Commits stay durable
+in the WAL, whose syncs continue: every WAL starts with a header frame, a copy of the data
+header its frames depend on (salt, version and creation time), made durable by the first
+commit's log sync, and an open restores a data header the device lost from it (decisions 10
+and 11; see [the header frame](page-and-wal-checksums.md#the-header-frame)). The header frame
+restores the header only, and only while the data file still holds every page that header
+names: it is not a backup of every historical data page, and a data page the device lost is
+not recovered from it. An empty or missing data file beside a WAL that holds frames is never
+initialized over: the header is restored, or the open fails and changes neither file. The OS
+can write an emptied WAL back ahead of the backfill, and no engine knows whether an earlier
+one (of any connection or process) synced the WAL's frames, so the WAL, its header journal
+and a legacy header backup are removed only after a data sync that covers every data write
+of the engine succeeded; every log shrink goes through that check. Every checkpoint that
+writes first syncs the data file and writes nothing while that sync fails, whichever engine
+runs it: the WAL grows until the data file syncs again (`$database.walKept`). A data sync
+that fails later in the same checkpoint (after the backfill, the salt rotation or a
+retirement root) records a write failure before anything is removed, leaving the state of a
+crash at that point, and stops the engine. A format promotion keeps its journal the same
+way: it writes only right after a data sync that succeeded, is refused otherwise, and records
+a failure with the journal kept when the data file stops syncing after its header write. A
+promotion that waited for the WAL writer while a checkpoint failed, or once a failure is
+recorded, syncs and writes nothing (decision 6,
+[CheckpointFailureWindow_Tests](../LiteDB.Tests/Regressions/CheckpointFailureWindow_Tests.cs)).
 
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.

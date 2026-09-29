@@ -69,6 +69,31 @@ implements and says which parts later layers add; see "Layer status" below.
 - **D.** Opt-out users still get the strict WAL rule (rule 1 protects the data file's integrity,
   not only recent commits).
 
+## Second and third rounds (2026-09-28): the header frame
+
+8. **The header is anchored in the WAL (refines 4).** Where only the data file cannot sync and
+   the data header the WAL's frames depend on is not proven to be on the device (a database
+   created there, a new process), a durable commit does not throw: the WAL holds a copy of that
+   header, recovery takes the header from it when the device lost it, and the database stays
+   writable with commits durable in the WAL.
+10. **The anchor is a header frame in the WAL (form of 8).** The copy of the header is a WAL frame of
+    its own at the start of the WAL: a checksummed frame of the header page that no transaction
+    confirms, so recovery that does not look for it skips it; recovery that does takes the header,
+    and the WAL salt that validates the following frames, from it when the data file's header is
+    missing or invalid. It stays until a checkpoint whose data sync succeeded empties the WAL. Older
+    6.x prereleases do not read it (older versions are out of scope).
+11. **Every WAL starts with the header frame (replaces the condition in 8).** The first frame of every
+    WAL generation (from empty until it is emptied again) is the header frame, in both commit modes,
+    written by the first batch that extends an empty WAL and synced with that batch's commit. At open:
+    - Data header intact, same salt: normal recovery.
+    - Data header missing, empty or torn, and no header journal applies: recovery takes the header
+      (and the salt that validates the frames) from the header frame.
+    - Data header intact with another salt: a stale WAL generation, discarded as before (a salt
+      changes only after a data sync covered the backfill).
+    - Empty data file next to a log whose WAL holds frames: never initialized over. Restored from
+      the header frame when it can be; otherwise the open fails loudly and changes neither file.
+    Volatile logs have no header frame. A WAL without one (written before this change) opens as before.
+
 ## Layer status
 
 The durability-accounting layer (S09a) implements:
@@ -89,9 +114,22 @@ The durability-accounting layer (S09a) implements:
 - The failure boundary of sync helpers (note 17, #3052).
 - The conservative slot-reuse baseline (note 15).
 
-Later layers add: the header frame in every WAL generation and the header proof records
-(S09b); fail-loud durable commits (rule 3), the WAL limit, the commit outcome, the read-only open
-fallback and read-only continuation (rule 2 and the rest of rule 6) (S09c). Until then a durable
+The header-frame layer (S09b) adds:
+
+- Decisions 10 and 11: the header frame in every non-volatile checksummed WAL generation, its
+  restore of a lost data header (plain and encrypted, note 9), the refusal to initialize a database
+  over WAL frames, and the same restore in the rebuild's reader. A WAL without a header frame
+  (written before this layer) opens as before.
+- The header proof record (`DurableHeaders`): the data header each data file had at its latest
+  successful sync in this process. The data proof before a slot reuse (note 15) skips the sync while
+  the header still matches. The log proof record (`DurableLogs`) is forgotten when the log or its
+  directory answers "cannot sync"; the commit proof that records it comes with rule 3.
+- A failed header-frame write is truncated like a failed append; the commit fails and, at this
+  layer, the engine stops.
+
+Later layers add: fail-loud durable commits (rule 3), the WAL limit, the commit outcome, the data
+barrier before the first commit, the read-only open fallback and read-only continuation (rule 2 and
+the rest of rule 6) (S09c). Until then a durable
 commit on a log that answers "cannot sync" degrades to an OS-cache flush as before (with
 `durableLogFlush` false), and an open that must convert or promote the file on such storage throws
 the refusal instead of opening read-only.
@@ -122,11 +160,26 @@ the refusal instead of opening read-only.
    header it reads as durable on that ground: before the sync that retires a header journal, it
    makes the journal durable and writes the header back as it read it. The engine never retries a
    sync on a handle whose sync failed (decision 6).
+9. **What the header frame restores (11).** Only a header a power loss left unwritten: the data file
+   is empty or shorter than a page, or every 512-byte sector of its header is the header frame's or
+   was never written (zeros; in an encrypted file, zero ciphertext, which decrypts to one fixed block
+   in AES ECB mode). A header with other bytes (a drive defect, another database's or an older
+   generation's sector) fails the open as before, instead of taking a copy that may be older. The
+   header frame must not name pages the data file lost (its `LastPageID` must fit the file); an empty
+   data file beside a WAL whose header frame names pages, a missing data file beside a WAL, and a log
+   whose header frame cannot be read (torn, never written back, or encrypted and opened without its
+   password) while it holds WAL frames refuse the open and change neither file. A wrong password
+   is refused before anything is written. A header journal wins where one applies. **A header frame
+   is not a backup of every historical data page:** it restores the header only, and only while the
+   data file still holds every page that header names. A data page the device lost is not recovered
+   from it; the supported lost-page fault model is unchanged.
 15. **Slot reuse, conservative baseline.** Before its first reuse of a retired WAL slot, every
    engine proves that the data file and the log sync (`DiskService.ProveSlotReuse`); storage known
-   not to sync, and a log whose syncs cannot report failure, never reuse slots. Every fresh engine
-   (every shared-mode operation) pays that proof once; dropping it behind the durable witness root is
-   a separate, later change.
+   not to sync, and a log whose syncs cannot report failure, never reuse slots. For a data file, the
+   data sync is skipped while its header is one a successful sync in this process left
+   (`DurableHeaders`; a copy restored over the file with a byte-identical header is taken as proven,
+   best effort). Every fresh engine (every shared-mode operation) pays that proof once; dropping it
+   behind the durable witness root is a separate, later change.
 17. **The failure boundary of sync helpers (#3052).** A helper that issues a sync after an earlier
    admission check (`LogSyncs`, `DataFileSyncs`, `ProveRetirementSyncs`, `SyncLogBeforeCheckpoint`,
    a checkpoint once it holds the WAL writer, a WAL batch once it holds it) rechecks the stopped and

@@ -1591,6 +1591,40 @@
           "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-before-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame before its write (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (an empty WAL) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-after-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame after its write, while it is in the OS cache only (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (a WAL holding only the header frame) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
     }
   ],
   "injectors": [

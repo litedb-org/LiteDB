@@ -128,6 +128,26 @@
         "LiteDB.Tests/Regressions/SyncFailureRecovery_Tests.cs#Journal_retired_after_a_failed_header_sync_leaves_the_header_on_the_device"
       ],
       "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-header-frame-wal-layout",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/Disk_Tests.cs",
+        "LiteDB.Tests/Internals/FrameFailure_Tests.cs",
+        "LiteDB.Tests/Internals/LazyChecksumCutover_Tests.cs",
+        "LiteDB.Tests/Internals/WalPowerLoss_Tests.cs",
+        "LiteDB.Tests/Internals/WalSlotReuse_Tests.cs",
+        "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Each test still asserts the exact position, length and content of the frames it writes; only the layout moved.",
+      "reason": "Decision 11: every non-volatile checksummed WAL generation starts with a header frame (frame 0, a copy of the data header). Expected WAL positions and lengths move by one frame (Disk_Tests, FrameFailure_Tests, LazyChecksumCutover_Tests, WalSlotReuse_Tests); WalPowerLoss_Tests pads one commit when the shifted acknowledged end would fall on a sector boundary, so the torn-sector case it asserts still arises; FailedSafepointWrite_Tests' FailingLog skips the header frame so it still fails the transaction's own frame. No assertion is removed or loosened.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Every_wal_generation_starts_with_a_copy_of_the_data_header",
+        "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
