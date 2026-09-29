@@ -235,8 +235,11 @@ until the owner confirms them.
    durable and writes the header back as it read it. WAL pages are copied again by the first checkpoint of
    every reopen, and the engine never retries a sync on a handle whose sync failed (decision 6).
 14. **The outcome of a failed commit** is in `Exception.Data["LiteDB.CommitOutcome"]`: `"NotCommitted"` when
-   no frame of it can be in the log (refused before its first frame, or a failed append truncated away),
-   `"Unknown"` when frames may have reached the log (a write that threw, a failed sync after the
+   its confirmation cannot be in the log (refused before its first frame, failed before its confirmation's
+   write, or its confirmation's failed append truncated away and the truncation synced: a confirmation can
+   reach the device whole although its write threw, and a truncation is not durable before a sync, so the
+   engine syncs the log on that failure path, in both commit modes), `"Unknown"` when it may be (a write that
+   threw and left a frame behind, a truncation that could not be synced, a failed sync after the
    confirmation). After `"Unknown"` a reopen may show the commit: retries need idempotent writes, or a check
    after reopening. Decision 3's "fails before any frame is written" holds for a log known not to sync
    (the proof before an engine's first commit); a log that stops syncing later fails the commit with its

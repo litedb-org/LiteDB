@@ -57,10 +57,11 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Exception.Data key on a failed commit or WAL batch: <see cref="NotCommittedOutcome"/> when no
-        /// frame of it can have reached the log, <see cref="UnknownOutcome"/> when frames may have (its
-        /// confirmation included): recovery may then show the commit after a reopen, so an application
-        /// that retries needs idempotent writes, or checks after reopening (decision 13).
+        /// Exception.Data key on a failed commit or WAL batch: <see cref="NotCommittedOutcome"/> when its
+        /// confirmation cannot be in the log (none written, or its failed append truncated away and the
+        /// truncation synced), <see cref="UnknownOutcome"/> when it may be: recovery may then show the
+        /// commit after a reopen, so an application that retries needs idempotent writes, or checks after
+        /// reopening (decisions 13 and 14).
         /// </summary>
         internal const string CommitOutcomeDataKey = "LiteDB.CommitOutcome";
         internal const string NotCommittedOutcome = "NotCommitted";

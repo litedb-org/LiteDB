@@ -170,8 +170,8 @@ namespace LiteDB.Engine
                 }
                 catch (IOException ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
                 {
-                    // Nothing torn stayed behind (a failed append was truncated): this batch's
-                    // confirmation is not in the log, so the commit is not there either.
+                    // Nothing torn stayed behind (a failed append was truncated), and no confirmation of
+                    // this batch was written, or its truncation was synced: the commit is not in the log.
                     ex.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
                     throw;
                 }
@@ -240,6 +240,8 @@ namespace LiteDB.Engine
             var overwrite = false;
             // A buffering stream may still hold (and tear) a frame this batch wrote before this one.
             var earlierHeld = uncertain;
+            // This frame is a commit's confirmation and its write began.
+            var confirmationWritten = false;
             PageBuffer readable = null;
 
             try
@@ -287,6 +289,7 @@ namespace LiteDB.Engine
                 // can still tear it after the write returned, until the batch's final flush.
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
+                confirmationWritten = isConfirmed;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
                 if (!_logMayBuffer) uncertain = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
@@ -302,6 +305,11 @@ namespace LiteDB.Engine
             }
             catch (Exception failure)
             {
+                // A confirmation whose write began may be in the log (it always appends): whole although
+                // its write threw, or written before a later step failed. Only its synced truncation
+                // below proves it is not.
+                if (confirmationWritten) uncertain = true;
+
                 // The producer transferred ownership before yielding.
                 // Recycle failed frames and undo unpublished reservations.
                 if (readable == null && page.State == FrameState.Writable)
@@ -317,13 +325,16 @@ namespace LiteDB.Engine
                             stream.SetLength(previousStreamLength.Value);
                             _logFactory.TrimCapacity(stream);
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
-                            // nor an earlier frame of this batch that a buffering stream still held.
-                            if (!overwrite && !earlierHeld) uncertain = false;
+                            // nor an earlier frame of this batch that a buffering stream still held. A
+                            // confirmation can reach the device whole although its write threw, and only a
+                            // sync makes its truncation durable (see SyncTruncatedConfirmation).
+                            if (!overwrite && !earlierHeld && (!confirmationWritten || this.SyncTruncatedConfirmation())) uncertain = false;
                         }
                         catch (Exception cleanup)
                         {
-                            // The torn frame stays: report the write failure that left it, not its cleanup.
-                            LOG($"truncating a failed WAL write failed too: {cleanup.Message}", "ERROR");
+                            // The torn frame stays, or its removal may not be durable: report the write
+                            // failure that left it, not its cleanup.
+                            LOG($"removing a failed WAL write failed too: {cleanup.Message}", "ERROR");
                             ExceptionDispatchInfo.Capture(failure).Throw();
                         }
                     }
@@ -335,6 +346,22 @@ namespace LiteDB.Engine
             {
                 readable?.Release();
             }
+        }
+
+        /// <summary>
+        /// A commit's confirmation whose write threw was truncated away. It may still have reached the
+        /// device whole, and a truncation is not durable before the log syncs: a power loss until then
+        /// can leave the commit in the log for a later open to recover. So sync the log (on this failure
+        /// path only, in both commit modes): true once the sync succeeded, or for a log in memory, and the
+        /// commit is not in the log ("NotCommitted", decision 14). False when the log answers "cannot
+        /// sync" without durable commits; with them, and on any other failure, the sync throws. The
+        /// commit's outcome is then unknown and the batch stops the engine. Caller holds the log writer lock.
+        /// </summary>
+        private bool SyncTruncatedConfirmation()
+        {
+            if (_volatileLog) return true;
+            this.SyncRawLog();
+            return _logBarrierSynced;
         }
     }
 }

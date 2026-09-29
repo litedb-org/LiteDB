@@ -28,6 +28,12 @@ namespace LiteDB.Tests.Regressions
         /// <summary>Called before each write with its position and length (the file's length is the one before it).</summary>
         internal Action<long, int> BeforeWrite;
 
+        /// <summary>
+        /// Called after each write reached the file (and is pending), with its position and bytes: an
+        /// exception it throws is the write's own, thrown after its bytes were stored.
+        /// </summary>
+        internal Action<long, byte[]> AfterWrite;
+
         internal ForgetfulFile(string path)
             : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1)
         {
@@ -54,6 +60,7 @@ namespace LiteDB.Tests.Regressions
             var copy = new byte[count];
             Buffer.BlockCopy(buffer, offset, copy, 0, count);
             lock (_gate) _pending.Add((at, copy, -1, _operations++));
+            AfterWrite?.Invoke(at, copy);
         }
 
         public override void SetLength(long value)
@@ -80,7 +87,7 @@ namespace LiteDB.Tests.Regressions
                     _pending.Clear();
                     throw new IOException("injected EIO: write-back failed and the pages were marked clean");
                 }
-                _durable = Apply(_durable, 0, torn: false);
+                _durable = Apply(_durable, 0, long.MaxValue, torn: false);
                 _pending.Clear();
             }
         }
@@ -88,24 +95,26 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// What a power loss may leave on the device now (see <see cref="ImageKind"/>). Pending writes
         /// made before the mark <paramref name="from"/> (<see cref="Operations"/> read earlier) never
-        /// reach it: the OS wrote back the later ones first.
+        /// reach it: the OS wrote back the later ones first. Nor do pending operations from the mark
+        /// <paramref name="until"/> on: the power went before the OS wrote them back.
         /// </summary>
-        internal byte[] Image(ImageKind kind, long from = 0)
+        internal byte[] Image(ImageKind kind, long from = 0, long until = long.MaxValue)
         {
             lock (_gate)
             {
                 if (kind == ImageKind.Lost || _pending.Count == 0) return _durable;
-                return Apply(_durable, from, torn: kind == ImageKind.Torn);
+                return Apply(_durable, from, until, torn: kind == ImageKind.Torn);
             }
         }
 
-        // The device image after the pending operations from the mark on reached it, the last write
-        // torn: only its first half, sector aligned, written over what the device held. (A WAL write
-        // is followed by the WAL's padding, a SetLength, which is not torn.)
-        private byte[] Apply(byte[] durable, long from, bool torn)
+        // The device image after the pending operations from the mark on, and before the mark until,
+        // reached it, the last write torn: only its first half, sector aligned, written over what the
+        // device held. (A WAL write is followed by the WAL's padding, a SetLength, which is not torn.)
+        private byte[] Apply(byte[] durable, long from, long until, bool torn)
         {
             var image = durable;
-            var count = _pending.Count;
+            var count = 0;
+            while (count < _pending.Count && _pending[count].Number < until) count++;
             var tornAt = count - 1;
             while (tornAt >= 0 && _pending[tornAt].Bytes == null) tornAt--;
             for (var i = 0; i < count; i++)
