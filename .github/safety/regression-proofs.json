@@ -18,6 +18,14 @@
         "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
         "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
       ]
+    },
+    {
+      "repro": "Issue_3027_SharedMutexNameLength",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+      ]
     }
   ]
 }

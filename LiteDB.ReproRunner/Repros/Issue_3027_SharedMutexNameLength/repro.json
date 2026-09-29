@@ -1,0 +1,33 @@
+{
+  "id": "Issue_3027_SharedMutexNameLength",
+  "title": "A shared connection cannot open a database whose escaped path exceeds the named-mutex limit on Unix",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027",
+    "https://github.com/litedb-org/LiteDB/issues/3051"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "shared",
+    "mutex",
+    "platform:unix"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: a shared connection cannot open a database in a directory with a non-ASCII name: ArgumentException from the Mutex constructor"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: a shared connection opened, wrote and reopened a database in a directory with a non-ASCII name"
+    }
+  }
+}
