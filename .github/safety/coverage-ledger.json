@@ -45,6 +45,17 @@
       "disposition": "strengthened",
       "invariant": "Every index-migration recovery case runs to completion and checks its oracle.",
       "reason": "The harness now reports how far a case got when it times out (write count, WAL pages, commit state and elapsed time on stderr), for diagnosis; no case, oracle or timeout changed."
+    },
+    {
+      "id": "3051-released-file-compatibility",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing test leg keeps its timeout, filter and partition; the released v4/v5 corpus is checked on every PR.",
+      "reason": "Adds the released-file-compatibility job (20-minute limit): Linux/ICU and Windows/NLS on PR runs, plus Windows/ICU and macOS/ICU on full runs. The Safety evidence job requires it. Existing jobs are unchanged. Fixtures listed in tools/ReleaseCompatibility/pending-activation.json are run and must still fail with their recorded diagnostic."
     }
   ]
 }
