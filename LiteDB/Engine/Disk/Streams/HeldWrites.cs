@@ -57,6 +57,8 @@ namespace LiteDB.Engine
                     _tornWriter = _writer;
                     _writeOnFailure = ex;
                 }
+                // Kept for the writer: nobody writes on again after the failure (decision 6).
+                _writer = null;
                 // A write failure of this file, also on a reader's call.
                 WriteFailure.InFile(ex, _origin);
                 throw;
@@ -71,6 +73,7 @@ namespace LiteDB.Engine
             var failure = _writeOnFailure;
             _writeOnFailure = null;
             _tornWriter = null;
+            if (ReferenceEquals(_writer, writer)) _writer = null;
             throw WriteFailure.InFile(new IOException("A write the stream still held failed when another access wrote it on: " +
                 failure.Message, failure), _origin);
         }
