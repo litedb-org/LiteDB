@@ -250,10 +250,87 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// A header frame whose write fails part-way is truncated like a failed append, the commit fails,
-        /// and the engine stops (at this layer; read-only continuation replaces the stop later); if the
-        /// truncation fails too, the torn frame stays, and the next open discards it: no acknowledged
-        /// commit depended on it.
+        /// A write that changes nothing (an update that matched no document) writes no frame, so it
+        /// needs no durability proof: on a log that cannot sync it neither throws nor records a failure.
+        /// </summary>
+        [Fact]
+        public void Write_that_changes_nothing_needs_no_log_proof()
+        {
+            using var file = new TempFile();
+            using (var setup = new LiteDatabase(file.Filename)) setup.GetCollection("rows").Insert(Row(1));
+            DurableLogs.Forget(Path.GetFullPath(FileHelper.GetLogFile(file.Filename)));
+            NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
+            try
+            {
+                using var db = new LiteDatabase(file.Filename);
+                db.GetCollection("rows").Update(Row(99)).Should().BeFalse();
+                db.GetCollection("rows").DeleteMany(x => x["_id"] == 99).Should().Be(0);
+                var info = db.Execute("SELECT $ FROM $database").Single();
+                info["writeFailure"].IsNull.Should().BeTrue();
+                info["readOnly"].AsBoolean.Should().BeFalse();
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+        }
+
+        /// <summary>
+        /// Only a log the engine opens has its directory synced by the proof, so only its path is
+        /// remembered as proven: a caller's log stream would otherwise let a later engine that opens the
+        /// same path skip the directory sync.
+        /// </summary>
+        [Fact]
+        public void Caller_log_stream_is_not_remembered_as_proven()
+        {
+            using var file = new TempFile();
+            var logName = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
+            DurableLogs.Forget(logName);
+            using (var data = new FileStream(file.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite))
+            using (var log = new FileStream(logName, FileMode.OpenOrCreate, FileAccess.ReadWrite))
+            using (var db = new LiteDatabase(data, logStream: log))
+            {
+                db.GetCollection("rows").Insert(Row(1));
+            }
+            DurableLogs.Contains(logName).Should().BeFalse();
+
+            using (var db = new LiteDatabase(file.Filename)) db.GetCollection("rows").Insert(Row(2));
+            DurableLogs.Contains(logName).Should().BeTrue();
+        }
+
+        /// <summary>
+        /// Decision 14: the data barrier before a first commit runs once per shared connection, and a
+        /// connection that found the data file cannot sync does not retry it per operation: its
+        /// operations pay nothing for it. Its commits stay durable in the WAL (decision 4).
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Shared_connection_runs_the_data_barrier_once(bool dataSyncs)
+        {
+            using var file = new TempFile();
+            var dataName = Path.GetFullPath(file.Filename);
+            var runs = 0;
+            DiskService.DataBarrierRan = path => { if (string.Equals(path, dataName, StringComparison.OrdinalIgnoreCase)) runs++; };
+            NativeFileSync.SimulateErrno = path => !dataSyncs && Path.GetFullPath(path) == dataName ? 22 : 0;
+            try
+            {
+                using var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                db.CheckpointSize = 0;
+                for (var id = 1; id <= 5; id++) db.GetCollection("rows").Insert(Row(id));
+                runs.Should().Be(dataSyncs ? 1 : 0, dataSyncs ? "once for the connection" : "creating the database found that its data file cannot sync");
+                db.GetCollection("rows").Count().Should().Be(5);
+                db.Execute("SELECT $ FROM $database").Single()["durableLogFlush"].AsBoolean.Should().BeTrue();
+            }
+            finally
+            {
+                DiskService.DataBarrierRan = null;
+                NativeFileSync.SimulateErrno = null;
+            }
+        }
+
+        /// <summary>
+        /// A header frame whose write fails part-way is truncated like a failed append. The failed
+        /// write is recorded either way (decision 6: the device is taken as bad) and the engine
+        /// continues read-only; if the truncation fails too, the torn frame stays, and the next open
+        /// discards it: no acknowledged commit depended on it.
         /// </summary>
         [Theory]
         [InlineData(false)]
@@ -275,15 +352,15 @@ namespace LiteDB.Tests.Regressions
                 insert.Should().Throw<IOException>();
                 log.SetLengthFails = false;
 
-                // A failed append whose truncation succeeded fails its commit, which records it. A torn
-                // frame 0 left behind stops the engine inside the batch write, before the commit's record.
-                if (truncationFails) engine.GetState().Stopped.Should().BeTrue("the torn frame 0 stopped the engine");
-                else TerminalStopAfterWriteFailure.AssertRecorded(engine, "A commit", null, "injected torn write", walKept: null);
+                var info = db.Execute("SELECT $ FROM $database").Single();
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                info["writeFailure"].IsNull.Should().BeFalse();
                 log.Length.Should().Be(truncationFails ? WalChecksum.FrameSize / 2 : 0,
                     truncationFails ? "the torn frame 0 stays: nothing may be appended behind it" : "the torn bytes were truncated");
-                TerminalStopAfterWriteFailure.AssertRefused(() => db.GetCollection("rows").Count(), "injected torn write");
-                TerminalStopAfterWriteFailure.AssertRefused(() => db.GetCollection("rows").Insert(Row(3)), "injected torn write");
-                log.Length.Should().Be(truncationFails ? WalChecksum.FrameSize / 2 : 0, "the stopped engine wrote nothing more");
+                db.GetCollection("rows").Count().Should().Be(1);
+                var recorded = info["readOnlyReason"].AsString;
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => db.GetCollection("rows").Insert(Row(3)), recorded);
+                log.Length.Should().Be(truncationFails ? WalChecksum.FrameSize / 2 : 0, "the read-only engine wrote nothing more");
             }
             using var reopened = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log });
             reopened.Query("rows", Query.All()).ToList().Select(x => x["_id"].AsInt32).Should().Equal(1);

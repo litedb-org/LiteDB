@@ -18,18 +18,24 @@ namespace LiteDB.Internals
     {
         /// <summary>
         /// Marking the header invalid overwrites it in place, so it needs a durable header journal
-        /// first: a failed journal sync stops it before any data write.
+        /// first: a failed journal sync stops it before any data write. Without durable commits the
+        /// commit stays in the OS cache only; with them it synced, so a power loss keeps it either way.
         /// </summary>
         [Theory]
-        [InlineData(null, false)]
-        [InlineData("secret", false)]
-        [InlineData(null, true)]
-        [InlineData("secret", true)]
-        public void RecoveryMarkerRequiresDurableJournalWhenSyncFails(string password, bool rejectJournalSync)
+        [InlineData(null, false, false)]
+        [InlineData("secret", false, false)]
+        [InlineData(null, false, true)]
+        [InlineData("secret", false, true)]
+        [InlineData(null, true, false)]
+        [InlineData("secret", true, false)]
+        [InlineData(null, true, true)]
+        [InlineData("secret", true, true)]
+        public void RecoveryMarkerRequiresDurableJournalWhenSyncFails(string password, bool durableCommits, bool rejectJournalSync)
         {
             using var data = new CheckpointDevice();
             using var log = new CheckpointDevice();
-            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+            var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password, DurableCommits = durableCommits };
+            using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.CheckpointSize = 0;
@@ -42,9 +48,8 @@ namespace LiteDB.Internals
                 var originalData = data.ToArray();
                 db.BeginTrans();
                 rows.Update(Documents(1));
-                log.SuccessfulSyncsBeforeFailure = 0;
                 db.Commit().Should().BeTrue();
-                log.RejectedSyncs.Should().Be(1);
+                log.RejectedSyncs.Should().Be(0);
 
                 log.SuccessfulSyncsBeforeFailure = rejectJournalSync ? 1 : 0;
                 log.SyncFailure = new IOException("durable sync failed");
@@ -56,34 +61,7 @@ namespace LiteDB.Internals
                 engine.GetMonitor().Transactions.Should().BeEmpty();
             }
             AssertRecovery(data.ToArray(), log.ToArray(), password, 1);
-            AssertRecovery(data.Durable, log.Durable, password, rejectJournalSync ? 1 : 0);
-        }
-
-        [Theory]
-        [InlineData(null)]
-        [InlineData("secret")]
-        public void CheckpointRetriesDurableSyncAfterCommitFallback(string password)
-        {
-            using var data = new CheckpointDevice();
-            using var log = new CheckpointDevice();
-            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
-            using (var db = new LiteDatabase(engine, disposeOnClose: false))
-            {
-                db.CheckpointSize = 0;
-                var rows = db.GetCollection("rows");
-                rows.Insert(Documents(0));
-                rows.EnsureIndex("value");
-                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" });
-                db.Checkpoint();
-                db.BeginTrans();
-                rows.Update(Documents(1));
-                log.SuccessfulSyncsBeforeFailure = 0;
-                db.Commit().Should().BeTrue();
-                log.RejectedSyncs.Should().Be(1);
-                log.SuccessfulSyncsBeforeFailure = -1;
-                engine.Checkpoint().Should().BeGreaterThan(0);
-            }
-            AssertRecovery(data.Durable, log.Durable, password, 1);
+            AssertRecovery(data.Durable, log.Durable, password, durableCommits || rejectJournalSync ? 1 : 0);
         }
 
         /// <summary>
@@ -139,9 +117,12 @@ namespace LiteDB.Internals
         }
 
         /// <summary>
-        /// Commits and a checkpoint whose log sync then fails, unlike an unsupported one, in both modes:
-        /// the checkpoint throws before any data overwrite, the failure is recorded (decision 6) and
-        /// the engine stops. A durable commit survives a power loss only once it synced.
+        /// Commits that were acknowledged durable (or opted out) and a checkpoint whose log sync then
+        /// fails, unlike an unsupported one, in both modes: the checkpoint throws before any data
+        /// overwrite. The failure is sticky (decision 6 of docs/decisions/durability-policy.md): the
+        /// engine keeps reading exactly the committed rows, $database reports it, and the next write
+        /// throws with it (the engine closed for reads too before). A durable commit survives a power
+        /// loss; an opted-out one only if the checkpoint's first barrier synced it.
         /// </summary>
         [Theory]
         [InlineData(null, false, false)]
@@ -175,13 +156,9 @@ namespace LiteDB.Internals
 
                 db.BeginTrans();
                 rows.Update(Documents(1));
-                // With the default setting, exercise an already degraded commit.
-                // With opt-out, the first rejected sync happens in checkpoint.
-                log.SuccessfulSyncsBeforeFailure = 0;
                 db.Commit().Should().BeTrue();
-                db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
-                // The degraded commit's sync, and the log sync $database.walKept retried after it.
-                log.RejectedSyncs.Should().Be(durableCommits ? 2 : 0);
+                WriteFailureAssert.Info(db)["durableLogFlush"].AsBoolean.Should().Be(durableCommits);
+                log.RejectedSyncs.Should().Be(0);
                 var originalWal = log.ToArray();
                 var preamble = password == null ? 0 : PAGE_SIZE;
                 var frameBytes = (originalWal.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize;
@@ -196,25 +173,22 @@ namespace LiteDB.Internals
                 data.ObservedWrites.Should().Be(0, "checkpoint needs durable redo before any data overwrite");
                 data.ToArray().Should().Equal(originalData);
                 log.ToArray().Take(preamble + (int)frameBytes).Should().Equal(originalWal.Take(preamble + (int)frameBytes));
-                log.RejectedSyncs.Should().Be(durableCommits ? 3 : 1, "checkpoint must retry real sync even after commit fallback");
-                // Recorded before the stop (decision 6); the stopped engine reads nothing more, so its state says so.
-                var failure = engine.GetState().WriteFailure;
-                failure.Operation.Should().Be("A checkpoint");
-                failure.File.Should().Be("log");
-                failure.Error.Should().Be("durable sync failed");
-                failure.WalKept.Should().BeTrue();
+                log.RejectedSyncs.Should().Be(1);
+
+                rows.FindAll().Should().BeEquivalentTo(Documents(1));
+                var reason = WriteFailureAssert.Recorded(db, "A checkpoint", "log", "durable sync failed", walKept: true);
+                WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 100 }), reason);
+                db.Rollback().Should().BeFalse("no transaction is open");
                 data.ObservedWrites.Should().Be(0);
-                Action write = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
-                write.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
-                Action rollback = () => db.Rollback();
-                rollback.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
+                log.RejectedSyncs.Should().Be(1, "a refused write asks the storage nothing");
+                rows.FindAll().Should().BeEquivalentTo(Documents(1));
             }
 
             // Process death retains OS-cache bytes; they contain the whole commit.
             AssertRecovery(data.ToArray(), log.ToArray(), password, 1);
-            // Power loss loses unsynced bytes. A successful first barrier retains
-            // the update; otherwise only the fully checkpointed old state survives.
-            AssertRecovery(data.Durable, log.Durable, password, rejectJournalSync ? 1 : 0);
+            // Power loss loses unsynced bytes. A durable commit, or a successful first barrier,
+            // retains the update; otherwise only the fully checkpointed old state survives.
+            AssertRecovery(data.Durable, log.Durable, password, durableCommits || rejectJournalSync ? 1 : 0);
         }
 
         /// <summary>
@@ -279,6 +253,56 @@ namespace LiteDB.Internals
             // $database.walKept retried one too at each of the two reads above (as for the data file).
             log.RejectedSyncs.Should().Be(6, "the close checkpoint tried a real sync too");
             AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
+            AssertRecovery(data.Durable, log.Durable, password, 0);
+        }
+
+        /// <summary>
+        /// With durable commits (the default) the same storage fails loudly (decision 3): the log was
+        /// proven by earlier commits, so the commit whose own sync answers "cannot sync" has written its
+        /// frames and throws with an unknown outcome (implementation note 4) instead of being
+        /// acknowledged. No checkpoint follows; the engine records the failure, keeps reading and refuses
+        /// the next write (decision 6). A process crash keeps the
+        /// commit (its frames reached the OS), a power loss keeps exactly the earlier state.
+        /// </summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void UnsupportedCommitSync_FailsTheDurableCommitAndKeepsReading(string password)
+        {
+            using var data = new CheckpointDevice();
+            using var log = new CheckpointDevice();
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                rows.Insert(Documents(0));
+                rows.EnsureIndex("value");
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" });
+                db.Checkpoint();
+                log.FlushToDisk();
+                var originalData = data.ToArray();
+
+                db.BeginTrans();
+                rows.Update(Documents(1));
+                log.SuccessfulSyncsBeforeFailure = 0;
+                Action commit = () => db.Commit();
+                commit.Should().Throw<IOException>().WithMessage(WriteFailureAssert.OutcomeUnknown + "*")
+                    .Which.InnerException.Should().BeSameAs(log.SyncFailure);
+                log.RejectedSyncs.Should().Be(1);
+                data.ToArray().Should().Equal(originalData);
+
+                // The read-only reopen replays the log as it is: the failed commit's frames reached the OS, so it
+                // may show (its outcome is unknown). Showing only what was acknowledged is a later layer's.
+                rows.FindAll().Should().BeEquivalentTo(Documents(1));
+                var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
+                var wal = log.ToArray();
+                WriteFailureAssert.Refused(() => rows.Update(Documents(2)), reason);
+                log.RejectedSyncs.Should().Be(1, "a refused write asks the storage nothing");
+                data.ToArray().Should().Equal(originalData);
+                log.ToArray().Should().Equal(wal);
+            }
+            AssertRecovery(data.ToArray(), log.ToArray(), password, 1);
             AssertRecovery(data.Durable, log.Durable, password, 0);
         }
 

@@ -33,6 +33,107 @@ namespace LiteDB.Tests.Regressions
         private static readonly ImageKind[] Kinds = { ImageKind.Lost, ImageKind.WrittenBack, ImageKind.Torn };
 
         /// <summary>
+        /// A retiring checkpoint whose data sync of the witness root fails, as "cannot sync" (#2242) or
+        /// as an EIO that forgets the header write ("fsyncgate"), stops with the root in the OS cache
+        /// only and its header journal pending. Another connection's next engine reuses none of the slots
+        /// that root retired before its open made the root durable: while the data file cannot sync it
+        /// opens read-only and writes nothing; once it syncs (after an EIO, right away) the open writes
+        /// the header back and syncs it, and only then does a commit reuse slots. The engine is a new
+        /// direct or shared connection's, or the next operation's of a shared connection opened before
+        /// the checkpoint: its data barrier (decision 14) already ran, so nothing but the open syncs the
+        /// data file before the commit. Every overwrite of a WAL frame is checked against the root on
+        /// the device.
+        /// </summary>
+        [Theory]
+        [InlineData(false, "direct")]
+        [InlineData(false, "shared")]
+        [InlineData(false, "shared-open")]
+        [InlineData(true, "direct")]
+        [InlineData(true, "shared")]
+        [InlineData(true, "shared-open")]
+        public void Slots_behind_a_root_whose_sync_failed_are_reused_only_once_an_open_made_it_durable(bool eio, string connection)
+        {
+            using var file = new TempFile();
+            using var logFile = new TempFile();
+            using var data = new ForgetfulFile(file.Filename);
+            using var log = new ForgetfulFile(logFile.Filename);
+            Setup(file.Filename, data, log, null);
+            using var open = connection == "shared-open" ? new SharedEngine(Settings(file.Filename, data, log, null)) : null;
+            using var openDb = open == null ? null : new LiteDatabase(open, disposeOnClose: false);
+            if (openDb != null)
+            {
+                Update(openDb, 0);
+                DurableLogFlush(openDb).Should().BeTrue("the connection's data barrier ran");
+            }
+            void Connect(Action<LiteDatabase> use)
+            {
+                if (openDb != null) use(openDb);
+                else
+                {
+                    using var engine = Open(Settings(file.Filename, data, log, null), connection != "direct");
+                    using var db = new LiteDatabase(engine, disposeOnClose: false);
+                    use(db);
+                }
+            }
+
+            var armed = false;
+            var settings = Settings(file.Filename, data, log, null);
+            settings.CheckpointStage = stage =>
+            {
+                if (!armed || stage != AtRootPublication) return;
+                armed = false;
+                if (eio) data.FailNextSync = true;
+                else data.CannotSync = true;
+            };
+            using (var first = Open(settings, connection != "direct"))
+            using (var db = new LiteDatabase(first, disposeOnClose: false))
+                RetireUnderAReader(first, db, () => armed = true, fails: true);
+            var root = RetirementRoot(data.Live);
+            root.Should().BeGreaterThan(0, "the checkpoint wrote its witness root");
+            RetirementRoot(data.Durable).Should().Be(0, "the root's sync failed: it is in the OS cache only");
+            Recover((data.Durable, log.Durable), null, 9);
+
+            if (!eio)
+            {
+                var files = (Data: data.Live, Log: log.Live);
+                Connect(db =>
+                {
+                    UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                    SyncPowerLossModel.AssertRows(db, Rows, 9);
+                });
+                log.Live.Should().Equal(files.Log, "no retired slot is reused while the root cannot be made durable");
+                data.Live.Should().Equal(files.Data);
+                data.CannotSync = false; // the storage syncs again
+            }
+
+            var violations = new List<string>();
+            var overwrites = 0;
+            log.BeforeWrite = (position, count) =>
+            {
+                if (position >= log.Length) return;
+                overwrites++;
+                var durable = RetirementRoot(data.Durable);
+                if (durable != root || RetirementRoot(data.Live) != root)
+                    violations.Add($"frame at {position} overwritten while the device's root is {durable}, not {root}");
+            };
+            try
+            {
+                Connect(db =>
+                {
+                    SyncPowerLossModel.AssertRows(db, Rows, 9);
+                    CommitWithPowerLossImages(db, data, log, null, 9, 10, committed: () =>
+                    {
+                        overwrites.Should().BeGreaterThan(0, "the commit reused slots the root retired");
+                        violations.Should().BeEmpty();
+                    });
+                });
+            }
+            finally { log.BeforeWrite = null; }
+            RetirementRoot(data.Durable).Should().Be(root, "the open made the root durable");
+            Recover((data.Durable, log.Durable), null, 10);
+        }
+
+        /// <summary>
         /// A retiring checkpoint published its root durably and cleared the slots it retired. Its
         /// clears reached the device ("synced"); or their sync failed with EIO and forgot them
         /// ("forgotten": the device keeps the old frames, the cache shows cleared slots that no later

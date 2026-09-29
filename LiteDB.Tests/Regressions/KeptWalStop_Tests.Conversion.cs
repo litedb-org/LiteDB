@@ -14,6 +14,52 @@ namespace LiteDB.Tests.Regressions
     public partial class KeptWalStop_Tests
     {
         /// <summary>
+        /// A 5.0.21 file whose data file syncs for the conversion's first two syncs, not for the sync
+        /// of its converted header: the conversion emptied the log (the legacy header's backup and
+        /// its journal) anyway. It now stops with both kept, and the open falls back to read-only
+        /// ("Cannot convert this legacy database now"): it reads every document, refuses writes and
+        /// writes nothing more. The power-loss image and, once the data file syncs, the database
+        /// itself open converted with every document.
+        /// </summary>
+        [Fact]
+        public void Conversion_whose_header_sync_fails_opens_read_only_until_the_data_file_syncs()
+        {
+            using var file = new TempFile();
+            var original = Fixture("plain.db");
+            File.WriteAllBytes(file.Filename, original);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var expected = LegacyContents(file.Filename);
+            try
+            {
+                (byte[] Data, byte[] Log) image;
+                using (var power = new FilePowerLossModel(file.Filename) { DataFailsFromSync = 3 })
+                {
+                    byte[] data, log;
+                    using (var db = new LiteDatabase(file.Filename))
+                    {
+                        power.DataSyncs.Should().BeGreaterOrEqualTo(3, "the header's sync was reached");
+                        (data, log) = (SyncPowerLossModel.ReadShared(file.Filename), SyncPowerLossModel.ReadShared(logName));
+                        log.Length.Should().BeGreaterThan(0, "the legacy header backup and the journal are kept");
+                        UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused,
+                            x =>
+                            {
+                                Contents(x).Should().BeEquivalentTo(expected, o => o.WithStrictOrdering());
+                                UnsyncedReadOnlyOpen_Tests.AssertPlainRows(x);
+                            }).Should().Contain("cannot sync");
+                    }
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine wrote nothing");
+                    SyncPowerLossModel.ReadShared(logName).Should().Equal(log);
+                    image = power.Capture();
+                }
+                image.Data.Should().Equal(original, "the converted header never synced");
+                FilePowerLossModel.Open(image, db => AssertConverted(db, expected));
+                using var converted = new LiteDatabase(file.Filename);
+                AssertConverted(converted, expected);
+            }
+            finally { File.Delete(logName); }
+        }
+
+        /// <summary>
         /// A WAL in memory (LiteDatabase(Stream) over a caller FileStream) survives no power loss,
         /// so nothing waits for a data sync on its behalf: a 5.0.21 file converts on a data file
         /// that cannot sync, and the WAL is still emptied by checkpoints.

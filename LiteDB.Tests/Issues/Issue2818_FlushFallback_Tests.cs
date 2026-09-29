@@ -8,6 +8,12 @@ using Xunit;
 
 namespace LiteDB.Tests.Issues
 {
+    /// <summary>
+    /// #2818: what a commit does when the log's storage rejects a device sync (#2242) or fails one.
+    /// Without durable commits a rejection is not a failure and commits flush to the OS; with them a
+    /// commit that cannot be made durable throws and the failure is sticky
+    /// (docs/decisions/durability-policy.md, decisions 3 and 6); a real failure stops writes in both.
+    /// </summary>
     public class Issue2818_FlushFallback_Tests
     {
         // Windows reports HRESULT_FROM_WIN32(code); Unix runtimes report the raw errno.
@@ -23,6 +29,9 @@ namespace LiteDB.Tests.Issues
         {
             public int DurableFlushes { get; private set; }
             public int PlainFlushes { get; private set; }
+            // Plain flushes after a durable flush failed: a fallback that papers over the failure.
+            public int PlainFlushesAfterDurableFailure { get; private set; }
+            private bool _durableFailed;
             public Exception DurableFailure { get; set; }
             public Exception PlainFailure { get; set; }
 
@@ -39,12 +48,14 @@ namespace LiteDB.Tests.Issues
                 if (flushToDisk)
                 {
                     DurableFlushes++;
+                    _durableFailed = DurableFailure != null;
                     if (DurableFailure != null) throw DurableFailure;
                     base.Flush(true);
                 }
                 else
                 {
                     PlainFlushes++;
+                    if (_durableFailed) PlainFlushesAfterDurableFailure++;
                     if (PlainFailure != null) throw PlainFailure;
                 }
             }
@@ -65,9 +76,79 @@ namespace LiteDB.Tests.Issues
             return data;
         }
 
+        /// <summary>
+        /// Opted out of durable commits (proposed default A of docs/decisions/durability-policy.md), a
+        /// log whose storage rejects a device sync is not a failure: commits flush to the OS only, as
+        /// they always do without durable commits, and a checkpoint that asks for a device sync and is
+        /// rejected proceeds in write order. The weaker guarantee is discoverable, nothing is recorded.
+        /// </summary>
         [Theory]
         [MemberData(nameof(UnsupportedDurableFlush))]
-        public void Commit_degrades_once_to_a_plain_flush_when_storage_rejects_durable_flush(
+        public void Commit_flushes_to_the_os_when_storage_rejects_durable_flush_without_durable_commits(
+            Exception rejection, string password)
+        {
+            using var dataFile = new TempFile();
+            using var logFile = new TempFile();
+            using var data = new ScriptedFlushFile(dataFile.Filename);
+            using var log = new ScriptedFlushFile(logFile.Filename);
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, DurableCommits = false }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                // The second insert reads the log, so the pooled log reader exists before the
+                // rejection is armed: opening an encrypted stream issues its own durable flush.
+                rows.Insert(new BsonDocument { ["_id"] = 0 });
+                rows.Insert(new BsonDocument { ["_id"] = 1 });
+
+                var durableBefore = log.DurableFlushes;
+                var plainBefore = log.PlainFlushes;
+                log.DurableFailure = rejection;
+
+                rows.Insert(new BsonDocument { ["_id"] = 2 });
+                rows.Insert(new BsonDocument { ["_id"] = 3 });
+                db.BeginTrans();
+                rows.Insert(new BsonDocument { ["_id"] = 4 });
+                db.Commit();
+
+                log.DurableFlushes.Should().Be(durableBefore, "an opted-out commit never asks for a device sync");
+                log.PlainFlushes.Should().BeGreaterThanOrEqualTo(plainBefore + 3,
+                    "every commit still flushes the log to the OS");
+
+                db.Checkpoint();
+                log.DurableFlushes.Should().BeGreaterThan(durableBefore, "a checkpoint still tries a real sync");
+                rows.Insert(new BsonDocument { ["_id"] = 5 });
+
+                DurableLogFlush(db).Should().BeFalse("the degradation must be discoverable");
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1, 2, 3, 4, 5);
+            }
+
+            log.DurableFailure = null;
+
+            using (var reopenedEngine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+            using (var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false))
+            {
+                reopened.GetCollection("rows").FindAll()
+                    .Select(x => x["_id"].AsInt32)
+                    .OrderBy(x => x)
+                    .Should().Equal(0, 1, 2, 3, 4, 5);
+            }
+        }
+
+        /// <summary>
+        /// With durable commits (the default) a log that stops syncing after the proof before the
+        /// engine's first commit fails the commit that finds out (decision 3, implementation note 4):
+        /// its frames already reached the operating system, so its error says the outcome is unknown.
+        /// It used to be acknowledged, degraded to a plain flush. The failure is sticky (decision 6): no
+        /// further device sync is asked, reads keep working from the files as they are (the commit's
+        /// frames reached them), $database reports it, and the next write throws with it. A later
+        /// engine lets the files decide: the commit's frames are there.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(UnsupportedDurableFlush))]
+        public void Commit_fails_with_an_unknown_outcome_when_storage_starts_rejecting_durable_flush(
             Exception rejection, string password)
         {
             using var dataFile = new TempFile();
@@ -87,21 +168,24 @@ namespace LiteDB.Tests.Issues
                 DurableLogFlush(db).Should().BeTrue("a durable flush that works must keep being used");
 
                 var durableBefore = log.DurableFlushes;
-                var plainBefore = log.PlainFlushes;
                 log.DurableFailure = rejection;
 
-                rows.Insert(new BsonDocument { ["_id"] = 2 });
-                rows.Insert(new BsonDocument { ["_id"] = 3 });
-                db.BeginTrans();
-                rows.Insert(new BsonDocument { ["_id"] = 4 });
-                db.Commit();
+                Action insert = () => rows.Insert(new BsonDocument { ["_id"] = 2 });
+                insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.OutcomeUnknown + "*")
+                    .Which.InnerException.Should().BeSameAs(rejection);
+                log.DurableFlushes.Should().Be(durableBefore + 1);
 
-                log.DurableFlushes.Should().Be(durableBefore + 1,
-                    "the rejected durable flush is remembered, not retried on every commit");
-                log.PlainFlushes.Should().BeGreaterThanOrEqualTo(plainBefore + 3,
-                    "every commit after the rejection still flushes the log to the OS");
-                DurableLogFlush(db).Should().BeFalse("the degradation must be discoverable");
-                rows.Count().Should().Be(5);
+                // The read-only reopen replays the files as they are: the failed commit's frames reached them,
+                // so it shows (its outcome is unknown). Showing only what was acknowledged is a later layer's.
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1, 2);
+                var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
+                var dataNow = TempFile.ReadAllBytesShared(dataFile.Filename);
+                var logNow = TempFile.ReadAllBytesShared(logFile.Filename);
+                WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 3 }), reason);
+                log.DurableFlushes.Should().Be(durableBefore + 1, "a refused write asks the storage nothing");
+                TempFile.ReadAllBytesShared(dataFile.Filename).Should().Equal(dataNow);
+                TempFile.ReadAllBytesShared(logFile.Filename).Should().Equal(logNow);
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1, 2);
             }
 
             log.DurableFailure = null;
@@ -112,7 +196,10 @@ namespace LiteDB.Tests.Issues
                 reopened.GetCollection("rows").FindAll()
                     .Select(x => x["_id"].AsInt32)
                     .OrderBy(x => x)
-                    .Should().Equal(0, 1, 2, 3, 4);
+                    .Should().Equal(0, 1, 2);
+                WriteFailureAssert.NoneRecorded(reopened, "a reopen retries");
+                reopened.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3 });
+                DurableLogFlush(reopened).Should().BeTrue();
             }
         }
 
@@ -136,6 +223,7 @@ namespace LiteDB.Tests.Issues
 
             write.Should().Throw<IOException>().Which.Should().BeSameAs(log.DurableFailure);
             log.PlainFlushes.Should().Be(plainBefore, "an I/O failure must not be papered over by a weaker flush");
+            log.PlainFlushesAfterDurableFailure.Should().Be(0);
             nextWrite.Should().Throw<IOException>();
             log.DurableFailure = null;
         }

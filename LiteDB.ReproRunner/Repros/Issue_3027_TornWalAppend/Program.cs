@@ -14,11 +14,10 @@ namespace Issue_3027_TornWalAppend;
 /// stream, UnauthorizedAccessException for EACCES) and kept committing: when the truncation of the
 /// torn frame failed too, or when a buffering caller log stream (a BufferedStream) held the frame and
 /// tore it only when it wrote it on later, the next commits were acknowledged behind the torn frame
-/// and lost at the next recovery. Fixed: such a failure stops the engine before the WAL writer is
-/// released; every later operation throws the original failure before it changes a byte, so no
-/// commit is acknowledged behind a torn frame, and recovery keeps every acknowledged commit. (The
-/// terminal stop is this layer's documented failure behavior; a later layer lets the failed engine
-/// continue read-only and restores that assertion.)
+/// and lost at the next recovery. Fixed: such a failure stops the
+/// engine and is recorded, the engine continues read-only (decision 6 of
+/// docs/decisions/durability-policy.md) and refuses every later write before it changes a byte, so no
+/// commit is acknowledged behind a torn frame, and recovery keeps every acknowledged commit.
 ///
 /// Black box: the database runs on caller streams (EngineSettings.DataStream/LogStream). The log
 /// stream is a MemoryStream whose armed frame write stores half the frame and throws, and whose
@@ -36,7 +35,7 @@ internal static class Program
     private const int Inconclusive = 2;
     // A WAL frame: a page (8192 bytes) and its 64-byte checksum trailer.
     private const int FrameSize = 8192 + 64;
-    private const string Refusal = "Engine closed after an I/O failure";
+    private const string Refusal = "Cannot modify this database: an earlier write failed, so the engine continues read-only";
     private const string TornFrame = "injected torn frame write";
 
     private static int Main()
@@ -82,12 +81,12 @@ internal static class Program
 
         foreach (var scenario in scenarios)
         {
-            Require(scenario.Refused, $"{scenario.Name}: the operations after the failure were not all refused with the original failure");
+            Require(scenario.Refused, $"{scenario.Name}: the writes after the failure were not all refused with the recorded failure");
             Require(scenario.Recovered.SequenceEqual(Enumerable.Range(1, 20)), $"{scenario.Name}: recovered {Ids(scenario.Recovered)}, expected 1-20");
             Require(scenario.Later, $"{scenario.Name}: the recovered database did not take and keep later commits");
         }
-        return (Fixed, "FIXED: after a torn WAL frame (its truncation failed, or a BufferedStream log tore it later) the engine stopped " +
-            "and refused every later operation with the original failure; recovery kept every acknowledged commit and took new ones");
+        return (Fixed, "FIXED: after a torn WAL frame (its truncation failed, or a BufferedStream log tore it later) the engine continued " +
+            "read-only and refused every later write; recovery kept every acknowledged commit and took new ones");
     }
 
     private sealed record Outcome(string Name, List<int> Acknowledged, List<int> Recovered, bool Refused, bool Later);
@@ -142,12 +141,19 @@ internal static class Program
 
             if (refusals == 2)
             {
-                // The fixed engine stopped: an update and a read throw the original failure too, and it
-                // writes nothing, so nothing lands behind the torn frame.
-                RequireStopped(() => rows.Update(Row(1, 7)), $"{name}: an update after the failure");
-                RequireStopped(() => rows.FindAll().ToList(), $"{name}: a read after the failure");
+                // The fixed engine continues read-only: it reads what the streams hold, refuses an update
+                // too, and writes nothing, so nothing lands behind the torn frame.
+                var read = rows.FindAll().Select(x => x["_id"].AsInt32).ToList();
+                Require(read.SequenceEqual(Enumerable.Range(1, 20)), $"{name}: the read-only engine reads {Ids(read)}, expected 1-20");
+                try
+                {
+                    rows.Update(Row(1, 7));
+                    throw new InvalidOperationException($"{name}: an update after the failure was not refused");
+                }
+                catch (IOException error) when (error.Message.StartsWith(Refusal, StringComparison.Ordinal)) { }
+                Require(rows.Count() == 20, $"{name}: the read-only engine counts {rows.Count()} rows");
                 Require(data.ToArray().SequenceEqual(files.Data) && device.ToArray().SequenceEqual(files.Log),
-                    $"{name}: the stopped engine changed the streams");
+                    $"{name}: the read-only engine changed the streams");
                 refused = true;
             }
             // A killed process leaves the bytes that reached the device.
@@ -204,20 +210,6 @@ internal static class Program
     {
         ["_id"] = id, ["value"] = value, ["payload"] = new string('p', 500)
     };
-
-    /// <summary>The operation throws the stopped engine's error, which carries the original failure.</summary>
-    private static void RequireStopped(Action operation, string what)
-    {
-        try
-        {
-            operation();
-        }
-        catch (IOException error) when (error.Message.StartsWith(Refusal, StringComparison.Ordinal) && error.ToString().Contains(TornFrame))
-        {
-            return;
-        }
-        throw new InvalidOperationException($"{what} did not throw the original failure");
-    }
 
     private static void Require(bool condition, string message)
     {

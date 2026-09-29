@@ -5,6 +5,7 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Regressions;
 using Xunit;
 using static LiteDB.Constants;
 
@@ -206,10 +207,21 @@ namespace LiteDB.Internals
                 cache.PinnedPages.Should().Be(0);
                 cache.LostFrames.Should().Be(0);
                 AssertValues(test.Recover("docs", checkpoint: false), 0);
-                Action rollback = () => test.Database.Rollback();
-                rollback.Should().Throw<IOException>().WithMessage("*injected confirmation failure");
+
+                // The failure is recorded (decision 6 of docs/decisions/durability-policy.md): the next
+                // call reopens the engine read-only. Rollback completes the transaction the failure
+                // ended, reads return the last committed values, and a write throws with the record,
+                // carrying the failure itself, before it changes the log.
+                var bytes = (Data: test.Data.ToArray(), Log: test.Log.ToArray());
+                test.Database.Rollback().Should().BeTrue("the failure ended this thread's explicit transaction");
+                AssertValues(test.Database.GetCollection("docs").FindAll().ToArray(), 0);
+                var record = ReadOnlyAfterWriteFailure.AssertReported(test.Database, "A commit", null, "injected confirmation failure");
                 Action nextWrite = () => test.Update("docs", 2);
-                nextWrite.Should().Throw<IOException>().WithMessage("*injected confirmation failure");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(nextWrite, record)
+                    .InnerException.Should().BeOfType<IOException>().Which.Message.Should().Be("injected confirmation failure");
+                AssertValues(test.Database.GetCollection("docs").FindAll().ToArray(), 0);
+                test.Data.ToArray().Should().Equal(bytes.Data, "the refused write changes nothing");
+                test.Log.ToArray().Should().Equal(bytes.Log);
             }
             finally
             {

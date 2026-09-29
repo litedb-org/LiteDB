@@ -11,9 +11,10 @@ namespace LiteDB.Tests.Regressions
     /// A WAL append that fails part-way can leave a torn frame at the end of the WAL; the failed
     /// write then truncates it. If that truncation fails too, the torn frame stays, and recovery
     /// stops at it: a commit written behind it would be lost. Such a write now stops the engine
-    /// before the WAL writer is released, whatever the exception type: every later operation
-    /// throws the original failure and changes no byte, so no commit is written after the torn
-    /// frame; a later open's recovery discards the torn tail.
+    /// before the WAL writer is released, whatever the exception type, and records the failure: the
+    /// engine's next call reopens it read-only (decision 6 of docs/decisions/durability-policy.md),
+    /// so it reads what the files hold and refuses every write before it changes anything, and no
+    /// commit is written after the torn frame; a later open's recovery discards the torn tail.
     /// When the truncation succeeds, a non-I/O failure of a safepoint write only rolls back, and
     /// the failed append's position is released, so the next append rewrites that slot instead
     /// of leaving a hole behind it.
@@ -32,7 +33,7 @@ namespace LiteDB.Tests.Regressions
         [InlineData(2, false, true)]
         [InlineData(1, true, true)]
         [InlineData(2, true, true)]
-        public void Failed_truncation_of_a_torn_append_stops_the_engine(int frame, bool completeFrame, bool ioFailure)
+        public void Failed_truncation_of_a_torn_append_leaves_the_engine_read_only(int frame, bool completeFrame, bool ioFailure)
         {
             using var data = new MemoryStream();
             using var log = new TornLog { IoFailure = ioFailure };
@@ -52,15 +53,17 @@ namespace LiteDB.Tests.Regressions
                 log.SetLengthFailed.Should().BeTrue("the truncation of the torn frame failed too");
                 log.Disarm();
 
-                // No commit may follow the torn frame: the engine stopped, and every later operation
-                // throws the original failure before it changes a byte.
+                // No commit may follow the torn frame: the engine continues read-only, reads the rows
+                // acknowledged before the failure, and refuses every write before it changes a byte.
                 var files = (Data: data.ToArray(), Log: log.ToArray());
                 var rows = db.GetCollection("rows");
-                var cause = ioFailure ? "injected torn frame write" : "WAL frame write failed.";
-                AssertStopped(() => rows.Insert(Row(300, 0)), cause);
-                AssertStopped(() => rows.Update(Row(1, 7)), cause);
-                AssertStopped(() => rows.FindAll().ToList(), cause);
-                data.ToArray().Should().Equal(files.Data, "the stopped engine writes nothing");
+                rows.FindAll().Should().BeEquivalentTo(Enumerable.Range(1, 20).Select(id => Row(id, 0)), o => o.WithStrictOrdering());
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log",
+                    ioFailure ? "injected torn frame write" : "WAL frame write failed.");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => rows.Insert(Row(300, 0)), record);
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => rows.Update(Row(1, 7)), record);
+                rows.Count().Should().Be(20);
+                data.ToArray().Should().Equal(files.Data, "the read-only engine writes nothing");
                 log.ToArray().Should().Equal(files.Log, "nothing is appended behind the torn frame");
             }
 
@@ -153,8 +156,11 @@ namespace LiteDB.Tests.Regressions
                         db.GetCollection("rows").Insert(Row(id, 0));
                         acknowledged.Add(id);
                     }
-                    // A refused write is not acknowledged: the failed batch stopped the engine.
-                    catch (Exception ex) when (ex.Message.StartsWith("Engine closed")) { }
+                    // A refused write is not acknowledged: after a recorded write failure the engine
+                    // continues read-only (decision 6 of docs/decisions/durability-policy.md); after a
+                    // safepoint's failed I/O it stays closed instead (a suspected defect, see
+                    // Issue2821_Tests.Disk_full_safepoint_write_leaves_the_engine_read_only).
+                    catch (Exception ex) when (ex.Message.StartsWith(LiteEngine.WriteFailedPrefix) || ex.Message.StartsWith("Engine closed")) { }
                 }
                 // A killed process loses what the stream holds; the device keeps what reached it.
                 image = (data.ToArray(), device.ToArray());
@@ -167,14 +173,6 @@ namespace LiteDB.Tests.Regressions
                 .Should().BeEquivalentTo(acknowledged, "every acknowledged commit survives, the failed one is absent");
             torn.Should().BeTrue("a frame the stream held reached the device torn");
             acknowledged.Should().NotContain(100, "the insert whose frame was torn failed");
-        }
-
-        /// <summary>The engine stopped: the operation throws, naming the failure that stopped it.</summary>
-        private static void AssertStopped(Action operation, string cause)
-        {
-            operation.Should().Throw<IOException>()
-                .Where(x => x.Message.StartsWith("Engine closed after an I/O failure") && x.ToString().Contains(cause),
-                    "a stopped engine throws its original failure and performs no further write or sync");
         }
 
         private static void WriteLater(LiteDatabase db)

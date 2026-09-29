@@ -20,7 +20,7 @@ namespace LiteDB.Tests.Regressions
     /// backfill to that data file. Like a checkpoint, a promotion now writes only to a data file
     /// that just synced (it is refused unchanged otherwise), and stops the engine with its journal
     /// kept when the data file stops syncing after its header write; the failure is recorded, and the
-    /// engine stops (decision 6 of docs/decisions/durability-policy.md). Power-loss
+    /// engine continues read-only (decision 6 of docs/decisions/durability-policy.md). Power-loss
     /// images keep each file as of its last successful sync, take both as written, or tear the data
     /// header.
     /// </summary>
@@ -35,8 +35,8 @@ namespace LiteDB.Tests.Regressions
         /// first; the data file stops syncing right after the promotion wrote its header. The
         /// checkpoint then wrote its whole backfill to that data file. It now stops: no page is
         /// written, the promotion's journal is kept, and every image opens with commit 9, which was
-        /// acknowledged durable. The failure is recorded (decision 6) and the engine stops:
-        /// it refuses reads and writes without changing a file.
+        /// acknowledged durable. The failure is recorded (decision 6): the engine continues
+        /// read-only, reads commit 9 and refuses writes without changing a file.
         /// </summary>
         [Fact]
         public void Retiring_checkpoint_stops_when_its_promotion_header_does_not_sync()
@@ -82,8 +82,8 @@ namespace LiteDB.Tests.Regressions
             var synced = power.Capture();
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
-            AssertStopped(engine, db, thrown, "A checkpoint", "The data file stopped syncing to the device during a file format promotion");
-            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the stopped engine writes nothing");
+            AssertReadOnly(db, thrown, "A checkpoint", "The data file stopped syncing to the device during a file format promotion", 9, 5);
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
             SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
             HasJournal(synced.Log).Should().BeTrue("the promotion's journal synced and is kept");
             data.Skip(PAGE_SIZE).Should().Equal(synced.Data.Skip(PAGE_SIZE), "only the promoted header was written");
@@ -233,9 +233,9 @@ namespace LiteDB.Tests.Regressions
         /// The data file stops syncing right after a compact-storage write's promotion wrote the new
         /// header. The promotion retired its journal anyway, leaving the header change in the OS cache
         /// with no durable recovery copy. It now stops the engine with the journal kept: the write is
-        /// not acknowledged, the failure is recorded and the engine stops (decision 6), refusing reads and
-        /// writes without changing a file, and every image, also one with the header torn, opens with
-        /// the rows as they were.
+        /// not acknowledged, the engine continues read-only (decision 6) with the rows as they were and
+        /// refuses writes without changing a file, and every image, also one with the header torn,
+        /// opens with the rows as they were.
         /// </summary>
         [Fact]
         public void Promotion_whose_header_does_not_sync_stops_with_its_journal()
@@ -256,8 +256,9 @@ namespace LiteDB.Tests.Regressions
             var data = SyncPowerLossModel.ReadShared(file.Filename);
             var log = SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename));
             // walKept: see Promotion_failure_record_reports_its_kept_header_journal.
-            AssertStopped(engine, db, thrown, "A file format promotion", "The data file stopped syncing to the device during a file format promotion", walKept: null);
-            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the stopped engine writes nothing");
+            AssertReadOnly(db, thrown, "A file format promotion", "The data file stopped syncing to the device during a file format promotion", 0, 0, walKept: null);
+            db.GetCollectionNames().Should().NotContain("compact");
+            SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the read-only engine writes nothing");
             SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename)).Should().Equal(log);
             HasJournal(synced.Log).Should().BeTrue("the journal synced before the header was written, and is kept");
             HasJournal(log).Should().BeTrue();
@@ -270,6 +271,117 @@ namespace LiteDB.Tests.Regressions
                     return SyncPowerLossModel.AssertRows(x, Rows, 0);
                 });
             }
+        }
+
+        /// <summary>
+        /// The promotion above stops with its header journal kept in the log file (the torn header's only
+        /// durable recovery copy; decision 1 of docs/decisions/durability-policy.md keeps the WAL and its
+        /// header journal alike). Its recorded failure said walKept false and "The log file was empty."
+        /// (found failing at #3027's head), which invites deleting that log; DiskService.RecordWriteFailure
+        /// counts whatever the log file holds, the journal included: walKept true and "The log file was kept."
+        /// </summary>
+        [Fact]
+        public void Promotion_failure_record_reports_its_kept_header_journal()
+        {
+            using var file = new TempFile();
+            SetupLegacyStorage(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            var settings = power.Settings();
+            settings.CompactStorage = CompactStorageMode.Auto;
+            using var engine = new LiteEngine(settings);
+            engine.SimulateCrashPoint = phase => { if (phase == "promotion-after-header-write") power.DataFails = true; };
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            Action insert = () => db.GetCollection("compact").Insert(Enumerable.Range(1, 4).Select(Compact));
+            insert.Should().Throw<IOException>().WithMessage("The data file stopped syncing to the device during a file format promotion*");
+            HasJournal(SyncPowerLossModel.ReadShared(FileHelper.GetLogFile(file.Filename))).Should().BeTrue("the log file keeps the header journal");
+
+            var info = Info(db);
+            info["writeFailure"]["walKept"].AsBoolean.Should().BeTrue("the log file holds the kept header journal");
+            info["readOnlyReason"].AsString.Should().EndWith("The log file was kept.");
+        }
+
+        /// <summary>
+        /// A file whose checksums an earlier engine enabled but whose indexes still need the migration
+        /// (v10): the migration's promotion needs a data sync, so while the data file cannot sync the
+        /// writable migration is refused up front, and the open falls back to the read-only remedy
+        /// the refusal names: it reads every row, refuses writes, and leaves both files unchanged;
+        /// an explicit read-only open works too, and once the data file syncs the file migrates.
+        /// </summary>
+        [Fact]
+        public void Index_migration_of_a_checksummed_file_opens_read_only_while_the_data_file_cannot_sync()
+        {
+            using var file = new TempFile();
+            SetupIndexMigration(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var data = File.ReadAllBytes(file.Filename);
+            using (var power = new FilePowerLossModel(file.Filename))
+            {
+                power.DataFails = true;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, UnsyncedReadOnlyOpen_Tests.ConversionRefused, x => SyncPowerLossModel.AssertRows(x, Rows, 0))
+                        .Should().Contain("readonly=true;legacy index scan=true");
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                (File.Exists(logName) ? File.ReadAllBytes(logName).Length : 0).Should().Be(0);
+                using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { Filename = file.Filename, ReadOnly = true, LegacyIndexScan = true })))
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                power.DataFails = false;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+            }
+            LiteDB.Tests.Engine.IndexMigration_Tests.ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+        }
+
+        /// <summary>
+        /// The same migration where the data file syncs for the migration's check at open, then not
+        /// for the promotion's own sync (refused before it writes anything: "Cannot upgrade this
+        /// database's file format now"), or only up to the promotion's header write (it stops with
+        /// its header journal kept: "stopped syncing"). Either failed the open; it now opens
+        /// read-only with that refusal as its reason, reads every row, refuses writes, and writes
+        /// nothing itself. The files as last synced are the original ones and open with every row;
+        /// once the data file syncs, the file migrates.
+        /// </summary>
+        [Theory]
+        [InlineData(2, "Cannot upgrade this database's file format now")]
+        [InlineData(3, "The data file stopped syncing to the device during a file format promotion")]
+        public void Index_migration_whose_promotion_cannot_sync_opens_read_only(int failsFromSync, string cause)
+        {
+            using var file = new TempFile();
+            SetupIndexMigration(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var original = File.ReadAllBytes(file.Filename);
+            try
+            {
+                using var power = new FilePowerLossModel(file.Filename) { DataFailsFromSync = failsFromSync };
+                byte[] data, log;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                {
+                    power.DataSyncs.Should().Be(failsFromSync, "the migration's check synced, the promotion's last sync did not");
+                    (data, log) = (File.ReadAllBytes(file.Filename), File.Exists(logName) ? File.ReadAllBytes(logName) : null);
+                    UnsyncedReadOnlyOpen_Tests.AssertReadOnlyFallback(db, cause, x => SyncPowerLossModel.AssertRows(x, Rows, 0));
+                }
+                File.ReadAllBytes(file.Filename).Should().Equal(data, "the read-only engine wrote nothing");
+                if (failsFromSync == 2)
+                {
+                    data.Should().Equal(original, "the refused promotion wrote nothing");
+                    File.Exists(logName).Should().BeFalse();
+                }
+                else
+                {
+                    File.ReadAllBytes(logName).Should().Equal(log);
+                    HasJournal(log).Should().BeTrue("the stopped promotion keeps its header journal");
+                }
+                power.Capture().Data.Should().Equal(original, "no promoted header synced");
+                power.AfterPowerLoss(x => SyncPowerLossModel.AssertRows(x, Rows, 0));
+
+                power.DataFailsFromSync = 0;
+                using (var db = LiteDB.Tests.Engine.IndexMigration_Tests.Open(file.Filename, null))
+                {
+                    Info(db)["readOnly"].AsBoolean.Should().BeFalse();
+                    SyncPowerLossModel.AssertRows(db, Rows, 0);
+                }
+            }
+            finally { File.Delete(logName); }
+            LiteDB.Tests.Engine.IndexMigration_Tests.ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         /// <summary>A file whose checksums an earlier engine enabled, whose indexes still need the migration (v10).</summary>
@@ -309,16 +421,20 @@ namespace LiteDB.Tests.Regressions
         private static BsonDocument Info(LiteDatabase db) => db.GetCollection("$database").FindAll().Single();
 
         /// <summary>
-        /// A recorded failure (<paramref name="thrown"/>) of <paramref name="operation"/> on the data file
-        /// (decision 6) stopped the engine: the record names it (with the log file kept,
-        /// <paramref name="walKept"/>; null: not checked), and a read and a write each throw the stop
-        /// error that carries it.
+        /// After a recorded failure (<paramref name="thrown"/>) of <paramref name="operation"/> on the
+        /// data file (decision 6) the engine continues read-only: it reads commit <paramref name="value"/>
+        /// and the extra rows of commits 1 to <paramref name="extras"/>, reports the failure (with the
+        /// log file kept, <paramref name="walKept"/>; null: not checked), and refuses a write with it.
         /// </summary>
-        private static void AssertStopped(LiteEngine engine, LiteDatabase db, Exception thrown, string operation, string error, bool? walKept = true)
+        private static void AssertReadOnly(LiteDatabase db, Exception thrown, string operation, string error, int value, int extras, bool? walKept = true)
         {
-            TerminalStopAfterWriteFailure.AssertRecorded(engine, operation, "data", error, walKept);
-            TerminalStopAfterWriteFailure.AssertRefused(() => SyncPowerLossModel.AssertRows(db, Rows), thrown);
-            TerminalStopAfterWriteFailure.AssertRefused(() => Update(db, 1), thrown);
+            SyncPowerLossModel.AssertRows(db, Rows, value);
+            db.GetCollection("extra").FindAll().Select(d => d["_id"].AsInt32).Should().BeEquivalentTo(
+                Enumerable.Range(1, extras).SelectMany(v => Enumerable.Range(v * 100 + 1, 10)));
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, operation, "data", error, walKept);
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update(db, value + 1), record)
+                .InnerException.Should().BeSameAs(thrown, "the refusal carries the recorded failure");
+            SyncPowerLossModel.AssertRows(db, Rows, value);
         }
 
         private static byte[] Header(string filename) => SyncPowerLossModel.ReadShared(filename).Take(PAGE_SIZE).ToArray();

@@ -20,8 +20,8 @@ namespace LiteDB.Tests.Regressions
     /// access, and the commit was acknowledged and lost at recovery (31 of 32 rows). A reader's
     /// access now first flushes what the stream holds for the writer (HeldWrites): a failure there,
     /// also one that reads like "cannot sync" (that flush only writes), fails the read as a write
-    /// failure of the log and is handed to the writer, whose batch fails and stops the engine; a
-    /// cold reopen recovers exactly the acknowledged commits. Without a failure the commit goes on.
+    /// failure of the log and is handed to the writer, whose batch fails; the engine continues
+    /// read-only (decision 6) with the acknowledged commits. Without a failure the commit goes on.
     /// Nothing is flushed per write (CallerStreamFlushCost_Tests). The reader runs in the window
     /// after a frame's write returned.
     /// </summary>
@@ -54,7 +54,6 @@ namespace LiteDB.Tests.Regressions
             var acknowledged = new List<int> { 0 };
             Exception readerFailure = null, writerFailure = null;
             List<int> readAfter = null;
-            Exception readAfterFailure = null;
             BsonDocument info = null;
             var readerReadLog = false;
             byte[] imageData, imageLog;
@@ -89,13 +88,9 @@ namespace LiteDB.Tests.Regressions
                     catch (Exception ex) { writerFailure ??= ex; }
                 }
                 reader.Should().NotBeNull("the writer reached " + point);
-                // Without a failure the engine goes on; after one it stopped and throws the failure.
-                try
-                {
-                    readAfter = db.GetCollection("b").FindAll().Select(x => x["_id"].AsInt32).ToList();
-                    info = db.Execute("SELECT $ FROM $database").Single().AsDocument;
-                }
-                catch (Exception ex) { readAfterFailure = ex; }
+                // The engine goes on: read-only after a failure (decision 6), with what was acknowledged.
+                readAfter = db.GetCollection("b").FindAll().Select(x => x["_id"].AsInt32).ToList();
+                info = db.Execute("SELECT $ FROM $database").Single().AsDocument;
                 // A killed process loses what the stream holds; the device keeps what reached it.
                 imageData = data.ToArray();
                 imageLog = device.ToArray();
@@ -111,10 +106,9 @@ namespace LiteDB.Tests.Regressions
                     "every acknowledged commit survives (reader failure: {0})", readerFailure?.GetType().Name);
             }
             readerReadLog.Should().BeTrue("the reader read the WAL in the window");
+            readAfter.Should().BeEquivalentTo(acknowledged, "the engine reads what was acknowledged");
             if (failure == "none")
             {
-                readAfterFailure.Should().BeNull();
-                readAfter.Should().BeEquivalentTo(acknowledged, "the engine reads what was acknowledged");
                 readerFailure.Should().BeNull("the reader wrote the held frame on whole");
                 writerFailure.Should().BeNull();
                 acknowledged.Should().HaveCount(32);
@@ -129,10 +123,9 @@ namespace LiteDB.Tests.Regressions
             // which the writer's batch can meet first; either way it fails inside the batch and stops.
             if (!(readerFailure is IOException))
                 writerFailure.ToString().Should().Contain("failed when another access wrote it on: injected torn write");
-            acknowledged.Should().Equal(new[] { 0 }, "the torn batch failed and the stopped engine refuses later writes");
-            readAfterFailure.Should().BeOfType<IOException>("the engine stopped after the write failure")
-                .Which.Message.Should().StartWith("Engine closed after an I/O failure");
-            readAfterFailure.ToString().Should().Contain("injected torn write", "the stopped engine throws the original failure");
+            acknowledged.Should().Equal(new[] { 0 }, "the torn batch failed and the engine refuses later writes");
+            info["readOnly"].AsBoolean.Should().BeTrue("the engine continues read-only after the write failure");
+            info["writeFailure"]["file"].AsString.Should().Be("log");
         }
 
         private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["payload"] = new string('p', 1500) };

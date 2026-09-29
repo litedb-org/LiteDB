@@ -1,7 +1,6 @@
 #if DEBUG || TESTING
 using System;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -21,7 +20,10 @@ namespace LiteDB.Tests.Regressions
     /// database worked. Data barriers now degrade like log barriers, for commits and checkpoints.
     /// Emptying a log still needs a data sync that succeeds (DiskService.KeepsWal): there a full
     /// checkpoint keeps the WAL, and a conversion or rebuild, which would empty one, is refused
-    /// with both files unchanged (5.0.21 converted, unaware of what the log last synced).
+    /// with both files unchanged (5.0.21 converted, unaware of what the log last synced); an open
+    /// whose conversion is refused opens the file read-only instead. With durable commits (the
+    /// default, docs/decisions/durability-policy.md), where the log cannot sync either a commit
+    /// throws before it writes (decision 3) and the engine continues read-only (decision 6);
     /// "durable commits=false" opts out and works as 5.0.21 did, with the WAL kept (proposed default
     /// D). Where only the data file cannot sync, commits stay durable in the WAL (decision 4) and
     /// $database reports the kept WAL; a data header that is not known to be on the device (a
@@ -77,6 +79,76 @@ namespace LiteDB.Tests.Regressions
             AssertRows(synced);
         }
 
+        /// <summary>
+        /// A database created where nothing syncs, with durable commits (the default): no log sync
+        /// can make a commit durable there, so the first commit throws before it writes (decision 3
+        /// of docs/decisions/durability-policy.md) instead of being acknowledged: the data file is
+        /// unchanged and the log holds no frame. The failure is recorded (decision 6): reads keep
+        /// working, $database reports it without a write, and every later write throws it, also a
+        /// shared connection's later operations. It lasts until the database is reopened (proposed
+        /// default C), where a commit is refused again while nothing syncs; once the storage syncs, a
+        /// commit is durable. "durable commits=false" opts out (the test above).
+        /// </summary>
+        [Theory]
+        [InlineData(22, false)] // EINVAL
+        [InlineData(30, false)] // EROFS
+        [InlineData(22, true)]  // through a shared connection
+        public void Durable_commit_to_a_database_created_where_nothing_syncs_is_refused_before_it_writes(int errno, bool shared)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            byte[] data;
+            NativeFileSync.SimulateErrno = _ => errno;
+            try
+            {
+                using (var db = new LiteDatabase(shared ? $"Filename={file.Filename};Connection=shared" : file.Filename))
+                {
+                    db.GetCollection("rows").Count().Should().Be(0);
+                    // Shared reads: on Windows the engine's handle refuses a reader that denies writers.
+                    data = SyncPowerLossModel.ReadShared(file.Filename);
+                    Action insert = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "first" });
+                    insert.Should().Throw<IOException>().WithMessage(CommitNotWritten);
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the refused commit wrote nothing");
+                    LogLength(logName).Should().Be(0, "not a frame");
+
+                    db.GetCollection("rows").Count().Should().Be(0, "reads keep working");
+                    // A shared connection's later operations open a fresh engine: carrying the record to
+                    // them is the connection-wide propagation of a later layer.
+                    if (!shared)
+                    {
+                        var info = Info(db);
+                        info["readOnly"].AsBoolean.Should().BeTrue();
+                        var failure = info["writeFailure"].AsDocument;
+                        failure["file"].AsString.Should().BeOneOf(new[] { "log", "data" }, "neither file syncs");
+                        failure["operation"].AsString.Should().Be("A commit");
+                        failure["error"].AsString.Should().Match(CommitNotWritten);
+                        failure["walKept"].AsBoolean.Should().BeFalse();
+                        Action index = () => db.GetCollection("rows").EnsureIndex("value");
+                        index.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
+                        insert.Should().Throw<IOException>().Which.Message.Should().StartWith(LiteEngine.WriteFailedPrefix + "A commit failed");
+                        db.GetCollection("rows").FindAll().Should().BeEmpty();
+                    }
+                    else insert.Should().Throw<IOException>().WithMessage(CommitNotWritten, "each operation's engine proves the log again");
+                }
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+
+                using (var reopened = new LiteDatabase(file.Filename))
+                {
+                    Info(reopened)["writeFailure"].IsNull.Should().BeTrue("the failure lasts until the database is reopened");
+                    Action insert = () => reopened.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "first" });
+                    insert.Should().Throw<IOException>().WithMessage(CommitNotWritten);
+                }
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                LogLength(logName).Should().Be(0);
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+
+            using var synced = new LiteDatabase(file.Filename);
+            synced.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "first" });
+            DurableLogFlush(synced).Should().BeTrue();
+            synced.GetCollection("rows").FindAll().Should().BeEquivalentTo(new[] { new BsonDocument { ["_id"] = 1, ["value"] = "first" } });
+        }
+
         /// <summary>A durable commit refused before it wrote, because a file cannot sync (#2242).</summary>
         internal const string CommitNotWritten = "This commit was not written: *cannot sync to the device (#2242)*";
 
@@ -92,10 +164,11 @@ namespace LiteDB.Tests.Regressions
         /// or written back as it is, or with its header torn to zeros, beside the WAL as last synced:
         /// each opens with every committed row, whole, and the value index. A reopen finds the header
         /// in the WAL and commits the same way; once the data file syncs, a checkpoint drains the WAL
-        /// and loses nothing.
+        /// and loses nothing. Fails until decisions 8 and 10 are implemented.
         /// </summary>
         [Theory]
         [InlineData(false)]
+        [InlineData(true)] // through a shared connection, which opens an engine per operation
         public void Durable_commits_to_a_database_created_where_only_its_data_file_cannot_sync_are_durable_in_the_wal(bool shared)
         {
             using var file = new TempFile();
@@ -147,6 +220,7 @@ namespace LiteDB.Tests.Regressions
             var info = Info(db);
             info["durableLogFlush"].AsBoolean.Should().BeTrue("the commits are durable in the WAL (decision 8)");
             info["walKept"].AsBoolean.Should().BeTrue();
+            info["readOnly"].AsBoolean.Should().BeFalse();
             info["writeFailure"].IsNull.Should().BeTrue("nothing failed");
             AssertRows(db, count);
             AssertAfterPowerLoss(power, filename, count);
@@ -166,6 +240,71 @@ namespace LiteDB.Tests.Regressions
             var torn = written.ToArray();
             Array.Clear(torn, 0, Math.Min(torn.Length, Constants.PAGE_SIZE));
             FilePowerLossModel.Open((torn, log), x => AssertRows(x, count));
+        }
+
+        /// <summary>
+        /// A data file that cannot sync while the log can, on a database whose header synced earlier
+        /// in this process. Commits stay durable in the WAL (decision 4), so durableLogFlush stays
+        /// true; what $database reports is the kept WAL (walKept, logFileSize and walLimit), and a
+        /// power loss keeps every commit, also the checkpointed ones. Once the data file syncs, a
+        /// checkpoint drains the WAL.
+        /// </summary>
+        [Fact]
+        public void Data_file_that_cannot_sync_is_reported_even_when_the_log_can()
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using (var setup = new LiteDatabase(file.Filename)) setup.GetCollection("rows").EnsureIndex("value");
+            using var power = new FilePowerLossModel(file.Filename) { DataFails = true };
+            try
+            {
+                using var db = new LiteDatabase(file.Filename);
+                db.GetCollection("rows").Insert(Enumerable.Range(1, 20).Select(Row));
+                db.Checkpoint();
+                var info = Info(db);
+                info["durableLogFlush"].AsBoolean.Should().BeTrue("commits stay durable in the WAL");
+                info["walKept"].AsBoolean.Should().BeTrue("checkpointed commits are not in the data file on the device");
+                info["walLimit"].AsInt64.Should().Be(EngineSettings.DEFAULT_WAL_LIMIT);
+                info["logFileSize"].AsInt64.Should().BeGreaterThan(0);
+                info["writeFailure"].IsNull.Should().BeTrue();
+                power.AfterPowerLoss(x => AssertRows(x, 20));
+
+                power.DataFails = false;
+                db.Checkpoint();
+                Info(db)["walKept"].AsBoolean.Should().BeFalse();
+                new FileInfo(logName).Length.Should().Be(0);
+                power.AfterPowerLoss(x => AssertRows(x, 20));
+            }
+            finally { File.Delete(logName); }
+        }
+
+        /// <summary>
+        /// A rebuild on storage that cannot sync is refused before the engine closes and leaves no
+        /// recovery marker that would block every open; the instance keeps reading. The rows are
+        /// written opted out of durable commits: with them no commit could be made there at all.
+        /// </summary>
+        [Fact]
+        public void Rebuild_on_storage_that_cannot_sync_is_refused_without_blocking_the_database()
+        {
+            using var file = new TempFile();
+            var optedOut = $"Filename={file.Filename};Durable Commits=false";
+            NativeFileSync.SimulateErrno = _ => 22;
+            try
+            {
+                using (var db = new LiteDatabase(optedOut))
+                {
+                    db.GetCollection("rows").Insert(Enumerable.Range(0, 50).Select(i => new BsonDocument { ["_id"] = i }));
+                    Action rebuild = () => db.Rebuild();
+                    rebuild.Should().Throw<IOException>().WithMessage("Cannot rebuild this database now*");
+                    db.GetCollection("rows").Count().Should().Be(50, "the refusal left the instance open");
+                }
+                using (var db = new LiteDatabase(optedOut)) db.GetCollection("rows").Count().Should().Be(50);
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+
+            File.Exists(RebuildRecovery.GetMarkerFilename(file.Filename)).Should().BeFalse();
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 50));
         }
 
         /// <summary>

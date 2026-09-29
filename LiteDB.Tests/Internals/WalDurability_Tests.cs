@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Regressions;
 using Xunit;
 
 namespace LiteDB.Tests.Internals
@@ -120,6 +121,15 @@ namespace LiteDB.Tests.Internals
                 .And.OnlyContain(document => document["value"].AsInt32 == 9);
         }
 
+        /// <summary>
+        /// A commit whose durable log flush fails throws that failure, whatever its type, and stops the
+        /// engine. The failure is recorded (decision 6 of docs/decisions/durability-policy.md): the next
+        /// call reopens the engine read-only from the files as they are: the failed commit's frames
+        /// reached the file before its flush failed, so its outcome is unknown to the caller, and a
+        /// later open lets the files decide. Rollback completes the explicit transaction
+        /// the failure ended, and every later write throws with the record before it changes the
+        /// files; the read-only engine never flushes.
+        /// </summary>
         [Theory]
         [InlineData(false, false, null)]
         [InlineData(false, true, null)]
@@ -152,11 +162,33 @@ namespace LiteDB.Tests.Internals
             var failure = write.Should().Throw<IOException>().Which;
             if (nonIoFailure) failure.InnerException.Should().BeSameAs(log.Failure);
             else failure.Should().BeSameAs(log.Failure);
-            Action rollback = () => db.Rollback();
-            rollback.Should().Throw<IOException>();
+            var flushes = log.DurableFlushes;
+            var files = (Data: SyncPowerLossModel.ReadShared(dataFile.Filename), Log: SyncPowerLossModel.ReadShared(logFile.Filename));
+            db.Rollback().Should().Be(explicitTransaction, "Rollback completes the explicit transaction the failure ended");
+            // The read-only reopen replays the files as they are: the failed commit's frames reached them,
+            // so it may show (its outcome is unknown). Showing only what was acknowledged is a later layer's.
+            rows.FindAll().Single()["value"].AsString.Should().Be("after");
+            var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A commit's log flush", "log",
+                nonIoFailure ? "WAL durable flush failed." : "flush failed");
             Action nextWrite = () => rows.Insert(new BsonDocument { ["_id"] = 2 });
-            nextWrite.Should().Throw<IOException>();
+            ReadOnlyAfterWriteFailure.AssertWriteRefused(nextWrite, record)
+                .InnerException.Should().BeSameAs(failure, "the refusal carries the recorded failure");
+            if (explicitTransaction)
+            {
+                db.BeginTrans().Should().BeTrue();
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(write, record);
+                db.Rollback().Should().BeTrue();
+            }
+            rows.Count().Should().Be(1);
+            SyncPowerLossModel.ReadShared(dataFile.Filename).Should().Equal(files.Data, "neither the read-only reopen nor a refused write changes the files");
+            SyncPowerLossModel.ReadShared(logFile.Filename).Should().Equal(files.Log);
+            log.DurableFlushes.Should().Be(flushes, "the read-only engine never flushes");
             log.Failure = null;
+
+            engine.Dispose();
+            using var later = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true });
+            later.Query("rows", Query.All()).ToList().Single()["value"].AsString.Should().Be("after",
+                "a later open lets the files decide: the failed commit's frames reached them");
         }
 
         [Theory]

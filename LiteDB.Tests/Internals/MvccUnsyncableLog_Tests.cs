@@ -15,7 +15,8 @@ namespace LiteDB.Internals
     /// Without a durable clear, a reused slot could overwrite a retired version that unsynced data
     /// pages still depend on after a power loss, so the WAL appends like dev. A retiring checkpoint
     /// first proves both files can sync, so a known rejection retires nothing; only a log that stops
-    /// syncing during the retiring checkpoint, after that proof, leaves cleared slots behind.
+    /// syncing during the retiring checkpoint, after that proof, leaves cleared slots behind. With
+    /// durable commits that checkpoint fails loudly and the engine continues read-only (decisions 3, 6).
     /// </summary>
     public class MvccUnsyncableLog_Tests
     {
@@ -126,6 +127,52 @@ namespace LiteDB.Internals
 
             AssertValues(dataCopy, logCopy, "cold", 25);
             AssertValues(dataCopy, logCopy, "docs", 20);
+        }
+
+        /// <summary>
+        /// With durable commits (the default) the snapshot checkpoint whose log stops syncing while it
+        /// clears retired slots throws (decision 3): the clears' sync is a recovery barrier, and the
+        /// explicit checkpoint is the caller's own operation. The failure is sticky (decision 6): reads
+        /// return exactly the committed values, $database reports it, the next write throws with it,
+        /// and the slots it cleared are never reused. What a killed process leaves recovers exactly.
+        /// </summary>
+        [Fact]
+        public void Snapshot_checkpoint_whose_log_stops_syncing_while_it_clears_slots_fails_loudly_with_durable_commits()
+        {
+            using var data = new MemoryStream();
+            using var log = new UnsyncableLog { Syncable = true };
+            byte[] crashedData, crashedLog;
+            using (var engine = Open(data, log))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.Pragma(Pragmas.CHECKPOINT, 0);
+                Write(db, "cold", 0);
+                Write(db, "docs", 0);
+                for (var value = 1; value <= 20; value++) Write(db, "docs", value);
+                using (engine.Query("docs", new Query()))
+                {
+                    engine.CheckpointStage = stage => { if (stage == "wal-slot-cleared") log.Syncable = false; };
+                    Action checkpoint = () => MvccCheckpoint_Tests.RunThread(() => engine.Checkpoint());
+                    checkpoint.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogCannotSync + "*");
+                }
+                log.Rejections.Should().Be(1, "only the sync of the clears was rejected");
+                var cleared = log.ToArray();
+                BlankFrames(cleared).Should().NotBeEmpty("the checkpoint cleared the slots it retired");
+
+                db.GetCollection("docs").FindAll().Should().HaveCount(DocumentCount).And.OnlyContain(doc => doc["value"].AsInt32 == 20);
+                db.GetCollection("cold").FindAll().Should().HaveCount(DocumentCount).And.OnlyContain(doc => doc["value"].AsInt32 == 0);
+                var reason = WriteFailureAssert.Recorded(db, "A checkpoint", "log", WriteFailureAssert.LogCannotSync, walKept: true);
+                crashedData = data.ToArray();
+                WriteFailureAssert.Refused(() => Write(db, "cold", 21), reason);
+                log.ToArray().Should().Equal(cleared, "a refused write reuses no cleared slot");
+                data.ToArray().Should().Equal(crashedData);
+                log.Rejections.Should().Be(1, "a refused write asks the storage nothing");
+                crashedLog = log.ToArray();
+            }
+
+            // A killed process leaves every byte in the OS cache; reopen that image.
+            AssertValues(new MemoryStream(crashedData), new MemoryStream(crashedLog), "cold", 0);
+            AssertValues(new MemoryStream(crashedData), new MemoryStream(crashedLog), "docs", 20);
         }
 
         private static int[] BlankFrames(byte[] log) => Enumerable.Range(0, log.Length / WalChecksum.FrameSize)

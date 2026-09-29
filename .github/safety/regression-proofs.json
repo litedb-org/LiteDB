@@ -31,10 +31,10 @@
       "repro": "Issue_3027_TornWalAppend",
       "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
       "permanentGuard": [
-        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_stops_the_engine",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_leaves_the_engine_read_only",
         "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Truncated_torn_append_is_rewritten_by_the_next_commit",
         "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit",
-        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit",
         "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost"
       ]
     },

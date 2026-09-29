@@ -177,6 +177,63 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// While the log is known not to sync, no checkpoint can drain the WAL, so the WAL limit holds
+        /// although the data file syncs (decision D). With a 64 KiB limit, every write that starts at or
+        /// below it is accepted; past it an insert, an update and a new index throw a plain IOException
+        /// before they change anything, and nothing is recorded: the limit is not a write failure. Reads
+        /// keep working, and $database reports the WAL kept. Once the log syncs, the next write passes (it
+        /// tries the log sync first, as for the data file), and a checkpoint drains the WAL.
+        /// </summary>
+        [Fact]
+        public void Wal_limit_holds_while_the_log_cannot_sync_though_the_data_file_syncs()
+        {
+            const long limit = 64 * 1024;
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            Setup(file.Filename, 0);
+            using var power = new FilePowerLossModel(file.Filename) { LogFails = true };
+            try
+            {
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = false, WalLimit = limit });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                var rows = 0;
+                db.GetCollection("rows").Insert(Row(++rows));
+                var dataSyncs = power.DataSyncs;
+                engine.Checkpoint().Should().Be(0, "the checkpoint finds out that the log cannot sync");
+                power.DataSyncs.Should().BeGreaterThan(dataSyncs, "its data sync came first, and succeeded: the log is what holds the limit");
+                while (Info(db)["logFileSize"].AsInt64 <= limit)
+                {
+                    rows.Should().BeLessThan(100, "the WAL grows with every commit");
+                    db.GetCollection("rows").Insert(Row(++rows)); // started at or below the limit: accepted
+                }
+                var files = (SyncPowerLossModel.ReadShared(file.Filename), SyncPowerLossModel.ReadShared(logName));
+                AssertRefused(() => db.GetCollection("rows").Insert(Row(rows + 1)));
+                AssertRefused(() => db.GetCollection("rows").Update(Row(1, value: 9)));
+                AssertRefused(() => db.GetCollection("rows").EnsureIndex("payload"));
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(files.Item1, "a refused write changes nothing");
+                SyncPowerLossModel.ReadShared(logName).Should().Equal(files.Item2);
+
+                AssertRows(db, rows);
+                var info = Info(db);
+                info["readOnly"].AsBoolean.Should().BeFalse("the limit is not a write failure");
+                info["writeFailure"].IsNull.Should().BeTrue();
+                info["walKept"].AsBoolean.Should().BeTrue("no checkpoint can drain the WAL while the log cannot sync");
+
+                power.LogFails = false;
+                // A write past the limit tries the log sync first: once it syncs, a checkpoint can drain the WAL.
+                db.GetCollection("rows").Insert(Row(++rows));
+                Info(db)["walKept"].AsBoolean.Should().BeFalse();
+                engine.Checkpoint().Should().BeGreaterThan(0);
+                new FileInfo(logName).Length.Should().Be(0, "once the log syncs, a checkpoint drains the WAL");
+                power.AfterPowerLoss(x => AssertRows(x, rows));
+                db.GetCollection("rows").Update(Row(1, value: 9));
+                db.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(9, "writes resume");
+            }
+            finally { File.Delete(logName); }
+        }
+
+        /// <summary>
         /// Opted out, the first compact write to a v11 file (compact storage=auto) needs the v12 format,
         /// whose promotion overwrites the header behind a header journal: on a log that cannot sync it is
         /// refused before the journal, and the write falls back to BSON, as while the data file cannot
