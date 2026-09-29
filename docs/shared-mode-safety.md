@@ -40,7 +40,8 @@ under the mutex. A larger one registers its lease for that engine's read version
 while the mutex is still held and then continues the same reader, so the query
 runs once. A file that needs a writable open first (creation, upgrade, index
 migration, promotion, auto-rebuild) is read through the writable engine as
-before. Leases are exclusive handles created with delete-on-close: a held lease
+before, and so is `$database`, which describes the connection's own engine
+(`readOnly`, `readOnlyReason`, `walKept`). Leases are exclusive handles created with delete-on-close: a held lease
 cannot be taken by a prober's exclusive open, and a closed one removes itself.
 Registration does not scan the registry; checkpoints remove the leases of
 crashed readers and fail closed on a registry they cannot read (performance
@@ -108,10 +109,18 @@ ordered OS-cache flushing there, which survives a process crash but not power
 loss; any other sync error stops the barrier before data is overwritten. On such
 storage reclaimed WAL slots are never reused. Every shared operation opens a fresh
 engine, so before its first reuse of a slot found blank at open, that engine syncs
-the raw log once; a "cannot sync" answer makes it append instead.
+the raw log once; a "cannot sync" answer makes it append instead. The data barrier
+before the first commit is best effort and runs once per shared connection, never
+per operation (decision 14 of the [decisions](decisions/durability-policy.md)). With
+durable commits a log or WAL directory that cannot sync fails the commit before it
+writes; each operation's fresh engine proves the log again. A write or sync failure
+stops that operation's engine; carrying the record to the connection's later
+operations is a later layer's (until then an operation that opens over a header
+journal the failure kept, while the data file cannot sync, opens read-only).
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
-or has acknowledged a commit after that fallback. Shared connections retain this
+or its log fell back to OS-cache flushes (only possible after opting out; with
+durable commits such a commit throws instead). Shared connections retain this
 diagnostic across internal engine reopenings, including diagnostic queries. A
 later engine still attempts device sync; retaining the diagnostic does not disable
 sync. A new independent connection starts with its own diagnostic state. The

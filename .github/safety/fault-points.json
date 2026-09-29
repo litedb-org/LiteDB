@@ -1707,9 +1707,14 @@
           "proves": "A failed directory sync fails the commit."
         },
         {
-          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
           "model": "capability",
-          "proves": "Unsupported directory sync degrades durability visibly and keeps committing."
+          "proves": "Without durable commits, a WAL directory that cannot sync keeps committing and reports the log as not durable (decision 9)."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes",
+          "model": "capability",
+          "proves": "With durable commits, a WAL directory that cannot sync fails the commit before it writes a frame (decision 9)."
         }
       ]
     },
@@ -1754,6 +1759,7 @@
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
     "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
+    "DataBarrierRan": "Counts runs of the best-effort data barrier before a first commit per data file (decision 14) to pin its once-per-connection cost; measurement only, not a fault boundary.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",

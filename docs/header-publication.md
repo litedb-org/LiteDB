@@ -157,13 +157,17 @@ intact during shutdown.
 Storage that rejects sync as unsupported (some network shares and virtual file systems,
 #2242) is different: it can never make recovery information durable. The rules follow the
 maintainer's decisions ([decisions/durability-policy.md](decisions/durability-policy.md);
-its "Layer status" says which parts are in place). A log that answers "cannot sync" backs no
-in-place overwrite, in both commit modes: a checkpoint writes nothing and keeps the WAL, a
-compact write stores BSON instead of promoting the file format, and a conversion or any other
-promotion is refused, each before it writes, until a log sync succeeds again (every checkpoint
-tries one). Commits reach the operating system in order, reported by
-`$database.durableLogFlush=false`, so a killed process still recovers them; power loss can lose
-recent commits, never the data file's integrity.
+its "Layer status" says which parts are in place).
+With durable commits (the default) a log that answers "cannot sync" is a failure: a commit
+throws before it writes a frame (an engine proves, before its first commit, that the log and
+its directory sync), a checkpoint stops before it writes on, and an open that must sync the
+log first opens read-only. With `durable commits=false` that answer is not a failure, but it
+backs no in-place overwrite (decision D): a checkpoint writes nothing and keeps the WAL, a
+compact write stores BSON instead of promoting the file format, a conversion opens read-only
+and the invalid-state marker is refused, each before it writes, until a log sync succeeds
+again (every checkpoint, and every write past `wal limit`, tries one). Commits reach the
+operating system in order, so a killed process still recovers them; power loss can lose recent
+commits, the risk the caller accepted, never the data file's integrity.
 
 A data file that answers "cannot sync" never loses what the WAL holds. Commits stay durable
 in the WAL, whose syncs continue: every WAL starts with a header frame, a copy of the data
@@ -179,10 +183,15 @@ one (of any connection or process) synced the WAL's frames, so the WAL, its head
 and a legacy header backup are removed only after a data sync that covers every data write
 of the engine succeeded; every log shrink goes through that check. Every checkpoint that
 writes first syncs the data file and writes nothing while that sync fails, whichever engine
-runs it: the WAL grows until the data file syncs again (`$database.walKept`). A data sync
-that fails later in the same checkpoint (after the backfill, the salt rotation or a
-retirement root) records a write failure before anything is removed, leaving the state of a
-crash at that point, and stops the engine. A format promotion keeps its journal the same
+runs it: the WAL grows until the data file syncs again (`$database.walKept`, `walLimit`), also
+on storage that never syncs, and past `wal limit` a write throws while reads keep working. An
+engine still syncs the data file once before its first commit, best effort (decision 14); no
+commit depends on it. A data sync that fails later in the same checkpoint (after the backfill,
+the salt rotation or a retirement root) records a write failure before anything is removed,
+leaving the state of a crash at that point; the engine continues read-only until reopened. A
+writable open that would have to retire a journal, convert or migrate while the data file
+cannot sync opens read-only instead (writes throw, `$database.readOnlyReason` says why), and a
+rebuild is refused, both files unchanged. A format promotion keeps its journal the same
 way: it writes only right after a data sync that succeeded, is refused otherwise, and records
 a failure with the journal kept when the data file stops syncing after its header write. A
 promotion that waited for the WAL writer while a checkpoint failed, or once a failure is

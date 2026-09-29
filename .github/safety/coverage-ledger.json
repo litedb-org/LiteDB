@@ -39,14 +39,16 @@
       "id": "3027-checkpoint-log-cannot-sync",
       "kind": "test-removed",
       "subjects": [
+        "LiteDB.Internals.CheckpointDurability_Tests.CheckpointRetriesDurableSyncAfterCommitFallback",
         "LiteDB.Internals.CheckpointDurability_Tests.UnsupportedCheckpointSync_ProceedsInWriteOrderAndKeepsWriting"
       ],
       "disposition": "intentional-change",
       "invariant": "A checkpoint on a log that answers \"cannot sync\" never loses a commit and never tears the data file; it retries the log sync and drains the WAL once the log syncs.",
-      "reason": "Decision D: no in-place overwrite behind a recovery copy that is only in the OS cache, in both commit modes. Such a checkpoint now writes nothing and keeps the WAL (it used to overwrite data in write order). The new tests assert byte-identical files, kept frames, the drain once the log syncs and power-loss images. (S09a; the durable-commit fail-loud variant follows with S09c.)",
+      "reason": "Decision D and implementation note 12: no in-place overwrite behind a recovery copy that is only in the OS cache, in both commit modes. Without durable commits such a checkpoint now writes nothing and keeps the WAL (it used to overwrite data in write order); with durable commits the commit whose log answers \"cannot sync\" fails instead (decision 3), so the degraded commit that CheckpointRetriesDurableSyncAfterCommitFallback set up no longer exists. The new tests assert byte-identical files, kept frames, the drain once the log syncs and power-loss images.",
       "coveredBy": [
         "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#CheckpointDrainsTheWalOnceTheLogSyncsAfterAnEarlierCheckpointWroteNothing",
         "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#UnsupportedCheckpointSync_WritesNothingAndKeepsTheWal_WithoutDurableCommits",
+        "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#UnsupportedCommitSync_FailsTheDurableCommitAndKeepsReading",
         "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Checkpoints_on_a_log_that_cannot_sync_write_nothing_and_keep_the_wal_without_durable_commits"
       ],
       "decision": "docs/decisions/durability-policy.md"
@@ -59,10 +61,11 @@
       ],
       "disposition": "intentional-change",
       "invariant": "Storage that cannot sync never reuses retired WAL slots, and a snapshot checkpoint there keeps the reader's snapshot and every commit.",
-      "reason": "Renamed for the opted-out mode it runs in; a checkpoint whose log cannot sync now retires nothing (it proves its syncs first), so the slot-clear case is forced by a log that stops syncing at the clears.",
+      "reason": "Decision 3 splits the scenario by mode: without durable commits it still appends instead of reusing slots (a checkpoint whose log cannot sync retires nothing, so the slot-clear case is forced by a log that stops syncing at the clears); with durable commits that checkpoint now fails loudly and the engine continues read-only.",
       "coveredBy": [
+        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced",
         "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Snapshot_checkpoint_on_a_log_that_never_syncs_appends_instead_of_reusing_slots_without_durable_commits",
-        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced"
+        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Snapshot_checkpoint_whose_log_stops_syncing_while_it_clears_slots_fails_loudly_with_durable_commits"
       ],
       "decision": "docs/decisions/durability-policy.md"
     },
@@ -70,12 +73,16 @@
       "id": "3027-shared-log-cannot-sync",
       "kind": "test-removed",
       "subjects": [
+        "LiteDB.Internals.SharedDurability_Tests.UnsupportedSync_RemainsVisibleAfterSharedEngineReopens",
         "LiteDB.Internals.SharedUnsyncableLog_Tests.Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync"
       ],
       "disposition": "intentional-change",
-      "invariant": "A shared connection on a log that cannot sync never reuses slots retired there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file.",
-      "reason": "Decision D and the retirement proof: a checkpoint on a log known not to sync, or that stops syncing after its proof, now retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per stop point, with a second connection.",
+      "invariant": "A shared connection on a log that cannot sync reports it after later operations reopen engines, never acknowledges a commit as durable there, never reuses slots retired there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file.",
+      "reason": "Decisions 3 and D and the retirement proof: with durable commits a commit whose log answers \"cannot sync\" fails (outcome unknown once its frames reached the OS) and a checkpoint on it fails loudly; without durable commits \"cannot sync\" is no failure (default A) and the degraded commit is acknowledged, as before. A checkpoint on a log known not to sync, or that stops syncing after its proof, retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per mode and stop point, with a second connection.",
       "coveredBy": [
+        "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_FailsTheCommitWithAnUnknownOutcomeOnASharedConnection",
+        "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_IsNotAFailureForASharedConnectionWithoutDurableCommits",
+        "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.Durable.cs#Shared_checkpoint_on_a_log_that_stops_syncing_fails_loudly_with_durable_commits",
         "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits"
       ],
       "decision": "docs/decisions/durability-policy.md"
@@ -90,12 +97,16 @@
         "LiteDB.Tests.Issues.Issue2242_UnsyncableLog_Tests.New_database_on_a_log_that_never_syncs_writes_checkpoints_and_reopens"
       ],
       "disposition": "intentional-change",
-      "invariant": "A database on a log that never syncs keeps every committed row, and no format change tears its header.",
-      "reason": "Decision D: an index migration, a 5.x conversion or a compact promotion overwrites the header behind a journal the log cannot make durable, so it is refused before it writes, in both commit modes: the open throws the refusal (tagged as unsynced storage) with both files byte for byte, and a compact write stores BSON instead. They used to publish the new format behind an OS-cached journal. The new-database test runs opted out, as the storage requires. (The read-only open fallback after such a refusal follows with S09c.)",
+      "invariant": "A database on a log that never syncs stays readable with every committed row, and no format change tears its header.",
+      "reason": "Implementation note 12 and decisions 2, 3 and D: an index migration, a 5.x conversion or a compact promotion overwrites the header behind a journal the log cannot make durable, so it is refused before it writes: the open falls back to read-only, and a compact write stores BSON instead. With durable commits the commit fails before it writes. They used to publish the new format behind an OS-cached journal.",
       "coveredBy": [
-        "LiteDB.Tests/Engine/IndexPromotionDurability_Tests.cs#Unsupported_journal_sync_refuses_the_promotion_before_it_writes",
+        "LiteDB.Tests/Engine/IndexPromotionDurability_Tests.cs#Unsupported_journal_sync_opens_read_only_without_publishing_the_new_format_with_durable_commits",
+        "LiteDB.Tests/Engine/IndexPromotionDurability_Tests.cs#Unsupported_journal_sync_opens_read_only_without_publishing_the_new_format_without_durable_commits",
         "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Compact_promotion_on_a_log_that_never_syncs_falls_back_to_bson_without_durable_commits",
-        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Legacy_database_on_a_log_that_never_syncs_is_not_converted",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Compact_promotion_on_a_log_that_never_syncs_is_refused_and_keeps_reading_with_durable_commits",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Legacy_database_on_a_log_that_never_syncs_opens_read_only_with_durable_commits",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Legacy_database_on_a_log_that_never_syncs_opens_read_only_without_durable_commits",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#New_database_on_a_log_that_never_syncs_refuses_a_durable_commit_before_it_writes",
         "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#New_database_on_a_log_that_never_syncs_writes_checkpoints_and_reopens_without_durable_commits"
       ],
       "decision": "docs/decisions/durability-policy.md"
@@ -104,13 +115,22 @@
       "id": "3027-durable-commits-log-cannot-sync",
       "kind": "test-removed",
       "subjects": [
-        "LiteDB.Tests.Issues.Issue2818_DurableCommits_Tests.Opted_out_checkpoint_syncs_the_log_and_then_the_data_file"
+        "LiteDB.Tests.Issues.Issue2818_DurableCommits_Tests.Automatic_checkpoint_tolerates_log_storage_that_stops_syncing",
+        "LiteDB.Tests.Issues.Issue2818_DurableCommits_Tests.Checkpoint_tolerates_log_storage_that_cannot_sync",
+        "LiteDB.Tests.Issues.Issue2818_DurableCommits_Tests.Opted_out_checkpoint_syncs_the_log_and_then_the_data_file",
+        "LiteDB.Tests.Issues.Issue2818_FlushFallback_Tests.Commit_degrades_once_to_a_plain_flush_when_storage_rejects_durable_flush",
+        "LiteDB.Tests.Issues.NativeFileSync_Tests.Log_that_answers_cannot_sync_degrades_and_keeps_data"
       ],
       "disposition": "intentional-change",
-      "invariant": "An opted-out checkpoint makes the log durable before it overwrites data.",
-      "reason": "The opted-out checkpoint's sync order gained the data sync first (a checkpoint writes only to a data file that just synced), so the test was renamed with the new order and now also checks that no data page is written before the log syncs.",
+      "invariant": "Log storage that rejects sync never corrupts data, a commit is never acknowledged as durable when it is not, and an opted-out checkpoint makes the log durable before it overwrites data.",
+      "reason": "Decisions 3 and D: with durable commits a log that cannot sync fails the commit (before it writes, or with outcome unknown when it stops syncing after the frames reached the OS) instead of degrading silently; without durable commits it degrades and a checkpoint writes nothing behind it. The opted-out checkpoint's sync order gained the data sync first (a checkpoint writes only to a data file that just synced), so that test was renamed with the new order.",
       "coveredBy": [
-        "LiteDB.Tests/Issues/Issue2818_DurableCommits_Tests.cs#Opted_out_checkpoint_syncs_the_log_before_it_overwrites_data"
+        "LiteDB.Tests/Issues/Issue2818_DurableCommits_Tests.cs#Opted_out_checkpoint_syncs_the_log_before_it_overwrites_data",
+        "LiteDB.Tests/Issues/Issue2818_FlushFallback_Tests.cs#Commit_fails_with_an_unknown_outcome_when_storage_starts_rejecting_durable_flush",
+        "LiteDB.Tests/Issues/Issue2818_FlushFallback_Tests.cs#Commit_flushes_to_the_os_when_storage_rejects_durable_flush_without_durable_commits",
+        "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Log_that_answers_cannot_sync_degrades_and_keeps_data_without_durable_commits",
+        "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Log_that_answers_cannot_sync_refuses_a_durable_commit_before_it_writes",
+        "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#UnsupportedCheckpointSync_WritesNothingAndKeepsTheWal_WithoutDurableCommits"
       ],
       "decision": "docs/decisions/durability-policy.md"
     },
@@ -148,6 +168,49 @@
         "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows"
       ],
       "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-durable-commit-tests-split",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Issues/Issue2818_DurableCommits_Tests.cs"
+      ],
+      "disposition": "relocated",
+      "invariant": "Durable commits on storage that cannot sync, and the opted-out checkpoint's barriers.",
+      "reason": "The two tolerance tests of this file (see 3027-durable-commits-log-cannot-sync) moved to the per-mode tests of CheckpointDurability_Tests, NativeFileSync_Tests and OverwriteBarrier_Tests; one assertion call fewer remains here.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#UnsupportedCommitSync_FailsTheDurableCommitAndKeepsReading",
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Checkpoints_on_a_log_that_cannot_sync_write_nothing_and_keep_the_wal_without_durable_commits"
+      ]
+    },
+    {
+      "id": "3027-wal-directory-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.WalDirectorySync_Tests.A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A WAL directory that cannot sync is reported and never loses a commit acknowledged as durable.",
+      "reason": "Decision 9: with durable commits such a directory fails the commit before it writes; without durable commits it keeps committing and reports the log as not durable.",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes",
+        "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-directory-errno-evidence",
+      "kind": "fault-evidence-removed",
+      "subjects": [
+        "injector:SimulateDirectoryErrno"
+      ],
+      "disposition": "replaced",
+      "invariant": "A WAL directory that cannot sync degrades visibly and never loses an acknowledged commit.",
+      "reason": "The evidence test was split by mode (decision 9, see 3027-wal-directory-cannot-sync); the registry names both new tests.",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
+        "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes"
+      ]
     }
   ]
 }
