@@ -354,3 +354,39 @@ a commit whose log sync failed stay in the OS cache only, and a later process ma
 ([#3048](https://github.com/litedb-org/LiteDB/issues/3048)); a rebuild whose recovery marker or
 directory cannot sync installs its replacement without a power-loss guarantee
 ([#3049](https://github.com/litedb-org/LiteDB/issues/3049)).
+
+## WAL slot reuse without a sync of its own
+
+This section supersedes the clause of "Coherent WAL durability and recovery protocol" above that
+an engine syncs the data file and the log once before it first reuses a retired WAL slot. Reusing
+a slot now syncs nothing (note 15 of the [durability decisions](decisions/durability-policy.md)).
+A slot is free only while its witness root is on the device: the retiring checkpoint synced the
+witness records before the root and the root before it removed its header journal; if that sync
+failed, the journal stays and the next open writes the header back and syncs it before retiring
+the journal, or opens read-only. A clear lost to a power loss leaves a witnessed old frame that
+recovery skips, like a torn or unconfirmed new frame there. Storage known not to sync, and a log
+whose syncs cannot report failure, still never reuse slots.
+
+What changes for callers: in shared mode every operation opens a fresh engine, so each operation
+that reuses a slot saves one log sync (the data file's proof was already skipped for a header this
+process synced). A direct connection saves one log sync per engine. Without durable commits, a
+second connection that never learned that its log cannot sync now reuses witnessed slots instead
+of asking the storage once and appending; its commits still claim no durability, and a power loss
+keeps exactly the commits synced before.
+
+Measured on Linux (ext4 on LVM, .NET 10, Release, `TestingEnabled=false`, fresh process per run,
+alternating order) with a long-lived reader keeping checkpoints partial while 1,000
+single-transaction upserts of about 10 one-kilobyte documents run after 100 warm-up operations:
+
+| Mode | Metric | Before (median, range) | After (median, range) | Paired ratio after/before, median (range) |
+| --- | --- | --- | --- | --- |
+| Shared (1 traced run each) | fsync calls, 200 operations | 688 | 516 | about 0.86 fewer per operation |
+| Shared (12 pairs) | operations/s | 21.8 (17.4-35.8) | 29.5 (20.3-46.0) | 1.34 (1.02-1.75) |
+| Shared (12 pairs) | p50 latency, ms | 38.5 (25.4-47.2) | 30.0 (19.5-37.8) | 0.73 (0.66-0.96) |
+| Shared (12 pairs) | p99 latency, ms | 186 (106-333) | 163 (97-230) | 0.90 (0.41-1.21) |
+| Direct (1 traced run each) | fsync calls, 200 operations | 276 | 275 | one fewer per engine |
+| Direct (6 pairs) | operations/s | 92.9 (66.4-100.9) | 90.1 (76.2-101.3) | 1.00 (0.93-1.16) |
+
+The host was shared with other workloads (load average 5 to 27), so absolute numbers vary widely;
+the shared-mode gain held in every pair. The peak WAL size did not change measurably (shared
+11.9 MB before, 12.2 MB after; direct 14.8 MB both).
