@@ -108,11 +108,12 @@ namespace LiteDB.Tests.Regressions
         /// write, at a seek or length query (also a reader's, see SharedBufferedLogStream_Tests) or at
         /// the batch's final flush, and could tear one then. The failed write truncated only its own
         /// frame and a non-I/O failure only rolled back: a later commit was acknowledged behind the
-        /// torn frame and lost at recovery (acknowledged 1..20, 200, 201; recovered 1..20). Such a
-        /// stream is now flushed after each write, so a failure tears the frame being written and
-        /// fails its write, which truncates it. Checked with a BufferedStream of 64 KiB and with a
-        /// stream that holds its latest write until the next write or flush and tears it at a flush
-        /// ("flush") or at the next frame's write ("frame": never reached now, nothing is held then).
+        /// torn frame and lost at recovery (acknowledged 1..20, 200, 201; recovered 1..20). A failure
+        /// after a frame of the batch was written to such a stream now stops the engine, until the
+        /// batch's final flush succeeded (a reader's access hands its failure to the writer). Nothing
+        /// is flushed per write (CallerStreamFlushCost_Tests). Checked with a BufferedStream of 64 KiB
+        /// and with a stream that holds its latest write until the next write or flush and tears it
+        /// at the next frame's write ("frame") or at the flush ("flush").
         /// </summary>
         [Theory]
         [InlineData("buffered", false)]
@@ -170,8 +171,8 @@ namespace LiteDB.Tests.Regressions
             using var recovered = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = recoveredData, LogStream = recoveredLog }));
             recovered.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32)
                 .Should().BeEquivalentTo(acknowledged, "every acknowledged commit survives, the failed one is absent");
-            torn.Should().Be(tear != "frame", "a frame is written on at the flush after its own write");
-            acknowledged.Contains(100).Should().Be(tear == "frame", "only a torn frame fails the insert");
+            torn.Should().BeTrue("a frame the stream held reached the device torn");
+            acknowledged.Should().NotContain(100, "the insert whose frame was torn failed");
         }
 
         private static void WriteLater(LiteDatabase db)

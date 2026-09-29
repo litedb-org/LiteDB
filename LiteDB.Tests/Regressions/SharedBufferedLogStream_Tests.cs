@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -12,26 +13,36 @@ namespace LiteDB.Tests.Regressions
 {
     /// <summary>
     /// The WAL writer and the readers share a caller log stream, each through its own wrapper. A
-    /// BufferedStream (or a FileStream with a large buffer) held the frame the writer had just
-    /// written until the writer's next access, and a reader's seek wrote it on instead, on the
+    /// BufferedStream (or a FileStream with a large buffer) holds the frame the writer has just
+    /// written until the writer's next access, and a reader's seek writes it on instead, on the
     /// reader's thread: a failure tore it there and the writer never saw it (a non-I/O failure
     /// stopped nothing), the BufferedStream wrote the frame again further on at the writer's next
-    /// access, and the commit was acknowledged and lost at recovery (31 of 32 rows). Such a stream
-    /// is now flushed after each write, under the lock the readers take, so nothing is held for a
-    /// reader to write on. The reader runs in the window after a frame's write returned.
+    /// access, and the commit was acknowledged and lost at recovery (31 of 32 rows). A reader's
+    /// access now first flushes what the stream holds for the writer (HeldWrites): a failure there,
+    /// also one that reads like "cannot sync" (that flush only writes), fails the read as a write
+    /// failure of the log and is handed to the writer, whose batch fails; the engine continues
+    /// read-only (decision 6) with the acknowledged commits. Without a failure the commit goes on.
+    /// Nothing is flushed per write (CallerStreamFlushCost_Tests). The reader runs in the window
+    /// after a frame's write returned.
     /// </summary>
     [Trait("Category", "IoSafety")]
     public class SharedBufferedLogStream_Tests
     {
         [Theory]
-        [InlineData("wal-page-after-write", false)]
-        [InlineData("wal-page-after-write", true)]
-        [InlineData("wal-confirmation-after-write", false)]
-        [InlineData("wal-confirmation-after-write", true)]
-        public void Reader_after_a_frame_write_writes_nothing_on(string point, bool ioFailure)
+        [InlineData("wal-page-after-write", "none")]
+        [InlineData("wal-page-after-write", "io")]
+        [InlineData("wal-page-after-write", "other")]
+        [InlineData("wal-page-after-write", "unauthorized")]
+        [InlineData("wal-page-after-write", "einval")]
+        [InlineData("wal-confirmation-after-write", "none")]
+        [InlineData("wal-confirmation-after-write", "io")]
+        [InlineData("wal-confirmation-after-write", "other")]
+        [InlineData("wal-confirmation-after-write", "unauthorized")]
+        [InlineData("wal-confirmation-after-write", "einval")]
+        public void Reader_that_writes_a_held_frame_on_hands_its_failure_to_the_writer(string point, string failure)
         {
             using var data = new MemoryStream();
-            using var device = new TearingDevice { IoFailure = ioFailure };
+            using var device = new TearingDevice { Failure = failure };
             using var log = new BufferedStream(device, 1 << 20);
             using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log })))
             {
@@ -41,7 +52,9 @@ namespace LiteDB.Tests.Regressions
             }
 
             var acknowledged = new List<int> { 0 };
-            Exception readerFailure = null;
+            Exception readerFailure = null, writerFailure = null;
+            List<int> readAfter = null;
+            BsonDocument info = null;
             var readerReadLog = false;
             byte[] imageData, imageLog;
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 4 }))
@@ -55,7 +68,7 @@ namespace LiteDB.Tests.Regressions
                 engine.SimulateCrashPoint = phase =>
                 {
                     if (phase != point || reader != null) return;
-                    device.Armed = true;
+                    device.Armed = failure != "none";
                     reader = new Thread(() =>
                     {
                         try { db.GetCollection("a").FindAll().ToList(); }
@@ -72,9 +85,12 @@ namespace LiteDB.Tests.Regressions
                         db.GetCollection("b").Insert(ids.Select(Row));
                         acknowledged.AddRange(ids);
                     }
-                    catch (Exception) { }
+                    catch (Exception ex) { writerFailure ??= ex; }
                 }
                 reader.Should().NotBeNull("the writer reached " + point);
+                // The engine goes on: read-only after a failure (decision 6), with what was acknowledged.
+                readAfter = db.GetCollection("b").FindAll().Select(x => x["_id"].AsInt32).ToList();
+                info = db.Execute("SELECT $ FROM $database").Single().AsDocument;
                 // A killed process loses what the stream holds; the device keeps what reached it.
                 imageData = data.ToArray();
                 imageLog = device.ToArray();
@@ -90,17 +106,42 @@ namespace LiteDB.Tests.Regressions
                     "every acknowledged commit survives (reader failure: {0})", readerFailure?.GetType().Name);
             }
             readerReadLog.Should().BeTrue("the reader read the WAL in the window");
-            readerFailure.Should().BeNull("nothing was held for the reader's seek to write on");
-            acknowledged.Should().HaveCount(32);
+            readAfter.Should().BeEquivalentTo(acknowledged, "the engine reads what was acknowledged");
+            if (failure == "none")
+            {
+                readerFailure.Should().BeNull("the reader wrote the held frame on whole");
+                writerFailure.Should().BeNull();
+                acknowledged.Should().HaveCount(32);
+                info["readOnly"].AsBoolean.Should().BeFalse();
+                return;
+            }
+            readerFailure.Should().BeOfType(TearingDevice.ExceptionType(failure));
+            readerFailure.Message.Should().Be("injected torn write", "the reader's seek wrote the held frame on and tore it");
+            writerFailure.Should().NotBeNull("the writer's batch failed");
+            // A failure that is no IOException reaches the writer only by the hand-off. An I/O failure
+            // also stops the engine from the reader's own call (recorded as a write failure of the log),
+            // which the writer's batch can meet first; either way it fails inside the batch and stops.
+            if (!(readerFailure is IOException))
+                writerFailure.ToString().Should().Contain("failed when another access wrote it on: injected torn write");
+            acknowledged.Should().Equal(new[] { 0 }, "the torn batch failed and the engine refuses later writes");
+            info["readOnly"].AsBoolean.Should().BeTrue("the engine continues read-only after the write failure");
+            info["writeFailure"]["file"].AsString.Should().Be("log");
         }
 
         private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["payload"] = new string('p', 1500) };
 
-        /// <summary>Armed, the next write of at least a frame stores half of it and fails.</summary>
+        /// <summary>
+        /// Armed, the next write of at least a frame stores half of it and fails: an I/O error, a
+        /// non-I/O failure, or one that reads like "cannot sync" (EACCES, EINVAL; a write failure here).
+        /// </summary>
         private sealed class TearingDevice : MemoryStream
         {
             internal volatile bool Armed;
-            internal bool IoFailure;
+            internal string Failure;
+
+            internal static Type ExceptionType(string failure) =>
+                failure == "other" ? typeof(InvalidOperationException) :
+                failure == "unauthorized" ? typeof(UnauthorizedAccessException) : typeof(IOException);
 
             public override void Write(byte[] buffer, int offset, int count)
             {
@@ -108,7 +149,15 @@ namespace LiteDB.Tests.Regressions
                 {
                     Armed = false;
                     base.Write(buffer, offset, count / 2);
-                    throw IoFailure ? new IOException("injected torn write") : new InvalidOperationException("injected torn write");
+                    const string message = "injected torn write";
+                    switch (Failure)
+                    {
+                        case "other": throw new InvalidOperationException(message);
+                        case "unauthorized": throw new UnauthorizedAccessException(message);
+                        case "einval":
+                            throw new IOException(message, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? unchecked((int)0x80070032) : 22);
+                        default: throw new IOException(message);
+                    }
                 }
                 base.Write(buffer, offset, count);
             }

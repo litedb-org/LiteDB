@@ -10,6 +10,12 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
+        // A caller log stream other than a MemoryStream may hold frames after their write returned
+        // (a BufferedStream) and write them on at a later write, seek, length query or flush, where it
+        // can tear one; a reader's access hands such a failure to the writer (HeldWrites). LiteDB's
+        // own files never hold a frame back: their buffer is smaller than one.
+        private readonly bool _logMayBuffer;
+
         /// <summary>
         /// Write all pages inside log file in a thread safe operation.
         /// Takes ownership of each yielded frame, including on failure.
@@ -150,8 +156,9 @@ namespace LiteDB.Engine
                 catch (Exception ex) when (uncertain)
                 {
                     // A failed write can leave a torn frame: in the middle of the WAL (an overwrite of
-                    // an existing slot), or at its end when the truncation that removes a failed append
-                    // failed too or had to keep a header journal. Recovery stops at the first invalid
+                    // an existing slot), at its end when the truncation that removes a failed append
+                    // failed too or had to keep a header journal, or anywhere in this batch when the
+                    // stream buffers frames it already accepted. Recovery stops at the first invalid
                     // frame. Whatever the exception type, stop before releasing the writer: no later
                     // commit may be appended (and acknowledged) behind it.
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
@@ -193,7 +200,22 @@ namespace LiteDB.Engine
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }
-                else if (flushFailure == null) stream.Flush();
+                else if (flushFailure == null)
+                {
+                    try
+                    {
+                        stream.Flush();
+                    }
+                    catch (Exception ex) when (uncertain)
+                    {
+                        // A buffering stream writes this batch's frames on now and can tear one.
+                        flushFailure = ex as IOException ?? new IOException("WAL write flush failed.", ex);
+                        flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
+                        this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log),
+                            this.AcknowledgedLogAt(acknowledgedEnd, transactionPages, batchPages));
+                        ownsFailure = _state.BeginStop(flushFailure);
+                    }
+                }
             }
 
             if (flushFailure != null)
@@ -216,6 +238,8 @@ namespace LiteDB.Engine
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
             var overwrite = false;
+            // A buffering stream may still hold (and tear) a frame this batch wrote before this one.
+            var earlierHeld = uncertain;
             PageBuffer readable = null;
 
             try
@@ -259,12 +283,12 @@ namespace LiteDB.Engine
 
                 this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
                 this.PreserveFileVersion(page);
-                // From here a failure can leave part of the frame on the stream. A caller stream that
-                // buffers holds nothing once the write returned (ConcurrentStream flushes it).
+                // From here a failure can leave part of the frame on the stream. A buffering stream
+                // can still tear it after the write returned, until the batch's final flush.
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
-                uncertain = false;
+                if (!_logMayBuffer) uncertain = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
                 hasConfirmation |= isConfirmed;
 
@@ -292,8 +316,9 @@ namespace LiteDB.Engine
                             this.PublishWalReuse(ref reusePublished);
                             stream.SetLength(previousStreamLength.Value);
                             _logFactory.TrimCapacity(stream);
-                            // The truncation removes a torn append, not a torn overwrite of an earlier slot.
-                            if (!overwrite) uncertain = false;
+                            // The truncation removes a torn append, not a torn overwrite of an earlier slot
+                            // nor an earlier frame of this batch that a buffering stream still held.
+                            if (!overwrite && !earlierHeld) uncertain = false;
                         }
                         catch (Exception cleanup)
                         {

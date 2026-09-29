@@ -54,7 +54,8 @@ namespace LiteDB.Engine
                 }
                 throw;
             }
-            uncertain = false;
+            // A buffering stream can still tear it after the write returned, until the batch's final flush.
+            if (!_logMayBuffer) uncertain = false;
             this.CrashPoint("header-frame-after-write");
         }
 

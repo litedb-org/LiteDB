@@ -314,12 +314,18 @@ A WAL write that may have left a torn frame stops the engine before the WAL writ
 released, whatever the exception type: a failed overwrite of a slot, an append whose
 truncation failed, and a checkpoint that fails while writing the WAL. 5.0.21 rolled back
 and continued after a non-I/O failure; a later commit could then land behind the torn
-frame and be lost at recovery. A caller stream other than a `MemoryStream` is flushed
-after each write, under the lock its readers take: a buffering one (a `BufferedStream`, a
-`FileStream` with a large buffer) held frames the next write or a reader's seek wrote on,
-where a failure tore a frame the writer never heard of. That is one `Flush()` per page
-write, data and log: a custom stream whose `Flush()` syncs or uploads now pays that per
-page instead of per batch. A caller stream must not replay a write that failed at another
+frame and be lost at recovery. A caller stream other than a `MemoryStream` may hold frames
+after their write returned (a `BufferedStream`, a `FileStream` with a large buffer) and
+write them on at its next write, seek, length query or flush, where a failure can tear
+one: a failure while it may still hold a frame of the batch stops the engine, until the
+batch's final flush succeeded. A reader's access (a seek) first flushes what the stream
+holds for the writer, under the lock the wrappers share; that flush only writes, so any
+failure there fails the read as a write failure of the file (the engine continues
+read-only) and is handed to the writer, whose batch fails. Before, the reader's seek tore a
+frame the writer never heard of. The engine still flushes a caller stream once per WAL
+batch and per sync, not per page: a custom stream whose `Flush()` syncs or uploads pays that
+per batch, plus, while other threads read it during a batch or checkpoint, at most one flush
+per page written. A caller stream must not replay a write that failed at another
 position: a `BufferedStream` keeps a buffer whose write failed and writes it again at its
 next access, at the inner stream's current position, so over an inner stream that advanced
 past the bytes it stored before failing (a `FileStream` does not) the page lands shifted

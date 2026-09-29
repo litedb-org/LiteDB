@@ -18,6 +18,9 @@ namespace LiteDB.Engine
         private readonly string _password;
         private readonly bool _ownsStream;
         private readonly bool _isLog;
+        // Shared by this factory's wrappers (a MemoryStream holds nothing): what the stream may still
+        // hold for a writer. Per factory, so an engine reopened over the same stream starts clean.
+        private readonly HeldWrites _held;
         private int _disposed;
 
         public StreamFactory(Stream stream, string password, bool ownsStream = false, bool isLog = false)
@@ -26,6 +29,7 @@ namespace LiteDB.Engine
             _password = password;
             _ownsStream = ownsStream;
             _isLog = isLog;
+            _held = stream is MemoryStream ? null : new HeldWrites(isLog ? FileOrigin.Log : FileOrigin.Data);
         }
 
         /// <summary>
@@ -43,11 +47,11 @@ namespace LiteDB.Engine
             // The factory owns the shared base stream; wrappers only own themselves.
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite, true);
+                return new ConcurrentStream(_stream, canWrite, true, _held);
             }
             else
             {
-                var stream = new ConcurrentStream(_stream, canWrite, true);
+                var stream = new ConcurrentStream(_stream, canWrite, true, _held);
                 return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
                     new AesStream(_password, stream, allowRecovery: false);
             }
@@ -60,6 +64,7 @@ namespace LiteDB.Engine
         {
             lock (_stream)
             {
+                _held?.WriteOn(_stream, this);
                 var length = _stream.Length;
 
                 if (_password == null || length == 0)
@@ -76,7 +81,7 @@ namespace LiteDB.Engine
                     {
                         if (_isLog)
                         {
-                            using (var reader = EncryptedLogPreamble.Open(_password, new ConcurrentStream(_stream, false, true)))
+                            using (var reader = EncryptedLogPreamble.Open(_password, new ConcurrentStream(_stream, false, true, _held)))
                                 return reader.Length;
                         }
                         _stream.Position = 0;
@@ -96,7 +101,15 @@ namespace LiteDB.Engine
         /// <summary>
         /// Check if file exists based on stream length
         /// </summary>
-        public bool Exists() => _stream.Length > 0;
+        public bool Exists()
+        {
+            // Under the wrappers' lock: a buffering stream's length query writes on what it holds.
+            lock (_stream)
+            {
+                _held?.WriteOn(_stream, this);
+                return _stream.Length > 0;
+            }
+        }
 
         /// <summary>
         /// There is no delete method in Stream factory
