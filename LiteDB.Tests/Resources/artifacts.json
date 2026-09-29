@@ -1,4 +1,13 @@
 {
   "revision": "88b857f6fde39742cac2ad5399c9372bf54a9b3c",
-  "files": {}
+  "files": {
+    "DropIndex_5_0_21.zip": {
+      "path": "compatibility/fixtures/DropIndex_5_0_21.zip",
+      "sha256": "ea5cf8ae44699ad3f153066f9210fc260126d060a20337afa56a54fd51b4b029"
+    },
+    "Vectors_6_0_0_prerelease_114.zip": {
+      "path": "compatibility/fixtures/Vectors_6_0_0_prerelease_114.zip",
+      "sha256": "419ac1e867e8af98354f826137fa4dd7ee31df81ff5017b71f15600db745ffa1"
+    }
+  }
 }
