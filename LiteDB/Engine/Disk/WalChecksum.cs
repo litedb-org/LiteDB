@@ -127,6 +127,22 @@ namespace LiteDB.Engine
             };
         }
 
+        /// <summary>
+        /// Whether these bytes are a frame written at this logical position, checked by its own
+        /// trailer (magic, position, and a CRC over the salt it carries) without a database header.
+        /// </summary>
+        internal static bool IsFrame(byte[] frame, long position)
+        {
+            var metadata = new BufferSlice(frame, PAGE_SIZE, MetadataSize);
+            if (frame[BasePage.P_PAGE_FORMAT] != PageChecksum.Checksummed ||
+                metadata.ReadUInt32(0) != Magic || metadata.ReadInt64(24) != position) return false;
+            var expected = metadata.ReadUInt32(4);
+            metadata.Write(0u, 4);
+            var actual = ~Crc32C.Update(Crc32C.Update(uint.MaxValue, frame, 0, PAGE_SIZE), frame, PAGE_SIZE, MetadataSize);
+            metadata.Write(expected, 4);
+            return expected == actual;
+        }
+
         private static ulong Contribution(uint pageCrc, BufferSlice metadata, long position)
         {
             // A nonlinear, position-dependent mix prevents identical changes in

@@ -18,6 +18,27 @@
         "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
         "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
       ]
+    },
+    {
+      "repro": "Issue_3027_LegacyWalConversion",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
+        "scripts/test-5021-regression-compatibility.py"
+      ]
+    },
+    {
+      "repro": "Issue_3027_ForeignLegacyWal",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
+        "scripts/test-5021-regression-compatibility.py"
+      ]
     }
   ]
 }

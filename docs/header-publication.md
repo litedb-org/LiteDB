@@ -164,6 +164,11 @@ checkpoint partially applied, the same risk as before #2818. Every barrier still
 attempts a real sync first, so storage that syncs again regains the full
 guarantee. Data-file syncs are never downgraded.
 
+A legacy header found beside checksummed WAL frames (the conversion's header never reached
+the device while its log did, or a data file restored without its log) fails the open without
+changing either file, since legacy rules would replay the frames as pages at positions read
+from their trailers.
+
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
 

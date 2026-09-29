@@ -99,6 +99,27 @@ file; insufficient budgets leave legacy files unchanged. Computed-index pages ar
 `index migration limit size` connection option raises the budget atomically with
 a successful migration and allows retrying previously interrupted v11 migrations.
 
+## Legacy WAL conversion (5.x files)
+
+Conversion first drains a legacy WAL completely. While another shared connection may still
+read it (a reader's lease, or a reader registry that cannot be inspected) the open is refused
+with `LOCK_TIMEOUT` before any document is validated, changing neither file; an unreadable
+registry keeps refusing until it can be read, and the file converts once the reader is gone.
+Before, the conversion checkpointed only what the readers allowed and then emptied the WAL
+anyway, losing the transactions 5.0.21 had committed there.
+
+Legacy WAL pages carry no checksum, so their replay is validated. A committed legacy WAL page
+that is not a page of its type (an unknown type, or page 0 that is not the header) or that
+names a page beyond both files and every page a committed header counts, and a committed
+header of another database (another creation time), fail the open with `INVALID_DATABASE`,
+changing neither file (5.0.21 wrote it over the header, that far into the data file, or
+replayed the other database into it). Committed pages that concurrent 5.x writers allocated
+above the data file's last page stay valid, and a torn tail after the last commit is ignored
+as before. The creation time identifies the database that was created, not each copy of it: a
+log left beside a fresh copy of the same seed file still passes, as in 5.0.21 (#3043 tracks
+the ambiguous ownership cases). A 5.x data file found beside its conversion's WAL (whose
+converted header never reached the device) fails to open instead of being replayed.
+
 ## Breaking change: exact numeric comparison
 
 Mixed numeric types (`Int32`, `Int64`, `Double`, `Decimal`) now compare by their
