@@ -92,6 +92,7 @@ namespace LiteDB.Tests.Regressions
                     db.Checkpoint();
                 }
                 new FileInfo(logName).Length.Should().BeGreaterThan(0, "the first engine kept its synced WAL");
+                if (mode == "restart") DurableHeaders.Forget(file.Filename);
                 using (var db = new LiteDatabase(new LiteEngine(power.Settings()))) db.Checkpoint();
             }
             else

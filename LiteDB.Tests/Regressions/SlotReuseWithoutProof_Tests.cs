@@ -81,6 +81,8 @@ namespace LiteDB.Tests.Regressions
             Recover((data.Image(ImageKind.WrittenBack), log.Image(ImageKind.WrittenBack)), password, 9);
 
             // A new process: nothing it synced is remembered.
+            DurableLogs.Forget(Path.GetFullPath(logFile.Filename));
+            DurableHeaders.Forget(file.Filename);
             var overwrites = 0;
             log.BeforeWrite = (position, count) => { if (position < log.Length) overwrites++; };
             var durable = clears != "pending";

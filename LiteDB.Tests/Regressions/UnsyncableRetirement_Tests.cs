@@ -51,6 +51,7 @@ namespace LiteDB.Tests.Regressions
             if (mode == "opted-out-log") NativeFileSync.SimulateErrno = path => path.EndsWith("-log.db", StringComparison.OrdinalIgnoreCase) ? 22 : 0;
             if (mode.EndsWith("directory")) NativeFileSync.SimulateDirectoryErrno = _ => 13;
             // As in a new process: the setup's engine proved the log's directory synced.
+            if (mode == "directory") DurableLogs.Forget(Path.GetFullPath(FileHelper.GetLogFile(file.Filename)));
             try
             {
                 using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = !mode.StartsWith("opted-out") });

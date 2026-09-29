@@ -110,6 +110,7 @@ namespace LiteDB.Tests.Regressions
             var kept = SyncPowerLossModel.ReadShared(logName);
             kept.Length.Should().BeGreaterThan(0);
             var synced = power.Capture().Data;
+            DurableHeaders.Forget(file.Filename); // a new process
 
             var pages = 0;
             var settings = power.Settings();
@@ -149,6 +150,7 @@ namespace LiteDB.Tests.Regressions
                 power.DataFails = true;
                 db.Checkpoint();
             }
+            DurableHeaders.Forget(file.Filename); // a new process
 
             var scans = 0;
             var settings = power.Settings();

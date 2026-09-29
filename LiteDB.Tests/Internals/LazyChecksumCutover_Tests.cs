@@ -45,8 +45,8 @@ namespace LiteDB.Internals
             data.BytesRead.Should().BeLessThan(20L * PAGE_SIZE);
             data.BytesWritten.Should().Be(2L * PAGE_SIZE, "checksum and index-order publication each replace only the header");
             log.MaximumLength.Should().Be(4L * PAGE_SIZE + (password == null ? 0 : PAGE_SIZE));
-            log.Length.Should().Be(WalPadding.AlignedLength(WalChecksum.FrameSize) + (password == null ? 0 : PAGE_SIZE),
-                "the committed ordering-revision header remains in WAL when checkpoint is disabled");
+            log.Length.Should().Be(WalPadding.AlignedLength(2 * WalChecksum.FrameSize) + (password == null ? 0 : PAGE_SIZE),
+                "the header frame that starts the WAL (decision 11) and the committed ordering-revision header remain in WAL when checkpoint is disabled");
         }
 
         private sealed class HeaderOnlyData : MemoryStream
