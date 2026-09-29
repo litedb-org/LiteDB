@@ -1,3 +1,4 @@
+#pragma warning disable LITEDB_EXPERIMENTAL_COORDINATOR
 using System.Reflection;
 using LiteDB;
 using LiteDB.Engine;
@@ -18,6 +19,28 @@ internal static class RebuildOwnershipHarness
                 if (db.GetCollection("rows").Count() != 2 ||
                     db.GetCollection("rows").FindById(2)["value"] != "wal")
                     throw new InvalidOperationException("Read an incomplete replacement");
+            }
+            Console.WriteLine("opened");
+            return true;
+        }
+        if (mode == "rebuild-waiting-write")
+        {
+            // args[4]: direct, shared or coordinated. Announces its first admission, then writes.
+            var announced = 0;
+            typeof(EngineSettings).GetProperty("BeforeOpeningAdmission", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(settings, (Action)(() =>
+                {
+                    if (Interlocked.Exchange(ref announced, 1) == 0) Console.WriteLine("admitting");
+                }));
+            ILiteEngine engine = args[4] == "direct" ? new LiteEngine(settings) :
+                args[4] == "shared" ? new SharedEngine(settings) : new CoordinatedEngine(settings);
+            using (var db = new LiteDatabase(engine))
+            {
+                var rows = db.GetCollection("rows");
+                if (rows.Count() != 2 || rows.FindById(2)["value"] != "wal" ||
+                    db.GetCollection("unrelated").FindById(1)["value"] != "preserved")
+                    throw new InvalidOperationException("Read an incomplete replacement");
+                rows.Insert(new BsonDocument { ["_id"] = 4, ["value"] = "contender" });
             }
             Console.WriteLine("opened");
             return true;
@@ -59,7 +82,7 @@ internal static class RebuildOwnershipHarness
             catch (PlatformNotSupportedException) { Console.WriteLine("done"); return true; }
             throw new InvalidOperationException("Rebuild accepted ineffective file-sharing locks");
         }
-        if (mode != "rebuild-ownership") throw new ArgumentException(mode);
+        if (mode != "rebuild-ownership" && mode != "rebuild-service-ownership") throw new ArgumentException(mode);
         var service = typeof(LiteDatabase).Assembly.GetType("LiteDB.Engine.RebuildService")!;
         var hook = service.GetField("SimulateInstallFailure", BindingFlags.Static | BindingFlags.NonPublic)!;
         var ownershipHook = service.GetField("SimulateOwnershipFailure", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -73,8 +96,18 @@ internal static class RebuildOwnershipHarness
         ownershipHook.SetValue(null, pause);
         try
         {
-            using var db = new LiteDatabase(new LiteEngine(settings));
-            db.Rebuild();
+            if (mode == "rebuild-service-ownership")
+            {
+                // The rebuild used by opening recovery: no engine stays open afterwards.
+                var rebuilder = Activator.CreateInstance(service, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new object[] { settings }, null)!;
+                service.GetMethod("Rebuild")!.Invoke(rebuilder, new object?[] { new RebuildOptions(), null });
+            }
+            else
+            {
+                using var db = new LiteDatabase(new LiteEngine(settings));
+                db.Rebuild();
+            }
         }
         finally { hook.SetValue(null, null); ownershipHook.SetValue(null, null); }
         Console.WriteLine("done");

@@ -66,6 +66,45 @@ namespace LiteDB.Tests.Engine
         }
 
         [Theory]
+        [InlineData("after-rebuild-source-claim", "direct", false)]
+        [InlineData("after-rebuild-source-claim", "shared", true)]
+        [InlineData("after-rebuild-source-claim", "coordinated", false)]
+        [InlineData("after-temp-install", "direct", true)]
+        [InlineData("after-temp-install", "coordinated", true)]
+        [InlineData("after-rebuild-data-close", "shared", false)]
+        [InlineData("after-rebuild-data-close", "coordinated", true)]
+        public async Task Another_process_in_every_mode_waits_for_the_owner_and_its_write_survives(string phase, string mode, bool encrypted)
+        {
+            // The owner runs the recovery rebuild service, so no engine stays open after
+            // it releases admission and the waiting process can open for writing.
+            var password = encrypted ? "password" : null;
+            using var file = RebuildOwnership_Tests.Seed(password);
+            var data = File.ReadAllBytes(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            var log = File.ReadAllBytes(logName);
+            using (var owner = new MvccProcess("rebuild-service-ownership", file.Filename, password, phase))
+            {
+                await owner.Expect("ready");
+                using var opener = new MvccProcess("rebuild-waiting-write", file.Filename, password, mode);
+                await opener.Expect("admitting");
+                var opened = opener.ReadLine(TimeSpan.FromSeconds(20));
+                // A third process is refused admission deterministically meanwhile.
+                await MvccProcess.Run("rebuild-probe", file.Filename, password, "admission");
+                opened.IsCompleted.Should().BeFalse("the " + mode + " opener cannot pass admission while the owner holds it");
+                owner.Send("continue");
+                await owner.Expect("done");
+                await owner.Finish();
+                (await opened).Should().Be("opened");
+                await opener.Finish();
+            }
+            File.ReadAllBytes(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().Equal(data);
+            File.ReadAllBytes(FileHelper.GetSuffixFile(logName, "-backup", false)).Should().Equal(log);
+            RebuildOwnership_Tests.VerifyAndWrite(file.Filename, password);
+            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
+            db.GetCollection("rows").FindById(4)["value"].AsString.Should().Be("contender");
+        }
+
+        [Theory]
         [InlineData("after-rebuild-source-claim", false)]
         [InlineData("after-rebuild-source-claim", true)]
         [InlineData("before-recovery-marker", false)]
