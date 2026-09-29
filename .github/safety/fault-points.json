@@ -1736,7 +1736,7 @@
         {
           "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
           "model": "interleaving",
-          "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
+          "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped, waits for the teardown and is refused with the recorded failure by the read-only engine; it is never acknowledged, and recovery keeps every acknowledged commit."
         }
       ]
     },

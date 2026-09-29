@@ -78,12 +78,28 @@
       ],
       "disposition": "intentional-change",
       "invariant": "A shared connection on a log that cannot sync reports it after later operations reopen engines, never acknowledges a commit as durable there, never reuses slots retired there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file.",
-      "reason": "Decisions 3 and D and the retirement proof: with durable commits a commit whose log answers \"cannot sync\" fails (outcome unknown once its frames reached the OS) and a checkpoint on it fails loudly; without durable commits \"cannot sync\" is no failure (default A) and the degraded commit is acknowledged, as before. A checkpoint on a log known not to sync, or that stops syncing after its proof, retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per mode and stop point, with a second connection.",
+      "reason": "Decisions 3, 6, 13 and D, default C and the retirement proof: with durable commits a commit whose log answers \"cannot sync\" fails (outcome unknown once its frames reached the OS), the failure is kept connection-wide (later operations open read-only and refuse writes with it until the connection is reopened) and the connection shows only the commits acknowledged before it while the files are the ones the failure left; a checkpoint on it fails loudly. Without durable commits \"cannot sync\" is no failure (default A) and the degraded commit is acknowledged, as before. A checkpoint on a log known not to sync, or that stops syncing after its proof, retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per mode and stop point, with a second connection.",
       "coveredBy": [
-        "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_FailsTheCommitWithAnUnknownOutcomeOnASharedConnection",
+        "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_FailsTheCommitAndItsConnectionShowsOnlyAcknowledgedCommits",
         "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_IsNotAFailureForASharedConnectionWithoutDurableCommits",
         "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.Durable.cs#Shared_checkpoint_on_a_log_that_stops_syncing_fails_loudly_with_durable_commits",
         "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-sticky-disk-full",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.Issue2821_Tests.Closed_instance_explains_recovery_after_a_transient_disk_full_failure"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "After a disk-full write failure the instance explains how to recover and never writes again until reopened.",
+      "reason": "Decision 6 and default B: a write failure is recorded and the engine continues read-only (reads keep working) instead of closing; the record names the file. The test is renamed: its body asserts the read-only continuation, the refusal with the record and that a reopen writes again, which is stronger than the closed instance's (the diagnostic must say \"reopen\").",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/Issue2821_Tests.cs#Read_only_instance_explains_recovery_after_a_transient_disk_full_failure",
+        "LiteDB.Tests/Issues/Issue2821_Tests.cs#Disk_full_failure_record_names_the_log_file",
+        "LiteDB.Tests/Issues/Issue2821_Tests.cs#Disk_full_safepoint_write_leaves_the_engine_read_only"
       ],
       "decision": "docs/decisions/durability-policy.md"
     },

@@ -4,7 +4,7 @@ Decided by the maintainer (@JKamsker) during the work on #3027, recorded on 2026
 decisions govern how LiteDB handles storage that cannot sync, failed writes and the WAL. Code,
 tests and docs are written against them; a change to a decision is made here first.
 
-The work is delivered in layers (#3051, S09). This file records the decisions the current layer
+The work is delivered in layers (#3051, S09 and S10). This file records the decisions the current layer
 implements and says which parts later layers add; see "Layer status" below.
 
 ## Scope (earlier decisions, still in force)
@@ -72,6 +72,7 @@ implements and says which parts later layers add; see "Layer status" below.
   because it is the reason to opt out. Real I/O errors, torn writes and similar count in both modes.
 - **B.** Disk full counts as a sticky failure (the conservative choice); a reopen retries.
 - **C.** The sticky state lasts until the database is reopened, not until a later write succeeds.
+  For shared connections it is kept connection-wide, because each operation opens a fresh engine.
 - **D.** Opt-out users still get the strict WAL rule (rule 1 protects the data file's integrity,
   not only recent commits).
 
@@ -121,8 +122,14 @@ implements and says which parts later layers add; see "Layer status" below.
     retry it per operation. A copy restored while the process runs, with a header byte-identical to
     one it synced, is not synced again (best effort, documented).
 
-Decision 13 (the read-only reopen after a failed commit shows only the commits acknowledged before
-it) is a later layer's; see "Layer status".
+13. **The read-only reopen shows only acknowledged commits.** When a commit fails after its frames
+    reached the operating system ("outcome unknown"), the read-only engine that replaces the failed
+    one replays the WAL only up to the last commit acknowledged before the failure, so this process
+    never sees a transaction its caller saw fail. A later open (a new connection, a restart) lets
+    the device decide, as recovery always does. If the files changed meanwhile (another connection
+    or process committed on top of the failed batch or checkpointed it, the WAL restarted with a new
+    salt, or the files were replaced), the files win, whole: this is a view of one process, not a
+    promise that the failed commit was aborted.
 
 ## Layer status
 
@@ -181,11 +188,18 @@ The admission, limit and continuation layer (S09c) adds:
   repair the file where its storage cannot sync opens read-only instead of throwing (the open-time
   fallback), with the refusal as `readOnlyReason`.
 
-Still later: decision 13 (the reopen replays the WAL only up to the last commit acknowledged before
-a failed batch; until then the reopen replays the files as they are, so a commit whose outcome is
-unknown may show), a shared connection keeping a failure for its later operations (until then each
-operation opens a fresh engine, which proves the log again), and the reopen lifecycle under
-concurrent callers (waiting for the failed engine's teardown, repeated disposal).
+The acknowledged-only and connection-wide layer (S10) adds:
+
+- Decision 13 (note 10): after a failed WAL batch the reopen replays the WAL only up to the last
+  commit acknowledged before it, while generation and content checks prove the files are the ones
+  the failure left; otherwise the files win.
+- Default C for shared connections (note 5): the first write or sync failure of any engine of a
+  shared connection is kept for the connection. Its later operations open read-only, report it and
+  refuse writes with it, also once the storage works again, until the connection is reopened. A
+  second connection does not share it.
+- The reopen lifecycle (note 5): a call that arrives before the failed engine's teardown finished
+  waits for it instead of getting the stop error; a completion finishes on the engine it started on;
+  a reopened engine reports the failure it reopened after (`durableLogFlush`, `walKept`).
 
 ## Implementation notes (how the code applies the decisions)
 
@@ -203,14 +217,20 @@ concurrent callers (waiting for the failed engine's teardown, repeated disposal)
    it throws, and its error says its outcome is unknown (the frames reached the operating system).
 5. **Sticky failure mechanics (6).** The failing operation stops the engine as before; once the
    failure's teardown closed the services, the next call reopens it read-only from the files as they
-   are. A call that arrives before that teardown finished gets the stop error; calls that arrive during
-   the reopen wait for it. An explicit transaction the failure ended throws at `Commit` or at the next
+   are (after a failed WAL batch, only up to the last commit acknowledged before it, decision 13). A
+   call that arrives before that teardown finished waits for it (on the thread that owns the failure),
+   and so do calls that arrive during the reopen; a `Dispose` meanwhile wins, and the engine is never
+   reopened after it. A commit or rollback completes on the engine it started on, never on one a
+   reopen published. An explicit transaction the failure ended throws at `Commit` or at the next
    `BeginTrans` on its thread, whichever comes first (and `Rollback` returns true). An explicit
    `Checkpoint()` is the caller's own operation and throws, also after the reopen; an automatic
    checkpoint after a successful commit and the one in `Dispose` do not. A sync that fails where no
    write can throw it (a `$database` read) is recorded and reported there, and the next call stops the
    engine. An in-memory or temporary database stays closed (its streams went with the failed engine).
-   A read-only engine never auto-rebuilds and never writes the invalid-state mark.
+   A shared connection keeps the failure: its later operations open read-only until the connection is
+   reopened (per connection: two shared connections do not share it); the caller's settings are not
+   changed, each engine works on its own copy. A read-only engine never auto-rebuilds and never writes
+   the invalid-state mark.
 6. **What counts as a failure (A, D).** A data sync that answers "cannot sync" before a checkpoint
    or promotion writes is not a failure: the checkpoint writes nothing and the WAL is kept, a
    promotion is refused with both files unchanged. After it wrote, it is a failure in both modes:
@@ -227,6 +247,15 @@ concurrent callers (waiting for the failed engine's teardown, repeated disposal)
    the storage syncs; the next checkpoint then drains the WAL. Those syncs go through the helpers of
    note 17: they recheck under the lock that orders them and record a real I/O failure before they
    release it; the limit check then stops the engine.
+10. **Which reopens are bounded (13).** A failed WAL write and a failed commit log flush record the end
+   of the WAL before their batch and the files as the failure left them: the raw log from that end on,
+   its salt, the data file's length and header, and its copy of every page the failed transaction
+   wrote. The read-only engine that replaces the failed one, and a shared connection's later read-only
+   engines (its read snapshots included), replay up to that end only while all of these still match:
+   another connection or process can recover the failed commit and checkpoint it into the data file
+   without changing the log's length or salt, and a view bounded then would mix the two. Otherwise the
+   files win, whole. Other failures (a checkpoint, a promotion) wrote no commit and are not bounded. A
+   volatile log (in memory) records no bound: its engine stays closed after a failure (note 5).
 11. **The data barrier (14)** runs before an engine's first durable commit, skipped when the data file
    is not a file, when this engine already synced it, and, in a shared connection, after the
    connection's first barrier or once it found the data file cannot sync. A real I/O error fails that
