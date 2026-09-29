@@ -198,7 +198,10 @@ a write, or does not open writable. A legacy conversion journal whose converted 
 synced stays outstanding only until the migration's drain retires it, before the conversion
 journals its own header, and a conversion whose header does not sync opens read-only before
 the migration's promotion
-([KeptJournalPromotion_Tests](../LiteDB.Tests/Regressions/KeptJournalPromotion_Tests.cs)). A legacy header
+([KeptJournalPromotion_Tests](../LiteDB.Tests/Regressions/KeptJournalPromotion_Tests.cs)). A
+promotion that waited for the WAL writer while a checkpoint failed, or once a failure is recorded,
+syncs and writes nothing (decision 6,
+[CheckpointFailureWindow_Tests](../LiteDB.Tests/Regressions/CheckpointFailureWindow_Tests.cs)). A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.

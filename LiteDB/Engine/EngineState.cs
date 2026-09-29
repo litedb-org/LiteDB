@@ -89,9 +89,18 @@ namespace LiteDB.Engine
 
         public void Validate()
         {
+            this.ThrowIfStopped();
+            if (this.Disposed) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
+        }
+
+        /// <summary>
+        /// Throw the failure that stopped the engine, if any. Unlike <see cref="Validate"/>, an engine
+        /// that is being disposed passes: its close checkpoint still writes (and may promote the format).
+        /// </summary>
+        internal void ThrowIfStopped()
+        {
             var failure = Volatile.Read(ref _exception);
             if (failure != null) throw failure;
-            if (this.Disposed) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
         }
 
         /// <summary>

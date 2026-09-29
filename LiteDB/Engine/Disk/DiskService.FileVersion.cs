@@ -74,6 +74,11 @@ namespace LiteDB.Engine
             var ownsFailure = false;
             lock (writer)
             {
+                // Decision 6, as for a WAL batch: a promotion that waited for the writer (behind a checkpoint
+                // that failed and began the stop, or after a failure was recorded) syncs and writes nothing.
+                // Not Validate(): a close checkpoint promotes while the engine is being disposed.
+                _state.ThrowIfStopped();
+                _state.RequireNoWriteFailure();
 #if DEBUG || TESTING
                 EngineState.ObservePromotion?.Invoke(version, _checksums.JournalBytes != 0);
 #endif
