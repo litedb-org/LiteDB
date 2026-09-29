@@ -248,3 +248,16 @@ names of up to 244 characters keep their existing identity, and Windows naming i
 unchanged. Earlier prereleases without the `.Turn` mutex could open names of 245
 to 249 characters; running them together with this version on such a path is
 unsupported.
+
+## Exclusive rebuild ownership (#3035)
+
+File-backed opening and rebuild now hold a shared admission claim across
+replacement and reopen. Direct rebuild keeps source data/WAL handles exclusive
+through installation, closing the gap between finishing the scan and publishing
+the recovery marker. Other Direct connections must close before rebuilding;
+ineffective OS file-sharing locks cause rebuild to fail before copying records.
+The claim is released on process death, while an incomplete-installation marker
+still blocks access. See [ownership and path limits](rebuild-recovery.md).
+Ordinary Direct opens remain available on runtimes without named mutexes,
+including read-only access. Shared mode, explicit rebuild, and opens requesting
+`AutoRebuild` or `Upgrade` require named-mutex support.
