@@ -1700,6 +1700,17 @@
           "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
         }
       ]
+    },
+    {
+      "name": "BeforeSyncLock",
+      "protocol": "sync helper failure boundary (#3052)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/SyncFailureBoundary_Tests.cs#Waiting_sync_after_a_published_failure_syncs_nothing",
+          "model": "interleaving",
+          "proves": "A $database sync helper that passed its admission check waits before the lock that orders its sync while another operation's sync fails with EIO and is recorded under that lock; once it holds the lock it syncs nothing and reports the recorded failure, for the log and the data sync."
+        }
+      ]
     }
   ],
   "observers": {
@@ -1713,6 +1724,7 @@
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
     "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "ObservePromotion": "Observes each file format promotion as it starts under the WAL writer (the version it promotes to, whether an earlier header journal is outstanding) to prove that no promotion starts behind one; not a fault boundary.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
   },

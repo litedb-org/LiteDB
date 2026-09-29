@@ -34,6 +34,100 @@
       "disposition": "strengthened",
       "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    },
+    {
+      "id": "3027-checkpoint-log-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Internals.CheckpointDurability_Tests.UnsupportedCheckpointSync_ProceedsInWriteOrderAndKeepsWriting"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A checkpoint on a log that answers \"cannot sync\" never loses a commit and never tears the data file; it retries the log sync and drains the WAL once the log syncs.",
+      "reason": "Decision D: no in-place overwrite behind a recovery copy that is only in the OS cache, in both commit modes. Such a checkpoint now writes nothing and keeps the WAL (it used to overwrite data in write order). The new tests assert byte-identical files, kept frames, the drain once the log syncs and power-loss images. (S09a; the durable-commit fail-loud variant follows with S09c.)",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#CheckpointDrainsTheWalOnceTheLogSyncsAfterAnEarlierCheckpointWroteNothing",
+        "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#UnsupportedCheckpointSync_WritesNothingAndKeepsTheWal_WithoutDurableCommits",
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Checkpoints_on_a_log_that_cannot_sync_write_nothing_and_keep_the_wal_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-mvcc-log-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Internals.MvccUnsyncableLog_Tests.Snapshot_checkpoint_on_a_log_that_never_syncs_appends_instead_of_reusing_slots"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Storage that cannot sync never reuses retired WAL slots, and a snapshot checkpoint there keeps the reader's snapshot and every commit.",
+      "reason": "Renamed for the opted-out mode it runs in; a checkpoint whose log cannot sync now retires nothing (it proves its syncs first), so the slot-clear case is forced by a log that stops syncing at the clears.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Snapshot_checkpoint_on_a_log_that_never_syncs_appends_instead_of_reusing_slots_without_durable_commits",
+        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-shared-log-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Internals.SharedUnsyncableLog_Tests.Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A shared connection on a log that cannot sync never reuses slots retired there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file.",
+      "reason": "Decision D and the retirement proof: a checkpoint on a log known not to sync, or that stops syncing after its proof, now retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per stop point, with a second connection.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-promotion-conversion-log-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Engine.IndexPromotionDurability_Tests.Unsupported_journal_sync_publishes_the_new_format_without_a_power_loss_claim",
+        "LiteDB.Tests.Issues.Issue2242_UnsyncableLog_Tests.Compact_promotion_on_a_log_that_never_syncs_publishes_v12_and_keeps_writing",
+        "LiteDB.Tests.Issues.Issue2242_UnsyncableLog_Tests.Legacy_database_on_a_log_that_never_syncs_converts_and_keeps_writing",
+        "LiteDB.Tests.Issues.Issue2242_UnsyncableLog_Tests.New_database_on_a_log_that_never_syncs_writes_checkpoints_and_reopens"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A database on a log that never syncs keeps every committed row, and no format change tears its header.",
+      "reason": "Decision D: an index migration, a 5.x conversion or a compact promotion overwrites the header behind a journal the log cannot make durable, so it is refused before it writes, in both commit modes: the open throws the refusal (tagged as unsynced storage) with both files byte for byte, and a compact write stores BSON instead. They used to publish the new format behind an OS-cached journal. The new-database test runs opted out, as the storage requires. (The read-only open fallback after such a refusal follows with S09c.)",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/IndexPromotionDurability_Tests.cs#Unsupported_journal_sync_refuses_the_promotion_before_it_writes",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Compact_promotion_on_a_log_that_never_syncs_falls_back_to_bson_without_durable_commits",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Legacy_database_on_a_log_that_never_syncs_is_not_converted",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#New_database_on_a_log_that_never_syncs_writes_checkpoints_and_reopens_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-durable-commits-log-cannot-sync",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.Issue2818_DurableCommits_Tests.Opted_out_checkpoint_syncs_the_log_and_then_the_data_file"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "An opted-out checkpoint makes the log durable before it overwrites data.",
+      "reason": "The opted-out checkpoint's sync order gained the data sync first (a checkpoint writes only to a data file that just synced), so the test was renamed with the new order and now also checks that no data page is written before the log syncs.",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/Issue2818_DurableCommits_Tests.cs#Opted_out_checkpoint_syncs_the_log_before_it_overwrites_data"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-header-writeback-before-journal-retire",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Recovery from an OS-cached promotion journal never replaces a valid header with the journal's copy.",
+      "reason": "e4b9553fd: before the sync that retires a header journal, recovery writes the header back as read (a failed sync's pages may be marked clean, fsyncgate). The recovered-open check was \"no data write at all\"; it is now \"the data file's bytes are unchanged\", which still fails if the journal's copy replaced a valid header.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs",
+        "LiteDB.Tests/Regressions/SyncFailureRecovery_Tests.cs#Journal_retired_after_a_failed_header_sync_leaves_the_header_on_the_device"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
