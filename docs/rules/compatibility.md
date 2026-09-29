@@ -67,7 +67,8 @@ See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibili
 Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout.
 MVCC reclamation lazily publishes v13 before writing retirement witnesses. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
-data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
+data-page coverage (after a data sync answered "cannot sync", no log sync precedes a data
+sync that succeeds, so the unconverted pair stays the durable one). Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the
@@ -153,7 +154,28 @@ See [storage ownership](storage-ownership.md) for data/WAL replacement and
 Never clear a checksummed committed frame without a durable retirement witness.
 The header binds the witness-chain root and minimum confirmed sequence. Retain
 original frame contributions and confirmation proofs; recovery and rebuild must
-share the verifier. Witness publication requires durable sync without fallback.
+share the verifier. Witness publication requires a durable sync: every retiring
+checkpoint first syncs the data file and WAL (the WAL directory once per engine), and
+storage that answers "cannot sync" (#2242) neither retires nor reuses frames. Only storage
+that stops syncing during a retiring checkpoint degrades its barriers; that checkpoint keeps
+the frames it retired and publishes no root once it found out. Never make a retired slot
+reusable before its witness root is on the device: a root is synced before its header
+journal goes, and an open that finds that journal writes the header back and syncs it
+before retiring the journal, or opens read-only. Before an engine first reuses a slot it
+syncs the data file and the raw log once (note 15 of the durability decisions, the
+conservative baseline). Before its first commit an engine whose data is a file syncs the
+data file, best effort (once per data header in the process). Every WAL generation starts
+with a header frame, a copy of the data header; a WAL without one opens as before. Remove a
+file WAL or a header journal only after a data sync that covers what it protects succeeded;
+never infer that no earlier engine or process synced its frames; every log shrink goes
+through the one check that a data sync covered every data write. A checkpoint or format
+promotion syncs the data file before it writes and writes nothing while that fails; a failure
+later in either is recorded before any removal and the engine continues read-only; an open that
+would retire a journal, convert or migrate without a data sync opens read-only instead (writes
+throw, reads work); a rebuild is refused unchanged. With durable commits a commit that cannot be
+made durable (a log or WAL directory that cannot sync) throws before it writes; log syncs never
+wait for the data file; the WAL kept meanwhile is bounded by `wal limit` (default 1 GiB).
+Follow [the durability decisions](../decisions/durability-policy.md).
 Remove/sync the WAL-bound header journal before clearing or reusing payloads.
 Keep per-transaction page positions increasing across safepoints even when a
 checkpoint introduces earlier holes. Only full checkpoint can clear the root and

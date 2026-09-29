@@ -138,6 +138,11 @@ The header frame is a copy of the header only. It is not a backup of every histo
 page: a data page the device lost is not recovered from it, and the supported lost-page
 fault model is unchanged.
 
+Before an engine's first durable commit, the data file is also synced once (decision 14),
+best effort: a WAL holds changed pages only, so a database file someone copied into place
+must be on the device before commits build on it. A data file that cannot sync proceeds;
+the barrier runs once per process and data header, and once per shared connection.
+
 Checksums are computed before encryption. The trailer and page are encrypted
 together using complete AES blocks; encryption and caller-stream wrappers forward
 durable flushes to the underlying file. CRC32C uses hardware instructions on
@@ -182,10 +187,12 @@ ordering, encoding, temporary space, and durability limits.
 
 With `DurableCommits=false`, power loss may lose recent commits, but a partially
 present transaction is not recovered. Storage must still honor successful syncs
-for the usual durable-commit and checkpoint guarantees. Log storage that rejects
-sync as unsupported (#2242) converts and checkpoints in write order without the
-log sync: a killed process still recovers, power loss is not covered. A failed
-sync still stops before data is overwritten. On Unix the file sync is issued natively
+for the usual durable-commit and checkpoint guarantees. Storage that rejects sync as
+unsupported (#2242) follows [the durability policy](decisions/durability-policy.md): a
+durable commit on a log that cannot sync fails before it writes; a data file that cannot
+sync keeps commits durable in the WAL, which is emptied only after a data sync succeeds
+and grows up to the WAL limit meanwhile. A failed sync still stops before data is
+overwritten, and is recorded: the engine continues read-only. On Unix the file sync is issued natively
 (`fsync`, or `F_FULLFSYNC` on macOS), because `FileStream.Flush(true)` in released .NET
 runtimes reports success for every failed `fsync`.
 
