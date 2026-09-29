@@ -234,3 +234,25 @@ custom-option behavior. Input containing both `=` and `;` is parsed as options
 and never falls back to a filename. Use `new ConnectionString { Filename = path }`
 for arbitrary paths. See [the parsing compatibility notes](connection-string-parsing.md)
 for explicit syntax and integration requirements.
+
+## Caller streams: stored settings and non-writable streams
+
+`new LiteDatabase(stream)` without a log stream keeps its WAL in memory, so every
+commit is checkpointed into the caller's stream. This is now an engine setting of
+the open only: the stored `CHECKPOINT` pragma is no longer rewritten to 1 by the
+constructor and restored by `Dispose` (a file opened by name afterwards keeps its own
+checkpoint size, also when the stream-based instance was never disposed). `Dispose`
+can be called twice, and disposing with an open explicit transaction rolls it back
+and releases the stream instead of throwing.
+
+A caller's data or log stream that cannot be written (`LiteDatabase(Stream)` or
+`EngineSettings` streams, e.g. a `FileStream` opened with `FileAccess.Read`) opens as
+before while opening changes nothing. When opening would have to change a stream
+(recovery, header-journal repair, trimming a partial page, index migration or
+checksum conversion, e.g. any 5.0.21 file) it opens read-only with `legacy index
+scan` instead, as 5.0.21 read such streams: explicit transactions still work, write
+operations are rejected. Such storage is never checkpointed, promoted to compact
+storage, marked for rebuild or rebuilt (`Checkpoint()` and `Rebuild()` return 0, as
+in 5.x; a checkpoint of a non-empty caller log throws `NotSupportedException`), and
+the caller's `EngineSettings` instance is not modified. Durability promises for other
+custom streams are unchanged (#3044).
