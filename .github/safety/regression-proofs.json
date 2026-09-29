@@ -100,6 +100,38 @@
         "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
         "scripts/test-5021-regression-compatibility.py"
       ]
+    },
+    {
+      "repro": "Issue_3027_TornWalAppend",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_leaves_the_engine_read_only",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Truncated_torn_append_is_rewritten_by_the_next_commit",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost"
+      ]
+    },
+    {
+      "repro": "Issue_3027_FailedSafepointWrite",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
+        "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LostHeaderBesideWal",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Opted_out_commits_survive_a_data_file_that_lost_its_header",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Every_wal_generation_starts_with_a_copy_of_the_data_header",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Read_only_open_reads_a_lost_header_from_the_log_without_writing",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Log_of_a_database_whose_data_file_is_gone_is_never_initialized_over",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Log_whose_header_frame_cannot_be_read_is_never_initialized_over",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.Encrypted.cs#Encrypted_data_file_left_empty_is_restored_from_its_log",
+        "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows"
+      ]
     }
   ]
 }

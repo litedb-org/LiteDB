@@ -1,0 +1,33 @@
+{
+  "id": "Issue_3027_LostHeaderBesideWal",
+  "title": "A data file that lost its header beside a WAL of committed frames is opened as a new, empty database",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2242",
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "header-frame",
+    "power-loss"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the open of an empty data file beside a WAL of committed frames created a new, empty database and discarded every frame: 0 of 50 rows"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: an empty data file, or one whose header page or first sector is zeros, beside a WAL of committed frames: the open restored the header from the WAL with every one of the 50 rows"
+    }
+  }
+}
