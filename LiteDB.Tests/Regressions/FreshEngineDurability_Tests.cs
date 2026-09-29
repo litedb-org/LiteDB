@@ -301,11 +301,15 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
-        /// Healthy storage: reusing retired WAL slots proves the data file like a commit does, once
-        /// per data header, not with a data sync per shared operation.
+        /// Healthy storage: reusing retired WAL slots adds no sync to a shared operation, of the data
+        /// file or of the log: each operation's commit syncs the log once. Implementation note 15 of
+        /// docs/decisions/durability-policy.md: a reused slot is witnessed by a root the retiring
+        /// checkpoint synced, so it needs no proof of its own. (Until that note, every operation's
+        /// engine synced the log once more before its first reuse, and the data file once per data
+        /// header; the log's sync was not counted here.)
         /// </summary>
         [Fact]
-        public void Slot_reuse_adds_no_data_sync_per_shared_operation()
+        public void Slot_reuse_adds_no_sync_per_shared_operation()
         {
             using var file = new TempFile();
             Setup(file.Filename);
@@ -328,7 +332,9 @@ namespace LiteDB.Tests.Regressions
             }
             var before = SyncPowerLossModel.ReadShared(logName);
             var syncs = power.DataSyncs;
+            var logSyncs = power.LogSyncs;
             for (var value = 10; value < 15; value++) Update(db, value);
+            (power.LogSyncs - logSyncs).Should().Be(5, "each operation's commit syncs the log once, and reusing slots adds nothing");
             var after = SyncPowerLossModel.ReadShared(logName);
             Enumerable.Range(0, before.Length / WalChecksum.FrameSize).Count(frame =>
                 !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)

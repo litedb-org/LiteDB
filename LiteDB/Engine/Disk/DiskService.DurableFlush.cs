@@ -33,9 +33,6 @@ namespace LiteDB.Engine
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
         private volatile bool _dataFlushDegraded;
 
-        // Set once this engine proved what reusing a WAL slot needs (see ProveSlotReuse).
-        private volatile bool _slotReuseProven;
-
         // Set by this engine's first successful data barrier: whatever earlier engines left in the
         // data file's OS cache is durable since (see ProveDataFile).
         private volatile bool _dataSyncProven;
@@ -67,14 +64,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
         /// sync is still attempted, but a failure would go unreported, so it never proves
-        /// durability. Such a log is not used for slot reuse (see <see cref="ProveSlotReuse"/>).
+        /// durability. Such a log is not used for slot reuse (see <see cref="AllocateLogPosition"/>).
         /// </summary>
         internal bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
         /// <summary>
         /// Some storage of this database answered "cannot sync" (#2242), in this engine or, in
-        /// shared mode, an earlier one. Retirement witnesses need a durable sync and reused
-        /// slots a durable clear, so such an engine neither retires nor reuses WAL frames.
+        /// shared mode, an earlier one. Retirement witnesses need a durable sync, so such an
+        /// engine retires no WAL frames, and it reuses none either (implementation note 15).
         /// </summary>
         internal bool FlushDegraded => _logFlushDegraded || _dataFlushDegraded || (_sharedDurability?.FileSyncUnsupported ?? false);
 
@@ -258,41 +255,14 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Before this engine first reuses a WAL slot, prove that the data file and the log sync.
-        /// Slots found at open were retired by an earlier engine, maybe of another connection,
-        /// whose data file may have stopped syncing after that checkpoint's proof: the witness root
-        /// that lets recovery skip a slot's old frame is then in the OS cache only, and this data
-        /// sync makes it durable before the frame is overwritten. The log sync makes durable any
-        /// clear an earlier engine wrote without one; it targets the raw log, so it adds no padding
-        /// between a transaction's frames. (The WAL's name needs no sync here: the checkpoint that
-        /// retired a slot synced its directory, and a WAL is deleted only when empty.) Storage that
-        /// answers "cannot sync" (#2242) degrades, and the caller appends instead; that engine's
-        /// commits then report reduced durability. Slots this engine retires later are proven again
-        /// by their own checkpoint. Caller holds the log writer lock.
-        /// </summary>
-        private bool ProveSlotReuse()
-        {
-            if (_slotReuseProven) return true;
-            // An unverifiable log sync proves nothing. A failed proof leaves the engine degraded,
-            // so a retry per allocation costs no sync.
-            if (this.FlushDegraded || this.LogSyncUnverified) return false;
-            if (!_dataSyncProven)
-            {
-                if (_dataIsFile) this.ProveDataFile();
-                else this.SyncDataFile();
-            }
-            if (!this.FlushDegraded) this.SyncRawLog();
-            return _slotReuseProven = !this.FlushDegraded;
-        }
-
-        /// <summary>
-        /// Reusing a WAL slot depends on the data file, where an earlier engine, maybe of another
-        /// connection or process, may have left the witness root in the OS cache only (see
-        /// <see cref="ProveSlotReuse"/>). Only a header change can make earlier WAL content obsolete
-        /// (a checkpoint that does not change it keeps every frame), so the sync is skipped while the
-        /// header is one a successful sync in this process left (<see cref="DurableHeaders"/>).
-        /// Before a first commit it is a best-effort barrier only (<see cref="DataBarrierBeforeFirstCommit"/>):
-        /// commits do not depend on it, the WAL starts with a copy of the header (decision 11).
+        /// The data barrier before an engine's first commit (<see cref="DataBarrierBeforeFirstCommit"/>,
+        /// decision 14): sync the data file, so that pages left in its OS cache (a file someone copied
+        /// into place, an earlier engine's writes, maybe of another connection or process) are on the
+        /// device before commits build on them. Only a header change can make earlier WAL content obsolete (a checkpoint that
+        /// does not change it keeps every frame), so the sync is skipped while the header is one a
+        /// successful sync in this process left (<see cref="DurableHeaders"/>). Best effort: commits do
+        /// not depend on it, the WAL starts with a copy of the header (decision 11), and reusing a WAL
+        /// slot needs none either (implementation note 15, see <see cref="AllocateLogPosition"/>).
         /// Caller holds the log writer lock.
         /// </summary>
         private void ProveDataFile()
