@@ -22,11 +22,20 @@ namespace LiteDB.Tests.Issues
             public int PlainFlushes { get; private set; }
             public Exception DurableFailure { get; set; }
 
+            /// <summary>Also record each write in the sync order, as "{name} write".</summary>
+            public bool RecordWrites { get; set; }
+
             public CountingFile(string path, string name, List<string> syncOrder)
                 : base(path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite)
             {
                 _name = name;
                 _syncOrder = syncOrder;
+            }
+
+            public override void Write(byte[] array, int offset, int count)
+            {
+                if (RecordWrites) _syncOrder.Add(_name + " write");
+                base.Write(array, offset, count);
             }
 
             public override void Flush(bool flushToDisk)
@@ -129,10 +138,16 @@ namespace LiteDB.Tests.Issues
             }
         }
 
+        /// <summary>
+        /// Data pages are overwritten in place: the log that can redo them must be on the device
+        /// before the first overwrite. The checkpoint first syncs the data file it has not touched
+        /// yet (it writes only to a data file that syncs), then syncs the log's padding and sealed
+        /// redo, overwrites data pages, and syncs the backfill and the new salt.
+        /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
-        public void Opted_out_checkpoint_syncs_the_log_and_then_the_data_file(string password)
+        public void Opted_out_checkpoint_syncs_the_log_before_it_overwrites_data(string password)
         {
             using var storage = new Storage();
             using var engine = storage.Open(durableCommits: false, password);
@@ -140,11 +155,16 @@ namespace LiteDB.Tests.Issues
             var rows = WarmUp(db);
             CommitFourTransactions(db, rows);
             storage.SyncOrder.Clear();
+            storage.Data.RecordWrites = true;
 
             db.Checkpoint();
 
-            // Data pages are overwritten in place: the log that can redo them must be on the device first.
-            storage.SyncOrder.Should().Equal("log", "log", "data", "data"); // Sync padding, seal redo, then publish data and salt.
+            var order = storage.SyncOrder;
+            order.Where(x => x != "data write").Should().Equal("data", "log", "log", "data", "data");
+            order.Should().Contain("data write");
+            order.IndexOf("data write").Should().BeGreaterThan(order.LastIndexOf("log"),
+                "no data page is overwritten before the log that redoes it synced");
+            order.IndexOf("data write").Should().BeGreaterThan(order.IndexOf("data"), "the first data sync covers the untouched file");
         }
 
         // Plain files only: opening an encrypted WAL stream syncs its preamble, which

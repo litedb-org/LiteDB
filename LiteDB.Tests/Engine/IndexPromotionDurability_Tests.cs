@@ -24,19 +24,35 @@ namespace LiteDB.Tests.Engine
             AssertRecovered(data, log, password);
         }
 
-        [Fact]
-        public void Unsupported_journal_sync_publishes_the_new_format_without_a_power_loss_claim()
+        /// <summary>
+        /// #2242, in both commit modes: the promotion overwrites the header in place behind its header
+        /// journal, so a log that cannot sync refuses it before the journal is written. It used to
+        /// publish the new format in write order behind a journal in the OS cache only, which a power
+        /// loss mid-overwrite could leave torn with no durable repair (external review, point 1);
+        /// decision D keeps the recovery rule for callers that opted out too. The refusal names the
+        /// log, is tagged as unsynced storage and changes neither file; the format is unchanged. Once
+        /// the log syncs, the next open publishes it. (The read-only open fallback that follows such a
+        /// refusal is the continuation layer's.)
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Unsupported_journal_sync_refuses_the_promotion_before_it_writes(bool durableCommits)
         {
-            // #2242: storage that cannot sync keeps working as before #2818.
             using var data = LegacyIndexOrdering(password: null, out var originalLog);
+            var before = data.ToArray();
             using var log = new SyncFailureStream(originalLog, new UnauthorizedAccessException("Durable sync unsupported"));
-            using (var db = Open(data, log, password: null))
-            {
-                db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
-                db.GetCollection("rows").FindById(1)["payload"].AsString.Should().Be("acknowledged");
-            }
-            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
-            AssertRecovered(data, log, password: null);
+            Action open = () => { using var db = Open(data, log, password: null, durableCommits); };
+            var refusal = open.Should().Throw<IOException>().Which;
+            refusal.Message.Should().StartWith("The log file cannot sync to the device (#2242): an overwrite of the data file writes nothing");
+            DiskService.IsUnsyncedStorage(refusal).Should().BeTrue();
+            DiskService.IsQuietOverwriteRefusal(refusal).Should().BeTrue("\"cannot sync\" is not a failure");
+            data.ToArray().Should().Equal(before, "the promotion was refused before it wrote");
+            log.ToArray().Should().Equal(originalLog);
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.CHECKSUM_FILE_VERSION);
+
+            AssertRecovered(data, log, password: null); // on a log that syncs
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION, "the promotion goes through once the log syncs");
         }
 
         [Fact]
@@ -77,8 +93,8 @@ namespace LiteDB.Tests.Engine
             recovered.GetCollection("rows").FindById(1)["payload"].AsString.Should().Be("acknowledged");
         }
 
-        private static LiteDatabase Open(Stream data, Stream log, string password) =>
-            new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }));
+        private static LiteDatabase Open(Stream data, Stream log, string password, bool durableCommits = true) =>
+            new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, DurableCommits = durableCommits }));
 
         private sealed class SyncFailureStream : MemoryStream, IDurableStream
         {

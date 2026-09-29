@@ -3,13 +3,23 @@ using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests;
 using Xunit;
 using static LiteDB.Constants;
 
 namespace LiteDB.Internals
 {
+    /// <summary>
+    /// Checkpoint and recovery-marker barriers on log storage whose sync fails or answers "cannot sync"
+    /// (#2242), with and without durable commits (docs/decisions/durability-policy.md, decisions 3, 6
+    /// and proposed defaults A and D). Power-loss images check exactly which state survives.
+    /// </summary>
     public class CheckpointDurability_Tests
     {
+        /// <summary>
+        /// Marking the header invalid overwrites it in place, so it needs a durable header journal
+        /// first: a failed journal sync stops it before any data write.
+        /// </summary>
         [Theory]
         [InlineData(null, false)]
         [InlineData("secret", false)]
@@ -76,6 +86,63 @@ namespace LiteDB.Internals
             AssertRecovery(data.Durable, log.Durable, password, 1);
         }
 
+        /// <summary>
+        /// Without durable commits a checkpoint on a log that answers "cannot sync" writes nothing and
+        /// keeps the WAL. It used to proceed in write order, its backfill overwriting the data file
+        /// behind a header journal and WAL that were only in the OS cache, so a power loss mid-backfill
+        /// tore the data file (external review, point 1). Decision D: the strict WAL rule protects the
+        /// data file's integrity, not only recent commits, also for callers that opted out. The refusal
+        /// is quiet and records nothing ("cannot sync" is the reason to opt out, proposed default A;
+        /// decision 5), reads stay exact, and a power loss keeps the last synced state whole. A later
+        /// checkpoint retries a real sync, so once the log syncs again it drains the WAL.
+        /// </summary>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void CheckpointDrainsTheWalOnceTheLogSyncsAfterAnEarlierCheckpointWroteNothing(string password)
+        {
+            using var data = new CheckpointDevice();
+            using var log = new CheckpointDevice();
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, DurableCommits = false }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                rows.Insert(Documents(0));
+                rows.EnsureIndex("value");
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" });
+                db.Checkpoint();
+                db.BeginTrans();
+                rows.Update(Documents(1));
+                db.Commit().Should().BeTrue();
+                log.SuccessfulSyncsBeforeFailure = 0;
+                var dataBefore = data.ToArray();
+                var logBefore = log.ToArray();
+                engine.Checkpoint().Should().Be(0, "a log that cannot sync backs no overwrite");
+                log.RejectedSyncs.Should().Be(1, "the checkpoint tried a real sync, then refused before its journal");
+                data.ToArray().Should().Equal(dataBefore, "nothing was written to the data file");
+                log.Length.Should().Be(logBefore.Length, "no journal footer was appended");
+                Frames(log.ToArray(), password).Should().Equal(Frames(logBefore, password), "the WAL is kept");
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+                WriteFailureAssert.Info(db)["durableLogFlush"].AsBoolean.Should().BeFalse();
+                AssertRows(db, 1);
+                // A power loss now keeps each file as last synced: the state before the opted-out commit, whole.
+                AssertRecovery(data.Durable, log.Durable, password, 0);
+
+                rows.Update(Documents(2));
+                log.SuccessfulSyncsBeforeFailure = -1;
+                engine.Checkpoint().Should().BeGreaterThan(0, "the log syncs again: the checkpoint writes back");
+                log.Length.Should().Be(password == null ? 0 : PAGE_SIZE, "and drains the WAL, down to an encrypted log's preamble");
+                AssertRows(db, 2);
+            }
+            AssertRecovery(data.Durable, log.Durable, password, 2);
+        }
+
+        /// <summary>
+        /// Commits and a checkpoint whose log sync then fails, unlike an unsupported one, in both modes:
+        /// the checkpoint throws before any data overwrite, the failure is recorded (decision 6) and
+        /// the engine stops. A durable commit survives a power loss only once it synced.
+        /// </summary>
         [Theory]
         [InlineData(null, false, false)]
         [InlineData("secret", false, false)]
@@ -113,7 +180,8 @@ namespace LiteDB.Internals
                 log.SuccessfulSyncsBeforeFailure = 0;
                 db.Commit().Should().BeTrue();
                 db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
-                log.RejectedSyncs.Should().Be(durableCommits ? 1 : 0);
+                // The degraded commit's sync, and the log sync $database.walKept retried after it.
+                log.RejectedSyncs.Should().Be(durableCommits ? 2 : 0);
                 var originalWal = log.ToArray();
                 var preamble = password == null ? 0 : PAGE_SIZE;
                 var frameBytes = (originalWal.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize;
@@ -128,7 +196,14 @@ namespace LiteDB.Internals
                 data.ObservedWrites.Should().Be(0, "checkpoint needs durable redo before any data overwrite");
                 data.ToArray().Should().Equal(originalData);
                 log.ToArray().Take(preamble + (int)frameBytes).Should().Equal(originalWal.Take(preamble + (int)frameBytes));
-                log.RejectedSyncs.Should().Be(durableCommits ? 2 : 1, "checkpoint must retry real sync even after commit fallback");
+                log.RejectedSyncs.Should().Be(durableCommits ? 3 : 1, "checkpoint must retry real sync even after commit fallback");
+                // Recorded before the stop (decision 6); the stopped engine reads nothing more, so its state says so.
+                var failure = engine.GetState().WriteFailure;
+                failure.Operation.Should().Be("A checkpoint");
+                failure.File.Should().Be("log");
+                failure.Error.Should().Be("durable sync failed");
+                failure.WalKept.Should().BeTrue();
+                data.ObservedWrites.Should().Be(0);
                 Action write = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
                 write.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
                 Action rollback = () => db.Rollback();
@@ -142,22 +217,28 @@ namespace LiteDB.Internals
             AssertRecovery(data.Durable, log.Durable, password, rejectJournalSync ? 1 : 0);
         }
 
+        /// <summary>
+        /// #2242: opted out of durable commits, storage whose log cannot sync keeps taking commits
+        /// ("cannot sync" is not a failure then, proposed default A), but no checkpoint writes behind
+        /// them. Before, each checkpoint proceeded in write order behind a header journal and WAL in
+        /// the OS cache only, and a power loss mid-backfill tore the data file (external review, point
+        /// 1). Decision D keeps the strict WAL rule for opted-out callers too: each checkpoint, the
+        /// close one included, writes nothing to the data file and keeps the WAL, quietly (decision
+        /// 5). What a killed process leaves recovers every commit; a power loss keeps the data file
+        /// as last synced, whole, with the rows checkpointed before the log stopped syncing.
+        /// </summary>
         [Theory]
-        [InlineData(null, false)]
-        [InlineData("secret", false)]
-        [InlineData(null, true)]
-        [InlineData("secret", true)]
-        public void UnsupportedCheckpointSync_ProceedsInWriteOrderAndKeepsWriting(string password, bool durableCommits)
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void UnsupportedCheckpointSync_WritesNothingAndKeepsTheWal_WithoutDurableCommits(string password)
         {
-            // #2242: storage that cannot sync at all keeps working as before #2818.
-            // Ordered OS-cache writes keep it consistent after a process crash;
-            // power-loss safety is not claimed, so only the process image is checked.
             using var data = new CheckpointDevice();
             using var log = new CheckpointDevice();
             var settings = new EngineSettings
             {
-                DataStream = data, LogStream = log, Password = password, DurableCommits = durableCommits
+                DataStream = data, LogStream = log, Password = password, DurableCommits = false
             };
+            byte[] dataBefore;
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -168,20 +249,37 @@ namespace LiteDB.Internals
                 db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" });
                 db.Checkpoint();
                 log.SuccessfulSyncsBeforeFailure = 0;
+                dataBefore = data.ToArray();
+                var durable = (Data: data.Durable, Log: log.Durable);
 
-                db.BeginTrans();
-                rows.Update(Documents(1));
-                db.Commit().Should().BeTrue();
-                engine.Checkpoint().Should().BeGreaterThan(0);
-                log.RejectedSyncs.Should().BeGreaterThan(0, "checkpoint retries a real sync first");
-                db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
-
-                rows.Update(Documents(2));
-                db.Checkpoint();
-                rows.Update(Documents(3));
+                for (var value = 1; value <= 3; value++)
+                {
+                    var logBefore = log.ToArray();
+                    db.BeginTrans();
+                    rows.Update(Documents(value));
+                    db.Commit().Should().BeTrue();
+                    log.Length.Should().BeGreaterThan(logBefore.Length, "commits keep writing to the WAL");
+                    var kept = Frames(logBefore, password);
+                    log.ToArray().Take(kept.Length).Should().Equal(kept, "the WAL grows behind the frames it keeps");
+                    engine.Checkpoint().Should().Be(0);
+                    log.RejectedSyncs.Should().Be(value, "each checkpoint retries a real sync first");
+                    data.ToArray().Should().Equal(dataBefore, "no checkpoint writes behind a log that cannot sync");
+                    AssertRows(db, value);
+                }
+                var info = WriteFailureAssert.Info(db);
+                info["durableLogFlush"].AsBoolean.Should().BeFalse();
+                info["readOnly"].AsBoolean.Should().BeFalse();
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
                 AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
+                data.Durable.Should().Equal(durable.Data);
+                log.Durable.Should().Equal(durable.Log);
+                db.CheckpointSize = 1000; // enables the close checkpoint, far above this WAL
             }
+            data.ToArray().Should().Equal(dataBefore, "the close checkpoint writes nothing either, and does not throw");
+            // $database.walKept retried one too at each of the two reads above (as for the data file).
+            log.RejectedSyncs.Should().Be(6, "the close checkpoint tried a real sync too");
             AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
+            AssertRecovery(data.Durable, log.Durable, password, 0);
         }
 
         private static void AssertRecovery(byte[] dataBytes, byte[] logBytes, string password, int value)
@@ -196,12 +294,7 @@ namespace LiteDB.Internals
                     { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly }))
                 using (var db = new LiteDatabase(engine, disposeOnClose: false))
                 {
-                    var rows = db.GetCollection("rows");
-                    rows.FindAll().Should().BeEquivalentTo(Documents(value));
-                    rows.Find(Query.EQ("value", value)).Should().BeEquivalentTo(Documents(value));
-                    rows.Find(Query.EQ("value", 1 - value)).Should().BeEmpty();
-                    Assert.Equal(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" },
-                        db.GetCollection("cold").FindAll().Should().ContainSingle().Which);
+                    AssertRows(db, value);
                     if (!readOnly) db.Checkpoint();
                 }
                 if (readOnly)
@@ -210,6 +303,28 @@ namespace LiteDB.Internals
                     log.ToArray().Should().Equal(beforeLog);
                 }
             }
+        }
+
+        /// <summary>"rows" holds exactly <see cref="Documents"/> of <paramref name="value"/>, the value index finds each and no other, and "cold" is intact.</summary>
+        private static void AssertRows(LiteDatabase db, int value)
+        {
+            var rows = db.GetCollection("rows");
+            rows.FindAll().Should().BeEquivalentTo(Documents(value));
+            rows.Find(Query.EQ("value", value)).Should().BeEquivalentTo(Documents(value));
+            rows.Find(Query.Not("value", value)).Should().BeEmpty();
+            Assert.Equal(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" },
+                db.GetCollection("cold").FindAll().Should().ContainSingle().Which);
+        }
+
+        /// <summary>
+        /// The WAL's frames: its bytes up to the last whole frame, after an encrypted log's preamble. The
+        /// padding behind them is never a frame; a checkpoint rewrites it as encrypted zeros before its
+        /// journal barrier, and the next commit writes its frames over it.
+        /// </summary>
+        private static byte[] Frames(byte[] log, string password)
+        {
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            return log.Take(preamble + (log.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize).ToArray();
         }
 
         private static BsonDocument[] Documents(int value) => Enumerable.Range(1, 16).Select(id => new BsonDocument

@@ -12,24 +12,51 @@ namespace LiteDB.Internals
     /// #2242 in shared mode: every operation opens a fresh engine whose recovery registers
     /// the WAL slots an earlier engine cleared without a durable sync. Those slots must
     /// never be reused, a live reader keeps its snapshot, and the connection keeps
-    /// reporting the weaker guarantee. Each fresh engine still makes one real sync
-    /// attempt per write: its reuse probe, after which its commit flushes without one.
+    /// reporting the weaker guarantee. Every retiring checkpoint first proves its syncs, so a
+    /// log known unable to sync makes a checkpoint retire nothing. A log that stops syncing
+    /// during the checkpoint keeps the retired frames, unless it stops only at the sync of the
+    /// clears themselves; either way no later engine reuses those slots. A second connection,
+    /// which does not share the first one's diagnostic, relies on its own proof.
+    /// Opted out of durable commits "cannot sync" is not a failure (proposed default A of
+    /// docs/decisions/durability-policy.md) and writes continue; with durable commits the
+    /// checkpoint fails loudly and the connection continues read-only (decisions 3 and 6).
+    /// Either way no checkpoint overwrites the data file behind a recovery copy the log cannot
+    /// sync (decision D; external review, point 1): opted out, one whose log cannot sync before it
+    /// writes returns quietly and leaves the data file byte for byte.
     /// </summary>
-    public class SharedUnsyncableLog_Tests
+    public partial class SharedUnsyncableLog_Tests
     {
         private const int DocumentCount = 64; // Streams past the shared buffered-result budget.
         private const int LaterWrites = 5;
 
-        [Fact]
-        public void Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync()
+        /// <summary>
+        /// Where the log cannot sync before the checkpoint writes ("retirement", "known"), the checkpoint
+        /// returns quietly and the data file stays byte for byte. It used to backfill in write order
+        /// behind a header journal in the OS cache only (external review, point 1; decision D).
+        /// Fails today for "retirement" (engine defect): the log stops syncing after the retirement's
+        /// proof, and the retirement's MVCC format promotion (DiskService.PrepareRetirement, before
+        /// SyncLogBeforeCheckpoint, the one place that takes the refusal quietly) throws the refusal out
+        /// of the checkpoint, whose stop records it as "A checkpoint" failure (DiskService.BeginCheckpointStop):
+        /// db.Checkpoint() throws, and the connection continues read-only.
+        /// </summary>
+        [Theory]
+        [InlineData("clear", false)]      // the log rejects only the sync of the checkpoint's clears
+        [InlineData("clear", true)]       // same, and a second connection writes afterwards
+        [InlineData("retirement", false)] // the log stops syncing after the proof: the checkpoint writes nothing
+        [InlineData("retirement", true)]
+        [InlineData("known", false)]      // the checkpoint's proof finds out: it retires and writes nothing
+        public void Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits(string stopsAt, bool secondConnection)
         {
             using var file = new TempFile();
             using var data = new SyncFile(file.Filename);
-            using var log = new SyncFile(file.Filename + "-wal") { Failure = new UnauthorizedAccessException("sync unsupported") };
+            var unsupported = new UnauthorizedAccessException("sync unsupported");
+            using var log = new SyncFile(file.Filename + "-wal") { Failure = stopsAt == "known" ? unsupported : null };
+            var armed = false;
             using var engine = new SharedEngine(new EngineSettings
             {
                 Filename = file.Filename, DataStream = data, LogStream = log,
-                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1, DurableCommits = false,
+                CheckpointStage = stage => { if (armed && stage == "wal-slot-cleared") log.Failure = unsupported; }
             });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             // No automatic or close checkpoints: every rejected sync below is a commit or a probe.
@@ -40,27 +67,63 @@ namespace LiteDB.Internals
             using var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue("the first read registers the reader's lease");
             reader.Current["value"].AsInt32.Should().Be(20);
-            int[] cleared = null;
+            byte[] retired = null;
+            var dataBefore = ReadAll(data);
+            // Frames written before the checkpoint; the witness records it appends are discarded by
+            // the next open when no root names them.
+            var walBefore = ReadAll(log);
+            var frames = walBefore.Length / WalChecksum.FrameSize;
+            // Let the checkpoint's proof sync succeed; its retirement then meets the failure.
+            if (stopsAt == "retirement")
+            {
+                log.AllowedSyncs = 1;
+                log.Failure = unsupported;
+            }
+            armed = stopsAt == "clear";
             MvccCheckpoint_Tests.RunThread(() =>
             {
                 db.Checkpoint();
-                cleared = BlankFrames(ReadAll(log));
+                retired = ReadAll(log);
             });
-            cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
+            armed = false;
+            log.Failure.Should().BeSameAs(unsupported);
+            var cleared = BlankFrames(retired);
+            if (stopsAt == "clear") cleared.Should().NotBeEmpty("the checkpoint reclaims versions the live reader does not need");
+            else
+            {
+                cleared.Should().BeEmpty(stopsAt == "known"
+                    ? "storage known unable to sync never retires frames"
+                    : "a checkpoint whose log stopped syncing keeps the frames it would have retired");
+                // Decision D: its retirement's format promotion and its backfill overwrite the data file
+                // behind a header journal the log cannot sync; the checkpoint refuses both before either.
+                ReadAll(data).Should().Equal(dataBefore, "a checkpoint whose log cannot sync writes nothing to the data file");
+                retired.Take(frames * WalChecksum.FrameSize).Should().Equal(walBefore.Take(frames * WalChecksum.FrameSize), "the WAL is kept");
+            }
             IsDurable(db).Should().BeFalse();
 
             var rejectedBefore = log.RejectedSyncs;
+            using var second = secondConnection ? new SharedEngine(new EngineSettings
+            {
+                Filename = file.Filename, DataStream = data, LogStream = log,
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1, DurableCommits = false
+            }) : null;
+            using var writer = second == null ? db : new LiteDatabase(second, disposeOnClose: false);
             MvccCheckpoint_Tests.RunThread(() =>
             {
-                for (var value = 1; value <= LaterWrites; value++) Write(db, "cold", value);
+                for (var value = 1; value <= LaterWrites; value++) Write(writer, "cold", value);
             });
 
             var written = ReadAll(log);
-            cleared.Count(offset => !IsBlank(written, offset)).Should().Be(0,
-                "slots cleared without a durable sync must not be reused by later engines");
-            (log.RejectedSyncs - rejectedBefore).Should().Be(LaterWrites,
-                "every fresh engine retries a real sync once, and no more than once, per write");
+            ChangedFrames(retired, written, frames).Should().Be(0,
+                "slots retired without durable syncs must not be reused by later engines");
+            // An opted-out commit never asks for a device sync. Only an engine that has not learned of
+            // the rejection (the second connection's first) asks, once, to prove the log before it
+            // would reuse a cleared slot; the answer makes its connection append instead.
+            (log.RejectedSyncs - rejectedBefore).Should().Be(secondConnection && stopsAt == "clear" ? 1 : 0);
             IsDurable(db).Should().BeFalse("the connection keeps reporting the weaker guarantee across reopens");
+            IsDurable(writer).Should().BeFalse();
+            WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
+            WriteFailureAssert.NoneRecorded(writer);
 
             var count = 1;
             while (reader.Read())
@@ -111,10 +174,16 @@ namespace LiteDB.Internals
         private static bool IsBlank(byte[] log, int offset) =>
             log.Skip(offset).Take(WalChecksum.FrameSize).All(value => value == 0);
 
+        /// <summary>The first <paramref name="frames"/> frames of <paramref name="before"/> rewritten since (a reused slot).</summary>
+        private static int ChangedFrames(byte[] before, byte[] after, int frames) => Enumerable.Range(0, frames)
+            .Count(frame => !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
+                .SequenceEqual(after.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)));
+
         private sealed class SyncFile : FileStream
         {
             internal Exception Failure;
             internal int RejectedSyncs;
+            internal int AllowedSyncs;
 
             internal SyncFile(string filename)
                 : base(filename, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite,
@@ -122,7 +191,8 @@ namespace LiteDB.Internals
 
             public override void Flush(bool flushToDisk)
             {
-                if (flushToDisk && Failure != null)
+                if (flushToDisk && Failure != null && AllowedSyncs > 0) AllowedSyncs--;
+                else if (flushToDisk && Failure != null)
                 {
                     base.Flush(false);
                     RejectedSyncs++;
