@@ -13,11 +13,12 @@ namespace LiteDB.Internals
         /// <summary>
         /// With durable commits (the default) the retiring checkpoint whose log stops syncing throws
         /// (decision 3): its syncs are recovery barriers and the explicit checkpoint is the caller's own
-        /// operation. Reads return exactly the committed values, and each later operation's engine, and
-        /// a second connection's, relies on its own proof, which the log fails: its commit throws before
-        /// it writes a frame. No slot is reused, and what a killed process leaves recovers exactly.
-        /// (Keeping the record connection-wide, so that later writes throw it without asking the
-        /// storage, is a later layer's.)
+        /// operation. The connection keeps the failure (decision 6, proposed default C): its later
+        /// operations open read-only, reads return exactly the committed values, and every write throws
+        /// with the record before it asks the storage anything. A second connection relies on its own
+        /// proof, which the log fails: its first commit throws before it writes a frame, and its later
+        /// writes throw with that failure. No slot is reused, and what a killed process leaves recovers
+        /// exactly.
         /// </summary>
         [Theory]
         [InlineData("clear", false)]
@@ -65,20 +66,15 @@ namespace LiteDB.Internals
 
             AssertValues(db, "cold", 0);
             AssertValues(db, "docs", 20);
+            var reason = WriteFailureAssert.Recorded(db, "A checkpoint", "log", WriteFailureAssert.LogCannotSync, walKept: true);
             IsDurable(db).Should().BeFalse();
             var rejectedBefore = log.RejectedSyncs;
             var dataBefore = ReadAll(data);
 
             if (!secondConnection)
             {
-                // Each later operation opens a fresh engine, whose proof finds that the log cannot sync:
-                // its commit fails before it writes (decision 3). Keeping the checkpoint's record for the
-                // connection, so that a write is refused without asking the storage, is a later layer's.
-                for (var value = 1; value <= LaterWrites; value++)
-                {
-                    Action later = () => Write(db, "cold", value);
-                    later.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogNotWritten + "*");
-                }
+                for (var value = 1; value <= LaterWrites; value++) WriteFailureAssert.Refused(() => Write(db, "cold", value), reason);
+                (log.RejectedSyncs - rejectedBefore).Should().Be(0, "a refused write asks the storage nothing");
             }
             else
             {
@@ -92,6 +88,8 @@ namespace LiteDB.Internals
                 {
                     Action first = () => Write(writer, "cold", 1);
                     first.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogNotWritten + "*");
+                    var refused = WriteFailureAssert.CommitRefused(writer, walKept: true);
+                    for (var value = 2; value <= LaterWrites; value++) WriteFailureAssert.Refused(() => Write(writer, "cold", value), refused);
                 });
                 (log.RejectedSyncs - rejectedBefore).Should().Be(1, "only the second connection's proof asks the storage");
                 AssertValues(writer, "cold", 0);

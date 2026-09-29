@@ -142,9 +142,9 @@ namespace LiteDB.Tests.Issues
         /// engine's first commit fails the commit that finds out (decision 3, implementation note 4):
         /// its frames already reached the operating system, so its error says the outcome is unknown.
         /// It used to be acknowledged, degraded to a plain flush. The failure is sticky (decision 6): no
-        /// further device sync is asked, reads keep working from the files as they are (the commit's
-        /// frames reached them), $database reports it, and the next write throws with it. A later
-        /// engine lets the files decide: the commit's frames are there.
+        /// further device sync is asked, reads return what was acknowledged (decision 13: the commit's
+        /// frames reached the OS, but its caller saw it fail), $database reports it, and the next write
+        /// throws with it. A later engine lets the files decide: the commit's frames are there.
         /// </summary>
         [Theory]
         [MemberData(nameof(UnsupportedDurableFlush))]
@@ -175,9 +175,7 @@ namespace LiteDB.Tests.Issues
                     .Which.InnerException.Should().BeSameAs(rejection);
                 log.DurableFlushes.Should().Be(durableBefore + 1);
 
-                // The read-only reopen replays the files as they are: the failed commit's frames reached them,
-                // so it shows (its outcome is unknown). Showing only what was acknowledged is a later layer's.
-                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1, 2);
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(new[] { 0, 1 }, "the reopen shows only what was acknowledged");
                 var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
                 var dataNow = TempFile.ReadAllBytesShared(dataFile.Filename);
                 var logNow = TempFile.ReadAllBytesShared(logFile.Filename);
@@ -185,7 +183,7 @@ namespace LiteDB.Tests.Issues
                 log.DurableFlushes.Should().Be(durableBefore + 1, "a refused write asks the storage nothing");
                 TempFile.ReadAllBytesShared(dataFile.Filename).Should().Equal(dataNow);
                 TempFile.ReadAllBytesShared(logFile.Filename).Should().Equal(logNow);
-                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1, 2);
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(0, 1);
             }
 
             log.DurableFailure = null;

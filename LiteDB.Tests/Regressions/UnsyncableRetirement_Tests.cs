@@ -197,10 +197,10 @@ namespace LiteDB.Tests.Regressions
         /// the OS cache only, so the checkpoint must not clear the retired frames, and later
         /// operations of the connection, fresh engines whose own log syncs succeed, must not reuse
         /// those slots. The checkpoint now stops ("stopped syncing") with its header journal kept,
-        /// and records the failure (decision 6 of docs/decisions/durability-policy.md): the
-        /// connection's next operation cannot recover the kept journal while the data file cannot
-        /// sync and opens read-only, so its write is refused with the WAL unchanged, and it keeps
-        /// reading every commit. Once the data file syncs, a new connection recovers and writes again.
+        /// and records the failure, which the connection keeps (decision 6 and default C of
+        /// docs/decisions/durability-policy.md): its later operations open read-only, so its write
+        /// is refused with that record and the WAL unchanged, and it keeps reading every commit,
+        /// also once the data file syncs. A new connection then recovers and writes again.
         /// RetiredSlotPowerLoss_Tests covers other connections and power loss.
         /// </summary>
         [Theory]
@@ -249,16 +249,19 @@ namespace LiteDB.Tests.Regressions
                 BlankFrames(retired).Should().Be(0, "no slot is cleared while the witness root may not be durable");
                 frames.Should().BeGreaterThan(0);
 
-                // The connection's next operation opens a fresh engine over the kept header journal: it
-                // cannot recover it while the data file cannot sync, so it opens read-only. (Carrying the
-                // record itself to the connection's later operations is a later layer's.)
                 var data = ReadShared(file.Filename);
-                UnsyncedReadOnlyOpen_Tests.AssertWriteRefused(() => Update64(db, 10), UnsyncedReadOnlyOpen_Tests.RecoveryRefused);
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A checkpoint", "data",
+                    "The data file stopped syncing to the device during a checkpoint");
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update64(db, 10), record);
                 SyncPowerLossModel.AssertRows(db, 64, 9); // the connection keeps reading
                 ReadShared(logName).Should().Equal(retired, "slots retired by a checkpoint whose data sync failed must not be reused");
                 ReadShared(file.Filename).Should().Equal(data);
 
-                dataFails = false;
+                dataFails = false; // the storage syncs again: the connection keeps its failure until it is reopened
+                ReadOnlyAfterWriteFailure.AssertWriteRefused(() => Update64(db, 10), record);
+                SyncPowerLossModel.AssertRows(db, 64, 9);
+                ReadShared(logName).Should().Equal(retired);
+                ReadShared(file.Filename).Should().Equal(data);
 
                 using var reconnected = new LiteDatabase($"Filename={file.Filename};Connection=shared");
                 SyncPowerLossModel.AssertRows(reconnected, 64, 9);

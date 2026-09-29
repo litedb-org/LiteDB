@@ -75,9 +75,10 @@ namespace LiteDB.Tests.Regressions
 #if DEBUG || TESTING
         /// <summary>
         /// The IOException case: a commit that starts right after the failed rewrite released the WAL
-        /// writer, before the engine's teardown, finds the engine stopped and throws the original
-        /// failure without writing. A test hook runs the commit on another thread in exactly that
-        /// window and lets the teardown go on once the commit returned.
+        /// writer, before the engine's teardown, finds the engine stopped: it waits for the teardown,
+        /// then the engine reopens read-only (decision 6) and the commit throws the recorded failure
+        /// without writing. A test hook starts the commit on another thread in exactly that window and
+        /// lets the teardown go on once the commit waits for it.
         /// </summary>
         [Fact]
         public void Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost()
@@ -108,23 +109,24 @@ namespace LiteDB.Tests.Regressions
                         catch (Exception ex) { refused = ex; }
                     });
                     committer.Start();
-                    // The stop was published before the writer was released: the commit ends before the teardown.
-                    waited = committer.Join(TimeSpan.FromSeconds(30));
+                    // The commit blocks in the engine until this thread's teardown completes.
+                    waited = SpinWait.SpinUntil(() => (committer.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(30));
                 };
 
                 log.Armed = true;
                 Action update = () => db.GetCollection("a").Update(new BsonDocument { ["_id"] = 1, ["value"] = 3 });
                 update.Should().Throw<IOException>().WithMessage("injected partial overwrite");
                 committer.Should().NotBeNull("the failed write released the WAL writer before its teardown");
-                waited.Should().BeTrue("the commit ran in the window between the writer's release and the teardown");
+                waited.Should().BeTrue("the commit started before the teardown and waited for it");
                 committer.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
 
                 crashData = data.ToArray();
                 crashLog = log.ToArray();
-                refused.Should().BeOfType<IOException>().Which.Message.Should().StartWith("Engine closed after an I/O failure",
+                var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A WAL write", "log", "injected partial overwrite");
+                refused.Should().BeOfType<IOException>().Which.Message.Should().Be(LiteEngine.WriteFailedPrefix + record,
                     "the commit found the engine stopped and wrote nothing");
                 refused.InnerException.Should().BeOfType<IOException>().Which.Message.Should().Be("injected partial overwrite",
-                    "the refusal carries the original failure");
+                    "the refusal carries the recorded failure");
                 data.ToArray().Should().Equal(crashData);
                 log.ToArray().Should().Equal(crashLog);
             }

@@ -260,8 +260,8 @@ namespace LiteDB.Internals
         /// With durable commits (the default) the same storage fails loudly (decision 3): the log was
         /// proven by earlier commits, so the commit whose own sync answers "cannot sync" has written its
         /// frames and throws with an unknown outcome (implementation note 4) instead of being
-        /// acknowledged. No checkpoint follows; the engine records the failure, keeps reading and refuses
-        /// the next write (decision 6). A process crash keeps the
+        /// acknowledged. No checkpoint follows; the engine keeps reading what was acknowledged (decision
+        /// 13), records the failure and refuses the next write (decision 6). A process crash keeps the
         /// commit (its frames reached the OS), a power loss keeps exactly the earlier state.
         /// </summary>
         [Theory]
@@ -292,9 +292,7 @@ namespace LiteDB.Internals
                 log.RejectedSyncs.Should().Be(1);
                 data.ToArray().Should().Equal(originalData);
 
-                // The read-only reopen replays the log as it is: the failed commit's frames reached the OS, so it
-                // may show (its outcome is unknown). Showing only what was acknowledged is a later layer's.
-                rows.FindAll().Should().BeEquivalentTo(Documents(1));
+                rows.FindAll().Should().BeEquivalentTo(Documents(0), "its caller saw it fail: the reopen shows only what was acknowledged");
                 var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
                 var wal = log.ToArray();
                 WriteFailureAssert.Refused(() => rows.Update(Documents(2)), reason);

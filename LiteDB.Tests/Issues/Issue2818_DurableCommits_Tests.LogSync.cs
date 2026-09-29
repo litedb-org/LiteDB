@@ -136,7 +136,7 @@ namespace LiteDB.Tests.Issues
         /// With durable commits a log that stops syncing after the engine's proof fails the commit that
         /// finds out, with an unknown outcome (implementation note 4): its frames reached the operating
         /// system. The automatic checkpoint behind it never runs, so the data file stays byte for byte;
-        /// reads keep working from the files as they are, and the next write throws with the recorded
+        /// reads return what was acknowledged (decision 13), and the next write throws with the recorded
         /// failure. A later engine lets the files decide: the commit's frames reached them.
         /// </summary>
         [Fact]
@@ -158,9 +158,7 @@ namespace LiteDB.Tests.Issues
                 insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.OutcomeUnknown + "*");
                 ReadShared(storage.Data.Name).Should().Equal(data, "the automatic checkpoint did not run");
 
-                // The read-only reopen replays the files as they are: the failed commit's frames reached them,
-                // so it shows (its outcome is unknown). Showing only what was acknowledged is a later layer's.
-                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(-1, 0, 1);
+                rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(new[] { -1, 0 }, "the reopen shows only what was acknowledged");
                 var reason = WriteFailureAssert.Recorded(db, "A commit's log flush", "log", WriteFailureAssert.OutcomeUnknown, walKept: true);
                 WriteFailureAssert.Refused(() => rows.Insert(new BsonDocument { ["_id"] = 2 }), reason);
                 ReadShared(storage.Data.Name).Should().Equal(data);

@@ -44,7 +44,7 @@ namespace LiteDB.Tests.Issues
         /// retries: the reopened database accepts writes again.
         /// </summary>
         [Fact]
-        public void Closed_instance_explains_recovery_after_a_transient_disk_full_failure()
+        public void Read_only_instance_explains_recovery_after_a_transient_disk_full_failure()
         {
             using var data = new MemoryStream();
             using var log = new DiskFullStream();

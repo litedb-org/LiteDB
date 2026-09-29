@@ -124,9 +124,10 @@ namespace LiteDB.Tests.Internals
         /// <summary>
         /// A commit whose durable log flush fails throws that failure, whatever its type, and stops the
         /// engine. The failure is recorded (decision 6 of docs/decisions/durability-policy.md): the next
-        /// call reopens the engine read-only from the files as they are: the failed commit's frames
-        /// reached the file before its flush failed, so its outcome is unknown to the caller, and a
-        /// later open lets the files decide. Rollback completes the explicit transaction
+        /// call reopens the engine read-only from the files as they are, up to the last commit
+        /// acknowledged before the failure (decision 13): the failed commit's frames reached the file
+        /// before its flush failed, so its outcome is unknown to the caller, but this engine never
+        /// shows it; a later open lets the files decide. Rollback completes the explicit transaction
         /// the failure ended, and every later write throws with the record before it changes the
         /// files; the read-only engine never flushes.
         /// </summary>
@@ -165,9 +166,8 @@ namespace LiteDB.Tests.Internals
             var flushes = log.DurableFlushes;
             var files = (Data: SyncPowerLossModel.ReadShared(dataFile.Filename), Log: SyncPowerLossModel.ReadShared(logFile.Filename));
             db.Rollback().Should().Be(explicitTransaction, "Rollback completes the explicit transaction the failure ended");
-            // The read-only reopen replays the files as they are: the failed commit's frames reached them,
-            // so it may show (its outcome is unknown). Showing only what was acknowledged is a later layer's.
-            rows.FindAll().Single()["value"].AsString.Should().Be("after");
+            rows.FindAll().Should().BeEquivalentTo(new[] { new BsonDocument { ["_id"] = 1, ["value"] = "before" } },
+                "the caller saw this commit fail: the reopened engine shows only what was acknowledged");
             var record = ReadOnlyAfterWriteFailure.AssertReported(db, "A commit's log flush", "log",
                 nonIoFailure ? "WAL durable flush failed." : "flush failed");
             Action nextWrite = () => rows.Insert(new BsonDocument { ["_id"] = 2 });
