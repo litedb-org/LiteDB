@@ -58,6 +58,19 @@ namespace LiteDB.Engine
                     {
                         if (!iterator.MoveNext()) return 0;
 
+                        // Before any frame: the header frame of an empty WAL (decision 11). A batch
+                        // without pages writes nothing and needs none.
+                        try
+                        {
+                            this.WriteHeaderFrame(stream, ref uncertain);
+                        }
+                        catch
+                        {
+                            // The producer transferred the first page when it yielded it.
+                            if (iterator.Current.State == FrameState.Writable) _cache.DiscardPage(iterator.Current);
+                            throw;
+                        }
+
                         var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
                         var rebase = !ChecksumsEnabled && transactionState != null &&
                             transactionState.TransactionID < _lastWalTransactionID;

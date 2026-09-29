@@ -18,10 +18,16 @@ namespace LiteDB.Engine
 
         private readonly bool _durableCommits;
         private readonly SharedDurabilityState _sharedDurability;
+        private readonly bool _dataIsFile;
 
         // The WAL lives in memory (EngineSettings.VolatileLog): it survives no power loss.
         private readonly bool _volatileLog;
 
+        // The data file's full path, for DurableHeaders; null when it has none.
+        private readonly string _dataPath;
+
+        // The log file's full path, for DurableLogs; null when it is not a file with a path.
+        private readonly string _logPath;
         private volatile bool _logFlushDegraded;
 
         // The data file answered "cannot sync" (#2242): its barriers are ordered OS-cache flushes.
@@ -31,7 +37,7 @@ namespace LiteDB.Engine
         private volatile bool _slotReuseProven;
 
         // Set by this engine's first successful data barrier: whatever earlier engines left in the
-        // data file's OS cache is durable since (see ProveSlotReuse).
+        // data file's OS cache is durable since (see ProveDataFile).
         private volatile bool _dataSyncProven;
 
         // Whether the latest data and log barrier synced (no data barrier yet: nothing unsynced);
@@ -283,9 +289,46 @@ namespace LiteDB.Engine
             // An unverifiable log sync proves nothing. A failed proof leaves the engine degraded,
             // so a retry per allocation costs no sync.
             if (this.FlushDegraded || this.LogSyncUnverified) return false;
-            if (!_dataSyncProven) this.SyncDataFile();
+            if (!_dataSyncProven)
+            {
+                if (_dataIsFile) this.ProveDataFile();
+                else this.SyncDataFile();
+            }
             if (!this.FlushDegraded) this.SyncRawLog();
             return _slotReuseProven = !this.FlushDegraded;
+        }
+
+        /// <summary>
+        /// Prove that pages left in the data file's OS cache (a file someone copied into place, an
+        /// earlier engine's writes, maybe of another connection) are on the device: sync the data
+        /// file, unless its header is one a successful sync in this process left
+        /// (<see cref="DurableHeaders"/>). Only a header change can make earlier WAL content
+        /// obsolete (a checkpoint that does not change it keeps every frame). Caller holds the log
+        /// writer lock.
+        /// </summary>
+        private void ProveDataFile()
+        {
+            this.UseDataWriter(data =>
+            {
+                if (_dataPath != null && data.Length >= PAGE_SIZE && DurableHeaders.Matches(_dataPath, ReadDataHeader(data))) _dataSyncProven = true;
+                else this.SyncDataBarrier(data);
+            });
+        }
+
+        private static string DurablePath(EngineSettings settings)
+        {
+            var path = settings.DataStream == null ? settings.Filename : (settings.DataStream as FileStream)?.Name;
+            if (string.IsNullOrEmpty(path) || path == ":memory:" || path == ":temp:") return null;
+            try { return Path.IsPathRooted(path) || settings.DataStream == null ? Path.GetFullPath(path) : null; }
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
+        }
+
+        private static string LogDurablePath(EngineSettings settings)
+        {
+            if (settings.LogStream != null) return (settings.LogStream as FileStream)?.Name is string name && Path.IsPathRooted(name) ? Path.GetFullPath(name) : null;
+            if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) || settings.Filename == ":memory:" || settings.Filename == ":temp:") return null;
+            try { return Path.GetFullPath(FileHelper.GetLogFile(settings.Filename)); }
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException) { return null; }
         }
 
         /// <summary>
@@ -296,6 +339,16 @@ namespace LiteDB.Engine
         private void SyncDataFile()
         {
             this.UseDataWriter(this.SyncDataBarrier);
+        }
+
+        private static byte[] ReadDataHeader(Stream data)
+        {
+            var position = data.Position;
+            var header = new byte[PAGE_SIZE];
+            data.Position = 0;
+            data.ReadRequired(header, 0, PAGE_SIZE);
+            data.Position = position;
+            return header;
         }
 
         /// <summary>
@@ -339,6 +392,7 @@ namespace LiteDB.Engine
                 this.DataWritesSynced(covered);
                 _dataBarrierSynced = _dataSyncProven = true;
                 if (_sharedDurability != null) _sharedDurability.DataUnsynced = false;
+                if (_dataPath != null && data.Length >= PAGE_SIZE) DurableHeaders.Record(_dataPath, ReadDataHeader(data));
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -357,6 +411,7 @@ namespace LiteDB.Engine
 
         private void MarkLogFlushDegraded(Exception ex)
         {
+            DurableLogs.Forget(_logPath);
             if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
             if (_logFlushDegraded) return;
             _logFlushDegraded = true;
@@ -383,6 +438,7 @@ namespace LiteDB.Engine
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 _logDirectoryUnsyncable = true;
+                DurableLogs.Forget(_logPath);
                 if (_sharedDurability != null) _sharedDurability.Degraded = true;
                 LOG($"log directory rejected a durable sync ({ex.GetType().Name} 0x{ex.HResult:X8}); a new WAL's name is not claimed durable", "DISK");
             }

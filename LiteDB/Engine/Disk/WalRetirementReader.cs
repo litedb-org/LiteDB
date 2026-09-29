@@ -31,7 +31,8 @@ namespace LiteDB.Engine
                 try { page.WalFrame = checksum.Validate(page, new BufferSlice(bytes, PAGE_SIZE, WalChecksum.MetadataSize), position); }
                 catch (PageChecksumException) when (witnesses != null) { valid = false; }
                 if (!valid) continue;
-                if (page.WalFrame.RetirementRecord) continue;
+                // Neither a retirement record nor the header frame is a page of a transaction.
+                if (page.WalFrame.RetirementRecord || page.WalFrame.HeaderFrame) continue;
                 var retired = false;
                 if (witnesses != null)
                     foreach (var witness in witnesses) retired |= witness.Matches(page);
