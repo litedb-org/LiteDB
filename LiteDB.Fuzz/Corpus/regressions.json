@@ -109,9 +109,16 @@
       "target": "checksum-wal",
       "seed": 2954,
       "count": 28,
-      "reason": "Damaged frames, stale generations and CRC-valid confirmation mutations must recover exactly the preceding committed prefix.",
+      "reason": "Damaged frames, stale generations and CRC-valid confirmation mutations must recover exactly the preceding committed prefix. Replayed after every WAL started with a header frame (LiteDB#3027, decision 11): bisected on .NET 10, the trace changed only at 2b4f1ac0f; the input is unchanged, the oracle passes and the new hash is the same on .NET 8 and .NET 10.",
       "inputHash": "7C3B59A6BFFD16578B211FDDB79BE10976CDB9CBB9709BC706546A899E56CA53",
-      "traceHash": "28B07E2299CB2AFB945194FEF7D2D453D8855D5A9B7770EA917640B22C466EB1"
+      "traceHash": "AC49A3AAC457E62169FB584C4FF94927E8D5D71C2B25EB494292DE97760FC088",
+      "previousHashes": [
+        {
+          "inputHash": "7C3B59A6BFFD16578B211FDDB79BE10976CDB9CBB9709BC706546A899E56CA53",
+          "traceHash": "28B07E2299CB2AFB945194FEF7D2D453D8855D5A9B7770EA917640B22C466EB1",
+          "reason": "Before every WAL started with a header frame (2b4f1ac0f)."
+        }
+      ]
     },
     {
       "target": "checksum-crash",

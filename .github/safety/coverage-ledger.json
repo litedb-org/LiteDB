@@ -251,6 +251,17 @@
       "invariant": "The pinned crash seeds replay the same generated input and I/O trace, and their crash-recovery oracle passes.",
       "reason": "The durability decisions change which syncs and writes a checkpoint, a commit and recovery perform. Bisected per commit: compact-crash changed only at 7f53e4539 (decisions 3 to 6); the two checksum-crash seeds at 7f53e4539, 2b4f1ac0f (header frame), e4b9553fd (header written back before its journal is retired) and 042db3fa8 (no overwrite behind a log that cannot sync). Each oracle passes, the new hashes match on .NET 8 and .NET 10, and the old ones stay under previousHashes. The PR's earlier re-pins (8ec5373b2, ad2625283, d6d7f16cf, 625c0398a) followed the data-sync changes they name in the same field.",
       "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-corpus-repin-header-frame",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-wal:2954:28"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The pinned checksum-wal seed replays the same generated input and I/O trace, and its oracle passes.",
+      "reason": "Every WAL generation now starts with a header frame (decision 11), one more frame write in the trace. Bisected per commit: the trace changed only at 2b4f1ac0f; the input hash is unchanged, the oracle passes, the new hash matches on .NET 8 and .NET 10, and the old one stays under previousHashes.",
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
