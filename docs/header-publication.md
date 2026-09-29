@@ -192,7 +192,13 @@ empties a log, likewise opens read-only there, and a rebuild is refused, both fi
 unchanged. Only a WAL the engine keeps in memory, which survives no power loss, is emptied.
 A format promotion keeps its journal the same way: it writes only right after a data sync
 that succeeded, is refused otherwise, and records a failure with the journal kept when the
-data file stops syncing after its header write. A legacy header
+data file stops syncing after its header write. No promotion starts behind an earlier journal
+in an engine that has not failed: an open retires every journal it recovers before it accepts
+a write, or does not open writable. A legacy conversion journal whose converted header never
+synced stays outstanding only until the migration's drain retires it, before the conversion
+journals its own header, and a conversion whose header does not sync opens read-only before
+the migration's promotion
+([KeptJournalPromotion_Tests](../LiteDB.Tests/Regressions/KeptJournalPromotion_Tests.cs)). A legacy header
 found beside checksummed frames (neither file synced and the OS wrote the log back first,
 or a data file restored without its log) fails the open without changing either file, since
 legacy rules would replay the frames as pages at positions read from their trailers.

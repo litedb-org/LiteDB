@@ -1766,6 +1766,7 @@
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
     "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "ObservePromotion": "Observes each file format promotion as it starts under the WAL writer (the version it promotes to, whether an earlier header journal is outstanding) to prove that no promotion starts behind one; not a fault boundary.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
   },

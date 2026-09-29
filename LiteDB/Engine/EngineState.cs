@@ -72,6 +72,10 @@ namespace LiteDB.Engine
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
         internal static Action<PageBuffer> ObserveCacheEviction;
+
+        // Test hook: every engine's file format promotion as it starts under the WAL writer (the version
+        // it promotes to), and whether an earlier header journal is outstanding in the log then.
+        internal static Action<byte, bool> ObservePromotion;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)

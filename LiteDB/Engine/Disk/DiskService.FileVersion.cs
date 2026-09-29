@@ -74,6 +74,9 @@ namespace LiteDB.Engine
             var ownsFailure = false;
             lock (writer)
             {
+#if DEBUG || TESTING
+                EngineState.ObservePromotion?.Invoke(version, _checksums.JournalBytes != 0);
+#endif
                 this.UseDataWriter(stream =>
                 {
                     try
