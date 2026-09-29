@@ -12,8 +12,16 @@ runner = project.parent / "bin/Release/net8.0/IndexMigrationRecovery.dll"
 
 
 def run(*args, check=True):
-    return subprocess.run(["dotnet", str(runner), *map(str, args)],
-                          capture_output=True, text=True, timeout=90, check=check)
+    try:
+        return subprocess.run(["dotnet", str(runner), *map(str, args)],
+                              capture_output=True, text=True, timeout=90, check=check)
+    except subprocess.TimeoutExpired as timeout:
+        # Show how far the timed-out process got (the tool reports its writes on stderr).
+        for name, output in (("stdout", timeout.stdout), ("stderr", timeout.stderr)):
+            if output:
+                text = output.decode(errors="replace") if isinstance(output, bytes) else output
+                print(f"--- {name} of the timed-out command ---\n{text[-4000:]}", flush=True)
+        raise
 
 
 with tempfile.TemporaryDirectory(prefix="litedb-migration-recovery-") as directory:
