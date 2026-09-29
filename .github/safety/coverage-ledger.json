@@ -58,6 +58,63 @@
       "disposition": "strengthened",
       "invariant": "Every existing test leg keeps its timeout, filter and partition; rebuild admission, ownership and rollback run on Linux, Windows and macOS for every PR.",
       "reason": "Adds the rebuild-ownership job (20-minute limit): the RebuildOwnership*, RebuildAdmissionPlatform and Rebuild_InstallRollback classes on ubuntu, windows and macos, net8.0, in both tiers, so macOS file-lock semantics are checked on PRs although the ordinary macOS legs are full-tier only. The Safety evidence job requires it. The filter only selects an additional run; the ordinary legs still run these classes unfiltered."
+    },
+    {
+      "id": "3027-auto-rebuild-same-open",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Issues/Issue2417_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2812Recovery_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2812CollationStamp_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A file with damage found while opening is detected (INVALID_DATAFILE_STATE, or COLLATION_MISMATCH for a genuine ordering difference); an open that may not replace it leaves data and log byte-identical, and the first writable AutoRebuild open of a file recovers every document, keeps a backup equal to the source and reports the opening diagnostic.",
+      "reason": "#3051 slice S04 combines #3025 (explicit opening recovery, no rebuild mark from a refused open, read-only never replaces) and #3027 (recovery in the same open). The dev assertions that the first AutoRebuild open throws 999 and that a ReadOnly=true AutoRebuild open rebuilds are replaced: Issue2417 and Later_structural_corruption now first open without AutoRebuild (throws 999, bytes unchanged), then the first AutoRebuild open recovers with a byte-identical backup; Issue2417 asserts _rebuild_errors == 1 with stage=opening, pageType=Index and an int pageID (the #3027 value 0 came from a retry that dropped the opening cause). Requested_recovery drops ReadOnly=true from the rebuilding open and adds the negative case: a read-only AutoRebuild open is refused with COLLATION_MISMATCH, file unchanged, no backup. Issue2812CollationStamp additionally asserts the COLLATION_MISMATCH code with AutoRebuild=true. #3025 had no ledger entry for these changes.",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/Issue2417_Tests.cs#Rebuild_Detected_Infinite_Loop",
+        "LiteDB.Tests/Issues/Issue2417_Tests.cs#Rebuild_Detected_Infinite_Loop_With_Password",
+        "LiteDB.Tests/Issues/Issue2812Recovery_Tests.cs#Requested_recovery_rebuilds_order_or_preserves_original_on_unique_conflict",
+        "LiteDB.Tests/Issues/Issue2812Recovery_Tests.cs#Later_structural_corruption_keeps_its_recovery_diagnostic_before_collation_mismatch",
+        "LiteDB.Tests/Issues/Issue2812CollationStamp_Tests.cs",
+        "LiteDB.Tests/Issues/Issue3022LegacyDamage_Tests.cs#Damaged_order_is_corruption_and_rejection_preserves_bytes"
+      ],
+      "decision": "docs/rebuild-recovery.md"
+    },
+    {
+      "id": "3051-s04-default-open-marking",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Default_open_reports_the_damage_and_only_marks_the_file_for_rebuild",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Open_is_not_repeated_when_the_rebuild_mark_cannot_be_written",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Caller_stream_is_marked_but_never_rebuilt",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Failed_automatic_rebuild_keeps_the_damage_that_required_it",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Failed_repeated_open_keeps_a_non_LiteDB_exception_type",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Failed_repeated_open_keeps_the_data_of_its_LiteException",
+        "LiteDB.Tests.Regressions.LegacyDamagedDocument_Tests.Failed_repeated_open_with_an_io_error_keeps_the_damage_in_its_data"
+      ],
+      "disposition": "replaced",
+      "invariant": "A default (non-AutoRebuild) open of a damaged 5.0.21 file reports the damaged collection and the remedies and changes nothing else; AutoRebuild recovers it once, in the open that found the damage, and a failure of that recovery keeps the damage that required it.",
+      "reason": "#3027 marked the file for rebuild (header byte 191) on the refused open and retried the open in the constructor (_markedForRebuild). DECISIONS D2 of #3051 adopts #3025's explicit opening recovery instead: a refused open writes nothing. The marking expectation (after[P_INVALID_DATAFILE_STATE] == 1, everything else equal) becomes the strictly stronger full byte equality in Default_open_reports_the_damage_and_leaves_the_file_unchanged (also repeated). The mark-write crash test (hook invalid-state-before-mark) is replaced by a bounded-attempt test: AutoRebuildAllowed is consulted exactly once and the rebuilt file is never rebuilt again. The caller-stream test asserts the stream bytes unchanged instead of a mark. The failed-retry tests are renamed Failed_opening_recovery_* and keep their exception assertions (the cause preservation is re-homed into the opening recovery) plus unchanged source bytes; the refused-admission test now asserts the unwrapped damage because a refusal is not a failed rebuild (only one exception exists).",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Default_open_reports_the_damage_and_leaves_the_file_unchanged",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Auto_rebuild_runs_once_and_never_rebuilds_its_result_again",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Caller_stream_is_neither_marked_nor_rebuilt",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Refused_automatic_rebuild_reports_the_damage_and_changes_nothing",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Failed_opening_recovery_keeps_a_non_LiteDB_exception_type",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Failed_opening_recovery_keeps_the_data_of_its_LiteException",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Failed_opening_recovery_with_an_io_error_keeps_the_damage_in_its_data",
+        "LiteDB.Tests/Issues/Issue3022OpeningSafety_Tests.cs#Failed_reopen_does_not_mark_candidate_invalid_or_create_another_backup"
+      ]
+    },
+    {
+      "id": "3051-s04-invalid-state-before-mark-retired",
+      "kind": "fault-evidence-removed",
+      "subjects": [
+        "process-crash/invalid-state-before-mark"
+      ],
+      "disposition": "obsolete",
+      "invariant": "A failed rebuild-mark write during an error close does not trigger a second open or rebuild.",
+      "reason": "#3027 added this crash point inside MarkAsInvalidState for its mark-and-retry open. Under DECISIONS D2 an opening-validation refusal never reaches MarkAsInvalidState and there is no retry to suppress, so no test could hit the hook; it is not carried (MarkAsInvalidState stays void and unchanged, and S09 owns its rewritten body). Bounded opening recovery is covered by Auto_rebuild_runs_once_and_never_rebuilds_its_result_again and Failed_reopen_does_not_mark_candidate_invalid_or_create_another_backup."
     }
   ]
 }
