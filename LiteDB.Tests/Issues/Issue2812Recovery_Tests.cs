@@ -30,7 +30,14 @@ namespace LiteDB.Tests.Issues
             bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
             PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
-            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true, ReadOnly = true };
+            // An explicit read-only open never replaces the file, even with AutoRebuild.
+            var readOnly = new ConnectionString { Filename = file.Filename, AutoRebuild = true, ReadOnly = true };
+            Action inspect = () => { using var db = new LiteDatabase(readOnly); };
+            inspect.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.COLLATION_MISMATCH);
+            File.ReadAllBytes(file.Filename).Should().Equal(bytes);
+            File.Exists(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().BeFalse();
+
+            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
             if (conflict)
             {
                 Action open = () => { using var db = new LiteDatabase(settings); };
@@ -43,6 +50,7 @@ namespace LiteDB.Tests.Issues
                 db.GetCollection("rows").Count().Should().Be(2);
                 Assert.NotNull(db.GetCollection("rows").FindById("Z"));
                 Assert.NotNull(db.GetCollection("rows").FindById("a"));
+                File.ReadAllBytes(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().Equal(bytes);
             }
         }
         [Fact]
@@ -70,10 +78,15 @@ namespace LiteDB.Tests.Issues
             Array.Copy(BitConverter.GetBytes((int)CompareOptions.IgnoreCase), 0, bytes, EnginePragmas.P_COLLATION_SORT, 4);
             PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
-            var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
+            var settings = new ConnectionString { Filename = file.Filename };
             Action open = () => { using var db = new LiteDatabase(settings); };
             open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(999);
+            File.ReadAllBytes(file.Filename).Should().Equal(bytes);
+            // Only an INVALID_DATAFILE_STATE diagnostic (not a collation mismatch) lets the AutoRebuild
+            // open rebuild in the same open, so recovering here proves the structural diagnostic won.
+            settings.AutoRebuild = true;
             using var recovered = new LiteDatabase(settings);
+            File.ReadAllBytes(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().Equal(bytes);
             recovered.GetCollection("before").Count().Should().Be(2);
             recovered.GetCollection("loop").Count().Should().Be(1);
         }

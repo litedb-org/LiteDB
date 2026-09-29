@@ -1726,6 +1726,17 @@
           "proves": "Direct, Shared and Coordinated openers are observed blocked in admission while the owner is parked after claiming the source, during installation and after its claims close; afterwards their writes are acknowledged and survive a cold reopen."
         }
       ]
+    },
+    {
+      "name": "AfterDiskPoolClose",
+      "protocol": "opening recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Issues/Issue3022OpeningSafety_Tests.cs#Failed_storage_close_blocks_replacement_and_retains_both_errors",
+          "model": "exception",
+          "proves": "A data or log pool that fails to close while a damaged source is rejected blocks replacement: both the opening diagnostic and the close failure are reported, no replacement scope begins, data and WAL stay byte-identical with no backup, twice; a later AutoRebuild open salvages and accepts writes."
+        }
+      ]
     }
   ],
   "observers": {

@@ -20,11 +20,13 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
+        internal Action<FileOrigin> AfterDiskPoolClose { get; set; }
+        internal Action BeforeOpeningWalRestore { get; set; }
         internal Action BeforeOpeningAdmission { get; set; }
         internal Func<string, System.Threading.Mutex> CreateRebuildMutex { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
-        // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
+        // Consulted when AutoRebuild is about to salvage a damaged file, while
         // the caller holds the database exclusively; null allows the rebuild.
         internal Func<bool> AutoRebuildAllowed { get; set; }
         // Shared mode: outlives each short-lived engine; rations close checkpoints too.
@@ -124,7 +126,8 @@ namespace LiteDB.Engine
         public bool LegacyIndexScan { get; set; } = false;
 
         /// <summary>
-        /// After a Close with exception do a database rebuild on next open
+        /// Salvage an invalid-state file or corruption found during opening index validation.
+        /// Requires writable file access; retains a backup and reports errors in _rebuild_errors.
         /// </summary>
         public bool AutoRebuild { get; set; } = false;
 

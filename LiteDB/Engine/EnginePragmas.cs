@@ -178,8 +178,11 @@ namespace LiteDB.Engine
                 pragma.Read(buffer);
             }
 
-            this.CollationStamp = buffer.ReadUInt32(P_COLLATION_STAMP);
             this.IndexOrderVersion = buffer[HeaderPage.P_FILE_VERSION] >= HeaderPage.INDEX_FILE_VERSION ? buffer.ReadByte(P_INDEX_ORDER_VERSION) : (byte)0;
+            // Early released v5 writers used bytes 92..95 for LIMIT_SIZE. Those
+            // bytes can survive interrupted checksum/format promotion; only the
+            // committed ordering revision publishes a runtime fingerprint.
+            this.CollationStamp = this.IndexOrderVersion == 0 ? 0 : buffer.ReadUInt32(P_COLLATION_STAMP);
             _newFile = false;
             _isDirty = false;
         }

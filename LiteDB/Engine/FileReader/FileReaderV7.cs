@@ -121,6 +121,13 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Version 7 documents are read whole or reported, never salvaged.
+        /// </summary>
+        public IEnumerable<BsonDocument> GetSalvagedDocuments(string collection) => Enumerable.Empty<BsonDocument>();
+
+        public void RejectSalvagedDocument(string collection, BsonDocument document, string reason) { }
+
+        /// <summary>
         /// Get all document using an indexInfo as start point (_id index).
         /// </summary>
         public IEnumerable<BsonDocument> GetDocuments(string collection)

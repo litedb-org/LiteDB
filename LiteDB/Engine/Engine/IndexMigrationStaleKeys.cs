@@ -42,7 +42,7 @@ namespace LiteDB.Engine
                 {
                     BsonDocument document;
                     using (var reader = new BufferReader(data.Read(primary.DataBlock)))
-                        document = reader.ReadDocument().GetValue();
+                        document = ReadMigrationDocument(reader, snapshot.CollectionName, primary.DataBlock);
                     var keys = memberPaths.Select(index => new KeyValuePair<CollectionIndex, BsonValue[]>(
                         index, index.BsonExpr.GetIndexKeys(document, collation).ToArray())).ToArray();
                     if (keys.Any(x => !SameKeys(stored.Where(s => s.Key == x.Key.Slot).Select(s => s.Value).ToArray(), x.Value, collation)))

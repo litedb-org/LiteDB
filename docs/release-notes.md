@@ -261,3 +261,46 @@ still blocks access. See [ownership and path limits](rebuild-recovery.md).
 Ordinary Direct opens remain available on runtimes without named mutexes,
 including read-only access. Shared mode, explicit rebuild, and opens requesting
 `AutoRebuild` or `Upgrade` require named-mutex support.
+
+## Legacy damage diagnostics and opening recovery (#3022)
+
+Legacy ordering failures now distinguish corruption (`INVALID_DATAFILE_STATE`,
+999) from collation incompatibility (`COLLATION_MISMATCH`, 141, previously 0).
+Adjacent index keys that break an order every released comparer agrees on, and
+malformed BSON found by index migration, are corruption and name their collection
+and page; the header bytes 92..95 in which early v5 releases stored `LIMIT_SIZE` are
+no longer read as a collation stamp. Damaged data that prevents the migration of a
+writable open fails that open with the damaged collection and the remedies named, and
+leaves the data file and its log byte-for-byte unchanged: opening validation neither
+marks nor checkpoints a rejected source.
+
+Writable file-backed `AutoRebuild=true` salvages such damage in the first open,
+rather than requiring a failed open to mark the file followed by another open. The
+original data/WAL backup is retained. The recovery is attempted once: failure to
+close the source blocks replacement and reports both the opening and cleanup errors,
+and a failed open of the rebuilt candidate neither marks it invalid nor starts another
+rebuild. When the recovery itself fails with a `LiteException`, the error keeps the
+opening damage and adds "The automatic rebuild failed: ..."; any other exception
+keeps its type and carries the damage in `Data["LiteDB.RebuildCause"]`.
+
+A rebuild now keeps the readable fields of a damaged document, as 5.x did, after
+every complete document: a part that repeats the `_id` of a complete document, a key
+of a unique index, or whose keys cannot be indexed is listed in `_rebuild_errors`
+instead of failing the rebuild, and a rejected part leaves its `_id` to a later one.
+A kept part reads like a complete document, so it is also listed there by `_id`; a
+unique index gets its missing key as null.
+
+**Behavior change:** `ReadOnly=true` prevents automatic rebuild, including when
+`AutoRebuild=true` and the file already has an invalid-state marker, and a read-only
+engine never writes the invalid-state marker. Caller-provided streams are never
+rebuilt. Read-only `LegacyIndexScan=true` opens of unmigrated files retain the scan
+fallback without an eager walk of every index. This is not an integrity check;
+queries still report damage they encounter. Writable migration validates index
+ordering before writes.
+
+**Error-report change:** `_rebuild_errors` now includes the opening diagnostic
+even if salvage recovers every record. New `stage` values distinguish `opening`
+from `salvage`; a nonempty report alone does not establish record loss. Applications
+using its count as a data-loss alarm should inspect the stage and diagnostic.
+Known data/index damage identifies its page type and page ID; unknown structures
+use `Empty` and a null page ID. See [opening recovery](rebuild-recovery.md#opening-recovery-and-partial-document-salvage).

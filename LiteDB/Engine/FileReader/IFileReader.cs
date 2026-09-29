@@ -32,5 +32,15 @@ namespace LiteDB.Engine
         /// Get all documents from a collection
         /// </summary>
         IEnumerable<BsonDocument> GetDocuments(string collection);
+
+        /// <summary>
+        /// Readable fields of the collection's damaged documents (after GetDocuments was enumerated)
+        /// </summary>
+        IEnumerable<BsonDocument> GetSalvagedDocuments(string collection);
+
+        /// <summary>
+        /// Report a salvaged document that could not be kept
+        /// </summary>
+        void RejectSalvagedDocument(string collection, BsonDocument document, string reason);
     }
 }

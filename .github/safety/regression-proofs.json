@@ -26,6 +26,15 @@
         "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
         "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
       ]
+    },
+    {
+      "repro": "Issue_3027_LegacyDamagedDocument",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Auto_rebuild_repairs_the_damage_on_the_first_open",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Default_open_reports_the_damage_and_leaves_the_file_unchanged",
+        "LiteDB.Tests/Regressions/LegacyDamagedDocument_Tests.cs#Rebuild_keeps_the_readable_prefix_of_a_damaged_document"
+      ]
     }
   ]
 }

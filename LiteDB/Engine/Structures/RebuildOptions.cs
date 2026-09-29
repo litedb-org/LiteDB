@@ -74,7 +74,8 @@ namespace LiteDB.Engine
             {
                 ["buildId"] = _buildId,
                 ["created"] = x.Created,
-                ["pageID"] = (int)x.PageID,
+                ["stage"] = x.Stage,
+                ["pageID"] = x.PageID.HasValue ? new BsonValue((int)x.PageID.Value) : BsonValue.Null,
                 ["positionID"] = (long)x.Position,
                 ["origin"] = x.Origin.ToString(),
                 ["pageType"] = x.PageType.ToString(),

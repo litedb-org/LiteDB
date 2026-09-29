@@ -4,7 +4,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        private static LiteException CollationMismatch() => new LiteException(0,
+        private static LiteException CollationMismatch() => new LiteException(LiteException.COLLATION_MISMATCH,
             "Database index ordering/collation differs from this comparer or runtime. Export records in the " +
             "original compatible environment and import here. For culture-only changes, an Ordinal rebuild " +
             "in the original environment can also prepare the file.");
@@ -42,7 +42,15 @@ namespace LiteDB.Engine
                             if (previous != null)
                             {
                                 var order = previous.CompareTo(key, _header.Pragmas.Collation);
-                                if (order > 0 || (order == 0 && index.Unique)) incompatible = true;
+                                if (order > 0 || (order == 0 && index.Unique))
+                                {
+                                    if (LegacyIndexComparison.IsInvariantViolation(previous, key, index.Unique))
+                                        throw new LegacyFileException(PageType.Index, node.Position, collection.Key, null,
+                                            "Damaged index '{0}.{1}' at {2}: adjacent keys violate ordering or uniqueness. " +
+                                            "Open a writable file with AutoRebuild=true to salvage readable records; " +
+                                            "retain the backup and inspect _rebuild_errors.", collection.Key, index.Name, node.Position);
+                                    incompatible = true;
+                                }
                             }
                             previous = key;
                             transaction.Safepoint();
