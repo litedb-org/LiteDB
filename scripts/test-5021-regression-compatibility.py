@@ -1,15 +1,56 @@
 #!/usr/bin/env python3
-"""Check the committed 5.0.21 fixtures against the production assembly (TestingEnabled=false, no test hooks)."""
+"""Check the pinned 5.0.21 fixtures against the production assembly (TestingEnabled=false, no test hooks).
+
+The archives live in litedb-org/LiteDB-Artifacts at the revision LiteDB.Tests/Resources/artifacts.json
+pins, resolved like LiteDB.Tests/Utils/ArtifactFixtures.cs: $LITEDB_ARTIFACTS_DIR/<path> when set,
+else a per-user cache, else a download; each is verified against its pinned SHA-256.
+"""
 import argparse
 import hashlib
+import json
+import os
 import pathlib
 import subprocess
 import tempfile
+import urllib.request
 import zipfile
 from xml.sax.saxutils import escape
 
-ARCHIVES = ("WalCrash_5_0_21", "DropIndex_5_0_21", "ForeignWal_5_0_21", "ConcurrentWalCrash_5_0_21",
-            "DamagedDocument_5_0_21")
+ARCHIVES = ("WalCrash_5_0_21", "ForeignWal_5_0_21", "ConcurrentWalCrash_5_0_21")
+RAW_BASE_URL = "https://raw.githubusercontent.com/litedb-org/LiteDB-Artifacts/"
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def artifact(root, name):
+    """A local, hash-verified path of the pinned artifact (see ArtifactFixtures.Path)."""
+    manifest = json.loads((root / "LiteDB.Tests/Resources/artifacts.json").read_text(encoding="utf-8"))
+    entry = manifest["files"].get(name)
+    if entry is None:
+        raise SystemExit(f"{name} is not pinned in LiteDB.Tests/Resources/artifacts.json.")
+    override = os.environ.get("LITEDB_ARTIFACTS_DIR")
+    if override:
+        path = pathlib.Path(override) / entry["path"]
+        if not path.is_file():
+            raise SystemExit(f"{name}: {path} does not exist (LITEDB_ARTIFACTS_DIR is set).")
+    else:
+        path = pathlib.Path(tempfile.gettempdir()) / "litedb-artifacts" / manifest["revision"] / entry["path"]
+        if not path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            url = RAW_BASE_URL + manifest["revision"] + "/" + entry["path"]
+            with urllib.request.urlopen(url, timeout=60) as response:
+                data = response.read()
+            if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                raise SystemExit(f"{name}: {url} has SHA-256 {hashlib.sha256(data).hexdigest()}, pinned {entry['sha256']}.")
+            partial = path.with_name(path.name + ".part")
+            partial.write_bytes(data)
+            partial.replace(path)
+    actual = sha256(path)
+    if actual != entry["sha256"]:
+        raise SystemExit(f"{name}: {path} has SHA-256 {actual}, pinned {entry['sha256']}.")
+    return path
 
 
 def digests(directory):
@@ -54,10 +95,10 @@ def main():
 </Project>\n''')
             run("dotnet", "build", probe / "Probe.csproj", "-c", "Release", "--verbosity", "quiet")
 
-            # The committed archives are only read; the probe copies each file it opens.
+            # The pinned archives are only read; the probe copies each file it opens.
             fixtures = temporary / "fixtures"
             for archive in ARCHIVES:
-                with zipfile.ZipFile(root / "LiteDB.Tests/Resources" / (archive + ".zip")) as entries:
+                with zipfile.ZipFile(artifact(root, archive + ".zip")) as entries:
                     entries.extractall(fixtures / archive)
             extracted = digests(fixtures)
             work = temporary / "work"

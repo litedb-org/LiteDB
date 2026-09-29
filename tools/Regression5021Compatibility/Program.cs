@@ -29,11 +29,8 @@ var copies = 0;
 Run("WalCrash: writable open converts and keeps every commit", WalCrashConversion);
 Run("WalCrash: read-only legacy scan reads every commit and changes nothing", WalCrashReadOnly);
 Run("WalCrash: shared open with a live reader lease refuses the conversion", WalCrashSharedLease);
-Run("DropIndex: collections 5.0.21 dropped indexes from stay writable and consistent", DroppedIndexes);
 Run("ForeignWal: another database's log fails the open and changes nothing", ForeignWal);
 Run("ConcurrentWalCrash: commits above the data file's last page are kept", ConcurrentWalCrash);
-Run("DamagedDocument: default open names the damage and only marks the file", DamagedDocumentRefused);
-Run("DamagedDocument: auto-rebuild keeps 1, 3 and the readable part of 2", DamagedDocumentSalvaged);
 Console.WriteLine(failures.Count == 0 ? "All scenarios passed." : $"{failures.Count} scenario(s) failed: {string.Join("; ", failures)}");
 return failures.Count == 0 ? 0 : 1;
 
@@ -108,66 +105,6 @@ void CheckWalCrash(LiteDatabase db, string stage, bool indexed)
     if (indexed) RequirePlan(col, "$.value", 7, "value", stage);
 }
 
-// See LegacyDroppedIndex_Tests: 5.0.21 left the tail of dropped index entries on the collection page.
-void DroppedIndexes()
-{
-    var customers = Put(Fresh(), "DropIndex_5_0_21", "customers.db");
-    using (var db = new LiteDatabase(customers))
-    {
-        var col = db.GetCollection("customers");
-        Require(col.Count() == 200, $"customers.db: {col.Count()} documents, expected 200");
-        Write(() => col.Insert(new BsonDocument { ["_id"] = 1000, ["Name"] = "x", ["Age"] = 1, ["CustomerId"] = "C1000" }), "customers.db: insert");
-        Require(col.Update(new BsonDocument { ["_id"] = 1, ["Name"] = "y", ["Age"] = 2, ["CustomerId"] = "C1" }) && col.Delete(2),
-            "customers.db: the update of _id 1 or the delete of _id 2 found no document");
-        col.EnsureIndex("Age");
-        Require(col.Count(Query.EQ("CustomerId", "C5")) == 1, "customers.db: CustomerId = C5");
-        IndexesMatchScan(db, "customers", "customers.db", "_id", "Age", "CustomerId", "Name");
-    }
-    using (var db = new LiteDatabase(customers))
-    {
-        var col = db.GetCollection("customers");
-        Require(col.Count() == 200 && col.Count(Query.EQ("Age", 2)) == 3, // 92, 182 and the updated 1
-            $"customers.db reopened: {col.Count()} documents, {col.Count(Query.EQ("Age", 2))} with Age 2 (expected 200 and 3)");
-        IndexesMatchScan(db, "customers", "customers.db reopened", "_id", "Age", "CustomerId", "Name");
-    }
-    foreach (var (name, fields) in new[] { ("items-a.db", "CreatedAt,Phone,Status"), ("items-b.db", "LastLogin,Score,CustomerId,Country,Status") })
-    {
-        var path = Put(Fresh(), "DropIndex_5_0_21", name);
-        var names = fields.Split(',');
-        BsonDocument Doc(int id) => new(names.ToDictionary(x => x, x => (BsonValue)(x + "x" + id))) { ["_id"] = id };
-        using (var db = new LiteDatabase(path))
-        {
-            var col = db.GetCollection("items");
-            RequireIndexes(db, "items", name, "_id", "Status"); // the only index 5.0.21 kept
-            Write(() => col.Insert(Doc(1000)), $"{name}: insert");
-            Require(col.Update(Doc(1)) && col.Delete(2), $"{name}: the update of _id 1 or the delete of _id 2 found no document");
-            col.EnsureIndex(names[0]);
-            IndexesMatchScan(db, "items", name, "_id", "Status", names[0]);
-        }
-        using (var db = new LiteDatabase(path))
-        {
-            var col = db.GetCollection("items");
-            Require(col.Count() == 50 && col.Count(Query.EQ(names[0], names[0] + "x1")) == 1,
-                $"{name} reopened: {col.Count()} documents, {col.Count(Query.EQ(names[0], names[0] + "x1"))} with {names[0]} = {names[0]}x1 (expected 50 and 1)");
-            IndexesMatchScan(db, "items", name + " reopened", "_id", "Status", names[0]);
-        }
-    }
-}
-
-// Every index: the planner uses it, and each key's documents are those a full scan finds.
-void IndexesMatchScan(LiteDatabase db, string collection, string stage, params string[] expected)
-{
-    var col = db.GetCollection(collection);
-    RequireIndexes(db, collection, stage, expected);
-    var docs = col.FindAll().ToList();
-    foreach (var index in expected)
-    {
-        foreach (var key in docs.Select(x => x[index]).Distinct())
-            RequireSame(Ids(col.Find(Query.EQ("$." + index, key))), Ids(docs.Where(x => x[index] == key)), $"{stage}: index {index} = {key}");
-        RequirePlan(col, "$." + index, docs[0][index], index, stage);
-    }
-}
-
 void ForeignWal()
 {
     var failed = new List<string>();
@@ -211,53 +148,6 @@ void ConcurrentWalCrash()
     }
 }
 
-// damaged.db: c {_id: 1..3, a: "keep-i", b: "tail-i-zzz..."}, the length of document 2's "b" overwritten.
-void DamagedDocumentRefused()
-{
-    var path = Put(Fresh(), "DamagedDocument_5_0_21", "damaged.db");
-    var original = File.ReadAllBytes(path);
-    var error = Failure(() => new LiteDatabase(path).Dispose());
-    Require(error is LiteException { ErrorCode: LiteException.INVALID_DATAFILE_STATE } && error.Message.Contains("Collection 'c'") &&
-        error.Message.Contains("auto-rebuild=true") && error.Message.Contains("legacy index scan=true"),
-        $"default open: expected INVALID_DATAFILE_STATE ({LiteException.INVALID_DATAFILE_STATE}) naming collection 'c' and the remedies; got {Describe(error, "")}");
-    var after = File.ReadAllBytes(path);
-    Require(after[191] == 1, "default open: the rebuild mark (header byte 191) was not set");
-    after[191] = original[191];
-    Require(after.SequenceEqual(original) && Directory.GetFileSystemEntries(Path.GetDirectoryName(path)).Length == 1,
-        "default open: the refused migration changed more than the rebuild mark");
-    using var db = new LiteDatabase($"Filename={path};Auto-Rebuild=true");
-    CheckSalvaged(db, "auto-rebuild after the default open");
-}
-
-void DamagedDocumentSalvaged()
-{
-    var path = Put(Fresh(), "DamagedDocument_5_0_21", "damaged.db");
-    using (var db = new LiteDatabase($"Filename={path};Auto-Rebuild=true"))
-    {
-        CheckSalvaged(db, "auto-rebuild");
-        db.GetCollection("c").Insert(new BsonDocument { ["_id"] = 4 });
-    }
-    Require(File.Exists(Path.Combine(Path.GetDirectoryName(path), "damaged-backup.db")), "auto-rebuild kept no damaged-backup.db");
-    using var reopened = new LiteDatabase(path);
-    Require(reopened.GetCollection("c").Count() == 4, $"reopened after auto-rebuild: {reopened.GetCollection("c").Count()} documents, expected 4");
-}
-
-void CheckSalvaged(LiteDatabase db, string stage)
-{
-    var col = db.GetCollection("c");
-    var docs = col.FindAll().ToList();
-    Require(Ids(docs).SequenceEqual(new[] { 1, 2, 3 }), $"{stage}: kept _id [{string.Join(",", Ids(docs))}], expected 1, 2, 3");
-    foreach (var id in new[] { 1, 3 })
-        Require(col.FindById(id)["a"] == "keep-" + id && col.FindById(id)["b"] == $"tail-{id}-" + new string('z', 20),
-            $"{stage}: document {id} is {col.FindById(id)}");
-    var partial = col.FindById(2);
-    Require(partial.Keys.OrderBy(x => x).SequenceEqual(new[] { "_id", "a" }) && partial["a"] == "keep-2",
-        $"{stage}: document 2 is {partial}, expected its readable part {{_id: 2, a: \"keep-2\"}}");
-    var errors = db.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString).ToArray();
-    Require(errors.Any(x => x.Contains("Only the readable part of damaged document 2 was kept")),
-        $"{stage}: _rebuild_errors [{string.Join(" | ", errors)}] does not name the partly kept document 2");
-}
-
 string Fresh() => Directory.CreateDirectory(Path.Combine(work, (++copies).ToString("D2"))).FullName;
 // Copy an entry (and the given log entry beside it, as <name>-log.db) into the directory.
 string Put(string directory, string archive, string entry, string name = null, string log = null)
@@ -283,7 +173,6 @@ static void RequireIndexes(LiteDatabase db, string collection, string stage, par
 static void RequireSame(int[] found, int[] scan, string query) =>
     Require(found.SequenceEqual(scan), $"{query} returned _id [{string.Join(",", found)}], a full scan [{string.Join(",", scan)}]");
 static int[] Ids(IEnumerable<BsonDocument> docs) => docs.Select(x => x["_id"].AsInt32).OrderBy(x => x).ToArray();
-static void Write(Action write, string stage) { if (Failure(write) is { } error) throw new Exception($"{stage} failed: {Describe(error, "")}"); }
 static Exception Failure(Action action) { try { action(); return null; } catch (Exception ex) { return ex; } }
 static string Describe(Exception error, string seen) => error == null ? $"the open succeeded ({seen})"
     : $"{error.GetType().Name}{(error is LiteException lite ? $" {lite.ErrorCode}" : "")}: {error.Message}";

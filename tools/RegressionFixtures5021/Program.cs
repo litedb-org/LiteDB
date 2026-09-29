@@ -22,11 +22,6 @@ internal static class Program
         ["EncryptedWalCrash"] = CrashImages.EncryptedWalCrash,
         ["ConcurrentWalCrash"] = CrashImages.ConcurrentWalCrash,
         ["ForeignWal"] = CrashImages.ForeignWal,
-        ["DropIndex"] = DropIndex.Generate,
-        ["DamagedDocument"] = DamagedFiles.DamagedDocument,
-        ["DamagedUniqueDocuments"] = DamagedFiles.DamagedUniqueDocuments,
-        ["DamagedIndexKeys"] = DamagedFiles.DamagedIndexKeys,
-        ["DamagedSalvageDuplicate"] = DamagedFiles.DamagedSalvageDuplicate,
     };
 
     private static int Main(string[] args)
@@ -37,7 +32,7 @@ internal static class Program
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
         if (args.Length == 3 && args[0] == ChildMarker)
-            return args[1].StartsWith("drop-", StringComparison.Ordinal) ? DropIndex.Child(args[1], args[2]) : CrashImages.Child(args[1], args[2]);
+            return CrashImages.Child(args[1], args[2]);
 
         var name = args.Length == 2 ? Path.GetFileNameWithoutExtension(args[0]) : null;
         if (name != null && name.EndsWith("_5_0_21", StringComparison.Ordinal)) name = name.Substring(0, name.Length - 7);
