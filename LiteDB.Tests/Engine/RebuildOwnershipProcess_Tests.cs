@@ -121,12 +121,29 @@ namespace LiteDB.Tests.Engine
                 using var owner = new MvccProcess("rebuild-ownership", file.Filename, password, phase);
                 await owner.Expect("ready");
                 await owner.Kill();
-                File.ReadAllBytes(file.Filename).Should().Equal(data);
-                File.ReadAllBytes(logName).Should().Equal(log);
+                (await ReadAfterOwnerDeath(file.Filename)).Should().Equal(data);
+                (await ReadAfterOwnerDeath(logName)).Should().Equal(log);
                 File.Exists(RebuildRecovery.GetMarkerFilename(file.Filename)).Should().BeFalse();
             }
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password })) db.Rebuild();
             RebuildOwnership_Tests.VerifyAndWrite(file.Filename, password);
+        }
+
+        /// <summary>
+        /// The killed owner has exited, so the kernel has closed its claims. On Windows an
+        /// antivirus or indexer can still briefly open a file that the owner held for writing,
+        /// which fails this read with a sharing violation. Wait out only that error, for a
+        /// bounded time: any other failure, or a lock that persists, still fails the test.
+        /// The next retry's owner and the final rebuild prove that the claims were released.
+        /// </summary>
+        private static async Task<byte[]> ReadAfterOwnerDeath(string filename)
+        {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (true)
+            {
+                try { return File.ReadAllBytes(filename); }
+                catch (IOException ex) when (ex.IsLocked() && DateTime.UtcNow < deadline) { await Task.Delay(50); }
+            }
         }
 
         [Theory]
@@ -152,8 +169,8 @@ namespace LiteDB.Tests.Engine
                 }).Dispose();
                 open.Should().Throw<LiteException>().Where(e => e.ErrorCode == LiteException.REBUILD_INCOMPLETE);
             }
-            File.ReadAllBytes(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().Equal(data);
-            File.ReadAllBytes(FileHelper.GetSuffixFile(logName, "-backup", false)).Should().Equal(log);
+            (await ReadAfterOwnerDeath(FileHelper.GetSuffixFile(file.Filename, "-backup", false))).Should().Equal(data);
+            (await ReadAfterOwnerDeath(FileHelper.GetSuffixFile(logName, "-backup", false))).Should().Equal(log);
             File.Exists(logName).Should().BeFalse();
             // The child stopped after publishing a fully checkpointed candidate.
             // Only this known state permits the existing manual marker-removal protocol.
