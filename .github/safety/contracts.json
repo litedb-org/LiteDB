@@ -67,10 +67,15 @@
         {"test": "LiteDB.Tests/Issues/Issue2967_Tests.cs#Failed_password_rebuild_restores_the_original_data_and_wal_pair", "model": "exception", "proves": "A failed password rebuild restores the original data file together with its own WAL."},
         {"test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens", "model": "exception", "proves": "Repeated recovery failures keep Shared reuse and fresh opens blocked instead of admitting a stale original."},
         {"test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal", "model": "modeled-power-loss", "proves": "Header recovery interrupted again at each repair phase keeps the journal that selects the generation."},
-        {"fuzz": "rebuild-transition", "model": "exception", "proves": "All backup and install gates are faulted while rebuilding indexes/FileStorage and changing passwords."}
+        {"fuzz": "rebuild-transition", "model": "exception", "proves": "All backup and install gates are faulted while rebuilding indexes/FileStorage and changing passwords."},
+        {"test": "LiteDB.Tests/Engine/RebuildOwnershipProcess_Tests.cs#Repeated_process_death_releases_claims_without_changing_original_pair", "model": "process-death", "proves": "A rebuild owner killed twice after claiming its source, or before writing the marker, leaves the original data and WAL byte-identical and no marker; retrying succeeds."},
+        {"test": "LiteDB.Tests/Engine/RebuildOwnershipProcess_Tests.cs#Abandoned_claim_does_not_bypass_the_durable_installation_marker", "model": "process-death", "proves": "An owner killed after installing the candidate abandons its admission mutex, but opens (including AutoRebuild) stay refused by the durable marker and the backups equal the original pair."},
+        {"test": "LiteDB.Tests/Engine/RebuildOwnershipModes_Tests.cs#Openers_in_every_mode_wait_for_the_rebuild_owner_and_then_write", "proves": "Real Direct, Shared and Coordinated openers cannot open between the source claim and the end of installation: they are observed blocked in admission (or refused by the marker), then read the complete replacement and their writes are acknowledged."},
+        {"test": "LiteDB.Tests/Engine/RebuildAdmissionPlatform_Tests.cs#Unsupported_mutex_does_not_bypass_an_incomplete_rebuild_marker", "model": "exception", "proves": "Where named mutexes are unsupported, ordinary opens still honor the incomplete-installation marker without touching the files."}
       ],
       "gaps": [
-        {"text": "Directory-entry persistence of the rebuild marker and renames is not modeled (#3011); the install matrix is not power-loss evidence."}
+        {"text": "Directory-entry persistence of the rebuild marker and renames is not modeled (#3011); the install matrix is not power-loss evidence."},
+        {"text": "Rebuild admission is keyed by the canonical full path: hard links, other mounts or case aliases of one file and LiteDB binaries without admission are not coordinated; Direct rebuilds then rely on the platform's exclusive file locks (docs/rebuild-recovery.md)."}
       ]
     },
     {

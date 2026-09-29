@@ -1689,6 +1689,43 @@
           "proves": "Volumes without POSIX delete semantics open files per operation."
         }
       ]
+    },
+    {
+      "name": "SimulateOwnershipFailure",
+      "protocol": "rebuild source ownership",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/RebuildOwnership_Tests.cs#Failed_claim_cleanup_preserves_installed_state_and_new_password",
+          "model": "exception",
+          "proves": "A failure releasing the data, WAL or candidate claim after a successful install reports the replacement as live, keeps the new password and leaves a database that reopens with every row and accepts writes."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildOwnership_Tests.cs#Install_failure_remains_primary_when_claim_cleanup_also_fails",
+          "model": "exception",
+          "proves": "An install failure stays the primary error, with the claim-release failure attached as a rollback error and the original pair live."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildOwnershipProcess_Tests.cs#Repeated_process_death_releases_claims_without_changing_original_pair",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/RebuildOwnershipHarness.cs"
+          ],
+          "model": "process-death",
+          "proves": "An owner process killed twice after claiming the source leaves the original data and WAL byte-identical and no marker; a later rebuild succeeds."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildOwnershipProcess_Tests.cs#Actual_open_waits_during_handoff_after_physical_claims_are_closed",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/RebuildOwnershipHarness.cs"
+          ],
+          "model": "interleaving",
+          "proves": "Another process that announced admission does not open while the owner, its physical claims already closed, still holds admission; it opens the complete replacement afterwards."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/RebuildOwnershipModes_Tests.cs#Openers_in_every_mode_wait_for_the_rebuild_owner_and_then_write",
+          "model": "interleaving",
+          "proves": "Direct, Shared and Coordinated openers are observed blocked in admission while the owner is parked after claiming the source, during installation and after its claims close; afterwards their writes are acknowledged and survive a cold reopen."
+        }
+      ]
     }
   ],
   "observers": {
