@@ -16,7 +16,7 @@ namespace LiteDB.Engine
     {
         public volatile bool Disposed = false;
         // Set once a failure's teardown closed the engine's services (CompleteStop).
-        private volatile bool _closed;
+        private readonly ManualResetEventSlim _closed = new ManualResetEventSlim();
         private Exception _exception;
         private WriteFailure _writeFailure;
 
@@ -33,16 +33,16 @@ namespace LiteDB.Engine
         internal int[] LostTransactionThreads { get; set; }
 
         /// <summary>
-        /// The failure's teardown closed the services (<see cref="CompleteStop"/>): a read-only reopen may
-        /// start. A call that arrives before it gets the stop error.
-        /// </summary>
-        internal bool Closed => _closed;
-
-        /// <summary>
         /// This engine's disk service (set by LiteEngine.Open): a write or sync failure that reaches
         /// <see cref="Handle"/> or <see cref="StopAfter"/> is recorded through it. Null in unit tests.
         /// </summary>
         internal DiskService Disk { get; set; }
+
+        /// <summary>
+        /// The write failure this engine opened read-only after: its own engine's before the reopen, or
+        /// an earlier engine's of the same shared connection. Null otherwise.
+        /// </summary>
+        internal WriteFailure ReopenedAfter => _settings?.WriteFailure;
 
         // A failure recorded where the engine could not stop (a $database read): the next call stops it.
         private volatile bool _stopDue;
@@ -187,14 +187,31 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Record a write or sync failure before the stop it causes, so the engine reopens read-only
-        /// instead of closing for good. The first failure wins. An engine that already stopped without a
-        /// record stopped for a failed read or a damaged file, and stays closed (implementation note 6).
+        /// instead of closing for good. The first failure wins; a shared connection keeps it for its
+        /// later engines (their operations open read-only until the connection is reopened). An engine
+        /// that already stopped without a record stopped for a failed read or a damaged file, and stays
+        /// closed (implementation note 6). A failed batch after the recorded failure keeps its decision 13
+        /// bound (<see cref="WriteFailure.AdoptBound"/>).
         /// </summary>
         internal void RecordWriteFailure(WriteFailure failure)
         {
+            if (this.WriteFailure is WriteFailure recorded)
+            {
+                recorded.AdoptBound(failure.Acknowledged);
+                return;
+            }
             if (this.Stopped) return;
-            Interlocked.CompareExchange(ref _writeFailure, failure, null);
+            var first = Interlocked.CompareExchange(ref _writeFailure, failure, null);
+            if (first != null)
+            {
+                first.AdoptBound(failure.Acknowledged);
+                return;
+            }
+            _settings?.SharedDurability?.RecordWriteFailure(failure);
         }
+
+        /// <summary>Wait until the failure's teardown closed the services; false after <paramref name="milliseconds"/>.</summary>
+        internal bool WaitClosed(int milliseconds) => _closed.Wait(milliseconds);
 
         /// <summary>
         /// Make the engine immediately unusable without running cleanup that can
@@ -219,7 +236,10 @@ namespace LiteDB.Engine
             finally
             {
                 this.Disposed = true;
-                _closed = true;
+                _closed.Set();
+#if DEBUG || TESTING
+                _settings?.ReopenStage?.Invoke("stopped");
+#endif
             }
         }
 

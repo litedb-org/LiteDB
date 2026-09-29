@@ -6,6 +6,10 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        // How long a call waits for a failed engine's teardown (on the thread that owns the failure)
+        // before it reopens the engine read-only.
+        private const int REOPEN_WAIT_MILLISECONDS = 30000;
+
         // Held by a reopen from its start until it published every service, and by Dispose while it
         // closes: neither sees the other's services half-built.
         private readonly object _reopenLock = new object();
@@ -24,9 +28,8 @@ namespace LiteDB.Engine
         /// docs/decisions/durability-policy.md): reopen it read-only from the files as they are, so reads
         /// keep working and every write throws with the recorded failure until the database is reopened.
         /// Any other failure (a damaged file, a failed read) keeps the engine closed, as before. A call
-        /// that arrives while another one reopens the engine waits until it finished; one that arrives
-        /// before the failure's teardown (on the thread that owns the failure) closed the services gets
-        /// the stop error, and a later call reopens.
+        /// that arrives while another one reopens the engine, or before the failure's teardown (on the
+        /// thread that owns the failure) closed the services, waits until it finished.
         /// </summary>
         private void EnsureOpen()
         {
@@ -57,8 +60,8 @@ namespace LiteDB.Engine
             {
                 if (!ReferenceEquals(stopped, _state) || _closing) return;
                 // The thread that owns the failure closes the services once it released its locks: never
-                // reopen over services still being closed.
-                if (!stopped.Closed) return;
+                // reopen over services still being closed. A Dispose meanwhile wins.
+                if (!stopped.WaitClosed(REOPEN_WAIT_MILLISECONDS) || _closing) return;
 
                 var failure = stopped.WriteFailure;
                 var settings = _settings.Clone();
@@ -71,6 +74,9 @@ namespace LiteDB.Engine
                 _reopening = true;
                 try
                 {
+#if DEBUG || TESTING
+                    _settings.ReopenStage?.Invoke("before-open");
+#endif
                     this.Open();
                 }
                 catch (Exception reopen)
