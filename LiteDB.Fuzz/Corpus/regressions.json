@@ -117,9 +117,9 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs. Replayed after checkpoints, format promotions and index migrations first sync the data file.",
-      "inputHash": "58126383516DBF63BC27792218E81924B5DC5D9F766F3835FD2AF449186F935F",
-      "traceHash": "2CCE1A1CBDF3D8365E91C3D647A74AC329510FB185D3D468A547ABE8D0105B88",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs. Replayed after checkpoints, format promotions and index migrations first sync the data file. Replayed after the durability decisions of LiteDB#3027 changed the sampled I/O events: each change was bisected on .NET 10, the traces changed at 7f53e4539 (decisions 3 to 6), 2b4f1ac0f (every WAL starts with a header frame), e4b9553fd (recovery writes a published header back before its journal is retired) and 042db3fa8 (no overwrite behind a log that cannot sync), and at no other commit; the oracle passes and the new hashes are the same on .NET 8 and .NET 10.",
+      "inputHash": "9F88E837FD54937F950555A16D0F3331FDDB97A5898C699D027C6F3B0C7AEBE4",
+      "traceHash": "BB2610B5F14E7E1EDEE507197E915FA9A7AE28478A010B61FA5D0DB81A765F3B",
       "previousHashes": [
         {
           "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
@@ -155,6 +155,11 @@
           "inputHash": "EC224AEAD42A49300462C726166504B2E15F7E7EB0187EFA7EAFD0891C4721C6",
           "traceHash": "F8C47F753332706DF377705B27F5653BE40A3AD3BC314B128E50C61B5C39E024",
           "reason": "Before every writing checkpoint, format promotion and index migration first synced the data file (3b5612685, 4efca8a1f, 88835401d); with those three syncs reverted these hashes match again, and the new ones are the same on .NET 8 and .NET 10, where recorded-byte replays pass."
+        },
+        {
+          "inputHash": "58126383516DBF63BC27792218E81924B5DC5D9F766F3835FD2AF449186F935F",
+          "traceHash": "2CCE1A1CBDF3D8365E91C3D647A74AC329510FB185D3D468A547ABE8D0105B88",
+          "reason": "Before the durability decisions of LiteDB#3027 (7f53e4539 and later) changed the sampled I/O events."
         }
       ]
     },
@@ -162,9 +167,9 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs. Replayed after checkpoints, format promotions and index migrations first sync the data file.",
-      "inputHash": "B9BEF6EF74C365CA578D27D6D5AECA4F104C58589935E176BDECD7AA038B42EC",
-      "traceHash": "A7DC0368603071B64CA68EEF133A98571A96D78283831BAFCDD220300C8D6B50",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Replayed after encrypted streams opened to read stopped syncing their file. Replayed after a conversion first proves its data file syncs. Replayed after checkpoints, format promotions and index migrations first sync the data file. Replayed after the durability decisions of LiteDB#3027 changed the sampled I/O events: each change was bisected on .NET 10, the traces changed at 7f53e4539 (decisions 3 to 6), 2b4f1ac0f (every WAL starts with a header frame), e4b9553fd (recovery writes a published header back before its journal is retired) and 042db3fa8 (no overwrite behind a log that cannot sync), and at no other commit; the oracle passes and the new hashes are the same on .NET 8 and .NET 10.",
+      "inputHash": "DF260D503C8AB2AE0F3245ECA19751F98EB8FD4D399C0F6EA5ABCB555A22C0EE",
+      "traceHash": "9F4721AE774FE53672DC8385EA4BD46C7EBDD3328F39200E0CFD0D6BC188B689",
       "previousHashes": [
         {
           "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
@@ -200,6 +205,11 @@
           "inputHash": "D2AB6D841405E00288ADDC412A925EC86EC524E7E5538A3BCE5F8FCC1177D043",
           "traceHash": "707CE286E87BF48F42146EB2E1090E17ECFB2D60CBB323D555C1AD0FD5173C14",
           "reason": "Before every writing checkpoint, format promotion and index migration first synced the data file (3b5612685, 4efca8a1f, 88835401d); with those three syncs reverted these hashes match again, and the new ones are the same on .NET 8 and .NET 10, where recorded-byte replays pass."
+        },
+        {
+          "inputHash": "B9BEF6EF74C365CA578D27D6D5AECA4F104C58589935E176BDECD7AA038B42EC",
+          "traceHash": "A7DC0368603071B64CA68EEF133A98571A96D78283831BAFCDD220300C8D6B50",
+          "reason": "Before the durability decisions of LiteDB#3027 (7f53e4539 and later) changed the sampled I/O events."
         }
       ]
     },
@@ -239,9 +249,9 @@
       "target": "compact-crash",
       "seed": 2937,
       "count": 64,
-      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Replayed after checkpoints, format promotions and index migrations first sync the data file.",
-      "inputHash": "079DB891D16E3A99DBD53BD6CEF0775937BE4AFB88CE847A2AF9A2A387D668B1",
-      "traceHash": "8536E574B36A6EB72F91B3B97866E8B4BF2599EBAF450D24EE8ACF56F7D531CD",
+      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Replayed after checkpoints, format promotions and index migrations first sync the data file. Replayed after the durability decisions of LiteDB#3027: bisected on .NET 10, the trace changed only at 7f53e4539 (decisions 3 to 6: fail-loud commits, durable WAL while the data file cannot sync, WAL limit, sticky failures); the oracle passes and the new hashes are the same on .NET 8 and .NET 10.",
+      "inputHash": "C72C54B7801ADF544AF5E356AB95FD59C420A29BB2C47BA4F4FBAC94D8E1BED1",
+      "traceHash": "5AF0DC1F4239BA35E21A351F618D7141E9E08C6602B48B3D19DB32C00D16CACC",
       "previousHashes": [
         {
           "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
@@ -257,6 +267,11 @@
           "inputHash": "7017F28902BB833CFA10F818398BC6E7ABA13DB433AAE52F2EA1A894BA3A1542",
           "traceHash": "A1F6C22B07E7407B79757E53E19C21AC44D11AD71F2CD9E338347DAC624FDC1D",
           "reason": "Before every writing checkpoint, format promotion and index migration first synced the data file (3b5612685, 4efca8a1f, 88835401d); with those three syncs reverted these hashes match again, and the new ones are the same on .NET 8 and .NET 10, where recorded-byte replays pass."
+        },
+        {
+          "inputHash": "079DB891D16E3A99DBD53BD6CEF0775937BE4AFB88CE847A2AF9A2A387D668B1",
+          "traceHash": "8536E574B36A6EB72F91B3B97866E8B4BF2599EBAF450D24EE8ACF56F7D531CD",
+          "reason": "Before the durability decisions of LiteDB#3027 (7f53e4539 and later) changed the sampled I/O events."
         }
       ]
     },

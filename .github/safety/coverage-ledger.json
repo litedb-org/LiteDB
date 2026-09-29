@@ -238,6 +238,19 @@
         "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
         "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes"
       ]
+    },
+    {
+      "id": "3027-corpus-repin-durability",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:3163459:201",
+        "checksum-crash:4058733:111",
+        "compact-crash:2937:64"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The pinned crash seeds replay the same generated input and I/O trace, and their crash-recovery oracle passes.",
+      "reason": "The durability decisions change which syncs and writes a checkpoint, a commit and recovery perform. Bisected per commit: compact-crash changed only at 7f53e4539 (decisions 3 to 6); the two checksum-crash seeds at 7f53e4539, 2b4f1ac0f (header frame), e4b9553fd (header written back before its journal is retired) and 042db3fa8 (no overwrite behind a log that cannot sync). Each oracle passes, the new hashes match on .NET 8 and .NET 10, and the old ones stay under previousHashes. The PR's earlier re-pins (8ec5373b2, ad2625283, d6d7f16cf, 625c0398a) followed the data-sync changes they name in the same field.",
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
