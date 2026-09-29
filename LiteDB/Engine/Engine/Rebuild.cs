@@ -110,7 +110,7 @@ namespace LiteDB.Engine
                     // first create all user indexes (exclude _id index)
                     foreach (var index in reader.GetIndexes(collection))
                     {
-                        if (index.IndexType == 1 && index.VectorMetadata != null)
+                        if (index.IndexType == 1)
                         {
                             this.EnsureVectorIndex(
                                 collection,
