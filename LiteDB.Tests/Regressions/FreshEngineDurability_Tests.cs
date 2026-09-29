@@ -301,6 +301,50 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// Healthy storage: reusing retired WAL slots adds no sync to a shared operation, of the data
+        /// file or of the log: each operation's commit syncs the log once. Implementation note 15 of
+        /// docs/decisions/durability-policy.md: a reused slot is witnessed by a root the retiring
+        /// checkpoint synced, so it needs no proof of its own. (Until that note, every operation's
+        /// engine synced the log once more before its first reuse, and the data file once per data
+        /// header; the log's sync was not counted here.)
+        /// </summary>
+        [Fact]
+        public void Slot_reuse_adds_no_sync_per_shared_operation()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using var power = new FilePowerLossModel(file.Filename);
+            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            for (var value = 1; value <= 5; value++) Update(db, value);
+            using (var reader = engine.Query("rows", new Query()))
+            {
+                reader.Read().Should().BeTrue("a live reader makes the checkpoint retire frames");
+                var worker = new System.Threading.Thread(() =>
+                {
+                    for (var value = 6; value <= 9; value++) Update(db, value);
+                    db.Checkpoint();
+                });
+                worker.Start();
+                worker.Join();
+            }
+            var before = SyncPowerLossModel.ReadShared(logName);
+            var syncs = power.DataSyncs;
+            var logSyncs = power.LogSyncs;
+            for (var value = 10; value < 15; value++) Update(db, value);
+            (power.LogSyncs - logSyncs).Should().Be(5, "each operation's commit syncs the log once, and reusing slots adds nothing");
+            var after = SyncPowerLossModel.ReadShared(logName);
+            Enumerable.Range(0, before.Length / WalChecksum.FrameSize).Count(frame =>
+                !before.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)
+                    .SequenceEqual(after.Skip(frame * WalChecksum.FrameSize).Take(WalChecksum.FrameSize)))
+                .Should().BeGreaterThan(0, "the operations reused retired slots");
+            power.DataSyncs.Should().Be(syncs);
+            DurableLogFlush(db).Should().BeTrue();
+        }
+
+        /// <summary>
         /// The data file syncs for the conversion's check at open, then stops before the conversion's
         /// own first sync: the conversion is still refused before it writes anything, and the open
         /// falls back to read-only, which reads every row, refuses writes, and syncs and writes nothing.

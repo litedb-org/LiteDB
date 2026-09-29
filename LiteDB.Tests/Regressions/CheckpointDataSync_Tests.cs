@@ -62,6 +62,48 @@ namespace LiteDB.Tests.Regressions
             power.AssertAfterPowerLoss(Rows, 4);
         }
 
+        /// <summary>
+        /// Storage that syncs, a shared connection with a long-lived reader lease and a WAL past the
+        /// close threshold: every operation's close checkpoint is rationed and most write nothing. No
+        /// operation syncs the data file without a checkpoint that wrote (a backfill or retirement
+        /// records): the pre-write sync comes after the rationing, right before the first write.
+        /// </summary>
+        [Fact]
+        public void Rationed_shared_checkpoints_do_not_sync_the_data_file()
+        {
+            using var file = new TempFile();
+            Setup(file.Filename);
+            using var power = new SyncPowerLossModel(file.Filename);
+            var settings = power.Settings();
+            var wrote = 0;
+            settings.CheckpointStage = stage =>
+            {
+                if (stage == "data-flushed" || stage == "retirement-records-flushed") Interlocked.Increment(ref wrote);
+            };
+            using var engine = new SharedEngine(settings);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            int operations = 0, syncedWithoutWriting = 0;
+            using (var reader = engine.Query("rows", new Query()))
+            {
+                reader.Read().Should().BeTrue();
+                OnAnotherThread(() =>
+                {
+                    for (var i = 1; i <= 120; i++)
+                    {
+                        var syncs = power.DataSyncs;
+                        var writes = wrote;
+                        db.GetCollection("extra").Insert(new BsonDocument { ["_id"] = i, ["p"] = new string('e', 3000) });
+                        if (i <= 60) continue; // the WAL passes the close threshold
+                        operations++;
+                        if (power.DataSyncs > syncs && wrote == writes) syncedWithoutWriting++;
+                    }
+                });
+            }
+            operations.Should().Be(60);
+            syncedWithoutWriting.Should().Be(0, "a rationed checkpoint that writes nothing does not sync the data file");
+            db.GetCollection("extra").Count().Should().Be(120);
+        }
+
         private static void Setup(string filename)
         {
             using var setup = new LiteDatabase(filename);
@@ -71,6 +113,20 @@ namespace LiteDB.Tests.Regressions
 
         private static void Update(LiteDatabase db, int value) =>
             db.GetCollection("rows").Upsert(Enumerable.Range(1, Rows).Select(id => MvccRetirementScenario.Document(id, value)));
+
+        /// <summary>The reader's transaction belongs to this thread: the writes run on another.</summary>
+        private static void OnAnotherThread(Action action)
+        {
+            ExceptionDispatchInfo failure = null;
+            var thread = new Thread(() =>
+            {
+                try { action(); }
+                catch (Exception ex) { failure = ExceptionDispatchInfo.Capture(ex); }
+            });
+            thread.Start();
+            thread.Join();
+            failure?.Throw();
+        }
 
     }
 }
