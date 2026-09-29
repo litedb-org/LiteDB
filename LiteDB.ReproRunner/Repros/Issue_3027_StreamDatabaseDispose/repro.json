@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_StreamDatabaseDispose",
+  "title": "new LiteDatabase(stream) stores CHECKPOINT=1 in the file, and its Dispose throws when repeated or with an open transaction",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "stream",
+    "dispose",
+    "pragma"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: new LiteDatabase(stream) left CHECKPOINT=1 in the database header, a second Dispose threw and Dispose with an open transaction threw (second Dispose: LiteException: This engine instance already disposed.; with an open transaction: LiteException: The current thread already contains an open transaction."
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: new LiteDatabase(stream) left the stored CHECKPOINT pragma at 1000 and kept every commit, a second Dispose did not throw, and Dispose with an open transaction rolled it back and released the stream"
+    }
+  }
+}

@@ -16,6 +16,7 @@ namespace LiteDB.Engine
                 return;
             }
 
+            if (_settings.ReadOnlyStorage && !_settings.ReadOnly) throw new ReadOnlyOpenRequiredException();
             if (_settings.ReadOnly)
             {
                 // The stale ordering stays visible through EnginePragmas.IndexesOrdered;

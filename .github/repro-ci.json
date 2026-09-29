@@ -13,5 +13,22 @@
       "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
       "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
     ]
+  },
+  "Issue_3027_StreamDatabaseDispose": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); the stored CHECKPOINT pragma and Dispose of stream-based databases are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Second_dispose_does_not_throw",
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Dispose_with_an_open_transaction_rolls_back_and_releases_the_file",
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Opening_through_a_stream_does_not_persistently_change_the_checkpoint_pragma"
+    ]
+  },
+  "Issue_3027_LegacyReadOnlyStream": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); 5.0.21 files on non-writable streams are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_can_be_queried",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_accepts_transactions_and_rejects_writes",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Crash_images_over_non_writable_streams_open_without_any_change",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_current_database_keeps_transactions_that_change_nothing"
+    ]
   }
 }
