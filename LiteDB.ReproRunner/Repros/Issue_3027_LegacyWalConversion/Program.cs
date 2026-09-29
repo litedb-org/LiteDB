@@ -72,7 +72,7 @@ internal static class Program
 
         // Another process's shared reader holds a snapshot: its lease file is open and locked.
         var lease = Path.Combine(Directory.CreateDirectory(data + "-readers").FullName, "1-live.lease");
-        Exception? refusal = null;
+        Exception refusal = null;
         string during;
         using (new FileStream(lease, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
         {

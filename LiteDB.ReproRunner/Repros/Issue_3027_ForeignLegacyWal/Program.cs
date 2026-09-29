@@ -87,7 +87,7 @@ internal static class Program
         File.WriteAllBytes(data, original);
         File.WriteAllBytes(log, foreign);
 
-        LiteException? refusal = null;
+        LiteException refusal = null;
         string seen = "";
         try
         {
