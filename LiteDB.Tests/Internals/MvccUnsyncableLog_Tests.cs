@@ -11,12 +11,13 @@ namespace LiteDB.Internals
     /// <summary>
     /// #2242 under MVCC: opted out of durable commits, a log that rejects every device sync keeps
     /// snapshot checkpoints and readers working ("cannot sync" is not a failure then, proposed
-    /// default A of docs/decisions/durability-policy.md), but never reuses reclaimed WAL slots.
-    /// Without a durable clear, a reused slot could overwrite a retired version that unsynced data
-    /// pages still depend on after a power loss, so the WAL appends like dev. A retiring checkpoint
-    /// first proves both files can sync, so a known rejection retires nothing; only a log that stops
-    /// syncing during the retiring checkpoint, after that proof, leaves cleared slots behind. With
-    /// durable commits that checkpoint fails loudly and the engine continues read-only (decisions 3, 6).
+    /// default A of docs/decisions/durability-policy.md), but an engine that knows the log cannot
+    /// sync never reuses reclaimed WAL slots: the WAL appends like dev. A retiring checkpoint first
+    /// proves both files can sync, so a known rejection retires nothing; only a log that stops
+    /// syncing during the retiring checkpoint, after that proof, leaves cleared slots behind, which a
+    /// fresh engine that does not know reuses: their witness root is durable (implementation note 15).
+    /// With durable commits that checkpoint fails loudly and the engine continues read-only
+    /// (decisions 3, 6).
     /// </summary>
     public class MvccUnsyncableLog_Tests
     {
@@ -73,22 +74,28 @@ namespace LiteDB.Internals
         }
 
         /// <summary>
-        /// Every shared-mode operation opens a fresh engine. Its recovery registers the
-        /// slots an earlier engine cleared without a durable sync, before any sync of its
-        /// own has failed. It must not reuse them until one of its log syncs succeeds. The
-        /// earlier engine opted out of durable commits, so its checkpoint left them behind; the
-        /// fresh one commits durably on storage that syncs, and opts out on storage that cannot.
+        /// Every shared-mode operation opens a fresh engine. Its recovery registers the slots an
+        /// earlier engine cleared without a durable sync (that engine opted out of durable commits, so
+        /// its checkpoint left them behind), before any sync of its own. The fresh engine commits
+        /// durably on storage that syncs, and opts out on storage that cannot, where it never syncs.
+        /// Either way it reuses those slots, without a sync of its own (implementation note 15 of
+        /// docs/decisions/durability-policy.md): the checkpoint synced the root that witnesses them,
+        /// so a clear that never reached the device leaves the old frame, which recovery skips. Until
+        /// that note, an engine synced the log before its first reuse and appended where the sync was
+        /// refused. What a killed process leaves, and what a power loss leaves (the log as of its last
+        /// successful sync, also with the reused slots' new frames written back without their
+        /// confirmations), recover exactly: every commit synced, none whose confirmation is missing.
         /// </summary>
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced(bool syncable)
+        public void Fresh_engine_reuses_witnessed_blank_slots_without_a_sync_of_its_own(bool syncable)
         {
             using var data = new MemoryStream();
             // Commits and the checkpoint's proof and retirement sync; the log then rejects the
             // sync that would make the checkpoint's slot clears durable.
             using var log = new UnsyncableLog { Syncable = true };
-            byte[] crashedData, crashedLog;
+            byte[] crashedData, crashedLog, durableLog;
             using (var engine = Open(data, log, durableCommits: false))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -105,28 +112,47 @@ namespace LiteDB.Internals
                 // A killed process: the cleared slots stay in the WAL.
                 crashedData = data.ToArray();
                 crashedLog = log.ToArray();
+                durableLog = log.Durable;
             }
             BlankFrames(crashedLog).Should().NotBeEmpty("the checkpoint cleared the slots it retired");
+            BlankFrames(durableLog).Should().BeEmpty("the clears never synced");
 
             using var dataCopy = Copy(new MemoryStream(crashedData), new MemoryStream());
-            using var logCopy = Copy(new MemoryStream(crashedLog), new UnsyncableLog { Syncable = syncable });
+            using var logCopy = Copy(new MemoryStream(crashedLog), new UnsyncableLog { Syncable = syncable, Durable = durableLog });
+            byte[] written;
             using (var engine = Open(dataCopy, logCopy, durableCommits: syncable))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.Pragma(Pragmas.CHECKPOINT, 0);
                 for (var value = 21; value <= 25; value++) Write(db, "cold", value);
 
-                var written = logCopy.ToArray();
+                written = logCopy.ToArray();
                 var reused = BlankFrames(crashedLog).Count(offset => !IsBlank(written, offset));
-                if (syncable)
-                    reused.Should().BeGreaterThan(0, "after its first successful sync the engine reuses the blank slots");
-                else
-                    reused.Should().Be(0, "slots cleared without a durable sync must not be reused before a sync succeeds");
+                // Implementation note 15: reusing a witnessed slot needs no sync, also where the engine
+                // never syncs. (Before it, the refused sync of the log made that engine append: 0.)
+                reused.Should().BeGreaterThan(0, "a fresh engine reuses the witnessed blank slots");
+                logCopy.Rejections.Should().Be(0, "no sync was refused: the storage syncs, or the opted-out commits never ask");
                 db.GetCollection("cold").FindAll().Should().OnlyContain(doc => doc["value"].AsInt32 == 25);
             }
 
             AssertValues(dataCopy, logCopy, "cold", 25);
             AssertValues(dataCopy, logCopy, "docs", 20);
+
+            // A power loss: the log as of its last successful sync (commits 21 to 25 synced only where
+            // the storage syncs), and the same with every reused slot's new frame written back while
+            // the confirmations, which append, were not. The witnessed slots hide the old frames and
+            // the unconfirmed new ones alike.
+            var powerLoss = logCopy.Durable;
+            var reusedWrittenBack = (byte[])powerLoss.Clone();
+            foreach (var offset in BlankFrames(crashedLog).Where(offset => !IsBlank(written, offset) &&
+                offset + WalChecksum.FrameSize <= reusedWrittenBack.Length))
+                Buffer.BlockCopy(written, offset, reusedWrittenBack, offset, WalChecksum.FrameSize);
+            reusedWrittenBack.SequenceEqual(powerLoss).Should().Be(syncable, "unsynced, the reused slots differ on the device");
+            foreach (var image in new[] { powerLoss, reusedWrittenBack })
+            {
+                AssertValues(new MemoryStream(crashedData), new MemoryStream(image), "cold", syncable ? 25 : 0);
+                AssertValues(new MemoryStream(crashedData), new MemoryStream(image), "docs", 20);
+            }
         }
 
         /// <summary>
@@ -218,19 +244,24 @@ namespace LiteDB.Internals
             return target;
         }
 
-        /// <summary>A log whose storage answers every device sync with ERROR_ACCESS_DENIED.</summary>
+        /// <summary>
+        /// A log whose storage answers every device sync with ERROR_ACCESS_DENIED, unless
+        /// <see cref="Syncable"/> or allowed. <see cref="Durable"/> is what a power loss keeps: the
+        /// log as of its last successful sync.
+        /// </summary>
         private sealed class UnsyncableLog : MemoryStream, IDurableStream
         {
             internal int Rejections;
             internal bool Syncable;
             internal int AllowedSyncs;
+            internal byte[] Durable = new byte[0];
 
             public void FlushToDisk()
             {
-                if (Syncable) return;
-                if (AllowedSyncs > 0)
+                if (Syncable || AllowedSyncs > 0)
                 {
-                    AllowedSyncs--;
+                    if (!Syncable) AllowedSyncs--;
+                    Durable = ToArray();
                     return;
                 }
                 Rejections++;

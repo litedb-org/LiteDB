@@ -161,9 +161,9 @@ that stops syncing during a retiring checkpoint degrades its barriers; that chec
 the frames it retired and publishes no root once it found out. Never make a retired slot
 reusable before its witness root is on the device: a root is synced before its header
 journal goes, and an open that finds that journal writes the header back and syncs it
-before retiring the journal, or opens read-only. Before an engine first reuses a slot it
-syncs the data file and the raw log once (note 15 of the durability decisions, the
-conservative baseline). Before its first commit an engine whose data is a file syncs the
+before retiring the journal, or opens read-only. Reusing a slot then needs no sync of its
+own (note 15 of the durability decisions): a clear that never reached the device leaves a
+witnessed old frame, which recovery skips. Before its first commit an engine whose data is a file syncs the
 data file, best effort (once per data header in the process). Every WAL generation starts
 with a header frame, a copy of the data header; a WAL without one opens as before. Remove a
 file WAL or a header journal only after a data sync that covers what it protects succeeded;

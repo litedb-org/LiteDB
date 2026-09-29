@@ -12,12 +12,11 @@ using Xunit;
 namespace LiteDB.Tests.Regressions
 {
     /// <summary>
-    /// Reusing a retired WAL slot, in the conservative baseline: every engine proves the data file and
-    /// the log sync before its first reuse (DiskService.ProveSlotReuse). A slot is free only while the
-    /// root that witnesses it names it: a retiring checkpoint syncs its witness records before the root
-    /// and the root before its header journal goes, and a pending journal makes the next open write the
-    /// header back and sync it (so a failed sync's pages marked clean still reach the device) or refuse
-    /// the open. (Reuse without that proof, implementation note 15, is a later layer.) A clear that never reached
+    /// Implementation note 15 of docs/decisions/durability-policy.md: reusing a retired WAL slot needs
+    /// no sync of its own. A slot is free only while the root that witnesses it names it: a retiring
+    /// checkpoint syncs its witness records before the root and the root before its header journal
+    /// goes, and a pending journal makes the next open write the header back and sync it (so a failed
+    /// sync's pages marked clean still reach the device) or open read-only. A clear that never reached
     /// the device leaves the old frame in a witnessed slot, which recovery skips, as it skips a torn new
     /// frame there. Each reusing commit is checked with the images a power loss may leave at every WAL
     /// write and around its sync (<see cref="ForgetfulFile"/>: its pending writes lost, written back, or
@@ -185,7 +184,11 @@ namespace LiteDB.Tests.Regressions
             DurableLogs.Forget(Path.GetFullPath(logFile.Filename));
             DurableHeaders.Forget(file.Filename);
             var overwrites = 0;
-            log.BeforeWrite = (position, count) => { if (position < log.Length) overwrites++; };
+            var pendingAtReuse = -1;
+            log.BeforeWrite = (position, count) =>
+            {
+                if (position < log.Length && overwrites++ == 0) pendingAtReuse = log.Pending;
+            };
             var durable = clears != "pending";
             try
             {
@@ -196,6 +199,11 @@ namespace LiteDB.Tests.Regressions
                 SyncPowerLossModel.AssertRows(db, Rows, 9);
                 CommitWithPowerLossImages(db, data, log, password, 9, 10, durable);
                 overwrites.Should().BeGreaterThan(0, "the commit reused retired slots");
+                // Reusing a slot syncs nothing (implementation note 15; an engine used to sync the log
+                // before its first reuse), so the opted-out engine reuses slots while the clears are
+                // still dirty, and the images above include them lost, written back and torn. (An
+                // encrypted log's writer syncs the log when it is created.)
+                if (!durable && password == null) pendingAtReuse.Should().BeGreaterThan(0, "no sync preceded the first reuse");
             }
             finally { log.BeforeWrite = null; }
             using (var third = new LiteEngine(Settings(file.Filename, data, log, password)))

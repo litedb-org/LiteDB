@@ -142,7 +142,8 @@ The durability-accounting layer (S09a) implements:
 - Note 6 and default A: a refusal before anything was written is no failure.
 - Note 13: the header write-back before a journal is retired.
 - The failure boundary of sync helpers (note 17, #3052).
-- The conservative slot-reuse baseline (note 15).
+- The conservative slot-reuse baseline of note 15 (every fresh engine proved the data file and the
+  log before its first slot reuse); the slot-reuse layer (S11) below drops it.
 
 The header-frame layer (S09b) adds:
 
@@ -151,9 +152,10 @@ The header-frame layer (S09b) adds:
   over WAL frames, and the same restore in the rebuild's reader. A WAL without a header frame
   (written before this layer) opens as before.
 - The header proof record (`DurableHeaders`): the data header each data file had at its latest
-  successful sync in this process. The data proof before a slot reuse (note 15) skips the sync while
-  the header still matches. The log proof record (`DurableLogs`) is forgotten when the log or its
-  directory answers "cannot sync"; the commit proof that records it comes with rule 3.
+  successful sync in this process. The data proof before a slot reuse (note 15, until the S11
+  layer drops it) skips the sync while the header still matches. The log proof record
+  (`DurableLogs`) is forgotten when the log or its directory answers "cannot sync"; the commit
+  proof that records it comes with rule 3.
 - A failed header-frame write is truncated like a failed append; the commit fails and, at this
   layer, the engine stops.
 
@@ -180,6 +182,14 @@ The admission, limit and continuation layer (S09c) adds:
   `writeFailure`, `walKept`, `walLimit` and 64-bit file sizes. An open that must convert, migrate or
   repair the file where its storage cannot sync opens read-only instead of throwing (the open-time
   fallback), with the refusal as `readOnlyReason`.
+
+The slot-reuse layer (S11) adds:
+
+- Note 15: reusing a retired WAL slot needs no sync of its own. `ProveSlotReuse` goes; the
+  allocation keeps its in-memory guards (storage known not to sync, and a log whose syncs cannot
+  report failure, never reuse slots). A shared-mode operation that reuses slots syncs the log once
+  for its commit and the data file not at all (was: one more log sync, and a data sync unless the
+  header was one this process synced).
 
 Still later: decision 13 (the reopen replays the WAL only up to the last commit acknowledged before
 a failed batch; until then the reopen replays the files as they are, so a commit whose outcome is
@@ -275,13 +285,44 @@ concurrent callers (waiting for the failed engine's teardown, repeated disposal)
    is not a backup of every historical data page:** it restores the header only, and only while the
    data file still holds every page that header names. A data page the device lost is not recovered
    from it; the supported lost-page fault model is unchanged.
-15. **Slot reuse, conservative baseline.** Before its first reuse of a retired WAL slot, every
-   engine proves that the data file and the log sync (`DiskService.ProveSlotReuse`); storage known
-   not to sync, and a log whose syncs cannot report failure, never reuse slots. For a data file, the
-   data sync is skipped while its header is one a successful sync in this process left
-   (`DurableHeaders`; a copy restored over the file with a byte-identical header is taken as proven,
-   best effort). Every fresh engine (every shared-mode operation) pays that proof once; dropping it
-   behind the durable witness root is a separate, later change.
+15. **Reusing a retired WAL slot needs no proof of its own.** A retiring checkpoint syncs its witness
+   records before the root that names them, syncs the root before its journal goes, and a pending journal
+   makes the next open sync the data file or open read-only; a clear that did not reach the device leaves
+   a witnessed slot, which recovery skips. So reuse costs no sync per engine or shared operation; storage
+   known not to sync still never reuses slots, nor does a log whose syncs cannot report failure (note 3).
+
+   Why that ordering suffices without a sync before the first reuse (the proof it replaces, dev's
+   `ProveLogSync` and later `ProveSlotReuse`, synced the raw log, and the data file once per data
+   header, in every fresh engine, so in every shared-mode operation that reused a slot):
+   - An engine takes a free slot from two places only: at open, the slots the root named by the data
+     header witnesses and no live version occupies (`RestoreIndex`; a writable open keeps only a
+     checksummed WAL), and the slots its own checkpoint cleared, published only after the clears'
+     log sync succeeded (`ReclaimLogPages`, which clears only witnessed slots).
+   - That root is durable before any engine can reuse its slots. The retiring checkpoint syncs the
+     witness records before it writes the root (`PrepareRetirement`), and syncs the root before the
+     header journal is retired; a root whose data sync did not succeed throws and keeps the journal
+     (`CompletePartialCheckpoint`). An open that finds that journal writes the header back and syncs
+     it before retiring the journal (note 13), so a root a failed sync left in the cache only (an
+     EIO that marked the page clean) reaches the device, or the open is read-only and reuses nothing.
+     The proof's data sync repeated a sync that had already succeeded.
+   - A reused slot's contents after a power loss are one of: its old frame (the clear never reached
+     the device), a torn or unconfirmed new frame, or the new frame of a commit whose own log sync
+     made it durable (confirmations always append, and the commit's sync covers every frame before
+     it). Recovery skips the old frame because the durable root witnesses it, skips a torn or
+     unconfirmed frame as always, and replays the confirmed one. The proof's log sync made durable
+     clears that recovery does not need.
+   - Readers are unaffected: a slot is free only behind the reclamation fence, which excludes every
+     accepted snapshot that could reach the old frame, whatever syncs.
+   - The proof also found out, before the first reuse, that storage cannot sync. That is now the
+     commit's: with durable commits the commit's own log proof (rule 3) refuses it before it writes;
+     opted out, an engine that never learned it reuses witnessed slots, its commits claim no
+     durability, and a power loss keeps exactly the commits synced before.
+   The proof was therefore redundant with this ordering, not a missing flush. Weakening any link
+   above (publishing a slot before its root is durable, retiring a journal behind a failed root sync,
+   or skipping the header write-back) needs the proof back. Evidence: `SlotReuseWithoutProof_Tests`,
+   `MvccUnsyncableLog_Tests`, `SharedUnsyncableLog_Tests` and `RetiredSlotPowerLoss_Tests`, with
+   power-loss images at every WAL write of a reusing commit; `FreshEngineDurability_Tests` and
+   `CheckpointDataSync_Tests` count the syncs.
 17. **The failure boundary of sync helpers (#3052).** A helper that issues a sync after an earlier
    admission check (`LogSyncs`, `DataFileSyncs`, `ProveRetirementSyncs`, `SyncLogBeforeCheckpoint`,
    a checkpoint once it holds the WAL writer, a WAL batch once it holds it) rechecks the stopped and
