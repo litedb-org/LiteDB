@@ -227,6 +227,28 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// Real read-only inspection never writes the invalid-state mark, not even when the damage
+        /// stops the engine and its streams could be written (dev marked such a caller stream).
+        /// </summary>
+        [Fact]
+        public void Read_only_engine_over_writable_streams_never_marks_the_damage_it_finds()
+        {
+            var original = Fixture();
+            using var data = new MemoryStream();
+            data.Write(original, 0, original.Length);
+            using var log = new MemoryStream();
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, ReadOnly = true, LegacyIndexScan = true }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                Action scan = () => db.GetCollection("c").FindAll().ToList();
+                scan.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            }
+            data.ToArray().Should().Equal(original, "a read-only engine never writes the rebuild mark");
+            log.Length.Should().Be(0);
+        }
+
+        /// <summary>
         /// Regression: FileReaderV8 discarded a document whose BSON read failed
         /// (FileReaderV8.Documents.cs, 05d34f058); 5.0.21 yielded the partial document.
         /// </summary>
