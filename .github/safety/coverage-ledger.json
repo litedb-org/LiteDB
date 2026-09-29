@@ -211,6 +211,30 @@
         "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
         "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes"
       ]
+    },
+    {
+      "id": "3027-corpus-repin-header-frame",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-wal:2954:28"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The pinned checksum-wal seed replays the same generated input and I/O trace, and its oracle passes.",
+      "reason": "Every WAL generation now starts with a header frame (decision 11), one more frame write in the trace. Replayed at the S08 head and at each S09 layer (S09a 4ee70dd56, S09b 706aeef58, S09c e65387a91) on .NET 10: the trace changed only at the header-frame layer (S09b), and with WriteHeaderFrame disabled there the old hash returns. The input hash is unchanged, the oracle passes, the new hash matches on .NET 8 and .NET 10 (and #3027's final pin), and the old one stays under previousHashes.",
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-corpus-repin-durability",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:3163459:201",
+        "checksum-crash:4058733:111",
+        "compact-crash:2937:64"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The pinned crash seeds replay the same generated input and I/O trace, and their crash-recovery oracle passes.",
+      "reason": "The durability protocol changes which syncs and writes a checkpoint, a commit and recovery perform. Replayed at the S08 head (unchanged, so nothing is owed to S08) and at each S09 layer on .NET 10: every seed changed at the durability-accounting layer (S09a: data syncs before a checkpoint writes, header write-back before a journal is retired, overwrite barriers; disabling the checkpoint's data sync or the write-back alone changes but does not restore the S08 hashes, so the S09a change is their combination), at the header-frame layer (S09b; with WriteHeaderFrame disabled the S09a hashes return) and at the admission layer (S09c; without RequireDurableCommit's once-per-log proof of the log file and its directory the S09b hashes return, while skipping only the data barrier changes nothing). Each oracle passes, the final hashes match on .NET 8 and .NET 10 and equal #3027's final pins, and the S08-era and per-layer hashes stay under previousHashes.",
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
