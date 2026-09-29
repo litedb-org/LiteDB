@@ -208,6 +208,13 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// The engine keeps its WAL in memory: no caller log stream and no log file. Such a WAL survives
+        /// no power loss, so the durability barriers that protect a log file do not apply to it.
+        /// </summary>
+        internal bool VolatileLog => this.LogStream == null &&
+            (string.IsNullOrEmpty(this.Filename) || this.Filename == ":memory:" || this.Filename == ":temp:");
+
+        /// <summary>
         /// Create new IStreamFactory for logfile
         /// </summary>
         internal IStreamFactory CreateLogFactory()

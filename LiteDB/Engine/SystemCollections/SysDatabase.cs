@@ -19,11 +19,16 @@ namespace LiteDB.Engine
                 ["pages"] = x.Pages.TransactionSize
             }).ToArray();
 
+            // First: its sync may fail, which this read records instead of throwing (decision 6).
+            var walKept = _disk.WalKeptReport;
+
             yield return new BsonDocument
             {
                 ["name"] = _disk.GetName(FileOrigin.Data),
                 ["encrypted"] = _settings.Password != null,
                 ["readOnly"] = _settings.ReadOnly,
+                // The write or sync failure recorded on this engine (decision 6); null when none.
+                ["writeFailure"] = _state.WriteFailure?.ToDocument() ?? BsonValue.Null,
 
                 ["lastPageID"] = (int)_header.LastPageID,
                 ["freeEmptyPageID"] = (int)_header.FreeEmptyPageList,
@@ -33,6 +38,8 @@ namespace LiteDB.Engine
                 ["dataFileSize"] = (int)_disk.GetFileLength(FileOrigin.Data),
                 ["logFileSize"] = (int)_disk.GetFileLength(FileOrigin.Log),
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
+                // The log keeps frames a checkpoint cannot drain yet: the data file (or the log) cannot sync.
+                ["walKept"] = walKept,
                 ["checksums"] = _disk.ChecksumsEnabled,
                 ["checksumCoverage"] = _disk.ChecksumCoverage,
                 ["legacyLastPageID"] = (long)_disk.LegacyLastPageID,

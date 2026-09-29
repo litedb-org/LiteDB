@@ -191,6 +191,8 @@ namespace LiteDB.Engine
                 _options = options;
             }
 
+            internal string Path => _path;
+
             public bool Equals(Key other) =>
                 _access == other._access && _options == other._options &&
                 string.Equals(_path, other._path, StringComparison.OrdinalIgnoreCase);
@@ -254,6 +256,11 @@ namespace LiteDB.Engine
             internal void Close() => _owner.Dispose();
         }
 
+#if DEBUG || TESTING
+        /// <summary>The file a stream syncs, for sync fault hooks: a leased handle has no name ("[Unknown]").</summary>
+        internal static string PathOf(FileStream stream) => stream is LeasedFileStream leased ? leased.Path : stream.Name;
+#endif
+
         /// <summary>
         /// A FileStream over a cached handle that it does not own. Each lease has its own
         /// buffer and position; disposing it returns the handle to the cache.
@@ -264,6 +271,10 @@ namespace LiteDB.Engine
             private readonly Key _key;
             private readonly int _generation;
             private Entry _entry;
+
+#if DEBUG || TESTING
+            internal string Path => _key.Path;
+#endif
 
             internal LeasedFileStream(SharedFileHandles cache, Key key, Entry entry, int generation,
                 FileAccess access, int bufferSize)

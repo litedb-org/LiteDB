@@ -50,6 +50,15 @@ namespace LiteDB.Engine
         /// </summary>
         internal static bool NamesFile(Exception error) => error.Data.Contains(FileDataKey);
 
+        internal BsonDocument ToDocument() => new BsonDocument
+        {
+            ["file"] = this.File == null ? BsonValue.Null : new BsonValue(this.File),
+            ["operation"] = this.Operation,
+            ["error"] = this.Error,
+            ["time"] = this.Time,
+            ["walKept"] = this.WalKept
+        };
+
         public override string ToString() =>
             $"{this.Operation} failed at {this.Time:yyyy-MM-dd HH:mm:ss} UTC" +
             (this.File == null ? "" : $" on the {this.File} file") + $": {this.Error} " +

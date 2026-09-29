@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace LiteDB.Engine
@@ -86,6 +87,12 @@ namespace LiteDB.Engine
             // No checkpoint writes or syncs through handles a recorded failure stopped.
             _disk.RequireNoWriteFailure();
 
+            // The WAL is kept until a data sync succeeds (DiskService.KeepsWal). Once this engine or, in
+            // shared mode, an earlier engine of the connection found that the data file cannot sync, a
+            // checkpoint retries the data sync first and changes nothing while it still fails, instead
+            // of scanning a WAL that grows at every commit.
+            if (_disk.DefersCheckpoint()) return 0;
+
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
             var wait = !rationed || _backoff.TryClaimWaitingAttempt();
@@ -122,6 +129,9 @@ namespace LiteDB.Engine
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
+                // #3052: the check above ran before this checkpoint waited for its locks. A failure published
+                // meanwhile (before its owner released the writer) refuses it before any write or sync.
+                _disk.RequireNoFailureUnderWriter();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
@@ -143,15 +153,41 @@ namespace LiteDB.Engine
                     }
                 }
 
+                // Retiring frames only lets their slots be reused, which storage that cannot
+                // sync never does; its witness could not be published durably either.
                 var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(live);
+                var proven = obsolete.Count > 0 && _disk.ProveRetirementSyncs();
+                if (!proven) obsolete.Clear();
                 if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
+
+                // Write only to a data file that just synced (the retirement proof syncs it too): one
+                // that cannot, also one another engine or process found so, keeps the WAL untouched.
+                if (!proven && !_disk.LogIsVolatile && !_disk.DataFileSyncs("A checkpoint")) return 0;
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
-                var retirement = _disk.PrepareRetirement(obsolete);
-                _disk.SyncLogBeforeCheckpoint();
+                WalRetirement retirement;
+                // Its format promotion refused before it wrote (DiskService.IsRefusedBeforeWrite): keep the WAL.
+                try { retirement = _disk.PrepareRetirement(obsolete); }
+                catch (IOException ex) when (DiskService.IsRefusedBeforeWrite(ex)) { return 0; }
+                // A log that cannot sync backs no overwrite (decision D): write nothing, keep the WAL.
+                if (!_disk.SyncLogBeforeCheckpoint()) return 0;
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
+
+                // The data file stopped syncing since the sync above (#2242): the backfill may be torn
+                // and the WAL and its header journal are its only durable copy. Stop before removing
+                // any of it; the next open recovers from them (DiskService.KeepsWal).
+                if (_disk.KeepsWal) throw DiskService.DataStoppedSyncing("a checkpoint");
+
+                // Storage that stopped syncing after the retirement's proof may not have made its
+                // witness records durable: a root published now could leave a durable header naming
+                // records a power loss dropped. Keep the frames it would have retired.
+                if (retirement != null && _disk.FlushDegraded)
+                {
+                    retirement = null;
+                    obsolete.Clear();
+                }
 
                 if (!reclaim) _disk.CompletePartialCheckpoint(retirement);
 
@@ -170,7 +206,8 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif
-                    _disk.SetLength(0, FileOrigin.Log);
+                    // Only once a data sync covered the backfill and the new salt (DiskService.ShrinkLog).
+                    _disk.EmptyLog("a checkpoint");
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-after-clear");
 #endif

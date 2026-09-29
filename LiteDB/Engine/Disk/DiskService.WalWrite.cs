@@ -48,6 +48,9 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                // Decision 6 and #3052: a failure recorded while this batch waited for the writer (a sync
+                // helper publishes its failure before it releases the lock) refuses it before any frame.
+                _state.RequireNoWriteFailure();
                 var uncertain = false;
                 try
                 {

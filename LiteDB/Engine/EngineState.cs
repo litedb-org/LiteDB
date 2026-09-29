@@ -33,6 +33,12 @@ namespace LiteDB.Engine
         /// </summary>
         internal DiskService Disk { get; set; }
 
+        // A failure recorded where the engine could not stop (a $database read): the next call stops it.
+        private volatile bool _stopDue;
+
+        /// <summary>A recorded failure waits for its stop (<see cref="StopLater"/>).</summary>
+        internal bool StopDue => _stopDue && !this.Stopped;
+
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
 
@@ -51,10 +57,18 @@ namespace LiteDB.Engine
 
         // Test hook: this engine's crash points (SimulateProcessCrash sees every engine's).
         public Action<string> AtCrashPoint;
+
+        // Test hook (#3052): a sync helper passed its caller's admission check and is about to take the
+        // lock that orders its sync ("log": LogSyncs, "data": DataFileSyncs).
+        public Action<string> BeforeSyncLock;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
         internal static Action<PageBuffer> ObserveCacheEviction;
+
+        // Test hook: every engine's file format promotion as it starts under the WAL writer (the version
+        // it promotes to), and whether an earlier header journal is outstanding in the log then.
+        internal static Action<byte, bool> ObservePromotion;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)
@@ -85,11 +99,17 @@ namespace LiteDB.Engine
         /// <summary>
         /// An operation failed: false when the failure stopped the engine, true when the caller rolls its
         /// transaction back and the engine goes on. An I/O failure or a damaged file stops it for good;
-        /// a write or sync failure is recorded first (<see cref="StopAfter"/>).
+        /// a write or sync failure is recorded first (<see cref="StopAfter"/>). A refusal because storage
+        /// cannot sync, before anything was written, is no failure.
         /// </summary>
         public bool Handle(Exception ex)
         {
             LOG(ex.Message, "ERROR");
+
+            // Refused because the data file (or the log, for an in-place overwrite) cannot sync, before
+            // anything was written (#2242): not a failure (implementation note 6). The transaction rolls
+            // back and the caller gets the refusal. A refusal its throw site recorded stops the engine below.
+            if (DiskService.IsRefusedBeforeWrite(ex) && this.WriteFailure == null) return true;
 
             if (ex is IOException ||
                 (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
@@ -110,6 +130,17 @@ namespace LiteDB.Engine
         {
             if (ex is IOException && WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
             this.Stop(ex);
+        }
+
+        /// <summary>
+        /// Record a write or sync failure where stopping the engine would fail the caller's read (a
+        /// <c>$database</c> read). Every later write, sync and checkpoint is refused already
+        /// (<see cref="RequireNoWriteFailure"/>); the stop itself is due (<see cref="StopDue"/>).
+        /// </summary>
+        internal void StopLater(string operation, Exception ex)
+        {
+            this.Disk?.RecordWriteFailure(operation, ex);
+            if (this.WriteFailure != null) _stopDue = true;
         }
 
 #if DEBUG || TESTING
