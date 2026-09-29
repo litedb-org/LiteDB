@@ -52,16 +52,27 @@ namespace LiteDB.Tests.Regressions
                 var before = syncs.Count(file);
                 var aAdmitted = new ManualResetEventSlim();
                 var bDone = new ManualResetEventSlim();
-                Thread reader = null;
+                // A's identity is recorded by A itself before it can reach the hook, so the hook never
+                // depends on Start having returned to this thread (thread start ordering).
+                var readerId = 0;
                 engine.SimulateBeforeSyncLock = helper =>
                 {
-                    if (helper != file || Thread.CurrentThread != reader) return;
+                    if (helper != file || Environment.CurrentManagedThreadId != Volatile.Read(ref readerId)) return;
                     aAdmitted.Set();
-                    bDone.Wait();
+                    WaitFor(bDone, "B's read completes while A waits before the lock");
                 };
                 BsonDocument aInfo = null;
-                reader = Start(() => aInfo = Info(db));
-                aAdmitted.Wait();
+                var reader = Start(() =>
+                {
+                    Volatile.Write(ref readerId, Environment.CurrentManagedThreadId);
+                    aInfo = Info(db);
+                });
+                if (!aAdmitted.Wait(TimeSpan.FromSeconds(60)))
+                {
+                    // Surface A's own failure, if any, instead of a bare timeout.
+                    Join(reader);
+                    throw new Xunit.Sdk.XunitException("A never reached the lock that orders its sync");
+                }
 
                 // B: the same read on this thread, whose sync fails (or succeeds) under the lock.
                 syncs.Fail(file, fail ? EIO : 0);
@@ -289,6 +300,10 @@ namespace LiteDB.Tests.Regressions
             thread.Start();
             return thread;
         }
+
+        /// <summary>A bounded wait: a forced interleaving that does not happen fails instead of hanging.</summary>
+        private static void WaitFor(ManualResetEventSlim signal, string what) =>
+            signal.Wait(TimeSpan.FromSeconds(60)).Should().BeTrue(what);
 
         private static void Join(Thread thread)
         {
