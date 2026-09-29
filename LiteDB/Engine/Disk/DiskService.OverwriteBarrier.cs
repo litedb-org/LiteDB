@@ -35,6 +35,8 @@ namespace LiteDB.Engine
                 this.RequireNoFailureUnderLock();
                 try { this.SyncRawLog(); }
                 catch (Exception ex) when (this.PublishUnderLock(ex, FileOrigin.Log, operation)) { }
+                // With durable commits the sync throws "cannot sync" (decision 3): the answer is false.
+                catch (IOException ex) when (IsUnsyncedStorage(ex)) { }
             }
             return _logBarrierSynced;
         }
@@ -45,8 +47,8 @@ namespace LiteDB.Engine
         /// modes: durable commits=false gives up recent commits, never the data file's integrity
         /// (decisions 1 and D; SQLite's synchronous=NORMAL keeps its checkpoint barriers too). The
         /// latest log barrier answered "cannot sync": refuse before the overwrite and keep the WAL.
-        /// A refusal before the operation wrote anything (<paramref name="wroteNothing"/>) is no failure
-        /// (<see cref="IsQuietOverwriteRefusal"/>).
+        /// With durable commits the barrier itself already threw. A refusal before the operation wrote
+        /// anything (<paramref name="wroteNothing"/>) is no failure (<see cref="IsQuietOverwriteRefusal"/>).
         /// Caller holds the log writer lock.
         /// </summary>
         private void RequireLogSynced(string operation, bool wroteNothing)
@@ -63,9 +65,9 @@ namespace LiteDB.Engine
         internal static bool IsLogCannotBackOverwrite(System.Exception error) => error.Data.Contains(LogCannotBackOverwriteDataKey);
 
         /// <summary>
-        /// An overwrite refused before it wrote anything because the log cannot sync: not a failure
-        /// (proposed default A). A checkpoint keeps the WAL and returns 0, a compact write falls back to
-        /// BSON, and any other operation's caller gets the refusal.
+        /// An overwrite refused before it wrote anything because the log cannot sync, without durable
+        /// commits: not a failure (proposed default A). A checkpoint keeps the WAL and returns 0, a
+        /// compact write falls back to BSON, and any other operation's caller gets the refusal.
         /// </summary>
         internal static bool IsQuietOverwriteRefusal(System.Exception error) => IsLogCannotBackOverwrite(error) && IsRefusedBeforeWrite(error);
     }

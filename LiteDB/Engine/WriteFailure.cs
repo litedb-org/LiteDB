@@ -3,9 +3,9 @@ using System;
 namespace LiteDB.Engine
 {
     /// <summary>
-    /// A write or sync that failed. The device is taken as bad: the engine stops, performs no further
-    /// write or sync on its handles, and every later operation throws the original failure. A cold
-    /// reopen recovers the previously acknowledged state.
+    /// A write or sync that failed (docs/decisions/durability-policy.md, decision 6). The device is
+    /// taken as bad: the engine stops writing, reopens read-only on its next call, and refuses every
+    /// later write until the database is reopened; <c>$database.writeFailure</c> reports this record.
     /// </summary>
     internal sealed class WriteFailure
     {
@@ -27,7 +27,7 @@ namespace LiteDB.Engine
 
         internal string Operation { get; }
 
-        /// <summary>The failure itself: a later refusal carries it as its inner exception.</summary>
+        /// <summary>The failure itself: every later write's error carries it as its inner exception.</summary>
         internal Exception Cause { get; }
 
         internal string Error { get; }

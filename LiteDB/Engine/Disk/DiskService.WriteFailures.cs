@@ -7,7 +7,8 @@ namespace LiteDB.Engine
     {
         /// <summary>
         /// Record a write or sync failure before the stop it causes (decision 6 of
-        /// docs/decisions/durability-policy.md). walKept counts whatever the log file holds, not only the
+        /// docs/decisions/durability-policy.md): the engine then reopens read-only on its next call and
+        /// refuses writes until the database is reopened. walKept counts whatever the log file holds, not only the
         /// WAL's frames: an outstanding header journal is kept like the WAL (decision 1).
         /// </summary>
         internal void RecordWriteFailure(string operation, Exception error)

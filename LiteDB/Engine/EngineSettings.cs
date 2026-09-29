@@ -35,6 +35,24 @@ namespace LiteDB.Engine
         // Shared mode: an operation's engine close checkpoints only once the WAL holds this
         // many pages (at most the CHECKPOINT pragma); the connection's final close always does.
         internal int CloseCheckpointPages { get; set; }
+
+        /// <summary>
+        /// Why a writable open opened read-only instead (set by the engine on its own copy of the
+        /// settings): the data file cannot sync to the device (#2242), and the open had to convert,
+        /// migrate or repair the file first, which removes a log or its header's recovery copy only
+        /// after a data sync; or a write or sync failed (<see cref="WriteFailure"/>). Reads work,
+        /// explicit transactions that only read are accepted, writes throw;
+        /// <c>$database.readOnlyReason</c> reports it. Null otherwise.
+        /// </summary>
+        internal string ReadOnlyCause { get; set; }
+
+        /// <summary>
+        /// The write or sync failure after which the engine reopened read-only (set by the engine on its
+        /// own copy of the settings; decision 6 of docs/decisions/durability-policy.md). Writes throw
+        /// with its details until the database is reopened; <c>$database.writeFailure</c> reports it.
+        /// </summary>
+        internal WriteFailure WriteFailure { get; set; }
+
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
@@ -150,11 +168,26 @@ namespace LiteDB.Engine
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
         /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
-        /// Checkpoints and file creation are synced either way.
+        /// Checkpoints and file creation are synced either way. When true, a commit that cannot be made durable
+        /// (storage that rejects the sync, #2242) throws an <see cref="System.IO.IOException"/> before it writes,
+        /// and the engine then continues read-only; set false to use such storage.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>
         public bool DurableCommits { get; set; } = true;
+
+        /// <summary>Default <see cref="WalLimit"/>: 1 GiB.</summary>
+        public const long DEFAULT_WAL_LIMIT = 1L << 30;
+
+        /// <summary>
+        /// While the data file cannot sync to the device (#2242), checkpoints cannot move the log file into it and
+        /// the log keeps every commit (commits stay durable there). This is how large the kept log file may grow:
+        /// past it, a write that starts throws an <see cref="System.IO.IOException"/> (a transaction already running
+        /// may still commit), reads keep working, and writes resume once a data sync succeeds and a checkpoint
+        /// drains the log. <c>$database</c> reports <c>walKept</c>, <c>logFileSize</c> and <c>walLimit</c>, to warn
+        /// before the limit. Applies with and without durable commits; not stored in the data file. (default: 1 GiB)
+        /// </summary>
+        public long WalLimit { get; set; } = DEFAULT_WAL_LIMIT;
 
         /// <summary>
         /// Zone used by <see cref="RejectInvalidLocalTime"/>; null means <see cref="TimeZoneInfo.Local"/>.
@@ -206,6 +239,12 @@ namespace LiteDB.Engine
             if (this.CacheSize > 0) return this.CacheSize;
             return defaultSize;
         }
+
+        /// <summary>
+        /// <c>:memory:</c> and <c>:temp:</c>: the engine's own factories create the database's streams, and
+        /// its teardown releases them, so nothing is left for a read-only reopen to read.
+        /// </summary>
+        internal bool EngineOwnsVolatileStreams => this.DataStream == null && (this.Filename == ":memory:" || this.Filename == ":temp:");
 
         /// <summary>
         /// The engine keeps its WAL in memory: no caller log stream and no log file. Such a WAL survives

@@ -57,9 +57,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// False when commits are not made durable: the caller opted out
         /// (<see cref="EngineSettings.DurableCommits"/>), the log storage rejected a durable flush or its
-        /// directory sync (commits then reach the OS cache only), the log's syncs cannot report
-        /// failures, or a write or sync of the log failed. A data file that cannot sync does not change
-        /// it: commits stay durable in the WAL, which <c>$database.walKept</c> reports.
+        /// directory sync (a durable commit then throws, decision 3), the log's syncs cannot report
+        /// failures, or a write or sync of the log failed (decision 6). A data file that cannot sync does
+        /// not change it: commits stay durable in the WAL (decision 4), which <c>$database.walKept</c> reports.
         /// </summary>
         internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
             !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false) && !this.LogWriteFailed;
@@ -228,15 +228,23 @@ namespace LiteDB.Engine
         {
             if (_logFlushDegraded)
             {
+                // Durable commits never get here: the commit's proof throws before it writes (decision 3).
+                if (_durableCommits && !_volatileLog) throw LogCannotSync(null, "the log file", OutcomeUnknown);
                 stream.Flush();
                 return;
             }
 
-            this.SyncLogBarrier(stream);
+            try { this.SyncLogBarrier(stream); }
+            catch (IOException ex) when (_durableCommits && IsUnsyncedStorage(ex))
+            {
+                throw LogCannotSync(ex.InnerException ?? ex, "the log file", OutcomeUnknown);
+            }
             // The WAL may have been created (or recreated after a checkpoint deleted it) by
             // this or a crashed engine: make its name durable before a commit depends on it.
             // A WAL is deleted only once empty, after a data sync covered its backfill (KeepsWal).
             if (!_logDirectorySynced) this.SyncLogDirectory();
+            if (_logDirectoryUnsyncable && _durableCommits && !_volatileLog && !this.LogSyncUnverified)
+                throw LogCannotSync(null, "the log file's directory", OutcomeUnknown);
         }
 
         /// <summary>
@@ -257,12 +265,13 @@ namespace LiteDB.Engine
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
-                // The pages were written successfully; only the sync request was refused. Commits
-                // degrade to the OS cache; an overwrite behind this barrier is refused instead
-                // (RequireLogSynced), in both commit modes.
+                // The pages were written successfully; only the sync request was refused. That is the
+                // reason to opt out of durable commits (proposed default A), whose overwrites behind this
+                // barrier are refused instead (RequireLogSynced); with durable commits it is a failure.
                 _logBarrierSynced = false;
                 log.Flush();
                 this.MarkLogFlushDegraded(ex);
+                if (_durableCommits && !_volatileLog) throw LogCannotSync(ex, "the log file");
             }
             catch (Exception ex) when (FailedIn(ex, FileOrigin.Log))
             {
@@ -369,6 +378,7 @@ namespace LiteDB.Engine
                 _logBarrierSynced = false;
                 raw.Flush();
                 this.MarkLogFlushDegraded(ex);
+                if (_durableCommits && !_volatileLog) throw LogCannotSync(ex, "the log file");
             }
             catch (Exception ex) when (FailedIn(ex, FileOrigin.Log))
             {
@@ -411,6 +421,7 @@ namespace LiteDB.Engine
 
         private void MarkLogFlushDegraded(Exception ex)
         {
+            _commitsProven = false;
             DurableLogs.Forget(_logPath);
             if (_sharedDurability != null) _sharedDurability.Degraded = _sharedDurability.FileSyncUnsupported = true;
             if (_logFlushDegraded) return;
@@ -438,6 +449,7 @@ namespace LiteDB.Engine
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 _logDirectoryUnsyncable = true;
+                _commitsProven = false;
                 DurableLogs.Forget(_logPath);
                 if (_sharedDurability != null) _sharedDurability.Degraded = true;
                 LOG($"log directory rejected a durable sync ({ex.GetType().Name} 0x{ex.HResult:X8}); a new WAL's name is not claimed durable", "DISK");

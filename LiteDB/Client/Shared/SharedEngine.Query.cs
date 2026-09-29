@@ -31,15 +31,18 @@ namespace LiteDB
         private IBsonDataReader QueryCore(string collection, Query query)
         {
             var reads = query?.ForUpdate != true && query?.Into == null;
+            // $database describes the connection's own engine (readOnly, readOnlyReason, walKept): it
+            // reads from the operation engine, never from a read-only snapshot engine.
+            var snapshotRead = reads && !string.Equals(collection?.Trim(), "$database", StringComparison.OrdinalIgnoreCase);
 #if NET8_0_OR_GREATER
-            if (reads && this.CanScope)
+            if (snapshotRead && this.CanScope)
             {
                 var coordinated = this.TryQueryCoordinated(collection, query);
                 if (coordinated != null) return coordinated;
             }
 #endif
             SharedMutexPin use;
-            if (reads && _pin == null)
+            if (snapshotRead && _pin == null)
             {
                 // The same acquisition as OpenDatabase. Where it would open the writable
                 // operation engine, a pure read opens the read-only snapshot engine instead.
@@ -78,7 +81,7 @@ namespace LiteDB
             else use = this.OpenDatabase(writing: !reads);
 
             // Write queries and explicit transactions retain their writer ownership.
-            if (_transactionRunning || !reads)
+            if (_transactionRunning || !snapshotRead)
             {
                 return this.QueryUnderMutex(collection, query, use);
             }

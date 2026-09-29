@@ -42,6 +42,7 @@ namespace LiteDB.Engine
             {
                 throw new ArgumentOutOfRangeException(nameof(settings.CompactStorage));
             }
+            if (settings.WalLimit <= 0) throw new ArgumentOutOfRangeException(nameof(settings.WalLimit), "The WAL limit must be positive.");
 
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;

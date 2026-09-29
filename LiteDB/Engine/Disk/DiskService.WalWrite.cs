@@ -49,8 +49,14 @@ namespace LiteDB.Engine
             {
                 _state.Validate();
                 // Decision 6 and #3052: a failure recorded while this batch waited for the writer (a sync
-                // helper publishes its failure before it releases the lock) refuses it before any frame.
-                _state.RequireNoWriteFailure();
+                // helper publishes its failure before it releases the lock) refuses it before any frame:
+                // nothing of this commit is in the log.
+                try { _state.RequireNoWriteFailure(); }
+                catch (IOException refused)
+                {
+                    refused.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
+                    throw;
+                }
                 var uncertain = false;
                 try
                 {
@@ -58,10 +64,12 @@ namespace LiteDB.Engine
                     {
                         if (!iterator.MoveNext()) return 0;
 
-                        // Before any frame: the header frame of an empty WAL (decision 11). A batch
-                        // without pages writes nothing and needs none.
+                        // Before any frame: a commit that cannot be made durable fails here (decision 3),
+                        // then the header frame of an empty WAL (decision 11). A batch without pages
+                        // writes nothing and needs neither.
                         try
                         {
+                            this.RequireDurableCommit(stream);
                             this.WriteHeaderFrame(stream, ref uncertain);
                         }
                         catch
@@ -153,7 +161,18 @@ namespace LiteDB.Engine
                     // frame. Whatever the exception type, stop before releasing the writer: no later
                     // commit may be appended (and acknowledged) behind it.
                     flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
+                    // A frame may have reached the log whole although its write threw.
+                    flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
+                    this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log));
                     ownsFailure = _state.BeginStop(flushFailure);
+                }
+                catch (Exception ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
+                {
+                    // Nothing torn stayed behind (a failed append was truncated), and no confirmation of
+                    // this batch was written, or its truncation was synced: the commit is not in the log.
+                    // Whatever the exception type (a write's EPERM is an UnauthorizedAccessException).
+                    ex.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
+                    throw;
                 }
 
                 // A confirmation makes this WAL batch recoverable. Make all preceding
@@ -174,6 +193,8 @@ namespace LiteDB.Engine
                         // defer teardown: cleanup can need the WAL-index lock while a
                         // partial checkpoint owns it and waits for this monitor.
                         flushFailure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
+                        flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
+                        this.RecordWriteFailure("A commit's log flush", WriteFailure.InFile(flushFailure, FileOrigin.Log));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }
@@ -187,6 +208,8 @@ namespace LiteDB.Engine
                     {
                         // A buffering stream writes this batch's frames on now and can tear one.
                         flushFailure = ex as IOException ?? new IOException("WAL write flush failed.", ex);
+                        flushFailure.Data[CommitOutcomeDataKey] = UnknownOutcome;
+                        this.RecordWriteFailure("A WAL write", WriteFailure.InFile(flushFailure, FileOrigin.Log));
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }
@@ -214,6 +237,8 @@ namespace LiteDB.Engine
             var overwrite = false;
             // A buffering stream may still hold (and tear) a frame this batch wrote before this one.
             var earlierHeld = uncertain;
+            // This frame is a commit's confirmation and its write began.
+            var confirmationWritten = false;
             PageBuffer readable = null;
 
             try
@@ -261,6 +286,7 @@ namespace LiteDB.Engine
                 // can still tear it after the write returned, until the batch's final flush.
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
+                confirmationWritten = isConfirmed;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
                 if (!_logMayBuffer) uncertain = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
@@ -276,6 +302,11 @@ namespace LiteDB.Engine
             }
             catch (Exception failure)
             {
+                // A confirmation whose write began may be in the log (it always appends): whole although
+                // its write threw, or written before a later step failed. Only its synced truncation
+                // below proves it is not.
+                if (confirmationWritten) uncertain = true;
+
                 // The producer transferred ownership before yielding.
                 // Recycle failed frames and undo unpublished reservations.
                 if (readable == null && page.State == FrameState.Writable)
@@ -291,8 +322,10 @@ namespace LiteDB.Engine
                             stream.SetLength(previousStreamLength.Value);
                             _logFactory.TrimCapacity(stream);
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
-                            // nor an earlier frame of this batch that a buffering stream still held.
-                            if (!overwrite && !earlierHeld) uncertain = false;
+                            // nor an earlier frame of this batch that a buffering stream still held. A
+                            // confirmation can reach the device whole although its write threw, and only a
+                            // sync makes its truncation durable (see SyncTruncatedConfirmation).
+                            if (!overwrite && !earlierHeld && (!confirmationWritten || this.SyncTruncatedConfirmation())) uncertain = false;
                         }
                         catch (Exception cleanup)
                         {
@@ -310,6 +343,23 @@ namespace LiteDB.Engine
             {
                 readable?.Release();
             }
+        }
+
+        /// <summary>
+        /// A commit's confirmation whose write threw was truncated away. It may still have reached the
+        /// device whole, and a truncation is not durable before the log syncs: a power loss until then
+        /// can leave the commit in the log for a later open to recover. So sync the log (on this failure
+        /// path only, in both commit modes): true once the sync succeeded, or for a log in memory, and the
+        /// commit is not in the log ("NotCommitted", decision 14). False when the log answers "cannot
+        /// sync" without durable commits, or its syncs cannot report failure (<see cref="LogSyncUnverified"/>:
+        /// such a sync proves nothing); with durable commits "cannot sync", and any other failure, throw.
+        /// The commit's outcome is then unknown and the batch stops the engine. Caller holds the log writer lock.
+        /// </summary>
+        private bool SyncTruncatedConfirmation()
+        {
+            if (_volatileLog) return true;
+            this.SyncRawLog();
+            return _logBarrierSynced && !this.LogSyncUnverified;
         }
     }
 }
