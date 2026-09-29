@@ -262,6 +262,50 @@
       "disposition": "strengthened",
       "invariant": "Every .NET Framework test runs to completion and reports on each CI run.",
       "reason": "The net481 job ran 14m32s at the S08 head (PR #3061) and 19m33s at #3027's head, which had been cancelled at the 20-minute limit after 4713 tests ran without a failure. The difference is the durability suites this layer adds (power-loss models, header frames, retirement and read-only continuation tests), which leaves no margin under 20 minutes. 30 minutes lets the whole leg finish; the .NET jobs allow 40. No filter, partition or test changed."
+    },
+    {
+      "id": "3027-torn-write-read-only",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Regressions.TornSlotRewrite_Tests.Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests.Regressions.TornWalAppend_Tests.Failed_truncation_of_a_torn_append_stops_the_engine"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "After a failed in-place WAL rewrite, or a torn append whose truncation failed, no commit is written behind the torn frame, every acknowledged commit survives, and the engine changes no byte of either file.",
+      "reason": "Decision 6: a recorded write failure no longer stops the engine for reads; its next call reopens it read-only. The tests are renamed for that behaviour and keep the same scenarios and theory data. They now assert that the acknowledged rows are readable and the aborted transaction is absent, that the failure is reported (ReadOnlyAfterWriteFailure.AssertReported), that every write and the ended transaction's Commit are refused with the recorded failure, and that both files stay byte-identical.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_leaves_the_engine_read_only"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-torn-write-read-only-proof",
+      "kind": "proof-guard-removed",
+      "subjects": [
+        "Issue_3027_TornWalAppend"
+      ],
+      "disposition": "replaced",
+      "invariant": "The Issue_3027_TornWalAppend proof stays guarded by tests that assert no commit follows a torn WAL frame.",
+      "reason": "The two guard tests were renamed for decision 6 (see 3027-torn-write-read-only). regression-proofs.json names the renamed tests; the other guards are unchanged.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_leaves_the_engine_read_only"
+      ]
+    },
+    {
+      "id": "3027-shared-buffered-log-read-only",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Regressions/SharedBufferedLogStream_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "When the flush a reader performs for the writer fails, the writer's batch fails, no acknowledged commit is lost and the engine refuses later writes.",
+      "reason": "Decision 6: after the failure the engine continues read-only instead of stopping. The null check and the three assertions on the stopped engine's exception (type, message prefix, original cause) are gone because reads no longer throw. The read-back of the acknowledged rows now runs in both branches, and the failure branch asserts readOnly and writeFailure.file = log. 18 -> 16 assertion calls.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/SharedBufferedLogStream_Tests.cs#Reader_that_writes_a_held_frame_on_hands_its_failure_to_the_writer"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
     }
   ]
 }
