@@ -51,6 +51,33 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/regression_proof.py validate
 
+  # docs/legacy-file-validation.md: pinned databases from every stable v4/v5 writer.
+  # The PR tier covers ICU and NLS; the full tier adds Windows/ICU and macOS/ICU.
+  released-file-compatibility:
+    name: Released databases (${{ matrix.os }}, ${{ matrix.globalization }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(inputs.tier == 'full' && '[{"os":"ubuntu-latest","globalization":"ICU","use-nls":"0"},{"os":"windows-latest","globalization":"ICU","use-nls":"0"},{"os":"windows-latest","globalization":"NLS","use-nls":"1"},{"os":"macos-latest","globalization":"ICU","use-nls":"0"}]' || '[{"os":"ubuntu-latest","globalization":"ICU","use-nls":"0"},{"os":"windows-latest","globalization":"NLS","use-nls":"1"}]') }}
+    env:
+      DOTNET_SYSTEM_GLOBALIZATION_USENLS: ${{ matrix.use-nls }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Verify every stable v5 and v4 database
+        run: python scripts/test-release-compatibility.py
+
   build-linux:
     name: Build (Linux)
     runs-on: ubuntu-latest
@@ -557,7 +584,7 @@ jobs:
   safety-evidence:
     name: Safety evidence
     if: ${{ !cancelled() }}
-    needs: [safety-policy, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
+    needs: [safety-policy, released-file-compatibility, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Artifacts of the current run download with the runner's own token; fork PRs
