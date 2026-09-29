@@ -54,6 +54,28 @@ namespace LiteDB.Engine
 
         public int Checkpoint() => this.TryCheckpoint(rationed: false);
 
+        /// <summary>
+        /// Backfill every frame and empty the WAL, or change nothing and return false: when a
+        /// snapshot of this or another process may still read the WAL, or the shared reader
+        /// registry cannot be inspected.
+        /// </summary>
+        public bool TryDrain()
+        {
+            this.TryCheckpoint(rationed: false, drain: true);
+            return _disk.GetFileLength(FileOrigin.Log) == 0;
+        }
+
+        /// <summary>
+        /// Whether a drain would change nothing now because another connection may read the WAL:
+        /// it is not empty and a shared reader holds a snapshot, or the registry cannot be inspected.
+        /// </summary>
+        public bool DrainBlocked()
+        {
+            if (_disk.GetFileLength(FileOrigin.Log) == 0) return false;
+            var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
+            return shared == null || shared.Length > 0;
+        }
+
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
         public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
@@ -68,9 +90,9 @@ namespace LiteDB.Engine
         /// Backfill only committed versions visible to every snapshot. Frames that
         /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
-        private int TryCheckpoint(bool rationed)
+        private int TryCheckpoint(bool rationed, bool drain = false)
         {
-            try { return TryCheckpointCore(rationed); }
+            try { return TryCheckpointCore(rationed, drain); }
             catch (Exception error)
             {
                 _disk.StopAfterCheckpointFailure(error);
@@ -78,7 +100,7 @@ namespace LiteDB.Engine
             }
         }
 
-        private int TryCheckpointCore(bool rationed)
+        private int TryCheckpointCore(bool rationed, bool drain)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
 
@@ -121,6 +143,11 @@ namespace LiteDB.Engine
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
+                if (drain && !reclaim) return 0;
+                // A drain (legacy conversion) runs before the open trims partial pages. Trim them
+                // now, before this checkpoint appends its header journal at the physical WAL end:
+                // a torn legacy frame completed by journal bytes would pass as a committed page.
+                if (drain) _disk.TrimTrailingPages();
                 // Exclusion alone does not mean readers are gone: snapshots and
                 // shared leases survive it. Only a reclaiming checkpoint ends the
                 // back-off; otherwise an unclaimed commit skips partial work, which
