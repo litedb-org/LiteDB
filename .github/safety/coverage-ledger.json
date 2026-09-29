@@ -44,7 +44,7 @@
       ],
       "disposition": "strengthened",
       "invariant": "Every index-migration recovery case runs to completion and checks its oracle.",
-      "reason": "The harness now reports how far a case got when it times out (write count, WAL pages, commit state and elapsed time on stderr), for diagnosis; no case, oracle or timeout changed."
+      "reason": "The harness now reports how far a case got when it times out (write count, WAL pages, commit state and elapsed time on stderr), for diagnosis, and the per-command timeout that guards against hangs is 300 s instead of 90 s because slow Windows runners took 86 s for one stage; no case or oracle changed."
     },
     {
       "id": "3051-released-file-compatibility",
