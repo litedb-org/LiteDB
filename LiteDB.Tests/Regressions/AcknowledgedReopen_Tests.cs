@@ -175,6 +175,52 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// The salt check alone. A real salt change cannot leave the other checks matching: the salt is
+        /// in the data header (page 0, whose hash the record keeps) and in every frame's trailer (the log
+        /// tail's hash), so a rotated WAL, or frames re-encoded under a new salt, already fail those.
+        /// To isolate it, the files stay exactly as the failure left them (length, tail and data pages
+        /// match) and only the salt the failure recorded differs from the one the reopen reads: the
+        /// cutoff is not applied and the files win (the failed commit shows). With the same salt (the
+        /// control) the cutoff applies and only the acknowledged commit shows.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void Reopen_applies_the_cutoff_only_under_the_salt_the_failure_recorded(bool otherSalt)
+        {
+            using var file = new TempFile();
+            var logName = Path.GetFullPath(FileHelper.GetLogFile(file.Filename));
+            var fail = false;
+            NativeFileSync.SimulateErrno = path => fail && Path.GetFullPath(path) == logName ? EIO : 0;
+            try
+            {
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+                using var a = new LiteDatabase(engine, disposeOnClose: false);
+                a.CheckpointSize = 0;
+                a.GetCollection("rows").Insert(Row(1));
+                fail = true;
+                Action insert = () => a.GetCollection("rows").Insert(Row(2));
+                insert.Should().Throw<IOException>().Which.Data["LiteDB.CommitOutcome"].Should().Be("Unknown");
+                fail = false;
+
+                // The failed engine has not reopened yet: its record is the one the reopen checks.
+                var record = engine.GetState().WriteFailure.Acknowledged;
+                record.Should().NotBeNull("a failed commit log flush records the acknowledged end");
+                var salt = (byte[])record.Salt.Clone();
+                if (otherSalt)
+                {
+                    salt[0] ^= 0xFF;
+                    record.Salt = salt;
+                }
+
+                Ids(a).Should().Equal(otherSalt ? new[] { 1, 2 } : new[] { 1 },
+                    otherSalt ? "the salt the failure recorded is not the WAL's: the files win" : "the same files and salt: only the acknowledged commit shows");
+                a.Execute("SELECT $ FROM $database").Single()["readOnly"].AsBoolean.Should().BeTrue();
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+        }
+
+        /// <summary>
         /// The files are replaced by another database (restored or copied over) before the failed
         /// engine's next call: its reopen reads the replacement as it is, not the old bound applied to it.
         /// </summary>
