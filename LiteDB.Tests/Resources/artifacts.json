@@ -1,4 +1,13 @@
 {
   "revision": "88b857f6fde39742cac2ad5399c9372bf54a9b3c",
-  "files": {}
+  "files": {
+    "DamagedDocument_5_0_21.zip": {
+      "path": "compatibility/fixtures/DamagedDocument_5_0_21.zip",
+      "sha256": "939cbf90a733d4b9b8ab268aa579d61e3a68463500a3f45d7f5c36303b60a999"
+    },
+    "DropIndex_5_0_21.zip": {
+      "path": "compatibility/fixtures/DropIndex_5_0_21.zip",
+      "sha256": "ea5cf8ae44699ad3f153066f9210fc260126d060a20337afa56a54fd51b4b029"
+    }
+  }
 }
