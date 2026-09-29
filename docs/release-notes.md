@@ -95,10 +95,10 @@ The durability rules follow the maintainer's decisions in
   connections do not share it. The read-only engine never rebuilds (`auto-rebuild`) and never
   retries a sync on the handle that failed. Before, the engine closed and every later call,
   reads included, threw. A commit that fails carries its outcome in
-  `Exception.Data["LiteDB.CommitOutcome"]`: `"NotCommitted"` when its confirmation cannot be in
-  the log (refused before it wrote, failed before its confirmation, or its confirmation's failed
-  append truncated away and the truncation synced), `"Unknown"` when it may be (a later open may
-  recover it). The read-only
+  `Exception.Data["LiteDB.CommitOutcome"]`, whatever the exception type: `"NotCommitted"` when
+  its confirmation cannot be in the log (refused before it wrote, failed before its confirmation
+  with nothing torn left behind, or its confirmation's failed append truncated away and the
+  truncation synced), `"Unknown"` when it may be (a later open may recover it). The read-only
   engine that replaces the failed one shows only the commits acknowledged before the failure,
   while the files are exactly as the failure left them; a later open lets the files decide. An
   open that recovers a header after a failed sync writes it back before the sync that retires

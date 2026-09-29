@@ -6,6 +6,7 @@ using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Tests.Issues;
 using Xunit;
+using static LiteDB.Constants;
 
 namespace LiteDB.Tests.Regressions
 {
@@ -180,6 +181,87 @@ namespace LiteDB.Tests.Regressions
                     .Should().Equal(new[] { 1, 2, 3 }, "the truncation reached the operating system's cache: the failed commit is not there after a restart");
             }
             finally { NativeFileSync.SimulateErrno = null; }
+        }
+
+        /// <summary>
+        /// A log whose syncs cannot report failure (a file log synced through the runtime's Flush(true),
+        /// no C library bound): the truncation's sync proves nothing, as it proves no retirement or slot
+        /// reuse (RuntimeSyncDurability_Tests), so the commit whose confirmation was written is "Unknown".
+        /// </summary>
+        [Fact]
+        public void Confirmation_whose_truncation_sync_cannot_report_failure_is_unknown()
+        {
+            using var file = new TempFile();
+            NativeFileSync.SimulateRuntimeSync = true;
+            try
+            {
+                using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                rows.Insert(Row(1, 0));
+                db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse("the log's syncs cannot report failure");
+                var failed = false;
+                engine.SimulateCrashPoint = point =>
+                {
+                    if (point != "wal-confirmation-after-write" || failed) return;
+                    failed = true;
+                    throw new IOException("injected: the confirmation reached the file, then its write failed");
+                };
+                Action insert = () => rows.Insert(Row(2, 0));
+                insert.Should().Throw<IOException>().Which.Data["LiteDB.CommitOutcome"].Should().Be("Unknown",
+                    "a sync that cannot report failure does not prove the truncation durable");
+                engine.SimulateCrashPoint = null;
+            }
+            finally { NativeFileSync.SimulateRuntimeSync = false; }
+        }
+
+        /// <summary>
+        /// A confirmation whose write returned, followed by a step that failed before the frame was
+        /// published (the callback that records its position): the frame stays in the log, not truncated.
+        /// The outcome is "Unknown"; before, the batch reported "NotCommitted" with the confirmation there.
+        /// </summary>
+        [Fact]
+        public void Confirmation_written_before_a_later_step_failed_is_unknown()
+        {
+            var settings = new EngineSettings { DataStream = new MemoryStream(), LogStream = new MemoryStream(), CacheSize = PAGE_SIZE * 8L };
+            var state = new EngineState(null, settings);
+            using var disk = new DiskService(settings, state, new[] { 2 });
+            var page = disk.NewPage();
+            page.Write((uint)5, BasePage.P_PAGE_ID);
+            page.Write(true, BasePage.P_IS_CONFIRMED);
+            Action write = () => disk.WriteLogDisk(new[] { page }, (id, position) => throw new IOException("injected: recording the frame's position failed"));
+            write.Should().Throw<IOException>().Which.Data["LiteDB.CommitOutcome"].Should().Be("Unknown");
+        }
+
+        /// <summary>
+        /// A write failure that is no IOException (EPERM and EACCES reach .NET as
+        /// UnauthorizedAccessException, a caller stream may throw anything) carries its outcome too: before,
+        /// only an IOException was marked, and such a failed commit carried none.
+        /// </summary>
+        [Theory]
+        [InlineData("wal-page-after-write")]
+        [InlineData("wal-confirmation-after-write")]
+        public void Failed_commit_whose_write_failure_is_no_io_error_carries_its_outcome(string phase)
+        {
+            using var file = new TempFile();
+            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.CheckpointSize = 0;
+            var rows = db.GetCollection("rows");
+            rows.Insert(Row(1, 0));
+            var failed = false;
+            engine.SimulateCrashPoint = point =>
+            {
+                if (point != phase || failed) return;
+                failed = true;
+                throw new UnauthorizedAccessException("injected EPERM");
+            };
+            Action insert = () => rows.Insert(Enumerable.Range(10, 20).Select(id => Row(id, 0)));
+            insert.Should().Throw<UnauthorizedAccessException>().Which.Data["LiteDB.CommitOutcome"].Should().Be("NotCommitted",
+                "no confirmation was written, or its truncation was synced");
+            engine.SimulateCrashPoint = null;
+            failed.Should().BeTrue();
         }
 
         private static BsonDocument Row(int id, int value) => new BsonDocument

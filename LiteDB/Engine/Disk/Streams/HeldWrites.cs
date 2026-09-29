@@ -35,7 +35,8 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// A write, flush or truncation failed and its caller heard it: nobody writes on for the
-        /// writer after its failure (decision 6: nothing more is written or synced through the handle).
+        /// writer after its failure (decision 6). What the writer's own cleanup still does (a failed
+        /// append's truncation, and the sync that makes a confirmation's truncation durable) is its own.
         /// </summary>
         internal void Heard() => _writer = null;
 

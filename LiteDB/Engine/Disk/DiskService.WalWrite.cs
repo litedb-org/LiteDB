@@ -168,10 +168,11 @@ namespace LiteDB.Engine
                         this.AcknowledgedLogAt(acknowledgedEnd, transactionPages, batchPages));
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
-                catch (IOException ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
+                catch (Exception ex) when (!ex.Data.Contains(CommitOutcomeDataKey))
                 {
                     // Nothing torn stayed behind (a failed append was truncated), and no confirmation of
                     // this batch was written, or its truncation was synced: the commit is not in the log.
+                    // Whatever the exception type (a write's EPERM is an UnauthorizedAccessException).
                     ex.Data[CommitOutcomeDataKey] = NotCommittedOutcome;
                     throw;
                 }
@@ -354,14 +355,15 @@ namespace LiteDB.Engine
         /// can leave the commit in the log for a later open to recover. So sync the log (on this failure
         /// path only, in both commit modes): true once the sync succeeded, or for a log in memory, and the
         /// commit is not in the log ("NotCommitted", decision 14). False when the log answers "cannot
-        /// sync" without durable commits; with them, and on any other failure, the sync throws. The
-        /// commit's outcome is then unknown and the batch stops the engine. Caller holds the log writer lock.
+        /// sync" without durable commits, or its syncs cannot report failure (<see cref="LogSyncUnverified"/>:
+        /// such a sync proves nothing); with durable commits "cannot sync", and any other failure, throw.
+        /// The commit's outcome is then unknown and the batch stops the engine. Caller holds the log writer lock.
         /// </summary>
         private bool SyncTruncatedConfirmation()
         {
             if (_volatileLog) return true;
             this.SyncRawLog();
-            return _logBarrierSynced;
+            return _logBarrierSynced && !this.LogSyncUnverified;
         }
     }
 }

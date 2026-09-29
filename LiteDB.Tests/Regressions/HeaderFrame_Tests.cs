@@ -285,9 +285,13 @@ namespace LiteDB.Tests.Regressions
         /// Nothing else is restored: an encrypted header page with a sector of other bytes (here the
         /// same sector of another database's header, as a foreign or stale header would hold) is
         /// neither the header frame's nor never written back, so the open refuses and changes neither file.
+        /// So is a sector that only begins like one never written (its first 16 bytes zero ciphertext,
+        /// the blank block): the whole sector must be.
         /// </summary>
-        [Fact]
-        public void Encrypted_header_page_with_a_sector_of_other_bytes_is_refused_unchanged()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Encrypted_header_page_with_a_sector_of_other_bytes_is_refused_unchanged(bool blankFirstBlock)
         {
             using var file = new TempFile();
             using var other = new TempFile();
@@ -296,6 +300,7 @@ namespace LiteDB.Tests.Regressions
             var foreign = EncryptedDatabase(other.Filename, $"Filename={other.Filename};Password=secret;Durable Commits=false", durable: false);
             for (var sector = 2; sector < PAGE_SIZE / 512; sector++) Array.Clear(data, PAGE_SIZE + sector * 512, 512);
             Buffer.BlockCopy(foreign, PAGE_SIZE + 512, data, PAGE_SIZE + 512, 512);
+            if (blankFirstBlock) Array.Clear(data, PAGE_SIZE + 512, 16);
             File.WriteAllBytes(file.Filename, data);
             var logName = FileHelper.GetLogFile(file.Filename);
             var log = File.ReadAllBytes(logName);

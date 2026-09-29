@@ -234,13 +234,15 @@ until the owner confirms them.
    reads as durable on that ground: before the sync that retires a header journal, it makes the journal
    durable and writes the header back as it read it. WAL pages are copied again by the first checkpoint of
    every reopen, and the engine never retries a sync on a handle whose sync failed (decision 6).
-14. **The outcome of a failed commit** is in `Exception.Data["LiteDB.CommitOutcome"]`: `"NotCommitted"` when
-   its confirmation cannot be in the log (refused before its first frame, failed before its confirmation's
-   write, or its confirmation's failed append truncated away and the truncation synced: a confirmation can
-   reach the device whole although its write threw, and a truncation is not durable before a sync, so the
-   engine syncs the log on that failure path, in both commit modes), `"Unknown"` when it may be (a write that
-   threw and left a frame behind, a truncation that could not be synced, a failed sync after the
-   confirmation). After `"Unknown"` a reopen may show the commit: retries need idempotent writes, or a check
+14. **The outcome of a failed commit** is in `Exception.Data["LiteDB.CommitOutcome"]`, whatever the exception
+   type: `"NotCommitted"` when its confirmation cannot be in the log (refused before its first frame, failed
+   before its confirmation's write with no frame of it left torn, or its confirmation's failed append
+   truncated away and the truncation synced: a confirmation can reach the device whole although its write
+   threw, and a truncation is not durable before a sync, so the engine syncs the log on that failure path,
+   in both commit modes; a sync that cannot report failure proves nothing), `"Unknown"` when it may be (a
+   write that may have left a frame behind: a torn overwrite, a frame a buffering stream still held, a failed
+   truncation; a confirmation whose truncation could not be synced, or that was written before a later step
+   failed; a failed sync after the confirmation). After `"Unknown"` a reopen may show the commit: retries need idempotent writes, or a check
    after reopening. Decision 3's "fails before any frame is written" holds for a log known not to sync
    (the proof before an engine's first commit); a log that stops syncing later fails the commit with its
    outcome unknown (note 4).
