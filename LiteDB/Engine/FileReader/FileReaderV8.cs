@@ -247,6 +247,14 @@ namespace LiteDB.Engine
                     {
                         if (index.Name == "_id") continue;
 
+                        var vector = index.IndexType == 1 ? collectionPage.GetVectorIndexMetadata(index.Name) : null;
+                        if (index.IndexType == 1 && vector == null)
+                        {
+                            // Never rebuild a vector index as an ordinary one.
+                            this.HandleError($"Vector index '{index.Name}' has no vector metadata and is not rebuilt.", pageInfo);
+                            continue;
+                        }
+
                         var info = new IndexInfo
                         {
                             Collection = collection.Key,
@@ -254,7 +262,7 @@ namespace LiteDB.Engine
                             Expression = index.Expression,
                             Unique = index.Unique,
                             IndexType = index.IndexType,
-                            VectorMetadata = index.IndexType == 1 ? collectionPage.GetVectorIndexMetadata(index.Name) : null
+                            VectorMetadata = vector
                         };
 
                         if (_indexes.TryGetValue(collection.Key, out var indexInfos))
