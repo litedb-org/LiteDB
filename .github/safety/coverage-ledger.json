@@ -305,6 +305,32 @@
         "LiteDB.Tests/Regressions/SharedBufferedLogStream_Tests.cs#Reader_that_writes_a_held_frame_on_hands_its_failure_to_the_writer"
       ],
       "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-shared-connection-keeps-write-failure",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Internals.SharedDurability_Tests.UnsupportedSync_FailsTheCommitWithAnUnknownOutcomeOnASharedConnection"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A shared connection's commit whose log answers \"cannot sync\" after the log was proven is not acknowledged, reports an unknown outcome, and never loses an acknowledged commit.",
+      "reason": "Decision 6 (proposed default C): the shared connection now keeps the write failure across its short-lived engines. The test is renamed for that behaviour and keeps its theory data and every earlier assertion. It adds that reads show only the commits acknowledged before the failure (decision 13), that $database reports the recorded failure with walKept, and that later inserts and updates are refused with it without a sync or a byte written.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_FailsTheCommitAndItsConnectionShowsOnlyAcknowledgedCommits"
+      ]
+    },
+    {
+      "id": "3027-shared-unsyncable-data-file-read-only",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Regressions/UnsyncableDataFile_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "When neither file syncs, a commit is refused before it writes a frame, reads keep working and the engine reports the failure and refuses every later write, on a direct and on a shared connection.",
+      "reason": "Decision 6 carries the write failure across a shared connection's engines, so the read-only assertions that ran only for the direct engine now run for both modes. The shared-only assertion (each engine re-proves the log and throws CommitNotWritten) is gone because the shared connection now refuses the write with the recorded failure, and the common block asserts that. Counted per file this is 60 -> 59 assertion calls, but each run of the test executes more assertions than before.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/UnsyncableDataFile_Tests.cs#Durable_commit_to_a_database_created_where_nothing_syncs_is_refused_before_it_writes"
+      ]
     }
   ]
 }
