@@ -132,6 +132,13 @@
         "LiteDB.Tests/Regressions/HeaderFrame_Tests.Encrypted.cs#Encrypted_data_file_left_empty_is_restored_from_its_log",
         "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows"
       ]
+    },
+    {
+      "repro": "Issue_3027_FailedHeaderSync",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SyncFailureRecovery_Tests.cs#Journal_retired_after_a_failed_header_sync_leaves_the_header_on_the_device"
+      ]
     }
   ]
 }
