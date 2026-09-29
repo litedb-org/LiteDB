@@ -1,3 +1,4 @@
+#nullable enable
 using System.IO.Compression;
 using System.Reflection;
 using LiteDB;
