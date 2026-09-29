@@ -63,7 +63,6 @@
       "invariant": "Storage that cannot sync never reuses retired WAL slots, and a snapshot checkpoint there keeps the reader's snapshot and every commit.",
       "reason": "Decision 3 splits the scenario by mode: without durable commits it still appends instead of reusing slots (a checkpoint whose log cannot sync retires nothing, so the slot-clear case is forced by a log that stops syncing at the clears); with durable commits that checkpoint now fails loudly and the engine continues read-only.",
       "coveredBy": [
-        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced",
         "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Snapshot_checkpoint_on_a_log_that_never_syncs_appends_instead_of_reusing_slots_without_durable_commits",
         "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Snapshot_checkpoint_whose_log_stops_syncing_while_it_clears_slots_fails_loudly_with_durable_commits"
       ],
@@ -77,13 +76,31 @@
         "LiteDB.Internals.SharedUnsyncableLog_Tests.Fresh_shared_engines_never_reuse_slots_cleared_on_a_log_that_cannot_sync"
       ],
       "disposition": "intentional-change",
-      "invariant": "A shared connection on a log that cannot sync reports it after later operations reopen engines, never acknowledges a commit as durable there, never reuses slots retired there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file.",
-      "reason": "Decisions 3 and D and the retirement proof: with durable commits a commit whose log answers \"cannot sync\" fails (outcome unknown once its frames reached the OS) and a checkpoint on it fails loudly; without durable commits \"cannot sync\" is no failure (default A) and the degraded commit is acknowledged, as before. A checkpoint on a log known not to sync, or that stops syncing after its proof, retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine (of this or another connection) reuses. Asserted per mode and stop point, with a second connection.",
+      "invariant": "A shared connection on a log that cannot sync reports it after later operations reopen engines, never acknowledges a commit as durable there, keeps the reader's snapshot, and a checkpoint whose log cannot sync writes nothing to the data file; a connection that learned its log cannot sync never reuses slots retired there, one that never learned it reuses only slots a durable witness root names, and every power-loss image recovers exactly (implementation note 15).",
+      "reason": "Decisions 3 and D and the retirement proof: with durable commits a commit whose log answers \"cannot sync\" fails (outcome unknown once its frames reached the OS) and a checkpoint on it fails loudly; without durable commits \"cannot sync\" is no failure (default A) and the degraded commit is acknowledged, as before. A checkpoint on a log known not to sync, or that stops syncing after its proof, retires and writes nothing; only a log that stops at the sync of the clears leaves cleared slots, which no later engine of this connection reuses. Asserted per mode and stop point, with a second connection. Implementation note 15 drops the log sync an engine made before its first slot reuse: a second connection that never learned the log cannot sync now reuses the witnessed slots (was: one refused sync, then append), checked with power-loss images.",
       "coveredBy": [
         "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_FailsTheCommitWithAnUnknownOutcomeOnASharedConnection",
         "LiteDB.Tests/Internals/SharedDurability_Tests.cs#UnsupportedSync_IsNotAFailureForASharedConnectionWithoutDurableCommits",
         "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.Durable.cs#Shared_checkpoint_on_a_log_that_stops_syncing_fails_loudly_with_durable_commits",
-        "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits"
+        "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_on_a_log_their_connection_knows_cannot_sync_without_durable_commits"
+      ],
+      "decision": "docs/decisions/durability-policy.md"
+    },
+    {
+      "id": "3027-slot-reuse-without-proof",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Internals.MvccUnsyncableLog_Tests.Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced",
+        "LiteDB.Internals.SharedUnsyncableLog_Tests.Fresh_shared_engines_never_reuse_slots_retired_on_a_log_that_cannot_sync_without_durable_commits"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "A fresh engine reuses a retired WAL slot only while a root on the device names it, and every power-loss image of the reusing commit recovers exactly the committed rows.",
+      "reason": "Implementation note 15: reusing a retired slot needs no sync of its own (it proved nothing the durable witness root does not, and cost a log sync per shared operation). The test now expects a fresh engine without durable commits to reuse the witnessed slots without syncing first, and adds power-loss images of the log as last synced and with the reused frames written back without their confirmations. The shared-mode test (named at the S09 baseline) is renamed because a second connection that never learned the log cannot sync now reuses the witnessed slots; see 3027-shared-log-cannot-sync.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/MvccUnsyncableLog_Tests.cs#Fresh_engine_reuses_witnessed_blank_slots_without_a_sync_of_its_own",
+        "LiteDB.Tests/Regressions/SlotReuseWithoutProof_Tests.cs#Slots_behind_a_root_whose_sync_failed_are_reused_only_once_an_open_made_it_durable",
+        "LiteDB.Tests/Regressions/SlotReuseWithoutProof_Tests.cs#Fresh_engine_reuses_slots_whose_clears_may_not_be_on_the_device",
+        "LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs#Fresh_shared_engines_never_reuse_slots_on_a_log_their_connection_knows_cannot_sync_without_durable_commits"
       ],
       "decision": "docs/decisions/durability-policy.md"
     },
