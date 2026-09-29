@@ -60,6 +60,116 @@ namespace LiteDB.Tests.Regressions
         }
 
         /// <summary>
+        /// A file format promotion that waited for the WAL writer a failing checkpoint held. A compact
+        /// insert into a v11 file started while the checkpoint synced the data file under the WAL writer;
+        /// the sync failed with an I/O error, the checkpoint recorded the failure and began the stop inside
+        /// the writer, and released its locks before the teardown. The promotion then ran without looking
+        /// at the stop or the record: it synced the data file again on the handle whose sync had just
+        /// failed (fsyncgate: the retry "succeeds"), wrote its header journal into the log and the v12
+        /// header into the data file. It now throws under the WAL writer before it syncs or writes
+        /// anything (decision 6): also when the stop comes only after the locks (a test hook, "deferred")
+        /// and only the recorded failure tells, and after a failure that is no I/O error ("other"), which
+        /// stops the engine without a record.
+        /// </summary>
+        [Theory]
+        [InlineData("eio")]
+        [InlineData("deferred")]
+        [InlineData("other")]
+        public void Promotion_waiting_on_a_failed_checkpoint_syncs_and_writes_nothing(string failure)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using (var setup = new LiteDatabase(new LiteEngine(new EngineSettings { Filename = file.Filename, CompactStorage = CompactStorageMode.Legacy })))
+            {
+                setup.CheckpointSize = 0; // no checkpoint: the file stays v11 (a retiring one would promote it)
+                setup.GetCollection("compact").Insert(new BsonDocument { ["_id"] = 0 });
+                setup.GetCollection("rows").Insert(Enumerable.Range(1, 64).Select(id => MvccRetirementScenario.Document(id, 0)));
+                for (var value = 1; value <= 5; value++) Update(setup, value);
+            }
+            SyncPowerLossModel.ReadShared(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+
+            var dataPath = Path.GetFullPath(file.Filename);
+            var logPath = Path.GetFullPath(logName);
+            Thread checkpointer = null, promoter = null;
+            LiteDatabase db = null;
+            Exception promotionRefused = null;
+            var promoterWaited = false;
+            var failData = false;
+            var failed = false;
+            var syncsAfterFailure = 0;
+            (byte[] Data, byte[] Log) atFailure = default;
+            NativeFileSync.SimulateErrno = path =>
+            {
+                var full = Path.GetFullPath(path);
+                var isData = string.Equals(full, dataPath, StringComparison.OrdinalIgnoreCase);
+                if (!isData && !string.Equals(full, logPath, StringComparison.OrdinalIgnoreCase)) return 0;
+                if (failed)
+                {
+                    Interlocked.Increment(ref syncsAfterFailure);
+                    return 0; // a retry on the handle whose sync failed "succeeds"
+                }
+                if (!isData || !failData || Thread.CurrentThread != checkpointer) return 0;
+                failed = true;
+                atFailure = (SyncPowerLossModel.ReadShared(dataPath), SyncPowerLossModel.ReadShared(logPath));
+                if (failure == "other") throw new InvalidOperationException("injected checkpoint failure");
+                return 5;
+            };
+            var signals = new WindowSignals { Ready = () => failed };
+            try
+            {
+                using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, CoordinationSignals = signals, CompactStorage = CompactStorageMode.Compact }))
+                using (db = new LiteDatabase(engine, disposeOnClose: false))
+                {
+                    // No write before the checkpoint: a compact one would promote the file already.
+                    db.CheckpointSize = 0;
+                    engine.SimulateDeferredCheckpointStop = failure == "deferred";
+                    engine.CheckpointStage = stage =>
+                    {
+                        if (stage != "before-index-lock" || promoter != null) return;
+                        // The checkpoint holds the commit lock (the header's, which a promotion takes too).
+                        promoter = new Thread(() =>
+                        {
+                            try { db.GetCollection("compact").Insert(Enumerable.Range(1, 5).Select(Compact)); }
+                            catch (Exception ex) { promotionRefused = ex; }
+                        });
+                        promoter.Start();
+                        promoterWaited = SpinWait.SpinUntil(() => (promoter.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(30));
+                        failData = true; // the checkpoint's next data sync, under the WAL writer, fails
+                    };
+                    using (var reader = engine.Query("rows", new Query()))
+                    {
+                        reader.Read().Should().BeTrue("a live reader keeps the checkpoint from taking exclusive access");
+                        Exception checkpointFailure = null;
+                        checkpointer = new Thread(() =>
+                        {
+                            // After the checkpoint released its locks, before the teardown: let the promotion run.
+                            signals.OnWindow = () => promoter?.Join(TimeSpan.FromSeconds(30));
+                            try { db.Checkpoint(); }
+                            catch (Exception ex) { checkpointFailure = ex; }
+                        });
+                        checkpointer.Start();
+                        checkpointer.Join(TimeSpan.FromSeconds(60)).Should().BeTrue();
+                        checkpointFailure.Should().NotBeNull("the checkpoint's data sync failed");
+                        signals.WindowRan.Should().BeTrue("the promotion ran after the checkpoint released its locks");
+                    }
+                    promoterWaited.Should().BeTrue();
+                    promoter.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
+                }
+
+                failed.Should().BeTrue();
+                promotionRefused.Should().NotBeNull("the insert waited on the failed checkpoint");
+                syncsAfterFailure.Should().Be(0, "nothing syncs after the recorded failure, least of all the handle whose sync failed");
+                SyncPowerLossModel.ReadShared(dataPath).Should().Equal(atFailure.Data, "the promotion wrote no header after the failure");
+                SyncPowerLossModel.ReadShared(logPath).Should().Equal(atFailure.Log, "the promotion wrote no header journal");
+            }
+            finally { NativeFileSync.SimulateErrno = null; }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").FindAll().Select(x => x["value"].AsInt32).Should().OnlyContain(v => v == 5);
+            reopened.GetCollection("compact").Count().Should().Be(1);
+        }
+
+        /// <summary>
         /// The defence behind that stop: a salt rotation tears the data header with its journal
         /// outstanding, and a commit reaches the WAL writer before the engine stops (the timing
         /// before the stop moved inside the writer, restored by a test hook). Its append is refused
@@ -170,6 +280,12 @@ namespace LiteDB.Tests.Regressions
 
         private static void Update(LiteDatabase db, int value) =>
             db.GetCollection("rows").Upsert(Enumerable.Range(1, 64).Select(id => MvccRetirementScenario.Document(id, value)));
+
+        private static BsonDocument Compact(int id) => new BsonDocument
+        {
+            ["_id"] = id, ["longRepeatedFieldName"] = id, ["anotherLongRepeatedFieldName"] = "payload",
+            ["nestedDocument"] = new BsonDocument { ["longNestedFieldName"] = id, ["anotherNestedFieldName"] = true }
+        };
 
         private sealed class WindowSignals : ICoordinationSignals
         {

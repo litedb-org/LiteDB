@@ -23,7 +23,7 @@ namespace LiteDB.Engine
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            _state.Validate();
+            this.EnsureOpen();
 
             // drop collection is possible only in exclusive transaction for this
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
@@ -55,7 +55,7 @@ namespace LiteDB.Engine
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (newName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(newName));
 
-            _state.Validate();
+            this.EnsureOpen();
 
             // rename collection is possible only in exclusive transaction for this
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();

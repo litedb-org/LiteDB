@@ -49,6 +49,14 @@ namespace LiteDB.Engine
 
         public long StreamPosition => _stream.Position;
 
+        /// <summary>
+        /// What a 16-byte block of zero ciphertext (a block never written) decrypts to with this key:
+        /// one fixed block (ECB), not zeros. <see cref="Read"/> returns zeros for a whole read only when
+        /// its first block is blank, so a page of which some later sectors were never written reads
+        /// this block in each of their blocks.
+        /// </summary>
+        internal byte[] BlankBlock => (byte[])_decryptedZeroes.Clone();
+
         public AesStream(string password, Stream stream, bool allowRecovery = true)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
@@ -157,7 +165,11 @@ namespace LiteDB.Engine
                 }
 
                 _stream.Position = PAGE_SIZE;
-                _stream.FlushToDisk();
+                // A writer makes the preamble durable (a writable open fails here on storage that
+                // cannot sync). A reader, one per concurrent read, never syncs: that would make the
+                // file's other unsynced writes durable outside the engine's barriers, such as an
+                // emptied WAL ahead of a backfill the data file could not sync.
+                if (_stream.CanWrite) _stream.FlushToDisk();
                 // Rented buffers are not zero-initialized. Derive the blank-page
                 // sentinel from exactly one zero ciphertext block.
                 Array.Clear(msBuffer, 0, 16);

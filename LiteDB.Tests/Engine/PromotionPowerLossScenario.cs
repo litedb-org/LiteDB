@@ -134,7 +134,10 @@ namespace LiteDB.Tests.Engine
             using var recoveredLog = new PromotionPowerLossStream(savedLog, cachedLog);
             using (var recovered = Open(recoveredData, recoveredLog, password, CompactStorageMode.Auto, readOnly))
             {
-                if (cachedLog != null) Require(recoveredData.WriteCount == 0, "A valid header was unnecessarily rewritten from an OS-cached journal");
+                // Recovery writes a valid header back as it is (before the sync that retires the journal,
+                // against a sync failure that left it in the cache only), never from the journal's copy.
+                if (cachedLog != null) Require(recoveredData.ToArray().SequenceEqual(savedData),
+                    "A valid header was replaced from an OS-cached journal");
                 Verify(recovered, acknowledged, vector);
                 if (!readOnly)
                 {

@@ -67,26 +67,37 @@ namespace LiteDB.Engine
         {
             if (_readOnly || ChecksumsEnabled) return;
             using var structural = new StructuralScope(_signals);
-            var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            stream.Position = 0;
-            stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            });
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
             // Successful syncs are required before crossing the format boundary,
             // unless the log storage cannot sync at all (#2242): then the
-            // ordered writes keep conversion process-crash safe only.
-            stream.FlushToDisk();
+            // ordered writes keep conversion process-crash safe only. The log is
+            // emptied below, which needs a data file that syncs (KeepsWal).
+            this.SyncDataFile();
+            if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
             SyncLogBarrier(log);
+            this.RequireLogSynced("a conversion", wroteNothing: true);
             HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
             _dataChecksums.InitializeMixed(header.LastPageID);
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             StampDataPage(buffer);
-            stream.Position = 0;
-            stream.Write(buffer.Array, 0, PAGE_SIZE);
-            stream.FlushToDisk();
-            SetLength(0, FileOrigin.Log);
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                this.CountDataWrite();
+                stream.Write(buffer.Array, 0, PAGE_SIZE);
+                this.SyncDataBarrier(stream);
+            });
+            // The legacy header backup and the conversion journal go only once the new header synced.
+            if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedDataConversion();
+            this.EmptyLog("a conversion");
             SyncLogBarrier(log);
             _recoveredHeader = null;
             FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
@@ -94,20 +105,32 @@ namespace LiteDB.Engine
             _cache.Clear();
         }
 
+        internal static IOException UnsyncedHeaderRecovery() => UnsyncedStorage(new IOException("Cannot recover this " +
+            "database now: its data file cannot sync to the device, and the header's recovery copy in the log file " +
+            "stays until the repaired header synced. Reopen it once the storage syncs, or open it with \"readonly=true\"."));
+
+        internal static IOException UnsyncedDataConversion() => UnsyncedStorage(new IOException("Cannot convert this " +
+            "legacy database now: its data file cannot sync to the device, and the conversion empties the log file only " +
+            "after the data file synced. Reopen it once the storage syncs, or open it with " +
+            "\"readonly=true;legacy index scan=true\"."));
+
         /// <summary>Called only after checkpoint synced all data, before recycling the WAL.</summary>
         internal void RotateWalSalt()
         {
             if (!ChecksumsEnabled) return;
-            var stream = _dataPool.Writer.Value;
             var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            stream.Position = 0;
-            stream.ReadRequired(header.Array, 0, PAGE_SIZE);
-            PageChecksum.Validate(header, 0);
-            _checksums.Reset(Guid.NewGuid().ToByteArray());
-            StampDataPage(header);
-            stream.Position = 0;
-            stream.Write(header.Array, 0, PAGE_SIZE);
-            stream.FlushToDisk();
+            this.UseDataWriter(stream =>
+            {
+                stream.Position = 0;
+                stream.ReadRequired(header.Array, 0, PAGE_SIZE);
+                PageChecksum.Validate(header, 0);
+                _checksums.Reset(Guid.NewGuid().ToByteArray());
+                StampDataPage(header);
+                stream.Position = 0;
+                this.CountDataWrite();
+                stream.Write(header.Array, 0, PAGE_SIZE);
+                this.SyncDataBarrier(stream);
+            });
         }
 
         internal void DiscardWalTail(long end, bool invalidTail)
@@ -142,11 +165,15 @@ namespace LiteDB.Engine
         /// A checkpoint that fails while it holds the WAL writer publishes the stop before releasing
         /// it: a commit waiting for the writer must not append behind what the failed checkpoint left
         /// (a torn retirement record, a reserved slot it never wrote, an outstanding header journal).
-        /// Returns whether the stop was begun; teardown follows once the locks are released.
+        /// Returns whether the stop was begun; teardown follows once the locks are released. A refusal
+        /// before the checkpoint wrote anything (<see cref="IsRefusedBeforeWrite"/>: its format promotion
+        /// found that the data file cannot sync) left nothing behind: it neither records nor stops.
         /// </summary>
         internal bool BeginCheckpointStop(Exception exception, out bool owned)
         {
             owned = false;
+            if (IsRefusedBeforeWrite(exception)) return true;
+            if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
 #if DEBUG || TESTING
             if (_state.DeferCheckpointStop) return false;
 #endif
@@ -157,7 +184,11 @@ namespace LiteDB.Engine
         internal void StopAfterCheckpointFailure(Exception exception, bool begun, bool owned)
         {
             if (begun) _state.CompleteStop(exception, owned);
-            else _state.Stop(exception);
+            else if (!IsRefusedBeforeWrite(exception))
+            {
+                if (exception is IOException) this.RecordWriteFailure("A checkpoint", exception);
+                _state.Stop(exception);
+            }
         }
     }
 }

@@ -13,10 +13,11 @@ namespace LiteDB.Engine
             // Every caller overwrites existing data or its sole header. Commit
             // fallback may lose recent transactions, but a failed sync must never
             // let an in-place overwrite proceed without durable recovery information.
-            // Storage that cannot sync at all proceeds in write order (#2242).
+            // A log that cannot sync (#2242) refuses the overwrite, in both modes.
             if (_checksums.JournalBytes != 0)
             {
                 SyncLogBarrier(_writer.Value);
+                this.RequireLogSynced("an overwrite of the data file", wroteNothing: true);
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -29,18 +30,25 @@ namespace LiteDB.Engine
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
+            else SyncLogBarrier(log);
+            // Before the journal: a refusal leaves no footer that would block the WAL.
+            this.RequireLogSynced("an overwrite of the data file", wroteNothing: true);
             HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
+            // The log stopped syncing after its journal was written: a failure, the journal stays.
+            this.RequireLogSynced("an overwrite of the data file", wroteNothing: false);
             SyncLogDirectory();
         }
 
         private void PrepareCheckpointHeader()
         {
             var header = new byte[PAGE_SIZE];
-            var data = _dataPool.Writer.Value;
-            data.Position = 0;
-            data.ReadRequired(header, 0, header.Length);
+            this.UseDataWriter(data =>
+            {
+                data.Position = 0;
+                data.ReadRequired(header, 0, header.Length);
+            });
             if (ChecksumsEnabled) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
             BeginHeaderJournal(header);
         }
@@ -87,22 +95,39 @@ namespace LiteDB.Engine
                 using var structural = new StructuralScope(_signals);
                 // Repair and sync the header before removing its recovery copy.
                 // Legacy redo stays until checkpoint also repairs converted pages.
-                var data = _dataPool.Writer.Value;
-                if (_recoveredHeader != null)
+                // A header that looks published may be in the page cache only: after a sync that failed
+                // with an I/O error, Linux marks the pages it could not write back clean, so no later
+                // sync writes them ("fsyncgate"). Before the sync that lets the journal go, write the
+                // header back as read: the same bytes (an encrypted page is encrypted per 16-byte block,
+                // the same plaintext giving the same bytes). A torn header is repaired from the journal.
+                var rewrite = _recoveredHeader != null || !(journal.Legacy && !published);
+                if (rewrite)
                 {
-                    // Make an OS-cached recovery copy durable before repairing its primary.
+                    // Make an OS-cached recovery copy durable before writing its primary. No data sync may
+                    // come first while the primary is torn (the data barrier below proves the file),
+                    // and an encrypted data writer syncs its file when it is created, so it comes after.
                     SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
-                    this.CrashPoint("promotion-recovery-before-header-write");
-                    data.Position = 0;
-                    data.Write(header, 0, header.Length);
-                    this.CrashPoint("promotion-recovery-after-header-write");
                 }
-                data.FlushToDisk();
+                var repaired = header;
+                this.UseDataWriter(data =>
+                {
+                    if (rewrite)
+                    {
+                        this.CrashPoint("promotion-recovery-before-header-write");
+                        data.Position = 0;
+                        this.CountDataWrite();
+                        data.Write(repaired, 0, repaired.Length);
+                        this.CrashPoint("promotion-recovery-after-header-write");
+                    }
+                    this.SyncDataBarrier(data);
+                });
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
+                // The journal is the header's only recovery copy until a data sync covers it (#2242).
+                if (!_dataBarrierSynced && !_volatileLog) throw UnsyncedHeaderRecovery();
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
-                writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
+                this.ShrinkLog(writer, journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position), "a header repair");
                 SyncLogBarrier(writer);
                 _checksums.JournalBytes = 0;
                 _recoveredHeader = null;

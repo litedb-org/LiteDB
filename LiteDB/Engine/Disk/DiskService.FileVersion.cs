@@ -36,14 +36,53 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// The promotion keeps its header journal (the log's recovery copy of the header) until a
+        /// data sync covered the new header, like a checkpoint (<see cref="KeepsWal"/>): it writes only
+        /// to a data file that just synced, is refused unchanged while the data file cannot sync, and
+        /// stops the engine with the journal kept when the data file stops syncing in between.
+        /// </summary>
+        internal static IOException UnsyncedPromotion()
+        {
+            var error = new IOException("Cannot upgrade this database's file format now: its data file cannot sync " +
+                "to the device, and the upgrade keeps its header's recovery copy in the log file until the new header " +
+                "synced. Retry once the storage syncs.");
+            error.Data[UnsyncedPromotionDataKey] = true;
+            error.Data[RefusedBeforeWriteDataKey] = true;
+            return UnsyncedStorage(error);
+        }
+
+        /// <summary>Exception.Data key of <see cref="UnsyncedPromotion"/>: refused before anything was written.</summary>
+        internal const string UnsyncedPromotionDataKey = "LiteDB.UnsyncedPromotion";
+
+        /// <summary>
+        /// Exception.Data key: refused because the data file cannot sync (#2242) before anything was
+        /// written. Not a failure (implementation note 6 of docs/decisions/durability-policy.md, in both
+        /// modes): nothing is recorded, the engine keeps writing, and the operation's caller gets it. So
+        /// is an overwrite refused before it wrote because the log cannot sync, without durable commits
+        /// (<see cref="IsQuietOverwriteRefusal"/>).
+        /// </summary>
+        internal const string RefusedBeforeWriteDataKey = "LiteDB.RefusedBeforeWrite";
+
+        /// <summary>See <see cref="RefusedBeforeWriteDataKey"/>.</summary>
+        internal static bool IsRefusedBeforeWrite(Exception error) =>
+            error.Data.Contains(RefusedBeforeWriteDataKey) && IsUnsyncedStorage(error);
+
         private void WriteFileVersion(Stream writer, byte version, bool checkpointStops)
         {
             Exception failure = null;
             var ownsFailure = false;
             lock (writer)
             {
-                var stream = _dataPool.Writer.Value;
-                lock (stream)
+                // Decision 6, as for a WAL batch: a promotion that waited for the writer (behind a checkpoint
+                // that failed and began the stop, or after a failure was recorded) syncs and writes nothing.
+                // Not Validate(): a close checkpoint promotes while the engine is being disposed.
+                _state.ThrowIfStopped();
+                _state.RequireNoWriteFailure();
+#if DEBUG || TESTING
+                EngineState.ObservePromotion?.Invoke(version, _checksums.JournalBytes != 0);
+#endif
+                this.UseDataWriter(stream =>
                 {
                     try
                     {
@@ -54,36 +93,47 @@ namespace LiteDB.Engine
                         _ = new HeaderPage(header);
                         var rawLog = ((ChecksummedWalStream)writer).RawStream;
                         var originalLength = rawLog.Length;
+                        if (!_volatileLog && !this.DataFileSyncs("A file format promotion")) throw UnsyncedPromotion();
                         var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                         if (compact) this.CrashPoint("promotion-before-journal-write");
-                        BeginHeaderJournal(header.Array, promotion: compact);
+                        // The journal and its barrier go to the log file (decision 6 records the file).
+                        try { BeginHeaderJournal(header.Array, promotion: compact); }
+                        catch (Exception ex) when (FailedIn(ex, FileOrigin.Log)) { }
                         if (compact) this.CrashPoint("promotion-after-journal-flush");
                         header[HeaderPage.P_FILE_VERSION] = version;
                         if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
                         PageChecksum.Write(header);
                         stream.Position = 0;
                         if (compact) this.CrashPoint("promotion-before-header-write");
-                        stream.Write(header.Array, 0, PAGE_SIZE);
+                        this.CountDataWrite();
+                        try { stream.Write(header.Array, 0, PAGE_SIZE); }
+                        catch (Exception ex) when (FailedIn(ex, FileOrigin.Data)) { }
                         if (compact) this.CrashPoint("promotion-after-header-write");
-                        stream.FlushToDisk();
+                        this.SyncDataBarrier(stream);
                         if (compact) this.CrashPoint("promotion-after-header-flush");
-                        rawLog.SetLength(originalLength);
+                        // Only once a data sync covered the new header (ShrinkLog): otherwise stop below.
+                        this.ShrinkLog(rawLog, originalLength, "a file format promotion");
                         if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
                         SyncLogBarrier(rawLog);
                         if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
                         _checksums.JournalBytes = 0;
                         FileVersion = version;
                     }
-                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops)
+                    // A refusal before this promotion wrote anything (an earlier journal still outstanding)
+                    // tore nothing: it is no failure (implementation note 6).
+                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops && !IsRefusedBeforeWrite(ex))
                     {
                         // The journal is the only recovery copy of a header this write may have torn.
                         // Whatever the exception type, stop before releasing the writer: a rollback or
                         // another write must not append to (or truncate) the WAL behind it. The next
                         // open restores the header from the journal.
                         failure = ex as IOException ?? new IOException("File format promotion failed.", ex);
+                        // The record names the file of the write or sync that failed, whatever wraps it.
+                        if (ex.Data[WriteFailure.FileDataKey] is string file) failure.Data[WriteFailure.FileDataKey] = file;
+                        this.RecordWriteFailure("A file format promotion", failure);
                         ownsFailure = _state.BeginStop(failure);
                     }
-                }
+                });
             }
             if (failure != null)
             {

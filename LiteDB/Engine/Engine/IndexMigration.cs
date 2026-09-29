@@ -27,6 +27,11 @@ namespace LiteDB.Engine
                     "it with full scans instead of its indexes.");
             }
 
+            // The conversion empties the log, and its format promotion retires a header journal, only
+            // after a data sync that succeeds (KeepsWal): a data file that cannot sync (#2242) refuses
+            // it here, both files unchanged, also for a file whose checksums an earlier engine enabled.
+            if (!_disk.LogIsVolatile && !_disk.DataFileSyncs()) throw DiskService.UnsyncedDataConversion();
+
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
             this.ValidateLegacyCollation(migrating: true);
@@ -88,6 +93,9 @@ namespace LiteDB.Engine
             if (!_disk.ChecksumsEnabled)
             {
                 _walIndex.Checkpoint();
+                // A checkpoint whose data file cannot sync keeps the WAL (KeepsWal), and so does the
+                // conversion: it refuses before it resets anything, both files unchanged.
+                if (_disk.KeepsWal && _disk.GetFileLength(FileOrigin.Log) > 0) throw DiskService.UnsyncedDataConversion();
                 _walIndex.Clear();
                 _disk.EnableChecksums(ref _header);
                 _monitor.Dispose();

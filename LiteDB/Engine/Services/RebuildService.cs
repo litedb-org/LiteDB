@@ -134,6 +134,23 @@ namespace LiteDB.Engine
                 }
             }
 
+            // The replacement is installed without its WAL. Its checkpoints keep the WAL until a
+            // data sync succeeds (DiskService.KeepsWal): a data file that cannot sync (#2242) would
+            // lose what the WAL holds, so the original database stays.
+            var tempLog = FileHelper.GetLogFile(tempFilename);
+            if (File.Exists(tempLog) && new FileInfo(tempLog).Length > 0) throw UnsyncedRebuild();
+        }
+
+        /// <summary>Exception.Data key on a rebuild refused before it installed anything: the original files are unchanged.</summary>
+        internal const string RefusedDataKey = "LiteDB.Rebuild.Refused";
+
+        internal static IOException UnsyncedRebuild()
+        {
+            var error = new IOException("Cannot rebuild this database now: its data file cannot sync to the device, and " +
+                "a rebuilt file's log is emptied only after its data file synced. The database is unchanged; retry once " +
+                "the storage syncs.");
+            error.Data[RefusedDataKey] = true;
+            return error;
         }
 
         /// <summary>

@@ -7,12 +7,8 @@ exception from a caller's log stream, or `UnauthorizedAccessException` for EACCE
 rolled the transaction back and kept committing. If the truncation of the torn frame failed too, or
 a buffering caller log stream (a `BufferedStream`) held the frame and tore it only when it wrote it
 on later, the next commits were acknowledged behind the torn frame and lost at the next recovery.
-Fixed: the failure stops the engine before the WAL writer is released, and every later operation
-throws the original failure before changing a byte.
-
-This proof asserts the terminal stop, which is the documented failure behavior of this layer (the
-WAL write and transaction failure containment slice of #3051). The #3027 head let the failed engine
-continue read-only instead; the slice that adds read-only continuation restores that assertion.
+Fixed: the failure is recorded, the engine continues read-only (decision 6 of
+`docs/decisions/durability-policy.md`), and it refuses every later write before changing a byte.
 
 The repro runs a database on caller streams with `TransactionPageLimit = 1`, so an insert writes
 its pages to the WAL at safepoints before its commit. It commits 20 rows, then an insert of 30 rows
@@ -26,8 +22,8 @@ streams hold, which is what a killed process leaves. It runs two scenarios:
 
 - Known bad, LiteDB `6.0.0-prerelease.319` (published from `dev` at `5dd942a7`): exit `0`. In both
   scenarios the inserts of `_id` 200 and 201 are acknowledged, and recovery returns only rows 1-20.
-- Candidate (the in-repo source): exit `1`. Both later inserts, an update and a read throw
-  "Engine closed after an I/O failure" carrying the torn write's failure, and the engine writes
+- Candidate (the in-repo source): exit `1`. Both later inserts and an update are refused with
+  "Cannot modify this database: an earlier write failed". The engine reads rows 1-20 and writes
   nothing more. Recovery returns rows 1-20, and the recovered database takes and keeps new commits.
 - Any other outcome exits `2` and fails the proof.
 

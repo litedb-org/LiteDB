@@ -1591,6 +1591,40 @@
           "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-before-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame before its write (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (an empty WAL) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "header-frame-after-write",
+      "protocol": "WAL header frame (decision 11)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "modeled-power-loss",
+          "proves": "The first commit of an empty WAL is cut at its header frame after its write, while it is in the OS cache only (hit asserted once); the image of each file as of its last successful sync opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows",
+          "model": "process-death",
+          "proves": "Every byte handed to the OS at the cut (a WAL holding only the header frame) opens with exactly the rows committed before, plain and encrypted, and takes the next commit."
+        }
+      ]
     }
   ],
   "injectors": [
@@ -1673,9 +1707,14 @@
           "proves": "A failed directory sync fails the commit."
         },
         {
-          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_keeps_committing_without_durable_commits",
           "model": "capability",
-          "proves": "Unsupported directory sync degrades durability visibly and keeps committing."
+          "proves": "Without durable commits, a WAL directory that cannot sync keeps committing and reports the log as not durable (decision 9)."
+        },
+        {
+          "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_fails_a_durable_commit_before_it_writes",
+          "model": "capability",
+          "proves": "With durable commits, a WAL directory that cannot sync fails the commit before it writes a frame (decision 9)."
         }
       ]
     },
@@ -1700,6 +1739,17 @@
           "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
         }
       ]
+    },
+    {
+      "name": "BeforeSyncLock",
+      "protocol": "sync helper failure boundary (#3052)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/SyncFailureBoundary_Tests.cs#Waiting_sync_after_a_published_failure_syncs_nothing",
+          "model": "interleaving",
+          "proves": "A $database sync helper that passed its admission check waits before the lock that orders its sync while another operation's sync fails with EIO and is recorded under that lock; once it holds the lock it syncs nothing and reports the recorded failure, for the log and the data sync."
+        }
+      ]
     }
   ],
   "observers": {
@@ -1709,10 +1759,12 @@
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
     "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
+    "DataBarrierRan": "Counts runs of the best-effort data barrier before a first commit per data file (decision 14) to pin its once-per-connection cost; measurement only, not a fault boundary.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
     "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "ObservePromotion": "Observes each file format promotion as it starts under the WAL writer (the version it promotes to, whether an earlier header journal is outstanding) to prove that no promotion starts behind one; not a fault boundary.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
   },

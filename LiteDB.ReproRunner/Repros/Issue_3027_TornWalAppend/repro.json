@@ -26,7 +26,7 @@
     "latest": {
       "kind": "noRepro",
       "exitCode": 1,
-      "logContains": "FIXED: after a torn WAL frame (its truncation failed, or a BufferedStream log tore it later) the engine stopped and refused every later operation with the original failure"
+      "logContains": "FIXED: after a torn WAL frame (its truncation failed, or a BufferedStream log tore it later) the engine continued read-only and refused every later write"
     }
   }
 }

@@ -15,8 +15,9 @@ namespace LiteDB.Tests.Regressions
     /// refused, and its cleanup truncated the WAL to its logical length, dropping the journal, the
     /// torn header's only recovery copy. The database could not be opened again (checksum mismatch
     /// in the data header). Such a failure now stops the engine before the WAL writer is released,
-    /// and a failed append never truncates an outstanding journal: every later operation throws the
-    /// original failure without touching the journal, and the next open restores the header.
+    /// and a failed append never truncates an outstanding journal. The failure is recorded
+    /// (decision 6 of docs/decisions/durability-policy.md): the engine's next call reopens it
+    /// read-only, so it reads the rows and refuses writes without touching the journal.
     /// </summary>
     [Trait("Category", "IoSafety")]
     public class FailedPromotionJournal_Tests
@@ -44,15 +45,24 @@ namespace LiteDB.Tests.Regressions
                 thrown.InnerException.Should().BeOfType<UnauthorizedAccessException>();
                 data.Torn.Should().BeTrue();
 
-                // The engine stopped: a write and a read throw the original failure, and neither
-                // changes a byte.
+                // The engine continues read-only (decision 6): it reads the rows through the torn header's
+                // journal, reports the failure, and refuses a write with it, and neither changes a byte.
                 var files = (Data: data.ToArray(), Log: log.ToArray());
+                db.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1, 2, 3, 4, 5);
+                db.GetCollectionNames().Should().Equal("rows");
+                var info = db.GetCollection("$database").FindAll().Single();
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                info["writeFailure"]["operation"].AsString.Should().Be("A file format promotion");
+                info["writeFailure"]["error"].AsString.Should().Be("File format promotion failed.");
+                info["writeFailure"]["walKept"].AsBoolean.Should().BeTrue("the log file holds the WAL and the header journal");
+                info["readOnlyReason"].AsString.Should().StartWith("A file format promotion failed at ").And.EndWith(
+                    ": File format promotion failed. The log file was kept.");
                 Action later = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 6 });
-                later.Should().Throw<IOException>().Where(x => x.Message.StartsWith("Engine closed after an I/O failure"))
-                    .Which.InnerException.Should().BeSameAs(thrown, "the stopped engine throws the original failure");
-                Action read = () => db.GetCollection("rows").FindAll().ToList();
-                read.Should().Throw<IOException>().Which.InnerException.Should().BeSameAs(thrown);
-                data.ToArray().Should().Equal(files.Data, "the stopped engine writes nothing");
+                var refused = later.Should().Throw<IOException>().Which;
+                refused.Message.Should().Be(LiteEngine.WriteFailedPrefix + info["readOnlyReason"].AsString);
+                refused.InnerException.Should().BeSameAs(thrown, "the refusal carries the recorded failure");
+                db.GetCollection("rows").Count().Should().Be(5);
+                data.ToArray().Should().Equal(files.Data, "the read-only engine writes nothing");
                 log.ToArray().Should().Equal(files.Log, "the journal stays");
             }
 
@@ -69,6 +79,29 @@ namespace LiteDB.Tests.Regressions
             reopened.GetCollection("rows").Count().Should().Be(5);
             reopened.GetCollection("compact").Insert(Compact());
             reopened.GetCollection("compact").Count().Should().Be(10);
+        }
+
+        /// <summary>
+        /// Decision 6 of docs/decisions/durability-policy.md records the file of a failed write: a
+        /// promotion whose header write to the data file fails records the data file (found failing at
+        /// #3027's head, where DiskService.WriteFileVersion did not name the file its write failed in;
+        /// its data writes now name it).
+        /// </summary>
+        [Fact]
+        public void Failed_promotion_header_write_names_the_data_file()
+        {
+            using var data = new TornHeaderData();
+            using var log = new MemoryStream();
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Legacy })))
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Auto })))
+            {
+                data.Armed = true;
+                Action compact = () => db.GetCollection("compact").Insert(Compact());
+                compact.Should().Throw<IOException>().WithMessage("File format promotion failed*");
+                var file = db.GetCollection("$database").FindAll().Single()["writeFailure"]["file"];
+                (file.IsNull ? null : file.AsString).Should().Be("data", "the header write to the data file failed");
+            }
         }
 
         private static BsonDocument[] Compact() => Enumerable.Range(1, 10).Select(i =>

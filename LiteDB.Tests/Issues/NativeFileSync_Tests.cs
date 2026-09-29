@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Engine;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -54,13 +55,18 @@ namespace LiteDB.Tests.Issues
             return data;
         }
 
+        /// <summary>
+        /// Opted out of durable commits, a log that answers "cannot sync" is not a failure (proposed
+        /// default A of docs/decisions/durability-policy.md): commits and checkpoints degrade to
+        /// ordered OS-cache flushes, as before, and $database reports the weaker guarantee.
+        /// </summary>
         [Theory]
         [MemberData(nameof(UnsupportedErrnos))]
-        public void Log_that_answers_cannot_sync_degrades_and_keeps_data(int errno)
+        public void Log_that_answers_cannot_sync_degrades_and_keeps_data_without_durable_commits(int errno)
         {
             using var file = new TempFile();
             using (Inject(path => IsLog(path) ? errno : 0))
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = new LiteDatabase($"Filename={file.Filename};durable commits=false"))
             {
                 var rows = db.GetCollection("rows");
                 rows.EnsureIndex("value");
@@ -71,6 +77,7 @@ namespace LiteDB.Tests.Issues
                 rows.Insert(Documents(200, 50, value: 1));
 
                 DurableLogFlush(db).Should().BeFalse("storage that cannot sync must be reported, not hidden");
+                WriteFailureAssert.NoneRecorded(db, "\"cannot sync\" is the reason to opt out, not a failure");
             }
 
             using var reopened = new LiteDatabase(file.Filename);
@@ -79,6 +86,57 @@ namespace LiteDB.Tests.Issues
             reopened.GetCollection("rows").Count(Query.EQ("value", 1)).Should().Be(250);
             DurableLogFlush(reopened).Should().BeTrue();
         }
+
+        /// <summary>
+        /// With durable commits (the default) the same answer fails loudly (decision 3): the proof before
+        /// the engine's first commit finds that the log cannot sync, so that commit throws before it
+        /// writes a frame. The data file stays byte for byte, the log holds nothing, reads return exactly
+        /// the earlier rows, $database reports the failure, and the next write throws with it (decision
+        /// 6). Reopened on storage that syncs, the database holds exactly the earlier rows and writes.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(UnsupportedErrnos))]
+        public void Log_that_answers_cannot_sync_refuses_a_durable_commit_before_it_writes(int errno)
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.GetCollection("rows").Insert(Documents(0, 200));
+            }
+            DurableLogs.Forget(Path.GetFullPath(logName)); // as in a new process: its syncs are not known
+            var data = File.ReadAllBytes(file.Filename);
+            var logSyncs = 0;
+
+            using (Inject(path => { if (!IsLog(path)) return 0; logSyncs++; return errno; }))
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                var rows = db.GetCollection("rows");
+                Action insert = () => rows.Insert(Documents(200, 50, value: 1));
+                insert.Should().Throw<IOException>().WithMessage(WriteFailureAssert.LogNotWritten + "*")
+                    .Which.InnerException.Should().BeOfType<FileSyncException>().Which.Errno.Should().Be(errno);
+                logSyncs.Should().Be(1, "the proof asked once");
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                LogLength(logName).Should().Be(0, "no frame was written");
+
+                rows.FindAll().Select(doc => doc["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 200));
+                rows.Count(Query.EQ("value", 0)).Should().Be(200);
+                var reason = WriteFailureAssert.CommitRefused(db);
+                WriteFailureAssert.Refused(() => rows.EnsureIndex("value"), reason);
+                logSyncs.Should().Be(1, "a refused write asks the storage nothing");
+                File.ReadAllBytes(file.Filename).Should().Equal(data);
+                LogLength(logName).Should().Be(0);
+            }
+
+            using var reopened = new LiteDatabase(file.Filename);
+            WriteFailureAssert.NoneRecorded(reopened, "a reopen retries");
+            reopened.GetCollection("rows").FindAll().Select(doc => doc["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 200));
+            reopened.GetCollection("rows").Insert(Documents(200, 50, value: 1));
+            reopened.GetCollection("rows").Count().Should().Be(250);
+            DurableLogFlush(reopened).Should().BeTrue();
+        }
+
+        private static long LogLength(string logName) => File.Exists(logName) ? new FileInfo(logName).Length : 0;
 
         [Fact]
         public void Failed_log_sync_stops_checkpoint_before_the_data_file_changes()

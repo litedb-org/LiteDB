@@ -42,6 +42,7 @@ Two investigations reached the same diagnosis independently: one on Windows, and
   - A larger one registers its lease for that engine's read version while the mutex is still held, then continues the same reader through `PrefixedDataReader`.
   - The writable engine is not detached, because its close may delete an empty WAL and the shared `-tmp` file, which outside the mutex could delete a WAL another process just wrote.
   - Files that need a writable open first still go through the writable engine within the same mutex hold: missing files, a pending upgrade, index migration, promotion and auto-rebuild.
+  - `$database` reads from the connection's operation engine (writable unless the connection is read-only): it describes that engine (`readOnly`, `readOnlyReason`, `walKept`), not the snapshot. It streams under the mutex like a write query, and over a WAL that holds frames its `walKept` may try one data sync.
 - **Self-deleting leases:** a lease is an exclusive handle created with `DeleteOnClose`, and registration only checks that the registry is readable.
   - A held lease cannot be taken by another process's exclusive probe (a sharing violation on Windows, `LOCK_EX` on Unix), and .NET deletes it on Unix only at `Dispose`.
   - Checkpoints still remove crashed readers' leases and fail closed on a registry they cannot read.

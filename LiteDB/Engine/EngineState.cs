@@ -15,6 +15,8 @@ namespace LiteDB.Engine
     internal class EngineState
     {
         public volatile bool Disposed = false;
+        // Set once a failure's teardown closed the engine's services (CompleteStop).
+        private volatile bool _closed;
         private Exception _exception;
         private WriteFailure _writeFailure;
 
@@ -22,16 +24,31 @@ namespace LiteDB.Engine
         internal bool Stopped => Volatile.Read(ref _exception) != null;
 
         /// <summary>
-        /// The write or sync failure recorded before the stop it caused; null when none, or when the
-        /// engine stopped otherwise.
+        /// The write or sync failure that stopped this engine (decision 6 of
+        /// docs/decisions/durability-policy.md); null when none, or when the engine stopped otherwise.
         /// </summary>
         internal WriteFailure WriteFailure => Volatile.Read(ref _writeFailure);
+
+        /// <summary>Threads whose explicit transaction the failure ended: their Commit must throw.</summary>
+        internal int[] LostTransactionThreads { get; set; }
+
+        /// <summary>
+        /// The failure's teardown closed the services (<see cref="CompleteStop"/>): a read-only reopen may
+        /// start. A call that arrives before it gets the stop error.
+        /// </summary>
+        internal bool Closed => _closed;
 
         /// <summary>
         /// This engine's disk service (set by LiteEngine.Open): a write or sync failure that reaches
         /// <see cref="Handle"/> or <see cref="StopAfter"/> is recorded through it. Null in unit tests.
         /// </summary>
         internal DiskService Disk { get; set; }
+
+        // A failure recorded where the engine could not stop (a $database read): the next call stops it.
+        private volatile bool _stopDue;
+
+        /// <summary>A recorded failure waits for its stop (<see cref="StopLater"/>).</summary>
+        internal bool StopDue => _stopDue && !this.Stopped;
 
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
@@ -51,10 +68,18 @@ namespace LiteDB.Engine
 
         // Test hook: this engine's crash points (SimulateProcessCrash sees every engine's).
         public Action<string> AtCrashPoint;
+
+        // Test hook (#3052): a sync helper passed its caller's admission check and is about to take the
+        // lock that orders its sync ("log": LogSyncs, "data": DataFileSyncs).
+        public Action<string> BeforeSyncLock;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
         internal static Action<PageBuffer> ObserveCacheEviction;
+
+        // Test hook: every engine's file format promotion as it starts under the WAL writer (the version
+        // it promotes to), and whether an earlier header journal is outstanding in the log then.
+        internal static Action<byte, bool> ObservePromotion;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)
@@ -84,12 +109,21 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// An operation failed: false when the failure stopped the engine, true when the caller rolls its
-        /// transaction back and the engine goes on. An I/O failure or a damaged file stops it for good;
-        /// a write or sync failure is recorded first (<see cref="StopAfter"/>).
+        /// transaction back and the engine goes on. An I/O failure or a damaged file stops it; a write or
+        /// sync failure is recorded first, so the engine reopens read-only on its next call (decision 6
+        /// of docs/decisions/durability-policy.md), while a failed read or a damaged file keeps it
+        /// closed (implementation note 6). A refusal because storage cannot sync, before anything was
+        /// written, is no failure.
         /// </summary>
         public bool Handle(Exception ex)
         {
             LOG(ex.Message, "ERROR");
+
+            // Refused because the data file (or, without durable commits, the log) cannot sync, before
+            // anything was written (#2242): not a failure (implementation note 6). The transaction rolls
+            // back and the caller gets the refusal, as at the WAL limit. A refusal its throw site
+            // recorded stops the engine below.
+            if (DiskService.IsRefusedBeforeWrite(ex) && this.WriteFailure == null) return true;
 
             if (ex is IOException ||
                 (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
@@ -104,12 +138,26 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Stop the engine after <paramref name="ex"/>. An I/O failure of a write or sync (one that names its
-        /// file, <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>.
+        /// file, <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>, so
+        /// the next call reopens the engine read-only instead of finding it closed (decision 6). A damaged
+        /// file keeps it closed, also when a write found it.
         /// </summary>
         internal void StopAfter(string operation, Exception ex)
         {
             if (ex is IOException && WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
             this.Stop(ex);
+        }
+
+        /// <summary>
+        /// Record a write or sync failure where stopping the engine would fail the caller's read (a
+        /// <c>$database</c> read). Every later write, sync and checkpoint is refused already
+        /// (<see cref="RequireNoWriteFailure"/>); the engine's next call stops it and reopens it
+        /// read-only (<see cref="StopDue"/>).
+        /// </summary>
+        internal void StopLater(string operation, Exception ex)
+        {
+            this.Disk?.RecordWriteFailure(operation, ex);
+            if (this.WriteFailure != null) _stopDue = true;
         }
 
 #if DEBUG || TESTING
@@ -126,19 +174,21 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// No write, sync or checkpoint starts while a failure is recorded, also one that passed its
-        /// entry check before the failure was recorded: nothing more goes through the handles that
-        /// failed (fsyncgate). The refusal carries the original failure as its inner exception.
+        /// Decision 6: no write, sync or checkpoint starts while a failure is recorded, also one whose
+        /// stop is still due (<see cref="StopLater"/>) or an operation that passed its entry check before
+        /// it was recorded: nothing more goes through the handles that failed (fsyncgate). The refusal
+        /// carries the original failure as its inner exception.
         /// </summary>
         internal void RequireNoWriteFailure()
         {
             if (this.WriteFailure is WriteFailure failure)
-                throw new IOException("Cannot write: an earlier write failed and stopped the engine. " + failure, failure.Cause);
+                throw new IOException(LiteEngine.WriteFailedPrefix + failure, failure.Cause);
         }
 
         /// <summary>
-        /// Record a write or sync failure before the stop it causes. The first failure wins. An engine
-        /// that already stopped without a record stopped for another cause and keeps it.
+        /// Record a write or sync failure before the stop it causes, so the engine reopens read-only
+        /// instead of closing for good. The first failure wins. An engine that already stopped without a
+        /// record stopped for a failed read or a damaged file, and stays closed (implementation note 6).
         /// </summary>
         internal void RecordWriteFailure(WriteFailure failure)
         {
@@ -166,7 +216,11 @@ namespace LiteDB.Engine
         {
             if (!ownsFailure) return;
             try { _engine?.Close(ex, this); }
-            finally { this.Disposed = true; }
+            finally
+            {
+                this.Disposed = true;
+                _closed = true;
+            }
         }
 
         /// <summary>

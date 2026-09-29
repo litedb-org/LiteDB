@@ -263,13 +263,21 @@ placed under `/dev/shm` to avoid sustained physical disk writes.
 The fault model assumes successful durable flushes persist addressed bytes and
 power-safe overwrite preserves previously synced bytes outside the write range.
 Retirement barriers always attempt a real sync, and a failed sync stops the
-engine with redo intact. Log storage that answers "cannot sync" (#2242) degrades
-them to ordered OS-cache flushes, which survive a process crash but not power
-loss, as before #2818; on such storage reclaimed slots are never reused, so the
-WAL appends until a full checkpoint truncates it. Before an engine, including each
-short-lived shared-mode engine, first reuses a slot found blank at open, it syncs the
-raw log once. That sync proves the storage can sync and makes earlier non-durable
-clears durable; storage that answers "cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
+engine with redo intact. Every retiring checkpoint first syncs the data file and
+the log (and, once per engine, the log's directory); storage that answers "cannot
+sync" (#2242) then retires nothing and never reuses slots, so the WAL appends until a
+full checkpoint truncates it. Only storage that stops syncing during a retiring
+checkpoint degrades that checkpoint's barriers to ordered OS-cache flushes. Such a
+checkpoint never clears the frames it retired (reads skip them while the root names
+them), and it publishes no witness root once it has found out, so no durable header
+names witness records that may not be durable: commits acknowledged as durable before
+survive a power loss. A checkpoint clears retired slots only behind a data sync that
+covered every data write, and writes nothing behind a log whose latest sync answered
+"cannot sync" (note 12 of the [durability decisions](decisions/durability-policy.md)).
+Before an engine, including each short-lived shared-mode engine, first reuses a slot,
+it syncs the data file and the raw log once (note 15). That proves the storage can sync
+and makes a witness root and clears an earlier engine left in the OS cache durable;
+storage that answers "cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
 damage to both data and required recovery evidence. CRCs detect accidental damage,
 not deliberate tampering.
 

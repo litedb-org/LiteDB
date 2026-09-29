@@ -31,14 +31,16 @@ namespace LiteDB.Engine
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             FileVersion = header.FileVersion;
             this.StampDataPage(buffer);
+            this.CountDataWrite();
             stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
 
             if (initialSize > 0)
             {
+                this.CountDataWrite();
                 stream.SetLength(initialSize);
             }
 
-            stream.FlushToDisk();
+            this.SyncDataBarrier(stream);
         }
     }
 }

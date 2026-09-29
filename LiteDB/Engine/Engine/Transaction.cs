@@ -15,9 +15,17 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
-            _state.Validate();
+            this.EnsureOpen();
 
-            if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
+            // A write failure ended this thread's transaction. Thread IDs are reused (pool threads), so
+            // this begin may be unrelated: consume the mark and throw the recorded failure here, instead
+            // of joining a transaction that is gone.
+            if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
+
+            // An engine that opened read-only on its own (its data file cannot sync, or a write failed)
+            // accepts explicit transactions, as a writable one did; writes are still rejected.
+            if (_settings.ReadOnly && _settings.ReadOnlyCause == null)
+                throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -37,7 +45,10 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
-            _state.Validate();
+            this.EnsureOpen();
+
+            // A write failure ended this thread's transaction before it committed.
+            if (this.TakeLostTransaction()) throw this.ReadOnlyWrite();
 
             var transaction = this.GetTransactionForCompletion(commit: true);
 
@@ -69,7 +80,9 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Rollback()
         {
-            _state.Validate();
+            this.EnsureOpen();
+
+            if (this.TakeLostTransaction()) return true;
 
             var transaction = this.GetTransactionForCompletion(commit: false);
 
@@ -90,11 +103,24 @@ namespace LiteDB.Engine
 
         private T AutoReadTransaction<T>(Func<TransactionService, T> fn) => this.ExecuteAutoTransaction(fn, false);
 
+        /// <summary>A write to a read-only engine; one that opened read-only on its own says why.</summary>
+        private IOException ReadOnlyWrite() =>
+            _settings.WriteFailure != null ? new IOException(WriteFailedPrefix + _settings.WriteFailure, _settings.WriteFailure.Cause) :
+            new IOException(_settings.ReadOnlyCause == null
+                ? "Cannot modify a read-only database."
+                : "Cannot modify this database: it opened read-only because the writable open was refused. " + _settings.ReadOnlyCause);
+
+        internal const string WriteFailedPrefix = "Cannot modify this database: an earlier write failed, so the engine continues " +
+            "read-only until the database is reopened. ";
+
         private T ExecuteAutoTransaction<T>(Func<TransactionService, T> fn, bool write)
         {
-            _state.Validate();
+            this.EnsureOpen();
+            // This operation's engine: a failure stops it, never an engine a reopen replaced it with.
+            var state = _state;
 
-            if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
+            if (write && _settings.ReadOnly) throw this.ReadOnlyWrite();
+            if (write) this.RequireWalBelowLimit(state);
 
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -110,7 +136,7 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
-                if (_state.Handle(ex) && transaction.State == TransactionState.Active)
+                if (state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
                     this.RollbackAndReleaseTransaction(transaction);
 
@@ -122,9 +148,11 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// A failure of the storage a completion wrote to: it is recorded before the engine stops.
+        /// A failure of the storage a completion wrote to: an I/O error, or a sync the storage refused
+        /// (an encrypted log's preamble answers "cannot sync" with UnauthorizedAccessException). It is
+        /// recorded (decision 6), so the engine reopens read-only instead of staying closed.
         /// </summary>
-        private static bool IsStorageFailure(Exception ex) => ex is IOException;
+        private static bool IsStorageFailure(Exception ex) => ex is IOException || ex is UnauthorizedAccessException;
 
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
@@ -144,14 +172,20 @@ namespace LiteDB.Engine
             }
 
             // After another thread's failure stopped the engine, or recorded a failure whose stop is
-            // still in progress, nothing more may be written or synced on its handles.
+            // still due, nothing more may be written or synced on its handles (decision 6). A reopen
+            // follows a stop only, so the services in place are still the ones this commit wrote through.
             if (state.Stopped || state.WriteFailure != null) return;
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
             if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
-                _walIndex.TryAutoCheckpoint();
+                // This commit succeeded: a checkpoint's write or sync failure is not its caller's
+                // (decision 6). It is recorded on this commit's engine, $database reports it, and the
+                // next call stops the engine and reopens it read-only. A checkpoint refused before it
+                // wrote anything (the data file cannot sync) is no failure.
+                try { _walIndex.TryAutoCheckpoint(); }
+                catch (Exception ex) when (state.WriteFailure != null || DiskService.IsRefusedBeforeWrite(ex)) { }
             }
         }
 

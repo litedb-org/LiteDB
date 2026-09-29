@@ -18,7 +18,9 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
-            if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
+            this.EnsureOpen();
+
+            if (_settings.ReadOnly) throw _settings.ReadOnlyCause == null ? new IOException("Cannot rebuild a read-only database.") : this.ReadOnlyWrite();
 
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
             options = options ?? new RebuildOptions();
@@ -33,6 +35,9 @@ namespace LiteDB.Engine
             // admitted between that wait and Close(). Close disposes the old lock,
             // so this exclusive lease intentionally is not released here.
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            // A replacement that cannot sync is refused (RebuildService): find out before this engine
+            // closes, so that a refusal leaves it open.
+            if (!this.DataFileSyncs(_state)) throw RebuildService.UnsyncedRebuild();
             _locker.EnterExclusive();
 
             this.Close();
@@ -54,6 +59,13 @@ namespace LiteDB.Engine
                 {
                     _settings.Password = password;
                     _settings.Collation = collation;
+                }
+                // A refused rebuild installed nothing: reopen the unchanged database, as a refusal
+                // before Close() leaves it open.
+                if (ex.Data.Contains(RebuildService.RefusedDataKey))
+                {
+                    this.Open();
+                    _state.Disposed = false;
                 }
                 throw;
             }

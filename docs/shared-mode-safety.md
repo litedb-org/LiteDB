@@ -40,7 +40,8 @@ under the mutex. A larger one registers its lease for that engine's read version
 while the mutex is still held and then continues the same reader, so the query
 runs once. A file that needs a writable open first (creation, upgrade, index
 migration, promotion, auto-rebuild) is read through the writable engine as
-before. Leases are exclusive handles created with delete-on-close: a held lease
+before, and so is `$database`, which describes the connection's own engine
+(`readOnly`, `readOnlyReason`, `walKept`). Leases are exclusive handles created with delete-on-close: a held lease
 cannot be taken by a prober's exclusive open, and a closed one removes itself.
 Registration does not scan the registry; checkpoints remove the leases of
 crashed readers and fail closed on a registry they cannot read (performance
@@ -108,10 +109,21 @@ ordered OS-cache flushing there, which survives a process crash but not power
 loss; any other sync error stops the barrier before data is overwritten. On such
 storage reclaimed WAL slots are never reused. Every shared operation opens a fresh
 engine, so before its first reuse of a slot found blank at open, that engine syncs
-the raw log once; a "cannot sync" answer makes it append instead.
+the raw log once; a "cannot sync" answer makes it append instead. Commits do not
+depend on a data header an earlier engine left in the OS cache only: every WAL
+starts with a header frame, a copy of the data header synced with the first commit
+(decision 11). The data barrier
+before the first commit is best effort and runs once per shared connection, never
+per operation (decision 14 of the [decisions](decisions/durability-policy.md)). With
+durable commits a log or WAL directory that cannot sync fails the commit before it
+writes; each operation's fresh engine proves the log again. A write or sync failure
+stops that operation's engine; carrying the record to the connection's later
+operations is a later layer's (until then an operation that opens over a header
+journal the failure kept, while the data file cannot sync, opens read-only).
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
-or has acknowledged a commit after that fallback. Shared connections retain this
+or its log fell back to OS-cache flushes (only possible after opting out; with
+durable commits such a commit throws instead). Shared connections retain this
 diagnostic across internal engine reopenings, including diagnostic queries. A
 later engine still attempts device sync; retaining the diagnostic does not disable
 sync. A new independent connection starts with its own diagnostic state. The
@@ -126,7 +138,7 @@ value describes that connection, not every writer that has accessed the file.
 | A pure read executes once on one snapshot: a result at the 100-value / 64 KiB budget completes under the mutex, one past it streams from the same snapshot under a lease registered before the mutex is released. Files that need a writable open (missing, legacy, invalid state with auto-rebuild) are still read through it. A held lease is live for other registries and a closed one leaves no file. Auto-rebuild never replaces files under a live reader. | [SharedReadPath_Tests](../LiteDB.Tests/Engine/SharedReadPath_Tests.cs) |
 | An abandoned explicit transaction's engine is discarded without a checkpoint, and another connection's commits made meanwhile survive. | [Issue3005_AbandonedOrphan_Tests](../LiteDB.Tests/Issues/Issue3005_AbandonedOrphan_Tests.cs): checkpoint stages observed during the discard (none allowed), plain/encrypted, with and without a reader lease held by the other connection; the concurrent-commit variant runs on Unix hosts, where a peer can write while the orphan's handles stay open. |
 | Cached handles are reused only while they name the file at their path: commits, checkpoints that delete the WAL and rebuilds by other connections or processes stay visible, no commit reaches a deleted WAL, and a killed process holding handles blocks no peer. | [SharedFileHandles_Tests](../LiteDB.Tests/Internals/SharedFileHandles_Tests.cs): cached reads compared with a fresh connection, plain and encrypted, real child processes; without the identity check four of seven fail: three lose an acknowledged commit to a deleted WAL, one reads the replaced data file. Direct mode and write-denying readers are refused while a shared connection is open; `File.Copy` works. |
-| Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
+| Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. A checkpoint during which the storage stops syncing keeps the frames it retired, and a root whose sync failed keeps its header journal: the next open writes the header back and syncs it before it retires the journal, or opens read-only. A fresh engine proves the data file and the log once before it first reuses a slot. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. [UnsyncableRetirement_Tests](../LiteDB.Tests/Regressions/UnsyncableRetirement_Tests.cs): no witness is published and no slot cleared or reused when the data file, the log or its directory cannot sync. [SlotReuseWithoutProof_Tests](../LiteDB.Tests/Regressions/SlotReuseWithoutProof_Tests.cs): after a root sync that failed ("cannot sync" or an EIO that forgot it), a new direct or shared connection reuses no slot before its open made the root durable. [RetiredSlotPowerLoss_Tests](../LiteDB.Tests/Regressions/RetiredSlotPowerLoss_Tests.cs) and [FreshEngineDurability_Tests](../LiteDB.Tests/Regressions/FreshEngineDurability_Tests.cs) keep each file as of its last successful sync, with two independent connections. |
 | An operation's close checkpoints only a WAL past its threshold; the connection's final close, and the last streamed result's disposal, checkpoint the rest; read-only connections change neither file; the WAL between operations recovers every committed operation. | [SharedLazyCheckpoint_Tests](../LiteDB.Tests/Engine/SharedLazyCheckpoint_Tests.cs): counts reclaiming checkpoints below and past the threshold, a smaller or disabled CHECKPOINT pragma, explicit checkpoint, two connections closing in either order, byte-preserving read-only access and plain/encrypted crash images. Both the old close-every-operation behavior and a missing final checkpoint fail it. |
 | Confirmation respects the durability setting, and fallback cannot be hidden by the next shared operation. | [SharedDurability_Tests](../LiteDB.Tests/Internals/SharedDurability_Tests.cs): observed device syncs, automatic/explicit commits, encrypted wrappers, injected unsupported sync, retry and connection-local diagnostics. |
 | Lost/torn new writes cannot damage the previously acknowledged prefix or expose a partial transaction. | [SharedCommitFailure_Tests](../LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs): durable/volatile file images, lost writes, later sectors persisting ahead of a torn frame, failure after successful sync, and a successful-sync control. Covers BSON/compact, plain/encrypted, automatic/explicit commits; repeated shared recovery checks full documents, indexes and an untouched collection. A foreign thread verifies writer-mutex release. |

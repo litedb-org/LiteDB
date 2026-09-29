@@ -76,10 +76,15 @@ namespace LiteDB.Engine
         public int LastTransactionID => _lastTransactionID;
 
         /// <summary>
-        /// Clear WAL index links and cache memory. Used after checkpoint and rebuild rollback
+        /// Clear WAL index links and cache memory. Only the legacy conversion uses it, once its
+        /// checkpoint emptied the WAL and before checksums are on.
         /// </summary>
         public void Clear()
         {
+            // Emptying a WAL that holds frames needs a checkpoint's data sync first (DiskService.KeepsWal),
+            // and with checksums a salt rotation that stops the engine if it does not sync: a reset does neither.
+            if (_disk.ChecksumsEnabled || _disk.GetFileLength(FileOrigin.Log) > 0)
+                throw new InvalidOperationException("Only a drained legacy WAL can be reset.");
             _signals?.StructuralBegin();
             _indexLock.TryEnterWriteLock(-1);
 
@@ -98,10 +103,8 @@ namespace LiteDB.Engine
                 _disk.ClearSchemaCache();
                 _disk.Cache.Clear();
 
-                // Invalidate the old generation only after checkpoint synced data.
-                _disk.RotateWalSalt();
                 // clear log file (sync)
-                _disk.SetLength(0, FileOrigin.Log);
+                _disk.EmptyLog("a WAL reset");
             }
             finally
             {

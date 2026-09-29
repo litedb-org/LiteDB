@@ -1,0 +1,33 @@
+{
+  "id": "Issue_3027_FailedHeaderSync",
+  "title": "Commits after the recovery of a failed header sync are lost at a power loss",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027",
+    "https://github.com/litedb-org/LiteDB/issues/3051"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "fsync",
+    "header-journal",
+    "power-loss"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: commits acknowledged durable after the recovery of a failed header sync were lost at a power loss"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: after a failed header sync, recovery wrote the header back before the sync that retired its journal"
+    }
+  }
+}

@@ -271,3 +271,86 @@ writes in it throw "can only be rolled back", and `Commit` rolls it back and thr
 transaction's own WAL slots no longer fails the next safepoint or commit (which used to stop
 the engine and mark the data file invalid): the new version is appended and the pinned slot
 stays readable.
+
+## Coherent WAL durability and recovery protocol
+
+The durability rules follow the maintainer's decisions in
+[decisions/durability-policy.md](decisions/durability-policy.md). This section supersedes the
+terminal stop of "WAL write and transaction failure containment" above.
+
+- **A durable commit fails loudly.** With durable commits (the default), before an engine's first
+  WAL batch the log file and its directory are proven to sync, once per log path per process, so
+  storage that syncs pays it once. On storage that answers "cannot sync" (EINVAL, ENOTSUP, EROFS;
+  some network shares and virtual file systems, #2242), or a WAL directory that cannot be synced
+  or opened to be synced (EACCES, EPERM), the commit throws an `IOException` ("This commit was not
+  written: ...") before it writes a frame. A log that stops syncing later fails the commit that
+  finds out, whose outcome is then unknown. Set `durable commits=false` to use such storage:
+  commits then reach the OS cache only, and "cannot sync" is not a failure there. "Cannot sync"
+  and a failed sync (an I/O error) stay distinct everywhere: the first degrades or refuses, the
+  second is recorded.
+- **`CommitOutcome`.** A commit that fails carries its outcome in
+  `Exception.Data["LiteDB.CommitOutcome"]`, whatever the exception type: `"NotCommitted"` only for
+  a provable abort (refused before its first frame, failed before its confirmation with nothing
+  torn left behind, or its confirmation's failed append truncated away and that truncation
+  synced), `"Unknown"` otherwise (a later open may recover it). After `"Unknown"`, retry only
+  idempotent writes, or check after reopening.
+- **The WAL is removed only behind a data sync.** The WAL, its header journal and a legacy header
+  backup are removed, and retired WAL slots cleared, only after a data sync that covered every data
+  write succeeded. Every checkpoint that writes, and every format promotion, first syncs the data
+  file (one more data sync on storage that syncs) and writes nothing while that sync fails. While
+  only the data file cannot sync, log syncs go on and commits stay durable in the WAL, which is
+  kept and grows. An engine also syncs the data file once before its first durable commit, best
+  effort (once per data header in the process, once per shared connection).
+- **`wal limit`** (`EngineSettings.WalLimit`, default 1 GiB) bounds that kept WAL: past it a write
+  that starts throws an `IOException` while reads keep working. Each refused write first retries the
+  log and data syncs, so writes resume once the storage syncs, and the next checkpoint drains the
+  WAL. A transaction already running may commit past the limit.
+- **Header frame.** Every non-volatile checksummed WAL generation starts with a header frame, a copy
+  of the data header made durable by its first commit's log sync. An open restores a data header a
+  power loss left unwritten (a data file left empty, shorter than a page, or with header sectors
+  that are the frame's or zeros; plain and encrypted) from it, and refuses to initialize a database
+  over a WAL whose data file is gone, lost pages the frame names, or whose frame cannot be read
+  (torn, or a wrong password); the rebuild's reader does the same. A WAL written without a header
+  frame opens as before. The header frame is a copy of the header only, not a backup of every data
+  page: the supported lost-page fault model is unchanged.
+- **Overwrite barriers, in both commit modes.** A checkpoint's backfill, a format promotion, a legacy
+  conversion and the invalid-state mark overwrite the data file only behind a header journal and
+  WAL that are on the device. Behind a log whose latest sync answered "cannot sync", they refuse
+  before the journal is written: with `durable commits=false` a checkpoint writes nothing and keeps
+  the WAL (up to `wal limit`), a compact write stays BSON and a conversion or promotion opens
+  read-only with both files unchanged (before, they proceeded without a power-loss guarantee); with
+  durable commits the barrier throws "The log file cannot sync". An open that recovers a header from
+  its journal writes it back (the same bytes) before the sync that retires the journal, since Linux
+  may have marked pages a failed sync could not write back clean ("fsyncgate").
+- **Read-only continuation.** A write or sync failure (a torn WAL write, a failed flush, a checkpoint
+  or promotion whose data sync fails after it wrote, disk full, a data sync that fails with an I/O
+  error where a write at the WAL limit, a rebuild or a `$database` read tried it) is recorded: file,
+  operation, error, time and whether the log file was kept. The engine then reopens read-only from
+  the files as they are: reads keep working, every write throws an `IOException` carrying the
+  recorded failure before it changes anything, an explicit transaction the failure ended throws at
+  `Commit`, and the engine never retries a sync on the handle that failed or auto-rebuilds. Only a
+  new open writes again. An in-memory or temporary database stays closed. A writable open that would
+  have to convert a 5.x file, migrate its indexes, or repair or retire a header journal while the
+  data file cannot sync opens read-only instead, and a rebuild there is refused and leaves the
+  database unchanged. A refusal found before anything was written is not a failure.
+- **`$database` fields.** `readOnly`, `readOnlyReason`, `writeFailure` (`{file, operation, error,
+  time, walKept}` or null), `walKept`, `walLimit`, and 64-bit `dataFileSize`/`logFileSize`. A shared
+  connection reads `$database` from its operation engine, not from a read-only snapshot.
+- **Failure boundary of sync helpers (#3052).** A sync helper that runs after an earlier admission
+  check (`$database.walKept`'s syncs, a checkpoint's syncs, a promotion, a WAL batch) rechecks the
+  stopped and recorded-failure state once it holds the lock that orders its sync, and records a
+  real I/O failure of its own sync before it releases that lock, so a writer, checkpoint or helper
+  waiting behind it syncs and writes nothing more. "Cannot sync" is never recorded this way.
+- **Unverified syncs (an explicit exception).** Without a C library on Unix the runtime's
+  `Flush(true)` loses sync errors: syncs are attempted and commits acknowledged, `durableLogFlush`
+  reads false, and a checkpoint's barrier counts such a sync as synced. Nothing is recorded as a
+  failure, and such a log never reuses WAL slots. A durable-commit open logs it once.
+
+Not in this layer: the read-only reopen replays the files as they are, so after a commit whose
+outcome is `"Unknown"` it may show that commit; a shared connection does not keep a failure for
+its later operations (each operation's fresh engine proves the log again); before an engine
+first reuses a retired WAL slot it still syncs the data file and the log once. The WAL frames of
+a commit whose log sync failed stay in the OS cache only, and a later process may build on them
+([#3048](https://github.com/litedb-org/LiteDB/issues/3048)); a rebuild whose recovery marker or
+directory cannot sync installs its replacement without a power-loss guarantee
+([#3049](https://github.com/litedb-org/LiteDB/issues/3049)).

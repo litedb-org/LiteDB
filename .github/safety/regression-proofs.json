@@ -31,10 +31,10 @@
       "repro": "Issue_3027_TornWalAppend",
       "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
       "permanentGuard": [
-        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_stops_the_engine",
+        "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_leaves_the_engine_read_only",
         "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Truncated_torn_append_is_rewritten_by_the_next_commit",
         "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit",
-        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit",
+        "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_leaves_the_engine_read_only_and_keeps_every_acknowledged_commit",
         "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost"
       ]
     },
@@ -44,6 +44,51 @@
       "permanentGuard": [
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
+      ]
+    },
+    {
+      "repro": "Issue_2242_UnsyncableStorage",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/UnsyncableDataFile_Tests.cs#Database_on_storage_that_cannot_sync_is_created_checkpointed_and_reopened_without_durable_commits"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LostHeaderBesideWal",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Opted_out_commits_survive_a_data_file_that_lost_its_header",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Every_wal_generation_starts_with_a_copy_of_the_data_header",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Read_only_open_reads_a_lost_header_from_the_log_without_writing",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Log_of_a_database_whose_data_file_is_gone_is_never_initialized_over",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.cs#Log_whose_header_frame_cannot_be_read_is_never_initialized_over",
+        "LiteDB.Tests/Regressions/HeaderFrame_Tests.Encrypted.cs#Encrypted_data_file_left_empty_is_restored_from_its_log",
+        "LiteDB.Tests/Regressions/HeaderFrameCrash_Tests.cs#First_commit_of_an_empty_wal_cut_at_its_header_frame_keeps_the_committed_rows"
+      ]
+    },
+    {
+      "repro": "Issue_3027_FailedHeaderSync",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SyncFailureRecovery_Tests.cs#Journal_retired_after_a_failed_header_sync_leaves_the_header_on_the_device"
+      ]
+    },
+    {
+      "repro": "Issue_3027_OverwriteBehindUnsyncedLog",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Checkpoints_on_a_log_that_cannot_sync_write_nothing_and_keep_the_wal_without_durable_commits",
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Checkpoint_whose_log_stops_syncing_at_its_journal_barrier_writes_nothing_and_keeps_synced_rows",
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Wal_limit_holds_while_the_log_cannot_sync_though_the_data_file_syncs",
+        "LiteDB.Tests/Regressions/OverwriteBarrier_Tests.cs#Compact_promotion_on_a_log_that_cannot_sync_falls_back_to_bson_without_durable_commits",
+        "LiteDB.Tests/Issues/Issue2242_UnsyncableLog_Tests.cs#Compact_promotion_on_a_log_that_never_syncs_falls_back_to_bson_without_durable_commits"
+      ]
+    },
+    {
+      "repro": "Issue_3027_PromotionAfterFailedCheckpoint",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/CheckpointFailureWindow_Tests.cs#Promotion_waiting_on_a_failed_checkpoint_syncs_and_writes_nothing"
       ]
     }
   ]

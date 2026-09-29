@@ -433,7 +433,9 @@ jobs:
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
     runs-on: windows-2022
-    timeout-minutes: 20
+    # The durability suites (power-loss models, header frames, sticky failures) ran 4713 tests
+    # without a failure when 20 minutes cancelled the net481 job; the .NET jobs allow 40.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

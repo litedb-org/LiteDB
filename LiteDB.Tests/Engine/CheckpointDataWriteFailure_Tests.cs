@@ -13,7 +13,10 @@ namespace LiteDB.Tests.Engine
     /// SimulateDataWriteFail fails a data-file page write of the checkpoint backfill on
     /// real files. The checkpoint must report the failure, the engine must stop rather
     /// than build on a half-backfilled data file, and the untouched WAL must recover
-    /// every committed row on the next open.
+    /// every committed row on the next open. The failure is sticky (decision 6 of
+    /// docs/decisions/durability-policy.md): the engine continues read-only from the files
+    /// as they are, reads return every committed row, and every write throws the recorded
+    /// failure until the database is reopened.
     /// </summary>
     public class CheckpointDataWriteFailure_Tests
     {
@@ -61,13 +64,19 @@ namespace LiteDB.Tests.Engine
                 checkpoint.Should().Throw<IOException>().WithMessage(Failure);
                 writes.Should().Be(failingWrite, "no data page may be written after the failed one");
 
-                // The engine is stopped: no later operation may build on the uncertain data file.
+                // The engine is stopped: no later operation may build on the uncertain data file. It
+                // continues read-only (decision 6): the recovered WAL serves every committed row, and
+                // each write throws the recorded failure before it changes anything.
                 var dataAfterFailure = TempFile.ReadAllBytesShared(file.Data);
                 var rows = db.GetCollection(CommittedRows.Collection);
                 Action insert = () => rows.Insert(CommittedRows.Extra);
-                insert.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*" + Failure);
-                Action read = () => rows.FindById(1);
-                read.Should().Throw<IOException>();
+                var refused = insert.Should().Throw<IOException>().Which;
+                refused.Message.Should().StartWith("Cannot modify this database: an earlier write failed").And.Contain(Failure);
+                refused.InnerException.Should().BeOfType<IOException>().Which.Message.Should().Be(Failure);
+                CommittedRows.Verify(db, false);
+                var info = db.Execute("SELECT $ FROM $database").Single();
+                info["readOnly"].AsBoolean.Should().BeTrue();
+                info["writeFailure"]["operation"].AsString.Should().Be("A checkpoint");
                 checkpoint.Should().Throw<IOException>();
                 writes.Should().Be(failingWrite, "a retried checkpoint on the stopped engine writes nothing");
                 TempFile.ReadAllBytesShared(file.Data).Should().Equal(dataAfterFailure);

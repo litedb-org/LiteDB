@@ -35,7 +35,8 @@ namespace LiteDB.Internals
                 pages.Add(p);
             }
 
-            // page will be saved in LOG file in PagePosition order (0-99)
+            // page will be saved in LOG file in PagePosition order (0-99), after the header frame
+            // that starts every WAL (decision 11 of docs/decisions/durability-policy.md)
             disk.WriteLogDisk(pages);
 
             // after release, no page can be read/write
@@ -46,7 +47,7 @@ namespace LiteDB.Internals
 
             for (var i = 0; i < 100; i++)
             {
-                var p = reader.ReadPage(i * 8192, false, FileOrigin.Log);
+                var p = reader.ReadPage((i + 1) * 8192, false, FileOrigin.Log);
 
                 p.All((byte) i).Should().BeTrue();
 
@@ -119,8 +120,9 @@ namespace LiteDB.Internals
             Action write = () => disk.WriteLogDisk(new[] { failed });
             write.Should().Throw<IOException>().WithMessage("write failed");
 
+            // Frame 0 is the header frame that starts the WAL (decision 11); the failed page was next.
             Action lookup = () => disk.Cache.GetReadablePage(
-                0,
+                PAGE_SIZE,
                 FileOrigin.Log,
                 (_, __) => throw new IOException("failed position is not cached"));
             lookup.Should().Throw<IOException>().WithMessage("failed position is not cached");
@@ -130,9 +132,9 @@ namespace LiteDB.Internals
             replacement.Fill(2);
             disk.WriteLogDisk(new[] { replacement });
 
-            replacement.Position.Should().Be(0);
-            disk.GetFileLength(FileOrigin.Log).Should().Be(PAGE_SIZE);
-            var read = disk.GetReader().ReadPage(0, false, FileOrigin.Log);
+            replacement.Position.Should().Be(PAGE_SIZE);
+            disk.GetFileLength(FileOrigin.Log).Should().Be(2 * PAGE_SIZE);
+            var read = disk.GetReader().ReadPage(PAGE_SIZE, false, FileOrigin.Log);
             read.All(2).Should().BeTrue();
             read.Release();
             disk.Cache.PinnedPages.Should().Be(0);
@@ -162,15 +164,18 @@ namespace LiteDB.Internals
             replacement.Fill(3);
             disk.WriteLogDisk(new[] { replacement });
 
-            replacement.Position.Should().Be(0);
-            log.Length.Should().Be(2 * PAGE_SIZE);
+            // The failed write was the header frame that starts the WAL (decision 11): truncated like a
+            // failed append, it is written again before the replacement.
+            replacement.Position.Should().Be(PAGE_SIZE);
+            log.Length.Should().Be(WalPadding.AlignedLength(2 * WalChecksum.FrameSize));
         }
 
         [Fact]
         public void WriteLogDisk_PublicationCollision_DiscardsWritableFrame()
         {
             using var disk = CreateDisk(out _);
-            var existing = disk.Cache.GetReadablePage(0, FileOrigin.Log, (_, page) => page.Write(1, 0));
+            // The first frame after the header frame that starts the WAL (decision 11).
+            var existing = disk.Cache.GetReadablePage(PAGE_SIZE, FileOrigin.Log, (_, page) => page.Write(1, 0));
             existing.Release();
             var writable = disk.NewPage();
 
