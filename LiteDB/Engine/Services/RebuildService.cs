@@ -38,61 +38,80 @@ namespace LiteDB.Engine
 
 #if DEBUG || TESTING
         internal static Action<string> SimulateInstallFailure;
+        internal static Action<string> SimulateOwnershipFailure;
 #endif
         private readonly EngineSettings _settings;
-        private readonly int _fileVersion;
 
         public RebuildService(EngineSettings settings)
         {
             _settings = settings;
             RebuildRecovery.EnsureAvailable(settings);
+        }
 
+        internal static int ReadFileVersion(EngineSettings source)
+        {
             // test for prior version
-            var bufferV7 = this.ReadFirstBytes(false);
+            var bufferV7 = ReadFirstBytes(source, false);
             if (FileReaderV7.IsVersion(bufferV7))
             {
-                _fileVersion = 7;
-                return;
+                return 7;
             }
 
             // open, read first 16kb, and close data file
-            var buffer = this.ReadFirstBytes();
+            var buffer = ReadFirstBytes(source);
 
             // test for valid reader to use
-            _fileVersion = FileReaderV8.IsVersion(buffer) ?
+            return FileReaderV8.IsVersion(buffer) ?
                 buffer[HeaderPage.P_FILE_VERSION] : throw LiteException.InvalidDatabase();
         }
 
         public long Rebuild(RebuildOptions options, Collation currentCollation = null)
         {
-            var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
-            var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
-            var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
-
+            using var admission = RebuildAdmission.Enter(_settings);
+            RebuildRecovery.EnsureAvailable(_settings);
+            using var source = new RebuildSource(_settings);
             try
             {
-                this.BuildReplacement(tempFilename, options, currentCollation);
+#if DEBUG || TESTING
+                SimulateOwnershipFailure?.Invoke("after-rebuild-source-claim");
+#endif
+                var fileVersion = ReadFileVersion(source.Settings);
+                var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
+                var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
+                var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
+                try
+                {
+                    this.BuildReplacement(tempFilename, options, currentCollation, source.Settings, fileVersion);
+                    source.ClaimReplacement(tempFilename);
+                }
+                catch (Exception buildException)
+                {
+                    DiscardReplacement(tempFilename, buildException);
+                    throw;
+                }
+                var difference = this.Install(backupFilename, backupLogFilename, tempFilename);
+                source.ReplacementPublished = true;
+                return difference;
             }
-            catch (Exception buildException)
+            catch (Exception ex)
             {
-                DiscardReplacement(tempFilename, buildException);
+                source.Failure = ex;
                 throw;
             }
-
-            return this.Install(backupFilename, backupLogFilename, tempFilename);
         }
 
         /// <summary>
         /// Read everything the file reader can recover into a new, checkpointed database file.
         /// </summary>
-        private void BuildReplacement(string tempFilename, RebuildOptions options, Collation currentCollation)
+        private void BuildReplacement(string tempFilename, RebuildOptions options, Collation currentCollation,
+            EngineSettings source, int fileVersion)
         {
             // open file reader
             var compactStorage = options.CompactStorage ?? _settings.CompactStorage;
 
-            using (var reader = _fileVersion == 7 ?
-                new FileReaderV7(_settings) :
-                (IFileReader)new FileReaderV8(_settings, options.Errors))
+            using (var reader = fileVersion == 7 ?
+                new FileReaderV7(source) :
+                (IFileReader)new FileReaderV8(source, options.Errors))
             {
                 // open file reader and ready to import to new temp engine instance
                 reader.Open();
@@ -344,10 +363,10 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read first 16kb (2 PAGES) in bytes
         /// </summary>
-        private byte[] ReadFirstBytes(bool useAesStream = true)
+        private static byte[] ReadFirstBytes(EngineSettings source, bool useAesStream = true)
         {
             var buffer = new byte[PAGE_SIZE * 2];
-            var factory = _settings.CreateDataFactory(useAesStream);
+            using var factory = source.CreateDataFactory(useAesStream);
 
             using (var stream = factory.GetStream(false, true))
             {
