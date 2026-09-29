@@ -16,6 +16,23 @@ namespace LiteDB.Engine
     {
         public volatile bool Disposed = false;
         private Exception _exception;
+        private WriteFailure _writeFailure;
+
+        /// <summary>A failure stopped this engine (<see cref="BeginStop"/>).</summary>
+        internal bool Stopped => Volatile.Read(ref _exception) != null;
+
+        /// <summary>
+        /// The write or sync failure recorded before the stop it caused; null when none, or when the
+        /// engine stopped otherwise.
+        /// </summary>
+        internal WriteFailure WriteFailure => Volatile.Read(ref _writeFailure);
+
+        /// <summary>
+        /// This engine's disk service (set by LiteEngine.Open): a write or sync failure that reaches
+        /// <see cref="Handle"/> or <see cref="StopAfter"/> is recorded through it. Null in unit tests.
+        /// </summary>
+        internal DiskService Disk { get; set; }
+
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
 
@@ -24,6 +41,16 @@ namespace LiteDB.Engine
         public Action<string> CheckpointStage;
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
+
+        // Test hook: a failed checkpoint stops the engine only after releasing its locks (the timing
+        // before the stop moved inside the WAL writer), to reach defences behind that stop.
+        public bool DeferCheckpointStop;
+
+        // Test hook: runs after a failed WAL write released the writer, before the engine's teardown.
+        public Action AfterFailedWalWrite;
+
+        // Test hook: this engine's crash points (SimulateProcessCrash sees every engine's).
+        public Action<string> AtCrashPoint;
         internal Action<PageBuffer> SimulateDataWriteFail;
         internal static Action<string> SimulateProcessCrash;
         internal static Action<long> ObserveSortSpill;
@@ -41,11 +68,25 @@ namespace LiteDB.Engine
 
         public void Validate()
         {
-            var failure = Volatile.Read(ref _exception);
-            if (failure != null) throw failure;
+            this.ThrowIfStopped();
             if (this.Disposed) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
         }
 
+        /// <summary>
+        /// Throw the failure that stopped the engine, if any. Unlike <see cref="Validate"/>, an engine
+        /// that is being disposed passes: its close checkpoint still writes (and may promote the format).
+        /// </summary>
+        internal void ThrowIfStopped()
+        {
+            var failure = Volatile.Read(ref _exception);
+            if (failure != null) throw failure;
+        }
+
+        /// <summary>
+        /// An operation failed: false when the failure stopped the engine, true when the caller rolls its
+        /// transaction back and the engine goes on. An I/O failure or a damaged file stops it for good;
+        /// a write or sync failure is recorded first (<see cref="StopAfter"/>).
+        /// </summary>
         public bool Handle(Exception ex)
         {
             LOG(ex.Message, "ERROR");
@@ -53,7 +94,7 @@ namespace LiteDB.Engine
             if (ex is IOException ||
                 (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
             {
-                this.Stop(ex);
+                this.StopAfter("A write", ex);
 
                 return false;
             }
@@ -61,9 +102,20 @@ namespace LiteDB.Engine
             return true;
         }
 
+        /// <summary>
+        /// Stop the engine after <paramref name="ex"/>. An I/O failure of a write or sync (one that names its
+        /// file, <see cref="WriteFailure.FileDataKey"/>) is recorded first as <paramref name="operation"/>.
+        /// </summary>
+        internal void StopAfter(string operation, Exception ex)
+        {
+            if (ex is IOException && WriteFailure.NamesFile(ex)) this.Disk?.RecordWriteFailure(operation, ex);
+            this.Stop(ex);
+        }
+
 #if DEBUG || TESTING
         internal void CrashPoint(string phase)
         {
+            AtCrashPoint?.Invoke(phase);
             SimulateProcessCrash?.Invoke(phase);
         }
 #endif
@@ -71,6 +123,27 @@ namespace LiteDB.Engine
         internal void Stop(Exception ex)
         {
             this.CompleteStop(ex, this.BeginStop(ex));
+        }
+
+        /// <summary>
+        /// No write, sync or checkpoint starts while a failure is recorded, also one that passed its
+        /// entry check before the failure was recorded: nothing more goes through the handles that
+        /// failed (fsyncgate). The refusal carries the original failure as its inner exception.
+        /// </summary>
+        internal void RequireNoWriteFailure()
+        {
+            if (this.WriteFailure is WriteFailure failure)
+                throw new IOException("Cannot write: an earlier write failed and stopped the engine. " + failure, failure.Cause);
+        }
+
+        /// <summary>
+        /// Record a write or sync failure before the stop it causes. The first failure wins. An engine
+        /// that already stopped without a record stopped for another cause and keeps it.
+        /// </summary>
+        internal void RecordWriteFailure(WriteFailure failure)
+        {
+            if (this.Stopped) return;
+            Interlocked.CompareExchange(ref _writeFailure, failure, null);
         }
 
         /// <summary>

@@ -48,6 +48,7 @@ namespace LiteDB.Engine
             _readOnly = settings.ReadOnly;
             _durableCommits = settings.DurableCommits;
             _sharedDurability = settings.SharedDurability;
+            _logMayBuffer = settings.LogStream != null && !(settings.LogStream is MemoryStream);
             _signals = settings.CoordinationSignals;
 
             try

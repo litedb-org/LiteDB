@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -9,6 +10,12 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
+        // A caller log stream other than a MemoryStream may hold frames after their write returned
+        // (a BufferedStream) and write them on at a later write, seek, length query or flush, where it
+        // can tear one; a reader's access hands such a failure to the writer (HeldWrites). LiteDB's
+        // own files never hold a frame back: their buffer is smaller than one.
+        private readonly bool _logMayBuffer;
+
         /// <summary>
         /// Write all pages inside log file in a thread safe operation.
         /// Takes ownership of each yielded frame, including on failure.
@@ -41,86 +48,101 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
-                using (var iterator = pages.GetEnumerator())
+                var uncertain = false;
+                try
                 {
-                    if (!iterator.MoveNext()) return 0;
-
-                    var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
-                    var rebase = !ChecksumsEnabled && transactionState != null &&
-                        transactionState.TransactionID < _lastWalTransactionID;
-                    var previousPositions = rebase
-                        ? transactionPages.Values.Select(x => x.Position).Distinct().ToArray()
-                        : Array.Empty<long>();
-
-                    if (rebase)
+                    using (var iterator = pages.GetEnumerator())
                     {
-                        do transactionState.TransactionID = nextTransactionID();
-                        while (transactionState.TransactionID <= _lastWalTransactionID);
+                        if (!iterator.MoveNext()) return 0;
 
-                        // The first new-ID frame must append before old frames are
-                        // rewritten, otherwise a crash could leave the high ID only
-                        // in an earlier slot that legacy recovery does not observe.
-                        transactionAnchored = false;
-                    }
+                        var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
+                        var rebase = !ChecksumsEnabled && transactionState != null &&
+                            transactionState.TransactionID < _lastWalTransactionID;
+                        var previousPositions = rebase
+                            ? transactionPages.Values.Select(x => x.Position).Distinct().ToArray()
+                            : Array.Empty<long>();
 
-                    PageBuffer delayedConfirmation = null;
-                    var first = true;
-
-                    try
-                    {
-                        do
+                        if (rebase)
                         {
-                            var page = iterator.Current;
-                            if (transactionState != null)
-                            {
-                                page.Write(transactionState.TransactionID, BasePage.P_TRANSACTION_ID);
-                            }
+                            do transactionState.TransactionID = nextTransactionID();
+                            while (transactionState.TransactionID <= _lastWalTransactionID);
 
-                            if (first && rebase && page.ReadBool(BasePage.P_IS_CONFIRMED))
-                            {
-                                delayedConfirmation = _cache.NewPage();
-                                Buffer.BlockCopy(page.Array, page.Offset, delayedConfirmation.Array,
-                                    delayedConfirmation.Offset, PAGE_SIZE);
-                                page.Write(false, BasePage.P_IS_CONFIRMED);
-                            }
-
-                            this.WriteLogPage(stream, page, written, transactionPages,
-                                ref transactionAnchored, first && rebase,
-                                ref count, ref hasConfirmation, ref reusePublished);
-
-                            if (first && rebase)
-                            {
-                                // Old frames may already be durable from a safepoint.
-                                // Make their new-ID tail anchor equally durable first.
-                                this.FlushLogToDisk(stream);
-                                this.RewriteLogTransactionIDs(stream, previousPositions,
-                                    transactionState.TransactionID, ref reusePublished);
-                            }
-
-                            first = false;
+                            // The first new-ID frame must append before old frames are
+                            // rewritten, otherwise a crash could leave the high ID only
+                            // in an earlier slot that legacy recovery does not observe.
+                            transactionAnchored = false;
                         }
-                        while (iterator.MoveNext());
 
-                        if (delayedConfirmation != null)
+                        PageBuffer delayedConfirmation = null;
+                        var first = true;
+
+                        try
                         {
-                            this.WriteLogPage(stream, delayedConfirmation, written,
-                                transactionPages, ref transactionAnchored, false,
-                                ref count, ref hasConfirmation, ref reusePublished);
-                            delayedConfirmation = null;
+                            do
+                            {
+                                var page = iterator.Current;
+                                if (transactionState != null)
+                                {
+                                    page.Write(transactionState.TransactionID, BasePage.P_TRANSACTION_ID);
+                                }
+
+                                if (first && rebase && page.ReadBool(BasePage.P_IS_CONFIRMED))
+                                {
+                                    delayedConfirmation = _cache.NewPage();
+                                    Buffer.BlockCopy(page.Array, page.Offset, delayedConfirmation.Array,
+                                        delayedConfirmation.Offset, PAGE_SIZE);
+                                    page.Write(false, BasePage.P_IS_CONFIRMED);
+                                }
+
+                                this.WriteLogPage(stream, page, written, transactionPages,
+                                    ref transactionAnchored, first && rebase,
+                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
+
+                                if (first && rebase)
+                                {
+                                    // Old frames may already be durable from a safepoint.
+                                    // Make their new-ID tail anchor equally durable first.
+                                    this.FlushLogToDisk(stream);
+                                    this.RewriteLogTransactionIDs(stream, previousPositions,
+                                        transactionState.TransactionID, ref reusePublished);
+                                }
+
+                                first = false;
+                            }
+                            while (iterator.MoveNext());
+
+                            if (delayedConfirmation != null)
+                            {
+                                this.WriteLogPage(stream, delayedConfirmation, written,
+                                    transactionPages, ref transactionAnchored, false,
+                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
+                                delayedConfirmation = null;
+                            }
+                        }
+                        finally
+                        {
+                            if (delayedConfirmation?.State == FrameState.Writable)
+                            {
+                                _cache.DiscardPage(delayedConfirmation);
+                            }
                         }
                     }
-                    finally
-                    {
-                        if (delayedConfirmation?.State == FrameState.Writable)
-                        {
-                            _cache.DiscardPage(delayedConfirmation);
-                        }
-                    }
+                }
+                catch (Exception ex) when (uncertain)
+                {
+                    // A failed write can leave a torn frame: in the middle of the WAL (an overwrite of
+                    // an existing slot), at its end when the truncation that removes a failed append
+                    // failed too or had to keep a header journal, or anywhere in this batch when the
+                    // stream buffers frames it already accepted. Recovery stops at the first invalid
+                    // frame. Whatever the exception type, stop before releasing the writer: no later
+                    // commit may be appended (and acknowledged) behind it.
+                    flushFailure = ex as IOException ?? new IOException("WAL frame write failed.", ex);
+                    ownsFailure = _state.BeginStop(flushFailure);
                 }
 
                 // A confirmation makes this WAL batch recoverable. Make all preceding
                 // pages durable before WAL-index confirmation or acknowledging commit.
-                if (hasConfirmation)
+                if (flushFailure == null && hasConfirmation)
                 {
                     try
                     {
@@ -139,11 +161,26 @@ namespace LiteDB.Engine
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
                 }
-                else stream.Flush();
+                else if (flushFailure == null)
+                {
+                    try
+                    {
+                        stream.Flush();
+                    }
+                    catch (Exception ex) when (uncertain)
+                    {
+                        // A buffering stream writes this batch's frames on now and can tear one.
+                        flushFailure = ex as IOException ?? new IOException("WAL write flush failed.", ex);
+                        ownsFailure = _state.BeginStop(flushFailure);
+                    }
+                }
             }
 
             if (flushFailure != null)
             {
+#if DEBUG || TESTING
+                _state.AfterFailedWalWrite?.Invoke();
+#endif
                 _state.CompleteStop(flushFailure, ownsFailure);
                 throw flushFailure;
             }
@@ -153,10 +190,14 @@ namespace LiteDB.Engine
 
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
-            bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished)
+            bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
+            ref bool uncertain)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
+            var overwrite = false;
+            // A buffering stream may still hold (and tear) a frame this batch wrote before this one.
+            var earlierHeld = uncertain;
             PageBuffer readable = null;
 
             try
@@ -167,12 +208,14 @@ namespace LiteDB.Engine
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                 // Only this transaction can see its unconfirmed slots. Keep the
-                // confirmation page last so recovery sees every page.
+                // confirmation page last so recovery sees every page. A snapshot of
+                // this transaction (e.g. $dump) can still hold the old version:
+                // append then, and the old frame stays part of the transaction.
                 if (!forceAppend && !isConfirmed && transactionPages != null &&
-                    transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position))
+                    transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position) &&
+                    _cache.TryInvalidate(previous.Position, FileOrigin.Log))
                 {
                     page.Position = previous.Position;
-                    _cache.Invalidate(page.Position, FileOrigin.Log);
                 }
                 else
                 {
@@ -198,7 +241,12 @@ namespace LiteDB.Engine
 
                 this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
                 this.PreserveFileVersion(page);
+                // From here a failure can leave part of the frame on the stream. A buffering stream
+                // can still tear it after the write returned, until the batch's final flush.
+                overwrite = page.Position < previousStreamLength.Value;
+                uncertain = true;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                if (!_logMayBuffer) uncertain = false;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
                 hasConfirmation |= isConfirmed;
 
@@ -210,7 +258,7 @@ namespace LiteDB.Engine
                 transactionAnchored = true;
                 count++;
             }
-            catch
+            catch (Exception failure)
             {
                 // The producer transferred ownership before yielding.
                 // Recycle failed frames and undo unpublished reservations.
@@ -218,11 +266,25 @@ namespace LiteDB.Engine
                 {
                     _cache.DiscardPage(page);
                     Interlocked.Exchange(ref _logLength, previousLogLength);
-                    if (previousStreamLength.HasValue)
+                    // The stream length excludes an outstanding header journal: never truncate it away.
+                    if (previousStreamLength.HasValue && _checksums.JournalBytes == 0)
                     {
-                        this.PublishWalReuse(ref reusePublished);
-                        stream.SetLength(previousStreamLength.Value);
-                        _logFactory.TrimCapacity(stream);
+                        try
+                        {
+                            this.PublishWalReuse(ref reusePublished);
+                            stream.SetLength(previousStreamLength.Value);
+                            _logFactory.TrimCapacity(stream);
+                            // The truncation removes a torn append, not a torn overwrite of an earlier slot
+                            // nor an earlier frame of this batch that a buffering stream still held.
+                            if (!overwrite && !earlierHeld) uncertain = false;
+                        }
+                        catch (Exception cleanup)
+                        {
+                            // The torn frame stays, or its removal may not be durable: report the write
+                            // failure that left it, not its cleanup.
+                            LOG($"removing a failed WAL write failed too: {cleanup.Message}", "ERROR");
+                            ExceptionDispatchInfo.Capture(failure).Throw();
+                        }
                     }
                 }
 

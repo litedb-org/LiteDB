@@ -112,6 +112,8 @@ that normal tests cover the relevant behavior and failure paths.
 | `Issue_2586_RollbackTransaction` | Disabled | `Transactions_Tests` covers dirty/read-only safepoint buffers; `Issue2586_RollbackSafety_Tests` adds committed rows, indexed reads, subsequent writes, and file reopen. |
 | `Issue_2614_DiskServiceDispose` | Disabled | `Issue2614_InitializationCleanup_Tests` injects EIO/ENOSPC during new-header sync, checks exclusive reopen before GC, repeats failures, then writes/reopens successfully; `StreamOwnership_Tests` covers caller-owned streams. |
 | `Issue_2561_TransactionMonitor` | Full tier | Still marked `red`: verifies a known-bug reproduction, not a passing fixed-bug guard. |
+| `Issue_3027_DumpInTransaction` | Disabled | Regression proof of PR #3027 against `6.0.0-prerelease.319`, run by the Regression proof workflow; `DumpPinnedWalSlot_Tests` is the permanent guard. |
+| `Issue_3027_TornWalAppend`, `Issue_3027_FailedSafepointWrite` | Disabled | Regression proofs of PR #3027's WAL write failure containment against `6.0.0-prerelease.319`; `TornWalAppend_Tests`, `TornSlotRewrite_Tests` and `FailedSafepointWrite_Tests` are the permanent guard. `Issue_3027_TornWalAppend` accepts the terminal engine stop as the fixed behavior. |
 
 The disk replacement tests exercise constructor cleanup through deterministic I/O
 fault injection on real files, without changing the test process's resource limits.

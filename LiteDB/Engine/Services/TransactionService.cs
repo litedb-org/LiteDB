@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     /// Represent a single transaction service. Need a new instance for each transaction.
     /// You must run each transaction in a different thread - no 2 transaction in same thread (locks as per-thread)
     /// </summary>
-    internal class TransactionService : IDisposable
+    internal partial class TransactionService : IDisposable
     {
         // instances from Engine
         private readonly HeaderPage _header;
@@ -43,6 +43,12 @@ namespace LiteDB.Engine
         public IEnumerable<Snapshot> Snapshots => _snapshots.Values.Concat(_cursorSnapshots);
         public bool QueryOnly { get; }
         internal int MaxObservedTransactionSize { get; private set; }
+
+        /// <summary>
+        /// A safepoint failed to write this transaction's dirty pages: some may be in the WAL, the
+        /// failed ones were discarded. Such a transaction can only roll back.
+        /// </summary>
+        internal Exception WriteFailure { get; private set; }
 
         // get/set
         public int MaxTransactionSize { get; set; }
@@ -81,6 +87,9 @@ namespace LiteDB.Engine
         public Snapshot CreateSnapshot(LockMode mode, string collection, bool addIfNotExists)
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
+            // Its snapshots still name pages the failed write handed to the disk writer: a point read
+            // (no safepoint) could return another page's document. Only Rollback may use it now.
+            if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
 
             Snapshot create() => new Snapshot(mode, collection, _header, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
@@ -123,6 +132,7 @@ namespace LiteDB.Engine
         public void Safepoint()
         {
             if (_state != TransactionState.Active) throw new LiteException(0, "This transaction are invalid state");
+            if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
 
             this.MaxObservedTransactionSize = Math.Max(this.MaxObservedTransactionSize, _transPages.TransactionSize);
 
@@ -133,7 +143,14 @@ namespace LiteDB.Engine
                 // if any snapshot are writable, persist pages
                 if (_mode == LockMode.Write)
                 {
-                    this.PersistDirtyPages(false);
+                    // Any operation can reach a safepoint, a query too, which does not roll back
+                    // the transaction it runs in when it fails.
+                    try { this.PersistDirtyPages(false); }
+                    catch (Exception ex)
+                    {
+                        this.WriteFailure = ex;
+                        throw;
+                    }
                 }
 
                 // clear local pages in all snapshots (read/write snapshosts)
@@ -146,6 +163,9 @@ namespace LiteDB.Engine
                 _transPages.TransactionSize = 0;
             }
         }
+
+        internal static LiteException WriteFailed(Exception failure) => new LiteException(0, failure,
+            "Writing this transaction's pages failed, so it can only be rolled back: {0}", failure.Message);
 
         /// <summary>
         /// Persist all dirty in-memory pages (in all snapshots) and clear local pages list (even clean pages)
@@ -260,11 +280,17 @@ namespace LiteDB.Engine
 
             // Reuse this transaction's unconfirmed slots across safepoints.
             // Disk always appends the confirmation page, preserving recovery order.
-            var count = _disk.WriteLogDisk(source(), (pageID, position) =>
+            int count;
+            try
             {
-                if (pageID == 0) _headerPosition = position;
-                else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
-            }, _transPages, _walIndex.NextTransactionID);
+                count = _disk.WriteLogDisk(source(), (pageID, position) =>
+                {
+                    if (pageID == 0) _headerPosition = position;
+                    else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
+                }, _transPages, _walIndex.NextTransactionID);
+            }
+            // A failed batch (a safepoint's or a commit's) names the log file, which its record reports.
+            catch (Exception ex) when (_disk.NameLogWriteFailure(ex)) { throw; }
 
             if (_transPages.HeaderChanged)
             {
@@ -330,122 +356,6 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 _disk.TestCrashPoint("wal-after-index-confirmation");
 #endif
-            }
-        }
-
-        /// <summary>
-        /// Rollback transaction operation - ignore all modified pages and return new pages into disk
-        /// After rollback, all snapshot are closed
-        /// </summary>
-        public void Rollback()
-        {
-            ENSURE(_state == TransactionState.Active, "transaction must be active to rollback (current state: {0})", _state);
-
-            LOG($"rollback transaction ({_transPages.TransactionSize} pages with {_transPages.NewPages.Count} returns)", "TRANSACTION");
-
-            // if transaction contains new pages, must return to database in another transaction
-            if (_transPages.NewPages.Count > 0)
-            {
-                this.ReturnNewPages();
-            }
-
-            // dispose all snapshots
-            foreach (var snapshot in this.Snapshots)
-            {
-                // but first, if writable, discard changes
-                if (snapshot.Mode == LockMode.Write)
-                {
-                    // discard all dirty pages (only buffers still writable)
-                    _disk.DiscardDirtyPages(snapshot
-                        .GetWritablePages(true, true)
-                        .Select(x => x.TakeBuffer())
-                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
-
-                    // discard all clean pages (only buffers still writable)
-                    _disk.DiscardCleanPages(snapshot
-                        .GetWritablePages(false, true)
-                        .Select(x => x.TakeBuffer())
-                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
-                }
-
-                // now, release pages
-                snapshot.Dispose();
-            }
-
-            _state = TransactionState.Aborted;
-            _disk.ForgetWalTransaction(_transPages.TransactionID);
-        }
-
-        /// <summary>
-        /// Return added pages when occurs an rollback transaction (run this only in rollback). Create new transactionID and add into
-        /// Log file all new pages as EmptyPage in a linked order - also, update SharedPage before store
-        /// </summary>
-        private void ReturnNewPages()
-        {
-            // create new transaction ID
-            var transactionPages = new TransactionPages { TransactionID = _walIndex.NextTransactionID() };
-
-            // now lock header to update LastTransactionID/FreePageList
-            lock (_header)
-            {
-                // persist all empty pages into wal-file
-                var pagePositions = new Dictionary<uint, PagePosition>();
-
-                IEnumerable<PageBuffer> source()
-                {
-                    // create list of empty pages with forward link pointer
-                    for (var i = 0; i < _transPages.NewPages.Count; i++)
-                    {
-                        var pageID = _transPages.NewPages[i];
-                        var next = i < _transPages.NewPages.Count - 1 ? _transPages.NewPages[i + 1] : _header.FreeEmptyPageList;
-
-                        var buffer = _disk.NewPage();
-
-                        var page = new BasePage(buffer, pageID, PageType.Empty)
-                        {
-                            NextPageID = next,
-                            TransactionID = transactionPages.TransactionID
-                        };
-
-                        yield return page.UpdateBuffer();
-
-                    }
-
-                    // update header page with my new transaction ID
-                    _header.TransactionID = transactionPages.TransactionID;
-                    _header.FreeEmptyPageList = _transPages.NewPages[0];
-                    _header.IsConfirmed = true;
-
-                    // clone header buffer
-                    var buf = _header.UpdateBuffer();
-                    var clone = _disk.NewPage();
-
-                    Buffer.BlockCopy(buf.Array, buf.Offset, clone.Array, clone.Offset, clone.Count);
-
-                    yield return clone;
-                };
-
-                // create a header save point before any change
-                var safepoint = _header.Savepoint();
-
-                try
-                {
-                    // write all pages (including new header)
-                    _disk.WriteLogDisk(source(), (pageID, position) =>
-                    {
-                        pagePositions[pageID] = new PagePosition(pageID, position);
-                    }, transactionPages, _walIndex.NextTransactionID);
-                    _header.TransactionID = transactionPages.TransactionID;
-                }
-                catch
-                {
-                    // must revert all header content if any error occurs during header change
-                    _header.Restore(safepoint);
-                    throw;
-                }
-
-                // now confirm this transaction to wal
-                _walIndex.ConfirmTransaction(transactionPages.TransactionID, pagePositions.Values);
             }
         }
 

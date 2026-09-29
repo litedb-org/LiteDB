@@ -70,17 +70,21 @@ namespace LiteDB.Engine
         /// </summary>
         private int TryCheckpoint(bool rationed)
         {
-            try { return TryCheckpointCore(rationed); }
+            var stopBegun = false;
+            var stopOwned = false;
+            try { return TryCheckpointCore(rationed, ref stopBegun, ref stopOwned); }
             catch (Exception error)
             {
-                _disk.StopAfterCheckpointFailure(error);
+                _disk.StopAfterCheckpointFailure(error, stopBegun, stopOwned);
                 throw;
             }
         }
 
-        private int TryCheckpointCore(bool rationed)
+        private int TryCheckpointCore(bool rationed, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+            // No checkpoint writes or syncs through handles a recorded failure stopped.
+            _disk.RequireNoWriteFailure();
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
@@ -179,6 +183,12 @@ namespace LiteDB.Engine
                     _backfillVersion = 0;
                 }
                 return pages.Count;
+            }
+            catch (Exception error) when (writerEntered)
+            {
+                // Stop before the WAL writer is released (see DiskService.BeginCheckpointStop).
+                stopBegun = _disk.BeginCheckpointStop(error, out stopOwned);
+                throw;
             }
             finally
             {
