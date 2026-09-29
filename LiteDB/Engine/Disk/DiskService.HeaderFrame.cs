@@ -86,7 +86,7 @@ namespace LiteDB.Engine
                         "data file or open it with its password, or move the log file aside to create a new database.");
                 return false;
             }
-            if (exists && dataLength > 0 && !HeaderFrame.Completes(this.ReadDataPrefix(dataLength), header)) return false;
+            if (exists && dataLength > 0 && !HeaderFrame.Completes(this.ReadDataPrefix(dataLength), header, this.DataBlankBlock())) return false;
             if (!exists || !HeaderFrame.Fits(header, 0))
                 throw new LiteException(LiteException.INVALID_DATABASE, $"Cannot open this database: its data file is {state}, " +
                     "while its log file holds the WAL of a database whose pages were in that data file. Restore the data " +
@@ -109,7 +109,7 @@ namespace LiteDB.Engine
         {
             if (_recoveredHeader != null || HeaderFrame.IsIntact(header)) return;
             var frame = this.ReadLogHeaderFrame();
-            if (frame == null || !HeaderFrame.Completes(header, frame) || !HeaderFrame.Fits(frame, dataLength)) return;
+            if (frame == null || !HeaderFrame.Completes(header, frame, this.DataBlankBlock()) || !HeaderFrame.Fits(frame, dataLength)) return;
             header = frame;
             if (_readOnly)
             {
@@ -188,6 +188,14 @@ namespace LiteDB.Engine
             }
             finally { _dataPool.Return(stream); }
             return bytes;
+        }
+
+        /// <summary>What a data block never written reads as through the data file's encryption; null when it has none.</summary>
+        private byte[] DataBlankBlock()
+        {
+            var stream = _dataPool.Rent();
+            try { return (stream as AesStream)?.BlankBlock; }
+            finally { _dataPool.Return(stream); }
         }
 
         private byte[] ReadLogHeaderFrame()

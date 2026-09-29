@@ -196,9 +196,12 @@ until the owner confirms them.
    file); an empty data file beside a WAL whose header frame names pages, and a missing data file
    beside a WAL, refuse the open and change neither file, and so does a log whose header frame cannot be
    read (torn, never written back, or encrypted and opened without its password) while it holds WAL
-   frames. An encrypted data file whose header page was never written back reads as zeros through its
-   encryption and is restored like a plain one; an empty encrypted data file is restored too. A header
-   frame whose write fails is truncated like a failed append.
+   frames. An encrypted data file whose header page was never written back, or only some of its sectors
+   (a page write spans 16 sectors and is not atomic), is restored like a plain one: a sector never
+   written holds zero ciphertext, which decrypts to one fixed block (AES in ECB mode), and a sector of
+   that block alone counts as never written; any other bytes still fail the open unchanged. An empty
+   encrypted data file is restored too. A header frame whose write fails is truncated like a failed
+   append.
 10. **Which reopens are bounded (13).** A failed WAL write and a failed commit log flush record the end of
    the WAL before their batch and the files as the failure left them: the raw log from that end on,
    its salt, the data file's length and header, and its copy of every page the failed transaction

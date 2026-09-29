@@ -30,7 +30,7 @@ namespace LiteDB.Engine
             if (_recoveredHeader == null && _logStream != null && !HeaderFrame.IsIntact(bytes) &&
                 // Still the raw log here: Open wraps it in a ChecksummedWalStream only afterwards.
                 HeaderFrame.Read(_logStream is ChecksummedWalStream wal ? wal.RawStream : _logStream) is byte[] frame &&
-                HeaderFrame.Completes(bytes, frame) && HeaderFrame.Fits(frame, _dataStream.Length))
+                HeaderFrame.Completes(bytes, frame, (_dataStream as AesStream)?.BlankBlock) && HeaderFrame.Fits(frame, _dataStream.Length))
             {
                 bytes = _recoveredHeader = frame;
             }

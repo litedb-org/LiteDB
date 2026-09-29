@@ -49,6 +49,14 @@ namespace LiteDB.Engine
 
         public long StreamPosition => _stream.Position;
 
+        /// <summary>
+        /// What a 16-byte block of zero ciphertext (a block never written) decrypts to with this key:
+        /// one fixed block (ECB), not zeros. <see cref="Read"/> returns zeros for a whole read only when
+        /// its first block is blank, so a page of which some later sectors were never written reads
+        /// this block in each of their blocks.
+        /// </summary>
+        internal byte[] BlankBlock => (byte[])_decryptedZeroes.Clone();
+
         public AesStream(string password, Stream stream, bool allowRecovery = true)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));

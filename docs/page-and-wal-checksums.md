@@ -119,7 +119,8 @@ device (a data file on storage that cannot sync, #2242, or not yet written back)
 Recovery skips the header frame as a page. It uses it only when the data file's header
 is missing or damaged as a power loss leaves a header that never reached the device:
 the data file is empty or shorter than a page, or each 512-byte sector of its header is
-either the header frame's or zeros. A writable open then writes the header back (the WAL
+either the header frame's or zeros (in an encrypted file, a sector never written: its zero
+ciphertext decrypts to one fixed block, which counts as never written). A writable open then writes the header back (the WAL
 is emptied only after a data sync covers that write); a read-only open reads it in its
 place and writes nothing. The header frame must name no page the data file lost (its
 `LastPageID` fits the file), and a header journal wins where one applies. An intact header
