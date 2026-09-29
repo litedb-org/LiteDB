@@ -1,4 +1,21 @@
 {
-  "revision": "88b857f6fde39742cac2ad5399c9372bf54a9b3c",
-  "files": {}
+  "revision": "e059a85e1cbd641e4a682882a70b1c84906d393f",
+  "files": {
+    "DamagedDocument_5_0_21.zip": {
+      "path": "compatibility/fixtures/DamagedDocument_5_0_21.zip",
+      "sha256": "939cbf90a733d4b9b8ab268aa579d61e3a68463500a3f45d7f5c36303b60a999"
+    },
+    "DamagedIndexKeys_5_0_21.zip": {
+      "path": "compatibility/fixtures/DamagedIndexKeys_5_0_21.zip",
+      "sha256": "a6adb806bfdde25ff168518d1002afa3c19d35b46de7419d826a15b7ea85c4d2"
+    },
+    "DamagedSalvageDuplicate_5_0_21.zip": {
+      "path": "compatibility/fixtures/DamagedSalvageDuplicate_5_0_21.zip",
+      "sha256": "e3ef86a36b27a54f3231cf28a474db9bd0dc1434b800632c3c77c9b699cf93bc"
+    },
+    "DamagedUniqueDocuments_5_0_21.zip": {
+      "path": "compatibility/fixtures/DamagedUniqueDocuments_5_0_21.zip",
+      "sha256": "8a54047e4a4aef16f1c5897fd783ace2b9326139edd16f21757579ce77d84117"
+    }
+  }
 }
