@@ -74,8 +74,7 @@ namespace LiteDB.Tests.Regressions
                 AssertRows(db);
             }
 
-            using var reopened = new LiteDatabase(file.Filename);
-            AssertRows(reopened);
+            using (var reopened = new LiteDatabase(file.Filename)) AssertRows(reopened);
             File.Delete(FileHelper.GetLogFile(file.Filename));
         }
 #endif

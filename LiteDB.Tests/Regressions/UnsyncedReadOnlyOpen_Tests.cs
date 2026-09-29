@@ -119,7 +119,7 @@ namespace LiteDB.Tests.Regressions
                     AssertWriteRefused(db, reason);
                     db.Rollback().Should().BeTrue();
                     AssertPlainRows(db);
-                    File.ReadAllBytes(file.Filename).Should().Equal(original, "the read-only opens wrote nothing");
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(original, "the read-only opens wrote nothing");
                     File.Exists(logName).Should().BeFalse();
 
                     power.DataFails = false;

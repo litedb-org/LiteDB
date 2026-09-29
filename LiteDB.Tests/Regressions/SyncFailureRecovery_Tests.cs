@@ -59,11 +59,10 @@ namespace LiteDB.Tests.Regressions
             using var imageLog = new TempFile();
             File.WriteAllBytes(image.Filename, data.Durable);
             File.WriteAllBytes(imageLog.Filename, log.Durable);
-            using var afterPowerLoss = new LiteEngine(new EngineSettings
-            {
-                DataStream = new FileStream(image.Filename, FileMode.Open, FileAccess.ReadWrite),
-                LogStream = new FileStream(imageLog.Filename, FileMode.Open, FileAccess.ReadWrite)
-            });
+            // The engine does not own caller streams: dispose them before the files are deleted.
+            using var imageData = new FileStream(image.Filename, FileMode.Open, FileAccess.ReadWrite);
+            using var imageLogData = new FileStream(imageLog.Filename, FileMode.Open, FileAccess.ReadWrite);
+            using var afterPowerLoss = new LiteEngine(new EngineSettings { DataStream = imageData, LogStream = imageLogData });
             afterPowerLoss.Query("rows", Query.All()).ToList().Select(x => x["_id"].AsInt32)
                 .Should().Equal(Enumerable.Range(1, 15), "every commit acknowledged durable survives the power loss");
             header.Durable.Should().Equal(header.Live, "recovery wrote the header back before the sync that retired its journal");

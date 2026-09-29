@@ -260,10 +260,10 @@ namespace LiteDB.Tests.Regressions
                 insert.Should().Throw<IOException>().WithMessage("This commit was not written*");
 
                 MarkForRebuild(file.Filename);
-                var marked = File.ReadAllBytes(file.Filename);
+                var marked = SyncPowerLossModel.ReadShared(file.Filename);
                 SyncPowerLossModel.AssertRows(db, Rows, 0);
                 Info(db)["readOnly"].AsBoolean.Should().BeTrue();
-                File.ReadAllBytes(file.Filename).Should().Equal(marked, "the read-only engine rebuilt nothing");
+                SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(marked, "the read-only engine rebuilt nothing");
                 Directory.GetFiles(directory, name + "*").Where(x => x.Contains("backup")).Should().BeEmpty();
             }
             finally

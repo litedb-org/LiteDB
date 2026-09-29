@@ -326,7 +326,7 @@ namespace LiteDB.Tests.Regressions
                 using (var db = new LiteDatabase(file.Filename))
                 {
                     db.Checkpoint();
-                    File.ReadAllBytes(file.Filename).Should().Equal(synced, "the checkpoint wrote no page");
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(synced, "the checkpoint wrote no page");
                     for (var value = 2; value <= 3; value++)
                     {
                         Update(db, value);
@@ -337,7 +337,7 @@ namespace LiteDB.Tests.Regressions
                         AssertRows(db, value);
                         power.AfterPowerLoss(x => AssertRows(x, value)); // a commit reported durable survives the power loss
                         db.Checkpoint();
-                        File.ReadAllBytes(file.Filename).Should().Equal(synced, "no checkpoint writes to a data file that cannot sync");
+                        SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(synced, "no checkpoint writes to a data file that cannot sync");
                     }
                 }
                 File.Exists(logName).Should().BeTrue("the WAL is kept");

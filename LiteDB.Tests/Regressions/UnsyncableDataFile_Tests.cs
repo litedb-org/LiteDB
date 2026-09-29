@@ -105,10 +105,11 @@ namespace LiteDB.Tests.Regressions
                 using (var db = new LiteDatabase(shared ? $"Filename={file.Filename};Connection=shared" : file.Filename))
                 {
                     db.GetCollection("rows").Count().Should().Be(0);
-                    data = File.ReadAllBytes(file.Filename);
+                    // Shared reads: on Windows the engine's handle refuses a reader that denies writers.
+                    data = SyncPowerLossModel.ReadShared(file.Filename);
                     Action insert = () => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "first" });
                     insert.Should().Throw<IOException>().WithMessage(CommitNotWritten);
-                    File.ReadAllBytes(file.Filename).Should().Equal(data, "the refused commit wrote nothing");
+                    SyncPowerLossModel.ReadShared(file.Filename).Should().Equal(data, "the refused commit wrote nothing");
                     LogLength(logName).Should().Be(0, "not a frame");
 
                     db.GetCollection("rows").Count().Should().Be(0, "reads keep working");
