@@ -1,6 +1,6 @@
-# Issue 0: Shared callback waits forever for ownership retained by its own outer operation
+# Issue 3071: Shared callback waits forever for ownership retained by its own outer operation
 
-Reproduces [LiteDB issue #0](https://github.com/litedb-org/LiteDB/issues/0), audit finding C12.
+Reproduces [LiteDB issue #3071](https://github.com/litedb-org/LiteDB/issues/3071), audit finding C12.
 
 A Shared write runs its lazy input sequence while it retains the database's native mutex. The
 sequence writes through a second Shared connection to the same file on the same thread. That
@@ -20,5 +20,5 @@ and encrypted, plus same-connection and other-database controls that must comple
 - Anything else exits `1` and satisfies neither variant.
 
 ```bash
-dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_0_SharedPeerCallback
+dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_3071_SharedPeerCallback
 ```

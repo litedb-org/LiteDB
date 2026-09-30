@@ -1,8 +1,8 @@
 {
-  "id": "Issue_0_SharedPeerCallback",
+  "id": "Issue_3071_SharedPeerCallback",
   "title": "Shared callback waits forever for ownership retained by its own outer operation",
   "issues": [
-    "https://github.com/litedb-org/LiteDB/issues/0"
+    "https://github.com/litedb-org/LiteDB/issues/3071"
   ],
   "failingSince": "6.0.0-prerelease.319",
   "timeoutSeconds": 120,

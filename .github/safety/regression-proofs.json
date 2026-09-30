@@ -20,7 +20,7 @@
       ]
     },
     {
-      "repro": "Issue_0_SharedPeerCallback",
+      "repro": "Issue_3071_SharedPeerCallback",
       "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
       "permanentGuard": [
         "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",

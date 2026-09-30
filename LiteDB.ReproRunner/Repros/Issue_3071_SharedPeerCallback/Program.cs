@@ -10,10 +10,10 @@ using LiteDB.Engine;
 using LiteDB.ReproRunner.Shared;
 using LiteDB.ReproRunner.Shared.Messaging;
 
-namespace Issue_0_SharedPeerCallback;
+namespace Issue_3071_SharedPeerCallback;
 
 /// <summary>
-/// Repro of LiteDB issue #0. A Shared write runs its lazy input sequence while it retains the
+/// Repro of LiteDB issue #3071. A Shared write runs its lazy input sequence while it retains the
 /// database's native mutex. When the sequence synchronously writes through a second Shared
 /// connection to the same file, that connection waits for the mutex forever: it is released
 /// only after the sequence returns. Both routes are covered, each plain and encrypted: the
@@ -38,7 +38,7 @@ internal static class Program
         ReproConfigurationReporter.SendConfiguration(host);
         // Default Shared mutex names embed the escaped path, and Unix limits their length:
         // keep the files in a short temporary directory instead of the runner's deep one.
-        var directory = Path.Combine(Path.GetTempPath(), "i0-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(Path.GetTempPath(), "i3071-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         host.SendLog("database directory: " + directory);
         // Development prereleases refuse LiteDatabase until this risk is acknowledged; other builds lack it.
