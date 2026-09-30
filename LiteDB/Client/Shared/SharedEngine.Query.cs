@@ -375,6 +375,16 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Readers streaming under the mutex end with their ownership, like the
+        /// operation engine: a later read would no longer be ordered with writers.
+        /// </summary>
+        private void CloseMutexSnapshotsLocked()
+        {
+            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
+            _mutexSnapshots.Clear();
+        }
+
+        /// <summary>
         /// Close a snapshot that streamed under the mutex, unless the connection's
         /// Dispose or an exited mutex owner already closed it.
         /// </summary>

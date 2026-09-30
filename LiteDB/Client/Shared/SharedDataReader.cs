@@ -26,9 +26,9 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// A reader that keeps its connection's native ownership until disposed. Each read runs
-        /// in a frame of that connection, so a callback it invokes cannot wait for the ownership
-        /// through another connection.
+        /// A reader that keeps its connection's native ownership until disposed. Each read, and
+        /// the disposal, runs in a frame of that connection, so a callback it invokes cannot wait
+        /// for the ownership through another connection.
         /// </summary>
         internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains)
             : this(reader, dispose)
@@ -72,9 +72,16 @@ namespace LiteDB
 
             if (disposing)
             {
-                try { _reader.Dispose(); }
-                finally { _dispose(); }
+                if (_retains == null) this.Close();
+                // Ending the ownership can close its engine, which writes through caller streams.
+                else using (SharedCallFrames.Enter(_namespace, _connection, _retains)) this.Close();
             }
+        }
+
+        private void Close()
+        {
+            try { _reader.Dispose(); }
+            finally { _dispose(); }
         }
     }
 }

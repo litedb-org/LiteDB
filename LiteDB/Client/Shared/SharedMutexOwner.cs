@@ -115,6 +115,12 @@ namespace LiteDB.Client.Shared
             get { lock (_sync) return ReferenceEquals(_owner, Thread.CurrentThread); }
         }
 
+        /// <summary>Whether any thread of the connection owns the mutex now.</summary>
+        public bool IsHeld
+        {
+            get { lock (_sync) return _owner != null; }
+        }
+
         /// <summary>
         /// Acquire, or enter recursively on the owner thread. Returns true when the
         /// OS reported the mutex abandoned by another process.

@@ -60,8 +60,7 @@ namespace LiteDB
         private T Call<T>(Func<T> call)
         {
             var depth = this.AdmittedDepth();
-            var frame = SharedCallFrames.Enter(_mutexName, this,
-                _callRetains ?? (_callRetains = this.RetainsOwnershipOnCurrentThread));
+            var frame = this.OwnershipFrame(this.CallRetains);
             try
             {
                 return call();
@@ -72,6 +71,8 @@ namespace LiteDB
                 this.EndAdmissions(depth);
             }
         }
+
+        private Func<bool> CallRetains => _callRetains ?? (_callRetains = this.RetainsOwnershipOnCurrentThread);
 
         /// <summary>
         /// Whether a call of this connection executing on the current thread keeps the native
@@ -84,6 +85,16 @@ namespace LiteDB
             var pin = _pin;
             return pin != null && pin.IsOperatingOn(Thread.CurrentThread);
         }
+
+        // A holder thread owns the OS mutex until the close it runs has returned.
+        private static readonly Func<bool> HolderRetains = () => true;
+
+        /// <summary>
+        /// Frame for work outside a public call that can run user code (a caller stream while
+        /// an engine closes) under the mutex; <paramref name="retains"/> tells whether it still holds it.
+        /// </summary>
+        private SharedCallFrames.Scope OwnershipFrame(Func<bool> retains) =>
+            SharedCallFrames.Enter(_mutexName, this, retains);
 
         /// <summary>
         /// A reader streaming under the ownership of <paramref name="use"/>, or else of the
@@ -102,8 +113,9 @@ namespace LiteDB
         /// another connection to this database retains the mutex on this thread, for example
         /// when its input sequence or ReadTransform callback calls this connection. The wait
         /// could never end, because that ownership is released only after the callback returns.
-        /// An idle owner (a reader, pin or transaction between calls) is not in a frame; it can
-        /// still end on another thread or at its limits, so waiting for it remains valid.
+        /// An idle owner (a reader, pin or transaction between calls) is not in a frame and is
+        /// still waited for: a pin ends for the waiter and a result may be disposed on any thread.
+        /// An explicit transaction completes only on its own thread (#3073).
         /// </summary>
         private void ThrowIfCallerRetainsOwnership()
         {

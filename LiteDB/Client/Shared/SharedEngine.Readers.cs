@@ -157,6 +157,11 @@ namespace LiteDB
         /// </summary>
         private void ClosePin(SharedMutexPin pin, bool abandoned)
         {
+            using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
+        }
+
+        private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
+        {
             if (ReferenceEquals(_pin, pin)) _pin = null;
             if (!pin.Counted) return;
 
@@ -213,7 +218,7 @@ namespace LiteDB
                     this.AdmitLocked();
                 }
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
-                this.CloseFinally();
+                using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -245,7 +250,7 @@ namespace LiteDB
             try
             {
                 if (abandoned || _engine != null || _transactionRunning) return;
-                this.CloseFinally();
+                using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is LiteException)
             {
