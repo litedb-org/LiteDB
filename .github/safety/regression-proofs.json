@@ -18,6 +18,19 @@
         "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
         "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
       ]
+    },
+    {
+      "repro": "Issue_3071_SharedPeerCallback",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Caught_refusal_lets_the_outer_write_complete",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Leased_reader_callback_may_write_through_peer",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
+        "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
+      ]
     }
   ]
 }

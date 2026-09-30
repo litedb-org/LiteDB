@@ -20,6 +20,8 @@ namespace LiteDB
         internal TimeSpan PinIdleLimit { get; set; } = SharedMutexPin.IdleLimit;
 
         internal TimeSpan PinHoldLimit { get; set; } = SharedMutexPin.HoldLimit;
+
+        internal SharedMutexPin Pin => _pin;
 #else
         private TimeSpan PinIdleLimit => SharedMutexPin.IdleLimit;
 
@@ -98,6 +100,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin StartPin()
         {
+            this.ThrowIfCallerRetainsOwnership();
             this.RetireCoordinatedReads();
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
@@ -153,6 +156,11 @@ namespace LiteDB
         /// readers and transactions; nothing else can use it after the release.
         /// </summary>
         private void ClosePin(SharedMutexPin pin, bool abandoned)
+        {
+            using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
+        }
+
+        private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
         {
             if (ReferenceEquals(_pin, pin)) _pin = null;
             if (!pin.Counted) return;
@@ -210,7 +218,7 @@ namespace LiteDB
                     this.AdmitLocked();
                 }
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
-                this.CloseFinally();
+                using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -242,7 +250,7 @@ namespace LiteDB
             try
             {
                 if (abandoned || _engine != null || _transactionRunning) return;
-                this.CloseFinally();
+                using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is LiteException)
             {

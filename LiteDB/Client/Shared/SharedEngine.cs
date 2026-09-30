@@ -69,7 +69,7 @@ namespace LiteDB
                 SharedFileHandles.IsSupportedFor(_settings.Filename))
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
-            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
+            var name = _mutexName = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {
@@ -218,6 +218,8 @@ namespace LiteDB
         /// </summary>
         private void OnOwnerExited()
         {
+            // The mutex stays owned until this cleanup returns; its closes reach caller streams.
+            using (this.OwnershipFrame(HolderRetains))
             lock (_useLock)
             {
                 _databaseUsers = 0;
@@ -462,6 +464,8 @@ namespace LiteDB
             // Calls admitted before Dispose started finish first; later ones are refused.
             this.WaitForAdmittedCalls();
             var closed = false;
+            // The ownership an open engine implies ends only after ReleaseAll below.
+            using (this.OwnershipFrame(() => _owner.IsHeld))
             lock (_useLock)
             {
                 if (_engine != null)
@@ -485,16 +489,6 @@ namespace LiteDB
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
             this.DisposeCoordination();
-        }
-
-        /// <summary>
-        /// Readers streaming under the mutex end with their ownership, like the
-        /// operation engine: a later read would no longer be ordered with writers.
-        /// </summary>
-        private void CloseMutexSnapshotsLocked()
-        {
-            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
-            _mutexSnapshots.Clear();
         }
     }
 }
