@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
+using LiteDB.Client.Shared;
 
 namespace LiteDB
 {
@@ -11,6 +12,10 @@ namespace LiteDB
     {
         private readonly IBsonDataReader _reader;
         private readonly Action _dispose;
+        // Set when the reader streams under its connection's native ownership.
+        private readonly string _namespace;
+        private readonly object _connection;
+        private readonly Func<bool> _retains;
 
         private int _disposed;
 
@@ -18,6 +23,19 @@ namespace LiteDB
         {
             _reader = reader;
             _dispose = dispose;
+        }
+
+        /// <summary>
+        /// A reader that keeps its connection's native ownership until disposed. Each read runs
+        /// in a frame of that connection, so a callback it invokes cannot wait for the ownership
+        /// through another connection.
+        /// </summary>
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains)
+            : this(reader, dispose)
+        {
+            _namespace = ns;
+            _connection = connection;
+            _retains = retains;
         }
 
         public BsonValue this[string field] => _reader[field];
@@ -28,7 +46,11 @@ namespace LiteDB
 
         public bool HasValues => _reader.HasValues;
 
-        public bool Read() => _reader.Read();
+        public bool Read()
+        {
+            if (_retains == null) return _reader.Read();
+            using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _reader.Read();
+        }
 
         public void Dispose()
         {

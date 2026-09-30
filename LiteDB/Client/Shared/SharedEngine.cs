@@ -69,7 +69,7 @@ namespace LiteDB
                 SharedFileHandles.IsSupportedFor(_settings.Filename))
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
-            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
+            var name = _mutexName = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {

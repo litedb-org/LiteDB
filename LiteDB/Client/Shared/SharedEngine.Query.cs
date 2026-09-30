@@ -171,7 +171,7 @@ namespace LiteDB
                 use?.ToHold();
                 // Any thread may dispose the reader and so end its mutex ownership.
                 var generation = use == null ? _owner.Generation : -1;
-                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true, generation));
+                return this.RetainingReader(reader, () => this.CloseDatabase(use, hold: true, generation), use, generation);
             }
             catch
             {
@@ -277,11 +277,11 @@ namespace LiteDB
                     snapshot = null;
                     reader = null;
                     release = false;
-                    return new SharedDataReader(continued, () =>
+                    return this.RetainingReader(continued, () =>
                     {
                         try { this.CloseMutexSnapshot(locked); }
                         finally { _owner.Exit(generation); }
-                    });
+                    }, null, generation);
                 }
 
                 var ownedSnapshot = snapshot;

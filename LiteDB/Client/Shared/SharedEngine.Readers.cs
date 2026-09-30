@@ -20,6 +20,8 @@ namespace LiteDB
         internal TimeSpan PinIdleLimit { get; set; } = SharedMutexPin.IdleLimit;
 
         internal TimeSpan PinHoldLimit { get; set; } = SharedMutexPin.HoldLimit;
+
+        internal SharedMutexPin Pin => _pin;
 #else
         private TimeSpan PinIdleLimit => SharedMutexPin.IdleLimit;
 
@@ -98,6 +100,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin StartPin()
         {
+            this.ThrowIfCallerRetainsOwnership();
             this.RetireCoordinatedReads();
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
