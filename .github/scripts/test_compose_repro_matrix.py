@@ -50,11 +50,13 @@ class ReproMatrixTests(unittest.TestCase):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
                 self.assertEqual(count, len(entries))
                 self.assertEqual({"Issue_2561_TransactionMonitor"}, {e["repro"] for e in entries})
-                self.assertEqual(2, len(skipped))
+                # Every retired repro is reported as skipped, none silently dropped.
+                retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
+                self.assertEqual(len(retired), len(skipped))
 
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
-        self.assertEqual(8, len(entries))
+        self.assertEqual(11, len(entries))
         self.assertEqual([], skipped)
 
     def test_new_repros_are_not_silently_retired(self):

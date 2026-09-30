@@ -52,16 +52,20 @@ namespace LiteDB.Tests.Engine
         /// <summary>
         /// The outer connection. A ReadTransform (by default the identity) makes every write
         /// with a lazy input and every read able to run user code under the mutex. Pins end
-        /// only when requested or for a waiter, never at their idle or total limit.
+        /// only when requested or for a waiter, never at their idle or total limit. An
+        /// <paramref name="unleased"/> connection cannot register reader leases, so its readers
+        /// stream under the mutex.
         /// </summary>
-        protected SharedEngine OpenOuter(bool encrypted, Func<string, BsonValue, BsonValue> transform = null)
+        protected SharedEngine OpenOuter(bool encrypted, Func<string, BsonValue, BsonValue> transform = null, bool unleased = false)
         {
-            var engine = new SharedEngine(new EngineSettings
+            var settings = new EngineSettings
             {
                 Filename = this.Filename,
                 Password = Password(encrypted),
                 ReadTransform = transform ?? ((_, value) => value)
-            });
+            };
+            if (unleased) settings.SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied");
+            var engine = new SharedEngine(settings);
             engine.PinIdleLimit = Forever;
             engine.PinHoldLimit = Forever;
             return this.Track(engine);

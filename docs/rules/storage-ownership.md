@@ -15,6 +15,11 @@ stop unsafe continuation, and make detected corruption visible.
 - Distinguish a transaction created by an operation from one it joined. A failed
   `BeginTrans`/join result or an occupied shared mutex alone does not establish
   explicit-transaction ownership. Include transparent public engine decorators.
+- User callbacks (lazy inputs, ReadTransform, custom streams) run inside the
+  ownership of their call or streamed result. A new blocking Shared acquisition
+  path must check the thread's executing frames (`SharedCallFrames`) before it
+  waits, so a callback cannot wait on ownership only its own return releases.
+  Refuse only for frames that execute; idle owners must remain waitable.
 - Keep publication, ownership handoff, and cleanup ordered. Cleanup after releasing
   a lock must not erase the next owner's state. Check abandoned-owner paths as
   well as ordinary completion.

@@ -16,13 +16,16 @@ namespace LiteDB.Tests.Engine
     [Collection(nameof(SharedPeerCallbackCollection))]
     public class SharedPeerReaderCallback_Tests : SharedPeerCallbackFixture
     {
-        /// <summary>Owner: the reader keeps the connection's ownership. Pin: it holds the thread's pin.</summary>
-        public enum ReaderRoute { Owner, Pin }
+        /// <summary>
+        /// Owner: a write query keeps the connection's ownership. Pin: it holds the thread's pin.
+        /// Unleased: without a reader lease, a plain read streams its snapshot under the ownership.
+        /// </summary>
+        public enum ReaderRoute { Owner, Pin, Unleased }
 
         private Action _onRead;
 
         public static IEnumerable<object[]> RouteCases() =>
-            from route in new[] { ReaderRoute.Owner, ReaderRoute.Pin }
+            from route in new[] { ReaderRoute.Owner, ReaderRoute.Pin, ReaderRoute.Unleased }
             from encrypted in new[] { false, true }
             select new object[] { route, encrypted };
 
@@ -40,7 +43,7 @@ namespace LiteDB.Tests.Engine
         public void Peer_write_from_retaining_reader_callback_is_refused(ReaderRoute route, bool encrypted)
         {
             this.Seed(this.Filename, encrypted, rows: 3);
-            var outer = this.OpenOuter(encrypted, this.Transform);
+            var outer = this.OpenOuter(encrypted, this.Transform, unleased: route == ReaderRoute.Unleased);
             var peer = this.OpenPeer(this.Filename, encrypted);
             var retained = false;
             Exception refusal = null;
@@ -58,7 +61,7 @@ namespace LiteDB.Tests.Engine
                 }
                 try
                 {
-                    using var reader = outer.Query("rows", new Query { ForUpdate = true });
+                    using var reader = outer.Query("rows", new Query { ForUpdate = route != ReaderRoute.Unleased });
                     reader.Read().Should().BeTrue();
                     read.Add(reader.Current["_id"].AsInt32);
                     _onRead = () =>
