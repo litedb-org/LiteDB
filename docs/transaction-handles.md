@@ -137,7 +137,13 @@ do not begin a second handle on the only thread able to complete the first.
 Operations that would wait for writer ownership that only the executing handle can
 release are refused with `InvalidOperationException` before waiting: an ordinary call
 on the same database (through any connection) from a handle callback, or a begin from
-inside an ordinary call or reader retaining the mutex on that thread. Work on other
+inside an ordinary call or reader retaining the mutex on that thread. The begin-side
+refusal covers this connection's retained ownership and executing calls of any
+connection. A begin from a thread that retains ownership through *another*
+connection to the same file (an open legacy transaction or locking reader of that
+connection) waits, as an ordinary write in that situation does; dispose that
+connection from another thread to let it proceed
+([#3073](https://github.com/litedb-org/LiteDB/issues/3073)). Work on other
 databases remains independent. The holder does not retain the caller's execution
 context, settings subclass or collation object, so a handle abandoned together with
 its database releases writer ownership after finalization.
