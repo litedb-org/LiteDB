@@ -76,7 +76,7 @@ lock-timeout error instead of waiting for work that only its own return can rele
 | Read-only Direct/Shared | Queries and completion; writes are refused and leave the handle active |
 | Shared memory/temporary storage or caller-supplied streams | `NotSupportedException` before admission |
 | Shared begin or operation under Windows thread impersonation (including an anonymous token) | `NotSupportedException` before admission or side effects; the handle stays usable from a non-impersonating thread |
-| Coordinated, custom or decorated engines | `NotSupportedException`; legacy/ordinary use unchanged |
+| Experimental `CoordinatedEngine`, custom or decorated `ILiteEngine` implementations | `NotSupportedException` before side effects; legacy/ordinary use unchanged |
 | Typed/BSON collections, bulk input, queries, Include, vector queries | Yes |
 | Index creation/removal, `GetCollectionNames`, `CollectionExists`, `$cols`/`$indexes` | Yes |
 | Collection drop/rename | `NotSupportedException` before mutation |
@@ -110,8 +110,10 @@ Disposing the database refuses new handles, waits for a handle call executing on
 another thread to return, then rolls back every handle that is still active before
 releasing the engine, including with `disposeOnClose: false`. Disposing the database
 from inside an executing handle call throws `InvalidOperationException` before any
-state changes. The wait is not bounded; a bounded close with deferred cleanup is the
-session-lifetime contract of [#3067](https://github.com/litedb-org/LiteDB/issues/3067).
+state changes. The wait is not bounded: lock timeouts bound the call's own lock
+waits, but not application code it runs (input iterators, mappers, `ReadTransform`).
+A bounded close with deferred cleanup is the session-lifetime contract of
+[#3067](https://github.com/litedb-org/LiteDB/issues/3067).
 
 ## Shared mode
 
@@ -120,6 +122,12 @@ holder thread acquires it and opens a fresh storage core for the handle; the
 application's threads run the handle's operations on that core in turn. Commit,
 rollback or disposal closes the core and releases the mutex on the holder thread,
 so other processes and connections then proceed. Completed handles retain neither.
+
+Always dispose handles (`using`). A handle dropped without completion while its
+`LiteDatabase` stays alive keeps the writer mutex, blocking every other writer in
+every process, until the database is disposed: the database tracks its open handles,
+so they are not collected before it. A dropped handle is released by finalization
+only when its database is abandoned too.
 
 **While a Shared handle is open, every ordinary or legacy call to the same database
 that needs its writer mutex waits until the handle completes** — all writes, and reads
