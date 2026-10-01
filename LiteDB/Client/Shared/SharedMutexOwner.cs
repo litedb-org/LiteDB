@@ -122,13 +122,11 @@ namespace LiteDB.Client.Shared
             get { lock (_sync) return _owner != null; }
         }
 
-        /// <summary>
-        /// Acquire, or enter recursively on the owner thread. Returns true when the OS reported
-        /// the mutex abandoned by another process. Past <paramref name="deadline"/> (infinite by
-        /// default) the wait owns nothing and throws <see cref="SharedWaitTimeoutException"/>.
-        /// </summary>
+        /// <summary>Acquire, or enter recursively on the owner thread, without a time limit. Returns
+        /// true when the OS reported the mutex abandoned by another process.</summary>
         public bool Enter(bool scoped = false) => this.EnterWithin(scoped, default);
 
+        /// <summary>As <see cref="Enter"/>; past <paramref name="deadline"/> the wait owns nothing and throws <see cref="SharedWaitTimeoutException"/>.</summary>
         public bool EnterWithin(bool scoped, SharedWaitDeadline deadline)
         {
             if (this.TryRecurse()) return false;

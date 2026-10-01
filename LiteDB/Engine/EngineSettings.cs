@@ -70,6 +70,7 @@ namespace LiteDB.Engine
                 SharedMutexNameStrategy = this.SharedMutexNameStrategy,
                 SharedReaderFiles = this.SharedReaderFiles,
                 SharedWriterTimeout = this.SharedWriterTimeout,
+                SharedSelfWaitGrace = this.SharedSelfWaitGrace,
 #if DEBUG || TESTING
                 CheckpointStage = this.CheckpointStage,
 #endif
