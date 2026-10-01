@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Reflection;
@@ -105,6 +106,54 @@ namespace LiteDB.Tests.Engine
                 Assert.Equal(new[] { 1 }, query.ToArray().Select(row => row["_id"].AsInt32));
                 Assert.Equal(1, db.GetCollection("rows").Count());
                 Assert.NotNull(db.GetCollection("sentinel").FindById(9));
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void Reader_dispose_overlapping_a_handle_call_still_unregisters(bool shared, bool enumerator)
+        {
+            using var file = new TempFile();
+            var settings = new ConnectionString { Filename = file,
+                Connection = shared ? ConnectionType.Shared : ConnectionType.Direct };
+            using (var db = new LiteDatabase(settings))
+            {
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+                using var tx = db.BeginTransaction();
+                var rows = tx.GetCollection("rows");
+                rows.Insert(new BsonDocument { ["_id"] = 2 });
+                using var inside = new ManualResetEventSlim();
+                using var release = new ManualResetEventSlim();
+                IEnumerable<BsonDocument> Input()
+                {
+                    yield return new BsonDocument { ["_id"] = 3 };
+                    inside.Set();
+                    // The bulk insert executes on the handle while parked here.
+                    release.Wait(TimeSpan.FromSeconds(20));
+                }
+                var iterator = enumerator ? rows.FindAll().GetEnumerator() : null;
+                var reader = enumerator ? null : rows.Query().ExecuteReader();
+                Assert.True(enumerator ? iterator.MoveNext() : reader.Read());
+                var other = new Thread(() => rows.Insert(Input())) { IsBackground = true };
+                other.Start();
+                Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
+                // As a foreach ending on another thread: disposal is not refused, and the
+                // reader is released once the executing call returns.
+                var disposal = Record.Exception(() => { if (enumerator) iterator.Dispose(); else reader.Dispose(); });
+                release.Set();
+                Assert.True(other.Join(TimeSpan.FromSeconds(10)));
+                Assert.Null(disposal);
+                Assert.Equal(LiteTransactionState.Active, tx.State);
+                Assert.Throws<ObjectDisposedException>(() => enumerator ? iterator.MoveNext() : reader.Read());
+                tx.Commit();
+            }
+            for (var reopen = 0; reopen < 2; reopen++)
+            {
+                using var db = new LiteDatabase(settings);
+                Assert.Equal(new[] { 1, 2, 3 }, db.GetCollection("rows").FindAll().Select(row => row["_id"].AsInt32).OrderBy(id => id));
             }
         }
 

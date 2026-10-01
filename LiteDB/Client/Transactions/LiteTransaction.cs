@@ -17,6 +17,8 @@ namespace LiteDB
         private LiteDatabaseContext _client;
         private TransactionHandles _handles;
         private readonly HashSet<TransactionReader> _readers = new HashSet<TransactionReader>();
+        // Bound objects disposed while another call executes, released when that call returns.
+        private List<Action> _deferred;
         private Thread _executing;
         private bool _closing, _disposed;
 
@@ -82,10 +84,34 @@ namespace LiteDB
             return RunCore(action);
         }
 
-        internal bool DisposeBoundObject(Action action)
+        /// <summary>
+        /// Detach a bound reader or enumerator and release it, or have the handle's close or
+        /// completion release it. Disposal from a callback of the executing call is refused.
+        /// </summary>
+        internal void DisposeBoundObject(Action detach, Action release)
         {
-            if (!EnterCleanup()) return false;
-            return RunCore(() => { action(); return true; });
+            lock (_gate)
+            {
+                if (_closing || _disposed || State != LiteTransactionState.Active) { detach(); return; }
+                if (ReferenceEquals(_executing, Thread.CurrentThread))
+                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                detach();
+                // A foreach ending while another thread's call of this handle executes must not
+                // leave its reader registered (which refuses commit): release it after that call.
+                if (_executing != null) { (_deferred ?? (_deferred = new List<Action>())).Add(release); return; }
+                _executing = Thread.CurrentThread;
+            }
+            RunCore(() => { release(); return true; });
+        }
+
+        private void DisposeDeferred()
+        {
+            while (_deferred != null)
+            {
+                List<Action> pending;
+                lock (_gate) { pending = _deferred; _deferred = null; }
+                foreach (var dispose in pending) dispose();
+            }
         }
 
         private T RunCore<T>(Func<T> action)
@@ -93,7 +119,12 @@ namespace LiteDB
             try
             {
                 using var binding = TransactionContext.Enter(_transaction);
-                try { return action(); }
+                try
+                {
+                    var result = action();
+                    DisposeDeferred();
+                    return result;
+                }
                 catch (Exception error)
                 {
                     // Refusals before mutation leave the transaction usable. Any other statement
@@ -135,6 +166,8 @@ namespace LiteDB
                 _resources = null;
                 _handles = null;
                 _client = null;
+                // Completion closed every reader; deferred disposals have nothing left to release.
+                lock (_gate) _deferred = null;
                 handles.Completed(this);
             }
         }
@@ -201,6 +234,8 @@ namespace LiteDB
             try
             {
                 using var binding = TransactionContext.Enter(_transaction);
+                try { DisposeDeferred(); }
+                catch (Exception error) { Abort(error); throw; }
                 if (_readers.Count != 0) throw new InvalidOperationException("Close transaction-bound readers before committing.");
                 Exception failure = null;
                 try

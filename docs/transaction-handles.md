@@ -53,7 +53,10 @@ thread exits. Overlapping calls on one handle, and public reentry from its own
 callbacks, fail with `InvalidOperationException` before executing and do not abort
 the operation in progress. This covers mapping, query execution, enumeration,
 reader access, commit, rollback and disposal. The guard detects overlap, not
-accidental sequential sharing.
+accidental sequential sharing. One exception: disposing a bound reader or
+enumerator on another thread while a call of its handle executes (a `foreach`
+ending there) succeeds, and the reader is released when that call returns, so
+it never keeps commit refused.
 
 An ordinary call that needs a collection lock or exclusive maintenance held up
 by an *idle* handle waits for the existing lock timeout, like any other conflicting

@@ -26,13 +26,9 @@ namespace LiteDB
             public void Reset() => throw new NotSupportedException();
             public void Dispose()
             {
-                if (_inner == null) return;
-                if (!_owner.DisposeBoundObject(() =>
-                {
-                    var inner = _inner;
-                    _inner = null;
-                    inner?.Dispose();
-                })) _inner = null; // Session close owns cleanup; admitted calls retained their inner.
+                // The release may follow another thread's executing call of the handle.
+                var inner = _inner;
+                if (inner != null) _owner.DisposeBoundObject(() => _inner = null, inner.Dispose);
             }
         }
     }
@@ -51,13 +47,8 @@ namespace LiteDB
         public bool Read() { var inner = Inner; return _owner.Run(() => inner.Read(), Validate); }
         public void Dispose()
         {
-            if (_inner == null) return;
-            if (!_owner.DisposeBoundObject(() =>
-            {
-                var inner = _inner;
-                _inner = null;
-                inner?.Dispose();
-            })) _inner = null;
+            var inner = _inner;
+            if (inner != null) _owner.DisposeBoundObject(() => _inner = null, inner.Dispose);
         }
     }
 }
