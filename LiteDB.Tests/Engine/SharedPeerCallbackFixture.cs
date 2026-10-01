@@ -71,8 +71,13 @@ namespace LiteDB.Tests.Engine
             return this.Track(engine);
         }
 
-        protected LiteDatabase OpenPeer(string filename, bool encrypted) =>
-            this.Track(new LiteDatabase(new SharedEngine(new EngineSettings { Filename = filename, Password = Password(encrypted) })));
+        protected LiteDatabase OpenPeer(string filename, bool encrypted) => this.OpenPeer(filename, encrypted, out _);
+
+        protected LiteDatabase OpenPeer(string filename, bool encrypted, out SharedEngine engine)
+        {
+            engine = new SharedEngine(new EngineSettings { Filename = filename, Password = Password(encrypted) });
+            return this.Track(new LiteDatabase(engine));
+        }
 
         protected T Track<T>(T disposable) where T : IDisposable
         {

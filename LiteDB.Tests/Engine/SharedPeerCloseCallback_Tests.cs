@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Engine
                 // A user callback: even a one-row read then streams under a lease instead of buffering.
                 ReadTransform = (_, value) => value
             }));
-            var peer = this.OpenPeer(this.Filename, encrypted);
+            var peer = this.OpenPeer(this.Filename, encrypted, out var peerEngine);
             var called = 0;
             Exception refusal = null;
             Action callback = () =>
@@ -93,9 +93,14 @@ namespace LiteDB.Tests.Engine
                     case Close.LastLeasedReader:
                     {
                         // The last leased reader's disposal checkpoints what another connection left.
+                        // Rewriting a page the lease still reads keeps it in the WAL; the small write
+                        // stays below the peer's own close threshold.
                         var reader = outer.Query("rows", new Query());
                         reader.Read().Should().BeTrue();
-                        peer.GetCollection("rows").Insert(BigBatch(100));
+                        peer.GetCollection("rows").Update(Big(1)).Should().BeTrue();
+                        // That cleanup only tries the mutex: the peer's release must have completed.
+                        peerEngine.MutexOwner.WaitForRelease();
+                        File.Exists(FileHelper.GetLogFile(this.Filename)).Should().BeTrue("the lease prevents a full checkpoint");
                         data.Arm(callback);
                         reader.Dispose();
                         break;
@@ -124,7 +129,8 @@ namespace LiteDB.Tests.Engine
             error.Should().BeNull();
             called.Should().Be(1, "the close must write through the caller's data stream");
             refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("another connection");
-            expected.AddRange(close == Close.ConnectionCheckpoint ? new[] { 100 } : Enumerable.Range(100, BigRows));
+            if (close == Close.ConnectionCheckpoint) expected.Add(100);
+            else if (close != Close.LastLeasedReader) expected.AddRange(Enumerable.Range(100, BigRows));
 
             peer.GetCollection("rows").Insert(Row(9));
             this.CloseAll();
