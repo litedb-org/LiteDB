@@ -16,8 +16,10 @@ namespace LiteDB.Client.Shared
             new ConcurrentDictionary<string, SharedHandleActivity>(StringComparer.Ordinal);
 
         // Refusal only, never binding: a marked flow's ordinary calls still never enlist.
-        // A weak reference keeps captured execution contexts from rooting a handle.
-        private static readonly AsyncLocal<SharedHandleFlow> Flow = new AsyncLocal<SharedHandleFlow>();
+        // Weak references keep captured execution contexts from rooting a handle. The array is
+        // immutable, so inherited contexts never see each other's changes; it holds one marker
+        // per handle the flow uses, so using another database never erases an earlier one.
+        private static readonly AsyncLocal<SharedHandleFlow[]> Flow = new AsyncLocal<SharedHandleFlow[]>();
 
         internal static void Register(string mutexName, SharedHandleActivity activity) => Active[mutexName] = activity;
 
@@ -32,7 +34,12 @@ namespace LiteDB.Client.Shared
         /// <summary>Remember that the current async flow begins or uses this handle.</summary>
         internal static void Mark(SharedHandleFlow flow)
         {
-            if (!ReferenceEquals(Flow.Value, flow)) Flow.Value = flow;
+            var current = Flow.Value;
+            if (current != null && Array.IndexOf(current, flow) >= 0) return;
+            // Copy on write, dropping markers of completed or collected handles.
+            var next = new List<SharedHandleFlow>(current?.Length + 1 ?? 1) { flow };
+            if (current != null) foreach (var marker in current) if (marker.IsActive) next.Add(marker);
+            Flow.Value = next.ToArray();
         }
 
         /// <summary>
@@ -46,9 +53,11 @@ namespace LiteDB.Client.Shared
         internal static bool CurrentFlowHoldsOwner(string mutexName, TimeSpan idle)
         {
             if (Active.IsEmpty || !Active.TryGetValue(mutexName, out var owner)) return false;
-            var flow = Flow.Value;
-            return flow != null && string.Equals(flow.MutexName, mutexName, StringComparison.Ordinal) && flow.IsActive &&
-                (idle == TimeSpan.Zero || owner.Idle >= idle);
+            var markers = Flow.Value;
+            if (markers == null || (idle != TimeSpan.Zero && owner.Idle < idle)) return false;
+            foreach (var marker in markers)
+                if (string.Equals(marker.MutexName, mutexName, StringComparison.Ordinal) && marker.IsActive) return true;
+            return false;
         }
 
         internal static InvalidOperationException FlowSelfWait() => new InvalidOperationException(
@@ -56,16 +65,27 @@ namespace LiteDB.Client.Shared
             "Waiting for it here would never end: use the handle's collections, or complete the handle first.");
     }
 
-    /// <summary>Activity of the handle currently owning a Shared writer mutex.</summary>
+    /// <summary>
+    /// Activity of the handle currently owning a Shared writer mutex. Created once ownership is
+    /// acquired; a handle with an operation in flight is never idle.
+    /// </summary>
     internal sealed class SharedHandleActivity
     {
         internal readonly long Acquired = Stopwatch.GetTimestamp();
         private long _lastActive = Stopwatch.GetTimestamp();
+        private int _operations;
 
-        internal void Touch() => Volatile.Write(ref _lastActive, Stopwatch.GetTimestamp());
+        internal void OperationStarted() => Interlocked.Increment(ref _operations);
+
+        internal void OperationEnded()
+        {
+            // Stamp before leaving, so a concurrent check never sees an old idle interval.
+            Volatile.Write(ref _lastActive, Stopwatch.GetTimestamp());
+            Interlocked.Decrement(ref _operations);
+        }
 
         internal TimeSpan Held => Since(Acquired);
-        internal TimeSpan Idle => Since(Volatile.Read(ref _lastActive));
+        internal TimeSpan Idle => Volatile.Read(ref _operations) > 0 ? TimeSpan.Zero : Since(Volatile.Read(ref _lastActive));
 
         private static TimeSpan Since(long timestamp) =>
             TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - timestamp) / (double)Stopwatch.Frequency);

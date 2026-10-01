@@ -21,11 +21,14 @@ namespace LiteDB
         private bool _closing, _disposed;
         // Shared only: marks the async flows that use this handle (refusal of self-waits only).
         private readonly LiteDB.Client.Shared.SharedHandleFlow _flow;
+        // Shared only: tells waiting flows whether an operation of this handle is in flight.
+        private readonly LiteDB.Client.Shared.SharedHandleActivity _activity;
 
         internal LiteTransaction(TransactionResources resources, BsonMapper mapper, TransactionHandles handles)
         {
             _resources = resources;
             _handles = handles;
+            _activity = resources.Activity;
             _transaction = new TransactionContext(resources.Engine, resources.SharedMutexName);
             _client = new LiteDatabaseContext(new TransactionEngine(this), mapper);
             try
@@ -64,13 +67,14 @@ namespace LiteDB
                 if (!terminalAllowed && State != LiteTransactionState.Active)
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
             }
             if (_flow != null) LiteDB.Client.Shared.SharedHandleRegistry.Mark(_flow);
         }
 
         private void Exit()
         {
-            _resources?.Activity?.Touch();
+            _activity?.OperationEnded();
             lock (_gate)
             {
                 _executing = null;
@@ -252,6 +256,7 @@ namespace LiteDB
                 if (_closing || _disposed || State != LiteTransactionState.Active) return false;
                 if (_executing != null) throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
                 return true;
             }
         }
@@ -277,6 +282,7 @@ namespace LiteDB
                 while (_executing != null) Monitor.Wait(_gate);
                 if (_disposed) return;
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
             }
             try { DisposeCore(); }
             finally { Exit(); }

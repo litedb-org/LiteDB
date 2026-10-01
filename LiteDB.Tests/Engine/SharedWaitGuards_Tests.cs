@@ -12,15 +12,15 @@ namespace LiteDB.Tests.Engine
     /// <summary>Shared-mode self-wait refusal, SharedWriterTimeout and wait diagnostics (#3080).</summary>
     public class SharedWaitGuards_Tests
     {
-        private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["value"] = id * 10 };
+        internal static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["value"] = id * 10 };
 
-        private static EngineSettings Settings(string file, string password = null, TimeSpan? timeout = null, TimeSpan? grace = null) =>
+        internal static EngineSettings Settings(string file, string password = null, TimeSpan? timeout = null, TimeSpan? grace = null) =>
             new EngineSettings { Filename = file, Password = password, SharedWriterTimeout = timeout ?? Timeout.InfiniteTimeSpan,
                 SharedSelfWaitGrace = grace ?? Timeout.InfiniteTimeSpan };
 
-        private static readonly TimeSpan Immediately = TimeSpan.Zero;
+        internal static readonly TimeSpan Immediately = TimeSpan.Zero;
 
-        private static void Seed(string file, string password = null)
+        internal static void Seed(string file, string password = null)
         {
             using var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
             db.GetCollection("rows").Insert(Row(1));
@@ -28,7 +28,7 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("sentinel").Insert(Row(9));
         }
 
-        private static void Verify(string file, string password, params int[] ids)
+        internal static void Verify(string file, string password, params int[] ids)
         {
             for (var reopen = 0; reopen < 2; reopen++)
             {
@@ -41,17 +41,17 @@ namespace LiteDB.Tests.Engine
         }
 
         // The child task inherits nothing from the test thread's flow, and marks nothing on it.
-        private static Task<T> Unmarked<T>(Func<T> action)
+        internal static Task<T> Unmarked<T>(Func<T> action)
         {
             var flow = ExecutionContext.SuppressFlow();
             try { return Task.Run(action); }
             finally { flow.Undo(); }
         }
 
-        private static Task Unmarked(Action action) => Unmarked(() => { action(); return true; });
+        internal static Task Unmarked(Action action) => Unmarked(() => { action(); return true; });
 
         // A regressed refusal would wait for the handle; complete it so the host is not wedged.
-        private static void AssertRefusedWithin(Task call, ILiteTransaction holder)
+        internal static void AssertRefusedWithin(Task call, ILiteTransaction holder)
         {
             if (!call.Wait(TimeSpan.FromSeconds(10)))
             {

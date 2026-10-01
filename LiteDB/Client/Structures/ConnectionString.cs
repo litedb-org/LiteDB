@@ -189,8 +189,7 @@ namespace LiteDB
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
             this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
-            this.SharedWriterTimeout = _values.GetTimeout("shared writer timeout", this.SharedWriterTimeout);
-            this.SharedSelfWaitGrace = _values.GetTimeout("shared self wait grace", this.SharedSelfWaitGrace);
+            SharedWaitConnectionOptions.Read(_values, this);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -217,7 +216,7 @@ namespace LiteDB
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("durable commits", StringComparison.OrdinalIgnoreCase) ||
-                firstKey.Equals("shared writer timeout", StringComparison.OrdinalIgnoreCase) || firstKey.Equals("shared self wait grace", StringComparison.OrdinalIgnoreCase) ||
+                SharedWaitConnectionOptions.IsKey(firstKey) ||
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
@@ -458,6 +457,7 @@ namespace LiteDB
                     .Append(';');
             }
 
+            SharedWaitConnectionOptions.Append(bld, this);
             if (bld.Length == fileNameLength &&
                 !string.IsNullOrEmpty(Filename) &&
                 Filename == Filename.Trim() &&

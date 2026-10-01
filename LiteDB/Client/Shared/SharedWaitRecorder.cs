@@ -20,7 +20,9 @@ namespace LiteDB.Client.Shared
         private readonly string _mutexName;
         private readonly string _filename;
         private readonly TimeSpan _slowThreshold;
-        private readonly Action<SharedSlowWait> _slowWait;
+        // Weak: a handle's holder shares this recorder and must not root the application's
+        // observer (and through it a database or handle). The connection's settings keep it alive.
+        private readonly WeakReference<Action<SharedSlowWait>> _slowWait;
         private readonly long _created = Stopwatch.GetTimestamp();
         private readonly List<long> _active = new List<long>();
         private readonly Bucket[] _minutes = new Bucket[Minutes];
@@ -59,7 +61,7 @@ namespace LiteDB.Client.Shared
             _mutexName = mutexName;
             _filename = filename;
             _slowThreshold = slowThreshold;
-            _slowWait = slowWait;
+            _slowWait = slowWait == null ? null : new WeakReference<Action<SharedSlowWait>>(slowWait);
         }
 
         /// <summary>A wait in progress: when it began and the owner known then.</summary>
@@ -89,13 +91,14 @@ namespace LiteDB.Client.Shared
                 _total.Add(elapsed, timedOut);
                 this.Current(now).Add(elapsed, timedOut);
             }
-            if (_slowWait == null || _slowThreshold == Timeout.InfiniteTimeSpan || ToTime(elapsed) < _slowThreshold) return;
+            if (_slowWait == null || _slowThreshold == Timeout.InfiniteTimeSpan || ToTime(elapsed) < _slowThreshold ||
+                !_slowWait.TryGetTarget(out var observer)) return;
             var info = new SharedSlowWait(_filename, ToTime(elapsed), timedOut,
                 wait.HandleOwner ? SharedWriterOwner.TransactionHandle : SharedWriterOwner.Unknown);
             // The caller may own the native mutex now: never run application code here.
             ThreadPool.UnsafeQueueUserWorkItem(state =>
             {
-                try { _slowWait((SharedSlowWait)state); }
+                try { observer((SharedSlowWait)state); }
                 catch (Exception) { /* A diagnostic observer must not affect the database. */ }
             }, info);
         }

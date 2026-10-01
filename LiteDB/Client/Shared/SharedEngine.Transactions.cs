@@ -108,7 +108,8 @@ namespace LiteDB
             private readonly SharedEngine _child;
             private readonly SemaphoreSlim _gate;
             private readonly SharedWaitDeadline _deadline;
-            private readonly SharedHandleActivity _activity = new SharedHandleActivity();
+            // Created once ownership is acquired, so held/idle durations exclude the admission wait.
+            private SharedHandleActivity _activity;
             private readonly ManualResetEventSlim _opened = new ManualResetEventSlim();
             private readonly ManualResetEventSlim _close = new ManualResetEventSlim();
             private readonly ManualResetEventSlim _done = new ManualResetEventSlim();
@@ -162,7 +163,7 @@ namespace LiteDB
                     using (_deadline.Inherit()) _child.OpenDatabase(scoped: true, writing: !_child._settings.ReadOnly);
                     acquired = true;
                     _engine = _child._engine;
-                    SharedHandleRegistry.Register(_child._mutexName, _activity);
+                    SharedHandleRegistry.Register(_child._mutexName, _activity = new SharedHandleActivity());
                     _opened.Set();
                     _close.Wait();
                 }
@@ -172,7 +173,7 @@ namespace LiteDB
                     // Closing the core without commit discards uncommitted work, then
                     // releases native writer ownership on the thread that owns it.
                     if (acquired) this.Cleanup(() => _child.CloseDatabase());
-                    SharedHandleRegistry.Unregister(_child._mutexName, _activity);
+                    if (_activity != null) SharedHandleRegistry.Unregister(_child._mutexName, _activity);
                     this.Cleanup(() => _child.EndAdmissions(0));
                     this.Cleanup(_child.Dispose);
                     _gate.Release();
