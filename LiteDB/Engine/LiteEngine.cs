@@ -154,7 +154,7 @@ namespace LiteDB.Engine
                 }
 
                 // initialize locker service
-                _locker = new LockService(_header.Pragmas);
+                _locker = new LockService(_header.Pragmas, () => (object)TransactionContext.For(this) ?? Thread.CurrentThread);
 
                 // initialize wal-index service
                 _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
@@ -172,7 +172,7 @@ namespace LiteDB.Engine
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit, () => TransactionContext.For(this));
 
                 this.MigrateIndexOrdering();
                 _disk.TrimTrailingPages();
@@ -308,6 +308,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
             try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
             catch (Exception ex)
@@ -327,6 +328,7 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
+            this.ValidatePublicDispatch();
             this.Close();
         }
     }

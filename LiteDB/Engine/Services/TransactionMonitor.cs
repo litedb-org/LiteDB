@@ -13,8 +13,10 @@ namespace LiteDB.Engine
     internal class TransactionMonitor : IDisposable
     {
         private readonly TransactionRegistry _transactions = new TransactionRegistry();
-        private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
-        private readonly ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
+        // Legacy compatibility resolver: BeginTrans and automatic transactions are per thread.
+        // An explicit handle never consults it; it supplies its own slot while bound.
+        private readonly ThreadLocal<TransactionSlot> _legacy = new ThreadLocal<TransactionSlot>(() => new TransactionSlot());
+        private readonly Func<TransactionContext> _explicit;
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -36,7 +38,8 @@ namespace LiteDB.Engine
         public int TransactionPageLimit => _transactionPageLimit;
         public TransactionService[] GetTransactionsSnapshot() => _transactions.Snapshot().ToArray();
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit,
+            Func<TransactionContext> explicitContext = null)
         {
             if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));
 
@@ -45,12 +48,23 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _transactionPageLimit = transactionPageLimit;
+            _explicit = explicitContext;
         }
+
+        /// <summary>The explicit handle bound to this engine on the current thread, if any.</summary>
+        internal TransactionContext CurrentExplicit => _explicit?.Invoke();
+
+        /// <summary>The current thread's legacy slot, regardless of any bound handle.</summary>
+        internal TransactionSlot LegacySlot => _legacy.Value;
+
+        private TransactionSlot CurrentSlot => this.CurrentExplicit?.Slot ?? _legacy.Value;
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
-            var transaction = _slot.Value;
+            var explicitContext = this.CurrentExplicit;
+            var slot = explicitContext?.Slot ?? _legacy.Value;
+            var transaction = slot.Transaction;
 
             if (create && transaction == null)
             {
@@ -62,19 +76,23 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = Thread.CurrentThread;
+                var owner = new TransactionOwner(explicitContext, slot);
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
                     // exclusive admission. Take our lease before reserving an ID.
-                    _locker.EnterTransaction();
+                    _locker.EnterTransaction(owner.Admission);
                     enteredTransaction = true;
                     this.ThrowIfDisposed();
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly, owner);
                     _transactions.Add(transaction);
 
                     this.ThrowIfDisposed();
-                    if (queryOnly == false) _slot.Value = transaction;
+                    if (queryOnly == false)
+                    {
+                        slot.Transaction = transaction;
+                        if (explicitContext != null) explicitContext.Transaction = transaction;
+                    }
                 }
                 catch
                 {
@@ -85,7 +103,7 @@ namespace LiteDB.Engine
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction(owner);
+                        if (enteredTransaction) _locker.ExitTransaction(owner.Admission);
                     }
                     throw;
                 }
@@ -133,8 +151,10 @@ namespace LiteDB.Engine
                     // lease is released. Finish service cleanup before admitting it.
                     if (!transaction.QueryOnly)
                     {
-                        ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-                        _slot.Value = null;
+                        // A handle's transaction may complete on any thread; a legacy one on its own.
+                        ENSURE((transaction.Owner.Explicit != null || transaction.OwnerThread == Thread.CurrentThread) &&
+                            transaction.Owner.Slot.Transaction == transaction, "current thread must contains transaction parameter");
+                        transaction.Owner.Slot.Transaction = null;
                     }
                     _disk.Cache.TrimToLimit();
                 }
@@ -142,7 +162,7 @@ namespace LiteDB.Engine
                 {
                     if (removed)
                     {
-                        _locker.ExitTransaction(transaction.OwnerThread);
+                        _locker.ExitTransaction(transaction.Owner.Admission);
 #if DEBUG || TESTING
                         AfterTransactionExit?.Invoke();
 #endif
@@ -160,7 +180,7 @@ namespace LiteDB.Engine
             // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
             try
             {
-                _explicitAborted.Value = true;
+                this.CurrentSlot.ExplicitAborted = true;
             }
             catch (ObjectDisposedException)
             {
@@ -174,8 +194,9 @@ namespace LiteDB.Engine
         {
             try
             {
-                var aborted = _explicitAborted.Value;
-                if (aborted) _explicitAborted.Value = false;
+                var slot = this.CurrentSlot;
+                var aborted = slot.ExplicitAborted;
+                if (aborted) slot.ExplicitAborted = false;
                 return aborted;
             }
             catch (ObjectDisposedException)
@@ -191,7 +212,9 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
-            return _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
+            var explicitContext = this.CurrentExplicit;
+            if (explicitContext != null) return explicitContext.Slot.Transaction;
+            return _legacy.Value.Transaction ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 
         /// <summary>
@@ -212,10 +235,11 @@ namespace LiteDB.Engine
             foreach (var transaction in _transactions.Close())
             {
                 cleanup.Catch(transaction.Dispose);
+                // A handle's slot outlives the engine: never let it find a disposed transaction.
+                if (ReferenceEquals(transaction.Owner.Slot?.Transaction, transaction)) transaction.Owner.Slot.Transaction = null;
             }
 
-            cleanup.Catch(_slot.Dispose);
-            cleanup.Catch(_explicitAborted.Dispose);
+            cleanup.Catch(_legacy.Dispose);
             if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 

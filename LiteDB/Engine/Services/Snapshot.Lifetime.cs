@@ -25,7 +25,7 @@ namespace LiteDB.Engine
                 {
                     _collectionPage.Buffer.Release();
                 }
-                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);
+                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName, _transPages.LockOwner);
             }
             finally
             {

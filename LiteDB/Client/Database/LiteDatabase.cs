@@ -52,7 +52,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = connectionString.CreateEngine();
-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -75,7 +75,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
             _disposeOnClose = true;
 
             if (logStream == null && stream is not MemoryStream)
@@ -109,7 +109,7 @@ namespace LiteDB
             LiteDBPragmas.EnsurePreDevRiskAcknowledged();
 #endif
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
         }
 
@@ -173,17 +173,20 @@ namespace LiteDB
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
-        public bool BeginTrans() => _engine.BeginTrans();
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+        public bool BeginTrans() => _context.Engine.BeginTrans();
 
         /// <summary>
         /// Commit the current thread transaction; throws if only other threads have explicit transactions.
         /// </summary>
-        public bool Commit() => _engine.Commit();
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+        public bool Commit() => _context.Engine.Commit();
 
         /// <summary>
         /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
         /// </summary>
-        public bool Rollback() => _engine.Rollback();
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+        public bool Rollback() => _context.Engine.Rollback();
 
         #endregion
 
@@ -244,7 +247,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return _engine.DropCollection(name);
+            return _context.Engine.DropCollection(name);
         }
 
         /// <summary>
@@ -255,7 +258,7 @@ namespace LiteDB
             if (oldName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(oldName));
             if (newName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(newName));
 
-            return _engine.RenameCollection(oldName, newName);
+            return _context.Engine.RenameCollection(oldName, newName);
         }
 
         #endregion
@@ -270,7 +273,7 @@ namespace LiteDB
             if (commandReader == null) throw new ArgumentNullException(nameof(commandReader));
 
             var tokenizer = new Tokenizer(commandReader);
-            var sql = new SqlParser(_engine, tokenizer, parameters);
+            var sql = new SqlParser(_context.Engine, tokenizer, parameters);
             var reader = sql.Execute();
 
             return reader;
@@ -312,7 +315,7 @@ namespace LiteDB
         /// </summary>
         public void Checkpoint()
         {
-            _engine.Checkpoint();
+            _context.Engine.Checkpoint();
         }
 
         /// <summary>
@@ -321,7 +324,7 @@ namespace LiteDB
         /// </summary>
         public long Rebuild(RebuildOptions options = null)
         {
-            return _engine.Rebuild(options);
+            return _context.Engine.Rebuild(options);
         }
 
         #endregion
@@ -333,7 +336,7 @@ namespace LiteDB
         /// </summary>
         public BsonValue Pragma(string name)
         {
-            return _engine.Pragma(name);
+            return _context.Engine.Pragma(name);
         }
 
         /// <summary>
@@ -341,7 +344,7 @@ namespace LiteDB
         /// </summary>
         public BsonValue Pragma(string name, BsonValue value)
         {
-            return _engine.Pragma(name, value);
+            return _context.Engine.Pragma(name, value);
         }
 
         /// <summary>
@@ -349,8 +352,8 @@ namespace LiteDB
         /// </summary>
         public int UserVersion
         {
-            get => _engine.Pragma(Pragmas.USER_VERSION);
-            set => _engine.Pragma(Pragmas.USER_VERSION, value);
+            get => _context.Engine.Pragma(Pragmas.USER_VERSION);
+            set => _context.Engine.Pragma(Pragmas.USER_VERSION, value);
         }
 
         /// <summary>
@@ -358,8 +361,8 @@ namespace LiteDB
         /// </summary>
         public TimeSpan Timeout
         {
-            get => TimeSpan.FromSeconds(_engine.Pragma(Pragmas.TIMEOUT).AsInt32);
-            set => _engine.Pragma(Pragmas.TIMEOUT, (int)value.TotalSeconds);
+            get => TimeSpan.FromSeconds(_context.Engine.Pragma(Pragmas.TIMEOUT).AsInt32);
+            set => _context.Engine.Pragma(Pragmas.TIMEOUT, (int)value.TotalSeconds);
         }
 
         /// <summary>
@@ -367,8 +370,8 @@ namespace LiteDB
         /// </summary>
         public bool UtcDate
         {
-            get => _engine.Pragma(Pragmas.UTC_DATE);
-            set => _engine.Pragma(Pragmas.UTC_DATE, value);
+            get => _context.Engine.Pragma(Pragmas.UTC_DATE);
+            set => _context.Engine.Pragma(Pragmas.UTC_DATE, value);
         }
 
         /// <summary>
@@ -376,8 +379,8 @@ namespace LiteDB
         /// </summary>
         public long LimitSize
         {
-            get => _engine.Pragma(Pragmas.LIMIT_SIZE);
-            set => _engine.Pragma(Pragmas.LIMIT_SIZE, value);
+            get => _context.Engine.Pragma(Pragmas.LIMIT_SIZE);
+            set => _context.Engine.Pragma(Pragmas.LIMIT_SIZE, value);
         }
 
         /// <summary>
@@ -386,8 +389,8 @@ namespace LiteDB
         /// </summary>
         public int CheckpointSize
         {
-            get => _engine.Pragma(Pragmas.CHECKPOINT);
-            set => _engine.Pragma(Pragmas.CHECKPOINT, value);
+            get => _context.Engine.Pragma(Pragmas.CHECKPOINT);
+            set => _context.Engine.Pragma(Pragmas.CHECKPOINT, value);
         }
 
         /// <summary>
@@ -395,7 +398,7 @@ namespace LiteDB
         /// </summary>
         public Collation Collation
         {
-            get => new Collation(_engine.Pragma(Pragmas.COLLATION).AsString);
+            get => new Collation(_context.Engine.Pragma(Pragmas.COLLATION).AsString);
         }
 
         #endregion
@@ -413,14 +416,31 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing && _disposeOnClose)
-            {
-                if (_checkpointOverride.HasValue)
-                {
-                    _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
-                }
+            if (!disposing) return;
 
-                _engine.Dispose();
+            // Explicit handles belong to this facade, even over a caller-owned engine.
+            // Closing from inside an executing handle call is refused before any change.
+            _transactionHandles.ThrowIfClosingFromHandleCall();
+            try
+            {
+                _transactionHandles.Close();
+            }
+            finally
+            {
+                if (_disposeOnClose)
+                {
+                    try
+                    {
+                        if (_checkpointOverride.HasValue)
+                        {
+                            _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
+                        }
+                    }
+                    finally
+                    {
+                        _engine.Dispose();
+                    }
+                }
             }
         }
     }
