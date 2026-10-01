@@ -55,14 +55,29 @@ namespace LiteDB
             get { lock (_gate) return ReferenceEquals(_executing, Thread.CurrentThread); }
         }
 
+        /// <summary>Whether a call of this handle executes on any thread.</summary>
+        internal bool IsExecuting
+        {
+            get { lock (_gate) return _executing != null; }
+        }
+
+        /// <summary>Database close: refuse calls not yet admitted; an idle handle then stays idle.</summary>
+        internal void RefuseNewCalls()
+        {
+            lock (_gate) _closing = true;
+        }
+
         private void Enter(bool terminalAllowed = false)
         {
             // Before any side effect: the handle stays usable from a non-impersonating thread.
             if (_shared) Client.Shared.TransactionHolderContext.Validate();
             lock (_gate)
             {
+                // A sequential call that lands during close sees the close, not an overlap;
+                // reentry from the executing call's own callbacks is still reported as such.
+                if ((_closing || _disposed) && !ReferenceEquals(_executing, Thread.CurrentThread))
+                    throw new ObjectDisposedException(nameof(ILiteTransaction));
                 if (_executing != null) throw new InvalidOperationException("Overlapping or reentrant transaction handle use is not supported.");
-                if (_closing || _disposed) throw new ObjectDisposedException(nameof(ILiteTransaction));
                 if (!terminalAllowed && State != LiteTransactionState.Active)
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
