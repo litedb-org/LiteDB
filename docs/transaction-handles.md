@@ -58,9 +58,10 @@ enumerator on another thread while a call of its handle executes (a `foreach`
 ending there) succeeds; the reader is released after that call, at the latest
 by the handle's next call or completion, so it never keeps commit refused.
 
-An ordinary call that needs a collection lock or exclusive maintenance held up
-by an *idle* handle waits for the existing lock timeout, like any other conflicting
-transaction; when the same flow must complete that handle, it then fails.
+In Direct mode an ordinary call that needs a collection lock or exclusive
+maintenance held up by an *idle* handle waits for the existing lock timeout, like any
+other conflicting transaction; when the same flow must complete that handle, it then
+fails. In Shared mode the wait for the writer mutex has no timeout (see below).
 
 Raw `LiteEngine` calls from a bound callback are rejected before side effects. An
 ordinary callback write that needs a collection lock held by the executing handle,
@@ -73,7 +74,7 @@ lock-timeout error instead of waiting for work that only its own return can rele
 | --- | --- |
 | Direct (file, memory, temporary, caller streams) | Yes |
 | Shared, filename-backed | Yes; see below |
-| Read-only Direct/Shared | Queries and completion; writes are refused and leave the handle active |
+| Read-only Direct/Shared | Queries and completion; writes are refused and leave the handle active. A read-only Shared handle still owns the writer mutex while open |
 | Shared memory/temporary storage or caller-supplied streams | `NotSupportedException` before admission |
 | Shared begin or operation under Windows thread impersonation (including an anonymous token) | `NotSupportedException` before admission or side effects; the handle stays usable from a non-impersonating thread |
 | Experimental `CoordinatedEngine`, custom or decorated `ILiteEngine` implementations | `NotSupportedException` before side effects; legacy/ordinary use unchanged |
@@ -134,19 +135,25 @@ abandoned too.
 **While a Shared handle is open, every ordinary or legacy call to the same database
 that needs its writer mutex waits until the handle completes** — all writes, and reads
 other than those served by a qualified mapped snapshot on .NET 8+, through any
-connection. Unlike a legacy `BeginTrans` block, whose same-thread calls join it, such a
+connection. Once a handle's transaction exceeds its page limit and spills
+uncommitted pages to the WAL, mapped reads fall back to the mutex too until it
+completes, as with a spilled legacy transaction. Unlike a legacy `BeginTrans` block, whose same-thread calls join it, such a
 call made by the code that will later complete the handle (for example after an
 `await`) never returns. Obtain everything the flow needs from the handle, or complete
 the handle first. Direct mode has no such wait outside collection locks and exclusive maintenance.
 
 At most one handle per database (mutex name) in a process proceeds to native
 admission; later begins wait on their own threads, never on an extra holder. As with
-existing Shared writers, `BeginTransaction()` waits until the current owner releases;
-do not begin a second handle on the only thread able to complete the first.
+existing Shared writers, `BeginTransaction()` waits, without a timeout, until the
+current owner releases; do not begin a second handle on the only thread able to
+complete the first. A handle belongs to its `LiteDatabase`: disposing a caller-owned
+`SharedEngine` underneath (`disposeOnClose: false`) does not end it; dispose the
+handles or the database.
 
 Operations that would wait for writer ownership that only the executing handle can
 release are refused with `InvalidOperationException` before waiting: an ordinary call
-on the same database (through any connection) from a handle callback, or a begin from
+on the same database (through any connection) from a handle callback that needs the
+writer mutex (a read served by a mapped snapshot proceeds), or a begin from
 inside an ordinary call or reader retaining the mutex on that thread. The begin-side
 refusal covers this connection's retained ownership and executing calls of any
 connection. A begin from a thread that retains ownership through *another*
