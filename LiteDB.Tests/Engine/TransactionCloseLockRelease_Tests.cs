@@ -99,6 +99,37 @@ namespace LiteDB.Tests.Engine
         }
 #pragma warning restore CS0618
 
+        [Fact]
+        public void Legacy_owner_finishing_after_close_sees_the_disposal_not_corruption()
+        {
+            // An ordinary or legacy commit racing close releases its transaction after the
+            // monitor closed: dev reported ObjectDisposedException, never INVALID_DATAFILE_STATE.
+            using var file = new TempFile();
+            var engine = new LiteEngine(new EngineSettings { Filename = file });
+            engine.Insert("rows", new[] { Row(0) }, BsonAutoId.Int32);
+            var monitor = engine.GetMonitor();
+            Exception release = null;
+            using var begun = new ManualResetEventSlim();
+            using var closed = new ManualResetEventSlim();
+            var owner = new Thread(() =>
+            {
+                engine.BeginTrans();
+                engine.Insert("rows", new[] { Row(1) }, BsonAutoId.Int32);
+                var transaction = monitor.GetTransactionsSnapshot().Single();
+                begun.Set();
+                closed.Wait(TimeSpan.FromSeconds(20));
+                release = Record.Exception(() => monitor.ReleaseTransaction(transaction));
+            });
+            owner.Start();
+            Assert.True(begun.Wait(TimeSpan.FromSeconds(10)));
+            engine.Dispose();
+            closed.Set();
+            Assert.True(owner.Join(TimeSpan.FromSeconds(10)));
+            Assert.IsType<ObjectDisposedException>(release);
+            using var cold = new LiteDatabase(file);
+            Assert.Equal(new[] { 0 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
