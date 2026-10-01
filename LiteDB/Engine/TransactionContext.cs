@@ -103,5 +103,7 @@ namespace LiteDB.Engine
     {
         internal TransactionService Transaction;
         internal bool ExplicitAborted;
+        // A slot's owner never changes (its thread, or its handle): allocate it once.
+        internal TransactionOwner Owner;
     }
 }

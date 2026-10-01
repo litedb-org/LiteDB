@@ -76,7 +76,7 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = new TransactionOwner(explicitContext, slot);
+                var owner = slot.Owner ?? (slot.Owner = new TransactionOwner(explicitContext, slot));
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
