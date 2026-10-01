@@ -43,7 +43,14 @@ namespace LiteDB.ConcurrencyTesting
                 _schedule.Until(() => { lock (Field(tx, "_gate")) return (bool)Field(tx, "_closing"); }, "close waits for the executing call");
             _c.Run("overlap-during-close", () =>
             {
-                ExplorerDatabase.Refused((seed & 1) == 0 ? (Action)tx.Commit : tx.Rollback);
+                // Once close refuses new calls, a call from another thread reports the close;
+                // before that (only when close may not wait yet) it is refused as an overlap.
+                Exception refusal = null;
+                try { if ((seed & 1) == 0) tx.Commit(); else tx.Rollback(); }
+                catch (Exception error) { refusal = error; }
+                var overlap = refusal?.GetType() == typeof(InvalidOperationException) && refusal.Message == ExplorerDatabase.OverlapRefusal;
+                ExplorerDatabase.Require(refusal is ObjectDisposedException || (!closeWaiting && overlap),
+                    "completion during close was not refused: " + (refusal?.GetType().Name ?? "accepted"));
                 ExplorerDatabase.Require(tx.State == LiteTransactionState.Active, "overlap during close changed active transaction outcome");
                 ExplorerDatabase.Require(!close.Done.IsSet, "close returned while a handle call was executing");
             });
