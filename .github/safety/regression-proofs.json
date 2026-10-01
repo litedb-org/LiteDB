@@ -31,6 +31,18 @@
         "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
         "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
       ]
+    },
+    {
+      "repro": "SharedSelfTeardownRelease",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+      ]
     }
   ]
 }
