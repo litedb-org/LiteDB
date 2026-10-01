@@ -21,11 +21,13 @@ namespace LiteDB
         private List<Action> _deferred;
         private Thread _executing;
         private bool _closing, _disposed;
+        private readonly bool _shared;
 
         internal LiteTransaction(TransactionResources resources, BsonMapper mapper, TransactionHandles handles)
         {
             _resources = resources;
             _handles = handles;
+            _shared = resources.SharedMutexName != null;
             _transaction = new TransactionContext(resources.Engine, resources.SharedMutexName);
             _client = new LiteDatabaseContext(new TransactionEngine(this), mapper);
             try
@@ -55,6 +57,8 @@ namespace LiteDB
 
         private void Enter(bool terminalAllowed = false)
         {
+            // Before any side effect: the handle stays usable from a non-impersonating thread.
+            if (_shared) Client.Shared.TransactionHolderContext.Validate();
             lock (_gate)
             {
                 if (_executing != null) throw new InvalidOperationException("Overlapping or reentrant transaction handle use is not supported.");

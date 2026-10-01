@@ -75,7 +75,7 @@ lock-timeout error instead of waiting for work that only its own return can rele
 | Shared, filename-backed | Yes; see below |
 | Read-only Direct/Shared | Queries and completion; writes are refused and leave the handle active |
 | Shared memory/temporary storage or caller-supplied streams | `NotSupportedException` before admission |
-| Shared begin under Windows thread impersonation | `NotSupportedException` before admission |
+| Shared begin or operation under Windows thread impersonation (including an anonymous token) | `NotSupportedException` before admission or side effects; the handle stays usable from a non-impersonating thread |
 | Coordinated, custom or decorated engines | `NotSupportedException`; legacy/ordinary use unchanged |
 | Typed/BSON collections, bulk input, queries, Include, vector queries | Yes |
 | Index creation/removal, `GetCollectionNames`, `CollectionExists`, `$cols`/`$indexes` | Yes |
