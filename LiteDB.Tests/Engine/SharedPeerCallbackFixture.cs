@@ -29,13 +29,9 @@ namespace LiteDB.Tests.Engine
         private readonly List<IDisposable> _open = new List<IDisposable>();
         private bool _retain;
 
-        protected SharedPeerCallbackFixture()
-        {
-            Directory.CreateDirectory(_directory);
-            // Caller streams bypass filename normalization. Use the same physical
-            // namespace as the filename-backed peer (macOS temp has /var aliases).
-            _directory = Client.Shared.DatabaseFileIdentity.CanonicalPath(_directory);
-        }
+        protected SharedPeerCallbackFixture() => Directory.CreateDirectory(_directory);
+
+        protected void RetainFailure() => _retain = true;
 
         protected string Filename => Path.Combine(_directory, "outer.db");
 

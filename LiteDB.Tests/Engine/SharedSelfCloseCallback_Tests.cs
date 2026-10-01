@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
-using Microsoft.Win32.SafeHandles;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -237,14 +235,7 @@ namespace LiteDB.Tests.Engine
         {
             private Action _onWrite;
             private CallbackFile(string path) : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete) { }
-            private CallbackFile(SafeFileHandle handle) : base(handle, FileAccess.ReadWrite) { }
-            internal static CallbackFile Open(string path)
-            {
-                if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return new CallbackFile(path);
-                var handle = Client.Shared.DatabaseFileIdentity.Open(path, readOnly: false, create: true);
-                try { return new CallbackFile(handle); }
-                catch { handle.Dispose(); throw; }
-            }
+            internal static CallbackFile Open(string path) => new CallbackFile(path);
             internal void Arm(Action callback) => Volatile.Write(ref _onWrite, callback);
             public override void Write(byte[] array, int offset, int count)
             {
