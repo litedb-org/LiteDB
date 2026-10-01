@@ -154,7 +154,8 @@ namespace LiteDB.Engine
                 }
 
                 // initialize locker service
-                _locker = new LockService(_header.Pragmas, () => (object)TransactionContext.For(this) ?? Thread.CurrentThread);
+                _locker = new LockService(_header.Pragmas, () => (object)TransactionContext.For(this) ?? Thread.CurrentThread,
+                    () => _state.Validate());
 
                 // initialize wal-index service
                 _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,

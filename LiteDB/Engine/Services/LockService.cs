@@ -19,6 +19,7 @@ namespace LiteDB.Engine
 
         private readonly TransactionGate _transaction;
         private readonly Func<object> _owner;
+        private readonly Action _validate;
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
 #if DEBUG || TESTING
@@ -32,10 +33,12 @@ namespace LiteDB.Engine
         /// Resolves the current lease owner: the explicit transaction handle executing on this
         /// thread, if any, otherwise the thread itself.
         /// </param>
-        internal LockService(EnginePragmas pragmas, Func<object> owner = null)
+        /// <param name="validate">Throws the engine's published failure once it has stopped.</param>
+        internal LockService(EnginePragmas pragmas, Func<object> owner = null, Action validate = null)
         {
             _pragmas = pragmas;
             _owner = owner;
+            _validate = validate;
             _transaction = new TransactionGate(owner);
         }
 
@@ -98,6 +101,11 @@ namespace LiteDB.Engine
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
             if (collection.TryEnter(owner, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+
+            // Closing the engine releases an idle handle's locks under their waiters: a waiter
+            // woken that way reports the engine's state instead of running into disposed services.
+            try { _validate?.Invoke(); }
+            catch { collection.Exit(owner); throw; }
         }
 
         /// <summary>

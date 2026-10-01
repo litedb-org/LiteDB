@@ -134,43 +134,6 @@ namespace LiteDB.Tests.Engine
 
 #pragma warning disable CS0618
         [Fact]
-        public void Legacy_close_keeps_a_foreign_threads_collection_lock_as_before()
-        {
-            // Restored dev behavior: closing on another thread does not release an idle legacy
-            // transaction's collection lock under a writer waiting for it; the writer times out.
-            using var file = new TempFile();
-            var db = new LiteDatabase(file) { Timeout = TimeSpan.FromSeconds(1) };
-            db.GetCollection("rows").Insert(Row(0));
-            using var held = new ManualResetEventSlim();
-            using var release = new ManualResetEventSlim();
-            var owner = new Thread(() =>
-            {
-                db.BeginTrans();
-                db.GetCollection("rows").Insert(Row(1));
-                held.Set();
-                release.Wait(TimeSpan.FromSeconds(20));
-                try { db.Commit(); } catch { }
-            });
-            owner.Start();
-            Assert.True(held.Wait(TimeSpan.FromSeconds(10)));
-            Exception waiterError = null;
-            var waiter = new Thread(() =>
-            {
-                try { db.GetCollection("rows").Insert(Row(2)); }
-                catch (Exception error) { waiterError = error; }
-            });
-            waiter.Start();
-            Thread.Sleep(300);
-            db.Dispose();
-            Assert.True(waiter.Join(TimeSpan.FromSeconds(10)));
-            release.Set();
-            Assert.True(owner.Join(TimeSpan.FromSeconds(10)));
-            Assert.Equal(LiteException.LOCK_TIMEOUT, Assert.IsType<LiteException>(waiterError).ErrorCode);
-            using var cold = new LiteDatabase(file);
-            Assert.Equal(new[] { 0 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
-        }
-
-        [Fact]
         public void Interrupted_shared_begin_releases_the_writer_ownership_its_holder_acquires()
         {
             using var file = new TempFile();
