@@ -68,26 +68,62 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
-        public void Rebuild_waits_for_a_lease_taken_on_another_thread_and_runs_after_completion()
+        public enum Maintenance { Rebuild, Checkpoint }
+
+        [Theory]
+        [InlineData(Maintenance.Rebuild)]
+        [InlineData(Maintenance.Checkpoint)]
+        public void Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion(Maintenance maintenance)
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(file))
             {
                 db.GetCollection("rows").Insert(Row(1));
                 db.Timeout = TimeSpan.FromSeconds(30);
-                // Begin on one thread, write on another, so the lease is not the rebuild thread's.
-                var tx = Task.Run(() => db.BeginTransaction()).Result;
+                var log = FileHelper.GetLogFile(file);
+                Assert.True(new System.IO.FileInfo(log).Length > 0, "The committed seed must still be in the WAL.");
+                // The lease is taken on a creator thread that has exited; maintenance runs on another.
+                ILiteTransaction tx = null;
+                var creator = new Thread(() => tx = db.BeginTransaction());
+                creator.Start();
+                Assert.True(creator.Join(TimeSpan.FromSeconds(10)));
+                var gate = Field(Field(Field(db, "_engine"), "_locker"), "_transaction");
+                var running = Task.Run(() => { if (maintenance == Maintenance.Rebuild) db.Rebuild(); else db.Checkpoint(); });
+                if (maintenance == Maintenance.Rebuild)
+                {
+                    // Barrier: the rebuild is queued as a writer behind the handle's lease.
+                    Assert.True(SpinWait.SpinUntil(() => (int)Field(gate, "_waitingWriters") == 1, TimeSpan.FromSeconds(10)),
+                        "Rebuild did not queue behind the handle's admission lease.");
+                    Assert.False(running.IsCompleted, "Rebuild bypassed the handle's admission lease.");
+                }
+                else
+                {
+                    // A checkpoint never waits for a lease: it runs partially and must not reclaim the WAL.
+                    Assert.True(running.Wait(TimeSpan.FromSeconds(10)), "Checkpoint waited for the handle's lease.");
+                    Assert.True(new System.IO.FileInfo(log).Length > 0, "Checkpoint reclaimed the WAL under a live lease.");
+                    Assert.Equal(LiteTransactionState.Active, tx.State);
+                }
                 Task.Run(() => tx.GetCollection("rows").Insert(Row(2))).Wait();
-                var rebuild = Task.Run(() => db.Rebuild());
-                Assert.False(rebuild.Wait(500), "Rebuild bypassed the handle's admission lease.");
                 Task.Run(() => tx.Commit()).Wait();
-                Assert.True(rebuild.Wait(TimeSpan.FromSeconds(30)));
+                Assert.True(running.Wait(TimeSpan.FromSeconds(30)));
+                running.GetAwaiter().GetResult();
+                if (maintenance == Maintenance.Checkpoint)
+                {
+                    // Once the lease is gone the same checkpoint reclaims the WAL.
+                    db.Checkpoint();
+                    Assert.Equal(0, new System.IO.FileInfo(log).Length);
+                }
                 Assert.Equal(new[] { 1, 2 }, db.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
             }
-            using var cold = new LiteDatabase(file);
-            Assert.Equal(new[] { 1, 2 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
+            for (var reopen = 0; reopen < 2; reopen++)
+            {
+                using var cold = new LiteDatabase(file);
+                Assert.Equal(new[] { 1, 2 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
+            }
         }
+
+        private static object Field(object owner, string name) => owner.GetType()
+            .GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(owner);
 
         [Theory]
         [InlineData(":memory:")]
