@@ -66,6 +66,11 @@ namespace LiteDB.Engine
             var slot = explicitContext?.Slot ?? _legacy.Value;
             var transaction = slot.Transaction;
 
+            // Fail closed: once a handle's transaction has ended, its bound calls never get a
+            // fresh (automatically committed) transaction, whatever path reached the engine.
+            if (create && transaction == null && explicitContext?.Transaction != null)
+                throw new InvalidOperationException("The transaction handle's transaction has ended; nothing further runs in it.");
+
             if (create && transaction == null)
             {
                 isNew = true;

@@ -113,7 +113,10 @@ namespace LiteDB
                     finally { _gate.Release(); }
                     throw;
                 }
-                _opened.Wait();
+                // An interrupted begin must still let the holder release what it acquires:
+                // no resources exist yet whose disposal or finalizer could do it later.
+                try { _opened.Wait(); }
+                catch { _close.Set(); throw; }
                 if (_error != null) this.Release();
                 return new TransactionResources(_engine, this.Release, () => _close.Set(), policyAnchor, _child._mutexName);
             }

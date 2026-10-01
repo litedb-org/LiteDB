@@ -29,7 +29,7 @@ namespace LiteDB
             try
             {
                 // A handle is not a nested scope of the caller's legacy transaction.
-                if (resources.Engine.HasLegacyTransactionOnCurrentThread)
+                if (resources.Engine.CurrentThreadHasLegacyTransaction())
                     throw new InvalidOperationException("Complete the legacy transaction before opening a transaction handle.");
                 using var binding = TransactionContext.Enter(_transaction);
                 resources.Engine.BeginHandleTransaction();
@@ -203,12 +203,22 @@ namespace LiteDB
                 using var binding = TransactionContext.Enter(_transaction);
                 if (_readers.Count != 0) throw new InvalidOperationException("Close transaction-bound readers before committing.");
                 Exception failure = null;
-                try { Dispatch(() => _resources.Engine.Commit()); }
+                try
+                {
+                    if (!Dispatch(() => _resources.Engine.Commit()))
+                    {
+                        // The engine no longer holds this transaction (a peer stopped or closed the
+                        // engine first): this call committed nothing. Never report that as success.
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        _resources.Engine.ThrowIfUnavailable();
+                        throw new InvalidOperationException("The transaction ended before it could commit; nothing was committed.");
+                    }
+                }
                 catch (Exception error)
                 {
                     failure = error;
                     // A failed commit may already have published: never relabel it a rollback.
-                    if (_transaction.Outcome != LiteTransactionState.Committed)
+                    if (_transaction.Outcome == LiteTransactionState.Active)
                         _transaction.Outcome = LiteTransactionState.Indeterminate;
                     throw;
                 }
