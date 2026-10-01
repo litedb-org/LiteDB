@@ -89,11 +89,14 @@ namespace LiteDB.Tests.Engine
             var probes = 0;
             var excludedBefore = false;
             var excludedAfter = false;
+            var opensBefore = -1;
+            var opensAfter = -1;
             Exception refusal = null;
             BsonValue result = null;
             Action callback = () =>
             {
                 Interlocked.Increment(ref called);
+                opensBefore = outer.EngineOpens;
                 excludedBefore = this.NativeExcluded(outer);
                 Interlocked.Increment(ref probes);
                 try
@@ -104,6 +107,7 @@ namespace LiteDB.Tests.Engine
                 }
                 catch (Exception error) { refusal = error; }
                 // This must run before the original stream Write/close can unwind.
+                opensAfter = outer.EngineOpens;
                 excludedAfter = this.NativeExcluded(outer);
                 Interlocked.Increment(ref probes);
             };
@@ -154,6 +158,7 @@ namespace LiteDB.Tests.Engine
 
             called.Should().Be(1, "the armed close checkpoint must call the stream exactly once");
             probes.Should().Be(2, "the foreign thread must probe both sides of the attempted reentry");
+            opensAfter.Should().Be(opensBefore, "refusal must precede replacement-core creation");
             excludedBefore.Should().BeTrue("the fixture must start with the real native writer mutex held");
             excludedAfter.Should().BeTrue("nested disposal must not release ownership before this callback returns");
             var connectionDisposed = close == Close.ConnectionWithEngine || close == Close.ConnectionCheckpoint;
