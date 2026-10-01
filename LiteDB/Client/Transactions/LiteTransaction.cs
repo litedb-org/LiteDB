@@ -61,6 +61,12 @@ namespace LiteDB
             get { lock (_gate) return _executing != null; }
         }
 
+        /// <summary>Wait up to <paramref name="milliseconds"/> for an executing call to return.</summary>
+        internal void WaitForCallExit(int milliseconds)
+        {
+            lock (_gate) if (_executing != null) Monitor.Wait(_gate, milliseconds);
+        }
+
         /// <summary>Database close: refuse calls not yet admitted; an idle handle then stays idle.</summary>
         internal void RefuseNewCalls()
         {

@@ -90,11 +90,16 @@ namespace LiteDB
                     if (_active.Count == 0) break;
                     active = _active.ToArray();
                 }
-                // An executing call may wait for a lock of an idle handle: once every handle
-                // refuses new calls, roll back the idle ones before waiting for executing ones.
+                // An executing call may wait for a lock of an idle handle. Once a handle refuses
+                // new calls, idle stays idle: keep rolling back idle handles, and only wait (briefly,
+                // then look again) while every remaining handle executes.
                 foreach (var transaction in active) transaction.RefuseNewCalls();
-                foreach (var transaction in active.Where(t => !t.IsExecuting).Concat(active.Where(t => t.IsExecuting)).ToArray())
+                var remaining = new List<LiteTransaction>(active);
+                while (remaining.Count != 0)
                 {
+                    var transaction = remaining.FirstOrDefault(t => !t.IsExecuting);
+                    if (transaction == null) { remaining[0].WaitForCallExit(10); continue; }
+                    remaining.Remove(transaction);
                     try { transaction.CloseForDatabase(); }
                     catch (Exception error) { (errors ??= new List<Exception>()).Add(error); }
                     finally { this.Completed(transaction); }
