@@ -125,7 +125,6 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             using var db = new LiteDatabase(file);
-            using var peer = new LiteDatabase(file);
             using var tx = db.BeginTransaction();
             var rows = tx.GetCollection("rows");
             using var entered = new ManualResetEventSlim();
@@ -148,9 +147,11 @@ namespace LiteDB.Tests.Engine
             await write;
             await close;
             Assert.Equal(LiteTransactionState.RolledBack, tx.State);
-            Assert.Equal(0, peer.GetCollection("rows").Count());
-            peer.GetCollection("rows").Insert(Row(2));
-            Assert.Equal(1, peer.GetCollection("rows").Count());
+            // Direct opens the file exclusively: check through a fresh open after close.
+            using var reopened = new LiteDatabase(file);
+            Assert.Equal(0, reopened.GetCollection("rows").Count());
+            reopened.GetCollection("rows").Insert(Row(2));
+            Assert.Equal(1, reopened.GetCollection("rows").Count());
         }
     }
 }
