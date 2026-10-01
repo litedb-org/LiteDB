@@ -89,7 +89,12 @@ namespace LiteDB.Tests.Engine
                 Assert.True(closer.Join(TimeSpan.FromSeconds(10)));
                 // Returning normally means committed; otherwise the outcome is never Active.
                 if (error == null) Assert.Equal(LiteTransactionState.Committed, tx.State);
-                else Assert.NotEqual(LiteTransactionState.Active, tx.State);
+                else
+                {
+                    Assert.NotEqual(LiteTransactionState.Active, tx.State);
+                    // The engine's published failure, never the monitor's raw disposal.
+                    Assert.False(error is ObjectDisposedException, error.ToString());
+                }
                 outcomes[(int)tx.State]++;
                 try { tx.Dispose(); } catch { }
                 try { db.Dispose(); } catch { }

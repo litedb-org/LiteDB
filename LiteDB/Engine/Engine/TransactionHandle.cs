@@ -28,6 +28,13 @@ namespace LiteDB.Engine
         /// <summary>Throw the engine's published failure, or its disposal, if it has stopped.</summary>
         internal void ThrowIfUnavailable() => _state.Validate();
 
+        /// <summary>The failure ordinary calls report once this engine stopped, or null.</summary>
+        internal Exception UnavailableFailure()
+        {
+            try { _state.Validate(); return null; }
+            catch (Exception failure) { return failure; }
+        }
+
         internal bool IsReadOnly => _settings.ReadOnly;
 
         /// <summary>Create the explicit transaction of the handle bound on this thread.</summary>

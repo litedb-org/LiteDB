@@ -96,7 +96,10 @@ error stays primary; rollback cleanup failures are attached under
 `Exception.Data["LiteDB.StatementRollback"]` or `"LiteDB.TransactionCleanupError"`.
 Capability and read-only refusals before mutation leave it active. Commit that fails
 after it may have published reports `Indeterminate`, never `RolledBack`; a known
-committed outcome stays `Committed` even if later cleanup fails. Disposing a healthy
+committed outcome stays `Committed` even if later cleanup fails. Commit that finds
+its transaction already ended by an engine stop or close throws (the engine's
+published failure where there is one) and reports `Failed`; it never returns as if
+it committed. Disposing a healthy
 active handle rolls back; if another failure already stopped the engine, disposal
 releases the handle without rethrowing that failure.
 

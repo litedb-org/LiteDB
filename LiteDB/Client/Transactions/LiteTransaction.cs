@@ -251,10 +251,13 @@ namespace LiteDB
                 }
                 catch (Exception error)
                 {
-                    failure = error;
+                    // A peer engine close surfaces as raw disposal of its services or streams:
+                    // report the engine's published failure, as ordinary calls do.
+                    failure = (error as ObjectDisposedException != null ? _resources.Engine.UnavailableFailure() : null) ?? error;
                     // A failed commit may already have published: never relabel it a rollback.
                     if (_transaction.Outcome == LiteTransactionState.Active)
                         _transaction.Outcome = LiteTransactionState.Indeterminate;
+                    if (failure != error) ExceptionDispatchInfo.Capture(failure).Throw();
                     throw;
                 }
                 finally { if (_transaction.Outcome != LiteTransactionState.Active) ReleaseResources(failure); }
