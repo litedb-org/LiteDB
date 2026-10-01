@@ -1,0 +1,95 @@
+name: Transaction path production comparisons
+
+# Ordinary, legacy and durable-write transaction paths, Direct and Shared, in production
+# builds of the PR base and head. Descriptive evidence: hosted runners are shared hardware.
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: 'Baseline branch or SHA'
+        required: false
+        default: 'dev'
+        type: string
+      rounds:
+        description: 'Alternating fresh-process rounds per workload'
+        required: false
+        default: 5
+        type: number
+  pull_request:
+    paths:
+      - 'LiteDB/Engine/Services/CollectionLock.cs'
+      - 'LiteDB/Engine/Services/LockService.cs'
+      - 'LiteDB/Engine/Services/TransactionGate.cs'
+      - 'LiteDB/Engine/Services/TransactionMonitor.cs'
+      - 'LiteDB/Engine/Services/TransactionService.cs'
+      - 'LiteDB/Engine/Engine/Transaction*.cs'
+      - 'LiteDB/Engine/TransactionContext.cs'
+      - 'LiteDB/Client/Database/LiteDatabase*.cs'
+      - 'LiteDB/Client/Transactions/**'
+      - 'LiteDB/Client/Shared/**'
+      - 'tools/TransactionPathBenchmarks/**'
+      - 'scripts/measure-transaction-paths.py'
+      - '.github/workflows/transaction-path-performance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: baseline
+          ref: ${{ github.event.pull_request.base.sha || inputs.baseline_ref || 'dev' }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build production libraries and identical runners
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseSha = git -C baseline rev-parse HEAD
+          git -C candidate merge-base --is-ancestor $baseSha HEAD
+          if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
+          foreach ($variant in @('baseline', 'candidate')) {
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
+            if ($LASTEXITCODE) { throw "Library build failed: $variant" }
+            $library = Join-Path $PWD "$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
+            dotnet build candidate/tools/TransactionPathBenchmarks -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
+            if ($LASTEXITCODE) { throw "Runner build failed: $variant" }
+          }
+          New-Item -ItemType Directory evidence | Out-Null
+          git -C baseline rev-parse HEAD | Out-File evidence/base.txt
+          git -C candidate rev-parse HEAD | Out-File evidence/head.txt
+          dotnet --info | Out-File evidence/runtime.txt
+      - name: Serial alternating production pairs
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-transaction-paths.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --summary $env:GITHUB_STEP_SUMMARY --rounds ${{ inputs.rounds || 5 }}
+          if ($LASTEXITCODE) { throw 'Production comparison failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transaction-paths-${{ matrix.os }}-${{ matrix.framework }}
+          path: evidence
