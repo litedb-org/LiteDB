@@ -61,6 +61,57 @@ namespace LiteDB.Tests.Engine
             Assert.Equal(new[] { 0 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Handle_stays_disposable_after_an_interrupted_database_close(bool shared)
+        {
+            using var file = new TempFile();
+            using (var seed = new LiteDatabase(file)) seed.GetCollection("rows").Insert(Row(0));
+            var settings = new ConnectionString { Filename = file, Connection = shared ? ConnectionType.Shared : ConnectionType.Direct };
+            var db = new LiteDatabase(settings);
+            var tx = db.BeginTransaction();
+            using var inside = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            System.Collections.Generic.IEnumerable<BsonDocument> Input()
+            {
+                inside.Set();
+                release.Wait(TimeSpan.FromSeconds(20));
+                yield return Row(1);
+            }
+            Exception executingError = null;
+            var executing = new Thread(() => executingError = Record.Exception(() => tx.GetCollection("rows").Insert(Input())));
+            executing.Start();
+            Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
+            Exception closeError = null;
+            var closer = new Thread(() => closeError = Record.Exception(db.Dispose));
+            closer.Start();
+            var closing = typeof(LiteTransaction).GetField("_closing", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.True(SpinWait.SpinUntil(() => (bool)closing.GetValue(tx), TimeSpan.FromSeconds(10)));
+            closer.Interrupt();
+            Assert.True(closer.Join(TimeSpan.FromSeconds(10)));
+            Assert.IsType<ThreadInterruptedException>(closeError);
+            release.Set();
+            Assert.True(executing.Join(TimeSpan.FromSeconds(10)));
+            // The interrupted close went on to release the database's engine. A Direct handle
+            // runs on that engine, so its call fails closed; a Shared handle has its own core.
+            if (shared) Assert.True(executingError == null, executingError?.ToString());
+            else Assert.Equal(LiteException.ENGINE_DISPOSED, Assert.IsType<LiteException>(executingError).ErrorCode);
+            // The interrupted close never settled this handle: disposing it still rolls back
+            // and releases its locks and, in Shared mode, the writer mutex.
+            tx.Dispose();
+            Assert.Equal(shared ? LiteTransactionState.RolledBack : LiteTransactionState.Failed, tx.State);
+            using (var peer = new LiteDatabase(settings) { Timeout = TimeSpan.FromSeconds(5) })
+            {
+                var write = System.Threading.Tasks.Task.Run(() => peer.GetCollection("rows").Insert(Row(2)));
+                Assert.True(write.Wait(TimeSpan.FromSeconds(20)), "The handle kept its ownership after Dispose.");
+                write.GetAwaiter().GetResult();
+            }
+            try { db.Dispose(); } catch { }
+            using var cold = new LiteDatabase(file);
+            Assert.Equal(new[] { 0, 2 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
+        }
+
         [Fact]
         public void Sequential_call_during_close_sees_the_close_not_an_overlap()
         {

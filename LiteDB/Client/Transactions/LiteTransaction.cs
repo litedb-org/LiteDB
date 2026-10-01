@@ -330,14 +330,20 @@ namespace LiteDB
             finally { ReleaseResources(failure); }
         }
 
-        // Database close already owns rollback. Cleanup is idempotent across that handoff,
-        // but normal overlapping/reentrant user operations remain invalid.
+        // Database close owns rollback once it reaches this handle (or waits for its call).
+        // Cleanup is idempotent across that handoff; a close that never got here (it was
+        // interrupted) leaves an idle handle that its own disposal still rolls back.
+        // Normal overlapping/reentrant user operations remain invalid.
         private bool EnterCleanup()
         {
             lock (_gate)
             {
-                if (_closing || _disposed || State != LiteTransactionState.Active) return false;
-                if (_executing != null) throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                if (_disposed || State != LiteTransactionState.Active) return false;
+                if (_executing != null)
+                {
+                    if (_closing) return false;
+                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                }
                 _executing = Thread.CurrentThread;
                 return true;
             }
