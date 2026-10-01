@@ -70,13 +70,16 @@ namespace LiteDB
                 }
                 settings.CoordinationSignals = null;
                 settings.SharedFileHandles = null;
-                var child = new SharedEngine(settings) { _transactionChild = true };
+                // The handle reports and extends this connection's recovery report.
+                var child = new SharedEngine(settings) { _transactionChild = true, _recoveryReport = _recoveryReport };
                 child._settings.SharedDurability = _settings.SharedDurability;
                 child._settings.CheckpointBackoff = _settings.CheckpointBackoff;
                 holder = new TransactionHolder(child, gate);
             }
             catch { gate.Release(); throw; }
-            return holder.Open(policyAnchor);
+            var resources = holder.Open(policyAnchor);
+            _recoveryReport = holder.RecoveryReport ?? _recoveryReport;
+            return resources;
         }
 
         /// <summary>One internal native owner per handle, independent of application threads.</summary>
@@ -95,6 +98,9 @@ namespace LiteDB
                 _child = child;
                 _gate = gate;
             }
+
+            /// <summary>The recovery report of the handle's core, once it opened.</summary>
+            internal WalRecoveryReport RecoveryReport => _child._recoveryReport;
 
             internal TransactionResources Open(object policyAnchor)
             {
