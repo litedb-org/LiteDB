@@ -197,7 +197,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        try { engine.Close(); } finally { this.EndWriterPressure(); }
+                        try { this.CloseRetainedCore(engine); } finally { this.EndWriterPressure(); }
                     }
                 }
             }
@@ -225,7 +225,7 @@ namespace LiteDB
                 _databaseUsers = 0;
                 var engine = _engine;
                 _engine = null;
-                engine?.Close(checkpoint: false);
+                if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
                 this.CloseMutexSnapshotsLocked();
             }
             _handles?.CloseIdle();
@@ -321,7 +321,7 @@ namespace LiteDB
             // The mutex was free since the owner exited, so another process may have
             // committed or checkpointed. This engine's WAL index and cache can be stale:
             // release it without the close checkpoint; the next open recovers the WAL.
-            orphan?.Close(checkpoint: false);
+            if (orphan != null) this.CloseRetainedCore(orphan, checkpoint: false);
             _handles?.CloseIdle();
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
@@ -441,7 +441,9 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (!disposing || Volatile.Read(ref _disposed) != 0) return;
+            this.ThrowIfTeardownReentry();
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             this.RetireCoordinatedReads();
             // Any thread can end a pin; its holder closes the engine and releases. Read
@@ -470,7 +472,7 @@ namespace LiteDB
             {
                 if (_engine != null)
                 {
-                    _engine.Close(final: true);
+                    this.CloseRetainedCore(_engine, final: true);
                     _engine = null;
                     closed = true;
                 }

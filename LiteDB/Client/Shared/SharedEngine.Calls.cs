@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 
 namespace LiteDB
 {
@@ -59,6 +60,7 @@ namespace LiteDB
         /// <summary>Run a public call; the admission it made, if any, ends when it returns.</summary>
         private T Call<T>(Func<T> call)
         {
+            this.ThrowIfTeardownReentry();
             var depth = this.AdmittedDepth();
             var frame = this.OwnershipFrame(this.CallRetains);
             try
@@ -124,6 +126,20 @@ namespace LiteDB
                 "Cannot wait for shared-mode ownership of this database from inside an operation of another " +
                 "connection to it that holds the ownership on this thread, such as its input sequence or " +
                 "ReadTransform callback. Use that connection for nested operations, or run them after it returns.");
+        }
+
+        private void ThrowIfTeardownReentry()
+        {
+            if (!SharedCallFrames.IsTearingDown(this)) return;
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+            throw new InvalidOperationException("Cannot reenter a shared connection from inside its executing core teardown.");
+        }
+
+        /// <summary>Keep writer ownership until actual teardown returns, including caller-stream callbacks.</summary>
+        private List<Exception> CloseRetainedCore(LiteEngine core, bool checkpoint = true, bool final = false)
+        {
+            using (SharedCallFrames.Enter(_mutexName, this, HolderRetains, teardown: true))
+                return core.Close(checkpoint: checkpoint, final: final);
         }
 
         private void EndAdmissions(int depth)

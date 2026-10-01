@@ -380,7 +380,7 @@ namespace LiteDB
         /// </summary>
         private void CloseMutexSnapshotsLocked()
         {
-            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
+            foreach (var snapshot in _mutexSnapshots) this.CloseRetainedCore(snapshot, checkpoint: false);
             _mutexSnapshots.Clear();
         }
 
@@ -394,7 +394,7 @@ namespace LiteDB
             {
                 if (!_mutexSnapshots.Remove(snapshot)) return;
             }
-            snapshot.Dispose();
+            this.CloseRetainedCore(snapshot);
         }
 
         /// <summary>
