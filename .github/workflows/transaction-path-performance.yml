@@ -48,7 +48,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: candidate
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # On pull_request this is the merge commit: it includes base updates, so the
+          # comparison stays possible after the base advances.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4

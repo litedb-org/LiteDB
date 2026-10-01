@@ -157,7 +157,11 @@ namespace LiteDB.Tests.Engine
             var cleanup = new System.IO.IOException("rollback cleanup failed");
             var monitor = engine.GetMonitor();
             monitor.AfterTransactionExit = () => { monitor.AfterTransactionExit = null; throw cleanup; };
+            var disposal = new InvalidOperationException("engine disposal failed");
+            engine.DisposeFailure = disposal;
+            // The handle's failure stays primary; the later engine failure is attached.
             Assert.Same(cleanup, Assert.Throws<System.IO.IOException>(db.Dispose));
+            Assert.Contains(disposal, cleanup.Data.Values.Cast<object>());
             Assert.True(engine.Disposed);
             Assert.Equal(LiteTransactionState.Failed, tx.State);
             tx.Dispose();
@@ -168,11 +172,13 @@ namespace LiteDB.Tests.Engine
         private sealed class TrackingEngine : LiteEngine
         {
             internal bool Disposed;
+            internal Exception DisposeFailure;
             internal TrackingEngine(EngineSettings settings) : base(settings) { }
             protected override void Dispose(bool disposing)
             {
                 Disposed = true;
                 base.Dispose(disposing);
+                if (DisposeFailure != null) throw DisposeFailure;
             }
         }
 
