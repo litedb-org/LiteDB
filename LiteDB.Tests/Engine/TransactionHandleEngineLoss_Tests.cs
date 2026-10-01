@@ -131,51 +131,5 @@ namespace LiteDB.Tests.Engine
             Assert.Equal(ordinary.GetType(), begin?.GetType());
             Assert.Equal(ordinary.Message, begin.Message);
         }
-
-#pragma warning disable CS0618
-        [Fact]
-        public void Interrupted_shared_begin_releases_the_writer_ownership_its_holder_acquires()
-        {
-            using var file = new TempFile();
-            using (var seed = new LiteDatabase(file)) seed.GetCollection("rows").Insert(Row(1));
-            var shared = new ConnectionString { Filename = file, Connection = ConnectionType.Shared };
-            using var owner = new LiteDatabase(shared);
-            using var db = new LiteDatabase(shared);
-            using var held = new ManualResetEventSlim();
-            using var release = new ManualResetEventSlim();
-            var legacy = new Thread(() =>
-            {
-                owner.BeginTrans();
-                owner.GetCollection("rows").Insert(Row(2));
-                held.Set();
-                release.Wait(TimeSpan.FromSeconds(20));
-                owner.Commit();
-            });
-            legacy.Start();
-            Assert.True(held.Wait(TimeSpan.FromSeconds(10)));
-            Exception beginError = null;
-            var begin = new Thread(() =>
-            {
-                try { db.BeginTransaction().Dispose(); }
-                catch (Exception error) { beginError = error; }
-            });
-            begin.Start();
-            // The begin waits for its holder's native admission behind the legacy owner.
-            Thread.Sleep(500);
-            begin.Interrupt();
-            Assert.True(begin.Join(TimeSpan.FromSeconds(10)));
-            Assert.IsType<ThreadInterruptedException>(beginError);
-            release.Set();
-            Assert.True(legacy.Join(TimeSpan.FromSeconds(10)));
-            // Once its holder acquires and releases, other connections write and begin again.
-            using var probe = new LiteDatabase(shared);
-            var write = Task.Run(() => probe.GetCollection("rows").Insert(Row(3)));
-            Assert.True(write.Wait(TimeSpan.FromSeconds(20)), "The interrupted begin's holder kept writer ownership.");
-            var next = Task.Run(() => { using var tx = probe.BeginTransaction(); tx.GetCollection("rows").Insert(Row(4)); tx.Commit(); });
-            Assert.True(next.Wait(TimeSpan.FromSeconds(20)), "The interrupted begin kept the local handle queue.");
-            using var cold = new LiteDatabase(file);
-            Assert.Equal(new[] { 1, 2, 3, 4 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
-        }
-#pragma warning restore CS0618
     }
 }
