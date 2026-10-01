@@ -56,7 +56,13 @@ class ReproMatrixTests(unittest.TestCase):
 
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
-        self.assertEqual(11, len(entries))
+        platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
+        expected = {(repro["name"], label) for repro in self.inventory()
+                    for platform, labels in platforms.items()
+                    if "any" in repro["supports"] or platform in repro["supports"]
+                    for label in labels}
+        self.assertEqual(expected, {(entry["repro"], entry["os"]) for entry in entries})
+        self.assertEqual(len(expected), len(entries))
         self.assertEqual([], skipped)
 
     def test_new_repros_are_not_silently_retired(self):
