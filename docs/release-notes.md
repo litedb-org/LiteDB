@@ -13,8 +13,8 @@ Observable differences for existing code: builds that treat warnings as errors f
 on the legacy calls until CS0618 is suppressed; a read-only write refusal is now an
 internal `IOException` subclass (`catch (IOException)` is unaffected, exact-type checks
 are not); `$transactions` and `$open_cursors` report `threadID` 0 for handle
-transactions. A handle commit that finds its transaction already ended by an engine
-stop or close throws and reports `Failed`. Shared handles refuse begin and every
+transactions. A handle commit refused before it could publish (the engine already
+stopped or closed, or the transaction already ended) throws and reports `Failed`. Shared handles refuse begin and every
 operation on a thread under Windows impersonation, including an anonymous token.
 
 ## Shared mapped reads

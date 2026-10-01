@@ -55,8 +55,8 @@ the operation in progress. This covers mapping, query execution, enumeration,
 reader access, commit, rollback and disposal. The guard detects overlap, not
 accidental sequential sharing. One exception: disposing a bound reader or
 enumerator on another thread while a call of its handle executes (a `foreach`
-ending there) succeeds, and the reader is released when that call returns, so
-it never keeps commit refused.
+ending there) succeeds; the reader is released after that call, at the latest
+by the handle's next call or completion, so it never keeps commit refused.
 
 An ordinary call that needs a collection lock or exclusive maintenance held up
 by an *idle* handle waits for the existing lock timeout, like any other conflicting
@@ -96,15 +96,18 @@ error stays primary; rollback cleanup failures are attached under
 `Exception.Data["LiteDB.StatementRollback"]` or `"LiteDB.TransactionCleanupError"`.
 Capability and read-only refusals before mutation leave it active. Commit that fails
 after it may have published reports `Indeterminate`, never `RolledBack`; a known
-committed outcome stays `Committed` even if later cleanup fails. Commit that finds
-its transaction already ended by an engine stop or close throws (the engine's
-published failure where there is one) and reports `Failed`; it never returns as if
-it committed. Disposing a healthy
+committed outcome stays `Committed` even if later cleanup fails. Commit refused
+before it could publish (the engine already stopped or closed, the transaction
+already ended, or the engine refused it unchanged) throws, rolls back what remains,
+and reports `Failed`; it never returns as if it committed. Disposing a healthy
 active handle rolls back; if another failure already stopped the engine, disposal
 releases the handle without rethrowing that failure.
 
 Completion releases the transaction's locks, Shared writer ownership and storage
-references, and unregisters the handle, whether or not it is disposed.
+references, and unregisters the handle, whether or not it is disposed. Always
+dispose handles (`using`): one dropped without completion keeps its collection
+locks and its admission lease (which `Rebuild` waits for), and in Shared mode the
+writer mutex, until its database is disposed, because the database tracks it.
 
 Disposing the database refuses new handles, waits for a handle call executing on
 another thread to return, then rolls back every handle that is still active before
@@ -123,11 +126,10 @@ application's threads run the handle's operations on that core in turn. Commit,
 rollback or disposal closes the core and releases the mutex on the holder thread,
 so other processes and connections then proceed. Completed handles retain neither.
 
-Always dispose handles (`using`). A handle dropped without completion while its
-`LiteDatabase` stays alive keeps the writer mutex, blocking every other writer in
-every process, until the database is disposed: the database tracks its open handles,
-so they are not collected before it. A dropped handle is released by finalization
-only when its database is abandoned too.
+A Shared handle dropped without completion while its `LiteDatabase` stays alive
+therefore blocks every other writer in every process until the database is
+disposed. A dropped handle is released by finalization only when its database is
+abandoned too.
 
 **While a Shared handle is open, every ordinary or legacy call to the same database
 that needs its writer mutex waits until the handle completes** — all writes, and reads
@@ -162,6 +164,11 @@ its database releases writer ownership after finalization.
 thread-bound behavior, and now emit **CS0618** (`Obsolete`, warning only). Replace
 the trio with a handle and obtain the participating collections from it. Crossing
 `await` remains unsafe for the legacy API.
+
+One difference to plan for: any failure of a handle call ends the handle (`Failed`,
+rolled back), including a client-side argument check that fails before reaching the
+engine, such as `FindById(null)`, which leaves a legacy transaction untouched.
+Validate inputs before the call, or begin a new handle after a failure.
 
 Projects using `TreatWarningsAsErrors` can migrate incrementally with
 `<WarningsNotAsErrors>$(WarningsNotAsErrors);CS0618</WarningsNotAsErrors>`, or a narrow

@@ -154,15 +154,17 @@ namespace LiteDB
                 {
                     // Refusals before mutation leave the transaction usable. Any other statement
                     // failure, or one whose engine transaction was rolled back, ends the handle.
-                    var intact = ReferenceEquals(_transaction.Slot.Transaction, _transaction.Transaction) &&
-                        _transaction.Transaction.State == TransactionState.Active;
-                    if (!intact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
+                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
                         !(_resources.Engine.IsReadOnly && error is NotSupportedException))) Abort(error);
                     throw;
                 }
             }
             finally { Exit(); }
         }
+
+        // The handle's engine transaction is still current and active: nothing completed it.
+        private bool TransactionIntact => _transaction.Transaction?.State == TransactionState.Active &&
+            ReferenceEquals(_transaction.Slot.Transaction, _transaction.Transaction);
 
         // Only composed client operations may dispatch internally. Public wrappers always use Run.
         internal T Dispatch<T>(Func<T> action, bool authorizeEngine = true)
@@ -265,6 +267,12 @@ namespace LiteDB
                 Exception failure = null;
                 try
                 {
+                    // An engine that has already stopped commits nothing.
+                    if (_resources.Engine.UnavailableFailure() != null)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        _resources.Engine.ThrowIfUnavailable();
+                    }
                     if (!Dispatch(() => _resources.Engine.Commit()))
                     {
                         // The engine no longer holds this transaction (a peer stopped or closed the
@@ -277,10 +285,22 @@ namespace LiteDB
                 catch (Exception error)
                 {
                     // A peer engine close surfaces as raw failures of its services, locks or
-                    // streams: once the engine stopped, report its published failure instead.
-                    failure = (!(error is LiteException) ? _resources.Engine.UnavailableFailure() : null) ?? error;
-                    // A failed commit may already have published: never relabel it a rollback.
-                    if (_transaction.Outcome == LiteTransactionState.Active)
+                    // streams: once the engine stopped, report its published failure instead,
+                    // unless this commit's own failure is what stopped it.
+                    var published = error is LiteException ? null : _resources.Engine.UnavailableFailure();
+                    failure = published == null || ReferenceEquals(published, error) || ReferenceEquals(published.InnerException, error)
+                        ? error : published;
+                    // A failed commit may already have published: never relabel it a rollback. A
+                    // failure inside commit stops the engine; a refusal that left both the engine
+                    // and the transaction untouched published nothing, so it rolls back.
+                    if (_transaction.Outcome == LiteTransactionState.Active && failure == error &&
+                        _resources.Engine.UnavailableFailure() == null && TransactionIntact)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        try { CloseReadersAndRollback(onlyIfActive: true); }
+                        catch (Exception cleanup) { error.Data["LiteDB.TransactionCleanupError"] = cleanup; }
+                    }
+                    else if (_transaction.Outcome == LiteTransactionState.Active)
                         _transaction.Outcome = LiteTransactionState.Indeterminate;
                     if (failure != error) ExceptionDispatchInfo.Capture(failure).Throw();
                     throw;
