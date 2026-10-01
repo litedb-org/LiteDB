@@ -59,7 +59,7 @@ namespace LiteDB.Tests.Engine
 
             db.Dispose();
             Assert.Equal(LiteTransactionState.RolledBack, owner.State);
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(20)));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => Bounded(waiting, TimeSpan.FromSeconds(20)));
             Assert.Equal(0, db.TransactionHandles.ActiveCount);
 
             // Neither handle retains native writer ownership.
@@ -135,7 +135,7 @@ namespace LiteDB.Tests.Engine
                 Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(10), $"Callback read waited {elapsed.Elapsed}");
                 Assert.False(rebuild.IsCompleted);
                 tx.Commit();
-                await rebuild.WaitAsync(TimeSpan.FromSeconds(30));
+                await Bounded(rebuild, TimeSpan.FromSeconds(30));
                 tx.Dispose();
             }
             for (var reopen = 0; reopen < 2; reopen++)
@@ -174,6 +174,13 @@ namespace LiteDB.Tests.Engine
                 Disposed = true;
                 base.Dispose(disposing);
             }
+        }
+
+        // Task.WaitAsync is unavailable on the .NET Framework test targets.
+        private static async Task<T> Bounded<T>(Task<T> task, TimeSpan timeout)
+        {
+            if (await Task.WhenAny(task, Task.Delay(timeout)) != task) throw new TimeoutException("Task did not complete in time.");
+            return await task;
         }
 
         private static object Field(object owner, string name) => owner.GetType()
