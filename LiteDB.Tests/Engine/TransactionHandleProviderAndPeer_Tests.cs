@@ -24,7 +24,7 @@ namespace LiteDB.Tests.Engine
         public void Extension_rejects_a_non_provider_database_before_side_effects()
         {
             var database = new NonProviderDatabase();
-            Assert.False(database is ILiteTransactionProvider);
+            Assert.False(typeof(ILiteTransactionProvider).IsAssignableFrom(database.GetType()));
             var refusal = Assert.Throws<NotSupportedException>(() => database.BeginTransaction());
             Assert.Contains("does not support thread-independent transaction handles", refusal.Message);
             Assert.Empty(database.Calls);
