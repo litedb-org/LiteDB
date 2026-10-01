@@ -1,5 +1,14 @@
 # Release notes
 
+## Explicit transaction handles
+
+`db.BeginTransaction()` returns an `ILiteTransaction` whose collections, queries and
+readers always use that transaction, independent of the calling thread. Sequential
+handoff across `await` is supported; overlapping use of one handle is rejected.
+Ordinary collections never enlist. Direct and filename-backed Shared databases are
+supported; in Shared mode ordinary calls to the database wait while a handle is open. The thread-bound `BeginTrans`, `Commit` and `Rollback` keep their behavior
+and now emit CS0618. See [transaction handles](transaction-handles.md).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only
