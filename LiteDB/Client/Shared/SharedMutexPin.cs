@@ -40,6 +40,7 @@ namespace LiteDB.Client.Shared
         private readonly ManualResetEventSlim _released = new ManualResetEventSlim(false);
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private Exception _error;
+        private SharedWaitDeadline _deadline;
         private bool _accepting = true;
         private bool _requested;
         private bool _forced;
@@ -98,9 +99,14 @@ namespace LiteDB.Client.Shared
         /// the holder, before release; its flag reports an abandoned or forced end.
         /// </summary>
         public static SharedMutexPin Acquire(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
-            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit) =>
+            AcquireWithin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit, default);
+
+        /// <summary>As <see cref="Acquire"/>, within <paramref name="deadline"/>.</summary>
+        public static SharedMutexPin AcquireWithin(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit, SharedWaitDeadline deadline)
         {
-            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
+            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit) { _deadline = deadline };
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             holder.Start();
             pin._acquired.Wait();
@@ -212,7 +218,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _turnstile.Wait(_mutex); }
+                try { _turnstile.WaitWithin(_mutex, _deadline); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)

@@ -103,6 +103,11 @@ namespace LiteDB
         private SharedMutexPin StartPin()
         {
             this.ThrowIfCallerRetainsOwnership();
+            return this.AcquireWithin(0, (engine, _, deadline) => engine.StartPin(deadline));
+        }
+
+        private SharedMutexPin StartPin(SharedWaitDeadline deadline)
+        {
             this.RetireCoordinatedReads();
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
@@ -113,13 +118,13 @@ namespace LiteDB
             // connection's mutex ownership; a pin it could not enter has stopped accepting,
             // which it does only without operations in flight, so this thread is not
             // inside one of its operations either. Nothing a waiter needs is held here.
-            this.WaitForMutexWaiters();
+            this.WaitForMutexWaiters(deadline);
             SharedMutexPin pin;
             // Counted while acquiring, so that another pin of this instance ends for us too.
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                pin = SharedMutexPin.AcquireWithin(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit, deadline);
             }
             finally
             {

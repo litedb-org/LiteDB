@@ -119,14 +119,19 @@ so other processes and connections then proceed. Completed handles retain neithe
 that needs its writer mutex waits until the handle completes** — all writes, and reads
 other than those served by a qualified mapped snapshot on .NET 8+, through any
 connection. Unlike a legacy `BeginTrans` block, whose same-thread calls join it, such a
-call made by the code that will later complete the handle (for example after an
-`await`) never returns. Obtain everything the flow needs from the handle, or complete
-the handle first. Direct mode has no such wait outside collection locks and exclusive maintenance.
+call from the code that will later complete the handle (for example after an `await`)
+never returns, unless another thread completes the handle meanwhile. Obtain everything
+the flow needs from the handle, or complete the handle first. Opt in to
+`SharedSelfWaitGrace` to refuse such a wait, from the async flow that began or used the
+open handle, with `InvalidOperationException` (immediately, or once the handle stayed
+idle for the grace period), and `SharedWriterTimeout` to bound every Shared writer wait;
+see [Shared writer waits](shared-writer-waits.md). Direct mode has no such wait outside
+collection locks and exclusive maintenance.
 
 At most one handle per database (mutex name) in a process proceeds to native
 admission; later begins wait on their own threads, never on an extra holder. As with
-existing Shared writers, `BeginTransaction()` waits until the current owner releases;
-do not begin a second handle on the only thread able to complete the first.
+existing Shared writers, `BeginTransaction()` waits until the current owner releases,
+within `SharedWriterTimeout` when one is set.
 
 Operations that would wait for writer ownership that only the executing handle can
 release are refused with `InvalidOperationException` before waiting: an ordinary call
@@ -149,8 +154,9 @@ Projects using `TreatWarningsAsErrors` can migrate incrementally with
 
 ## Not included
 
-These parts of the v6 plan are separate follow-ups: the opt-in
-`BeginTransaction(TimeSpan, CancellationToken)` admission controls, bounded session
+These parts of the v6 plan are separate follow-ups: the per-call
+`BeginTransaction(TimeSpan, CancellationToken)` admission controls (the connection-wide
+`SharedWriterTimeout` bounds begin), bounded session
 close with deferred cleanup ([#3067](https://github.com/litedb-org/LiteDB/issues/3067)),
 a pooled Direct host shared by facades of one file
 ([#3041](https://github.com/litedb-org/LiteDB/issues/3041)), Shared holder reuse, and

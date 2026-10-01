@@ -6,7 +6,16 @@
 readers always use that transaction, independent of the calling thread. Sequential
 handoff across `await` is supported; overlapping use of one handle is rejected.
 Ordinary collections never enlist. Direct and filename-backed Shared databases are
-supported; in Shared mode ordinary calls to the database wait while a handle is open. The thread-bound `BeginTrans`, `Commit` and `Rollback` keep their behavior
+supported; in Shared mode ordinary calls to the database wait while a handle is open.
+
+## Shared writer waits
+
+Shared connections can bound waits for writer ownership with `SharedWriterTimeout`
+(connection string `shared writer timeout`; default infinite, unchanged), opt in to
+refusing waits from the flow holding the owning transaction handle with
+`SharedSelfWaitGrace`, and observe waits with `GetSharedWaitDiagnostics()` and an
+optional slow-wait observer. See
+[Shared writer waits](shared-writer-waits.md). The thread-bound `BeginTrans`, `Commit` and `Rollback` keep their behavior
 and now emit CS0618. See [transaction handles](transaction-handles.md).
 
 ## Shared mapped reads

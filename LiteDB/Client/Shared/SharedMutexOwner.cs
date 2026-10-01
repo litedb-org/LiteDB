@@ -46,6 +46,7 @@ namespace LiteDB.Client.Shared
         private readonly ManualResetEventSlim _released = new ManualResetEventSlim(true, SpinCount);
         private Thread _holder;
         private Command _command;
+        private SharedWaitDeadline _commandDeadline;
         private bool _acquired;
         private bool _abandoned;
         private Exception _error;
@@ -67,11 +68,11 @@ namespace LiteDB.Client.Shared
             get { lock (_sync) return _owner != null && ReferenceEquals(_scope.Owner, Thread.CurrentThread); }
         }
 
-        private bool TakeDirect(bool block, out bool abandoned)
+        private bool TakeDirect(bool block, out bool abandoned, SharedWaitDeadline deadline = default)
         {
             try
             {
-                if (!_scope.Take(block, out abandoned)) { _gate.Release(); return false; }
+                if (!_scope.Take(block, out abandoned, deadline)) { _gate.Release(); return false; }
                 lock (_sync)
                 {
                     _owner = Thread.CurrentThread;
@@ -122,16 +123,19 @@ namespace LiteDB.Client.Shared
         }
 
         /// <summary>
-        /// Acquire, or enter recursively on the owner thread. Returns true when the
-        /// OS reported the mutex abandoned by another process.
+        /// Acquire, or enter recursively on the owner thread. Returns true when the OS reported
+        /// the mutex abandoned by another process. Past <paramref name="deadline"/> (infinite by
+        /// default) the wait owns nothing and throws <see cref="SharedWaitTimeoutException"/>.
         /// </summary>
-        public bool Enter(bool scoped = false)
+        public bool Enter(bool scoped = false) => this.EnterWithin(scoped, default);
+
+        public bool EnterWithin(bool scoped, SharedWaitDeadline deadline)
         {
             if (this.TryRecurse()) return false;
-            while (!_gate.Wait(Poll)) this.ReleaseIfOwnerExited();
+            while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(); deadline.ThrowIfExpired(); }
             bool abandoned;
-            if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned);
-            else this.TakeGate(Command.Acquire, out abandoned);
+            if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned, deadline);
+            else this.TakeGate(Command.Acquire, out abandoned, deadline);
             return abandoned;
         }
 
@@ -247,12 +251,12 @@ namespace LiteDB.Client.Shared
         }
 
         /// <summary>Acquire the OS mutex for the calling thread, which holds the gate.</summary>
-        private bool TakeGate(Command command, out bool abandoned)
+        private bool TakeGate(Command command, out bool abandoned, SharedWaitDeadline deadline = default)
         {
             abandoned = false;
             try
             {
-                if (!this.Send(command)) { _gate.Release(); return false; }
+                if (!this.Send(command, deadline)) { _gate.Release(); return false; }
                 abandoned = _abandoned;
                 lock (_sync)
                 {
@@ -333,7 +337,7 @@ namespace LiteDB.Client.Shared
         /// or a caller that finds the gate's owner exited, sends; a posted release
         /// opens the gate only after it completed, so one command is pending at most.
         /// </summary>
-        private bool Send(Command command)
+        private bool Send(Command command, SharedWaitDeadline deadline = default)
         {
             lock (_send)
             {
@@ -341,6 +345,7 @@ namespace LiteDB.Client.Shared
                 {
                     this.EnsureHolder();
                     _command = command;
+                    _commandDeadline = deadline;
                     _done.Reset();
 #if DEBUG || TESTING
                     this.BeforeNotify?.Invoke();
@@ -365,10 +370,13 @@ namespace LiteDB.Client.Shared
             {
                 var signaled = _posted.Wait(Poll);
                 Command command;
+                SharedWaitDeadline deadline;
                 var ownerExited = false;
                 lock (_sync)
                 {
                     command = _command;
+                    deadline = _commandDeadline;
+                    _commandDeadline = default;
                     // Publication and signal happen under this lock, so a signal without a
                     // command is stale. Reset it either way, or the next wait would return
                     // immediately and the holder would spin.
@@ -403,7 +411,7 @@ namespace LiteDB.Client.Shared
                 {
                     switch (command)
                     {
-                        case Command.Acquire: acquired = this.WaitMutex(block: true, out abandoned); break;
+                        case Command.Acquire: acquired = this.WaitMutex(block: true, out abandoned, deadline); break;
                         case Command.TryAcquire: acquired = this.WaitMutex(block: false, out abandoned); break;
                         case Command.Release: this.ReleaseMutex(); break;
                         case Command.ReleaseAndOpenGate:
@@ -435,7 +443,7 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        private bool WaitMutex(bool block, out bool abandoned)
+        private bool WaitMutex(bool block, out bool abandoned, SharedWaitDeadline deadline = default)
         {
             abandoned = false;
             try
@@ -444,7 +452,7 @@ namespace LiteDB.Client.Shared
                 // the OS mutex's waiters, such as a pin holder of this connection.
                 // Queued at the turnstile, a party that just released cannot barge ahead.
                 if (!block) return _turnstile.TryWait(_mutex);
-                _turnstile.Wait(_mutex);
+                _turnstile.WaitWithin(_mutex, deadline);
                 return true;
             }
             catch (AbandonedMutexException)

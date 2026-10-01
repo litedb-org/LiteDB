@@ -19,6 +19,8 @@ namespace LiteDB
         private readonly HashSet<TransactionReader> _readers = new HashSet<TransactionReader>();
         private Thread _executing;
         private bool _closing, _disposed;
+        // Shared only: marks the async flows that use this handle (refusal of self-waits only).
+        private readonly LiteDB.Client.Shared.SharedHandleFlow _flow;
 
         internal LiteTransaction(TransactionResources resources, BsonMapper mapper, TransactionHandles handles)
         {
@@ -33,6 +35,8 @@ namespace LiteDB
                     throw new InvalidOperationException("Complete the legacy transaction before opening a transaction handle.");
                 using var binding = TransactionContext.Enter(_transaction);
                 resources.Engine.BeginHandleTransaction();
+                if (resources.SharedMutexName != null)
+                    LiteDB.Client.Shared.SharedHandleRegistry.Mark(_flow = new LiteDB.Client.Shared.SharedHandleFlow(resources.SharedMutexName, this));
             }
             catch (Exception error)
             {
@@ -61,10 +65,12 @@ namespace LiteDB
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
             }
+            if (_flow != null) LiteDB.Client.Shared.SharedHandleRegistry.Mark(_flow);
         }
 
         private void Exit()
         {
+            _resources?.Activity?.Touch();
             lock (_gate)
             {
                 _executing = null;
