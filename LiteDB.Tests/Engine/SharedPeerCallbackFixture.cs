@@ -31,6 +31,8 @@ namespace LiteDB.Tests.Engine
 
         protected SharedPeerCallbackFixture() => Directory.CreateDirectory(_directory);
 
+        protected void RetainFailure() => _retain = true;
+
         protected string Filename => Path.Combine(_directory, "outer.db");
 
         protected string OtherFilename => Path.Combine(_directory, "other.db");

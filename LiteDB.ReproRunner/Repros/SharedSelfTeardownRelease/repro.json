@@ -1,0 +1,32 @@
+{
+  "id": "SharedSelfTeardownRelease",
+  "title": "Shared same-instance teardown prematurely releases native ownership",
+  "issues": [
+    "https://github.com/JKamsker/LiteDB/pull/133"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 150,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [
+    "--release-only"
+  ],
+  "tags": [
+    "regression-proof",
+    "shared",
+    "concurrency"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "TEARDOWN_DEFECT_VERIFIED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  },
+  "state": "green"
+}

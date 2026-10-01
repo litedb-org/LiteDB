@@ -184,7 +184,7 @@ namespace LiteDB
                 var engine = _engine;
                 _engine = null;
                 var close = Stopwatch.StartNew();
-                engine.Dispose();
+                this.CloseRetainedCore(engine);
                 _lastPinClose = close.Elapsed;
             }
             if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
@@ -282,7 +282,7 @@ namespace LiteDB
             this.OpenEngine(false, final: true, writing: true);
             var engine = _engine;
             _engine = null;
-            engine.Close(final: true);
+            this.CloseRetainedCore(engine, final: true);
         }
 
         private static bool LogHasContent(string filename)
