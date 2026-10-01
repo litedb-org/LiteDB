@@ -92,8 +92,9 @@ namespace LiteDB.Tests.Engine
                 else
                 {
                     Assert.NotEqual(LiteTransactionState.Active, tx.State);
-                    // The engine's published failure, never the monitor's raw disposal.
-                    Assert.False(error is ObjectDisposedException, error.ToString());
+                    // The engine's published failure, or the refusal of a commit whose transaction
+                    // was already gone; never a raw failure of disposed services, locks or streams.
+                    Assert.True(error is LiteException || error.GetType() == typeof(InvalidOperationException), error.ToString());
                 }
                 outcomes[(int)tx.State]++;
                 try { tx.Dispose(); } catch { }
