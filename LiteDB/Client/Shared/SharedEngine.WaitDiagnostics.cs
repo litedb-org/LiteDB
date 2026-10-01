@@ -8,8 +8,14 @@ namespace LiteDB
     {
         private SharedWaitRecorder _waitRecorder;
 
-        private SharedWaitRecorder Waits => LazyInitializer.EnsureInitialized(ref _waitRecorder, () =>
-            new SharedWaitRecorder(_mutexName, _settings.Filename, _settings.SharedSlowWaitThreshold, _settings.SharedSlowWait));
+        // Never allocate on the acquisition path once created (a capturing lambda would, per call).
+        private SharedWaitRecorder Waits => Volatile.Read(ref _waitRecorder) ?? this.CreateWaits();
+
+        private SharedWaitRecorder CreateWaits()
+        {
+            var recorder = new SharedWaitRecorder(_mutexName, _settings.Filename, _settings.SharedSlowWaitThreshold, _settings.SharedSlowWait);
+            return Interlocked.CompareExchange(ref _waitRecorder, recorder, null) ?? recorder;
+        }
 
         /// <summary>
         /// A snapshot of this connection's waits for writer ownership: current waiters, the
