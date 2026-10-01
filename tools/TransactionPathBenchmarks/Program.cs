@@ -17,6 +17,10 @@ Directory.CreateDirectory(scratch);
 var file = Path.Combine(scratch, "bench.db");
 var shared = workload.StartsWith("shared-", StringComparison.Ordinal);
 var connection = new ConnectionString { Filename = file, Connection = shared ? ConnectionType.Shared : ConnectionType.Direct };
+// A prerelease-labelled library refuses its first open until this process acknowledges it.
+// Baseline and candidate are separate builds, so ask the loaded assembly, not this runner.
+typeof(LiteDatabase).Assembly.GetType("LiteDB.LiteDBPragmas")
+    ?.GetMethod("I_AM_AWARE_MY_DATABASE_BREAKS_WHEN_I_USE_THIS")?.Invoke(null, null);
 try
 {
     using (var seed = new LiteDatabase(connection))

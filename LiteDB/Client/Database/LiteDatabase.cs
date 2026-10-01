@@ -421,27 +421,21 @@ namespace LiteDB
             // Explicit handles belong to this facade, even over a caller-owned engine.
             // Closing from inside an executing handle call is refused before any change.
             _transactionHandles.ThrowIfClosingFromHandleCall();
-            try
+            // Every step runs; the first failure stays primary and later ones are attached to it.
+            Exception failure = null;
+            void Run(Action step)
             {
-                _transactionHandles.Close();
+                try { step(); }
+                catch (Exception error) when (failure != null) { failure.Data["LiteDB.DisposeCleanup." + failure.Data.Count] = error; }
+                catch (Exception error) { failure = error; }
             }
-            finally
+            Run(_transactionHandles.Close);
+            if (_disposeOnClose)
             {
-                if (_disposeOnClose)
-                {
-                    try
-                    {
-                        if (_checkpointOverride.HasValue)
-                        {
-                            _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
-                        }
-                    }
-                    finally
-                    {
-                        _engine.Dispose();
-                    }
-                }
+                if (_checkpointOverride.HasValue) Run(() => _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value));
+                Run(_engine.Dispose);
             }
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 }
