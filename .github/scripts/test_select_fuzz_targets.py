@@ -13,13 +13,40 @@ SHARED = "LiteDB/Client/Shared/SharedEngine.cs"
 QUERY = "LiteDB/Engine/Query/QueryExecutor.cs"
 OTHER = "LiteDB/Utils/Unmapped.cs"
 HELPER = "LiteDB.Fuzz/Targets/QueryModel.cs"
+WORKFLOW = ".github/workflows/fuzz.yml"
 
 
 def target(cls, name, body=""):
     return f'namespace LiteDB.Fuzz.Targets;\ninternal sealed class {cls} : IFuzzTarget\n{{\n    public string Name => "{name}";\n{body}}}\n'
 
 
+WORKFLOW_TEXT = """jobs:
+  smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: linux-core
+            os: ubuntu-latest
+            targets: query,shared,chaos
+            count: 30
+          # A comment between legs.
+          - name: windows-persistence
+            os: windows-latest
+            targets: shared
+            count: 10
+    steps:
+      - name: Run deterministic shard
+        run: dotnet run -- --target "${{ matrix.targets }}"
+  pr-selected:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run selected targets
+        run: echo
+"""
+
 FILES = {
+    WORKFLOW: WORKFLOW_TEXT,
     SHARED: "class SharedEngine { void Run() { } }\n",
     QUERY: "class QueryExecutor\n{\n    void Run()\n    {\n    }\n}\n",
     OTHER: "class Unmapped { }\n",
@@ -38,6 +65,19 @@ def obligation(id, targets, paths, **extra):
             "paths": paths, "targets": targets, **extra}
 
 
+def cap(count, leg, reason="Real processes: a few rounds bound the cost."):
+    return {"count": count, "smokeLeg": leg, "reason": reason}
+
+
+def counts(**overrides):
+    document = {"selected": 100, "allTargets": 30,
+                "caps": {"shared": cap(30, "linux-core"),
+                         "lifetime-chaos": cap(40, None, "Explorer programs; no Linux smoke leg in this fixture.")},
+                "uncapped": {"chaos": "Single-process state machine, cheap per step."}}
+    document.update(overrides)
+    return document
+
+
 def policy(**overrides):
     document = {
         "schemaVersion": 1,
@@ -45,6 +85,7 @@ def policy(**overrides):
         "alwaysForLiteDB": ["lifetime-chaos"],
         "pendingTargets": ["lifetime-chaos", "teardown-faults"],
         "pendingPaths": ["LiteDB.Tests/Engine/ConcurrencyExplorer/**"],
+        "prCounts": counts(),
         "ignore": ["docs/**", "**/*.md"],
         "obligations": [
             obligation("shared-mode", ["shared", "lifetime-chaos"], ["LiteDB/Client/Shared/**"]),
@@ -194,6 +235,37 @@ class SelectionTests(unittest.TestCase):
         self.assertIsNone(result["base"])
 
 
+    def test_counts_are_grouped_with_caps_below_the_selected_count(self):
+        github_output = self.scratch / "github_output"
+        os.environ["GITHUB_OUTPUT"] = str(github_output)
+        try:
+            code, output, result = self.run_select(
+                {SHARED: "class SharedEngine { int w; }\n", QUERY: QUERY_FINALLY.replace("try { } finally { }", "Plan();")},
+                extra=["--available", "shared,lifetime-chaos,query,index", "--github-output"])
+        finally:
+            del os.environ["GITHUB_OUTPUT"]
+        self.assertEqual(code, 0, output)
+        self.assertEqual(result["targets"], ["index", "lifetime-chaos", "query", "shared"])
+        self.assertEqual(result["groups"], [{"count": 100, "targets": ["index", "query"]},
+                                            {"count": 40, "targets": ["lifetime-chaos"]},
+                                            {"count": 30, "targets": ["shared"]}])
+        self.assertIn("count-groups=100:index,query 40:lifetime-chaos 30:shared", github_output.read_text().splitlines())
+
+    def test_all_targets_mode_runs_min_of_cap_and_the_all_targets_count(self):
+        _, _, result = self.run_select({OTHER: "class Unmapped { int v; }\n"}, extra=["--available",
+                                                                                     "chaos,index,query,shared,lifetime-chaos"])
+        self.assertTrue(result["allTargets"])
+        self.assertEqual(result["groups"], [{"count": 30, "targets": ["chaos", "index", "lifetime-chaos", "query", "shared"]}])
+        small = policy(prCounts=counts(allTargets=20))
+        _, _, result = self.run_select({OTHER: "class Unmapped { int v; }\n"}, obligations=small,
+                                       extra=["--available", "index,shared"])
+        self.assertEqual(result["groups"], [{"count": 20, "targets": ["index", "shared"]}])
+
+    def test_no_selected_target_gives_no_group(self):
+        _, _, result = self.run_select({"docs/guide.md": "# Changed\n"})
+        self.assertEqual(result["groups"], [])
+
+
 class DiffTests(unittest.TestCase):
     def test_parse_diff_collects_added_and_removed_lines_of_new_and_deleted_files(self):
         text = ("diff --git a/x.cs b/x.cs\nnew file mode 100644\n--- /dev/null\n+++ b/x.cs\n@@ -0,0 +1,2 @@\n+a\n+--- b\n"
@@ -263,6 +335,53 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(code, 0, output)
         self.assertIn("targets no longer known: gone", output)
         self.assertIn("1 recorded files no longer exist", output)
+
+    def test_a_cap_that_differs_from_its_smoke_leg_fails(self):
+        code, output = self.validate(policy(prCounts=counts(caps={"shared": cap(25, "linux-core")})))
+        self.assertEqual(code, 1)
+        self.assertIn("count 25 differs from smoke leg linux-core (count 30)", output)
+        changed = WORKFLOW_TEXT.replace("count: 30", "count: 25")
+        self.assertEqual(self.validate(policy(prCounts=counts(caps={"shared": cap(25, "linux-core")})),
+                                       files={WORKFLOW: changed})[0], 0)
+
+    def test_a_cap_must_name_a_leg_on_the_pr_runner_that_runs_the_target(self):
+        for leg, text in (("windows-persistence", "must run shared on ubuntu-latest"),
+                          ("linux-cor", "is not a leg of the smoke matrix"),
+                          (None, "smoke leg linux-core runs shared on ubuntu-latest with count 30")):
+            code, output = self.validate(policy(prCounts=counts(caps={"shared": cap(10, leg)})))
+            self.assertEqual(code, 1, leg)
+            self.assertIn(text, output)
+        code, output = self.validate(policy(prCounts=counts(caps={"shared": {"count": 30, "reason": "x" * 30}})))
+        self.assertIn("name the smoke leg", output)
+
+    def test_malformed_counts_fail(self):
+        document = policy(prCounts=counts(selected=0, extra=1, caps={"shraed": cap(5, None, "short")},
+                                          uncapped={"chaos": ""}))
+        code, output = self.validate(document)
+        self.assertEqual(code, 1)
+        for text in ("prCounts.selected must be a positive integer", "unknown key 'extra'", "unknown target 'shraed'",
+                     "say why the target is capped", "say why the target runs the full count"):
+            self.assertIn(text, output)
+        document = json.loads(policy())
+        del document["prCounts"]
+        self.assertIn("'prCounts' must be an object", self.validate(json.dumps(document))[1])
+
+    def test_a_process_or_explorer_target_needs_a_cap_decision(self):
+        spawner = target("IndexFuzzer", "index", "    void Run() => Process.Start(new ProcessStartInfo(\"dotnet\"));\n")
+        files = {"LiteDB.Fuzz/Targets/IndexFuzzer.cs": spawner}
+        code, output = self.validate(policy(), files=files)
+        self.assertEqual(code, 1)
+        self.assertIn("target index starts child processes or drives the concurrency explorer", output)
+        uncapped = counts(uncapped={"index": "Its child process only verifies a file, cheap per step."})
+        self.assertEqual(self.validate(policy(prCounts=uncapped), files=files)[0], 0)
+        commented = target("IndexFuzzer", "index", "    // Process.Start is not used here.\n")
+        self.assertEqual(self.validate(policy(), files={"LiteDB.Fuzz/Targets/IndexFuzzer.cs": commented})[0], 0)
+
+    def test_smoke_legs_ignore_steps_and_read_the_pr_runner(self):
+        legs, runner = select.smoke_legs(WORKFLOW_TEXT)
+        self.assertEqual(runner, "ubuntu-latest")
+        self.assertEqual(legs, {"linux-core": {"os": "ubuntu-latest", "targets": ["query", "shared", "chaos"], "count": 30},
+                                "windows-persistence": {"os": "windows-latest", "targets": ["shared"], "count": 10}})
 
     def test_the_repository_map_is_valid(self):
         code, output = run_quietly(select.main, ["--validate"])

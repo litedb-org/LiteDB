@@ -278,7 +278,7 @@ a focused xUnit regression whenever practical.
 ## Per-PR target selection
 
 The Fuzz workflow's `PR-selected targets` job runs the targets a pull request's
-diff obliges (count 100; 30 when every target is selected), with a seed fixed
+diff obliges (counts below), with a seed fixed
 per PR (`2947000 + PR number`, `2947` without `--pr`) so reruns are comparable. It is informational like the rest of this
 path-filtered workflow; the always-run gate is the Oracle smoke job of
 build-and-test. `.github/scripts/select_fuzz_targets.py` decides each changed
@@ -294,6 +294,21 @@ file in this order and records the decision in `selection.json`:
    the targets whose recorded coverage includes the file. Files under `ignore`
    (documentation, unrelated tools) select nothing.
 3. **All targets** when neither decides; new code has no coverage yet.
+
+Step counts are data too (`prCounts` in the obligation map): a selected target
+runs 100 steps, 30 when every target is selected. Explorer, teardown-sweep and
+multi-process targets have a cap equal to the count of their `ubuntu-latest`
+smoke leg (`smokeLeg`), and run `min(cap, count)` steps: `lifetime-chaos` and
+`transaction-interleavings` 40, `teardown-faults`, `chaos-maintenance`, `shared`
+and `snapshot` 30, `shared-contention` 5. Every selected target still runs. The
+selector emits one group per count (`groups` in `selection.json`, `count-groups`
+as a step output), and the job runs the groups as concurrent invocations with
+the same seed, each in its own artifact root `runs/count-<n>/` (logs in
+`logs/count-<n>.log`). The seed a target runs with does not depend on the target
+list (`--seed` for a count run's only epoch of worker 0), so grouping changes no
+target's seed. `--validate` fails when a cap differs from its smoke leg, and when
+a target whose source starts child processes or drives the concurrency explorer
+is neither capped nor listed under `uncapped` with a reason.
 
 Required targets that do not exist in the tree are listed under `missing` with a
 warning. To add an obligation, add an entry with a kebab-case `id`, a `kind`, the

@@ -1,12 +1,62 @@
 {
   "schemaVersion": 1,
-  "description": "Per-PR fuzz target obligations, read by .github/scripts/select_fuzz_targets.py (see its --help and LiteDB.Fuzz/README.md#per-pr-target-selection). For each changed file, in order: (1) every obligation whose 'paths' globs match the file, and whose 'patterns' regexes (when given) match an added or removed non-comment line of that file, contributes its 'targets'; an obligation with 'decides': false (the cross-cutting pattern obligations) adds targets but leaves the file undecided; 'alwaysForLiteDB' is added for any change under LiteDB/. (2) A file no deciding obligation matched and that is not under 'ignore' gets the targets whose recorded coverage (fuzz-coverage-map.json) includes it. (3) A file neither decides gets every known target. 'ignore' lists files that cannot affect any target (documentation, unrelated tools); obligations are matched before it. Target tokens: a target name, '@all' (every known target) or '@fuzz-source-users' (the targets declared in the file plus the targets whose LiteDB.Fuzz/Targets sources use a type it declares). Known targets are the 'Name =>' declarations in LiteDB.Fuzz/Targets plus 'pendingTargets' (being added by other changes); 'pendingPaths' may match no file yet. Schema: {schemaVersion, description, alwaysForLiteDB:[target], pendingTargets:[target], pendingPaths:[glob], ignore:[glob], obligations:[{id (kebab-case, unique), kind, reason, paths:[glob], patterns?:[regex], decides?:bool (default true), targets:[target|token], gap?}]}.",
+  "description": "Per-PR fuzz target obligations, read by .github/scripts/select_fuzz_targets.py (see its --help and LiteDB.Fuzz/README.md#per-pr-target-selection). For each changed file, in order: (1) every obligation whose 'paths' globs match the file, and whose 'patterns' regexes (when given) match an added or removed non-comment line of that file, contributes its 'targets'; an obligation with 'decides': false (the cross-cutting pattern obligations) adds targets but leaves the file undecided; 'alwaysForLiteDB' is added for any change under LiteDB/. (2) A file no deciding obligation matched and that is not under 'ignore' gets the targets whose recorded coverage (fuzz-coverage-map.json) includes it. (3) A file neither decides gets every known target. 'ignore' lists files that cannot affect any target (documentation, unrelated tools); obligations are matched before it. Target tokens: a target name, '@all' (every known target) or '@fuzz-source-users' (the targets declared in the file plus the targets whose LiteDB.Fuzz/Targets sources use a type it declares). Known targets are the 'Name =>' declarations in LiteDB.Fuzz/Targets plus 'pendingTargets' (being added by other changes); 'pendingPaths' may match no file yet. 'prCounts' sets the step count of the pr-selected job: 'selected' per target, 'allTargets' when every target is selected, and per-target 'caps' (count, the PR smoke leg of fuzz.yml it mirrors as 'smokeLeg', reason): a capped target runs min(cap, that count) steps, and --validate fails when a cap differs from its smoke leg. A target whose source starts child processes or drives the concurrency explorer must be capped or listed under 'uncapped' with the reason it runs in full. Schema: {schemaVersion, description, alwaysForLiteDB:[target], pendingTargets:[target], pendingPaths:[glob], prCounts:{selected, allTargets, caps:{target:{count, smokeLeg:leg|null, reason}}, uncapped:{target:reason}}, ignore:[glob], obligations:[{id (kebab-case, unique), kind, reason, paths:[glob], patterns?:[regex], decides?:bool (default true), targets:[target|token], gap?}]}.",
   "alwaysForLiteDB": [
     "lifetime-chaos",
     "teardown-faults"
   ],
   "pendingTargets": [],
   "pendingPaths": [],
+  "prCounts": {
+    "selected": 100,
+    "allTargets": 30,
+    "caps": {
+      "lifetime-chaos": {
+        "count": 40,
+        "smokeLeg": "linux-concurrency-explorer",
+        "reason": "Concurrency explorer, class 2: each step generates a dependency program with concurrent maintenance (close, rebuild, fatal I/O) under 15-65 s declared deadlines and may start an external-writer child process. 352-372 s at count 100; as alwaysForLiteDB it would set the floor of every LiteDB/ change."
+      },
+      "transaction-interleavings": {
+        "count": 40,
+        "smokeLeg": "linux-concurrency-explorer",
+        "reason": "Concurrency explorer, class 1: each step runs one forced-schedule vector of the rotating matrix, including external-writer process vectors. 321 s at count 100."
+      },
+      "teardown-faults": {
+        "count": 30,
+        "smokeLeg": "linux-teardown",
+        "reason": "Teardown step-fault sweep: each step runs two driver baselines and one faulted case, and Shared cases wait for idle holder threads; 30 steps already visit every registered driver (2 per step). 243-256 s at count 100; as alwaysForLiteDB it would set the floor of every LiteDB/ change."
+      },
+      "chaos-maintenance": {
+        "count": 30,
+        "smokeLeg": "linux-core-utc",
+        "reason": "Forced maintenance races (Dispose, rebuild, fatal I/O against active bulk, reader, transaction, checkpoint and rebuild calls) in Direct and Shared mode, each call under a declared 60 s deadline: an explorer-style target whose step cost is set by thread hand-offs, not by input size."
+      },
+      "shared-contention": {
+        "count": 5,
+        "smokeLeg": "linux-shared-contention",
+        "reason": "Real processes: each round starts 2-4 child processes contending for one Shared file. 868 s at count 100, 210 s at count 30."
+      },
+      "shared": {
+        "count": 30,
+        "smokeLeg": "linux-core-utc",
+        "reason": "Real processes: each round starts 2-4 child processes, each running max(12, count) operations against one Shared file with an owner crash point, so its cost grows with the square of the count. 322 s at count 100, 75 s at count 30."
+      },
+      "snapshot": {
+        "count": 30,
+        "smokeLeg": "linux-core-utc",
+        "reason": "Real processes: a snapshot writer child process for the run plus reader child processes. 72 s at count 30."
+      }
+    },
+    "uncapped": {
+      "threaded-snapshot": "Same-process threads with barrier-forced snapshots; no child process and no explorer schedule (5 s at count 30).",
+      "power-loss": "Deterministic in-memory volatile/durable device model with simulated power cuts; one process, no thread hand-offs (2 s at count 30).",
+      "checksum-crash": "Torn writes are simulated by an in-memory crash device; one process (its corpus cases already run 111 and 201 steps).",
+      "compact-crash": "Torn compact promotion is simulated in memory; one process.",
+      "compact-power-loss": "Torn promotion headers and journals are simulated in memory; one process.",
+      "concurrent": "Same-LiteDatabase thread contention in one process; no forced explorer schedule and no child process (6 s at count 30).",
+      "chaos": "Single-process state machine (CRUD, bulk, rebuild, reopen; 3 s at count 30); the maintenance races live in chaos-maintenance, which is capped."
+    }
+  },
   "ignore": [
     "docs/**",
     "**/*.md",

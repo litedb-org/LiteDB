@@ -35,9 +35,20 @@ declares (transitively). --validate checks the map (unique ids, known kinds and
 targets, globs that match a file or are pending, compiling regexes, ignore globs
 that never hide LiteDB/) and the coverage map, and is run by the Safety policy job.
 
+Counts come from the map's `prCounts`: {selected: n, allTargets: n, caps: {target: {count,
+smokeLeg, reason}}, uncapped: {target: reason}}. A selected target runs `selected` steps
+(`allTargets` when every target is selected), capped at its `caps` count: min(cap, mode
+count). The selection is emitted as count groups, one fuzz invocation each. A cap mirrors
+the PR smoke leg it names (`smokeLeg`: a leg of fuzz.yml's smoke matrix on the runner of
+the pr-selected job that runs the target; null when no such leg exists, and then the
+reason says why), and --validate fails when the two differ. Targets whose source starts
+child processes or drives the concurrency explorer must be listed under `caps` or, with a
+reason, under `uncapped`.
+
 The seed is fixed per PR so reruns are comparable: 2947000 + PR number (2947 without
 --pr). The output JSON is {schemaVersion, base, head, seed, targets, missing,
-allTargets, decisions: [{file, decidedBy, obligations, targets}], reasons}.
+allTargets, groups: [{count, targets}], decisions: [{file, decidedBy, obligations, targets}],
+reasons}.
 """
 import argparse
 import json
@@ -56,7 +67,13 @@ ALL, SOURCE_USERS = "@all", "@fuzz-source-users"
 TOKENS = {ALL, SOURCE_USERS}
 KINDS = {"lock-wait", "teardown", "public-api", "fault-point", "callback", "transaction", "shared", "storage",
          "query", "index", "bson", "mapper", "rebuild", "vector", "compatibility", "safety-machinery", "fuzz-harness"}
-TOP_KEYS = {"schemaVersion", "description", "alwaysForLiteDB", "pendingTargets", "pendingPaths", "ignore", "obligations"}
+TOP_KEYS = {"schemaVersion", "description", "alwaysForLiteDB", "pendingTargets", "pendingPaths", "prCounts", "ignore",
+            "obligations"}
+COUNT_KEYS = {"selected", "allTargets", "caps", "uncapped"}
+CAP_KEYS = {"count", "smokeLeg", "reason"}
+PR_JOB = "pr-selected"
+# Starts child processes or drives the concurrency explorer: such a target needs a cap decision.
+NEEDS_CAP = re.compile(r"\bProcess\.Start\b|\bProcessStartInfo\b|\bFuzzExplorerHost\b|\bExplorerRun\.Execute\b")
 OBLIGATION_KEYS = {"id", "kind", "reason", "paths", "patterns", "decides", "targets", "gap"}
 ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 COMMENT = re.compile(r"\s*(?://|/\*|\*)")
@@ -172,6 +189,106 @@ def _validate_obligation(item, index, seen, known, files, pending_paths, report,
     if len(report.errors) > errors:
         return None
     return {**item, "globs": globs, "compiled": patterns, "decides": item.get("decides", True)}
+
+
+def validate_counts(policy, tree, declared, known, report, path=OBLIGATIONS):
+    """Check `prCounts`; return {"selected", "allTargets", "caps": {target: count}} or None."""
+    counts = policy.get("prCounts")
+    if not isinstance(counts, dict):
+        report.error("'prCounts' must be an object {selected, allTargets, caps, uncapped}", path)
+        return None
+    errors = len(report.errors)
+    for key in sorted(set(counts) - COUNT_KEYS):
+        report.error(f"prCounts: unknown key '{key}'", path)
+    for key in ("selected", "allTargets"):
+        if not _positive(counts.get(key)):
+            report.error(f"prCounts.{key} must be a positive integer", path)
+    caps, uncapped = counts.get("caps", {}), counts.get("uncapped", {})
+    if not isinstance(caps, dict) or not isinstance(uncapped, dict):
+        report.error("prCounts.caps and prCounts.uncapped must be objects keyed by target", path)
+        return None
+    legs, runner = smoke_legs(tree.read(common.FUZZ_WORKFLOW) or "")
+    for name, cap in sorted(caps.items()):
+        _validate_cap(name, cap, known, legs, runner, report, path)
+    for name, reason in sorted(uncapped.items()):
+        if name not in known:
+            report.error(f"prCounts.uncapped names unknown target '{name}'", path)
+        if name in caps:
+            report.error(f"prCounts: {name} is both capped and uncapped", path)
+        if len(str(reason or "").strip()) < 20:
+            report.error(f"prCounts.uncapped.{name}: say why the target runs the full count", path)
+    for name, source in sorted(declared.items()):
+        if name not in caps and name not in uncapped and NEEDS_CAP.search(common.blank_code(tree.read(source) or "")):
+            report.error(f"target {name} starts child processes or drives the concurrency explorer ({source}); "
+                         f"cap its PR count under prCounts.caps or say under prCounts.uncapped why it runs in full",
+                         path)
+    if len(report.errors) > errors:
+        return None
+    return {"selected": counts["selected"], "allTargets": counts["allTargets"],
+            "caps": {name: cap["count"] for name, cap in caps.items()}}
+
+
+def _validate_cap(name, cap, known, legs, runner, report, path):
+    label = f"prCounts.caps.{name}"
+    if name not in known:
+        report.error(f"{label}: unknown target '{name}'", path)
+    if not isinstance(cap, dict):
+        report.error(f"{label} must be an object {{count, smokeLeg, reason}}", path)
+        return
+    for key in sorted(set(cap) - CAP_KEYS):
+        report.error(f"{label}: unknown key '{key}'", path)
+    if not _positive(cap.get("count")):
+        report.error(f"{label}: count must be a positive integer", path)
+    if len(str(cap.get("reason") or "").strip()) < 20:
+        report.error(f"{label}: say why the target is capped", path)
+    if "smokeLeg" not in cap:
+        report.error(f"{label}: name the smoke leg the cap mirrors in 'smokeLeg' (null when there is none)", path)
+        return
+    running = sorted(leg for leg, item in legs.items() if item["os"] == runner and name in item["targets"])
+    leg = cap["smokeLeg"]
+    if leg is None:
+        if running:
+            first = running[0]
+            report.error(f"{label}: smoke leg {first} runs {name} on {runner} with count {legs[first]['count']}; "
+                         f"set smokeLeg to it and mirror its count", path)
+        return
+    item = legs.get(leg)
+    if item is None:
+        report.error(f"{label}: smokeLeg '{leg}' is not a leg of the smoke matrix in {common.FUZZ_WORKFLOW}", path)
+    elif item["os"] != runner or name not in item["targets"]:
+        report.error(f"{label}: smoke leg {leg} must run {name} on {runner}, the runner of the {PR_JOB} job "
+                     f"(it runs {', '.join(item['targets'])} on {item['os']})", path)
+    elif item["count"] != cap.get("count"):
+        report.error(f"{label}: count {cap.get('count')} differs from smoke leg {leg} (count {item['count']}) in "
+                     f"{common.FUZZ_WORKFLOW}; keep the two equal", path)
+
+
+def _positive(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def smoke_legs(workflow):
+    """({leg name: {os, targets, count}} of fuzz.yml's smoke matrix, runs-on of the pr-selected job)."""
+    legs = {}
+    job = re.search(r"^  smoke:\n(?P<body>(?:    .*\n|\n)*)", workflow, re.M)
+    include = re.search(r"\binclude:\n(?P<items>(?:(?: {8,}.*)?\n)*)", job.group("body") if job else "")
+    for chunk in re.split(r"^ +- name:", include.group("items") if include else "", flags=re.M)[1:]:
+        fields = dict(re.findall(r"^\s*(os|targets|count):\s*\"?([^\"\n#]*?)\"?\s*$", "name:" + chunk, re.M))
+        name = chunk.split("\n", 1)[0].strip().strip('"')
+        count = fields.get("count", "")
+        legs[name] = {"os": fields.get("os", ""), "targets": [item for item in fields.get("targets", "").split(",") if item],
+                      "count": int(count) if count.isdigit() else None}
+    runner = re.search(rf"^  {PR_JOB}:\n(?:    .*\n|\n)*?    runs-on:\s*(\S+)", workflow, re.M)
+    return legs, runner.group(1) if runner else None
+
+
+def count_groups(targets, all_targets, counts):
+    """[{count, targets}] for the selected targets: min(cap, mode count), larger counts first."""
+    mode = counts["allTargets"] if all_targets else counts["selected"]
+    groups = {}
+    for name in sorted(targets):
+        groups.setdefault(min(counts["caps"].get(name, mode), mode), []).append(name)
+    return [{"count": count, "targets": names} for count, names in sorted(groups.items(), reverse=True)]
 
 
 def _bad_glob(glob, path, report, label=None):
@@ -363,12 +480,14 @@ def summarize(result, report):
     header = (f"Seed {result['seed']}; {len(result['targets'])} target(s)"
               + (" (all targets: an undecided file)" if result["allTargets"] else "")
               + f": {', '.join(result['targets']) or 'none'}")
-    report.section(header + "\n\n" + "\n".join(rows))
+    groups = "; ".join(f"{', '.join(group['targets'])} x {group['count']}" for group in result["groups"])
+    report.section(header + (f"\n\nCounts: {groups}" if groups else "") + "\n\n" + "\n".join(rows))
 
 
 def write_github_output(result):
     target = os.environ.get("GITHUB_OUTPUT")
-    lines = [f"targets={','.join(result['targets'])}", f"seed={result['seed']}",
+    groups = " ".join(f"{group['count']}:{','.join(group['targets'])}" for group in result["groups"])
+    lines = [f"targets={','.join(result['targets'])}", f"seed={result['seed']}", f"count-groups={groups}",
              f"all-targets={'true' if result['allTargets'] else 'false'}",
              f"missing={','.join(result['missing'])}"]
     if target:
@@ -392,8 +511,9 @@ def main(argv=None):
                                             "(default: the Name declarations in LiteDB.Fuzz/Targets)")
     parser.add_argument("--pr", type=int, help=f"PR number; the seed is {SEED_BASE} + PR (default seed {DEFAULT_SEED})")
     parser.add_argument("--output", help="Write the selection JSON here")
-    parser.add_argument("--github-output", action="store_true", help="Append targets=, seed=, all-targets= and "
-                                                                       "missing= to $GITHUB_OUTPUT")
+    parser.add_argument("--github-output", action="store_true", help="Append targets=, seed=, count-groups= "
+                                                                       "(space-separated count:target,... groups), "
+                                                                       "all-targets= and missing= to $GITHUB_OUTPUT")
     parser.add_argument("--strict", action="store_true", help="Exit 1 when a required target is unavailable")
     args = parser.parse_args(argv)
     root = common.repo_root()
@@ -401,13 +521,16 @@ def main(argv=None):
     report = common.Report("Fuzz target selection" if not args.validate else "Fuzz obligation map")
     obligations_path = args.obligations or os.path.join(root, OBLIGATIONS)
     coverage_path = args.coverage_map or os.path.join(root, COVERAGE_MAP)
-    declared = set(common.fuzz_targets(tree))
+    sources = common.fuzz_targets(tree)
+    declared = set(sources)
     policy = load_json(obligations_path, report) or {}
     obligations = validate(policy, tree, declared, report, OBLIGATIONS)
     known = sorted(declared | set(policy.get("pendingTargets", []) if isinstance(policy, dict) else []))
+    counts = validate_counts(policy, tree, sources, known, report) if isinstance(policy, dict) else None
     coverage = check_coverage_map(load_json(coverage_path, report, required=False), known, tree, report)
     if args.validate or report.errors:
-        report.section(f"{len(obligations)} obligations; {len(known)} known targets.")
+        caps = len(counts["caps"]) if counts else 0
+        report.section(f"{len(obligations)} obligations; {len(known)} known targets; {caps} PR count caps.")
         return report.finish()
 
     base_tree = None
@@ -434,9 +557,10 @@ def main(argv=None):
     required, everything, decisions, reasons = select(changes, diff_lines, policy, obligations, coverage, known,
                                                       tree, base_tree)
     seed = SEED_BASE + args.pr if args.pr is not None else DEFAULT_SEED
+    targets = sorted(required & available)
     result = {"schemaVersion": 1, "base": base, "head": head, "seed": seed,
-              "targets": sorted(required & available), "missing": sorted(required - available),
-              "allTargets": everything, "decisions": decisions, "reasons": reasons}
+              "targets": targets, "missing": sorted(required - available), "allTargets": everything,
+              "groups": count_groups(targets, everything, counts), "decisions": decisions, "reasons": reasons}
     for name in result["missing"]:
         report.warning(f"Required fuzz target {name} is not available in this tree; it was not run "
                        f"({'; '.join(reasons.get(name, ['fallback-all'])[:3])})")
