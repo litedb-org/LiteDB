@@ -68,7 +68,7 @@ namespace LiteDB.Tests.Safety
             {
                 var db = Connection(c);
                 c.Invoke(db.Dispose);
-            }, () => new TeardownPrior { OpenReader = false });
+            }, () => new TeardownPrior { OpenReader = false }, prior => prior.PendingTransaction = true); // without one, nothing is released
             yield return S("SharedMutexOwner.ReleaseExitedOwner", "exited-owner", "the holder's cleanup after a transaction owner exited", c =>
                 ExitedOwner(c), () => TeardownPrior.Minimal());
             yield return S("SharedEngine.OnOwnerExited", "exited-owner", "the holder's cleanup after a transaction owner exited", c =>
@@ -193,7 +193,8 @@ namespace LiteDB.Tests.Safety
             c.Defer(() => { try { db.GetCollection("rows").Count(); } catch (LiteException) { } });
         }
 
-        private static TeardownDriver S(string path, string variant, string entry, Action<TeardownCase> drive, Func<TeardownPrior> defaults = null) =>
-            new TeardownDriver(path, variant, TeardownMode.Shared, entry, drive, defaults);
+        private static TeardownDriver S(string path, string variant, string entry, Action<TeardownCase> drive, Func<TeardownPrior> defaults = null,
+            Action<TeardownPrior> require = null) =>
+            new TeardownDriver(path, variant, TeardownMode.Shared, entry, drive, defaults, require: require);
     }
 }

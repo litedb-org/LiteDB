@@ -82,7 +82,16 @@ jobs:
         include:
           - name: linux-core-utc
             os: ubuntu-latest
-            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,teardown-faults
+            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 30
+          # Teardown step faults (docs/teardown-sweep.md): its own leg, as Shared cases wait for idle holder threads.
+          - name: linux-teardown
+            os: ubuntu-latest
+            targets: teardown-faults
             seed: 2947
             timezone: UTC
             culture: en_US.UTF-8

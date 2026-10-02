@@ -102,7 +102,7 @@ leaked page buffers) run once per batch; if one fires, the batch reruns one case
 each violation is attributed. Skips that may leak page buffers by design form their own batch.
 The first sweep test runs every driver's default baseline in one parallel batch and caches it;
 the per-path tests and the step coverage fact reuse them. Measured on a 24-core Linux host under
-other agents' load (load average 28): 32 tests (25 paths, 45 drivers) in 57 s total, the slowest
+other agents' load (load average 28): 32 tests (25 paths, 41 drivers) in 57 s total, the slowest
 path 7 s (each test case is bounded by `TestCaseTimeout` 30 s).
 
 ## Inventory
@@ -192,14 +192,15 @@ fixed here (the safety net only reports).
 
 ## Fuzz target `teardown-faults`
 
-Each step takes the next driver (round robin from a random offset, so 30 steps cover every
-driver), draws a prior state within what the driver tolerates (document count, open reader and
-pending transaction on other threads, spilled sort, upload, encryption, Shared peer), runs the
-baseline and one random case from the Full plan. Outcomes go to `teardown.jsonl` and
-`faults.jsonl`, never to `trace.jsonl`; the trace records only the choices. A known finding
+Each step takes the next two drivers (round robin from a random offset, so 30 steps run every
+one of up to 60 drivers), draws a prior state within what each tolerates (document count, open
+reader and pending transaction on other threads, spilled sort, upload, encryption, Shared peer),
+runs their baselines and one random case of one of them from the Full plan. Outcomes go to
+`teardown.jsonl` and `faults.jsonl`, never to `trace.jsonl`; the trace records only the choices. A known finding
 passes unless `LITEDB_FUZZ_STRICT_KNOWN=1`; anything else fails as
 `TEARDOWN_FAULTS_<PATH>_<KIND>`. Markers: `situation:teardown-faults-skip-fired`,
-`situation:teardown-faults-fail-inside-fired`. Runs in the `linux-core-utc` smoke leg.
+`situation:teardown-faults-fail-inside-fired`. Runs in its own smoke leg, `linux-teardown`
+(75-150 s for 30 steps locally depending on host load; Shared runs wait for idle holder threads).
 Evidence class: Direct cases are controlled (class 1); Shared cases involve holder threads
 whose interleaving is native (class 2), so their records keep the full outcome.
 

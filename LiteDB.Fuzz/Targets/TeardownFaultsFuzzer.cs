@@ -5,11 +5,11 @@ namespace LiteDB.Fuzz.Targets;
 
 /// <summary>
 /// The teardown step-fault sweep under random prior state (docs/teardown-sweep.md). Each step takes
-/// the next registered teardown driver (round robin from a random offset, so a campaign of N steps
-/// covers every driver), draws a prior state within what that driver tolerates (document count,
-/// readers and a pending transaction on other threads, a spilled sort, an upload, encryption, a
-/// Shared peer), runs the driver unarmed, then once with one random (step site, occurrence, model)
-/// fault drawn from the sites that baseline reached.
+/// the next two registered teardown drivers (round robin from a random offset, so a campaign of 30
+/// steps runs every one of up to 60 drivers), draws for each a prior state within what it
+/// tolerates (document count, readers and a pending transaction on other threads, a spilled sort, an
+/// upload, encryption, a Shared peer) and runs it unarmed, then runs one of them once more with one
+/// random (step site, occurrence, model) fault drawn from the sites its baseline reached.
 /// </summary>
 /// <remarks>
 /// Oracles (inside <see cref="TeardownSweep.Run"/>): FaultReached and FaultDisposed against the path's
@@ -25,6 +25,10 @@ namespace LiteDB.Fuzz.Targets;
 internal sealed class TeardownFaultsFuzzer : IFuzzTarget
 {
     private static readonly int[] DocumentCounts = { 5, 20, 60 };
+    // Drivers per step: a smoke of 30 steps then runs every one of up to 60 drivers' baselines. Constant, so a
+    // shorter (minimized) campaign replays a prefix of the same drivers. The smoke's reachability gate reports a
+    // step no baseline reached when the driver list outgrows it.
+    private const int DriversPerStep = 2;
     // A case builds a database, runs participants bounded at 20 s each, and waits up to ~1.5 s for idle owner threads.
     private static readonly TimeSpan CaseDeadline = TimeSpan.FromSeconds(60);
 
@@ -41,29 +45,37 @@ internal sealed class TeardownFaultsFuzzer : IFuzzTarget
         // A skip fault leaves page buffers in use by design; count them instead of failing the host.
         using var leaks = TeardownSweep.CountLeakedBuffers();
         using var records = new StreamWriter(Path.Combine(context.DirectoryPath, "teardown.jsonl"));
+        var perStep = DriversPerStep;
         while (context.Next())
         {
-            var driver = drivers[(offset + context.Steps - 1) % drivers.Length];
-            var prior = Prior(context.Random, driver);
+            var baselines = new List<(TeardownDriver Driver, TeardownPrior Prior, TeardownRunResult Result)>();
+            for (var slot = 0; slot < perStep; slot++)
+            {
+                var driver = drivers[(offset + (context.Steps - 1) * perStep + slot) % drivers.Length];
+                var prior = Prior(context.Random, driver);
+                var baseline = context.Deadline("TeardownBaseline",
+                    () => TeardownSweep.Run(new TeardownCaseSpec { Driver = driver }, prior, root, isolated: true), driver.Id, CaseDeadline);
+                Record(records, context, baseline);
+                Judge(context, baseline, strict);
+                baselines.Add((driver, prior, baseline));
+            }
+            var chosen = baselines[context.Random.Next(baselines.Count)];
             var pick = context.Random.Next(int.MaxValue);
-            var baseline = context.Deadline("TeardownBaseline",
-                () => TeardownSweep.Run(new TeardownCaseSpec { Driver = driver }, prior, root, isolated: true), driver.Id, CaseDeadline);
-            Record(records, context, baseline);
-            Judge(context, baseline, strict);
-            var cases = TeardownSweepPlan.Cases(driver, baseline.Visits, TeardownSweepScope.Full);
-            context.Trace("teardown", new { driver = driver.Id, prior = prior.ToString(), sites = cases.Count });
+            var cases = TeardownSweepPlan.Cases(chosen.Driver, chosen.Result.Visits, TeardownSweepScope.Full);
+            context.Trace("teardown", new { drivers = baselines.Select(item => item.Driver.Id).ToArray(), driver = chosen.Driver.Id,
+                prior = chosen.Prior.ToString(), sites = cases.Count });
             if (cases.Count == 0) continue;
             var spec = cases[pick % cases.Count];
             context.Trace("teardown-case", new { site = spec.Step, occurrence = spec.Occurrence, model = spec.ModelName });
-            var result = context.Deadline("TeardownCase", () => TeardownSweep.Run(spec, prior, root, isolated: true), driver.Id, CaseDeadline);
+            var result = context.Deadline("TeardownCase", () => TeardownSweep.Run(spec, chosen.Prior, root, isolated: true), chosen.Driver.Id, CaseDeadline);
             if (result.Fired && spec.Model == FaultModel.Skip) Reachability.Sometimes("situation:teardown-faults-skip-fired");
             if (result.Fired && spec.Model == FaultModel.FailInside) Reachability.Sometimes("situation:teardown-faults-fail-inside-fired");
             context.Oracles.WriteFault(spec.Step, null, result.Fired, null, null);
             if (result.Fired)
-                context.Oracles.WriteFault(null, driver.Path, true, TeardownPathRegistry.Find(driver.Path).Declared, result.Observed);
+                context.Oracles.WriteFault(null, chosen.Driver.Path, true, TeardownPathRegistry.Find(chosen.Driver.Path).Declared, result.Observed);
             Record(records, context, result);
             Judge(context, result, strict);
-            context.ObserveNovelty("teardown", driver.Id, spec.Step, spec.ModelName, result.Violations.Count);
+            context.ObserveNovelty("teardown", chosen.Driver.Id, spec.Step, spec.ModelName, result.Violations.Count);
         }
         context.Metrics["teardownDrivers"] = drivers.Length;
         return Task.CompletedTask;
