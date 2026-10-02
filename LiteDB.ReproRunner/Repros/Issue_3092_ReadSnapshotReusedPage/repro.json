@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3092_ReadSnapshotReusedPage",
+  "title": "A read snapshot reads a page its transaction reused for another collection",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3092"
+  ],
+  "failingSince": "6.0.0-prerelease.322",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "transactions",
+    "snapshot"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  },
+  "state": "green"
+}

@@ -33,6 +33,9 @@ stop unsafe continuation, and make detected corruption visible.
 - Cursors retain all snapshots they use, including referenced collections through
   INCLUDE. Upgrading a collection snapshot for writing must not dispose a snapshot
   still reachable by an active cursor or replay pipeline.
+- A transaction's dirty-page map is keyed by page ID, and freed page IDs are reused
+  across collections. Only its write snapshots may resolve pages through it; a read
+  snapshot always reads the version it pinned.
 
 Read [explicit transactions](../explicit-transactions.md),
 [reader ownership](../issue-2991-reader-ownership.md), and
