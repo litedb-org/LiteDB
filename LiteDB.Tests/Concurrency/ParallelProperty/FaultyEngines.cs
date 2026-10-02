@@ -61,10 +61,15 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
     /// <summary>
     /// Broken on purpose: Update is a delete followed by a re-insert in separate calls, so another
     /// thread can observe the document missing in between. Every single-thread result is still right;
-    /// only concurrent readers can see the intermediate state.
+    /// only concurrent readers can see the intermediate state. While another thread has a call in
+    /// flight, the half-done state stays exposed until one of its reads completes (at most 250 ms),
+    /// so detection does not depend on a reader happening to land in a short window.
     /// </summary>
     public sealed class NonAtomicUpdateEngine : ForwardingEngine
     {
+        private int _inFlight;
+        private int _readsCompleted;
+
         public NonAtomicUpdateEngine(ILiteEngine inner) : base(inner)
         {
         }
@@ -75,11 +80,74 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
             foreach (var doc in docs.ToList())
             {
                 if (this.Inner.Delete(collection, new[] { doc["_id"] }) == 0) continue;
-                Thread.Sleep(20);
+                var reads = Volatile.Read(ref _readsCompleted);
+                var exposed = System.Diagnostics.Stopwatch.StartNew();
+                SpinWait.SpinUntil(() => Volatile.Read(ref _readsCompleted) != reads ||
+                    (Volatile.Read(ref _inFlight) == 0 && exposed.ElapsedMilliseconds >= 20), 250);
                 this.Inner.Insert(collection, new[] { doc }, BsonAutoId.Int32);
                 updated++;
             }
             return updated;
+        }
+
+        // The updater's own Delete/Insert go to Inner directly, so these count other threads only.
+        public override IBsonDataReader Query(string collection, Query query)
+        {
+            Interlocked.Increment(ref _inFlight);
+            try
+            {
+                return new CountedReader(this.Inner.Query(collection, query), this);
+            }
+            catch
+            {
+                Interlocked.Decrement(ref _inFlight);
+                throw;
+            }
+        }
+
+        public override int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => this.Counted(() => this.Inner.Insert(collection, docs, autoId));
+
+        public override int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => this.Counted(() => this.Inner.Upsert(collection, docs, autoId));
+
+        public override int Delete(string collection, IEnumerable<BsonValue> ids) => this.Counted(() => this.Inner.Delete(collection, ids));
+
+        private T Counted<T>(Func<T> call)
+        {
+            Interlocked.Increment(ref _inFlight);
+            try { return call(); }
+            finally { Interlocked.Decrement(ref _inFlight); }
+        }
+
+        private sealed class CountedReader : IBsonDataReader
+        {
+            private readonly IBsonDataReader _inner;
+            private readonly NonAtomicUpdateEngine _owner;
+            private int _disposed;
+
+            public CountedReader(IBsonDataReader inner, NonAtomicUpdateEngine owner)
+            {
+                _inner = inner;
+                _owner = owner;
+            }
+
+            public BsonValue this[string field] => _inner[field];
+            public string Collection => _inner.Collection;
+            public BsonValue Current => _inner.Current;
+            public bool HasValues => _inner.HasValues;
+            public bool Read() => _inner.Read();
+
+            public void Dispose()
+            {
+                try { _inner.Dispose(); }
+                finally
+                {
+                    if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                    {
+                        Interlocked.Increment(ref _owner._readsCompleted);
+                        Interlocked.Decrement(ref _owner._inFlight);
+                    }
+                }
+            }
         }
     }
 }
