@@ -63,7 +63,9 @@ jobs:
 
       # Diff lints (docs/rules/safety-evidence.md#diff-lints): polling loops need a reason,
       # deleted invariant comments are listed (the PR body names where they are enforced
-      # now; the Safety section workflow checks that), new doc claims carry an anchor.
+      # now; the Safety section workflow checks that), new doc claims carry an anchor or a
+      # contracts.json claim. PILOT: advisory while .github/safety/net-modes.json has
+      # "blocking": false (findings in the summary, exit 0); flip that one switch to block.
       - name: Lint added wait primitives for unexplained polling
         if: ${{ !cancelled() }}
         run: python .github/scripts/lint_polling.py --base "${BASE_SHA:-HEAD^}"

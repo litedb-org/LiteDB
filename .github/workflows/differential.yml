@@ -1,18 +1,24 @@
 name: Differential run
 
 # Base-vs-head behavior diff (docs/rules/safety-evidence.md#differential-run). The same
-# fuzz targets, seeds and counts run on the PR's merge-base and its head, each tree with
-# its own harness; escaped exceptions, outcomes, latency, ClosedClean metrics and markers
-# are compared per operation class, and every difference must be listed in
-# .github/safety/intended-changes.json by this PR.
+# fuzz targets, seeds and counts run twice on the PR's merge-base and twice on its head,
+# each tree with its own harness; NORMALIZED outcomes are compared per operation class
+# (outcome sets, exception contract, payload/effect digests, cleanup obligations, lost
+# markers; no latency), and every difference must be listed in
+# .github/safety/intended-changes.json by this PR. Operations whose outcome set varies
+# between the two runs of one tree are classified schedule-dependent.
+#
+# PILOT: while .github/safety/net-modes.json has "blocking": false the job reports its
+# findings in the step summary and exits 0.
 #
 # DEPENDS ON the outcome-emitting fuzz harness (outcomes.jsonl, closed-clean.jsonl,
 # markers.json per run; milestone M1). Until the PR's base contains it, the job is
 # SKIPPED with a warning and a step-summary note: it neither fails nor reports a pass.
 #
 # Seeds are derived from the PR number, so reruns of one PR compare identical schedules.
-# Budget: two Release builds of LiteDB.Fuzz (net8.0) plus 5 targets x 2 seeds x 30 steps
-# per tree, within the plan's 15-20 minute per-PR budget.
+# Cost: two Release builds of LiteDB.Fuzz (net8.0) plus 5 targets x 2 seeds x 30 steps x
+# 2 repeats per tree. Measured locally (shared 24-core host): about 3 minutes for one
+# repeat per tree; the CI number is to be measured in the pilot.
 on:
   pull_request:
     paths:
@@ -66,7 +72,7 @@ jobs:
           git fetch --no-tags origin dev
           base="$(git merge-base HEAD "${BASE_SHA:-origin/dev}")"
           python .github/scripts/differential_run.py --base "$base" --head HEAD \
-            --pr "$PR_NUMBER" --seed-count 2 --count 30 --targets "$TARGETS" \
+            --pr "$PR_NUMBER" --seed-count 2 --count 30 --repeat 2 --targets "$TARGETS" \
             --run-timeout 300 --out artifacts_temp/differential
 
       - name: Upload the differential report and run directories
