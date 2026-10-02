@@ -8,5 +8,9 @@
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The concurrency explorer's external-writer process (mode explorer-writer). -->
+    <Compile Include="..\LiteDB.Tests\Engine\ConcurrencyExplorer\ExplorerWriterChild.cs" Link="ExplorerWriterChild.cs" />
+  </ItemGroup>
 </Project>
 
