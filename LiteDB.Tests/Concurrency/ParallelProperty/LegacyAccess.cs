@@ -109,6 +109,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
                     return;
                 case Commit:
                 case Rollback:
+                    if (state.Mode == ConnectionType.Direct && CompleteOwnDirect(next, thread, command.Op == Commit, outcomes)) return;
                     if (state.Mode == ConnectionType.Direct && command.Op == Commit && ForeignCommitAfterScan(next, thread, outcomes)) return;
                     outcomes.Add(new ModelOutcome(state.Mode == ConnectionType.Shared
                         ? CompleteShared(next, thread, command.Op == Commit)
@@ -137,7 +138,8 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         /// LiteEngine.Commit/Rollback via GetTransactionForCompletion: complete the thread's own
         /// transaction; otherwise Commit throws when another thread has an active explicit
         /// transaction and this thread was not just aborted; Rollback returns false. (A foreign
-        /// Commit may also return false while those transactions hand over: <see cref="ForeignCommitScan"/>.)
+        /// Commit may also return false while those transactions hand over: <see cref="ForeignCommitScan"/>.
+        /// Direct mode completes its own transaction in <see cref="CompleteOwnDirect"/>; Shared mode here.)
         /// </summary>
         private static Observation CompleteDirect(ModelState state, int thread, bool commit)
         {
@@ -156,6 +158,36 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
 
         /// <summary><see cref="ModelState.Pending"/> phase of a foreign Commit between its scan and its check.</summary>
         public const int ForeignCommitPending = 2;
+
+        /// <summary><see cref="ModelState.Pending"/> phase of an owner's Commit/Rollback between its publication and its return.</summary>
+        public const int CompletionPending = 3;
+
+        /// <summary>
+        /// Direct Commit/Rollback of the thread's own transaction, in two points. The engine publishes
+        /// the outcome and releases the collection locks (snapshot disposal, Snapshot.Lifetime.cs:28)
+        /// before it sets the transaction's State (TransactionService.cs:309-315 and 352-375); until then a foreign
+        /// Commit's guard still sees an active explicit transaction. First point: publish and
+        /// unlock, the transaction stays registered as completing; second point: it ends and the
+        /// call returns true. Returns false when the thread has neither its own transaction nor a
+        /// completion pending.
+        /// </summary>
+        private static bool CompleteOwnDirect(ModelState next, int thread, bool commit, List<ModelOutcome> outcomes)
+        {
+            var transaction = next.Transaction(thread);
+            if (next.Pending(thread) == CompletionPending)
+            {
+                next.SetPending(thread, 0);
+                next.End(transaction);
+                outcomes.Add(new ModelOutcome(Observation.Ok(true), next));
+                return true;
+            }
+            if (transaction == null) return false;
+            next.ConsumeAbortFlag(thread);
+            next.Publish(transaction, commit);
+            next.SetPending(thread, CompletionPending);
+            outcomes.Add(new ModelOutcome(Observation.Ok(true), next, completes: false));
+            return true;
+        }
 
         /// <summary>
         /// Direct Commit without an own transaction, second outcome. The engine's refusal is not

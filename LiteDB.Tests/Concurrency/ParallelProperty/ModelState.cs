@@ -39,6 +39,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
             this.Modes = (SnapshotMode[])source.Modes.Clone();
             this.View = (int[])source.View.Clone();
             this.ScannedBy = source.ScannedBy;
+            this.Completing = source.Completing;
         }
 
         public int OwnerKey { get; }
@@ -52,6 +53,9 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         /// <summary>Bit per model thread whose pending foreign-Commit scan saw this transaction (<see cref="LegacyAccess"/>).</summary>
         public int ScannedBy { get; internal set; }
 
+        /// <summary>Published and unlocked by <see cref="ModelState.Publish"/>; still registered until its completion call returns.</summary>
+        public bool Completing { get; internal set; }
+
         public SnapshotMode ModeOf(int collection) => this.Modes[collection];
 
         internal ModelTransaction Clone() => new ModelTransaction(this);
@@ -60,6 +64,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         {
             sb.Append('{').Append(this.OwnerKey).Append(',').Append(this.OwnerThread).Append(this.Explicit ? 'E' : 'A');
             if (this.ScannedBy != 0) sb.Append('s').Append(this.ScannedBy);
+            if (this.Completing) sb.Append('c');
             for (var c = 0; c < this.Modes.Length; c++) sb.Append((int)this.Modes[c]);
             sb.Append(':');
             foreach (var value in this.View) sb.Append(value).Append(',');
@@ -219,18 +224,30 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         /// <summary>Publish every write snapshot atomically, release the locks and end the transaction.</summary>
         public void Commit(ModelTransaction transaction)
         {
-            for (var c = 0; c < this.Collections; c++)
-            {
-                if (transaction.Modes[c] == SnapshotMode.Write)
-                    Array.Copy(transaction.View, this.Index(c, 1), _committed, this.Index(c, 1), this.Keys);
-            }
+            this.Publish(transaction, commit: true);
             this.End(transaction);
         }
 
         /// <summary>Discard the transaction's writes, release its locks and end it.</summary>
         public void Rollback(ModelTransaction transaction) => this.End(transaction);
 
-        private void End(ModelTransaction transaction)
+        /// <summary>
+        /// First point of a two-point completion: publish the writes (on commit) and release the
+        /// locks, keeping the transaction registered (<see cref="ModelTransaction.Completing"/>) until <see cref="End"/>.
+        /// </summary>
+        public void Publish(ModelTransaction transaction, bool commit)
+        {
+            for (var c = 0; c < this.Collections; c++)
+            {
+                if (commit && transaction.Modes[c] == SnapshotMode.Write)
+                    Array.Copy(transaction.View, this.Index(c, 1), _committed, this.Index(c, 1), this.Keys);
+                if (_lockHolders[c] == transaction.OwnerKey) _lockHolders[c] = NoOwner;
+            }
+            transaction.Completing = true;
+        }
+
+        /// <summary>Release the transaction's locks and remove it.</summary>
+        public void End(ModelTransaction transaction)
         {
             for (var c = 0; c < this.Collections; c++)
             {
@@ -287,7 +304,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         {
             var parts = Enumerable.Range(0, this.Collections).Select(c => "c" + c + "=" + this.CommittedContents(c)).ToList();
             foreach (var transaction in _transactions)
-                parts.Add($"tx(owner={transaction.OwnerKey}, modes={string.Join("", transaction.Modes.Select(m => m.ToString()[0]))}{(transaction.ScannedBy != 0 ? ", scannedBy=" + transaction.ScannedBy : "")})");
+                parts.Add($"tx(owner={transaction.OwnerKey}, modes={string.Join("", transaction.Modes.Select(m => m.ToString()[0]))}{(transaction.ScannedBy != 0 ? ", scannedBy=" + transaction.ScannedBy : "")}{(transaction.Completing ? ", completing" : "")})");
             for (var c = 0; c < this.Collections; c++)
                 if (_lockHolders[c] != NoOwner) parts.Add($"lock(c{c})={_lockHolders[c]}");
             if (this.SharedHolder != NoOwner) parts.Add("sharedHolder=T" + this.SharedHolder);

@@ -48,7 +48,10 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
     /// (Services/SnapShot.cs:76-88; an earlier read snapshot is replaced, TransactionService.cs:91-96)
     /// and hold the lock until completion. Reads pin a snapshot of the collection at first access and
     /// see the transaction's own writes. Other threads never see uncommitted writes. Commit publishes
-    /// all of its writes at its position.</item>
+    /// all of its writes at its position. In Direct mode Commit and Rollback publish and release the
+    /// locks at one position and end the transaction at a later one within the call: the engine sets
+    /// the transaction's State after disposing its snapshots (Services/TransactionService.cs:309-315,
+    /// 352-375), so a foreign Commit (rule 3) may still be refused in between.</item>
     /// <item>Rejection: Commit on a thread without a transaction while another thread has an active
     /// explicit transaction throws LiteException (Engine/Engine/TransactionCompletionGuard.cs:19-27;
     /// docs "Commit throws a descriptive LiteException"); Rollback there returns false. The refusal is

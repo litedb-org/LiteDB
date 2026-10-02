@@ -201,6 +201,29 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         }
 
         [Fact]
+        public void A_foreign_commit_may_be_refused_while_the_owner_commit_runs_after_releasing_its_locks()
+        {
+            // Native-thread history (Direct, case seed 7273): T1's delete got the collection lock that
+            // T2's Commit released, yet T1's later foreign Commit still saw T2's transaction active.
+            var history = new List<OperationRecord>
+            {
+                Op(2, 0, Legacy(LegacyAccess.BeginTrans), True, 1, 3),
+                Op(1, 0, Ordinary(DataOperations.Upsert, key: 1, payload: 13), True, 2, 5),
+                Op(2, 1, Legacy(DataOperations.Delete, key: 5), False, 4, 9),
+                Op(1, 1, Legacy(LegacyAccess.BeginTrans), True, 6, 7),
+                Op(1, 2, Legacy(DataOperations.Delete, key: 5), False, 8, 11),
+                Op(1, 3, Legacy(LegacyAccess.Rollback), True, 12, 13),
+                Op(1, 4, Legacy(LegacyAccess.Commit), Observation.Error(0), 14, 15),
+                Op(1, 5, Ordinary(DataOperations.FindAll, collection: 1), Observation.Ok("[]"), 16, 17),
+                Op(2, 3, Ordinary(DataOperations.Delete, key: 4), False, 19, 20),
+            };
+
+            Assert.True(Check(history.Plus(Op(2, 2, Legacy(LegacyAccess.Commit), True, 10, 18)), "[1:13]", "[]").Permitted);
+            // Once the owner's Commit has returned, the refusal is not permitted.
+            Assert.False(Check(history.Plus(Op(2, 2, Legacy(LegacyAccess.Commit), True, 10, 11)), "[1:13]", "[]").Permitted);
+        }
+
+        [Fact]
         public void An_interrupted_commit_has_its_whole_effect_or_none()
         {
             var history = new[]
