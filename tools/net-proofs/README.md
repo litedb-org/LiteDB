@@ -11,7 +11,8 @@ SDK-style projects only compile files below their own directory. See
 
 - `adapters/<name>/`: an **adapter**, code that compiles only against the trees it
   is written for. One example is a transaction-handle access adapter for the
-  explorer, which needs the PR #133 handle API that `dev` does not have. Each
+  explorer, which needs the handle API of the fork PR
+  [JKamsker/LiteDB#133](https://github.com/JKamsker/LiteDB/pull/133) that `dev` does not have. Each
   adapter has an `adapter.json` and a `README.md`.
 - `smoke/`: the `harness-smoke` self-check (a patch and a check script). It is
   **not a net**. It proves only that the worktree, overlay, build, run and

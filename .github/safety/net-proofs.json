@@ -3,7 +3,7 @@
   "description": "Net proofs: a general safety net fires at a real known-bad commit and stays quiet at its fix. Regression proofs (regression-proofs.json) prove a fix with a ReproRunner repro; net proofs prove that a net not written for the defect detects it. Capabilities are probed on each tree before and after the overlay; a required capability that is missing makes the proof not-applicable, which is never a pass. Maintained by .github/scripts/net_proof.py; see docs/rules/safety-evidence.md#net-proofs.",
   "capabilities": {
     "legacy-transactions": {"description": "ILiteDatabase declares the thread-bound BeginTrans() (upstream ordinary/legacy access)", "grep": "\\bbool\\s+BeginTrans\\s*\\(", "in": "LiteDB/Client/Database/ILiteDatabase.cs"},
-    "handle-api": {"description": "A transaction-handle API: some type declares ILiteTransaction BeginTransaction(...) (fork PR #133 only; upstream's [Obsolete] messages mention the name but declare nothing)", "grep": "\\bILiteTransaction\\s+BeginTransaction\\s*\\(", "in": "LiteDB/Client/**/*.cs"},
+    "handle-api": {"description": "A transaction-handle API: some type declares ILiteTransaction BeginTransaction(...) (fork JKamsker/LiteDB#133 only; upstream's [Obsolete] messages mention the name but declare nothing)", "grep": "\\bILiteTransaction\\s+BeginTransaction\\s*\\(", "in": "LiteDB/Client/**/*.cs"},
     "shared-call-frames": {"description": "Shared peer-call frames (#3072)", "file": "LiteDB/Client/Shared/SharedCallFrames.cs"},
     "reachability": {"description": "Reachability (sometimes) markers", "file": "LiteDB/Utils/Reachability.cs"},
     "wait-graph": {"description": "The TESTING wait-for graph", "file": "LiteDB/Utils/WaitGraph.cs"},
@@ -64,7 +64,7 @@
       "rows": [5],
       "level": "generic",
       "independence": "designed-from-invariant",
-      "defect": "Disposed reader/enumerator race aborts the transaction and loses prior writes (PR #133)",
+      "defect": "Disposed reader/enumerator race aborts the transaction and loses prior writes (JKamsker/LiteDB#133)",
       "knownBad": {"kind": "pr-commit", "commit": "26406ecaf934ee39a9b1d0cf2179ac2e567844ad", "pr": 133, "repository": "JKamsker/LiteDB"},
       "fix": {"commit": "9bf6137ca9a07cd3316fc17d7703b920b4864050"},
       "net": {"name": "refusal-transition + durable-outcome", "evidenceClass": 1, "requires": ["handle-api", "oracle-durable"], "overlay": {"commits": [], "patches": [], "adapters": []}}

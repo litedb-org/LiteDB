@@ -210,7 +210,7 @@ wall-clock limit. Its result is `proven` or one of `not-fired`, `fired-at-fix`,
 
 **Capabilities.** The ledger's capability table declares a probe (a file, or a
 regular expression over files) per capability, such as `handle-api`, which only
-the PR #133 fork has. Each tree is probed before and after its overlay. When a
+the fork's JKamsker/LiteDB#133 tree has. Each tree is probed before and after its overlay. When a
 capability the net `requires` is missing, the proof is **not applicable** with
 the missing names: it is reported and fails the run, and it never counts as
 passing. `net_proof.py capabilities --rev <rev>` lists what a revision has.
