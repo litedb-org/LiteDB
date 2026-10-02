@@ -136,13 +136,21 @@ namespace LiteDB.Client.Shared
                 TimeSpan.FromMinutes(minutes), recent.ToStatistics(), total.ToStatistics());
         }
 
-        /// <summary>The message for a wait that ran out of <paramref name="timeout"/>.</summary>
-        internal LiteException TimeoutError(TimeSpan timeout)
+        /// <summary>
+        /// The message for a wait that ran out of <paramref name="timeout"/>. It names, in this order:
+        /// another thread of this connection it queued behind, this process's registered transaction
+        /// handle, a handle of this process being admitted (its local queue is taken but it is not
+        /// registered yet), and only otherwise another connection or process.
+        /// </summary>
+        internal LiteException TimeoutError(TimeSpan timeout, bool behindThisConnection, bool handleAdmitting)
         {
             var owner = SharedHandleRegistry.Owner(_mutexName);
-            var detail = owner == null
-                ? "The owner is another connection or process."
-                : $"It is owned by a transaction handle of this process, held for {owner.Held} and idle for {owner.Idle}.";
+            var handle = owner == null ? null : $"a transaction handle of this process, held for {owner.Held} and idle for {owner.Idle}";
+            var detail = behindThisConnection
+                ? "It waited behind another thread of this connection" + (handle == null ? "." : $"; the owner is {handle}.")
+                : handle != null ? $"It is owned by {handle}."
+                : handleAdmitting ? "The owner is this process's transaction handle (admitting), or another connection or process that handle waits for."
+                : "The owner is another connection or process.";
             return new LiteException(LiteException.LOCK_TIMEOUT,
                 $"Shared writer ownership of '{_filename}' was not acquired within {timeout} (SharedWriterTimeout). {detail}");
         }

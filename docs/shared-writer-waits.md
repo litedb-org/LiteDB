@@ -40,8 +40,19 @@ The default is infinite, which keeps the previous behavior. A finite timeout is 
 budget for the whole wait: the connection's local queue, a pin's holder, the
 cross-process turnstile and the native mutex, and for `BeginTransaction()` also the
 local handle queue. When it runs out the call throws `LiteException` with error code
-`LOCK_TIMEOUT` (120) before any side effect. The message says whether this process's
-transaction handle owns the mutex, and for how long it has held it and been idle. A
+`LOCK_TIMEOUT` (120) before any side effect. The message names what the wait was behind:
+
+- "another thread of this connection", when it queued behind one (that thread may itself
+  wait for another owner);
+- a transaction handle of this process, with how long it has held the mutex and been idle;
+- "this process's transaction handle (admitting)", when a handle of this process holds
+  the local handle queue but is not registered as the owner yet (it may itself still wait
+  for another connection or process);
+- otherwise "another connection or process".
+
+The budget is spent only on waiting for another owner: this connection's own release of
+its previous call, still completing on its holder thread, is waited for first and not
+charged, so a zero budget ("try once") does not fail on an uncontended connection. A
 timed-out wait leaves no turnstile, mutex or queue ownership behind. The turnstile
 and mutex waits block with the remaining budget; they do not poll.
 

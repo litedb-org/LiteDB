@@ -71,12 +71,20 @@ namespace LiteDB
                     catch (SharedWaitTimeoutException) when (selfWait && !deadline.Expired) { selfWait = this.StillSelfWaiting(); }
                 }
             }
-            catch (SharedWaitTimeoutException)
+            catch (SharedWaitTimeoutException error)
             {
                 timedOut = true;
-                throw waits.TimeoutError(deadline.Timeout);
+                throw this.TimeoutError(waits, deadline, error.BehindThisConnection);
             }
             finally { waits.End(wait, timedOut); }
         }
+
+        /// <summary>
+        /// The timeout error, attributed to the party the wait was behind. A handle's own child
+        /// connection holds its local queue while it is admitted, so that queue says nothing there.
+        /// </summary>
+        private LiteException TimeoutError(SharedWaitRecorder waits, SharedWaitDeadline deadline, bool behindThisConnection) =>
+            waits.TimeoutError(deadline.Timeout, behindThisConnection,
+                handleAdmitting: !_transactionChild && TransactionWriters.TryGetValue(_mutexName, out var gate) && gate.CurrentCount == 0);
     }
 }

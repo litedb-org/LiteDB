@@ -106,7 +106,7 @@ namespace LiteDB
                 refused = false;
             }
             finally { waits.End(wait, timedOut: !acquired && !refused); }
-            if (!acquired) throw waits.TimeoutError(deadline.Timeout);
+            if (!acquired) throw this.TimeoutError(waits, deadline, behindThisConnection: false);
         }
 
         /// <summary>One internal native owner per handle, independent of application threads.</summary>

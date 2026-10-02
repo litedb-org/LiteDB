@@ -103,7 +103,7 @@ namespace LiteDB
             lock (_waitersLock)
             {
                 while (_mutexWaiters > 0)
-                    if (!Monitor.Wait(_waitersLock, deadline.RemainingMilliseconds)) deadline.ThrowIfExpired();
+                    if (!Monitor.Wait(_waitersLock, deadline.RemainingMilliseconds)) deadline.ThrowIfExpired(behindThisConnection: true);
             }
         }
     }
