@@ -13,8 +13,9 @@ reachability marker, a fuzz dimension or a manifest entry that runs on every PR.
 **What is mandatory.** An obligation below is **MANDATORY** only when its net has a
 recorded proof (see [Proven obligations](#proven-obligations): it fired at a real
 known-bad commit and stayed quiet at the fix) or when it is pure bookkeeping that a CI
-check enforces. A proof that exists only for a net tuned after reading the fix does not
-make a net mandatory by itself. Everything else is **advisory** or a **pilot**, with the
+check enforces. A proof that exists only for a net tuned after reading the fix, only at
+reproduction level (the fix's own test) or only on a model does not make a net mandatory
+by itself. Everything else is **advisory** or a **pilot**, with the
 reason stated; do it when it applies, report what it found, and never present it as proof.
 
 ## Critical changes
@@ -112,22 +113,22 @@ Commands are in [LiteDB.Fuzz](../../LiteDB.Fuzz/README.md) and the linked docs.
 | Trigger in the diff | Obligation | Status |
 | --- | --- | --- |
 | New or changed `ILite*` member, new public type | Register `api:<Type>.<Member>` in `.github/safety/markers.json`, drive it from a target until the smoke campaign hits it (`check_reachability.py --base`, Reachability gate) | MANDATORY (bookkeeping) |
-| Code that runs user callbacks, Shared/Direct lifetime, waits or handoffs | Run `transaction-interleavings,lifetime-chaos` (per-operation `Deadline`); give a new user-code point a callback or maintenance dimension ([explorer](../concurrency-explorer.md#extending-it)) | MANDATORY: row 16 proven generic. Gap: no storage-stream callback during teardown (row 17 not fired) |
-| New or changed wait, lock, lease, handoff | Instrument it in the [wait-for graph](../wait-for-graph.md#adding-a-blocking-site); keep the graph on; drivers register callback waits (`DriverWait`, `Join`) | MANDATORY: `self-wait` (rows 12, 16) and `unbounded-cycle` (row 13, tuned driver edge) fail by default, reproduction level. `bounded-cycle`, `lock-order`: report only (row 3 fired differently, row 4 not fired) |
-| Shared core open/close, writer-mutex release | Keep `SharedOwnershipEvents` hooks at every core stage and release; run `Ownership` (`OwnershipMonitor`, `WatchOwnership`) | MANDATORY: row 17 proven, reproduction level |
-| A lifetime state machine in the [model correspondence](../concurrency-models.md#correspondence-table) | Update the Coyote model and its correspondence; run it | MANDATORY: row 13 proven generic (model written from the changed code) |
-| New or changed Dispose/Close/Release/finally path | `[TeardownPath(name, declared disposition, basis)]`, step markers, a driver and catalog steps ([teardown sweep](../teardown-sweep.md#adding-a-path-or-step)); `FaultDisposed` checks the declaration | MANDATORY (bookkeeping: the sweep fixture fails without a driver). Detection advisory: row 17 not fired generically |
+| Code that runs user callbacks, Shared/Direct lifetime, waits or handoffs | Run `transaction-interleavings,lifetime-chaos` (per-operation `Deadline`); give a new user-code point a callback or maintenance dimension ([explorer](../concurrency-explorer.md#extending-it)) | MANDATORY: proven generic at rows 1, 16, 23 and 27. Not fired at 21 other rows whose shape no generator produces ([generator gaps](https://github.com/litedb-org/LiteDB/issues/3091)) |
+| New or changed wait, lock, lease, handoff | Instrument it in the [wait-for graph](../wait-for-graph.md#adding-a-blocking-site); keep the graph on; drivers register callback waits (`DriverWait`, `Join`) | MANDATORY: `self-wait` proven generic at rows 27 and 29 (29 with a caveat: present since the freeze); reproduction level at rows 12, 16 (`self-wait`) and 21 (`unbounded-cycle`); row 13 only with a tuned driver edge. A cancellation nobody requests counts as no bound (row 23, tuned). `bounded-cycle`, `lock-order`: report only (row 3 fired differently, row 4 not fired) |
+| Shared core open/close, writer-mutex release | Keep `SharedOwnershipEvents` hooks at every core stage and release; run `Ownership` (`OwnershipMonitor`, `WatchOwnership`) | MANDATORY: proven generic at row 15 through the teardown sweep (caveat: the same yell already appears before the defect's commit); reproduction level at row 17 |
+| A lifetime state machine in the [model correspondence](../concurrency-models.md#correspondence-table) | Update the Coyote model and its correspondence; run it | Advisory: row 13 proven at model level only (a model written from the known-bad code; the library itself was not run), and no CI check ties the model to the code |
+| New or changed Dispose/Close/Release/finally path | `[TeardownPath(name, declared disposition, basis)]`, step markers, a driver and catalog steps ([teardown sweep](../teardown-sweep.md#adding-a-path-or-step)); `FaultDisposed` checks the declaration | MANDATORY (bookkeeping: the sweep fixture fails without a driver). Detection: proven generic at rows 9 and 15 (15 with a caveat), fired differently at row 29; row 17 only with tuned drivers; rows 6 and 7 not fired |
 | New fault hook | Register it in `fault-points.json` with evidence | MANDATORY (bookkeeping, `check_fault_points.py`) |
-| New fuzz target or harness scenario | Apply `Deadline`, `ConnectionClean`, `Quiescent`, `ScratchLive`, `Durable`, `FaultReached`/`FaultDisposed` or say why not ([validation](validation.md#fuzzing)) | MANDATORY (bookkeeping). Detection advisory: rows 5, 8, 9 not yet proven |
+| New fuzz target or harness scenario | Apply `Deadline`, `ConnectionClean`, `Quiescent`, `ScratchLive`, `Durable`, `FaultReached`/`FaultDisposed` or say why not ([validation](validation.md#fuzzing)) | MANDATORY (bookkeeping). Detection: `Quiescent` proven generic at row 9; rows 5 (transition + `Durable`) and 8 (`Quiescent` scratch) only with dimensions added after the freeze (tuned) |
 | New subsystem paths | An obligation in `fuzz-obligations.json` (`select_fuzz_targets.py --validate`) | MANDATORY (bookkeeping) |
-| Timed wait, sleep or spin in a loop in `LiteDB/` | `// polling: <reason>` (`lint_polling.py`) | MANDATORY: row 11 proven generic |
-| Deleted comment stating an invariant | `### Moved invariants` entry in the PR (`lint_invariant_comments.py`) | MANDATORY: row 11 proven, tuned (trigger words added after reading the comment) |
+| Timed wait, sleep or spin in a loop in `LiteDB/` | `// polling: <reason>` (`lint_polling.py`) | MANDATORY: row 11 proven generic (a diff lint: it does not judge the unchanged poll line that the fix kept) |
+| Deleted comment stating an invariant | `### Moved invariants` entry in the PR (`lint_invariant_comments.py`) | MANDATORY (bookkeeping: the PR section check lists every hit). Detection: row 11 only tuned (trigger words added after reading the deleted comment) |
 | New or changed normative doc sentence | Inline anchor or `contracts.json` claim; non-author semantic review (`lint_doc_claims.py`, `check_contracts.py`) | MANDATORY (bookkeeping). The lint routes, it cannot judge truth (row 10 fired differently) |
-| Intended behavior or exception-contract change | `intended-changes.json` entry with the promising doc sentence; racing operations declare `permitted` | MANDATORY (bookkeeping). The differential run itself is a pilot: no proof yet (row 10 not attempted), false positives on undeclared races |
-| Parallel or alternative access paths | Permitted-history property test (`ParallelPropertyRunner`) | Advisory: rows 12 and 14 not fired by the generic net |
-| Close, rebuild or fatal during other work | `chaos-maintenance` | Advisory: no ledger proof yet (it found dev defects) |
-| Wait primitive, scheduler or hot path | Contention metrics (`measure-shared-contention.py`, `compare_contention.py`) with the tolerance in the PR | Pilot: row 11 not fired on Linux (environment-dependent) |
-| Cleanup or lock lines | Mutation on the diff (`run_mutation.py`) survivors listed | Pilot: no proof, cost unmeasured |
+| Intended behavior or exception-contract change | `intended-changes.json` entry with the promising doc sentence; racing operations declare `permitted` | MANDATORY (bookkeeping). The differential run itself is a pilot: not fired at rows 10 and 11 (known-bad and fix indistinguishable; it now reports claims it could not observe) |
+| Parallel or alternative access paths | Permitted-history property test (`ParallelPropertyRunner`) | Advisory: not fired at rows 5, 12 and 14; row 12 only with a rule taken from later documentation (tuned) |
+| Close, rebuild or fatal during other work | `chaos-maintenance` | Advisory: not fired at rows 1, 2, 7 and 15 (its declarations follow the base contract); it found dev defects (#3093, #3095, #3010) |
+| Wait primitive, scheduler or hot path | Contention metrics (`measure-shared-contention.py`, `compare_contention.py`) with the tolerance in the PR | Pilot: row 11 fired differently (merge-base to known-bad, overtaking 4% to 30%; the fix does not restore it on Linux) |
+| Cleanup or lock lines | Mutation on the diff (`run_mutation.py`) survivors listed | Pilot: row 11 configured scope exceeded a 60 min time box; a narrowed scope (65 min) left survivors but none on the defect line |
 | Multi-process writers | `shared-contention` | Advisory: no proof |
 | A new net, dimension or historical adapter | `net-proofs.json` entry with honest `level`, `independence` and `requires`; skeletons render "not attempted" (`net_proof.py validate`) | MANDATORY (bookkeeping) |
 | A finding | Replayable case with its known-bad commit before the fix; a bug-fix PR adds a regression proof | MANDATORY (bookkeeping, `regression_proof.py`) |
@@ -168,36 +169,54 @@ require. `check_pr_section.py` enforces this for critical PRs only.
 
 ## Proven obligations
 
-The nets behind the MANDATORY rows, one row per proof record. *Level*: `generic` = a net
-not written for the defect fired; `reproduction` = the fix's own test turned into an
-attributable yell. *Independence*: `tuned` = the net was changed after reading the fix.
-Only **proven** counts. Rows number the reference defects: 16 and 17 are upstream #3072
-and #3077, the others defects of the transaction-handle PR (JKamsker/LiteDB#133); each
-[net-proofs.json](safety-evidence.md#net-proofs) entry names its `defect`.
+The nets behind the MANDATORY rows: every ledger entry that fired or could not run, and a
+count of the entries that stayed quiet. *Level*: `generic` = a net not written for the defect
+fired; `reproduction` = the fix's own test turned into an attributable yell; `model` = an
+abstract model of the code fired; `tuned-after-fix` = the net, scenario or rule was changed
+after reading the fix. *Independence*: `tuned` = changed after reading the fix. Only
+**proven** counts. Rows number the reference defects (the `defects` table of
+[net-proofs.json](safety-evidence.md#net-proofs)): 16 and 17 are upstream #3072 and #3077;
+1-15 and 18-29 are defects of the transaction-handle PR (JKamsker/LiteDB#133), 18-29 being its
+fixes after `e821ae74` and two merges. The [retrospective](../safety-net-retrospective.md)
+holds the full matrix.
 
 <!-- BEGIN proven-obligations: generated by .github/scripts/render_net_proofs.py; do not edit by hand -->
 | Rows | Net | Level | Independence | Result | Assertion at known-bad | Proof |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3 | wait-for-graph | reproduction | designed | **fired-differently** | Reporting/rule view: bounded-cycle, not a failing rule. Raw_close_interrupts_collection_w… | `row3-wait-for-graph` |
-| 4 | wait-for-graph | reproduction | designed | **not-fired** | none. The fix's test (begin with TimeSpan.Zero) fails with TimeoutException instead of In… | `row4-wait-for-graph` |
-| 10 | lint-c | generic | designed | **fired-differently** | ERROR docs/transaction-handles.md:249: Normative sentence without a [test: ...] or [marke… | `row10-lint-c` |
-| 11 | contended-acquire | generic | designed | **not-fired** | - | `row11-contention-benchmark` |
-| 11 | lint-a | generic | designed | **proven** | ERROR SharedEngine.Waiters.cs:105 `Monitor.Wait(_waitersLock, 10);` / SharedMutexOwner.cs… | `row11-lint-a` |
-| 11 | lint-b | generic | tuned | **proven** | SharedMutexOwner.cs:437 Deleted invariant comment needs a '### Moved invariants' entry: "… | `row11-lint-b` |
-| 12 | parallel-property | generic | designed | **not-fired** | - | `row12-parallel-property` |
-| 12 | parallel-property (tuned driver/rule) | generic | tuned | **proven** | [not-permitted] seed 1020: handle.InsertBulk+cb:Upsert/c0/5#1 observed 'cb=Timeout:LockTi… | `row12-parallel-property-tuned` |
-| 12 | wait-for-graph | reproduction | designed | **proven** | WAIT_FOR_CYCLE:self-wait in 4/4 failing cases of Same_collection_callback_refuses_self_wa… | `row12-wait-for-graph` |
-| 13 | coyote-lifetime-model | generic | designed | **proven** | Liveness violated: every operation completes or is rejected. No thread can make progress … | `row13-coyote` |
-| 13 | wait-for-graph | reproduction | tuned | **proven** | WAIT_FOR_CYCLE:unbounded-cycle (probe, unbounded variant): "Wait-for cycle, unbounded-cyc… | `row13-wait-for-graph` |
-| 14 | parallel-property | generic | designed | **not-fired** | - | `row14-parallel-property` |
-| 16 | concurrency-explorer | generic | designed | **proven** | transaction-interleavings: DEADLINE_TRANSACTION_INTERLEAVINGS_READ at step 4 (vector scen… | `row16-explorer` |
-| 16 | wait-for-graph | reproduction | tuned | **proven** | Reporting mode (no throw, enforcement is a later step): 28/28 hanging test cases latched … | `row16-wait-for-graph` |
-| 16 | wait-for-graph | reproduction | tuned | **proven** | 28/28 hanging SharedPeer* cases latch self-wait with failing=true; the xUnit hook adds 'T… | `row16-wait-for-graph-rule` |
-| 17 | concurrency-explorer | generic | designed | **not-fired** | No row-17 yell. Final campaign (net up to 0b272e93d): lifetime-chaos passed 200/200 (930-… | `row17-explorer` |
-| 17 | ownership | reproduction | designed | **proven** | RELEASED_BEFORE_TEARDOWN: Thread 'LiteDB shared mutex owner' released the writer mutex wh… | `row17-ownership` |
-| 17 | teardown-sweep | generic | designed | **not-fired** | - | `row17-teardown-sweep` |
-| 17 | teardown-sweep (tuned driver/rule) | generic | tuned | **proven** | Sweep: 3 failed of 32. SharedEngine.CheckpointAfterLastReader/self-callback-dispose basel… | `row17-teardown-sweep-tuned` |
-| 17 | wait-for-graph | reproduction | designed | **fired-differently** | 2 of the 12 failing cases latched self-wait: close=PinHolder, nested=Getter (encrypted fa… | `row17-wait-for-graph` |
+| 1 | lifetime-chaos | generic | designed | **proven** | DEADLINE_LIFETIME_CHAOS_FINDTRANSFORM_CALLBACK | `row1-lifetime-chaos` |
+| 1 | lifetime-chaos | generic | designed | **proven** | DEADLINE_LIFETIME_CHAOS_FINDTRANSFORM_CALLBACK (also DEADLINE_LIFETIME_CHAOS_READ at 808:… | `row1-lifetime-chaos-coverage` |
+| 3 | wait-for-graph | reproduction | designed | **fired-differently** | WAIT_FOR_CYCLE bounded-cycle (closing thread -> collection-lock waiter -> closing thread;… | `row3-wait-for-graph` |
+| 5 | explorer: handle-disposed-bound-object … | tuned-after-fix | tuned | **proven** | EXPLORER_HANDLE_NOT_ACTIVE | `row5-explorer-transition` |
+| 8 | teardown-sweep + crash-leftover prior (… | tuned-after-fix | tuned | **proven** | quiescent.scratch: sort scratch remains after close | `row8-crash-leftovers` |
+| 9 | teardown-faults | generic | designed | **proven** | TEARDOWN_FAULTS_SHAREDENGINE_DISPOSE_QUIESCENT_HANDLES | `row9-teardown-faults` |
+| 9 | teardown-sweep | generic | designed | **proven** | quiescent.handles / quiescent.readers / durable.REOPEN_FAILED after a fail-inside fault i… | `row9-teardown-sweep` |
+| 10 | lint (c) doc claims | generic | designed | **fired-differently** | Normative sentence without an anchor (docs/transaction-handles.md:249, the close/checkpoi… | `row10-lint-c` |
+| 11 | contention metrics (merge-base as basel… | generic | designed | **fired-differently** | overtaking rate rose 25.8 pp (> 5.0 pp): 4.0% -> 29.8% at 4 processes (base -> K') | `row11-contention-metrics` |
+| 11 | lint (a) polling | generic | designed | **proven** | Timed wait/sleep/spin in a loop without '// polling: <reason>' (SharedMutexTurnstile.cs:7… | `row11-lint-a` |
+| 11 | lint (b) deleted invariant comments | tuned-after-fix | tuned | **proven** | Deleted invariant comment needs a '### Moved invariants' entry (SharedMutexOwner.cs:437) | `row11-lint-b` |
+| 11 | mutation pilot (configured scope) | generic | designed | **harness-error** | - | `row11-mutation-pilot` |
+| 12 | parallel-property (handle kind, fail-fa… | tuned-after-fix | tuned | **proven** | [not-permitted] cb=Timeout:LockTimeout where only an early LockTimeout is permitted | `row12-parallel-property-tuned` |
+| 12 | wait-for-graph | reproduction | designed | **proven** | WAIT_FOR_CYCLE:self-wait | `row12-wait-for-graph` |
+| 13 | Coyote lifetime model | model | designed | **proven** | Liveness monitor: an operation neither completes nor is turned down (close fence vs callb… | `row13-coyote` |
+| 13 | wait-for-graph | reproduction | tuned | **proven** | WAIT_FOR_CYCLE:unbounded-cycle (length 3; probe with the callback's wait as a driver edge) | `row13-wait-for-graph` |
+| 15 | teardown-faults | generic | designed | **proven** | TEARDOWN_FAULTS_SHAREDENGINE_CHECKPOINTAFTERLASTREADER_OWNERSHIP_RELEASED_BEFORE_TEARDOWN | `row15-teardown-faults` |
+| 15 | teardown-sweep | generic | designed | **proven** | ownership.RELEASED_BEFORE_TEARDOWN (SharedEngine.CheckpointAfterLastReader/self-callback-… | `row15-teardown-sweep` |
+| 16 | explorer targets transaction-interleavi… | generic | designed | **proven** | DEADLINE_TRANSACTION_INTERLEAVINGS_READ (and DEADLINE_LIFETIME_CHAOS_INSERTINPUT_CALLBACK… | `row16-explorer` |
+| 16 | wait-for-graph | reproduction | tuned | **proven** | WAIT_FOR_CYCLE:self-wait (report-only mode) | `row16-wait-for-graph` |
+| 16 | wait-for-graph | reproduction | tuned | **proven** | WAIT_FOR_CYCLE:self-wait (failing rule) | `row16-wait-for-graph-rule` |
+| 17 | ownership | reproduction | designed | **proven** | ownership.RELEASED_BEFORE_TEARDOWN | `row17-ownership` |
+| 17 | teardown-sweep (self-callback drivers) | tuned-after-fix | tuned | **proven** | ownership.RELEASED_BEFORE_TEARDOWN (CheckpointAfterLastReader/self-callback-dispose) | `row17-teardown-sweep-tuned` |
+| 17 | wait-for-graph | reproduction | designed | **fired-differently** | WAIT_FOR_CYCLE:self-wait on 2 of 12 failing cases (pin holder + nested getter); the relea… | `row17-wait-for-graph` |
+| 21 | wait-for graph on the fix's own tests | reproduction | designed | **proven** | WAIT_FOR_CYCLE:unbounded-cycle (SharedMutexPin.WaitReleased <-> OperationLifetime.Exclusi… | `later-d9a5bfe6-reproduction` |
+| 23 | lifetime-chaos | generic | designed | **proven** | DEADLINE_LIFETIME_CHAOS_INSERTINPUT_CALLBACK (and _FINDTRANSFORM_CALLBACK at 101:7) | `later-69b0663a-lifetime-chaos` |
+| 23 | wait-for-graph (rule: an unrequested ca… | tuned-after-fix | tuned | **proven** | WAIT_FOR_CYCLE:unbounded-cycle (a cancellation-bounded wait whose token nobody requests) | `later-69b0663a-wait-for-graph-cancellation-rule` |
+| 27 | lifetime-chaos | generic | designed | **proven** | DEADLINE_LIFETIME_CHAOS_UPLOAD_CALLBACK | `later-c6e6c848-lifetime-chaos` |
+| 27 | transaction-interleavings | generic | designed | **proven** | DEADLINE_TRANSACTION_INTERLEAVINGS_READ (Shared callback=peer) | `later-c6e6c848-transaction-interleavings` |
+| 27 | wait-for-graph | generic | designed | **proven** | WAIT_FOR_CYCLE:self-wait (failing rule) | `later-c6e6c848-wait-for-graph` |
+| 29 | teardown-sweep | generic | designed | **fired-differently** | deadline.case (55 s) on SharedMutexPin.Hold/self-callback-getter and -dispose, with a fai… | `later-56c8680a-teardown-sweep` |
+| 29 | wait-for-graph | generic | designed | **proven** | WAIT_FOR_CYCLE:self-wait (pin holder waits at SharedMutexOwner.Enter for the mutex it hol… | `later-56c8680a-wait-for-graph` |
 
-11 of 20 entries proven. Rendered from the milestone proof records of 2026-10-02 (not yet merged into `.github/safety/net-proofs.json`, which holds skeletons); refresh with `python .github/scripts/render_net_proofs.py --write docs/rules/implement-safely.md`.
+Not fired (120 entries, listed in the full matrix of docs/safety-net-retrospective.md): explorer targets (Deadline) 50, teardown sweep / teardown-faults 30, wait-for graph 23, chaos-maintenance 6, parallel property (permitted histories) 3, differential run 2, composed re-run after a fix 2, fuzz target sort 1, contention metrics 1, mutation pilot 1, Ownership oracle 1.
+
+26 of 152 entries proven. Rendered from `.github/safety/net-proofs.json`; refresh with `python .github/scripts/render_net_proofs.py --write docs/rules/implement-safely.md`.
 <!-- END proven-obligations -->

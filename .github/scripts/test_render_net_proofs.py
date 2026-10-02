@@ -35,10 +35,11 @@ class RenderNetProofsTests(unittest.TestCase):
         self.assertEqual(lines[0], render.BEGIN)
         self.assertEqual(lines[-1], render.END)
         body = [line for line in lines if line.startswith("| 1")]
-        self.assertEqual([line.split("|")[1].strip() for line in body], ["12", "16", "17"])
-        self.assertIn("| tuned | **not-fired** |", body[0])
-        self.assertIn("| wait / graph | generic | designed | **not attempted** | - |", body[1])
-        self.assertIn("| reproduction | designed | **proven** | OWNERSHIP_X_RELEASED |", body[2])
+        self.assertEqual([line.split("|")[1].strip() for line in body], ["16", "17"])
+        self.assertIn("| wait / graph | generic | designed | **not attempted** | - |", body[0])
+        self.assertIn("| reproduction | designed | **proven** | OWNERSHIP_X_RELEASED |", body[1])
+        self.assertIn("Not fired (1 entries, listed in the full matrix", block)  # never dropped silently
+        self.assertIn("): parallel-property 1.", block)
         self.assertNotIn("harness-smoke", block)
         self.assertIn("1 of 3 entries proven", block)
 
@@ -61,6 +62,42 @@ class RenderNetProofsTests(unittest.TestCase):
         code, output = run_quietly(render.main, ["--ledger", str(self.ledger), "--write", str(plain)])
         self.assertEqual(code, 1)
         self.assertIn("has no", output)
+
+    def test_retrospective_blocks_summarize_rows_families_and_entries(self):
+        ledger = json.loads(json.dumps(LEDGER))
+        ledger["defects"] = {str(row): {"kind": "plan", "defect": f"defect {row}", "knownBad": {"commit": "a" * 40},
+                                        "fix": {"commit": "b" * 40}} for row in (12, 16, 17, 18)}
+        ledger["proofs"][1]["net"]["family"] = "Ownership oracle"
+        ledger["proofs"][2]["results"] = {"state": "proven", "passed": True, "caveat": "present before K",
+                                          "knownBad": {"fired": True, "timeToYellSeconds": 2.5, "reproduced": "3/3"}}
+        ledger["proofs"].append({"id": "row16-sweep", "rows": [16], "level": "generic",
+                                 "independence": "designed-from-invariant", "net": {"name": "teardown-sweep"},
+                                 "results": {"state": "fired-differently", "knownBad": {"fired": True}}})
+        doc = self.dir / "retro.md"
+        markers = "".join(f"{render.begin(name)}\n{render.end(name)}\n\n"
+                          for name in ("verification-matrix", "net-firings", "net-entries"))
+        doc.write_text("# Retro\n\n" + markers)
+        self.ledger.write_text(json.dumps(ledger))
+        code, output = run_quietly(render.main, ["--ledger", str(self.ledger), "--write", str(doc)])
+        self.assertEqual(code, 0, output)
+        self.assertIn("verification-matrix, net-firings, net-entries", output)
+        text = doc.read_text()
+        matrix = [line for line in text.splitlines() if line.startswith("| 1")]
+        self.assertTrue(matrix[0].startswith("| 12 | defect 12 | `aaaaaaaa` → `bbbbbbbb` | **generic (caveat)** |"))
+        self.assertIn("| **fired differently only** | - | `row16-sweep` |", matrix[1])
+        self.assertIn("| **reproduction** | `row17-ownership` (repro) |", matrix[2])
+        self.assertIn("| 18 | defect 18 |", matrix[3])
+        self.assertIn("| **none** |", matrix[3])
+        self.assertIn("| teardown-sweep | 0 | 1: 16 | 0 | 0 | 0 | 0 |", text)
+        self.assertIn("| Ownership oracle | 0 | 0 | 1: 17 | 0 | 0 | 0 |", text)
+        self.assertIn("| 2.5 s | 3/3 | `row12-pbt` |", text)
+        code, output = run_quietly(render.main, ["--ledger", str(self.ledger), "--check", str(doc)])
+        self.assertEqual(code, 0, output)
+        ledger["proofs"].pop()
+        self.ledger.write_text(json.dumps(ledger))
+        code, output = run_quietly(render.main, ["--ledger", str(self.ledger), "--check", str(doc)])
+        self.assertEqual(code, 1, output)
+        self.assertIn("stale", output)
 
     def test_the_repository_ledger_renders(self):
         code, output = run_quietly(render.main, [])
