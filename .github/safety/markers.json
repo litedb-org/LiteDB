@@ -779,7 +779,7 @@
       ],
       "gate": "advisory",
       "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
-      "reason": "Known finding: a Direct close (Dispose or fatal stop) under a running call released that call's page buffers; the call failed the page-ownership check or a buffer was finalized with a non-zero share count."
+      "reason": "Known finding (#3010): a Direct close (Dispose or fatal stop) under a running call released that call's page buffers; the call failed the page-ownership check or a buffer was finalized with a non-zero share count."
     },
     {
       "name": "situation:chaos-maintenance-known-direct-second-dispose-returns-early",
@@ -792,7 +792,7 @@
       ],
       "gate": "advisory",
       "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
-      "reason": "Known finding: a second Direct Dispose returned while a concurrent first Dispose was still closing and the database files were open."
+      "reason": "Known finding (#3093): a second Direct Dispose returned while a concurrent first Dispose was still closing and the database files were open."
     },
     {
       "name": "situation:chaos-maintenance-known-rebuild-reopens-after-dispose",
@@ -805,7 +805,7 @@
       ],
       "gate": "advisory",
       "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
-      "reason": "Known finding: a Direct Rebuild holding exclusive admission completed and left the engine open after a concurrent Dispose returned."
+      "reason": "Known finding (#3093): a Direct Rebuild holding exclusive admission completed and left the engine open after a concurrent Dispose returned."
     },
     {
       "name": "situation:chaos-maintenance-known-shared-second-dispose-returns-early",
@@ -820,7 +820,7 @@
       "doc": "docs/shared-mode-safety.md",
       "gate": "advisory",
       "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
-      "reason": "Known finding: a second Shared Dispose returned while a concurrent first Dispose was still closing and held the files or the Shared mutex."
+      "reason": "Known finding (#3095): a second Shared Dispose returned while a concurrent first Dispose was still closing and held the files or the Shared mutex."
     },
     {
       "name": "situation:chaos-maintenance-op-arrives-during-maintenance",

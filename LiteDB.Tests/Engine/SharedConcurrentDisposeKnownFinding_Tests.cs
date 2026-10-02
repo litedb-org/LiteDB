@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Engine
     /// close finds it free". The first Dispose is paused deterministically through the close
     /// checkpoint's <c>before-commit-lock</c> stage (evidence class 1). This test pins the CURRENT
     /// behaviour: when it starts failing because the second Dispose waits, the finding is fixed;
-    /// update this test and the chaos-maintenance known finding together.
+    /// update this test and the chaos-maintenance known finding together. Filed as #3095.
     /// </summary>
     public class SharedConcurrentDisposeKnownFinding_Tests : IDisposable
     {

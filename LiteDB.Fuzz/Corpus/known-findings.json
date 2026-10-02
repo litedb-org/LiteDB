@@ -22,25 +22,25 @@
     {
       "target": "chaos-maintenance",
       "fingerprint": "CHAOS_MAINTENANCE_KNOWN_DIRECT_SECOND_DISPOSE_RETURNS_EARLY",
-      "issue": 0,
+      "issue": 3093,
       "status": "known"
     },
     {
       "target": "chaos-maintenance",
       "fingerprint": "CHAOS_MAINTENANCE_KNOWN_SHARED_SECOND_DISPOSE_RETURNS_EARLY",
-      "issue": 0,
+      "issue": 3095,
       "status": "known"
     },
     {
       "target": "chaos-maintenance",
       "fingerprint": "CHAOS_MAINTENANCE_KNOWN_REBUILD_REOPENS_AFTER_DISPOSE",
-      "issue": 0,
+      "issue": 3093,
       "status": "known"
     },
     {
       "target": "chaos-maintenance",
       "fingerprint": "CHAOS_MAINTENANCE_KNOWN_CLOSE_RELEASES_ACTIVE_CALL_PAGES",
-      "issue": 0,
+      "issue": 3010,
       "status": "known"
     }
   ]

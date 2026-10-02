@@ -17,14 +17,14 @@ internal static class ChaosMaintenanceFindings
     /// <summary>
     /// Direct: a Dispose that ran while Rebuild held exclusive admission returned, then Rebuild
     /// reopened the engine (LiteEngine.Close returns early once disposed; Rebuild reopens
-    /// unconditionally). The disposed connection serves calls and keeps its files open.
+    /// unconditionally). The disposed connection serves calls and keeps its files open. Filed as #3093.
     /// </summary>
     internal const string RebuildReopensAfterDispose = "CHAOS_MAINTENANCE_KNOWN_REBUILD_REOPENS_AFTER_DISPOSE";
 
     /// <summary>
     /// Direct: a second Dispose, concurrent with a first one paused inside its close, returns while
     /// the first still holds the database files open (LiteEngine.Close returns at once when already
-    /// disposed).
+    /// disposed). Filed as #3093.
     /// </summary>
     internal const string DirectSecondDisposeReturnsEarly = "CHAOS_MAINTENANCE_KNOWN_DIRECT_SECOND_DISPOSE_RETURNS_EARLY";
 
@@ -33,7 +33,7 @@ internal static class ChaosMaintenanceFindings
     /// while the first still holds the database files and the Shared mutex (SharedEngine.Dispose
     /// returns at once when <c>_disposed</c> is set). Contradicts docs/shared-mode-safety.md
     /// ("Dispose returns only after it: a disposed connection holds no mutex"). Reproduced by
-    /// LiteDB.Tests SharedConcurrentDisposeKnownFinding_Tests.
+    /// LiteDB.Tests SharedConcurrentDisposeKnownFinding_Tests. Filed as #3095.
     /// </summary>
     internal const string SharedSecondDisposeReturnsEarly = "CHAOS_MAINTENANCE_KNOWN_SHARED_SECOND_DISPOSE_RETURNS_EARLY";
 
@@ -44,7 +44,7 @@ internal static class ChaosMaintenanceFindings
     /// INVALID_DATAFILE_STATE (999) "page buffer ownership was transferred to disk", and a buffer
     /// can reach finalization with a share count other than zero (negative: released twice; without
     /// PageBuffer.FinalizedInUse the finalizer's ENSURE would terminate the process, so the target
-    /// installs that observer and counts them per scenario).
+    /// installs that observer and counts them per scenario). Reported on #3010 (Dispose racing an active operation).
     /// </summary>
     internal const string CloseReleasesActiveCallPages = "CHAOS_MAINTENANCE_KNOWN_CLOSE_RELEASES_ACTIVE_CALL_PAGES";
 
