@@ -48,7 +48,10 @@
     {
       "id": "safety-m1-oracle-smoke",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/_reusable-ci.yml", ".github/safety/ci-evidence.json"],
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
       "disposition": "strengthened",
       "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
       "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
@@ -60,6 +63,20 @@
       "disposition": "strengthened",
       "invariant": "No existing target, corpus case or test is relaxed; every outcome of the new chaos-maintenance target outside its declared permitted set still fails the run unless one of these precise predicates claims it.",
       "reason": "The new chaos-maintenance target reaches four dev defects (concurrent Dispose returning early in Direct and Shared mode, Rebuild reopening after a concurrent Dispose, a Direct close releasing a running call's page buffers). Each is registered as known so the smoke campaign keeps exercising the target; each hit is recorded in known-findings-hit.jsonl with a situation marker, LITEDB_FUZZ_STRICT_KNOWN=1 fails on it, and the Shared one is pinned by SharedConcurrentDisposeKnownFinding_Tests."
+    },
+    {
+      "id": "safety-m3-explorer-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        "scripts/run-ci-tests.ps1",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs in exactly one partition session on every leg; no test is filtered out, sampled or skipped.",
+      "reason": "The concurrency explorer's tests (about 145 s) move from the engine partition into their own engine-explorer partition so the engine session stays below the 300 s per-session limit; the script's partition coverage check verifies 2318 methods, each in exactly one partition, and an isolated .NET 8 run passed every partition."
     }
   ]
 }
