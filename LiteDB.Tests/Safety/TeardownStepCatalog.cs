@@ -47,6 +47,7 @@ namespace LiteDB.Tests.Safety
         private const string Readers = "quiescent.readers";
         private const string Threads = "quiescent.threads";
         private const string Transactions = "connection.transactions";
+        private const string OwnerThread = "connection.threads";
         private const string Pages = LeakedPages;
 
         /// <summary>The violation kind of page buffers finalized while still in use.</summary>
@@ -103,7 +104,8 @@ namespace LiteDB.Tests.Safety
             Step("SharedEngine.OnOwnerExited.idle-handles", "closing idle cached handles after an exited owner", Handles),
             Step("SharedMutexPin.Hold.close", "the pin's close callback (its own steps carry the skip model)", models: TeardownModels.FailInside),
             Step("SharedMutexOwner.Exit.scope-release", "releasing a scoped ownership's OS mutex", Mutex, Threads),
-            Step("SharedMutexOwner.ReleaseAll.send-release", "the holder releasing the OS mutex on Dispose", Mutex, Threads),
+            // The holder thread that never got the release keeps owning the OS mutex, so it cannot exit either.
+            Step("SharedMutexOwner.ReleaseAll.send-release", "the holder releasing the OS mutex on Dispose", Mutex, Threads, OwnerThread),
             Step("SharedMutexOwner.ReleaseExitedOwner.cleanup", "the exited owner's cleanup callback (its own steps carry the skip model)",
                 models: TeardownModels.FailInside),
             Step("SharedDataReader.Dispose.lease", "closing a leased reader's lease file", Handles, Readers),
