@@ -240,14 +240,28 @@ jobs:
             10.0.x
       - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
       - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      # A critical change (label, or the diff per classify_critical.py; a label the labeler applies
+      # starts no run, so the diff is classified here too) runs every target.
+      - name: Classify the change
+        id: critical
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'critical') }}
+        run: |
+          mkdir -p artifacts/fuzz-pr
+          python3 .github/scripts/classify_critical.py --base "origin/$BASE_REF" \
+            --output artifacts/fuzz-pr/critical.json --github-output
+          if [ "$LABELLED" = "true" ]; then echo "critical=true" >> "$GITHUB_OUTPUT"; fi
       - name: Select targets for this change
         id: select
         env:
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          CRITICAL: ${{ steps.critical.outputs.critical }}
         run: |
-          mkdir -p artifacts/fuzz-pr
-          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" \
+          all=""
+          if [ "$CRITICAL" = "true" ]; then all="--all"; fi
+          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" $all \
             --github-output --output artifacts/fuzz-pr/selection.json
       # One invocation per count group, all concurrently, sharing nproc target-process slots
       # (LITEDB_FUZZ_SLOT_DIR/LITEDB_FUZZ_SLOTS). Each group has its own artifact root: an invocation

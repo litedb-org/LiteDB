@@ -98,6 +98,16 @@
       "disposition": "strengthened",
       "invariant": "Every smoke leg keeps its targets, seeds, counts, timeouts and uploads, and the reachability gate still judges all of them.",
       "reason": "Adds the PR-selected targets job (30-minute limit): it runs the fuzz targets that select_fuzz_targets.py picks for the pull request's diff, at capped counts in concurrent count groups, and uploads its selection, logs and runs with an upload that must not be empty. It also adds the linux-concurrency-explorer and linux-shared-contention smoke legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m6-critical-classify-job",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/mutation.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Mutation on the diff runs for every critical PR and on demand; its own job keeps the 45-minute limit and nothing in it is filtered or skipped.",
+      "reason": "A new 5-minute classify job decides criticality from the diff as well as the label, because the label the Critical label workflow applies with GITHUB_TOKEN starts no labeled run; before, a PR labelled by the bot never ran mutation. The mutation job itself is unchanged."
     }
   ]
 }
