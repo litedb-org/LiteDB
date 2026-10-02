@@ -5,7 +5,7 @@ using System.Linq;
 namespace LiteDB.ConcurrencyTesting
 {
     /// <summary>
-    /// Handle alphabet (fork PR #133 explorer, schedules 0-11, generalized): A's handle is executing
+    /// Handle alphabet (fork JKamsker/LiteDB#133 explorer, schedules 0-11, generalized): A's handle is executing
     /// an insert paused inside its bound input callback; B then tries, in one of six orders, a bound
     /// read, Commit and Rollback on the same handle. Each must be refused before executing (never a
     /// timeout) and leave the handle Active. Released, A's insert completes; A opens a bound reader;

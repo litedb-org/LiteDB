@@ -3,7 +3,7 @@ using System;
 namespace LiteDB.ConcurrencyTesting
 {
     /// <summary>
-    /// Handle alphabet (fork PR #133 explorer, schedules 12-23, generalized): two handles on one
+    /// Handle alphabet (fork JKamsker/LiteDB#133 explorer, schedules 12-23, generalized): two handles on one
     /// Direct connection (Shared admits one live handle per file and process) update, insert and delete in their
     /// own collections, then each pauses inside a bound input callback; meanwhile C reads both
     /// collections through ordinary calls and must see no uncommitted value. The handles finish in
