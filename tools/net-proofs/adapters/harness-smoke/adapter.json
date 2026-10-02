@@ -1,0 +1,6 @@
+{
+  "name": "harness-smoke",
+  "description": "Harness self-check only: copies marker.txt to net-proof-smoke/ so the capability probe after the overlay can see it.",
+  "target": "net-proof-smoke",
+  "requires": []
+}
