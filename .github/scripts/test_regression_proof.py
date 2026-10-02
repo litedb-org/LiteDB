@@ -287,13 +287,26 @@ class ForkProvenanceTests(unittest.TestCase):
             self.assertTrue(any(f"is not part of PR #133 (PR #133 of {FORK}" in error for error in report.errors),
                             report.errors)
 
-    def test_an_unreachable_repository_is_a_warning_then_a_missing_commit(self):
+    def test_an_unreachable_repository_is_an_error(self):
         with GitRepo() as repo:
             repo.commit({"a.txt": "1"})
             repo._git("branch", "dev")
             report = self.check({"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 5, "repository": "nobody/none"})
-            self.assertTrue(any("could not fetch the head of PR #5 of nobody/none" in item for item in report.warnings))
+            self.assertTrue(any("could not fetch the head of PR #5 of nobody/none" in item for item in report.errors))
             self.assertTrue(any("is not available in this clone" in error for error in report.errors))
+
+    def test_a_stale_proof_ref_never_answers_for_a_pr_that_cannot_be_fetched(self):
+        """A ref left by an earlier fetch (here: the fork's PR head under upstream's name) is not evidence."""
+        with GitRepo() as repo:
+            _, fork_pr = self.upstream_and_fork(repo)
+            provenance.ensure_commit({"kind": "pr-commit", "commit": fork_pr, "pr": 133, "repository": FORK})
+            repo._git("update-ref", "refs/pull/133/head", "-d")  # upstream has no PR #133
+            repo._git("update-ref", "refs/proof/pr-133", fork_pr)  # stale, from another repository
+            report = self.check({"kind": "pr-commit", "commit": fork_pr, "pr": 133})
+            self.assertTrue(any("could not fetch the head of PR #133 of the upstream" in error
+                                and "knownBad.repository" in error for error in report.errors), report.errors)
+            self.assertTrue(any("is not part of PR #133" in error for error in report.errors), report.errors)
+            self.assertEqual(repo._git("for-each-ref", "refs/proof/pr-133"), "")  # the stale ref is gone
 
     def test_pack_known_bad_fetches_a_fork_commit(self):
         with GitRepo() as repo:

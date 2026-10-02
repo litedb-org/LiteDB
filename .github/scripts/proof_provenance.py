@@ -85,7 +85,11 @@ def describe(bad):
 
 
 def fetch_pr_head(bad, cwd=None):
-    """Fetch the PR head into proof_ref(bad); returns git's exit code (failures are reported by the caller)."""
+    """Fetch the PR head into proof_ref(bad); returns git's exit code (failures are reported by the caller).
+
+    The ref is deleted first, so a failed fetch never leaves an older ref (possibly
+    fetched from another repository) to answer for this PR."""
+    run(["git", "update-ref", "-d", proof_ref(bad)], cwd)
     refspec = f"+refs/pull/{bad.get('pr')}/head:{proof_ref(bad)}"
     return subprocess.run(["git", "fetch", "-q", "--no-tags", source(bad), refspec], cwd=cwd or common.repo_root(),
                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False).returncode
@@ -111,16 +115,14 @@ def ensure_commit(bad, cwd=None):
 def check_commit(bad, label, report, dev_ref, offline=False, cwd=None):
     """Git checks that a commit known-bad state is real and correctly classified.
 
-    Offline, nothing is fetched: the commit and the PR ref must already be local. A
-    failed fetch is a warning, as it always was silent: the checks below then judge
-    whatever the clone already holds and fail when that is not enough."""
+    Offline, nothing is fetched: the commit and the PR ref must already be local.
+    Online, only the freshly fetched PR head counts; a failed fetch is an error."""
     commit = str(bad.get("commit"))
     kind = bad.get("kind")
-    if kind == "pr-commit" and not offline:
-        if fetch_pr_head(bad, cwd) != 0:
-            report.warning(f"{label}: could not fetch the head of {describe(bad)} from {source(bad)}")
     hint = "" if bad.get("repository") else \
         "; a commit of a fork's pull request names the fork as knownBad.repository ('owner/name')"
+    if kind == "pr-commit" and not offline and fetch_pr_head(bad, cwd) != 0:
+        report.error(f"{label}: could not fetch the head of {describe(bad)} from {source(bad)}{hint}")
     if not has_commit(commit, cwd):
         report.error(f"{label}: known-bad commit {commit} is not available in this clone"
                      + (f" after fetching {describe(bad)}{hint}" if kind == "pr-commit" else ""))
