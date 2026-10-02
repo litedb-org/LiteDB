@@ -47,9 +47,11 @@ namespace LiteDB.Tests.Engine
             Assert.True(SpinWait.SpinUntil(turnstile.HasWaiter, TimeSpan.FromSeconds(10)));
             Assert.True(thread.IsAlive, "The begin did not wait for the same thread's peer ownership.");
             // The way out: dispose the retaining connection from another thread.
-            var closer = new Thread(() => b.Dispose());
+            Exception closeError = null;
+            var closer = new Thread(() => closeError = Record.Exception(b.Dispose));
             closer.Start();
             Assert.True(closer.Join(TimeSpan.FromSeconds(20)));
+            Assert.Null(closeError);
             Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "The begin did not proceed after the peer closed.");
             Assert.Null(failure);
             using var cold = new LiteDatabase(file);

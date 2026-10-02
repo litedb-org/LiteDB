@@ -129,10 +129,11 @@ namespace LiteDB.Tests.Engine
                 release.Wait(TimeSpan.FromSeconds(20));
             }
             // Close waits for this executing call; a later call from another thread lands during close.
-            var executing = new Thread(() => rows.Insert(Input()));
+            Exception executingError = null, closeError = null;
+            var executing = new Thread(() => executingError = Record.Exception(() => rows.Insert(Input())));
             executing.Start();
             Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
-            var closer = new Thread(() => db.Dispose());
+            var closer = new Thread(() => closeError = Record.Exception(db.Dispose));
             closer.Start();
             var closing = typeof(LiteTransaction).GetField("_closing", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.True(SpinWait.SpinUntil(() => (bool)closing.GetValue(tx), TimeSpan.FromSeconds(10)));
@@ -143,6 +144,8 @@ namespace LiteDB.Tests.Engine
             release.Set();
             Assert.True(executing.Join(TimeSpan.FromSeconds(10)));
             Assert.True(closer.Join(TimeSpan.FromSeconds(10)));
+            Assert.Null(executingError);
+            Assert.Null(closeError);
             Assert.IsType<ObjectDisposedException>(late);
             Assert.Equal(LiteTransactionState.RolledBack, tx.State);
         }

@@ -19,16 +19,7 @@ namespace LiteDB.Tests.Engine
 
         private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["value"] = id * 10 };
 
-        private static SharedEngine EngineOf(LiteDatabase db) =>
-            (SharedEngine)typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(db);
-
-        private static SemaphoreSlim HandleQueue(SharedEngine engine)
-        {
-            var name = (string)typeof(SharedEngine).GetField("_mutexName", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(engine);
-            var writers = (ConcurrentDictionary<string, SemaphoreSlim>)typeof(SharedEngine)
-                .GetField("TransactionWriters", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-            return writers[name];
-        }
+        private static SharedEngine EngineOf(LiteDatabase db) => SharedHandleQueue.EngineOf(db);
 
 #pragma warning disable CS0618
         [Theory]
@@ -47,15 +38,19 @@ namespace LiteDB.Tests.Engine
                 using var held = new ManualResetEventSlim();
                 using var release = new ManualResetEventSlim();
                 // The begin waits natively behind a legacy owner, or in the local queue behind a handle.
-                var holding = new Thread(() =>
+                Exception holdingError = null;
+                var holding = new Thread(() => holdingError = Record.Exception(() =>
                 {
                     ILiteTransaction tx = null;
-                    if (stage == Stage.NativeWait) owner.BeginTrans(); else tx = owner.BeginTransaction();
-                    (tx?.GetCollection("rows") ?? owner.GetCollection("rows")).Insert(Row(2));
-                    held.Set();
+                    try
+                    {
+                        if (stage == Stage.NativeWait) owner.BeginTrans(); else tx = owner.BeginTransaction();
+                        (tx?.GetCollection("rows") ?? owner.GetCollection("rows")).Insert(Row(2));
+                    }
+                    finally { held.Set(); }
                     release.Wait(TimeSpan.FromSeconds(20));
                     if (tx == null) owner.Commit(); else tx.Commit();
-                });
+                }));
                 holding.Start();
                 Assert.True(held.Wait(TimeSpan.FromSeconds(10)));
                 Exception beginError = null;
@@ -71,19 +66,22 @@ namespace LiteDB.Tests.Engine
                     var turnstile = TransactionHandleSharedCallback_Tests.Turnstile(EngineOf(db));
                     Assert.True(SpinWait.SpinUntil(turnstile.HasWaiter, TimeSpan.FromSeconds(10)));
                 }
+                // The begin waits in the local handle queue behind the other handle.
+                else Assert.True(SharedHandleQueue.WaitForQueuedBegin(SharedHandleQueue.Of(db), TimeSpan.FromSeconds(10)));
                 Assert.True(SpinWait.SpinUntil(() => (begin.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(10)));
                 begin.Interrupt();
                 Assert.True(begin.Join(TimeSpan.FromSeconds(10)));
                 Assert.IsType<ThreadInterruptedException>(beginError);
                 release.Set();
                 Assert.True(holding.Join(TimeSpan.FromSeconds(10)));
+                Assert.Null(holdingError);
                 // Once the holder (if any) acquires and releases, other connections write and begin again.
                 using var probe = new LiteDatabase(shared);
                 var write = Task.Run(() => probe.GetCollection("rows").Insert(Row(3)));
                 Assert.True(write.Wait(TimeSpan.FromSeconds(20)), "The interrupted begin's holder kept writer ownership.");
                 var next = Task.Run(() => { using var tx = probe.BeginTransaction(); tx.GetCollection("rows").Insert(Row(4)); tx.Commit(); });
                 Assert.True(next.Wait(TimeSpan.FromSeconds(20)), "The interrupted begin kept the local handle queue.");
-                Assert.Equal(1, HandleQueue(EngineOf(db)).CurrentCount);
+                Assert.Equal(1, SharedHandleQueue.Of(db).CurrentCount);
             }
             using var cold = new LiteDatabase(file);
             Assert.Equal(new[] { 1, 2, 3, 4 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
