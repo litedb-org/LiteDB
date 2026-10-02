@@ -97,15 +97,15 @@ namespace LiteDB
             var waits = this.Waits;
             var wait = waits.Begin();
             var acquired = false;
-            var refused = true;
+            var outcome = SharedWaitRecorder.Outcome.Acquired;
             try
             {
                 while (!(acquired = gate.Wait((selfWait ? deadline.Within(_settings.SharedSelfWaitGrace) : deadline).RemainingMilliseconds)) &&
                     selfWait && !deadline.Expired)
-                    selfWait = this.StillSelfWaiting();
-                refused = false;
+                    selfWait = this.StillSelfWaiting(ref outcome);
+                if (!acquired) outcome = SharedWaitRecorder.Outcome.TimedOut;
             }
-            finally { waits.End(wait, timedOut: !acquired && !refused); }
+            finally { waits.End(wait, outcome); }
             if (!acquired) throw this.TimeoutError(waits, deadline, behindThisConnection: false);
         }
 

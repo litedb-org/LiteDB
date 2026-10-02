@@ -43,13 +43,13 @@ namespace LiteDB.Tests.Engine
         {
             var holdTicks = (long)(hold.TotalSeconds * Stopwatch.Frequency);
             // Warm up: JIT, the active list's capacity and the minute buckets.
-            for (var i = 0; i < 100; i++) recorder.End(recorder.Begin(), false);
+            for (var i = 0; i < 100; i++) recorder.End(recorder.Begin(), SharedWaitRecorder.Outcome.Acquired);
             var before = GC.GetAllocatedBytesForCurrentThread();
             for (var i = 0; i < pairs; i++)
             {
                 var wait = recorder.Begin();
                 while (Stopwatch.GetTimestamp() - wait.Start < holdTicks) { }
-                recorder.End(wait, false);
+                recorder.End(wait, SharedWaitRecorder.Outcome.Acquired);
             }
             return GC.GetAllocatedBytesForCurrentThread() - before;
         }

@@ -7,8 +7,11 @@ namespace LiteDB.Client.Shared
 {
     /// <summary>
     /// Records one Shared connection's waits for writer ownership: totals since creation and
-    /// per-minute buckets for the last hour. A wait is recorded only if it actually blocked
-    /// for ownership; nothing is allocated per wait except a slow-wait notification.
+    /// per-minute buckets for the last hour. Every non-recursive acquisition is recorded, also
+    /// one that did not have to block. <c>Count</c> holds the waits that ended by acquiring
+    /// (or otherwise without timeout or refusal) or by timing out; a refused wait counts only
+    /// in <c>Refused</c> and adds no wait time. Nothing is allocated per wait except a slow-wait
+    /// notification.
     /// </summary>
     internal sealed class SharedWaitRecorder
     {
@@ -32,14 +35,19 @@ namespace LiteDB.Client.Shared
         {
             internal long Minute, Count, Ticks, Max, Over500, Over1000, TimedOut, Refused;
 
-            internal void Add(long elapsed, bool timedOut)
+            internal void Add(long elapsed, Outcome outcome)
             {
+                if (outcome == Outcome.Refused)
+                {
+                    Refused++;
+                    return;
+                }
                 Count++;
                 Ticks += elapsed;
                 if (elapsed > Max) Max = elapsed;
                 if (elapsed > Ticks500) Over500++;
                 if (elapsed > Ticks1000) Over1000++;
-                if (timedOut) TimedOut++;
+                if (outcome == Outcome.TimedOut) TimedOut++;
             }
 
             internal void Merge(Bucket other)
@@ -64,6 +72,17 @@ namespace LiteDB.Client.Shared
             _slowWait = slowWait == null ? null : new WeakReference<Action<SharedSlowWait>>(slowWait);
         }
 
+        /// <summary>How a recorded wait ended.</summary>
+        internal enum Outcome
+        {
+            /// <summary>Ownership was acquired, or the wait ended by a failure other than a timeout or refusal.</summary>
+            Acquired,
+            /// <summary>The wait ran out of <c>SharedWriterTimeout</c>.</summary>
+            TimedOut,
+            /// <summary>The wait was refused (<c>SharedSelfWaitGrace</c>) after waiting at least one grace slice.</summary>
+            Refused
+        }
+
         /// <summary>A wait in progress: when it began and the owner known then.</summary>
         internal readonly struct Wait
         {
@@ -80,7 +99,8 @@ namespace LiteDB.Client.Shared
             return new Wait(start, SharedHandleRegistry.Owner(_mutexName) != null);
         }
 
-        internal void End(Wait wait, bool timedOut)
+        /// <summary>End a wait exactly once. A refusal counts only in <c>Refused</c>.</summary>
+        internal void End(Wait wait, Outcome outcome)
         {
             var start = wait.Start;
             var now = Stopwatch.GetTimestamp();
@@ -88,12 +108,12 @@ namespace LiteDB.Client.Shared
             lock (_sync)
             {
                 _active.Remove(start);
-                _total.Add(elapsed, timedOut);
-                this.Current(now).Add(elapsed, timedOut);
+                _total.Add(elapsed, outcome);
+                this.Current(now).Add(elapsed, outcome);
             }
-            if (_slowWait == null || _slowThreshold == Timeout.InfiniteTimeSpan || ToTime(elapsed) < _slowThreshold ||
+            if (outcome == Outcome.Refused || _slowWait == null || _slowThreshold == Timeout.InfiniteTimeSpan || ToTime(elapsed) < _slowThreshold ||
                 !_slowWait.TryGetTarget(out var observer)) return;
-            Notify(observer, new SharedSlowWait(_filename, ToTime(elapsed), timedOut,
+            Notify(observer, new SharedSlowWait(_filename, ToTime(elapsed), outcome == Outcome.TimedOut,
                 wait.HandleOwner ? SharedWriterOwner.TransactionHandle : SharedWriterOwner.Unknown));
         }
 
@@ -109,6 +129,7 @@ namespace LiteDB.Client.Shared
             }, info);
         }
 
+        /// <summary>A refusal before any wait began (a zero <c>SharedSelfWaitGrace</c>).</summary>
         internal void Refused()
         {
             var now = Stopwatch.GetTimestamp();

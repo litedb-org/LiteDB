@@ -72,7 +72,11 @@ var lastHour = db.GetSharedWaitDiagnostics(TimeSpan.FromHours(1));
 
 `SharedEngine.GetWaitDiagnostics(...)` returns the same snapshot for a caller-owned
 engine. Statistics are per connection, kept in per-minute buckets for up to one hour.
-`Count` includes acquisitions that did not have to wait. `Owner` is what this process
+Every non-recursive acquisition is recorded, also one that did not have to wait. `Count`
+holds the waits that ended by acquiring ownership (including immediately, or by a failure
+that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWait` and the
+over-500 ms/1 s counts cover the same waits. A refused wait (`SharedSelfWaitGrace`), at once
+or after a grace, counts only in `Refused` and adds no wait time. `Owner` is what this process
 knows: a handle of this process, or `Unknown` (free, another connection, or another
 process). A handle's begin records its own native acquisition on its connection.
 

@@ -35,21 +35,24 @@ namespace LiteDB
         {
             var grace = _settings.SharedSelfWaitGrace;
             if (grace == Timeout.InfiniteTimeSpan || !SharedHandleRegistry.CurrentFlowHoldsOwner(_mutexName)) return false;
-            if (grace == TimeSpan.Zero) throw this.RefuseSelfWait();
-            return true;
-        }
-
-        /// <summary>After a grace slice: refuse once the flow still holds the owner and it stayed idle that long.</summary>
-        private bool StillSelfWaiting()
-        {
-            if (SharedHandleRegistry.CurrentFlowHoldsOwner(_mutexName, _settings.SharedSelfWaitGrace)) throw this.RefuseSelfWait();
-            return SharedHandleRegistry.CurrentFlowHoldsOwner(_mutexName);
-        }
-
-        private InvalidOperationException RefuseSelfWait()
-        {
+            if (grace != TimeSpan.Zero) return true;
+            // Refused before any wait began: counted only as a refusal.
             this.Waits.Refused();
-            return SharedHandleRegistry.FlowSelfWait();
+            throw SharedHandleRegistry.FlowSelfWait();
+        }
+
+        /// <summary>
+        /// After a grace slice: refuse once the flow still holds the owner and it stayed idle that long.
+        /// A refusal sets <paramref name="outcome"/>, so the caller ends its wait as refused, not counted.
+        /// </summary>
+        private bool StillSelfWaiting(ref SharedWaitRecorder.Outcome outcome)
+        {
+            if (SharedHandleRegistry.CurrentFlowHoldsOwner(_mutexName, _settings.SharedSelfWaitGrace))
+            {
+                outcome = SharedWaitRecorder.Outcome.Refused;
+                throw SharedHandleRegistry.FlowSelfWait();
+            }
+            return SharedHandleRegistry.CurrentFlowHoldsOwner(_mutexName);
         }
 
         /// <summary>
@@ -62,21 +65,21 @@ namespace LiteDB
             var deadline = SharedWaitDeadline.Start(_settings.SharedWriterTimeout);
             var waits = this.Waits;
             var wait = waits.Begin();
-            var timedOut = false;
+            var outcome = SharedWaitRecorder.Outcome.Acquired;
             try
             {
                 while (true)
                 {
                     try { return acquire(this, state, selfWait ? deadline.Within(_settings.SharedSelfWaitGrace) : deadline); }
-                    catch (SharedWaitTimeoutException) when (selfWait && !deadline.Expired) { selfWait = this.StillSelfWaiting(); }
+                    catch (SharedWaitTimeoutException) when (selfWait && !deadline.Expired) { selfWait = this.StillSelfWaiting(ref outcome); }
                 }
             }
             catch (SharedWaitTimeoutException error)
             {
-                timedOut = true;
+                outcome = SharedWaitRecorder.Outcome.TimedOut;
                 throw this.TimeoutError(waits, deadline, error.BehindThisConnection);
             }
-            finally { waits.End(wait, timedOut); }
+            finally { waits.End(wait, outcome); }
         }
 
         /// <summary>

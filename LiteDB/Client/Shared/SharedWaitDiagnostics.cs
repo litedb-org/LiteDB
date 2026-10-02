@@ -26,10 +26,13 @@ namespace LiteDB
             Refused = refused;
         }
 
-        /// <summary>Completed acquisitions that could block, including immediate ones and timeouts.</summary>
+        /// <summary>
+        /// Completed waits for ownership: acquisitions (including immediate ones, and ones whose
+        /// call failed otherwise) and timeouts. Refused waits are not included; see <see cref="Refused"/>.
+        /// </summary>
         public long Count { get; }
 
-        /// <summary>Summed duration of all completed waits.</summary>
+        /// <summary>Summed duration of the waits in <see cref="Count"/>.</summary>
         public TimeSpan TotalWait { get; }
 
         /// <summary>Longest completed wait.</summary>
@@ -44,7 +47,10 @@ namespace LiteDB
         /// <summary>Waits that ran out of <c>SharedWriterTimeout</c>.</summary>
         public long TimedOut { get; }
 
-        /// <summary>Waits refused (SharedSelfWaitGrace) because their own flow held the idle owning handle.</summary>
+        /// <summary>
+        /// Waits refused (SharedSelfWaitGrace) because their own flow held the idle owning handle,
+        /// at once or after a grace. They add nothing to <see cref="Count"/>, <see cref="TotalWait"/> or <see cref="MaxWait"/>.
+        /// </summary>
         public long Refused { get; }
     }
 
