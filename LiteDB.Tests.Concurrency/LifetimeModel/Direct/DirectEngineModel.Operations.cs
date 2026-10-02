@@ -152,7 +152,12 @@ namespace LiteDB.Tests.Concurrency.LifetimeModel.Direct
             if (t.Fault == null)
             {
                 transaction.Value.LockedCollection = transaction.Value.LockedCollection ?? collection;
-                if (callback != null) foreach (var step in callback()) yield return step;
+                if (callback != null)
+                {
+                    foreach (var step in callback()) yield return step;
+                    // Insert.cs:32 validates the engine before each document the input yields.
+                    if (!this.State.Valid) t.Fault = this.State.Failure ?? Faults.EngineDisposed;
+                }
             }
             if (t.Fault == null && isNew.Value)
             {
