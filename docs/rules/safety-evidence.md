@@ -219,7 +219,10 @@ outcomes** per operation class and dimension (`op`, `dimension` in
   as multisets;
 - cleanup obligations: a `ConnectionClean` or `Quiescent` evaluation that is
   unclean, or shows a violation kind, where the base was clean; a `FaultDisposed`
-  declared-to-observed disposition the base did not show;
+  declared-to-observed disposition the base did not show at the same teardown
+  path, fault site and injector model (fail-inside or skip). A site only the
+  head exercised is compared with every disposition the base showed on that
+  path. The difference's dimension is `site=<site>;model=<model>`;
 - markers and fault points the base reached that the head no longer reaches.
 
 Timings, raw traces, metric values and the order of legal concurrent winners
@@ -231,10 +234,20 @@ one tree happens not to hit, so declaring `permitted` is the real remedy. A fiel
 not record on both sides is listed as *not compared*. Operation classes and
 markers seen only on the head are listed as capabilities, not diffed.
 
+Each key carries its exercise count on both trees, and the report states
+whether it was exercised and changed, exercised and unchanged, or not
+exercised on the base or on the head. "Unchanged" is evidence. "Not exercised"
+is none.
+
 Every remaining difference must be claimed by an entry this PR adds to
 [`intended-changes.json`](../../.github/safety/intended-changes.json). An entry
 whose change is not observed fails as well, so a promised contract change that
-the code does not make is caught. Only entries added by the change count, as
+the code does not make is caught. The report says which case it is:
+
+- *exercised, unchanged*: both trees ran the claimed call, and the claimed
+  change did not happen;
+- *not exercised* on the base, the head or either side: the run has no evidence
+  about the claim. Add a target or seed that reaches the call. Only entries added by the change count, as
 with the coverage ledger. An entry names the operation class, an optional
 dimension pattern, the change, the old and new behavior, the doc sentence that
 promises it and the reason:
@@ -247,6 +260,9 @@ promises it and the reason:
 
 `change` is one of `new-exception`, `exception-removed`, `primary-changed`,
 `outcome-change`, `payload-change`, `effect-change`, `cleanup-change` or `marker`.
+For a `cleanup-change` of a `FaultDisposed` row, `call` is the teardown path.
+`"dimension": "site=LiteEngine.Close.checkpoint;*"` limits the entry to one
+fault site.
 The `doc` fragment quotes the promising sentence, or names a heading whose
 section mentions the call; `check_intended_changes.py` validates both in the
 Safety policy job.

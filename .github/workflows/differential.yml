@@ -24,7 +24,7 @@ on:
     paths:
       - 'LiteDB/**'
       - '.github/safety/intended-changes.json'
-      - '.github/scripts/differential_run.py'
+      - '.github/scripts/differential_*.py'
       - '.github/workflows/differential.yml'
   workflow_dispatch:
     inputs:

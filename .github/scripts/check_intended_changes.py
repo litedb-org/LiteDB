@@ -13,7 +13,9 @@ inherited from the base describe earlier PRs and are ignored.
 
 `call` is the operation class as recorded in outcomes.jsonl (a marker name for
 `marker`; for `cleanup-change` the op of the ConnectionClean/Quiescent/ScratchLive
-evaluation); `dimension` is optional and may use `*` wildcards. Latency is not a
+evaluation or the teardown path of a FaultDisposed row); `dimension` is optional and may
+use `*` wildcards. A FaultDisposed difference has the dimension `site=<site>;model=<model>`,
+so `"dimension": "site=LiteEngine.Close.checkpoint;*"` names one fault site. Latency is not a
 contract change: performance is separate evidence. `doc` is `docs/<file>.md#<fragment>`: the fragment is either text
 quoted from the promising sentence, or a heading anchor whose section has a sentence
 naming the call. This check validates shape and doc references; whether the change

@@ -90,9 +90,11 @@ class DifferentialRunTests(unittest.TestCase):
         self.runs.add("head", BASE)
         code, output, report = self.runs.compare(manifest=[INTENDED])
         self.assertEqual(code, 1, output)
-        self.assertEqual(report["unusedEntries"][0]["why"], "claimed change not observed")
+        self.assertEqual(report["unusedEntries"][0]["state"], "unchanged")
+        self.assertEqual(report["unusedEntries"][0]["why"],
+                         "claimed change not observed: exercised, unchanged (base 1, head 1)")
         code, output, report = self.runs.compare(manifest=[{**INTENDED, "call": "Rebuild"}])
-        self.assertEqual(report["unusedEntries"][0]["why"], "claimed call not exercised")
+        self.assertEqual(report["unusedEntries"][0]["why"], "claimed call not exercised on either side")
 
     def test_removed_exception_new_outcome_kind_and_lost_operation_fail(self):
         self.runs.add("base", BASE + [record("Checkpoint")])

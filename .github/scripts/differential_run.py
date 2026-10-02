@@ -14,18 +14,24 @@ compared, per operation class and dimension (`op`, `dimension` in outcomes.jsonl
   the primary failure is preserved (`primaryExceptionType` -> escaped type pairs);
 - payloads and acknowledged effects: multisets of `payloadDigest` / `effectsDigest`;
 - cleanup obligations: per ConnectionClean/Quiescent (or legacy ClosedClean) evaluation,
-  an unclean result or a violation kind the base never showed; per FaultDisposed row
-  (faults.jsonl), a declared -> observed disposition pair the base never showed;
+  an unclean result or a violation kind the base never showed; per FaultDisposed key
+  (faults.jsonl: teardown path, fault site, injector model), a declared -> observed pair
+  the base never showed at that key. At a site only the head exercised, the pair is
+  compared with every pair the base showed on the path. The difference's dimension is
+  `site=<site>;model=<model>`, so a manifest entry can name a site;
 - fault points: a FaultReached fault point the base fired and the head never fires;
 - reachability: a marker the base reached and the head never reaches.
 
 No latency: performance is separate, class-3 evidence (paired repeated measurements).
 Concurrent targets are native-thread evidence (class 2): the outcome set of a racing
 operation can vary between runs of one tree. With --repeat N each tree runs every seed N
-times; an operation whose outcome or exception set varies between repeats of the SAME
-tree is classified schedule-dependent, and its cross-tree differences are reported in
-that class instead of failing. With one repeat there is no such evidence and every
+times; an operation whose outcome or exception set (or a FaultDisposed key whose pair
+set) varies between repeats of the SAME tree is classified schedule-dependent, and its
+cross-tree differences are reported in that class instead of failing. With one repeat there is no such evidence and every
 difference counts.
+Every key carries its exercise count on both sides (differential_exercise.py), and the
+report states for each one: exercised and changed, exercised and unchanged, or not
+exercised on the base / on the head. "Unchanged" is evidence; "not exercised" is none.
 Optional fields absent on either side are reported as "not compared", never as passed
 (field contract: /tmp/safety-net/contracts/m4-outcomes.md, summarized in
 docs/rules/safety-evidence.md). Operation classes and markers that exist only on the head
@@ -33,7 +39,9 @@ are new capabilities: they are listed, not diffed.
 
 Every remaining difference fails unless an entry ADDED to .github/safety/intended-changes.json
 by this change covers it (check_intended_changes.py); an added entry whose change is not
-observed fails too, because the PR claims a contract change nobody exercised. While
+observed fails too, and says why: its keys were exercised on both sides and unchanged
+(the claimed change did not happen), or were not exercised on the base, the head or
+either side (the run has no evidence about the claim). While
 net-modes.json says the nets are advisory, findings are reported and the exit code is 0.
 
 Both trees must contain the outcome-emitting harness (`outcomes.jsonl` written by
@@ -49,17 +57,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 import check_intended_changes as intended
+import differential_exercise as exercise
 import safety_common as common
+from differential_collect import HARNESS_FILE, collect, site_dimension
 
-HARNESS_FILE = "outcomes.jsonl"
 FUZZ_PROJECT = "LiteDB.Fuzz/LiteDB.Fuzz.csproj"
-OBLIGATIONS = {"connection-clean.jsonl": "ConnectionClean", "quiescent.jsonl": "Quiescent",
-               "scratch-live.jsonl": "ScratchLive", "closed-clean.jsonl": "ClosedClean"}  # last two: optional/legacy
-OPTIONAL = {"payloadDigest": "payloads", "effectsDigest": "effects", "primaryExceptionType": "primary"}
 DEFAULT_TARGETS = "chaos,concurrent,cursor-handoff,conflict,integrity"
 
 
@@ -113,95 +119,24 @@ def run_targets(tree, framework, targets, seeds, count, out, timeout):
 
 
 
-# --- collecting ------------------------------------------------------------
-
-def _jsonl(path):
-    if not path.is_file():
-        return []
-    lines = (line.strip() for line in path.read_text(encoding="utf-8", errors="replace").splitlines())
-    return [json.loads(line) for line in lines if line]
-
-
-def _new_op():
-    return {"outcomes": Counter(), "exceptions": Counter(), "primary": Counter(), "payloads": Counter(),
-            "effects": Counter(), "permitted": set(), "unpermitted": Counter(), "records": 0,
-            "present": Counter()}
-
-
-def _exception(name, code):
-    return name + (f"#{code}" if code is not None else "") if name else "none"
-
-
-def collect(roots, requested=None):
-    """Aggregate normalized outcomes of every run below roots; requested = {(target, seed)} drops corpus replays."""
-    summary = {"ops": defaultdict(_new_op), "obligations": defaultdict(lambda: {"evaluations": 0, "unclean": 0,
-               "violations": Counter()}), "markers": Counter(), "faults": Counter(),
-               "dispositions": defaultdict(Counter), "runs": 0, "withOutcomes": 0}
-    for root in roots:
-        for run_json in sorted(Path(root).rglob("run.json")):
-            directory = run_json.parent
-            meta = json.loads(run_json.read_text(encoding="utf-8"))
-            if requested is not None and (meta.get("target"), meta.get("seed")) not in requested:
-                continue
-            summary["runs"] += 1
-            summary["withOutcomes"] += (directory / HARNESS_FILE).is_file()
-            for record in _jsonl(directory / HARNESS_FILE):
-                _add_outcome(summary["ops"][(record.get("op"), record.get("dimension") or "")], record)
-            for name, oracle in OBLIGATIONS.items():
-                for record in _jsonl(directory / name):
-                    key = (oracle, record.get("op") or record.get("point") or oracle, record.get("dimension") or "")
-                    entry = summary["obligations"][key]
-                    entry["evaluations"] += 1
-                    entry["unclean"] += record.get("clean") is False
-                    entry["violations"].update(_violation_kind(item) for item in record.get("violations") or [])
-            for record in _jsonl(directory / "faults.jsonl"):  # FaultReached / FaultDisposed rows
-                if record.get("fault") and record.get("fired"):
-                    summary["faults"][record["fault"]] += 1
-                elif record.get("op"):
-                    summary["dispositions"][record["op"]][f"{record.get('declared')} -> {record.get('observed')}"] += 1
-            markers = directory / "markers.json"
-            if markers.is_file():
-                summary["markers"].update(json.loads(markers.read_text(encoding="utf-8")).get("hits", {}))
-    return summary
-
-
-def _add_outcome(entry, record):
-    entry["records"] += 1
-    entry["outcomes"][record.get("outcome")] += 1
-    escaped = _exception(record.get("exceptionType"), record.get("errorCode"))
-    if record.get("exceptionType"):
-        entry["exceptions"][escaped] += 1
-    for field, bucket in OPTIONAL.items():
-        if record.get(field) is not None:
-            entry["present"][bucket] += 1
-            entry[bucket][f"{record[field]} -> {escaped}" if bucket == "primary" else record[field]] += 1
-    if isinstance(record.get("permitted"), list):
-        entry["permitted"].update(record["permitted"])
-        if not permitted(record, record["permitted"]):
-            entry["unpermitted"][f"{record.get('outcome')}:{escaped}"] += 1
-
-
-def permitted(record, allowed):
-    """An outcome is permitted by its kind ('threw'), or by kind and type ('threw:T', 'threw:T#code')."""
-    outcome, escaped = record.get("outcome"), _exception(record.get("exceptionType"), record.get("errorCode"))
-    return any(item in allowed for item in (outcome, f"{outcome}:{escaped.split('#')[0]}", f"{outcome}:{escaped}"))
-
-
-def _violation_kind(item):
-    text = item.get("kind") if isinstance(item, dict) else str(item)
-    return str(text).split(":", 1)[0].strip() or "unspecified"
-
-
 # --- comparing -------------------------------------------------------------
 
 def instability(repeats):
-    """(op, dimension) keys whose outcome or exception set differs between repeats of one tree."""
+    """Keys whose observed shape differs between repeats of one tree: (op, dimension) by outcome and
+    exception set, ("disposition", path, (site, model)) by declared -> observed pair set."""
     unstable = set()
     for key in set().union(*(summary["ops"] for summary in repeats)) if repeats else ():
         shapes = {(frozenset(summary["ops"][key]["outcomes"]), frozenset(summary["ops"][key]["exceptions"]))
                   for summary in repeats if key in summary["ops"]}
         if len(shapes) > 1:
             unstable.add(key)
+    for path in set().union(*(summary["dispositions"] for summary in repeats)) if repeats else ():
+        sites = set().union(*(summary["dispositions"].get(path, {}) for summary in repeats))
+        for site in sites:
+            shapes = {frozenset(summary["dispositions"][path][site]["pairs"]) for summary in repeats
+                      if site in summary["dispositions"].get(path, {})}
+            if len(shapes) > 1:
+                unstable.add(("disposition", path, site))
     return unstable
 
 
@@ -209,8 +144,9 @@ SCHEDULE_SENSITIVE = {"outcome-change", "new-exception", "exception-removed"}
 
 
 def compare(base, head, unstable=frozenset()):
-    """Return (differences, capabilities, not_compared)."""
+    """Return (differences, capabilities, not_compared, exercised)."""
     found, capabilities, not_compared = [], {"operations": [], "markers": []}, {"absent": Counter(), "partial": []}
+    exercised = {}
 
     def add(kind, op, dimension, detail, **extra):
         found.append({"kind": kind, "op": op, "dimension": dimension, "detail": detail, **extra})
@@ -245,15 +181,7 @@ def compare(base, head, unstable=frozenset()):
                 "unclean, none on the base", oracle=oracle)
         for violation in sorted(set(new["violations"] if new else ()) - set(old["violations"] if old else ())):
             add("cleanup-change", op, dimension, f"{oracle}: new violation '{violation}'", oracle=oracle)
-    base_ops = {op for op, _ in base["ops"]}
-    capabilities["dispositions"] = []
-    for op in sorted(set(head["dispositions"])):
-        if op not in base["dispositions"] and op not in base_ops:
-            # An operation class only the head exercises: its fault dispositions are a capability, not a change.
-            capabilities["dispositions"] += [f"{op}: {pair}" for pair in sorted(head["dispositions"][op])]
-            continue
-        for pair in sorted(set(head["dispositions"][op]) - set(base["dispositions"].get(op, ()))):
-            add("cleanup-change", op, "", f"FaultDisposed: declared -> observed disposition {pair} new on the head")
+    capabilities["dispositions"], exercised["dispositions"] = exercise.compare_dispositions(add, base, head, unstable)
     for fault in sorted(set(base["faults"]) - set(head["faults"])):
         add("marker", f"fault-point:{fault}", "", f"FaultReached on the base ({base['faults'][fault]}x), never on the head")
     capabilities["faults"] = sorted(set(head["faults"]) - set(base["faults"]))
@@ -262,7 +190,8 @@ def compare(base, head, unstable=frozenset()):
             add("marker", marker, "", f"reached {base['markers'][marker]}x on the base, never on the head")
         elif head["markers"][marker] and not base["markers"][marker]:
             capabilities["markers"].append(marker)
-    return found, capabilities, not_compared
+    exercised["operations"] = exercise.op_rows(base, head, found)
+    return found, capabilities, not_compared, exercised
 
 
 def _compare_op(add, not_compared, op, dimension, old, new):
@@ -306,7 +235,11 @@ def _compare_optional(add, not_compared, op, dimension, old, new):
 
 
 def apply_manifest(differences, entries, base, head):
-    """Mark differences an entry covers; return entries that cover nothing observed."""
+    """Mark differences an entry covers; return (entries that cover nothing observed, status of every entry).
+
+    An unused entry says why: its keys were exercised on both sides and unchanged, or not
+    exercised on the base, the head or either side (differential_exercise.entry_status).
+    """
     used = set()
     for difference in differences:
         if difference.get("coverable") is False:
@@ -325,14 +258,10 @@ def apply_manifest(differences, entries, base, head):
         if difference["kind"] == "outcome-change" and not difference.get("intended") \
                 and set(difference.get("kinds", ["?"])) <= {"threw", "refused"}:
             difference["intended"] = explained.get((difference["op"], difference["dimension"]))
-    unused = []
-    observed = {op for op, _ in set(base["ops"]) & set(head["ops"])} | set(base["markers"]) \
-        | {op for _, op, _ in set(base["obligations"]) & set(head["obligations"])}
-    for index, entry in enumerate(entries):
-        if index not in used:
-            unused.append({**entry, "why": "claimed change not observed" if entry.get("call") in observed
-                           else "claimed call not exercised"})
-    return unused
+    statuses = [exercise.entry_status(entry, base, head, index in used) for index, entry in enumerate(entries)]
+    unused = [{**entry, "why": status["why"], "state": status["state"], "exercised": {"base": status["base"],
+               "head": status["head"]}} for entry, status in zip(entries, statuses) if status["state"] != "changed"]
+    return unused, statuses
 
 
 # --- reporting -------------------------------------------------------------
@@ -362,7 +291,9 @@ def render(result):
                   f"{result['settings'].get('repeat', 1)} per tree): "
                   + ", ".join(f"`{item}`" for item in result["unstable"]) + "."]
     for entry in result["unusedEntries"]:
-        lines.append(f"- **{entry['why']}**: `{entry.get('call')}` {entry.get('change')} ({entry.get('doc')})")
+        lines.append(f"- **{entry['why']}**: `{entry.get('call')}` {entry.get('dimension') or ''} "
+                     f"{entry.get('change')} ({entry.get('doc')})")
+    lines += _render_exercise(result)
     capabilities = result["capabilities"]
     lines += ["", "**Capabilities only on the head** (listed, not diffed): operations "
               + (", ".join(f"`{item}`" for item in capabilities["operations"]) or "none") + "; markers "
@@ -389,6 +320,33 @@ def render(result):
             lines.append(f"- {side}: {len(failed)} fuzz run(s) failed; their outcomes are truncated: "
                          + ", ".join(f"{run['target']}/{run['seed']}" for run in failed))
     return "\n".join(lines) + "\n"
+
+
+def _render_exercise(result):
+    """Exercise counts: which keys both trees exercised, changed or not, and which only one side reached."""
+    exercised = result.get("exercise") or {}
+    lines = []
+    for label, rows in (("Operation classes", exercised.get("operations", [])),
+                        ("FaultDisposed (path, site, model)", exercised.get("dispositions", []))):
+        if rows:
+            counts = exercise.summarize_states(rows)
+            lines.append(f"- {label}: {counts['changed']} exercised and changed, {counts['unchanged']} exercised "
+                         f"and unchanged, {counts['not-exercised-head']} not exercised on the head, "
+                         f"{counts['not-exercised-base']} not exercised on the base.")
+    if exercised.get("dispositions"):
+        lines += ["", "<details><summary>FaultDisposed exercise per teardown path, site and model</summary>", "",
+                  "| Path | Site | Model | Base | Head | State | Base pairs | Head pairs |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+        lines += [f"| `{row['path']}` | {row['site']} | {row['model']} | {row['base']} | {row['head']} | {row['state']} | "
+                  f"{', '.join(row['basePairs']) or '-'} | {', '.join(row['headPairs']) or '-'} |"
+                  for row in exercised["dispositions"]]
+        lines += ["", "</details>"]
+    statuses = result.get("manifestStatus") or []
+    if statuses:
+        lines += ["", "| Manifest entry | Change | Base | Head | State |", "| --- | --- | --- | --- | --- |"]
+        lines += [f"| {status.get('id') or ''} `{status['call']}` {status.get('dimension') or ''} | {status['change']} | "
+                  f"{status['base']} | {status['head']} | {status['state']} |" for status in statuses]
+    return ["", "**Exercise** (records per key on each side):"] + lines if lines else []
 
 
 def _verdict(difference):
@@ -424,15 +382,16 @@ def summarize(summary, rev, runs=None):
 
 
 def judge(base, head, entries, advisory, info, unstable=frozenset()):
-    differences, capabilities, not_compared = compare(base, head, unstable)
-    unused = apply_manifest(differences, entries, base, head)
+    differences, capabilities, not_compared, exercised = compare(base, head, unstable)
+    unused, statuses = apply_manifest(differences, entries, base, head)
     failing = len([d for d in differences if not d.get("intended") and not d.get("class")])
     failing += len(unused)
-    info["unstable"] = sorted(f"{op} [{dimension or '-'}]" for op, dimension in unstable)
+    info["unstable"] = sorted(f"{key[1]} [{site_dimension(*key[2])}]" if key[0] == "disposition"
+                              else f"{key[0]} [{key[1] or '-'}]" for key in unstable)
     status = "passed" if not failing else "advisory" if advisory else "failed"
     return {"status": status, "advisory": advisory, "wouldFail": failing, "differences": differences,
             "unusedEntries": unused, "capabilities": capabilities, "notCompared": not_compared,
-            "manifest": entries, **info}
+            "manifest": entries, "manifestStatus": statuses, "exercise": exercised, **info}
 
 
 def parse(argv):
