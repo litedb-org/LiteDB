@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Historical wait-for graph overlay for PR #133 trees (see README.md).
+# Historical wait-for graph overlay for JKamsker/LiteDB#133 trees (see README.md).
 #
 # usage: run.sh <tree> <artifacts> <mode>
 #   mode: generic | repro-row3 | repro-row4 | repro-row12 | repro-row13
