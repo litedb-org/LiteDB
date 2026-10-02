@@ -78,11 +78,22 @@ namespace LiteDB.ConcurrencyTesting
                 ["program"] = result.Program,
                 ["scenarioDescription"] = scenario?.Description,
                 ["environment"] = Environment(),
-                ["replay"] = "LITEDB_EXPLORER_VECTOR='" + result.Vector + "' dotnet test LiteDB.Tests -c Release -f net8.0 " +
-                    "-p:TestingEnabled=true --settings tests.runsettings --filter FullyQualifiedName~ConcurrencyExplorerReplay"
+                ["replay"] = Replay(result.Vector)
             };
             File.WriteAllText(path, JsonSerializer.Serialize(document, indent: true));
             return path;
+        }
+
+        /// <summary>
+        /// The command that reruns <paramref name="vector"/>: a lifetime-chaos program regenerates from its seed
+        /// and step (the vector's variant) through LifetimeChaosReplay; every other scenario replays the vector.
+        /// </summary>
+        internal static string Replay(ExplorerVector vector)
+        {
+            const string Test = " dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter ";
+            return vector?.Scenario == LifetimeChaosProgram.ScenarioName
+                ? "LITEDB_LIFETIME_CHAOS=" + vector.Seed + ":" + vector.Variant + Test + "FullyQualifiedName~LifetimeChaosReplay"
+                : "LITEDB_EXPLORER_VECTOR='" + vector + "'" + Test + "FullyQualifiedName~ConcurrencyExplorerReplay";
         }
 
         internal static BsonDocument Environment() => new BsonDocument

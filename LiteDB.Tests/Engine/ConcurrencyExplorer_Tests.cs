@@ -63,8 +63,16 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void ConcurrencyExplorerReplay()
         {
-            var vector = Environment.GetEnvironmentVariable("LITEDB_EXPLORER_VECTOR") ?? ExplorerSelection.Representative().First().ToString();
-            try { this.Run(vector); }
+            var vector = Environment.GetEnvironmentVariable("LITEDB_EXPLORER_VECTOR");
+            if (string.IsNullOrEmpty(vector)) vector = ExplorerSelection.Representative().First().ToString();
+            var parsed = ExplorerVector.Parse(vector);
+            // A lifetime-chaos vector names a generated program, not a scenario: regenerate it from (seed, step).
+            if (parsed.Scenario == LifetimeChaosProgram.ScenarioName)
+            {
+                this.RunChaos(parsed.Seed, parsed.Variant, history: true);
+                return;
+            }
+            try { this.Run(vector, replay: true); }
             finally
             {
                 // A finalizer failure (a leaked page buffer's ENSURE) is attributed to the replayed vector, not a later test.
@@ -115,6 +123,18 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void A_failure_names_the_replay_that_reruns_it()
+        {
+            // A lifetime-chaos vector names a generated program; replaying it as a scenario vector would not run.
+            var program = LifetimeChaosProgram.Generate(2947, 35, ExplorerAccessKinds.All.Select(access => access.Name).ToArray(),
+                ExplorerKnownFindings.IncludeKnown);
+            Assert.StartsWith("LITEDB_LIFETIME_CHAOS=2947:35 ", ExplorerArtifacts.Replay(program.Vector));
+            Assert.EndsWith("FullyQualifiedName~LifetimeChaosReplay", ExplorerArtifacts.Replay(program.Vector));
+            var vector = ExplorerSelection.Representative().First();
+            Assert.StartsWith("LITEDB_EXPLORER_VECTOR='" + vector + "' ", ExplorerArtifacts.Replay(vector));
+        }
+
+        [Fact]
         public void The_handle_access_kind_is_not_applicable_on_upstream_and_never_passes()
         {
             var vector = new ExplorerVector { Scenario = "callback-pause", Configuration = new ExplorerConfiguration { Access = "handle" } };
@@ -124,9 +144,13 @@ namespace LiteDB.Tests.Engine
             Assert.Contains("handle-api", result.NotApplicableReason);
         }
 
-        private void Run(string text)
+        private void Run(string text, bool replay = false)
         {
             var result = this.Execute(text, out var known);
+            // A replay that did not run is not a pass; only an exclusion by a registered known finding is reported as such.
+            if (replay && result.Verdict == ExplorerVerdict.NotApplicable &&
+                !(result.NotApplicableReason ?? "").StartsWith("known finding ", StringComparison.Ordinal))
+                Assert.Fail("The replayed vector did not run: " + result.NotApplicableReason + Environment.NewLine + text);
             if (result.Verdict == ExplorerVerdict.Failed && known != null)
             {
                 _output.WriteLine("KNOWN FINDING " + known.Id + " reproduced: " + result);
