@@ -55,7 +55,9 @@ if ($PartitionSuite) {
         'engine-index' = 'FullyQualifiedName~LiteDB.Tests.Engine.Index'
         # Transaction and handle coverage (explorer, close races) has its own session budget.
         'engine-transaction' = 'FullyQualifiedName~LiteDB.Tests.Engine.Transaction'
-        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~LiteDB.Tests.Engine.Transaction'
+        # Shared writer-wait coverage (budgets, stages, abandonment) has its own session budget.
+        'engine-shared-waits' = 'FullyQualifiedName~LiteDB.Tests.Engine.SharedWait'
+        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~LiteDB.Tests.Engine.Transaction&FullyQualifiedName!~LiteDB.Tests.Engine.SharedWait'
         'query-not-equal' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
         # Keep process-heavy Shared coverage within the per-session timeout on Windows x86.
