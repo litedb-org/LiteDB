@@ -18,7 +18,7 @@ internal static class Program
         new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
         new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
         new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer(), new MvccRetirementFuzzer(), new MvccCheckpointFuzzer(),
-        new TeardownFaultsFuzzer()
+        new TeardownFaultsFuzzer(), new SharedContentionFuzzer()
     };
 
     // Oracle self-tests that fail by design: selectable by exact name, never by "all".
@@ -33,6 +33,7 @@ internal static class Program
 
         if (options.Child == "verify-checkpointed") return CheckpointedFileVerifier.Run(options);
         if (options.Child == "shared") return SharedProcessFuzzer.RunChild(options);
+        if (options.Child == "shared-contention") return SharedContentionChild.Run(options);
         if (options.Child == "snapshot-writer") return SnapshotWriterProcess.RunChild(options);
         if (options.Child == "snapshot-reader") return SnapshotFuzzer.RunChild(options);
         if (options.List)

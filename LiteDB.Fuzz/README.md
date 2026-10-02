@@ -169,6 +169,7 @@ oracle evidence even when the path-filtered Fuzz workflow does not run.
 | `page` | slot payload model plus page/footer/accounting/overlap invariants |
 | `index` | scalar, multikey, unique, ordering, and key-moving update checks |
 | `shared` | real child processes, acknowledged ledgers, and owner-process death |
+| `shared-contention` | 2-4 real processes alternating Shared writer ownership (explicit transactions with commit/rollback, auto-commit writes, reads) behind a start barrier. Each child applies Deadline (lock-bound, TIMEOUT 10 s), Ownership after every operation, ConnectionClean, and Durable on a fresh connection; the parent bounds every join and checks Durable over the union of all acknowledged ledgers on a cold reopen, then Quiescent. Overtaking (a later arrival acquired before an earlier waiter, `arrive_i < arrive_j < acquired_j < acquired_i`) is a metric (`overtakings`, `overtakingRate`, `maxWaitMs`, `p99AcquireMs`), never a failure: [Shared mode is not strict FIFO](../docs/shared-performance-followups.md#ownership-and-compatibility). Evidence class 2: failed rounds keep ledgers, timings, child output, database files and `evidence.json` |
 | `bson` | contiguous vs fragmented reader/writer round trips and mutations |
 | `parser` | fresh vs cached SQL/expression parsing, binding, malformed errors |
 | `mapper` | supported CLR shape round trips and cyclic failure isolation |

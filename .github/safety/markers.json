@@ -967,6 +967,30 @@
       ],
       "doc": "docs/teardown-sweep.md",
       "reason": "A skip fault (thrown before a teardown step's action, so the action never runs) fired inside a registered teardown path under random prior state."
+    },
+    {
+      "name": "situation:shared-contention-rollback-under-contention",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/SharedContentionFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedContentionTimeline.cs"
+      ],
+      "targets": [
+        "shared-contention"
+      ],
+      "reason": "A process rolled back an explicit transaction while a peer process was waiting for writer ownership, and the peer acquired it after the rollback (judged by the parent from the children's merged acquisition records)."
+    },
+    {
+      "name": "situation:shared-contention-writer-waited-for-peer-process",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/SharedContentionFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedContentionTimeline.cs"
+      ],
+      "targets": [
+        "shared-contention"
+      ],
+      "reason": "A process's BeginTrans waited while another process owned the Shared writer mutex and acquired it after that peer, so writers alternated on the native mutex (judged by the parent from the children's merged acquisition records)."
     }
   ]
 }

@@ -141,6 +141,15 @@ jobs:
             culture: en_US.UTF-8
             framework: net8.0
             count: 30
+          # Real processes: each round spawns 2-4 children, so a few rounds bound the leg's cost.
+          - name: linux-shared-contention
+            os: ubuntu-latest
+            targets: shared-contention
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 5
     env:
       TZ: ${{ matrix.timezone }}
       LANG: ${{ matrix.culture }}
