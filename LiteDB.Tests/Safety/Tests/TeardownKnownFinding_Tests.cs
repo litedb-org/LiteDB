@@ -26,7 +26,7 @@ namespace LiteDB.Tests.Safety.Tests
         /// it while its thread still has an open explicit transaction (a <c>using</c> block that unwinds
         /// mid-transaction) makes the restore throw INVALID_TRANSACTION_STATE ("already contains an open transaction"): Dispose throws that instead
         /// of returning, and the engine with its transaction, streams and lock service stays open. The
-        /// same sequence on a file-path database (no override) disposes cleanly.
+        /// same sequence on a file-path database (no override) disposes cleanly. Filed as #3098.
         /// </summary>
         [Fact]
         public void Known_finding_stream_database_dispose_with_an_open_transaction_throws_and_leaves_its_engine_open()
@@ -67,7 +67,7 @@ namespace LiteDB.Tests.Safety.Tests
         /// SortDisk.Dispose runs <c>_pool.Dispose()</c> then <c>_factory.Delete()</c> without try/finally.
         /// When closing the scratch streams fails, the -tmp file holding the last spilled sort's keys is
         /// never deleted; LiteEngine.Close collects the error, LiteEngine.Dispose discards it, and nothing
-        /// deletes the file later. One fail-inside fault at that step reproduces it.
+        /// deletes the file later. One fail-inside fault at that step reproduces it. Filed as #3097.
         /// </summary>
         [Fact]
         public void Known_finding_sort_scratch_survives_the_close_when_closing_its_streams_fails()
@@ -99,7 +99,7 @@ namespace LiteDB.Tests.Safety.Tests
         /// SharedEngine.Dispose sets <c>_disposed</c> first and then runs its cleanup steps unguarded. A
         /// failure while closing the reader registry propagates out of Dispose and skips the coordination
         /// disposal after it; a second Dispose returns at once, so the coordination files stay open until
-        /// the process exits. The shape dates from #3003 (3b9e579f1).
+        /// the process exits. The shape dates from #3003 (3b9e579f1). Filed as #3096.
         /// </summary>
         [Fact]
         public void Known_finding_shared_dispose_failure_skips_the_remaining_cleanup_for_good()

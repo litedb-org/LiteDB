@@ -113,7 +113,7 @@ namespace LiteDB.Tests.Safety.Tests
                 }
                 foreach (var finding in TeardownKnownFindings.All.Where(item => item.Path == path))
                     if (!results.Any(result => result.KnownFinding == finding.Id) && drivers.Any(driver => driver.NotApplicable == null))
-                        failures.Add($"known finding {finding.Id} no longer reproduces; remove it together with its fix");
+                        failures.Add($"known finding {finding.Id} ({finding.Issue}) no longer reproduces; remove it together with its fix");
                 foreach (var result in results.Where(item => item.KnownFinding != null || item.Violations.Count > 0))
                     _output.WriteLine(result.ToString());
             }

@@ -22,6 +22,8 @@ namespace LiteDB.Tests.Safety
         public string[] Kinds { get; set; }
         public string Description { get; set; }
         public string Reproduction { get; set; }
+        /// <summary>The upstream issue that tracks the defect (litedb-org/LiteDB).</summary>
+        public string Issue { get; set; }
         /// <summary>Evidence class (1: controlled/replayed; 2: native scheduling).</summary>
         public int EvidenceClass { get; set; } = 1;
 
@@ -62,7 +64,7 @@ namespace LiteDB.Tests.Safety
             ScratchLeft("LiteEngine.Dispose"),
             new TeardownKnownFinding
             {
-                Id = "litedatabase-dispose-skips-engine-after-checkpoint-restore-failure", Path = "LiteDatabase.Dispose",
+                Id = "litedatabase-dispose-skips-engine-after-checkpoint-restore-failure", Path = "LiteDatabase.Dispose", Issue = "#3098",
                 Steps = new[] { "LiteDatabase.Dispose.checkpoint-override" }, Mode = TeardownMode.Direct,
                 Kinds = new[] { "connection.engine" },
                 Description = "LiteDatabase.Dispose(bool) restores the CHECKPOINT override of a stream database with " +
@@ -79,6 +81,7 @@ namespace LiteDB.Tests.Safety
         private static TeardownKnownFinding SharedDisposeAbort(string path) => new TeardownKnownFinding
         {
             Id = "shared-dispose-aborts-remaining-cleanup", Path = path, Steps = SharedDisposeAborts, Mode = TeardownMode.Shared,
+            Issue = "#3096",
             Kinds = new[] { "quiescent.handles", "quiescent.readers" },
             Description = "SharedEngine.Dispose runs its cleanup unguarded: a failing step (retiring the cached coordinated read, " +
                 "waiting for the pin holder, which rethrows the holder's close failure, the final checkpoint's scoped release, " +
@@ -92,7 +95,7 @@ namespace LiteDB.Tests.Safety
 
         private static TeardownKnownFinding ScratchLeft(string path) => new TeardownKnownFinding
         {
-            Id = "sortdisk-dispose-skips-scratch-delete", Path = path, Steps = new[] { "SortDisk.Dispose.pool" },
+            Id = "sortdisk-dispose-skips-scratch-delete", Path = path, Steps = new[] { "SortDisk.Dispose.pool" }, Issue = "#3097",
             Kinds = new[] { "quiescent.scratch" },
             Description = "SortDisk.Dispose runs _pool.Dispose() then _factory.Delete() without try/finally: when closing the " +
                 "scratch streams fails, the -tmp sort scratch file is not deleted. LiteEngine.Close collects the error and does " +
