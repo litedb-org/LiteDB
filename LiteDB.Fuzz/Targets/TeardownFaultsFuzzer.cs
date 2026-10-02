@@ -122,7 +122,7 @@ internal sealed class TeardownFaultsFuzzer : IFuzzTarget
             target = context.Target, step = context.Steps, driver = result.Spec.Driver.Id, prior = result.Prior.ToString(),
             site = result.Spec.Step, occurrence = result.Spec.Occurrence, model = result.Spec.Baseline ? "baseline" : result.Spec.ModelName,
             fired = result.Fired, firedOnThread = result.FiredOnThread, observed = result.Observed.ToString(), thrown = result.Thrown,
-            violations = result.Violations, unexpected = result.Unexpected, knownFinding = result.KnownFinding,
+            violations = result.Violations, unexpected = result.Unexpected, knownFinding = result.KnownFinding, notes = result.Notes,
             visits = result.Visits.Length, elapsedMs = Math.Round(result.ElapsedMs, 1)
         }));
         records.Flush();

@@ -88,6 +88,7 @@ namespace LiteDB.Tests.Safety.Tests
             var clock = Stopwatch.StartNew();
             var failures = new List<string>();
             var results = new List<TeardownRunResult>();
+            var stopped = new List<string>();
             try
             {
                 var drivers = TeardownDrivers.For(path).ToArray();
@@ -105,6 +106,7 @@ namespace LiteDB.Tests.Safety.Tests
                         continue;
                     }
                     results.AddRange(sweep.All);
+                    if (!sweep.CasesRan) stopped.Add(driver.Id);
                     failures.AddRange(sweep.Problems.Select(problem => driver.Id + ": " + problem));
                     failures.AddRange(sweep.Failed.Select(result => result.ToString()));
                     var cases = sweep.Cases.Count;
@@ -112,8 +114,16 @@ namespace LiteDB.Tests.Safety.Tests
                         $"{sweep.Failed.Count()} failed; steps reached: {string.Join(", ", sweep.Baseline?.Visits.Select(visit => visit.Step).Distinct() ?? new string[0])}");
                 }
                 foreach (var finding in TeardownKnownFindings.All.Where(item => item.Path == path))
-                    if (!results.Any(result => result.KnownFinding == finding.Id) && drivers.Any(driver => driver.NotApplicable == null))
-                        failures.Add($"known finding {finding.Id} ({finding.Issue}) no longer reproduces; remove it together with its fix");
+                {
+                    if (results.Any(result => result.KnownFinding == finding.Id) || drivers.All(driver => driver.NotApplicable != null)) continue;
+                    // Absence proves nothing where cases never ran (that failure is reported above) or where the
+                    // finding leaves nothing this platform's probes can see.
+                    if (stopped.Count > 0)
+                        _output.WriteLine($"known finding {finding.Id} not judged: {string.Join(", ", stopped)} did not run its cases");
+                    else if (finding.NotObservableHere != null)
+                        _output.WriteLine($"known finding {finding.Id} not observable here: {finding.NotObservableHere}");
+                    else failures.Add($"known finding {finding.Id} ({finding.Issue}) no longer reproduces; remove it together with its fix");
+                }
                 foreach (var result in results.Where(item => item.KnownFinding != null || item.Violations.Count > 0))
                     _output.WriteLine(result.ToString());
             }

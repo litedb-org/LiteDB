@@ -52,17 +52,30 @@ namespace LiteDB.Tests
             if (_disposed)
                 return;
 
+            _disposed = true;
+
+            // A constructor that threw (File.Copy of a missing original) leaves no file to delete.
+            if (this.Filename == null)
+                return;
+
             if (disposing)
             {
-                // free other managed objects that implement
-                // IDisposable only
+                File.Delete(this.Filename);
+                return;
             }
 
-            // check file integrity
-
-            File.Delete(this.Filename);
-
-            _disposed = true;
+            // Finalizer: an exception here would end the whole test process, so a file another
+            // handle still keeps open (Windows) is left behind instead.
+            try
+            {
+                File.Delete(this.Filename);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
 
         #endregion
