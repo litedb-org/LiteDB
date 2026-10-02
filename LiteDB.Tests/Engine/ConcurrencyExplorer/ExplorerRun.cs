@@ -251,7 +251,13 @@ namespace LiteDB.ConcurrencyTesting
                 foreach (var model in models) this.Host.Quiescent(model.Path, "scenario end");
             });
             this.Schedule.Event(failure == null ? "PASS cold-state-verified" : "FAIL retained " + this.Directory);
+            this.Schedule.Event("flushing finalizers (a page buffer leaked or released twice by this run fails here, not in a later run)");
             this.Schedule.Dispose();
+            FlushFinalizers();
+            var leaked = _auditing ? TakeFinalizedInUse() : null;
+            if (leaked != null && failure == null)
+                failure = new ExplorerFailure("EXPLORER_PAGE_BUFFER_FINALIZED_IN_USE",
+                    "page buffer(s) became garbage with share count(s) " + leaked + " by the end of this run (leaked or released twice)");
             return failure;
         }
 

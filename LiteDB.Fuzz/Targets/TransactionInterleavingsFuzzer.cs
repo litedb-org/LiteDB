@@ -38,6 +38,7 @@ internal sealed class TransactionInterleavingsFuzzer : IFuzzTarget
         context.Metrics["matrixVectors"] = size;
         context.Metrics["accessKinds"] = string.Join(",", kinds);
         using var host = new FuzzExplorerHost(context);
+        ExplorerRun.AuditPageBuffers();
         // One applicable vector per step: not-applicable and excluded vectors are traced, counted and skipped
         // (both are decided from the vector alone, so the cursor, and every step's vector, is deterministic).
         var cursor = 0;

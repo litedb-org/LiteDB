@@ -33,6 +33,7 @@ internal sealed class LifetimeChaosFuzzer : IFuzzTarget
         var kinds = ExplorerAccessKinds.All.Select(access => access.Name).ToArray();
         context.Metrics["accessKinds"] = string.Join(",", kinds);
         using var host = new FuzzExplorerHost(context);
+        ExplorerRun.AuditPageBuffers();
         while (context.Next())
         {
             var program = LifetimeChaosProgram.Generate(context.Seed, context.Steps, kinds, ExplorerKnownFindings.IncludeKnown);
