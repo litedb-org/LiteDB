@@ -41,14 +41,13 @@ on:
         type: boolean
   pull_request:
     paths:
-      - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
-      # Wait primitives of the Shared writer handoff: the contended-acquire gate exists for them.
-      - 'LiteDB/Client/Shared/SharedMutex*.cs'
-      - 'LiteDB/Client/Shared/SharedEngine.Waiters.cs'
+      # Shared coordination, wait primitives and engine services: the contention and
+      # contended-acquire comparisons exist for changes there.
+      - 'LiteDB/Client/Shared/**'
+      - 'LiteDB/Engine/Services/**'
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
       - 'scripts/measure-shared-contention.py'
-      - 'scripts/measure-shared-acquire.py'
       - '.github/scripts/compare_contention.py'
       - '.github/scripts/test_compare_contention.py'
       - 'scripts/measure-shared-readers.py'
@@ -132,20 +131,16 @@ jobs:
         if: matrix.workload == 'core'
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
+          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl --acquire-output evidence/acquire.jsonl
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
-      - name: Two and four process contended writer acquisition
-        if: matrix.workload == 'core'
-        shell: pwsh
-        run: |
-          python candidate/scripts/measure-shared-acquire.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/acquire.jsonl
-          if ($LASTEXITCODE) { throw 'Acquire comparison failed' }
-      - name: Acquire latency and starvation within tolerance of base
-        if: matrix.workload == 'core'
-        shell: pwsh
-        run: |
-          python candidate/.github/scripts/compare_contention.py --results evidence/acquire.jsonl
-          if ($LASTEXITCODE) { throw 'Contended acquisition regressed beyond tolerance' }
+          # Advisory or blocking per .github/safety/net-modes.json (read from the candidate
+          # checkout, hence its directory); unusable input always fails.
+          $acquire = (Resolve-Path evidence/acquire.jsonl).Path
+          Push-Location candidate
+          python .github/scripts/compare_contention.py --results $acquire
+          $gate = $LASTEXITCODE
+          Pop-Location
+          if ($gate) { throw 'Contended acquisition gate failed; see the step summary' }
       - name: Same-version production state campaign with writer death and raw validation
         if: matrix.workload == 'core'
         timeout-minutes: 5
@@ -296,15 +291,16 @@ jobs:
             dotnet "runner-$variant/SharedReadBenchmarks.dll" scratch shared holder 2000 | Out-File "evidence/holder-$variant.json"
             if ($LASTEXITCODE) { throw "Holder diagnostic failed: $variant" }
           }
-          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl
+          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl --acquire-output evidence/acquire.jsonl
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
-      - name: Contended writer acquisition within tolerance of base
-        shell: pwsh
-        run: |
-          python candidate/scripts/measure-shared-acquire.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/acquire.jsonl
-          if ($LASTEXITCODE) { throw 'Acquire comparison failed' }
-          python candidate/.github/scripts/compare_contention.py --results evidence/acquire.jsonl
-          if ($LASTEXITCODE) { throw 'Contended acquisition regressed beyond tolerance' }
+          # Advisory or blocking per .github/safety/net-modes.json (read from the candidate
+          # checkout, hence its directory); unusable input always fails.
+          $acquire = (Resolve-Path evidence/acquire.jsonl).Path
+          Push-Location candidate
+          python .github/scripts/compare_contention.py --results $acquire
+          $gate = $LASTEXITCODE
+          Pop-Location
+          if ($gate) { throw 'Contended acquisition gate failed; see the step summary' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -72,49 +72,49 @@ class PercentileTests(unittest.TestCase):
             contention.percentile([], .5)
 
 
-class StarvationTests(unittest.TestCase):
-    def test_fifo_hand_off_has_no_starvation(self):
-        self.assertEqual(contention.starvation(alternating(processes=3)), (0, 0))
+class OvertakingTests(unittest.TestCase):
+    def test_fifo_hand_off_has_no_overtaking(self):
+        self.assertEqual(contention.overtaking(alternating(processes=3)), (0, 0))
 
     def test_releaser_that_re_acquires_past_a_waiter_counts_once_per_acquisition(self):
         # Worker 0 releases at 10 and acquires again at 10 while worker 1 waits since 0.
         samples = [row(0, 0, 1, 0, 0, 10), row(0, 1, 2, 10, 10, 20), row(1, 0, 3, 0.5, 20, 30)]
-        self.assertEqual(contention.starvation(samples), (1, 1))
+        self.assertEqual(contention.overtaking(samples), (1, 1))
 
-    def test_one_acquisition_bypassing_two_waiters_counts_once_with_two_bypasses(self):
+    def test_one_acquisition_overtaking_two_waiters_counts_once_with_two_overtakes(self):
         samples = [row(0, 0, 1, 0, 0, 10), row(1, 0, 3, 1, 20, 30), row(2, 0, 4, 2, 30, 40),
                    row(0, 1, 2, 10, 10, 20)]
-        self.assertEqual(contention.starvation(samples), (1, 2))
+        self.assertEqual(contention.overtaking(samples), (1, 2))
 
-    def test_later_arrival_acquiring_after_the_waiter_is_not_starvation(self):
+    def test_later_arrival_acquiring_after_the_waiter_is_not_overtaking(self):
         samples = [row(0, 0, 1, 0, 0, 10), row(1, 0, 2, 1, 10, 20), row(0, 1, 3, 10, 20, 30)]
-        self.assertEqual(contention.starvation(samples), (0, 0))
+        self.assertEqual(contention.overtaking(samples), (0, 0))
 
     def test_waiter_that_already_acquired_is_not_bypassed(self):
         # Worker 1 arrived first but acquired before worker 2 did: not waiting any more.
         samples = [row(1, 0, 1, 0, 0, 5), row(2, 0, 2, 1, 5, 10)]
-        self.assertEqual(contention.starvation(samples), (0, 0))
+        self.assertEqual(contention.overtaking(samples), (0, 0))
 
     def test_grace_ignores_near_simultaneous_arrivals(self):
         samples = [row(0, 0, 1, 1.00, 1.05, 10), row(1, 0, 2, 1.02, 1.01, 2)]
-        self.assertEqual(contention.starvation(samples, grace_ticks=0), (1, 1))
-        self.assertEqual(contention.starvation(samples, grace_ticks=0.1 * MS), (0, 0))
+        self.assertEqual(contention.overtaking(samples, grace_ticks=0), (1, 1))
+        self.assertEqual(contention.overtaking(samples, grace_ticks=0.1 * MS), (0, 0))
 
     def test_equal_arrivals_are_not_ordered(self):
         samples = [row(0, 0, 1, 1, 1, 2), row(1, 0, 2, 1, 2, 3)]
-        self.assertEqual(contention.starvation(samples), (0, 0))
+        self.assertEqual(contention.overtaking(samples), (0, 0))
 
-    def test_barging_releaser_is_counted_on_every_bypass(self):
+    def test_barging_releaser_is_counted_on_every_overtake(self):
         samples = alternating(processes=2, iterations=10, barge=1)
-        count, bypasses = contention.starvation(samples)
+        count, overtakes = contention.overtaking(samples)
         self.assertGreater(count, 0)
-        self.assertEqual(count, bypasses)
+        self.assertEqual(count, overtakes)
 
     def test_matches_quadratic_definition(self):
         samples = alternating(processes=4, iterations=12, barge=2)
         expected = sum(any(w[3] < e[3] and w[4] > e[4] for w in samples) for e in samples)
         pairs = sum(w[3] < e[3] and w[4] > e[4] for e in samples for w in samples)
-        self.assertEqual(contention.starvation(samples), (expected, pairs))
+        self.assertEqual(contention.overtaking(samples), (expected, pairs))
 
 
 class HandoffTests(unittest.TestCase):
@@ -134,16 +134,38 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(contention.metrics(alternating(iterations=20), FREQUENCY)["handoffP50Ms"], 0.0)
 
 
+class WaiterTests(unittest.TestCase):
+    def test_oldest_waiter_age_at_each_acquisition(self):
+        # Workers 1 and 2 wait from 1 and 2; worker 0 holds until 10, then 1 until 20.
+        samples = [row(0, 0, 1, 0, 0, 10), row(1, 0, 2, 1, 10, 20), row(2, 0, 3, 2, 20, 30)]
+        self.assertEqual(contention.waiter_ages(samples), [0, 8 * MS, 0])
+
+    def test_fifo_progress_sees_one_round_of_others(self):
+        # A hand-off takes 0.5 ms, so the next owner acquires after the releaser re-arrives.
+        result = contention.progress(alternating(processes=3, iterations=6, gap_ms=0.5), FREQUENCY)
+        self.assertEqual({item["othersWhileWaiting"] for item in result.values()}, {2})
+        self.assertEqual({item["count"] for item in result.values()}, {6})
+        self.assertAlmostEqual(result["0"]["share"], 1 / 3)
+        self.assertAlmostEqual(result["1"]["longestIntervalMs"], 31.5)
+
+    def test_barging_owner_shows_in_others_while_waiting_and_age(self):
+        fair = contention.metrics(alternating(iterations=20, gap_ms=0.5), FREQUENCY)
+        barging = contention.metrics(alternating(iterations=20, barge=3, gap_ms=0.5), FREQUENCY)
+        self.assertEqual(fair["othersWhileWaiting"], 1)
+        self.assertEqual(barging["othersWhileWaiting"], 4)
+        self.assertGreater(barging["oldestWaiterAgeMaxMs"], fair["oldestWaiterAgeMaxMs"])
+
+
 class MetricsTests(unittest.TestCase):
     def test_latency_and_rates(self):
         samples = [row(0, 0, 1, 0, 0, 10), row(0, 1, 2, 10, 10, 20), row(1, 0, 3, 0.5, 20, 30)]
         result = contention.metrics(samples, FREQUENCY)
         self.assertEqual(result["acquisitions"], 3)
-        self.assertEqual(result["perProcess"], {"0": 2, "1": 1})
+        self.assertEqual({key: value["count"] for key, value in result["perProcess"].items()}, {"0": 2, "1": 1})
         self.assertAlmostEqual(result["maxWaitMs"], 19.5)
         self.assertAlmostEqual(result["p50Ms"], 0.0)
-        self.assertEqual(result["starvationCount"], 1)
-        self.assertAlmostEqual(result["starvationRate"], 1 / 3)
+        self.assertEqual(result["overtakingCount"], 1)
+        self.assertAlmostEqual(result["overtakingRate"], 1 / 3)
 
     def test_consistent_samples_have_no_problems(self):
         samples = alternating(processes=2, iterations=5)
@@ -169,10 +191,11 @@ class MetricsTests(unittest.TestCase):
 
 
 class DecisionTests(unittest.TestCase):
-    BASE = {"p99Ms": 20.0, "starvationRate": 0.01, "handoffP50Ms": 0.4, "maxWaitMs": 60.0}
+    BASE = {"p99Ms": 20.0, "overtakingRate": 0.01, "handoffP50Ms": 0.4, "maxWaitMs": 60.0, "othersWhileWaiting": 5}
 
-    def decide(self, p99, rate, handoff=0.4, max_wait=60.0, **overrides):
-        head = {"p99Ms": p99, "starvationRate": rate, "handoffP50Ms": handoff, "maxWaitMs": max_wait}
+    def decide(self, p99, rate, handoff=0.4, max_wait=60.0, others=5, **overrides):
+        head = {"p99Ms": p99, "overtakingRate": rate, "handoffP50Ms": handoff, "maxWaitMs": max_wait,
+                "othersWhileWaiting": others}
         return contention.decide(self.BASE, head, options(**overrides))
 
     def test_p99_needs_both_the_factor_and_the_floor(self):
@@ -181,7 +204,7 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(len(self.decide(31.0, .01)), 1)    # x1.55 and +11 ms > 5 ms
 
     def test_floor_protects_a_fast_base(self):
-        fast = {"p99Ms": 1.0, "starvationRate": 0.0, "handoffP50Ms": 0.4, "maxWaitMs": 2.0}
+        fast = {"p99Ms": 1.0, "overtakingRate": 0.0, "handoffP50Ms": 0.4, "maxWaitMs": 2.0, "othersWhileWaiting": 1}
 
         def decide(p99):
             return contention.decide(fast, dict(fast, p99Ms=p99), options())
@@ -203,7 +226,14 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(len(reasons), 1)
         self.assertIn("max wait", reasons[0])
 
-    def test_starvation_rise_in_percentage_points(self):
+    def test_others_while_waiting_needs_both_the_factor_and_the_floor(self):
+        self.assertEqual(self.decide(20, .01, others=10), [])              # x2 exactly
+        self.assertEqual(self.decide(20, .01, others=11, others_floor=6), [])  # +6
+        reasons = self.decide(20, .01, others=11)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("other acquisitions", reasons[0])
+
+    def test_overtaking_rise_in_percentage_points(self):
         self.assertEqual(self.decide(20, .06), [])
         self.assertEqual(len(self.decide(20, .0601)), 1)
         self.assertEqual(self.decide(20, 0.0), [])           # an improvement never fails
@@ -214,19 +244,20 @@ class DecisionTests(unittest.TestCase):
         # One noisy head round does not move the median.
         head = [run("candidate", barging)] + [run("candidate", fair) for _ in range(4)]
         report = contention.common.Report("test")
-        rows = quietly(contention.compare, base, head, report, options())
+        rows, _ = quietly(contention.compare, base, head, report, options())
         self.assertEqual(report.errors, [])
         self.assertEqual(rows[0][-1], "pass")
         head = [run("candidate", barging) for _ in range(3)] + [run("candidate", fair) for _ in range(2)]
         report = contention.common.Report("test")
         quietly(contention.compare, base, head, report, options())
-        self.assertTrue(any("starvation" in error for error in report.errors), report.errors)
+        self.assertTrue(any("overtaking" in error for error in report.errors), report.errors)
 
-    def test_too_few_rounds_fail(self):
+    def test_too_few_rounds_are_unusable_input(self):
         fair = alternating(iterations=5)
         report = contention.common.Report("test")
-        quietly(contention.compare, [run("baseline", fair)], [run("candidate", fair)], report, options())
-        self.assertTrue(any("rounds" in error for error in report.errors), report.errors)
+        _, unusable = quietly(contention.compare, [run("baseline", fair)], [run("candidate", fair)], report,
+                              options())
+        self.assertTrue(any("rounds" in error for error in unusable), unusable)
 
     def test_cli_accepts_paired_results_and_rejects_unverified_runs(self):
         fair = alternating(iterations=20)
@@ -237,9 +268,19 @@ class DecisionTests(unittest.TestCase):
                     handle.write(json.dumps(run(variant, fair)) + "\n")
             self.assertEqual(run_quietly(contention.main, ["--results", path])[0], 0)
             self.assertEqual(run_quietly(contention.main, ["--base", path, "--head", path])[0], 0)
+            barging = os.path.join(directory, "barging.jsonl")
+            with open(barging, "w", encoding="utf-8") as handle:
+                for _ in range(5):
+                    handle.write(json.dumps(run("baseline", fair)) + "\n")
+                    handle.write(json.dumps(run("candidate", alternating(iterations=20, barge=1))) + "\n")
+            self.assertEqual(run_quietly(contention.main, ["--results", barging, "--blocking"])[0], 1)
+            code, output = run_quietly(contention.main, ["--results", barging, "--advisory"])
+            self.assertEqual(code, 0)
+            self.assertIn("overtaking rate rose", output)
             with open(path, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(dict(run("candidate", fair), passed=False)) + "\n")
-            self.assertEqual(run_quietly(contention.main, ["--results", path])[0], 1)
+            # An unverified run is a broken measurement: it fails even in advisory mode.
+            self.assertEqual(run_quietly(contention.main, ["--results", path, "--advisory"])[0], 1)
 
 
 if __name__ == "__main__":
