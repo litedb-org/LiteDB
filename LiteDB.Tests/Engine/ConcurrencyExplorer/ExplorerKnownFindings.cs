@@ -63,6 +63,18 @@ namespace LiteDB.ConcurrencyTesting
             },
             new ExplorerKnownFinding
             {
+                Id = "shared-close-leaks-page-buffer",
+                Summary = "Shared: after a run that disposed a connection while another actor's operation was paused in its " +
+                    "callback, a page buffer became garbage with share count 1 (never released). In a TESTING process without " +
+                    "the explorer's audit the finalizer ENSURE would terminate it.",
+                Fingerprint = @"^EXPLORER_PAGE_BUFFER_FINALIZED_IN_USE@[\w-]+@mode=shared@access=\w+@maintenance=close@callback=[\w-]+$",
+                Message = @"share count\(s\) 1 by the end",
+                Evidence = "class 2: transaction-interleavings seed 16 step 39 on dev (callback-pause variant 17, shared, legacy, " +
+                    "close, same-connection; the step before: transaction-contention variant 8, shared, legacy, close, dispose, " +
+                    "external writer); neither vector reproduced it in 4 isolated replays each (schedule-dependent)"
+            },
+            new ExplorerKnownFinding
+            {
                 Id = "lock-timeout-pragma-stale-after-wal-restore",
                 Summary = "LiteEngine.Open builds its LockService from the data file's header pragmas, then the WAL restore " +
                     "may replace the whole header. A connection that opens while the WAL holds a newer header (no checkpoint " +
