@@ -43,6 +43,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/check_fault_points.py --base "${BASE_SHA:-HEAD^}"
 
+      - name: Check the reachability marker registry
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/check_reachability.py --base "${BASE_SHA:-HEAD^}"
+
       - name: Report implicated safety contracts
         if: ${{ !cancelled() }}
         run: python .github/scripts/check_contracts.py --base "${BASE_SHA:-HEAD^}"

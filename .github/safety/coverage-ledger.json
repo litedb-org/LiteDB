@@ -34,6 +34,16 @@
       "disposition": "strengthened",
       "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    },
+    {
+      "id": "safety-m1-reachability-gate",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every smoke leg still runs its targets with unchanged seeds, counts, timeouts and artifact uploads.",
+      "reason": "Adds an upload of each smoke leg's markers.json files (warn when none) and a 10-minute Reachability gate job that judges them after all legs; no existing step, timeout or filter changes."
     }
   ]
 }

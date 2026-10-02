@@ -118,6 +118,7 @@ internal static class Program
         using var context = new FuzzContext(target.Name, seed, options.Count, options.Duration, directory,
             options.DurationReplay, options.InputFile, options.HeartbeatFile);
         Console.WriteLine($"START {target.Name} seed={seed} count={options.Count} worker={worker}");
+        FuzzMarkers.Reset();
         try
         {
             await Task.Run(() => target.RunAsync(context));
@@ -140,6 +141,7 @@ internal static class Program
             var failureText = error.ToString();
             Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
             await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
+            FuzzMarkers.Write(context);
             // Persist the original failure and flush recorded input before minimization replays it.
             await FuzzArtifacts.WriteResultAsync(context, started, failure);
             try
@@ -158,6 +160,7 @@ internal static class Program
                     minimizationError.ToString());
             }
         }
+        FuzzMarkers.Write(context);
         await FuzzArtifacts.WriteResultAsync(context, started, failure);
         return new RunResult(target.Name, seed, directory, failure == null);
     }

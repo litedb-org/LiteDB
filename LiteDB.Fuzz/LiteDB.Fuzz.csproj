@@ -6,6 +6,9 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LiteDB.Fuzz</AssemblyName>
     <RootNamespace>LiteDB.Fuzz</RootNamespace>
+    <!-- The engine is always built with its test hooks here; TESTING also keeps the call sites of
+         conditional TESTING-only APIs (Reachability markers of fuzz targets) in this assembly. -->
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
