@@ -4,6 +4,10 @@ namespace LiteDB.Fuzz.Targets;
 
 internal sealed class ConcurrentFuzzer : IFuzzTarget
 {
+    private const string Dimension = "mode=direct;threads=4";
+    // Joining four workers whose operations may each wait out the lock timeout in turn.
+    private static readonly TimeSpan JoinDeadline = TimeSpan.FromSeconds(60);
+
     public string Name => "concurrent";
     public string Description => "Same-LiteDatabase thread contention, transactions, unique keys, cursors, and checkpoints.";
 
@@ -48,8 +52,9 @@ internal sealed class ConcurrentFuzzer : IFuzzTarget
                     failures.Enqueue(error);
                 }
             }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
-            start.SignalAndWait();
-            await Task.WhenAll(tasks);
+            context.Deadline("StartWorkers", () => start.SignalAndWait(), Dimension);
+            // A worker that never arrives or never returns fails the join instead of hanging the run.
+            await context.DeadlineAsync("JoinTransactionWorkers", () => Task.WhenAll(tasks), Dimension, JoinDeadline);
             context.Check(failures.IsEmpty, "Concurrent transaction failed: " +
                 string.Join(" | ", failures.Select(error => error.Message)));
             expectedCounter += committed.Count;
@@ -57,6 +62,8 @@ internal sealed class ConcurrentFuzzer : IFuzzTarget
 
             var key = "round-" + context.Steps;
             var contenders = new ConcurrentBag<int>();
+            var losers = new ConcurrentBag<int>();
+            var unexpected = new ConcurrentQueue<Exception>();
             var conflictTasks = Enumerable.Range(0, 4).Select(worker => Task.Run(() =>
             {
                 var id = 10_000 + context.Steps * 10 + worker;
@@ -68,10 +75,15 @@ internal sealed class ConcurrentFuzzer : IFuzzTarget
                     });
                     contenders.Add(id);
                 }
-                catch (LiteException) { }
+                // A loser must fail on the unique index and nothing else: any other error is a finding.
+                catch (LiteException error) when (error.ErrorCode == LiteException.INDEX_DUPLICATE_KEY) { losers.Add(id); }
+                catch (Exception error) { unexpected.Enqueue(error); }
             })).ToArray();
-            await Task.WhenAll(conflictTasks);
+            await context.DeadlineAsync("JoinUniqueContenders", () => Task.WhenAll(conflictTasks), Dimension, JoinDeadline);
+            context.Check(unexpected.IsEmpty, "Unique-key contention failed with an unexpected error: " +
+                string.Join(" | ", unexpected.Select(error => error.GetType().Name + ": " + error.Message)));
             context.Check(contenders.Count == 1, "Unique-key contention did not have exactly one winner.");
+            context.Check(losers.Count == 3, "Not every unique-key loser failed with the duplicate-key error.");
             uniqueWinners++;
 
             Task checkpoint;
