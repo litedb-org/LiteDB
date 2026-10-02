@@ -322,8 +322,14 @@ Verified on a clean `dev` at `7b71bc4dd` and on the published packages (ISSUES r
 | TIMEOUT pragma stale after opening with a non-empty WAL; later `db.Timeout` changes ignored | explorer (M3) | [#3099](https://github.com/litedb-org/LiteDB/issues/3099) |
 | Shared: a peer call from a `FileStorage.Upload` source stream hangs instead of being turned down | explorer (M3) | [#3100](https://github.com/litedb-org/LiteDB/issues/3100) (related #3073) |
 | FOR UPDATE reader disposed on another thread leaves the collection write lock held | M2, while instrumenting the wait-for graph | [#3101](https://github.com/litedb-org/LiteDB/issues/3101) |
+| Windows: closing an engine while a spilled sort query is open leaves the `-tmp` scratch file (the borrowed scratch stream is open without `FILE_SHARE_DELETE`) | teardown sweep (M2b), hosted Windows legs | [#3112](https://github.com/litedb-org/LiteDB/issues/3112) (related #3097) |
+| `Rebuild` drops the old engine's `Close()` failures; on Windows a handle the failed close left open then makes the rebuild fail with a sharing violation that hides the cause | teardown sweep (M2b), hosted Windows legs | [#3113](https://github.com/litedb-org/LiteDB/issues/3113) |
 | Two Direct connections to one file on Linux both open and corrupt the log | explorer (M3) | not filed: known as #2163 and #3041 |
 | ENGINE_DISPOSED for an operation queued behind Rebuild is by design but undocumented | `conflict` fuzz target in the differential run (M4) | not filed: a `contracts.json` claim instead |
+
+#3112 and #3113 were observed on the hosted Windows test legs of the safety-net PRs and analysed
+from the code; they were not reproduced on a local Windows machine. Both are registered as Windows-only
+teardown known findings.
 
 The quarantined `Issue2127_Tests.InsertItemBackToBack_Test` passes on `dev` (weekly re-run): a
 candidate to restore, not a defect.
