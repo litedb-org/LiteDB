@@ -1,0 +1,734 @@
+{
+  "schemaVersion": 1,
+  "description": "Per-PR fuzz target obligations, read by .github/scripts/select_fuzz_targets.py (see its --help and LiteDB.Fuzz/README.md#per-pr-target-selection). For each changed file, in order: (1) every obligation whose 'paths' globs match the file, and whose 'patterns' regexes (when given) match an added or removed non-comment line of that file, contributes its 'targets'; an obligation with 'decides': false (the cross-cutting pattern obligations) adds targets but leaves the file undecided; 'alwaysForLiteDB' is added for any change under LiteDB/. (2) A file no deciding obligation matched and that is not under 'ignore' gets the targets whose recorded coverage (fuzz-coverage-map.json) includes it. (3) A file neither decides gets every known target. 'ignore' lists files that cannot affect any target (documentation, unrelated tools); obligations are matched before it. Target tokens: a target name, '@all' (every known target) or '@fuzz-source-users' (the targets declared in the file plus the targets whose LiteDB.Fuzz/Targets sources use a type it declares). Known targets are the 'Name =>' declarations in LiteDB.Fuzz/Targets plus 'pendingTargets' (being added by other changes); 'pendingPaths' may match no file yet. Schema: {schemaVersion, description, alwaysForLiteDB:[target], pendingTargets:[target], pendingPaths:[glob], ignore:[glob], obligations:[{id (kebab-case, unique), kind, reason, paths:[glob], patterns?:[regex], decides?:bool (default true), targets:[target|token], gap?}]}.",
+  "alwaysForLiteDB": [
+    "lifetime-chaos",
+    "teardown-faults"
+  ],
+  "pendingTargets": [
+    "lifetime-chaos",
+    "shared-contention",
+    "teardown-faults",
+    "transaction-interleavings"
+  ],
+  "pendingPaths": [
+    "LiteDB.Tests/Engine/ConcurrencyExplorer/**"
+  ],
+  "ignore": [
+    "docs/**",
+    "**/*.md",
+    "LICENSE*",
+    ".github/ISSUE_TEMPLATE/**",
+    ".github/pull_request_template.md",
+    ".github/workflows/**",
+    ".github/scripts/**",
+    ".github/*.json",
+    ".githooks/**",
+    ".gitattributes",
+    ".gitignore",
+    ".editorconfig",
+    "LiteDB.Tests/**",
+    "LiteDB.Tests.SharedMutexHarness/**",
+    "LiteDB.Benchmarks/**",
+    "LiteDB.Shell/**",
+    "LiteDB.Stress/**",
+    "LiteDB.ReproRunner/**",
+    "LiteDB.ReproRunner.Tests/**",
+    "LiteDB.Demo.Tools.VectorSearch/**",
+    "ConsoleApp1/**",
+    "LiteDB.Fuzz.Legacy/**",
+    "tools/**",
+    "scripts/**",
+    "GitVersion.yml",
+    "*.sln",
+    "**/*.png",
+    "**/*.svg"
+  ],
+  "obligations": [
+    {
+      "id": "lock-wait",
+      "kind": "lock-wait",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed wait, lock, lease, scope, scheduler or thread handoff needs the explorer's schedule alphabet and a concurrent close/rebuild/fatal dimension.",
+      "paths": [
+        "LiteDB/**/*.cs"
+      ],
+      "patterns": [
+        "\\bMonitor\\.\\w+",
+        "\\block\\s*\\(",
+        "\\b(?:SemaphoreSlim|Mutex|ManualResetEvent(?:Slim)?|AutoResetEvent|CountdownEvent|Barrier|ReaderWriterLock(?:Slim)?|SpinLock|SpinWait|TaskCompletionSource)\\b",
+        "\\.(?:WaitOne|WaitAll|WaitAny|WaitAsync|Wait)\\s*\\(",
+        "\\bInterlocked\\.(?:CompareExchange|Exchange)\\b",
+        "\\b(?:Task\\.Run|ThreadPool\\.\\w+|new\\s+Thread)\\s*\\(",
+        "\\b\\w*(?:Lease|Scope|Turnstile|Scheduler|Handoff|Gate|Pin)\\b",
+        "\\b(?:Enter|Exit|TryEnter)\\w*(?:Lock|Transaction|Gate)\\s*\\("
+      ],
+      "decides": false,
+      "targets": [
+        "lifetime-chaos",
+        "transaction-interleavings",
+        "concurrent",
+        "cursor-handoff",
+        "conflict"
+      ]
+    },
+    {
+      "id": "teardown",
+      "kind": "teardown",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed Dispose/Close/Release/finally path is registered for the step-fault sweep and checked by ConnectionClean/Ownership in the chaos target.",
+      "paths": [
+        "LiteDB/**/*.cs"
+      ],
+      "patterns": [
+        "\\bDispose(?:Async)?\\b",
+        "\\bClose\\w*\\s*\\(",
+        "\\bRelease\\w*\\s*\\(",
+        "\\bfinally\\b",
+        "\\bIDisposable\\b"
+      ],
+      "decides": false,
+      "targets": [
+        "teardown-faults",
+        "lifetime-chaos",
+        "chaos"
+      ]
+    },
+    {
+      "id": "fault-hook",
+      "kind": "fault-point",
+      "reason": "PLAN 'When to extend a fuzzer': a new fault point (TestingEnabled hook) is registered in fault-points.json with a Sometimes marker and wired into the chaos driver's fault selector.",
+      "paths": [
+        "LiteDB/**/*.cs"
+      ],
+      "patterns": [
+        "#if\\s+DEBUG\\s*\\|\\|\\s*TESTING",
+        "#if\\s+TESTING",
+        "\\b(?:Test)?CrashPoint\\s*\\(",
+        "\\bSimulate\\w+",
+        "\\bCheckpointStage\\b",
+        "\\bCreationStage\\b",
+        "\\bFailStep\\b",
+        "^\\s*(?:(?:internal|public|private|protected|static|readonly)\\s+)*(?:Action|Func)(?:<[^;=]*>)?\\s+[A-Z]\\w*\\s*[;=]"
+      ],
+      "decides": false,
+      "targets": [
+        "chaos",
+        "teardown-faults",
+        "storage-failure"
+      ]
+    },
+    {
+      "id": "user-callback",
+      "kind": "callback",
+      "reason": "PLAN 'When to extend a fuzzer': a callback that runs user code (ReadTransform, mapper, input enumerator, Include, FileStorage upload stream) needs a re-entrant variant: same connection, another connection on the same file, and Dispose.",
+      "paths": [
+        "LiteDB/**/*.cs"
+      ],
+      "patterns": [
+        "\\bReadTransform\\b",
+        "\\bIEnumerable<(?:BsonDocument|T|TEntity)>",
+        "\\bIEnumerator<",
+        "\\b(?:Func|Action)<",
+        "\\bInclude\\s*\\(",
+        "\\bUpload(?:Async)?\\s*\\(",
+        "\\bOpenWrite\\s*\\(",
+        "\\bStream\\s+\\w+\\s*[,)]",
+        "\\b(?:EntityBuilder|RegisterType|ResolveMember|ResolveCollectionName)\\b",
+        "\\bdelegate\\b"
+      ],
+      "decides": false,
+      "targets": [
+        "lifetime-chaos",
+        "transaction-interleavings",
+        "mapper"
+      ]
+    },
+    {
+      "id": "public-member",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed public member or public type is driven from the matching target and declares its api: marker (check_reachability.py enforces the marker).",
+      "paths": [
+        "LiteDB/Client/Database/**",
+        "LiteDB/Client/Storage/**",
+        "LiteDB/Client/Structures/**",
+        "LiteDB/Engine/LiteEngine.cs",
+        "LiteDB/Document/**",
+        "LiteDB/Client/Mapper/*.cs",
+        "LiteDB/Client/Vector/**"
+      ],
+      "patterns": [
+        "^\\s*public\\s"
+      ],
+      "decides": false,
+      "targets": [
+        "api-boundary",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "public-type",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new public type is part of the public surface and needs a driving target and an api: marker.",
+      "paths": [
+        "LiteDB/**/*.cs"
+      ],
+      "patterns": [
+        "^\\s*public\\s+(?:(?:static|sealed|abstract|partial|readonly|ref)\\s+)*(?:class|struct|interface|enum|record|delegate)\\b"
+      ],
+      "decides": false,
+      "targets": [
+        "api-boundary"
+      ]
+    },
+    {
+      "id": "api-ilitedatabase",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteDatabase is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Database/ILiteDatabase.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "chaos",
+        "transaction",
+        "concurrent",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "api-ilitecollection",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteCollection is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Database/ILiteCollection.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "chaos",
+        "transaction",
+        "index",
+        "query",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "api-ilitequeryable",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteQueryable is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Database/ILiteQueryable.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "query",
+        "linq-cache",
+        "sort",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "api-iliteengine",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteEngine is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Engine/ILiteEngine.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "chaos",
+        "transaction",
+        "sql-dml",
+        "concurrent",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "api-ilitestorage",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteStorage is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Storage/ILiteStorage.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "storage",
+        "storage-failure",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "api-iliterepository",
+      "kind": "public-api",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed member on ILiteRepository is driven from the matching target(s), declares its api: marker, and joins the explorer's operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Database/ILiteRepository*.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "chaos",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "shared-mode",
+      "kind": "shared",
+      "reason": "PLAN 'Targets to add': Shared mode (multi-process writer alternation, mutex ownership, reader slots) is exercised by shared and shared-contention; its lifetimes and waits by lifetime-chaos and transaction-interleavings.",
+      "paths": [
+        "LiteDB/Client/Shared/**",
+        "LiteDB/Engine/SharedMutexNameStrategy.cs",
+        "LiteDB/Engine/Disk/SharedDurabilityState.cs",
+        "LiteDB/Engine/Disk/SharedPageReads.cs"
+      ],
+      "targets": [
+        "shared",
+        "shared-contention",
+        "lifetime-chaos",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "coordinated-mode",
+      "kind": "shared",
+      "reason": "Coordinated mode is a multi-process protocol beside Shared mode; the multi-process and snapshot targets are the closest operation alphabet.",
+      "paths": [
+        "LiteDB/Client/Coordinated/**",
+        "LiteDB/Engine/Structures/CoordinationSignals.cs"
+      ],
+      "targets": [
+        "shared",
+        "shared-contention",
+        "snapshot",
+        "lifetime-chaos"
+      ],
+      "gap": "No fuzz target executes LiteDB/Client/Coordinated (fuzz-coverage-map.json); its evidence is the Coordinator*_Tests xUnit suites until a target drives it."
+    },
+    {
+      "id": "transactions-locks",
+      "kind": "transaction",
+      "reason": "PLAN 'When to extend a fuzzer' (waits/locks) and the critical-change protocol: LiteDB/Engine/Services holds the locks, gates, lifetimes and monitors; transaction state machines and conflicts are the matching alphabet.",
+      "paths": [
+        "LiteDB/Engine/Services/**",
+        "LiteDB/Engine/Engine/Transaction*.cs",
+        "LiteDB/Engine/Structures/TransactionState.cs",
+        "LiteDB/Engine/Structures/TransactionPages.cs",
+        "LiteDB/Engine/Structures/LockMode.cs"
+      ],
+      "targets": [
+        "transaction",
+        "transaction-gate",
+        "conflict",
+        "concurrent",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "reader-leases",
+      "kind": "transaction",
+      "reason": "docs/rules/validation.md#fuzzing: for reader leases use transaction-gate, cursor-handoff and concurrent; snapshots and cursors add the snapshot targets.",
+      "paths": [
+        "LiteDB/Engine/Services/TransactionGate.cs",
+        "LiteDB/Engine/Services/TransactionMonitor.cs",
+        "LiteDB/Engine/Services/TransactionRegistry.cs",
+        "LiteDB/Engine/Services/SnapShot.cs",
+        "LiteDB/Engine/Services/Snapshot.*.cs",
+        "LiteDB/Engine/Engine/SnapshotAdvance.cs",
+        "LiteDB/Engine/Structures/CursorInfo.cs"
+      ],
+      "targets": [
+        "transaction-gate",
+        "cursor-handoff",
+        "concurrent",
+        "snapshot",
+        "threaded-snapshot"
+      ]
+    },
+    {
+      "id": "disk-wal",
+      "kind": "storage",
+      "reason": "PLAN 'When to extend a fuzzer' storage row and docs/rules/validation.md#fuzzing: storage/WAL/disk changes run wal, storage, storage-failure, power-loss, recovery and the checksum targets.",
+      "paths": [
+        "LiteDB/Engine/Disk/**",
+        "LiteDB/Engine/Services/WalIndexService*.cs",
+        "LiteDB/Utils/NativeFileSync.cs",
+        "LiteDB/Utils/NativeLibc.cs",
+        "LiteDB/Utils/FileHelper.cs"
+      ],
+      "targets": [
+        "wal",
+        "storage",
+        "storage-failure",
+        "power-loss",
+        "recovery",
+        "checksum-page",
+        "checksum-wal",
+        "checksum-migration",
+        "checksum-crash"
+      ]
+    },
+    {
+      "id": "mvcc-checkpoint",
+      "kind": "storage",
+      "reason": "WAL retirement and rooted checkpoints have dedicated torn-write/repeated-recovery targets.",
+      "paths": [
+        "LiteDB/Engine/Disk/WalRetirement*.cs",
+        "LiteDB/Engine/Disk/DiskService.Retirement.cs",
+        "LiteDB/Engine/Disk/DiskService.Checkpoint.cs",
+        "LiteDB/Engine/Disk/HeaderJournal*.cs",
+        "LiteDB/Engine/Disk/DiskService.HeaderJournal.cs",
+        "LiteDB/Engine/Services/WalIndexService.Checkpoint.cs",
+        "LiteDB/Engine/Services/WalIndexService.Reclamation.cs"
+      ],
+      "targets": [
+        "mvcc-retirement",
+        "mvcc-checkpoint",
+        "pressure"
+      ]
+    },
+    {
+      "id": "pages",
+      "kind": "storage",
+      "reason": "Page layout and allocation are checked by the page allocator model, raw integrity, malformed-file and exact-boundary targets.",
+      "paths": [
+        "LiteDB/Engine/Pages/**",
+        "LiteDB/Engine/Structures/PageBuffer.cs",
+        "LiteDB/Engine/Structures/PageAddress.cs",
+        "LiteDB/Engine/Structures/DataBlock.cs",
+        "LiteDB/Engine/Structures/PagePosition.cs"
+      ],
+      "targets": [
+        "page",
+        "storage",
+        "integrity",
+        "malformed-file",
+        "boundary",
+        "pressure"
+      ]
+    },
+    {
+      "id": "compact-storage",
+      "kind": "storage",
+      "reason": "Compact document storage has its own codec, storage, crash and power-loss targets.",
+      "paths": [
+        "LiteDB/Engine/Storage/**",
+        "LiteDB/Client/Structures/CompactStorageMode.cs",
+        "LiteDB/Engine/Pages/SchemaPage.cs"
+      ],
+      "targets": [
+        "compact-codec",
+        "compact-storage",
+        "compact-crash",
+        "compact-power-loss"
+      ]
+    },
+    {
+      "id": "file-storage",
+      "kind": "storage",
+      "reason": "FileStorage uploads, streaming chunks and user stream failures are modelled by storage and storage-failure; upload streams are user callbacks.",
+      "paths": [
+        "LiteDB/Client/Storage/**"
+      ],
+      "targets": [
+        "storage",
+        "storage-failure",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "query-engine",
+      "kind": "query",
+      "reason": "PLAN query/LINQ row: query planning and execution run query, linq-cache, parser, sql-dml and index.",
+      "paths": [
+        "LiteDB/Engine/Query/**",
+        "LiteDB/Engine/Engine/Query.cs",
+        "LiteDB/Client/Structures/Query*.cs",
+        "LiteDB/Client/Database/LiteQueryable*.cs",
+        "LiteDB/Client/Database/QueryAggregateExpressions.cs"
+      ],
+      "targets": [
+        "query",
+        "linq-cache",
+        "parser",
+        "sql-dml",
+        "index"
+      ]
+    },
+    {
+      "id": "sort",
+      "kind": "query",
+      "reason": "docs/rules/query-execution.md: external sort, Top-N and spill paths are checked by sort, query and pressure.",
+      "paths": [
+        "LiteDB/Engine/Sort/**"
+      ],
+      "targets": [
+        "sort",
+        "query",
+        "pressure"
+      ]
+    },
+    {
+      "id": "sql-parser",
+      "kind": "query",
+      "reason": "SQL commands are differential-tested against the C# API by sql-dml and parsed by parser.",
+      "paths": [
+        "LiteDB/Client/SqlParser/**",
+        "LiteDB/Client/Database/LiteDatabase.Sql.cs"
+      ],
+      "targets": [
+        "sql-dml",
+        "parser"
+      ]
+    },
+    {
+      "id": "expressions",
+      "kind": "query",
+      "reason": "BsonExpression parsing, binding and caching are checked by parser, query, linq-cache and sql-dml.",
+      "paths": [
+        "LiteDB/Document/Expression/**"
+      ],
+      "targets": [
+        "parser",
+        "query",
+        "linq-cache",
+        "sql-dml"
+      ]
+    },
+    {
+      "id": "linq",
+      "kind": "query",
+      "reason": "LINQ translation and its cache are checked by linq-cache (cached vs fresh vs CLR) and query.",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/**"
+      ],
+      "targets": [
+        "linq-cache",
+        "query",
+        "mapper"
+      ]
+    },
+    {
+      "id": "index",
+      "kind": "index",
+      "reason": "docs/rules/validation.md#fuzzing: key-moving updates and index mutations use index; index plans use query.",
+      "paths": [
+        "LiteDB/Engine/Services/IndexService.cs",
+        "LiteDB/Engine/Engine/Index.cs",
+        "LiteDB/Engine/Structures/IndexNode.cs",
+        "LiteDB/Engine/Structures/CollectionIndex.cs",
+        "LiteDB/Engine/Pages/IndexPage.cs",
+        "LiteDB/Client/Database/Collections/Index.cs"
+      ],
+      "targets": [
+        "index",
+        "query",
+        "boundary"
+      ]
+    },
+    {
+      "id": "index-migration",
+      "kind": "compatibility",
+      "reason": "Index migration and file upgrades are checked by compatibility, malformed-file and checksum-migration.",
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration*.cs",
+        "LiteDB/Engine/Services/Snapshot.IndexMigration.cs",
+        "LiteDB/Engine/Engine/Upgrade.cs",
+        "LiteDB/Engine/FileReader/**",
+        "LiteDB/Engine/Disk/DiskService.FileVersion.cs",
+        "LiteDB/Engine/Services/Snapshot.FileVersion.cs"
+      ],
+      "targets": [
+        "compatibility",
+        "malformed-file",
+        "checksum-migration",
+        "rebuild"
+      ]
+    },
+    {
+      "id": "include-callback",
+      "kind": "callback",
+      "reason": "PLAN 'When to extend a fuzzer': Include runs user mapping during a read (a callback site); query and mapper drive reads, the explorer drives re-entrancy.",
+      "paths": [
+        "LiteDB/Client/Database/Collections/Include.cs"
+      ],
+      "targets": [
+        "query",
+        "mapper",
+        "lifetime-chaos",
+        "transaction-interleavings"
+      ],
+      "gap": "No fuzz target executes Collections/Include.cs today (fuzz-coverage-map.json)."
+    },
+    {
+      "id": "vector",
+      "kind": "vector",
+      "reason": "Vector indexes are checked by the vector churn target.",
+      "paths": [
+        "LiteDB/Client/Vector/**",
+        "LiteDB/Engine/Structures/VectorIndex*.cs",
+        "LiteDB/Engine/Pages/VectorIndexPage.cs",
+        "LiteDB/Engine/Query/QueryOptimization.Vector.cs",
+        "LiteDB/Document/BsonVector.cs"
+      ],
+      "targets": [
+        "vector"
+      ]
+    },
+    {
+      "id": "bson",
+      "kind": "bson",
+      "reason": "PLAN BSON row: BSON values, documents, JSON and serializers run bson, value and mapper.",
+      "paths": [
+        "LiteDB/Document/*.cs",
+        "LiteDB/Document/Bson/**",
+        "LiteDB/Document/Json/**",
+        "LiteDB/Document/DataReader/**",
+        "LiteDB/Engine/Disk/Serializer/**"
+      ],
+      "targets": [
+        "bson",
+        "value",
+        "mapper"
+      ]
+    },
+    {
+      "id": "mapper",
+      "kind": "mapper",
+      "reason": "Object mapping is checked by mapper round trips, bson and the LINQ cache's shared-mapper concurrency; the mapper runs user code.",
+      "paths": [
+        "LiteDB/Client/Mapper/**"
+      ],
+      "targets": [
+        "mapper",
+        "bson",
+        "linq-cache",
+        "lifetime-chaos"
+      ]
+    },
+    {
+      "id": "rebuild",
+      "kind": "rebuild",
+      "reason": "PLAN rebuild row: rebuild and its installation transitions run rebuild, rebuild-transition and lifetime-chaos (concurrent rebuild).",
+      "paths": [
+        "LiteDB/Engine/Engine/Rebuild.cs",
+        "LiteDB/Engine/Services/Rebuild*.cs",
+        "LiteDB/Engine/Structures/RebuildOptions.cs",
+        "LiteDB/Client/SqlParser/Commands/Rebuild.cs"
+      ],
+      "targets": [
+        "rebuild",
+        "rebuild-transition",
+        "lifetime-chaos"
+      ]
+    },
+    {
+      "id": "engine-lifetime",
+      "kind": "teardown",
+      "reason": "PLAN critical-change protocol: engine and database open/close and fatal handling are lifetime paths; teardown runs chaos, lifetime-chaos and teardown-faults, open runs recovery.",
+      "paths": [
+        "LiteDB/Engine/LiteEngine.cs",
+        "LiteDB/Engine/EngineState.cs",
+        "LiteDB/Engine/EngineSettings.cs",
+        "LiteDB/Client/Database/LiteDatabase.cs",
+        "LiteDB/Engine/Engine/Recovery.cs",
+        "LiteDB/Utils/TryCatch.cs"
+      ],
+      "targets": [
+        "chaos",
+        "lifetime-chaos",
+        "teardown-faults",
+        "recovery",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "concurrency-utils",
+      "kind": "lock-wait",
+      "reason": "Shared wait primitives used by the engine and Shared mode: the explorer and the concurrent targets.",
+      "paths": [
+        "LiteDB/Utils/AsyncManualResetEvent.cs",
+        "LiteDB/Engine/Structures/StructuralScope.cs"
+      ],
+      "targets": [
+        "concurrent",
+        "lifetime-chaos",
+        "transaction-interleavings",
+        "shared-contention"
+      ]
+    },
+    {
+      "id": "fault-point-registry",
+      "kind": "fault-point",
+      "reason": "PLAN 'When to extend a fuzzer': a new or changed fault point in fault-points.json is wired into the chaos driver's fault selector and the step-fault sweep.",
+      "paths": [
+        ".github/safety/fault-points.json"
+      ],
+      "targets": [
+        "chaos",
+        "teardown-faults",
+        "storage-failure"
+      ]
+    },
+    {
+      "id": "safety-machinery",
+      "kind": "safety-machinery",
+      "reason": "BRIEF amendments (risk classification includes the safety machinery): oracles, explorer, corpus, registries and the fuzz workflow are judged by the targets that use them.",
+      "paths": [
+        "LiteDB.Fuzz/Fuzz*.cs",
+        "LiteDB.Fuzz/Program.cs",
+        "LiteDB.Fuzz/IFuzzTarget.cs",
+        "LiteDB.Fuzz/*Verifier.cs",
+        "LiteDB.Fuzz/LiteDB.Fuzz.csproj",
+        "LiteDB.Fuzz/SelfTests/**",
+        "LiteDB.Fuzz/Corpus/**",
+        "LiteDB.Fuzz.Tests/**",
+        "LiteDB.Tests/Safety/**",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/**",
+        "LiteDB/Utils/Reachability.cs",
+        "LiteDB/Client/Shared/SharedOwnershipEvents.cs",
+        ".github/safety/**",
+        ".github/workflows/fuzz.yml",
+        ".github/scripts/select_fuzz_targets.py",
+        ".github/scripts/generate_fuzz_coverage_map.py",
+        ".github/scripts/check_reachability.py",
+        ".config/dotnet-tools.json"
+      ],
+      "targets": [
+        "oracle-selftest",
+        "chaos",
+        "concurrent",
+        "cursor-handoff",
+        "conflict",
+        "integrity",
+        "lifetime-chaos",
+        "transaction-interleavings"
+      ]
+    },
+    {
+      "id": "fuzz-target-sources",
+      "kind": "fuzz-harness",
+      "reason": "A changed target, target helper or linked scenario runs the targets defined in it or using it (resolved from LiteDB.Fuzz/Targets).",
+      "paths": [
+        "LiteDB.Fuzz/Targets/**",
+        "LiteDB.Tests/Mapper/StableRandom.cs",
+        "LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs",
+        "LiteDB.Tests/Internals/MvccRetirementScenario.cs",
+        "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs",
+        "LiteDB.Tests/Engine/PromotionPowerLossStream.cs",
+        "LiteDB.Tests/Engine/PromotionPowerLossScenario.cs"
+      ],
+      "targets": [
+        "@fuzz-source-users"
+      ]
+    },
+    {
+      "id": "fuzz-build",
+      "kind": "fuzz-harness",
+      "reason": "Build-wide settings change every target's binary.",
+      "paths": [
+        "Directory.Build.props",
+        "LiteDB/LiteDB.csproj"
+      ],
+      "targets": [
+        "@all"
+      ]
+    }
+  ]
+}

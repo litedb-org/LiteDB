@@ -61,6 +61,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/net_proof.py validate
 
+      - name: Validate the fuzz target obligation map
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/select_fuzz_targets.py --validate
+
   build-linux:
     name: Build (Linux)
     runs-on: ubuntu-latest
