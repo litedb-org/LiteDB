@@ -63,6 +63,18 @@ class DocClaimLintTests(unittest.TestCase):
                 self.assertEqual(code, 1, output)
                 self.assertIn("does not resolve", output)
 
+    def test_contracts_claim_satisfies_a_sentence_without_anchor(self):
+        sentence = "A failed checkpoint never loses acknowledged writes."
+        evidence = [{"test": f"{TESTS}#Close_Propagates", "proves": "The commit is read back after the failure."}]
+        for claim, warned in (({"evidence": evidence}, False), ({"gap": "No test injects this failure yet."}, True)):
+            with self.subTest(claim=claim):
+                index = {"contracts": [{"id": "durable-ack", "title": "t", "paths": ["x"], "evidence": evidence,
+                                        "claims": [{"doc": DOC, "sentence": "failed checkpoint never loses", **claim}]}]}
+                code, output = self.run_lint(BASE_DOC + "\n" + sentence + "\n",
+                                             extra={".github/safety/contracts.json": json.dumps(index)})
+                self.assertEqual(code, 0, output)
+                self.assertEqual("registered in contracts.json 'durable-ack' as a gap" in output, warned, output)
+
     def test_marker_without_registry_is_a_warning(self):
         code, output = self.run_lint(BASE_DOC + "\nA closed database rejects new readers [marker: refusal:x].\n")
         self.assertEqual(code, 0, output)

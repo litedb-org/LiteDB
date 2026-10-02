@@ -73,6 +73,25 @@ class ContractIndexTests(unittest.TestCase):
                 self.assertIn(expected, output)
 
 
+    def test_claims_map_doc_sentences_to_evidence_or_a_gap(self):
+        doc = {DOC: "# Data safety\n## Required evidence\n\nAcknowledged commits always survive a crash.\n"}
+        good = {"doc": DOC, "sentence": "commits always survive",
+                "evidence": [{"test": f"{TESTS}#Survives", "proves": "Reads the commit back after the crash."}]}
+        cases = {
+            None: [good, {"doc": DOC, "sentence": "always survive a crash", "gap": "No device campaign exists yet."}],
+            "no sentence of": [dict(good, sentence="commits never vanish")],
+            "does not exist": [dict(good, doc="docs/missing.md")],
+            "either evidence items or a gap": [dict(good, gap="Both given here is wrong.")],
+            "say what": [dict(good, evidence=[{"test": f"{TESTS}#Survives"}])],
+            "does not resolve": [dict(good, evidence=[{"test": f"{TESTS}#Gone", "proves": "Something observable."}])],
+        }
+        for expected, claims in cases.items():
+            with self.subTest(expected):
+                code, output = self.run_check({**doc, INDEX: index(contract(claims=claims))})
+                self.assertEqual(code, 1 if expected else 0, output)
+                if expected:
+                    self.assertIn(expected, output)
+
 BODY = """## Summary
 
 Change.
