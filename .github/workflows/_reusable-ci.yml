@@ -211,6 +211,44 @@ jobs:
             LiteDB.Tests/TestResults/discovered-tests.txt
           if-no-files-found: warn
 
+  # Systematic-concurrency models of the lifetime state machines, explored with Coyote
+  # (docs/concurrency-models.md). A separate project: Coyote has no .NET Framework build,
+  # so it cannot join LiteDB.Tests and its net462/net481 legs. Seeds are fixed; a failure
+  # uploads the reproducible trace and the model trace as `concurrency-models`.
+  test-concurrency-models:
+    name: Concurrency models (Coyote)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Explore the lifetime models
+        env:
+          LITEDB_COYOTE_ARTIFACTS: ${{ github.workspace }}/artifacts_temp/coyote
+        run: >-
+          dotnet test LiteDB.Tests.Concurrency/LiteDB.Tests.Concurrency.csproj
+          --configuration Release
+          --logger "trx;LogFileName=concurrency-models.trx"
+          --results-directory artifacts_temp/coyote-results
+
+      - name: Upload model results and counterexamples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: concurrency-models
+          overwrite: true
+          path: |
+            artifacts_temp/coyote
+            artifacts_temp/coyote-results
+          if-no-files-found: warn
+
   build-macos:
     if: inputs.tier == 'full'
     name: Build (macOS)
@@ -638,7 +676,7 @@ jobs:
   safety-evidence:
     name: Safety evidence
     if: ${{ !cancelled() }}
-    needs: [safety-policy, oracle-smoke, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
+    needs: [safety-policy, oracle-smoke, build-linux, test-linux, test-concurrency-models, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Artifacts of the current run download with the runner's own token; fork PRs

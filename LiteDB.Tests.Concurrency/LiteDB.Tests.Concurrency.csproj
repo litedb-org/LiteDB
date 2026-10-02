@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Systematic-concurrency models of LiteDB lifetime state machines, explored with
+    Microsoft.Coyote (actors only, so no binary rewriting is needed). Kept out of
+    LiteDB.Tests: Coyote ships no .NET Framework build and pulls telemetry/Cecil
+    dependencies that LiteDB.Tests' net462/net481 legs must not carry.
+    See docs/concurrency-models.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>LiteDB.Tests.Concurrency</RootNamespace>
+    <AssemblyName>LiteDB.Tests.Concurrency</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Coyote.Actors" Version="1.7.11" />
+    <PackageReference Include="Microsoft.Coyote.Test" Version="1.7.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

@@ -18,6 +18,7 @@
         "full": {"os": ["windows-latest", "windows-2022"], "arch": ["x64", "x86"], "item.runtimeMajor": [8, 9, 10]}
       }
     },
+    "test-concurrency-models": {"tiers": ["pr", "full"]},
     "test-windows-framework": {
       "tiers": ["pr", "full"],
       "legs": {"pr": {"framework": ["net481"]}, "full": {"framework": ["net462", "net481"]}}
