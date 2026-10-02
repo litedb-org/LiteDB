@@ -61,6 +61,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/net_proof.py validate
 
+      # The proven-obligations table and the retrospective's matrices are rendered from the
+      # ledger; a ledger change without `render_net_proofs.py --write <file>` fails here.
+      - name: Check the tables rendered from the net-proof ledger
+        if: ${{ !cancelled() }}
+        run: |
+          python .github/scripts/render_net_proofs.py --check docs/rules/implement-safely.md
+          python .github/scripts/render_net_proofs.py --check docs/safety-net-retrospective.md
+
       # Diff lints (docs/rules/safety-evidence.md#diff-lints): polling loops need a reason,
       # deleted invariant comments are listed (the PR body names where they are enforced
       # now; the Safety section workflow checks that), new doc claims carry an anchor or a
