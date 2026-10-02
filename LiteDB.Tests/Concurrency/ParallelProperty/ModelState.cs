@@ -38,6 +38,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
             this.Explicit = source.Explicit;
             this.Modes = (SnapshotMode[])source.Modes.Clone();
             this.View = (int[])source.View.Clone();
+            this.ScannedBy = source.ScannedBy;
         }
 
         public int OwnerKey { get; }
@@ -48,6 +49,9 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         internal SnapshotMode[] Modes { get; }
         internal int[] View { get; }
 
+        /// <summary>Bit per model thread whose pending foreign-Commit scan saw this transaction (<see cref="LegacyAccess"/>).</summary>
+        public int ScannedBy { get; internal set; }
+
         public SnapshotMode ModeOf(int collection) => this.Modes[collection];
 
         internal ModelTransaction Clone() => new ModelTransaction(this);
@@ -55,6 +59,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         internal void AppendKey(StringBuilder sb)
         {
             sb.Append('{').Append(this.OwnerKey).Append(',').Append(this.OwnerThread).Append(this.Explicit ? 'E' : 'A');
+            if (this.ScannedBy != 0) sb.Append('s').Append(this.ScannedBy);
             for (var c = 0; c < this.Modes.Length; c++) sb.Append((int)this.Modes[c]);
             sb.Append(':');
             foreach (var value in this.View) sb.Append(value).Append(',');
@@ -282,7 +287,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         {
             var parts = Enumerable.Range(0, this.Collections).Select(c => "c" + c + "=" + this.CommittedContents(c)).ToList();
             foreach (var transaction in _transactions)
-                parts.Add($"tx(owner={transaction.OwnerKey}, modes={string.Join("", transaction.Modes.Select(m => m.ToString()[0]))})");
+                parts.Add($"tx(owner={transaction.OwnerKey}, modes={string.Join("", transaction.Modes.Select(m => m.ToString()[0]))}{(transaction.ScannedBy != 0 ? ", scannedBy=" + transaction.ScannedBy : "")})");
             for (var c = 0; c < this.Collections; c++)
                 if (_lockHolders[c] != NoOwner) parts.Add($"lock(c{c})={_lockHolders[c]}");
             if (this.SharedHolder != NoOwner) parts.Add("sharedHolder=T" + this.SharedHolder);

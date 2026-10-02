@@ -51,7 +51,12 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
     /// all of its writes at its position.</item>
     /// <item>Rejection: Commit on a thread without a transaction while another thread has an active
     /// explicit transaction throws LiteException (Engine/Engine/TransactionCompletionGuard.cs:19-27;
-    /// docs "Commit throws a descriptive LiteException"); Rollback there returns false. In Shared mode
+    /// docs "Commit throws a descriptive LiteException"); Rollback there returns false. The refusal is
+    /// not decided at one instant: the guard copies the registered transactions slot by slot, then
+    /// checks each copy's state (TransactionMonitor.cs:35, TransactionRegistry.cs:95-105). So in
+    /// Direct mode Commit may also return false while explicit transactions of other threads hand
+    /// over during the call (one ends, another begins); it must throw for one that stays active
+    /// throughout the call (two points: the scan, then the check). In Shared mode
     /// a Commit/Rollback of a thread that does not own the mutex only tries it: Commit throws while
     /// an explicit transaction runs, otherwise both return false (Client/Shared/SharedEngine.cs:276-280).
     /// No other exception (ObjectDisposedException included) is permitted for this alphabet.</item>

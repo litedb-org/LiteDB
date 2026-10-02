@@ -225,7 +225,10 @@ collection contents, snapshots, collection locks, abort marks and the Shared mut
   together. The observed history must be a *permitted history*: some order of the operations
   that keeps each thread's program order and real-time order explains every result and the final
   contents. The permitted set is listed with source references on `PermittedHistoryChecker`:
-  ordinary (automatic) versus bound (explicit transaction) access, refusals, rollback (explicit,
+  ordinary (automatic) versus bound (explicit transaction) access, refusals (a Direct `Commit`
+  without an own transaction scans the registered transactions one at a time, so it must refuse
+  only for a foreign explicit transaction that stays active throughout the call; during a
+  handover between two of them it may return false), rollback (explicit,
   and after a failed operation inside a transaction, [explicit transactions](explicit-transactions.md)),
   timed-out losers (only with a conflicting holder; their transaction is rolled back), and
   uncertain outcomes (an interrupted call has its whole effect or none). This is not a

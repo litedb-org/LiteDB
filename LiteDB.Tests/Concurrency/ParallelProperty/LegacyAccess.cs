@@ -109,9 +109,11 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
                     return;
                 case Commit:
                 case Rollback:
+                    if (state.Mode == ConnectionType.Direct && command.Op == Commit && ForeignCommitAfterScan(next, thread, outcomes)) return;
                     outcomes.Add(new ModelOutcome(state.Mode == ConnectionType.Shared
                         ? CompleteShared(next, thread, command.Op == Commit)
                         : CompleteDirect(next, thread, command.Op == Commit), next));
+                    if (state.Mode == ConnectionType.Direct && command.Op == Commit) ForeignCommitScan(state, thread, outcomes);
                     return;
                 default:
                     throw new ArgumentException("Unknown legacy operation: " + command.Op);
@@ -134,7 +136,8 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         /// <summary>
         /// LiteEngine.Commit/Rollback via GetTransactionForCompletion: complete the thread's own
         /// transaction; otherwise Commit throws when another thread has an active explicit
-        /// transaction and this thread was not just aborted; Rollback returns false.
+        /// transaction and this thread was not just aborted; Rollback returns false. (A foreign
+        /// Commit may also return false while those transactions hand over: <see cref="ForeignCommitScan"/>.)
         /// </summary>
         private static Observation CompleteDirect(ModelState state, int thread, bool commit)
         {
@@ -146,10 +149,56 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
                 else state.Rollback(transaction);
                 return Observation.Ok(true);
             }
-            if (commit && !aborted && state.Transactions.Any(t => t.Explicit && t.OwnerThread != thread))
+            if (commit && !aborted && state.Transactions.Any(t => IsForeignExplicit(t, thread)))
                 return Observation.Error(0);
             return Observation.Ok(false);
         }
+
+        /// <summary><see cref="ModelState.Pending"/> phase of a foreign Commit between its scan and its check.</summary>
+        public const int ForeignCommitPending = 2;
+
+        /// <summary>
+        /// Direct Commit without an own transaction, second outcome. The engine's refusal is not
+        /// decided at one instant (TransactionCompletionGuard.cs:21-23): it first copies the
+        /// registered transactions slot by slot (TransactionMonitor.cs:35,
+        /// TransactionRegistry.cs:95-105, no lock), later reads each copied transaction's
+        /// ExplicitTransaction and State. A transaction that begins after the copy, or ends before
+        /// its check, is not seen. So Commit returns false also when foreign explicit transactions
+        /// hand over during the call, and throws only for one that stays active from the scan to
+        /// the check. The scan is the first point: it marks every foreign explicit transaction
+        /// active there; the check (<see cref="ForeignCommitAfterScan"/>) is a later point of the
+        /// same call where none of them is active any more. With no foreign explicit transaction
+        /// at the scan, the single-point outcome of <see cref="CompleteDirect"/> already covers it.
+        /// </summary>
+        private static void ForeignCommitScan(ModelState state, int thread, List<ModelOutcome> outcomes)
+        {
+            if (state.Transaction(thread) != null || state.AbortFlag(thread)) return;
+            if (!state.Transactions.Any(t => IsForeignExplicit(t, thread))) return;
+            var next = state.Clone();
+            foreach (var transaction in next.Transactions)
+            {
+                if (IsForeignExplicit(transaction, thread)) transaction.ScannedBy |= 1 << thread;
+            }
+            next.SetPending(thread, ForeignCommitPending);
+            outcomes.Add(new ModelOutcome(Observation.Ok(false), next, completes: false));
+        }
+
+        /// <summary>
+        /// Second point of <see cref="ForeignCommitScan"/>: returns false once every transaction the
+        /// scan saw has ended; while one is still active the call cannot end here (it waits for a
+        /// later position). Returns false when the thread has no pending scan.
+        /// </summary>
+        private static bool ForeignCommitAfterScan(ModelState next, int thread, List<ModelOutcome> outcomes)
+        {
+            if (next.Pending(thread) != ForeignCommitPending) return false;
+            if (next.Transactions.Any(t => (t.ScannedBy & (1 << thread)) != 0)) return true;
+            next.SetPending(thread, 0);
+            outcomes.Add(new ModelOutcome(Observation.Ok(false), next));
+            return true;
+        }
+
+        private static bool IsForeignExplicit(ModelTransaction transaction, int thread) =>
+            transaction.Explicit && transaction.OwnerThread != thread;
 
         /// <summary>
         /// SharedEngine.CompleteTransaction: the owner completes in the engine and releases the
