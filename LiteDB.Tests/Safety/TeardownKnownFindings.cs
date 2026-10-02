@@ -31,11 +31,17 @@ namespace LiteDB.Tests.Safety
         /// finding; only the "no longer reproduces" check is withheld, as for a platform-only step.
         /// </summary>
         public string NotObservableHere { get; set; }
+        /// <summary>
+        /// A further condition on the case, such as the platform or the prior state the defect needs (null: none). A
+        /// finding whose condition never holds on this platform also sets <see cref="NotObservableHere"/>.
+        /// </summary>
+        public Func<TeardownRunResult, bool> When { get; set; }
 
         public bool Matches(TeardownRunResult result)
         {
             var spec = result.Spec;
             if (!string.Equals(spec.Driver.Path, this.Path, StringComparison.Ordinal)) return false;
+            if (this.When != null && !this.When(result)) return false;
             if (this.Mode.HasValue && spec.Driver.Mode != this.Mode.Value) return false;
             if (spec.Baseline) { if (!this.Baseline) return false; }
             else
@@ -125,6 +131,8 @@ namespace LiteDB.Tests.Safety
 
         private static IReadOnlyList<TeardownKnownFinding> Build(List<TeardownKnownFinding> findings)
         {
+            // After the cross-platform findings: a case both explain keeps the cross-platform one.
+            findings.AddRange(WindowsFindings());
             OverlayFindings(findings);
             return findings;
         }

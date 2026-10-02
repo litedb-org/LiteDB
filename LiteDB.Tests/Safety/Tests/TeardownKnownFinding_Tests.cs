@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using LiteDB.Engine;
 using LiteDB.Utils;
 using Xunit;
@@ -94,6 +95,96 @@ namespace LiteDB.Tests.Safety.Tests
                 Assert.NotNull(scenario.Fired);
                 Assert.True(File.Exists(scratch), "the scratch file was deleted after all");
                 File.Delete(scratch);
+            }
+        }
+
+        /// <summary>
+        /// Known finding sortdisk-delete-blocked-by-open-scratch-stream, natural trigger, Windows only (filed as #3112):
+        /// a query whose sort spilled keeps a scratch stream rented from SortDisk's pool, opened without
+        /// FileShare.Delete; the pool's Dispose closes only returned streams, so closing the engine while the query is
+        /// open makes SortDisk.Dispose's delete fail. Close returns the sharing violation and the scratch file stays
+        /// after the query ends. POSIX unlinks the open file, so elsewhere this test checks that contrast instead (the
+        /// defect cannot be reproduced there). Distinct from #3097, which needs a failure while closing the pool.
+        /// </summary>
+        [Fact]
+        public void Known_finding_windows_close_cannot_delete_the_scratch_of_an_open_spilled_query()
+        {
+            using (var file = new TempFile())
+            {
+                var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+                var db = new LiteDatabase(engine, disposeOnClose: false);
+                var reader = SpillSort(db);
+                var scratch = FileHelper.GetTempFile(file.Filename);
+                Assert.True(File.Exists(scratch), "the sort did not spill to the scratch file");
+
+                var failures = engine.Close();
+                reader.Dispose(); // returns the rented stream to the closed pool, which closes it
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    Assert.Contains(failures, error => error is IOException && error.Message.Contains(Path.GetFileName(scratch)));
+                    Assert.True(File.Exists(scratch), "the scratch file was deleted after all");
+                    File.Delete(scratch); // nothing holds it any more
+                }
+                else
+                {
+                    Assert.Empty(failures);
+                    Assert.False(File.Exists(scratch), "the close did not delete the scratch file");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Known finding rebuild-hides-close-failure-behind-sharing-violation, controlled fault (filed as #3113):
+        /// LiteEngine.Rebuild drops the failure list of the old engine's Close(). A skip fault at
+        /// DiskService.Dispose.data-pool leaves the old data streams open. On Windows the rebuild's own open of the
+        /// data file then fails with a sharing violation that does not carry the close failure; elsewhere the rebuild
+        /// succeeds and the close failure is discarded without a trace. The test asserts each platform's outcome.
+        /// </summary>
+        [Fact]
+        public void Known_finding_rebuild_drops_a_failed_close_and_on_windows_fails_on_its_handle()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "litedb-known-rebuild-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                Exception error;
+                TeardownScenario scenario;
+                using (TeardownSweep.CountLeakedBuffers())
+                {
+                    var engine = new LiteEngine(new EngineSettings { Filename = Path.Combine(directory, "rebuild.db") });
+                    var db = new LiteDatabase(engine, disposeOnClose: false);
+                    for (var id = 1; id <= 5; id++) db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = id });
+
+                    scenario = Armed("DiskService.Dispose.data-pool", TeardownStepSite.Before);
+                    using (TeardownSteps.Begin(scenario))
+                    {
+                        scenario.OpenWindow();
+                        error = Record.Exception(() => engine.Rebuild(new RebuildOptions()));
+                    }
+                    if (error == null) Assert.Equal(5, db.GetCollection("rows").Count());
+                    engine.Dispose();
+                    // The skipped step's streams are unreachable once the engine is: finalizing them closes their handles.
+                    engine = null;
+                    db = null;
+                    TeardownSweep.CollectLeaks();
+                }
+
+                Assert.NotNull(scenario.Fired);
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    var io = Assert.IsAssignableFrom<IOException>(error);
+                    Assert.Equal(unchecked((int)0x80070020), io.HResult); // ERROR_SHARING_VIOLATION
+                    Assert.False(FaultDisposedProbe.Carries(error, scenario.Fired, true, 0), "the rebuild failure carries the close failure");
+                }
+                else
+                {
+                    Assert.Null(error); // the close failure was discarded and nothing reports it
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(directory, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             }
         }
 
