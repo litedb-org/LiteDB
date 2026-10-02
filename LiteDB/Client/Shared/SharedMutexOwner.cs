@@ -18,7 +18,7 @@ namespace LiteDB.Client.Shared
     /// takes the OS mutex directly on that thread instead: nothing but that thread can
     /// end it, so it needs no holder and saves two thread handoffs per operation.
     /// </summary>
-    internal sealed class SharedMutexOwner
+    internal sealed partial class SharedMutexOwner
     {
         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
         // A holder that owns nothing exits after this long, so an undisposed
@@ -130,7 +130,9 @@ namespace LiteDB.Client.Shared
         public bool EnterWithin(bool scoped, SharedWaitDeadline deadline)
         {
             if (this.TryRecurse()) return false;
-            while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(); deadline.ThrowIfExpired(); }
+            // A bounded wait never runs an exited owner's cleanup inline (it can close engine
+            // resources); the gate stays closed until that cleanup completes elsewhere.
+            while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(inline: deadline.IsInfinite); deadline.ThrowIfExpired(); }
             bool abandoned;
             if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned, deadline);
             else this.TakeGate(Command.Acquire, out abandoned, deadline);
@@ -268,40 +270,6 @@ namespace LiteDB.Client.Shared
                 _gate.Release();
                 throw;
             }
-        }
-
-        /// <summary>
-        /// If the owner thread exited while owning the mutex, have the holder close
-        /// the connection's state and release it. Returns true when it did.
-        /// </summary>
-        private bool ReleaseIfOwnerExited()
-        {
-            Thread owner;
-            var direct = false;
-            lock (_sync)
-            {
-                owner = _owner ?? _scope.Owner;
-                if (owner == null || owner.IsAlive) return false;
-                if (ReferenceEquals(_scope.Owner, owner))
-                {
-                    // A scoped owner cannot leave its call without unwinding; if its thread
-                    // died anyway, the OS abandoned its mutex and the next wait reports it.
-                    direct = true;
-                    _owner = null;
-                    _scope.Owner = null;
-                    _recursion = 0;
-                    _generation++;
-                }
-            }
-            if (direct)
-            {
-                try { _ownerExited(); }
-                catch (Exception) { /* The next open recovers. */ }
-                _gate.Release();
-                return true;
-            }
-            this.Send(Command.ReleaseExitedOwner);
-            return true;
         }
 
         /// <summary>Queue a command whose completion opens the gate; nobody waits for it.</summary>
