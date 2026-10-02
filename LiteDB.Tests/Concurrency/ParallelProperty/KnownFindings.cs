@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
         /// idle thread still owns the mutex: every call of another thread waits until the owner thread
         /// exits (abandoned-mutex recovery). Direct mode, and the same block without the second
         /// BeginTrans or without the failure, release normally.
-        /// Found by the sequential property, Shared, case seed 19.
+        /// Found by the sequential property, Shared, case seed 19. Filed as #3094.
         /// Rule: in Shared mode a nested BeginTrans is generated only directly after the block's
         /// opening BeginTrans, before any command that could fail.
         /// </summary>

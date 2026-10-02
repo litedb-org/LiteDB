@@ -144,11 +144,13 @@ maintenance operation at a time. No production code was changed.
    classified schedule-dependent; every late operation was refused with
    `ENGINE_DISPOSED`).
 
+Both are filed as #3093.
+
 Incidental, outside the models' abstraction (page accounting is not modeled): in that
 stress run a single `Dispose` racing an active `Insert` on an in-memory Direct engine
 left page buffers whose share count was -1 when finalized (524 buffers over 10 000
 trials; the TESTING-build finalizer check reports them). Native-thread evidence, kept
-as a finding for follow-up.
+as a finding for follow-up; reported on #3010 (Dispose racing an active operation).
 
 The parallel property test found a Shared-mode defect: on one thread, `BeginTrans`, a write
 that fails (for example a duplicate key, which rolls the explicit transaction back), `BeginTrans`
@@ -156,7 +158,7 @@ again and `Commit` all succeed, yet the idle thread keeps the connection's mutex
 another thread then waits until that thread exits. Each started `BeginTrans` retains one ownership
 recursion (`SharedEngine.cs:244-252`), and the implicit rollback never returns the first one.
 It reproduced in 20 of 20 replays and standalone; generation avoids it through
-`KnownFindings.SharedRestartAfterAbortRetainsMutex`.
+`KnownFindings.SharedRestartAfterAbortRetainsMutex`. Filed as #3094.
 
 Documented limitation, pinned rather than excluded: a Shared callback that waits
 for another thread's call on the same connection hangs

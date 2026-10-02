@@ -54,7 +54,7 @@ namespace LiteDB.Tests.Concurrency.LifetimeModel
         /// set _state.Disposed (LiteEngine.cs:213). A Dispose racing Rebuild's internal Close therefore
         /// returns while Rebuild goes on to reopen the engine (Rebuild.cs:66), and fresh work is admitted
         /// after Dispose returned. Reproduced on real code (docs/concurrency-models.md, "Findings").
-        /// When the code is fixed, update the model to the fix and turn this into a passing check.
+        /// When the code is fixed, update the model to the fix and turn this into a passing check. Filed as #3093.
         /// </summary>
         [Fact]
         public void Known_finding_dispose_during_rebuild_lets_fresh_work_in_after_dispose_returned()
@@ -71,6 +71,7 @@ namespace LiteDB.Tests.Concurrency.LifetimeModel
         /// still running (LiteEngine.cs:213), so work that passed validation earlier can still be
         /// admitted after that Dispose returned. The early return is reproduced on real code; the
         /// admission window (LiteEngine.cs:215-220) has no hook and was not hit by a real-thread stress run.
+        /// Filed as #3093 (together with the Rebuild reopen above).
         /// </summary>
         [Fact]
         public void Known_finding_concurrent_dispose_returns_before_the_close_completes()
