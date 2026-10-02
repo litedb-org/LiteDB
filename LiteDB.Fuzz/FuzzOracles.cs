@@ -30,8 +30,13 @@ internal static class FuzzOracles
     /// The deadline the scenario declares for this operation; null uses the default for lock-bound
     /// operations, max(3 x TIMEOUT pragma, 15 s). Bulk, rebuild and callback operations declare their own.
     /// </param>
+    /// <param name="permitted">
+    /// Optional: the outcomes the scenario declares legal for this call (<c>ok</c>, <c>refused</c>,
+    /// <c>threw</c>, or a kind with type and LiteDB error code such as <c>threw:LiteDB.LiteException#137</c>).
+    /// Written to outcomes.jsonl as <c>permitted</c> for the differential run; the target enforces it.
+    /// </param>
     internal static T Deadline<T>(this FuzzContext context, string op, Func<T> call, string dimension = null,
-        TimeSpan? declared = null)
+        TimeSpan? declared = null, string[] permitted = null)
     {
         var state = context.Oracles;
         state.ThrowLatched();
@@ -55,7 +60,7 @@ internal static class FuzzOracles
             var elapsed = clock.Elapsed;
             var late = elapsed > deadline;
             // The watchdog already recorded an operation it reported as overdue.
-            if (!item.Reported) state.WriteOutcome(op, dimension, item.Step, late ? "hang" : outcome, error, elapsed.TotalMilliseconds);
+            if (!item.Reported) state.WriteOutcome(op, dimension, item.Step, late ? "hang" : outcome, error, elapsed.TotalMilliseconds, permitted);
             // An operation that finally returned or threw after its deadline still missed it.
             if (late)
                 throw new FuzzFailureException(FuzzDeadlineFailure.FailureId(context.Target, op),
@@ -65,7 +70,8 @@ internal static class FuzzOracles
     }
 
     internal static void Deadline(this FuzzContext context, string op, Action call, string dimension = null,
-        TimeSpan? declared = null) => context.Deadline(op, () => { call(); return true; }, dimension, declared);
+        TimeSpan? declared = null, string[] permitted = null) =>
+        context.Deadline(op, () => { call(); return true; }, dimension, declared, permitted);
 
     /// <summary>
     /// An asynchronous operation (for example joining workers) under its declared deadline. It starts
