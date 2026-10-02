@@ -186,13 +186,17 @@ and its test; their proof result is recorded as tuned-after-fix.
 
 A case whose unexpected violations all match a registered finding (path, steps, model, mode,
 violation kinds) is reported `known` and passes; a finding that no case of its path reproduces
-any more fails the sweep ("no longer reproduces; remove it together with its fix"). Each has a
+any more fails the sweep ("no longer reproduces; remove it together with its fix"). That verdict
+is withheld (an output line says why) when a driver of the path did not run its cases (its
+failed baseline already fails the test), and where a finding states that its path's drivers
+cannot observe it on this platform: `SharedMutexOwner.ReleaseAll`'s only visible leftover is
+mapped coordination, which exists on .NET 8+ only. Each has a
 minimal reproduction in `TeardownKnownFinding_Tests` that passes while the defect exists; a
 temporary try/finally fix makes each of them fail.
 
 | Id | Paths | Defect | Since | Evidence | Issue |
 | --- | --- | --- | --- | --- | --- |
-| `shared-dispose-aborts-remaining-cleanup` | SharedEngine.Dispose, ClosePin, CheckpointOnDispose, ReleaseAll; LiteDatabase.Dispose (Shared) | `SharedEngine.Dispose` sets `_disposed` and then runs its cleanup unguarded: a failing step (retire-reads, wait-pin rethrowing the holder's failure, the final checkpoint's scoped release, the reader registry, coordination) propagates and skips every later step; a second Dispose returns at once, so slot/lease handles and `-shared-live`/`-shared-state` stay open until process exit | #3003 (`3b9e579f1`) | class 1 (controlled fault at a named step) | #3096 |
+| `shared-dispose-aborts-remaining-cleanup` | SharedEngine.Dispose, ClosePin, CheckpointOnDispose, ReleaseAll; LiteDatabase.Dispose (Shared) | `SharedEngine.Dispose` sets `_disposed` and then runs its cleanup unguarded: a failing step (retire-reads, wait-pin rethrowing the holder's failure, the final checkpoint's scoped release, the reader registry, coordination) propagates and skips every later step; a second Dispose returns at once, so slot/lease handles and `-shared-live`/`-shared-state` stay open until process exit (on Windows also the cached data and WAL handles, unless an exited transaction owner's cleanup closes them) | #3003 (`3b9e579f1`) | class 1 (controlled fault at a named step) | #3096 |
 | `sortdisk-dispose-skips-scratch-delete` | LiteEngine.Close, CloseOnError, Dispose | `SortDisk.Dispose` has no try/finally: when closing the scratch streams fails, `-tmp` (the last spilled sort's keys) is never deleted | `c9eb2d9f2` (2019) | class 1 | #3097 |
 | `litedatabase-dispose-skips-engine-after-checkpoint-restore-failure` | LiteDatabase.Dispose (stream) | the checkpoint-override restore runs before `_engine.Dispose()` without try/finally: a non-fatal failure leaves the engine (streams, transactions, locks) open, and Dispose throws `INVALID_TRANSACTION_STATE` instead of the caller's error. Natural trigger, no injection: dispose a stream database while its thread still has an open transaction | #2652 (`bf3987fbc`) | class 1, natural reproduction | #3098 |
 
