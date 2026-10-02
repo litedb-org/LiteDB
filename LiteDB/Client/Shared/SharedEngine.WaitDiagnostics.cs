@@ -58,13 +58,16 @@ namespace LiteDB
         /// <summary>
         /// Run one blocking acquisition within <c>SharedWriterTimeout</c>, recording its wait. A self-wait
         /// waits in grace slices; a timed-out slice owns nothing, so it is simply attempted again.
+        /// A handle's child records nothing: its begin records the local queue and this native wait
+        /// as one wait, ending it when the native wait ended (<see cref="_admittedAt"/>).
         /// </summary>
         private T AcquireWithin<TState, T>(TState state, Func<SharedEngine, TState, SharedWaitDeadline, T> acquire)
         {
             var selfWait = this.IsSelfWait();
             var deadline = SharedWaitDeadline.Start(_settings.SharedWriterTimeout);
             var waits = this.Waits;
-            var wait = waits.Begin();
+            var child = _transactionChild;
+            var wait = child ? default : waits.Begin();
             var outcome = SharedWaitRecorder.Outcome.Acquired;
             try
             {
@@ -79,8 +82,15 @@ namespace LiteDB
                 outcome = SharedWaitRecorder.Outcome.TimedOut;
                 throw this.TimeoutError(waits, deadline, error.BehindThisConnection);
             }
-            finally { waits.End(wait, outcome); }
+            finally
+            {
+                if (child) Volatile.Write(ref _admittedAt, waits.Now());
+                else waits.End(wait, outcome);
+            }
         }
+
+        // A handle's child: when its native wait ended, for the begin's single recorded wait.
+        private long _admittedAt;
 
         /// <summary>
         /// The timeout error, attributed to the party the wait was behind. A handle's own child

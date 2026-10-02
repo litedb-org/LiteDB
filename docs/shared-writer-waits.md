@@ -78,7 +78,9 @@ that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWai
 over-500 ms/1 s counts cover the same waits. A refused wait (`SharedSelfWaitGrace`), at once
 or after a grace, counts only in `Refused` and adds no wait time. `Owner` is what this process
 knows: a handle of this process, or `Unknown` (free, another connection, or another
-process). A handle's begin records its own native acquisition on its connection.
+process). One `BeginTransaction()` is one wait on its connection, covering both its local
+handle queue and its native admission; it ends when native admission ends, so opening the
+handle's storage is not counted.
 
 To be notified of slow waits:
 

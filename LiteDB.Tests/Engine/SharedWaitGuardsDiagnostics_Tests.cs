@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteDB.Engine;
@@ -72,6 +74,82 @@ namespace LiteDB.Tests.Engine
                 Assert.True(legacy.Wait(TimeSpan.FromSeconds(20)));
             }
             Verify(file, null, scenario == Accounting.Immediate ? new[] { 1, 3 } : scenario == Accounting.Timeout ? new[] { 1, 2 } : new[] { 1 });
+        }
+
+        [Fact]
+        public void One_begin_records_one_wait_across_queue_and_native_stages()
+        {
+            using var file = new TempFile();
+            Seed(file);
+            var reports = new ConcurrentQueue<SharedSlowWait>();
+            using var reported = new ManualResetEventSlim();
+            var settings = Settings(file);
+            settings.SharedSlowWaitThreshold = TimeSpan.FromMilliseconds(500);
+            settings.SharedSlowWait = info => { reports.Enqueue(info); reported.Set(); };
+            using (var db = new LiteDatabase(new SharedEngine(settings)))
+            using (var peerEngine = new SharedEngine(Settings(file)))
+            using (var peer = new LiteDatabase(peerEngine))
+            {
+                // Uncontended: one begin, one wait.
+                var before = db.GetSharedWaitDiagnostics().Total.Count;
+                Unmarked(() => { using var tx = db.BeginTransaction(); tx.Commit(); }).Wait();
+                Assert.Equal(1, db.GetSharedWaitDiagnostics().Total.Count - before);
+
+                // The first handle holds this process's handle queue and the native mutex.
+                var first = Unmarked(() => { var tx = db.BeginTransaction(); tx.GetCollection("rows").Insert(Row(2)); return tx; }).Result;
+                before = db.GetSharedWaitDiagnostics().Total.Count;
+                var begin = Unmarked(() =>
+                {
+                    using var tx = db.BeginTransaction();
+                    tx.GetCollection("rows").Insert(Row(4));
+                    tx.Commit();
+                });
+                Assert.True(SpinWait.SpinUntil(() => db.GetSharedWaitDiagnostics().CurrentWaiters == 1, TimeSpan.FromSeconds(10)));
+
+                // A legacy writer of another connection queues at the turnstile for the native
+                // mutex: once the first handle ends it goes first, so the begin waits for it natively.
+                using var peerQueued = new ManualResetEventSlim();
+                using var peerOwns = new ManualResetEventSlim();
+                using var release = new ManualResetEventSlim();
+                TransactionHandleSharedCallback_Tests.Turnstile(peerEngine).BeforeMainWait = () => peerQueued.Set();
+                var legacy = Unmarked(() =>
+                {
+#pragma warning disable CS0618
+                    peer.BeginTrans();
+                    peer.GetCollection("rows").Insert(Row(3));
+                    peerOwns.Set();
+                    Assert.True(release.Wait(TimeSpan.FromSeconds(20)));
+                    peer.Commit();
+#pragma warning restore CS0618
+                });
+                Assert.True(peerQueued.Wait(TimeSpan.FromSeconds(10)));
+                TransactionHandleSharedCallback_Tests.Turnstile(peerEngine).BeforeMainWait = null;
+
+                // Stage one: about 400 ms in the local handle queue.
+                Assert.True(SpinWait.SpinUntil(() => db.GetSharedWaitDiagnostics().LongestCurrentWait >= TimeSpan.FromMilliseconds(400),
+                    TimeSpan.FromSeconds(10)));
+                Unmarked(first.Commit).Wait();
+                Assert.True(peerOwns.Wait(TimeSpan.FromSeconds(10)));
+                // Stage two: about 400 ms more for native admission behind the legacy writer.
+                Assert.True(SpinWait.SpinUntil(() => db.GetSharedWaitDiagnostics().LongestCurrentWait >= TimeSpan.FromMilliseconds(800),
+                    TimeSpan.FromSeconds(10)));
+                Assert.False(begin.IsCompleted);
+                var during = db.GetSharedWaitDiagnostics();
+                Assert.Equal(1, during.CurrentWaiters);
+                release.Set();
+                Assert.True(legacy.Wait(TimeSpan.FromSeconds(20)));
+                Assert.True(begin.Wait(TimeSpan.FromSeconds(20)));
+
+                var after = db.GetSharedWaitDiagnostics();
+                Assert.Equal(1, after.Total.Count - before);
+                Assert.Equal(0, after.CurrentWaiters);
+                Assert.True(after.Total.MaxWait >= TimeSpan.FromMilliseconds(800), $"MaxWait {after.Total.MaxWait}");
+                Assert.True(reported.Wait(TimeSpan.FromSeconds(10)), "The combined wait was never reported.");
+                var report = Assert.Single(reports);
+                Assert.True(report.Elapsed >= TimeSpan.FromMilliseconds(800), $"Reported {report.Elapsed}");
+                Assert.False(report.TimedOut);
+            }
+            Verify(file, null, 1, 2, 3, 4);
         }
     }
 }

@@ -99,11 +99,17 @@ namespace LiteDB.Client.Shared
             return new Wait(start, SharedHandleRegistry.Owner(_mutexName) != null);
         }
 
-        /// <summary>End a wait exactly once. A refusal counts only in <c>Refused</c>.</summary>
-        internal void End(Wait wait, Outcome outcome)
+        /// <summary>The recorder's clock, for a wait that ended on another thread (<see cref="End"/>'s <c>end</c>).</summary>
+        internal long Now() => Stopwatch.GetTimestamp();
+
+        /// <summary>
+        /// End a wait exactly once. A refusal counts only in <c>Refused</c>. <paramref name="end"/>, when
+        /// not zero, is when the wait itself ended (<see cref="Now"/>), if the caller learns it later.
+        /// </summary>
+        internal void End(Wait wait, Outcome outcome, long end = 0)
         {
             var start = wait.Start;
-            var now = Stopwatch.GetTimestamp();
+            var now = end != 0 ? end : Stopwatch.GetTimestamp();
             var elapsed = now - start;
             lock (_sync)
             {
