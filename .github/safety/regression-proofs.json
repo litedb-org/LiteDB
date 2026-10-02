@@ -43,6 +43,13 @@
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
       ]
+    },
+    {
+      "repro": "Issue_3092_ReadSnapshotReusedPage",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.322"},
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      ]
     }
   ]
 }
