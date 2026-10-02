@@ -84,6 +84,16 @@ replay, retention, and campaign options.
 - Compare against an independent model or oracle. Cached versus uncached paths
   sharing one translator detect cache errors but can miss translator bugs;
   add CLR evaluation where semantics align and classify expected differences.
+- Drive a target's operations through the invariant oracles: `Deadline` per
+  operation on the issuing thread, with a deadline the scenario declares (a
+  harness bound, not an API guarantee); `ConnectionClean` after each dispose and
+  `Quiescent` only once every participant stopped; `Ownership`, `Durable`,
+  `FaultReached` and `FaultDisposed` against the path's declared fault contract.
+  A target that cannot apply one says why. Add a `Sometimes` marker for each
+  situation a change is about; the reachability gate fails a PR whose smoke
+  campaign never reaches a marker its diff declares.
+- Harness assertions must not swallow what they do not expect: accept only the
+  specific loser or refusal error a scenario allows, and bound every join.
 - Test the oracle with deliberately broken states. Record actual sort spills,
   cache eviction, crash points, and acknowledged operations, rather than inferring
   coverage from elapsed time or case counts.
