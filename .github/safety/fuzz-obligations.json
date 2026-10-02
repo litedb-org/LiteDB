@@ -6,14 +6,9 @@
     "teardown-faults"
   ],
   "pendingTargets": [
-    "lifetime-chaos",
-    "shared-contention",
-    "teardown-faults",
-    "transaction-interleavings"
+    "teardown-faults"
   ],
-  "pendingPaths": [
-    "LiteDB.Tests/Engine/ConcurrencyExplorer/**"
-  ],
+  "pendingPaths": [],
   "ignore": [
     "docs/**",
     "**/*.md",

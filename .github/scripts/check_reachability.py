@@ -4,7 +4,8 @@ A marker is a TESTING-only `Reachability.Sometimes("<family>:<name>")` call (or
 `Reachability.FaultPoint(...)` for a registered fault hook) that counts how often a
 situation occurred. LiteDB.Fuzz writes the counts of each run to `markers.json`.
 
-Static mode (no options) compares the literal markers in LiteDB/ and LiteDB.Fuzz/
+Static mode (no options) compares the literal markers in LiteDB/, LiteDB.Fuzz/ and the
+concurrency explorer LiteDB.Fuzz links (LiteDB.Tests/Engine/ConcurrencyExplorer/)
 with .github/safety/markers.json: an unregistered or non-literal marker, a registered
 marker that no longer exists, a fault hook site without a marker, or a registry entry
 whose paths, targets or doc do not resolve fails. Fault-point markers are derived from
@@ -31,7 +32,8 @@ import check_fault_points as fault_points
 import safety_common as common
 
 REGISTRY = f"{common.SAFETY_DIR}/markers.json"
-SCANNED = ("LiteDB/", "LiteDB.Fuzz/")
+# LiteDB.Fuzz.csproj links the concurrency explorer from LiteDB.Tests (targets transaction-interleavings, lifetime-chaos).
+SCANNED = ("LiteDB/", "LiteDB.Fuzz/", "LiteDB.Tests/Engine/ConcurrencyExplorer/")
 KINDS = {"fault-point", "maintenance", "refusal", "api", "situation"}
 GATES = {"smoke", "advisory"}
 MARKER = re.compile(r"(?<![\w.])(?:(?:LiteDB\.)?Utils\.)?Reachability\.(?P<method>Sometimes|FaultPoint)\(")

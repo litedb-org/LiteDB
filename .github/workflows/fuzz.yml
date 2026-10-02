@@ -141,6 +141,16 @@ jobs:
             culture: en_US.UTF-8
             framework: net8.0
             count: 30
+          # The concurrency explorer (docs/concurrency-explorer.md): forced schedules (class 1) and
+          # dependency programs with concurrent maintenance (class 2), 40 applicable steps each.
+          - name: linux-concurrency-explorer
+            os: ubuntu-latest
+            targets: transaction-interleavings,lifetime-chaos
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 40
           # Real processes: each round spawns 2-4 children, so a few rounds bound the leg's cost.
           - name: linux-shared-contention
             os: ubuntu-latest
@@ -347,7 +357,7 @@ jobs:
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss,transaction-interleavings,lifetime-chaos
             seedOffset: 1500000
             framework: net10.0
     env:
