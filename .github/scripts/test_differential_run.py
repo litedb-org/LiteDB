@@ -203,6 +203,33 @@ class DifferentialRunTests(unittest.TestCase):
         self.assertEqual(failing(report), {("cleanup-change", "Dispose"), ("marker", "fault-point:commit")})
         self.assertEqual(report["capabilities"]["faults"], ["new-hook"])
 
+    def test_fault_dispositions_of_a_head_only_operation_are_capabilities(self):
+        self.runs.add("base", BASE)
+        self.runs.add("head", BASE + [record("FatalWrite", "threw", "System.IO.IOException")])
+        rows = [{"fault": None, "op": "FatalWrite", "declared": "Propagated", "observed": "Propagated"},
+                {"fault": None, "op": "Dispose", "declared": "discard", "observed": "propagated"}]
+        run = next((self.runs.root / "head").rglob("run.json")).parent
+        (run / "faults.jsonl").write_text("".join(json.dumps(item) + "\n" for item in rows))
+        code, output, report = self.runs.compare()
+        # Dispose runs on the base too, so its new disposition is a change; FatalWrite exists only on the head.
+        self.assertEqual(failing(report), {("cleanup-change", "Dispose")})
+        self.assertEqual(report["capabilities"]["dispositions"], ["FatalWrite: Propagated -> Propagated"])
+        self.assertIn("`FatalWrite: Propagated -> Propagated`", output)
+
+    def test_a_target_missing_from_one_build_is_listed_not_failed(self):
+        result = {"status": "passed", "advisory": False, "wouldFail": 0, "differences": [], "unusedEntries": [],
+                  "capabilities": {"operations": [], "markers": []}, "notCompared": {"absent": {}, "partial": []},
+                  "settings": {"targets": ["chaos", "new-target"], "seeds": [1], "count": 3},
+                  "base": {"rev": "a", "runs": 1, "withOutcomes": 1, "fuzzRuns": [
+                      {"target": "chaos", "seed": 1, "exitCode": 0, "absent": False},
+                      {"target": "new-target", "seed": 1, "exitCode": 2, "absent": True}]},
+                  "head": {"rev": "b", "runs": 2, "withOutcomes": 2, "fuzzRuns": [
+                      {"target": "chaos", "seed": 1, "exitCode": 1, "absent": False}]}}
+        text = diff.render(result)
+        self.assertIn("- base: target(s) not in this build, head-only capabilities: `new-target`", text)
+        self.assertIn("- head: 1 fuzz run(s) failed; their outcomes are truncated: chaos/1", text)
+        self.assertNotIn("new-target/1", text)
+
     def test_quiescent_records_key_by_point(self):
         self.runs.add("base", BASE, [{"point": "scenario end", "clean": True, "violations": []}],
                       obligations="quiescent.jsonl")
@@ -219,7 +246,7 @@ class DifferentialRunTests(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertEqual(failing(report), {("marker", "maintenance:close-during-active-op")})
         self.assertEqual(report["capabilities"], {"operations": ["BeginTransaction [mode=shared]"],
-                                                  "markers": ["api:A"], "faults": []})
+                                                  "markers": ["api:A"], "faults": [], "dispositions": []})
         self.assertIn("`BeginTransaction [mode=shared]`", output)
 
     def test_advisory_mode_reports_and_exits_zero(self):

@@ -105,8 +105,10 @@ def run_targets(tree, framework, targets, seeds, count, out, timeout):
                 code, tail = result.returncode, (result.stdout + result.stderr)[-2000:]
             except subprocess.TimeoutExpired:
                 code, tail = "timeout", f"exceeded {timeout} s"
+            # A target this build does not have is a capability of the other tree, not a failed run.
+            absent = code != 0 and f"Unknown target '{target}'" in tail
             runs.append({"target": target, "seed": seed, "count": count, "exitCode": code,
-                         "directory": str(directory), "outputTail": tail})
+                         "directory": str(directory), "outputTail": tail, "absent": absent})
     return runs
 
 
@@ -243,7 +245,13 @@ def compare(base, head, unstable=frozenset()):
                 "unclean, none on the base", oracle=oracle)
         for violation in sorted(set(new["violations"] if new else ()) - set(old["violations"] if old else ())):
             add("cleanup-change", op, dimension, f"{oracle}: new violation '{violation}'", oracle=oracle)
+    base_ops = {op for op, _ in base["ops"]}
+    capabilities["dispositions"] = []
     for op in sorted(set(head["dispositions"])):
+        if op not in base["dispositions"] and op not in base_ops:
+            # An operation class only the head exercises: its fault dispositions are a capability, not a change.
+            capabilities["dispositions"] += [f"{op}: {pair}" for pair in sorted(head["dispositions"][op])]
+            continue
         for pair in sorted(set(head["dispositions"][op]) - set(base["dispositions"].get(op, ()))):
             add("cleanup-change", op, "", f"FaultDisposed: declared -> observed disposition {pair} new on the head")
     for fault in sorted(set(base["faults"]) - set(head["faults"])):
@@ -359,7 +367,8 @@ def render(result):
     lines += ["", "**Capabilities only on the head** (listed, not diffed): operations "
               + (", ".join(f"`{item}`" for item in capabilities["operations"]) or "none") + "; markers "
               + (", ".join(f"`{item}`" for item in capabilities["markers"]) or "none") + "; fault points "
-              + (", ".join(f"`{item}`" for item in capabilities.get("faults", [])) or "none") + "."]
+              + (", ".join(f"`{item}`" for item in capabilities.get("faults", [])) or "none") + "; fault dispositions "
+              + (", ".join(f"`{item}`" for item in capabilities.get("dispositions", [])) or "none") + "."]
     absent, partial = result["notCompared"]["absent"], result["notCompared"]["partial"]
     if absent:
         lines += ["", "**Not compared** (the harness records no such field on either side): "
@@ -369,7 +378,13 @@ def render(result):
         lines += ["", "<details><summary>Not compared (field recorded on one side only)</summary>", ""]
         lines += [f"- {item}" for item in partial] + ["", "</details>"]
     for side in ("base", "head"):
-        failed = [run for run in result[side].get("fuzzRuns", []) if run["exitCode"] != 0]
+        runs = result[side].get("fuzzRuns", [])
+        absent = sorted({run["target"] for run in runs if run.get("absent")})
+        if absent:
+            lines.append(f"- {side}: target(s) not in this build, "
+                         + ("head-only capabilities" if side == "base" else "removed on the head") + ": "
+                         + ", ".join(f"`{target}`" for target in absent))
+        failed = [run for run in runs if run["exitCode"] != 0 and not run.get("absent")]
         if failed:
             lines.append(f"- {side}: {len(failed)} fuzz run(s) failed; their outcomes are truncated: "
                          + ", ".join(f"{run['target']}/{run['seed']}" for run in failed))
