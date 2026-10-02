@@ -68,7 +68,11 @@ internal static class Program
             // An overdue operation never returns: report its identity for minimization, then exit.
             trial.DeadlineFailureHandler = error => File.WriteAllTextAsync(options.Ledger, error.FailureId);
             string identity = null;
-            try { await selected[0].RunAsync(trial); }
+            try
+            {
+                await selected[0].RunAsync(trial);
+                ReportWaitGraph(options.RunDirectory, verdict: true);
+            }
             catch (Exception error) { identity = FailureIdentity.Get(error); }
             await File.WriteAllTextAsync(options.Ledger, identity ?? string.Empty);
             return identity == null ? 0 : 1;
@@ -127,6 +131,8 @@ internal static class Program
         // The deadline watchdog fails a run whose operation never returns: same artifacts, then exit.
         context.DeadlineFailureHandler = async error =>
         {
+            // The overdue operation never returns, so the graph's findings so far are its evidence.
+            ReportWaitGraph(directory, verdict: false);
             await RecordFailureAsync(target, options, context, started, error);
             FuzzMarkers.Write(context);
             await FuzzArtifacts.WriteResultAsync(context, started, error);
@@ -150,9 +156,11 @@ internal static class Program
                 throw new FuzzFailureException("CORPUS_TRACE_CONTRACT_DRIFT",
                     $"Corpus trace changed: expected {options.ExpectedTraceHash}, actual {context.TraceHash()}.");
             }
+            ReportWaitGraph(directory, verdict: true);
         }
         catch (Exception error)
         {
+            ReportWaitGraph(directory, verdict: false);
             failure = error;
             await RecordFailureAsync(target, options, context, started, error);
         }
@@ -192,6 +200,22 @@ internal static class Program
             await File.WriteAllTextAsync(Path.Combine(directory, "minimization-error.txt"),
                 minimizationError.ToString());
         }
+    }
+
+    /// <summary>
+    /// Write what the wait-for graph latched during the run to waitgraph.txt in the run directory (not
+    /// part of the hashed trace). With <paramref name="verdict"/>, a finding of a rule configured to fail
+    /// (LITEDB_WAITGRAPH_FAIL; none by default) fails the run as WAIT_FOR_CYCLE. See docs/wait-for-graph.md.
+    /// </summary>
+    private static void ReportWaitGraph(string directory, bool verdict)
+    {
+        var findings = LiteDB.Utils.WaitGraph.TakeFindings();
+        if (findings.Count == 0) return;
+        if (directory != null)
+            File.AppendAllLines(Path.Combine(directory, "waitgraph.txt"), findings.Select(x => x.ToString() + Environment.NewLine));
+        if (!verdict) return;
+        try { LiteDB.Utils.WaitGraph.ThrowIfFailing(findings); }
+        catch (Exception error) { throw new FuzzFailureException("WAIT_FOR_CYCLE", error.Message); }
     }
 
     private static async Task<int?> MinimizeAsync(IFuzzTarget target, FuzzContext failed, string failureId,

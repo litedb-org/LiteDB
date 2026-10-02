@@ -38,7 +38,18 @@ namespace LiteDB
             _admitted.TryGetValue(thread, out var depth);
             _admitted[thread] = depth + 1;
             _admittedCalls++;
+#if DEBUG || TESTING
+            LiteDB.Utils.WaitGraph.Acquired(_graphAdmitted, site: "SharedEngine.AdmitLocked");
+#endif
         }
+
+#if DEBUG || TESTING
+        // Wait-for graph: admitted calls per thread (Dispose drains them) and threads queued for the mutex.
+        private readonly LiteDB.Utils.WaitGraph.Resource _graphAdmitted =
+            new LiteDB.Utils.WaitGraph.Resource("shared-admitted-calls", null, LiteDB.Utils.WaitPrimitive.Condition, ordered: false);
+        private readonly LiteDB.Utils.WaitGraph.Resource _graphMutexWaiters =
+            new LiteDB.Utils.WaitGraph.Resource("shared-mutex-waiters", null, LiteDB.Utils.WaitPrimitive.Condition, ordered: false);
+#endif
 
         private int AdmittedDepth()
         {
@@ -68,12 +79,19 @@ namespace LiteDB
             this.ThrowIfTeardownReentry();
             var depth = this.AdmittedDepth();
             var frame = this.OwnershipFrame(this.CallRetains);
+#if DEBUG || TESTING
+            // Wait-for graph: this connection's ownership executes on this thread during the call.
+            LiteDB.Utils.WaitGraph.Enter(this);
+#endif
             try
             {
                 return call();
             }
             finally
             {
+#if DEBUG || TESTING
+                LiteDB.Utils.WaitGraph.Exit(this);
+#endif
                 frame.Dispose();
                 this.EndAdmissions(depth);
             }
@@ -112,7 +130,12 @@ namespace LiteDB
             Func<bool> retains = use != null
                 ? () => ReferenceEquals(_pin, use)
                 : (Func<bool>)(() => _owner.Generation == generation);
+#if DEBUG || TESTING
+            // A pinned reader keeps the pin's hold; any other keeps the connection's ownership.
+            return new SharedDataReader(reader, dispose, _mutexName, this, retains) { GraphOwner = (object)use ?? this };
+#else
             return new SharedDataReader(reader, dispose, _mutexName, this, retains);
+#endif
         }
 
         /// <summary>
@@ -164,6 +187,9 @@ namespace LiteDB
             lock (_useLock)
             {
                 if (!_admitted.TryGetValue(thread, out var current) || current <= depth) return;
+#if DEBUG || TESTING
+                for (var ended = depth; ended < current; ended++) LiteDB.Utils.WaitGraph.Released(_graphAdmitted);
+#endif
                 _admittedCalls -= current - depth;
                 if (depth == 0) _admitted.Remove(thread);
                 else _admitted[thread] = depth;
@@ -191,6 +217,11 @@ namespace LiteDB
                     Reachability.Sometimes("maintenance:shared-dispose-during-active-call");
                     var remaining = DisposeCallWait - waited.Elapsed;
                     if (remaining <= TimeSpan.Zero) return;
+#if DEBUG || TESTING
+                    // Calls of this thread are not waited for; the wait gives up after DisposeCallWait.
+                    using (LiteDB.Utils.WaitGraph.Wait(_graphAdmitted, LiteDB.Utils.WaitBound.After(DisposeCallWait),
+                        "SharedEngine.WaitForAdmittedCalls", this, excludeOwn: true))
+#endif
                     Monitor.Wait(_useLock, remaining);
                 }
             }

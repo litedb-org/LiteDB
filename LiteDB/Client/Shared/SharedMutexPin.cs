@@ -2,6 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+#if DEBUG || TESTING
+using LiteDB.Utils;
+#endif
 
 namespace LiteDB.Client.Shared
 {
@@ -103,12 +106,19 @@ namespace LiteDB.Client.Shared
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             holder.Start();
+#if DEBUG || TESTING
+            // The holder blocks on the OS mutex for this thread: it is this thread's wait.
+            using (WaitGraph.Wait(pin.GraphMutex, WaitBound.Unbounded, "SharedMutexPin.Acquire (via holder)", pin, viaHandoff: true))
+#endif
             pin._acquired.Wait();
             if (pin._error != null)
             {
                 holder.Join();
                 ExceptionDispatchInfo.Capture(pin._error).Throw();
             }
+#if DEBUG || TESTING
+            pin.GraphStarted();
+#endif
             return pin;
         }
 
@@ -132,6 +142,9 @@ namespace LiteDB.Client.Shared
                     return false;
                 }
                 _operations++;
+#if DEBUG || TESTING
+                WaitGraph.Enter(this);
+#endif
                 return true;
             }
         }
@@ -144,6 +157,9 @@ namespace LiteDB.Client.Shared
                 if (hold) _holds--;
                 else _operations--;
                 _lastUse = _clock.Elapsed;
+#if DEBUG || TESTING
+                if (!hold) WaitGraph.Exit(this);
+#endif
             }
             _signal.Set();
         }
@@ -155,6 +171,9 @@ namespace LiteDB.Client.Shared
             {
                 _operations--;
                 _holds++;
+#if DEBUG || TESTING
+                WaitGraph.Exit(this);
+#endif
             }
         }
 
@@ -198,6 +217,9 @@ namespace LiteDB.Client.Shared
         /// <summary>Wait until the holder closed the engine and released the mutex.</summary>
         public void WaitReleased()
         {
+#if DEBUG || TESTING
+            using (WaitGraph.Wait(_graphEnd, WaitBound.Unbounded, "SharedMutexPin.WaitReleased", this))
+#endif
             _released.Wait();
             if (_error != null) ExceptionDispatchInfo.Capture(_error).Throw();
         }
@@ -220,11 +242,17 @@ namespace LiteDB.Client.Shared
             _lastUse = _clock.Elapsed;
             _acquired.Set();
             var abandoned = this.WaitForEnd();
+#if DEBUG || TESTING
+            this.GraphClosing(started: true);
+#endif
 
             Exception error = null;
             try { _close(this, abandoned); }
             catch (Exception ex) { error = ex; }
             SharedOwnershipEvents.Release(_mutex);
+#if DEBUG || TESTING
+            this.GraphClosing(started: false);
+#endif
             try { _mutex.ReleaseMutex(); }
             catch (Exception ex) { error = error ?? ex; }
             _error = error;
@@ -259,6 +287,37 @@ namespace LiteDB.Client.Shared
                 _signal.WaitOne(Poll);
             }
         }
+
+#if DEBUG || TESTING
+        // Wait-for graph: the OS mutex and the pin's end. Both are held for the pin while the owner
+        // thread runs its operations (a frame of the pin), then by the holder while it closes.
+        private readonly WaitGraph.Resource _graphEnd = new WaitGraph.Resource("shared-pin-end", null, WaitPrimitive.Pin, ordered: false);
+
+        private WaitGraph.Resource GraphMutex => WaitGraph.Of(_mutex, "named-mutex", WaitPrimitive.NamedMutex);
+
+        /// <summary>On the owner thread, once the holder owns the mutex: its first operation runs here.</summary>
+        private void GraphStarted()
+        {
+            WaitGraph.Enter(this);
+            WaitGraph.Acquired(this.GraphMutex, this, site: "SharedMutexPin.Acquire");
+            WaitGraph.Acquired(_graphEnd, this, site: "SharedMutexPin.Acquire");
+        }
+
+        /// <summary>On the holder: its close runs on this thread, which alone ends both holds until it finishes.</summary>
+        private void GraphClosing(bool started)
+        {
+            if (started)
+            {
+                WaitGraph.Released(this.GraphMutex, this);
+                WaitGraph.Released(_graphEnd, this);
+                WaitGraph.Acquired(this.GraphMutex, site: "SharedMutexPin.Hold (close)");
+                WaitGraph.Acquired(_graphEnd, site: "SharedMutexPin.Hold (close)");
+                return;
+            }
+            WaitGraph.Released(this.GraphMutex);
+            WaitGraph.Released(_graphEnd);
+        }
+#endif
 
         private bool ShouldEnd()
         {

@@ -22,6 +22,10 @@ stop unsafe continuation, and make detected corruption visible.
   Work outside a public call that can reach user code under the mutex (result
   disposal, pin and owner-exit cleanup, dispose checkpoints) needs a frame too.
   Refuse only for frames that execute; idle owners stay waitable (#3073).
+- A new blocking site (lock, gate, mutex, event, handoff or poll loop) must register
+  with the [wait-for graph](../wait-for-graph.md): its wait before blocking, its holds,
+  and the frames in which its owner executes; or be listed there with the reason it is not.
+  The graph latches each cycle it finds before the wait blocks and reports it per test.
 - Keep publication, ownership handoff, and cleanup ordered. Cleanup after releasing
   a lock must not erase the next owner's state. Check abandoned-owner paths as
   well as ordinary completion.
