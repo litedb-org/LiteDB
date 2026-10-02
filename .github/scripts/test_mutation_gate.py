@@ -149,6 +149,24 @@ class MutationGateTests(unittest.TestCase):
         self.assertEqual(len(data["mutants"]), 2)
         self.assertIn("| Location | Status | Mutator", written["gate.md"])
 
+    def test_advisory_mode_lists_blocking_class_survivors_but_exits_zero(self):
+        code, output, _ = self.run_gate([at("_count--;", "Survived")], ["--advisory"])
+        self.assertEqual(code, 0, output)
+        self.assertIn("**blocking**", output)
+        self.assertIn("advisory (exit 0", output)
+
+    def test_net_modes_switch_decides_without_a_flag(self):
+        modes = {".github/safety/net-modes.json": json.dumps({"blocking": False, "nets": {"mutation-gate": "x"}})}
+        code, output, _ = self.run_gate([at("_count--;", "Survived")], head_files={PATH: SOURCE, **modes})
+        self.assertEqual(code, 0, output)
+        code, output, _ = self.run_gate([at("_count--;", "Survived")], ["--blocking"],
+                                        head_files={PATH: SOURCE, **modes})
+        self.assertEqual(code, 1, output)
+
+    def test_unusable_report_fails_even_in_advisory_mode(self):
+        code, output, _ = self.run_gate([at("_count--;", "Killed")], ["--advisory"], source=BASE)
+        self.assertEqual(code, 1, output)
+
     def test_lock_named_file_blocks_everywhere_in_it(self):
         lock_path = "LiteDB/Engine/Services/Snapshot.Lifetime.cs"
         with GitRepo() as repo, tempfile.TemporaryDirectory() as scratch:

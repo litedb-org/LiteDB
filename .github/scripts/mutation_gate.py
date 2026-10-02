@@ -7,8 +7,13 @@ Every surviving mutant there (status Survived or NoCoverage) is listed with its
 file:line, mutator and replacement. The list is a set of lines to write behavior
 tests for, not a score: no percentage is computed or compared.
 
-A survivor is BLOCKING when it sits in cleanup or lock code (see BLOCKING_SCOPE)
-and advisory otherwise; the gate exits 1 only when a blocking survivor exists.
+Each survivor is classified: class "blocking" when it sits in cleanup or lock code
+(see BLOCKING_SCOPE), "advisory" otherwise. The class is information for the
+reviewer. Whether a blocking-class survivor fails the job is decided by the single
+switch in .github/safety/net-modes.json (net "mutation-gate"; --advisory/--blocking
+override it locally): while the switch is off this is a pilot and the gate exits 0.
+An unusable input (unreadable report, report source differing from --head, a
+report file matching several changed files) fails in either mode.
 Killed and Timeout mutants are detected (a Timeout is a mutant that made the
 covering tests hang, which counts as detected, as in Stryker). CompileError and
 RuntimeError mutants could not be evaluated (Stryker's safe mode turns every
@@ -292,18 +297,21 @@ def main(argv=None):
     parser.add_argument("--head", default="HEAD", help="The revision Stryker mutated")
     parser.add_argument("--json", dest="json_out", help="Also write the mutants on changed lines as JSON")
     parser.add_argument("--markdown", help="Also write the survivor list as markdown (for a PR body)")
+    common.add_mode_arguments(parser)
     args = parser.parse_args(argv)
+    advisory = common.net_advisory("mutation-gate", args.blocking)
     report = common.Report("Mutation survivors on changed lines")
     try:
         data = common.load_json_file(args.report)
     except (OSError, ValueError) as error:
         report.error(f"Cannot read the Stryker report {args.report}: {error}")
-        return report.finish()
+        return report.finish()  # a broken input fails in either mode
     records = evaluate(data, args.base, args.head, report)
+    unusable = bool(report.errors)  # report/tree mismatch: the survivor list cannot be trusted
     for record in records:
         if record["blocking"]:
             report.error(f"Surviving mutant in cleanup/lock code ({record['reason']}): {record['mutator']} -> "
-                         f"{_cell(record['replacement'])}; add a behavior test that kills it",
+                         f"{_cell(record['replacement'])}; a line to write a behavior test for",
                          record["path"], record["line"])
         elif record["inBlockingScope"] and record["status"] in UNEVALUATED:
             report.warning(f"{record['status']} mutant in cleanup/lock code ({record['reason']}) was not evaluated: "
@@ -319,7 +327,7 @@ def main(argv=None):
     if args.markdown:
         with open(args.markdown, "w", encoding="utf-8") as handle:
             handle.write(markdown + "\n")
-    return report.finish()
+    return report.finish(advisory=advisory and not unusable)
 
 
 if __name__ == "__main__":
