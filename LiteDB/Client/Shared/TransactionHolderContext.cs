@@ -6,6 +6,10 @@ namespace LiteDB.Client.Shared
 {
     internal static class TransactionHolderContext
     {
+        /// <summary>
+        /// Refuse a Shared handle begin or operation on an impersonating thread: its storage was
+        /// opened by the holder as the process identity, which must not silently stand in.
+        /// </summary>
         internal static void Validate()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
@@ -14,11 +18,14 @@ namespace LiteDB.Client.Shared
             if (OpenThreadToken(GetCurrentThread(), 0x0008 /* TOKEN_QUERY */, true, out var token))
             {
                 CloseHandle(token);
-                throw new NotSupportedException("Shared transaction handles cannot begin under Windows thread impersonation.");
+                throw new NotSupportedException("Shared transaction handles cannot be used under Windows thread impersonation.");
             }
+            // Any other failure (an anonymous token, ERROR_CANT_OPEN_ANONYMOUS) also means the
+            // caller's identity cannot be established, so it is refused the same way.
             var error = Marshal.GetLastWin32Error();
             if (error != 1008 /* ERROR_NO_TOKEN */)
-                throw new Win32Exception(error, "Cannot establish the Shared transaction caller's Windows identity.");
+                throw new NotSupportedException("Shared transaction handles cannot establish the caller's Windows identity.",
+                    new Win32Exception(error));
         }
 
         [DllImport("kernel32.dll")]

@@ -478,7 +478,8 @@ namespace LiteDB.Engine
             {
                 foreach (var snapshot in this.Snapshots)
                 {
-                    TransactionPageCleanup.Release(snapshot, _disk.Cache, true, ref errors);
+                    // Legacy cleanup on a foreign thread keeps its locks, as before; a handle's may run anywhere.
+                    TransactionPageCleanup.Release(snapshot, _disk.Cache, Owner.Explicit != null || Owner.Thread == Thread.CurrentThread, ref errors);
                 }
             }
 

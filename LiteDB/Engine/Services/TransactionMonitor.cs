@@ -66,6 +66,11 @@ namespace LiteDB.Engine
             var slot = explicitContext?.Slot ?? _legacy.Value;
             var transaction = slot.Transaction;
 
+            // Fail closed: once a handle's transaction has ended, its bound calls never get a
+            // fresh (automatically committed) transaction, whatever path reached the engine.
+            if (create && transaction == null && explicitContext?.Transaction != null)
+                throw new InvalidOperationException("The transaction handle's transaction has ended; nothing further runs in it.");
+
             if (create && transaction == null)
             {
                 isNew = true;
@@ -151,6 +156,9 @@ namespace LiteDB.Engine
                     // lease is released. Finish service cleanup before admitting it.
                     if (!transaction.QueryOnly)
                     {
+                        // As the disposed legacy slot did on dev: an owner thread finishing after
+                        // close sees the disposal, not a corruption assertion.
+                        if (transaction.Owner.Explicit == null) this.ThrowIfDisposed();
                         // A handle's transaction may complete on any thread; a legacy one on its own.
                         ENSURE((transaction.Owner.Explicit != null || transaction.OwnerThread == Thread.CurrentThread) &&
                             transaction.Owner.Slot.Transaction == transaction, "current thread must contains transaction parameter");
@@ -236,7 +244,9 @@ namespace LiteDB.Engine
             {
                 cleanup.Catch(transaction.Dispose);
                 // A handle's slot outlives the engine: never let it find a disposed transaction.
-                if (ReferenceEquals(transaction.Owner.Slot?.Transaction, transaction)) transaction.Owner.Slot.Transaction = null;
+                // Thread slots are disposed below; their owners may still be finishing.
+                if (transaction.Owner.Explicit != null && ReferenceEquals(transaction.Owner.Slot?.Transaction, transaction))
+                    transaction.Owner.Slot.Transaction = null;
             }
 
             cleanup.Catch(_legacy.Dispose);

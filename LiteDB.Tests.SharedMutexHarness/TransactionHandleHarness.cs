@@ -4,7 +4,7 @@ internal static class TransactionHandleHarness
 {
     internal static bool TryRun(string mode, string filename, string? password, string[] args)
     {
-        if (!mode.StartsWith("handle-", StringComparison.Ordinal)) return false;
+        if (!mode.StartsWith("handle-", StringComparison.Ordinal) && mode != "legacy-loop") return false;
         if (mode == "handle-first-culture")
             System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
         using var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = password,
@@ -35,6 +35,35 @@ internal static class TransactionHandleHarness
             }).GetAwaiter().GetResult();
             Console.WriteLine("done");
             return true;
+        }
+        if (mode == "handle-loop" || mode == "legacy-loop")
+        {
+            // Sequential commits until killed. Each commit spills to the WAL (TransactionPageLimit=1)
+            // and is acknowledged on stdout only after Commit returned.
+            Console.WriteLine("ready");
+            for (var i = 100; ; i++)
+            {
+                var id = mode == "legacy-loop" ? 100000 + i : i;
+                var doc = new BsonDocument { ["_id"] = id, ["value"] = 1000 + id, ["payload"] = new string('y', 3000 + (i % 7) * 4000) };
+                var last = new BsonDocument { ["_id"] = 1, ["value"] = 42, ["last"] = id };
+                if (mode == "handle-loop")
+                {
+                    using var tx = db.BeginTransaction();
+                    tx.GetCollection("rows").Insert(doc);
+                    tx.GetCollection("rows").Update(last);
+                    tx.Commit();
+                }
+                else
+                {
+#pragma warning disable CS0618
+                    db.BeginTrans();
+                    db.GetCollection("rows").Insert(doc);
+                    db.GetCollection("rows").Update(last);
+                    db.Commit();
+#pragma warning restore CS0618
+                }
+                Console.WriteLine("ack " + id);
+            }
         }
         if (mode == "handle-writer")
         {

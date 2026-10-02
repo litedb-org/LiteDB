@@ -61,9 +61,10 @@ namespace LiteDB.Engine
             {
                 ThrowIfDisposed();
                 // Writer priority must not queue a callback behind a writer that is itself
-                // waiting for the handle executing that callback on this thread.
+                // waiting for the handle executing that callback on this thread, nor a handle
+                // begun on a thread whose own cursor lease that writer waits for.
                 while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread) &&
-                    !HeldByExecutingHandle(Thread.CurrentThread)))
+                    !_readers.ContainsKey(Thread.CurrentThread) && !HeldByExecutingHandle(Thread.CurrentThread)))
                 {
                     if (!Wait(timeout, elapsed)) return false;
                 }

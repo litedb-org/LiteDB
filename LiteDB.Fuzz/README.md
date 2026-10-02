@@ -119,6 +119,7 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `threaded-snapshot` | barrier-forced same-process writer/checkpoint overlap with multiple live snapshots |
 | `concurrent` | one-database multithreaded commits, unique contention, cursors, checkpoint, and rebuild |
 | `transaction-gate` | modeled reader counts, retired owners, foreign releases, and exclusive admission |
+| `transaction-interleavings` | forced actor schedules of transaction handles (overlap, reader transfer, admission, close, maintenance, legacy close, lock cycles), per-worker deadlines, exact cold-state oracle |
 | `cursor-handoff` | retired-thread cursor snapshots, independent foreign transactions, and overlapping checkpoints |
 | `conflict` | barrier-forced writer/schema/drop/storage/rebuild conflicts with acknowledged-state checks |
 | `power-loss` | volatile/durable device model cut at every internal WAL/checkpoint phase |
@@ -284,3 +285,25 @@ including two torn recovery attempts. Full payload/index and untouched-data
 oracles also check read-only byte preservation and successful root/WAL removal on
 retry. The latest data/WAL images are saved before recovery checks. Keeping this
 target separate preserves the existing retirement corpus input and trace hashes.
+
+## Transaction handle interleavings
+
+`transaction-interleavings` runs the bounded explorer in
+`LiteDB.Tests/Engine/ConcurrencyExplorer`, which `TransactionHandleInterleaving_Tests`
+also runs. Each case is one forced schedule of dedicated actor threads with
+barriers at observed boundaries (callback entry, the facade's closing flag, a
+collection-lock or native-mutex wait, a queued maintenance writer), followed by
+an exact cold-reopen comparison with an acknowledged-state model. One pass over
+`--count 232` covers every schedule of both modes, plain and encrypted, with both
+outcomes; the seed only rotates the starting case. A worker that misses its
+15-second deadline fails the case and leaves its fixture in place:
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net8.0 -- \
+  --target transaction-interleavings --seed 133098 --count 232 \
+  --artifact-dir artifacts/fuzz --max-artifact-mb 0
+```
+
+`LITEDB_EXPLORER_FULL=1` runs the same matrix as xUnit cases. Schedules that need
+APIs outside #3064 (admission timeout/cancellation, pooled Direct hosts, holder
+reuse) are not part of it; the explorer's header lists them.

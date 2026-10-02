@@ -17,24 +17,28 @@ namespace LiteDB
         private LiteDatabaseContext _client;
         private TransactionHandles _handles;
         private readonly HashSet<TransactionReader> _readers = new HashSet<TransactionReader>();
+        // Bound objects disposed while another call executes, released when that call returns.
+        private List<Action> _deferred;
         private Thread _executing;
         private bool _closing, _disposed;
         // Shared only: marks the async flows that use this handle (refusal of self-waits only).
         private readonly LiteDB.Client.Shared.SharedHandleFlow _flow;
         // Shared only: tells waiting flows whether an operation of this handle is in flight.
         private readonly LiteDB.Client.Shared.SharedHandleActivity _activity;
+        private readonly bool _shared;
 
         internal LiteTransaction(TransactionResources resources, BsonMapper mapper, TransactionHandles handles)
         {
             _resources = resources;
             _handles = handles;
             _activity = resources.Activity;
+            _shared = resources.SharedMutexName != null;
             _transaction = new TransactionContext(resources.Engine, resources.SharedMutexName);
             _client = new LiteDatabaseContext(new TransactionEngine(this), mapper);
             try
             {
                 // A handle is not a nested scope of the caller's legacy transaction.
-                if (resources.Engine.HasLegacyTransactionOnCurrentThread)
+                if (resources.Engine.CurrentThreadHasLegacyTransaction())
                     throw new InvalidOperationException("Complete the legacy transaction before opening a transaction handle.");
                 using var binding = TransactionContext.Enter(_transaction);
                 resources.Engine.BeginHandleTransaction();
@@ -58,12 +62,35 @@ namespace LiteDB
             get { lock (_gate) return ReferenceEquals(_executing, Thread.CurrentThread); }
         }
 
+        /// <summary>Whether a call of this handle executes on any thread.</summary>
+        internal bool IsExecuting
+        {
+            get { lock (_gate) return _executing != null; }
+        }
+
+        /// <summary>Wait up to <paramref name="milliseconds"/> for an executing call to return.</summary>
+        internal void WaitForCallExit(int milliseconds)
+        {
+            lock (_gate) if (_executing != null) Monitor.Wait(_gate, milliseconds);
+        }
+
+        /// <summary>Database close: refuse calls not yet admitted; an idle handle then stays idle.</summary>
+        internal void RefuseNewCalls()
+        {
+            lock (_gate) _closing = true;
+        }
+
         private void Enter(bool terminalAllowed = false)
         {
+            // Before any side effect: the handle stays usable from a non-impersonating thread.
+            if (_shared) Client.Shared.TransactionHolderContext.Validate();
             lock (_gate)
             {
+                // A sequential call that lands during close sees the close, not an overlap;
+                // reentry from the executing call's own callbacks is still reported as such.
+                if ((_closing || _disposed) && !ReferenceEquals(_executing, Thread.CurrentThread))
+                    throw new ObjectDisposedException(nameof(ILiteTransaction));
                 if (_executing != null) throw new InvalidOperationException("Overlapping or reentrant transaction handle use is not supported.");
-                if (_closing || _disposed) throw new ObjectDisposedException(nameof(ILiteTransaction));
                 if (!terminalAllowed && State != LiteTransactionState.Active)
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
@@ -92,10 +119,35 @@ namespace LiteDB
             return RunCore(action);
         }
 
-        internal bool DisposeBoundObject(Action action)
+        /// <summary>
+        /// Detach a bound reader or enumerator and release it, or have the handle's close or
+        /// completion release it. Disposal from a callback of the executing call is refused.
+        /// </summary>
+        internal void DisposeBoundObject(Action detach, Action release)
         {
-            if (!EnterCleanup()) return false;
-            return RunCore(() => { action(); return true; });
+            lock (_gate)
+            {
+                if (_closing || _disposed || State != LiteTransactionState.Active) { detach(); return; }
+                if (ReferenceEquals(_executing, Thread.CurrentThread))
+                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                detach();
+                // A foreach ending while another thread's call of this handle executes must not
+                // leave its reader registered (which refuses commit): release it after that call.
+                if (_executing != null) { (_deferred ?? (_deferred = new List<Action>())).Add(release); return; }
+                _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
+            }
+            RunCore(() => { release(); return true; });
+        }
+
+        private void DisposeDeferred()
+        {
+            while (_deferred != null)
+            {
+                List<Action> pending;
+                lock (_gate) { pending = _deferred; _deferred = null; }
+                foreach (var dispose in pending) dispose();
+            }
         }
 
         private T RunCore<T>(Func<T> action)
@@ -103,20 +155,27 @@ namespace LiteDB
             try
             {
                 using var binding = TransactionContext.Enter(_transaction);
-                try { return action(); }
+                try
+                {
+                    var result = action();
+                    DisposeDeferred();
+                    return result;
+                }
                 catch (Exception error)
                 {
                     // Refusals before mutation leave the transaction usable. Any other statement
                     // failure, or one whose engine transaction was rolled back, ends the handle.
-                    var intact = ReferenceEquals(_transaction.Slot.Transaction, _transaction.Transaction) &&
-                        _transaction.Transaction.State == TransactionState.Active;
-                    if (!intact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
+                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
                         !(_resources.Engine.IsReadOnly && error is NotSupportedException))) Abort(error);
                     throw;
                 }
             }
             finally { Exit(); }
         }
+
+        // The handle's engine transaction is still current and active: nothing completed it.
+        private bool TransactionIntact => _transaction.Transaction?.State == TransactionState.Active &&
+            ReferenceEquals(_transaction.Slot.Transaction, _transaction.Transaction);
 
         // Only composed client operations may dispatch internally. Public wrappers always use Run.
         internal T Dispatch<T>(Func<T> action, bool authorizeEngine = true)
@@ -145,6 +204,8 @@ namespace LiteDB
                 _resources = null;
                 _handles = null;
                 _client = null;
+                // Completion closed every reader; deferred disposals have nothing left to release.
+                lock (_gate) _deferred = null;
                 handles.Completed(this);
             }
         }
@@ -211,15 +272,48 @@ namespace LiteDB
             try
             {
                 using var binding = TransactionContext.Enter(_transaction);
+                try { DisposeDeferred(); }
+                catch (Exception error) { Abort(error); throw; }
                 if (_readers.Count != 0) throw new InvalidOperationException("Close transaction-bound readers before committing.");
                 Exception failure = null;
-                try { Dispatch(() => _resources.Engine.Commit()); }
+                try
+                {
+                    // An engine that has already stopped commits nothing.
+                    if (_resources.Engine.UnavailableFailure() != null)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        _resources.Engine.ThrowIfUnavailable();
+                    }
+                    if (!Dispatch(() => _resources.Engine.Commit()))
+                    {
+                        // The engine no longer holds this transaction (a peer stopped or closed the
+                        // engine first): this call committed nothing. Never report that as success.
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        _resources.Engine.ThrowIfUnavailable();
+                        throw new InvalidOperationException("The transaction ended before it could commit; nothing was committed.");
+                    }
+                }
                 catch (Exception error)
                 {
-                    failure = error;
-                    // A failed commit may already have published: never relabel it a rollback.
-                    if (_transaction.Outcome != LiteTransactionState.Committed)
+                    // A peer engine close surfaces as raw failures of its services, locks or
+                    // streams: once the engine stopped, report its published failure instead,
+                    // unless this commit's own failure is what stopped it.
+                    var published = error is LiteException ? null : _resources.Engine.UnavailableFailure();
+                    failure = published == null || ReferenceEquals(published, error) || ReferenceEquals(published.InnerException, error)
+                        ? error : published;
+                    // A failed commit may already have published: never relabel it a rollback. A
+                    // failure inside commit stops the engine; a refusal that left both the engine
+                    // and the transaction untouched published nothing, so it rolls back.
+                    if (_transaction.Outcome == LiteTransactionState.Active && failure == error &&
+                        _resources.Engine.UnavailableFailure() == null && TransactionIntact)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        try { CloseReadersAndRollback(onlyIfActive: true); }
+                        catch (Exception cleanup) { error.Data["LiteDB.TransactionCleanupError"] = cleanup; }
+                    }
+                    else if (_transaction.Outcome == LiteTransactionState.Active)
                         _transaction.Outcome = LiteTransactionState.Indeterminate;
+                    if (failure != error) ExceptionDispatchInfo.Capture(failure).Throw();
                     throw;
                 }
                 finally { if (_transaction.Outcome != LiteTransactionState.Active) ReleaseResources(failure); }
@@ -247,14 +341,20 @@ namespace LiteDB
             finally { ReleaseResources(failure); }
         }
 
-        // Database close already owns rollback. Cleanup is idempotent across that handoff,
-        // but normal overlapping/reentrant user operations remain invalid.
+        // Database close owns rollback once it reaches this handle (or waits for its call).
+        // Cleanup is idempotent across that handoff; a close that never got here (it was
+        // interrupted) leaves an idle handle that its own disposal still rolls back.
+        // Normal overlapping/reentrant user operations remain invalid.
         private bool EnterCleanup()
         {
             lock (_gate)
             {
-                if (_closing || _disposed || State != LiteTransactionState.Active) return false;
-                if (_executing != null) throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                if (_disposed || State != LiteTransactionState.Active) return false;
+                if (_executing != null)
+                {
+                    if (_closing) return false;
+                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
+                }
                 _executing = Thread.CurrentThread;
                 _activity?.OperationStarted();
                 return true;

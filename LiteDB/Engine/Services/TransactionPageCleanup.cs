@@ -45,8 +45,8 @@ namespace LiteDB.Engine
 
             snapshot.ReleaseSnapshotPin();
 
-            // Collection locks belong to the transaction, so cleanup on another
-            // thread can free them, including after a page lease failed.
+            // During normal release, free the lock even if a page lease failed. Legacy cleanup
+            // on another thread (shutdown) keeps it as before; a handle's may run on any thread.
             if (releaseLock && snapshot.Mode == LockMode.Write)
             {
                 try

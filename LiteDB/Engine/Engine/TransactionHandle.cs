@@ -18,7 +18,22 @@ namespace LiteDB.Engine
         }
 
         /// <summary>Whether the current thread owns a legacy (or still running automatic) transaction.</summary>
-        internal bool HasLegacyTransactionOnCurrentThread => _monitor.LegacySlot.Transaction != null;
+        internal bool CurrentThreadHasLegacyTransaction()
+        {
+            // A stopped or closed engine reports its own failure, not a disposed slot.
+            _state.Validate();
+            return _monitor.LegacySlot.Transaction != null;
+        }
+
+        /// <summary>Throw the engine's published failure, or its disposal, if it has stopped.</summary>
+        internal void ThrowIfUnavailable() => _state.Validate();
+
+        /// <summary>The failure ordinary calls report once this engine stopped, or null.</summary>
+        internal Exception UnavailableFailure()
+        {
+            try { _state.Validate(); return null; }
+            catch (Exception failure) { return failure; }
+        }
 
         internal bool IsReadOnly => _settings.ReadOnly;
 

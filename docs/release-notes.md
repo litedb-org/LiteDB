@@ -9,6 +9,14 @@ Ordinary collections never enlist. Direct and filename-backed Shared databases a
 supported; in Shared mode ordinary calls that need the same database's writer mutex wait while a handle is open. The thread-bound `BeginTrans`, `Commit` and `Rollback` keep their behavior
 and now emit CS0618. See [transaction handles](transaction-handles.md).
 
+Observable differences for existing code: builds that treat warnings as errors fail
+on the legacy calls until CS0618 is suppressed; a read-only write refusal is now an
+internal `IOException` subclass (`catch (IOException)` is unaffected, exact-type checks
+are not); `$transactions` and `$open_cursors` report `threadID` 0 for handle
+transactions. A handle commit refused before it could publish (the engine already
+stopped or closed, or the transaction already ended) throws and reports `Failed`. Shared handles refuse begin and every
+operation on a thread under Windows impersonation, including an anonymous token.
+
 ## Shared writer waits
 
 Shared connections can bound waits for writer ownership with `SharedWriterTimeout`

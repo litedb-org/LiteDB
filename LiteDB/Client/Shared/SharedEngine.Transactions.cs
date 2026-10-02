@@ -75,14 +75,17 @@ namespace LiteDB
                 settings.CoordinationSignals = null;
                 settings.SharedFileHandles = null;
                 settings.SharedSlowWait = null;
-                // The handle's native wait is this connection's wait: record it here.
-                var child = new SharedEngine(settings) { _transactionChild = true, _waitRecorder = this.Waits };
+                // The handle's native wait is this connection's wait: record it here. It also
+                // reports and extends this connection's recovery report.
+                var child = new SharedEngine(settings) { _transactionChild = true, _waitRecorder = this.Waits, _recoveryReport = _recoveryReport };
                 child._settings.SharedDurability = _settings.SharedDurability;
                 child._settings.CheckpointBackoff = _settings.CheckpointBackoff;
                 holder = new TransactionHolder(child, gate, deadline);
             }
             catch { gate.Release(); throw; }
-            return holder.Open(policyAnchor);
+            var resources = holder.Open(policyAnchor);
+            _recoveryReport = holder.RecoveryReport ?? _recoveryReport;
+            return resources;
         }
 
         private void WaitForHandleGate(SemaphoreSlim gate, SharedWaitDeadline deadline, bool selfWait)
@@ -123,6 +126,9 @@ namespace LiteDB
                 _deadline = deadline;
             }
 
+            /// <summary>The recovery report of the handle's core, once it opened.</summary>
+            internal WalRecoveryReport RecoveryReport => _child._recoveryReport;
+
             internal TransactionResources Open(object policyAnchor)
             {
                 try
@@ -140,7 +146,10 @@ namespace LiteDB
                     finally { _gate.Release(); }
                     throw;
                 }
-                _opened.Wait();
+                // An interrupted begin must still let the holder release what it acquires:
+                // no resources exist yet whose disposal or finalizer could do it later.
+                try { _opened.Wait(); }
+                catch { _close.Set(); throw; }
                 if (_error != null) this.Release();
                 return new TransactionResources(_engine, this.Release, () => _close.Set(), policyAnchor, _child._mutexName, _activity);
             }
