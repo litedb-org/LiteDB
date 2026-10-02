@@ -79,9 +79,13 @@ namespace LiteDB.ConcurrencyTesting
             new ExplorerKnownFinding
             {
                 Id = "shared-peer-call-inside-own-explicit-transaction",
-                Summary = "Shared: code running inside an explicit transaction (BeginTrans, or FileStorage.Upload's own transaction " +
-                    "while it reads the source stream) that calls another connection to the same file on the same thread waits " +
-                    "forever for the writer ownership its own thread holds: no refusal, no timeout.",
+                Summary = "Shared: code running inside an explicit transaction that calls another connection to the same file on " +
+                    "the same thread waits forever for the writer ownership its own thread holds: no refusal, no timeout. With " +
+                    "BeginTrans this is the mechanism of open issue #3073 (an explicit transaction counts as an idle owner, so the " +
+                    "#3072 refusal does not apply), reached here from a callback inside a call of that transaction. With " +
+                    "FileStorage.Upload the transaction is the library's own (LiteStorage.Upload begins one and reads the caller's " +
+                    "source stream under it), so a source-stream callback hangs where docs/shared-mode-safety.md promises a refusal " +
+                    "for user code running inside a call: a defect beyond #3073.",
                 Fingerprint = @"^DEADLINE_\w+@(callback-pause|transaction-contention)@mode=shared@access=\w+@maintenance=\w+@callback=peer$",
                 Excludes = vector => vector.Configuration.Shared && vector.Configuration.Callback == ExplorerCallback.Peer &&
                     ((vector.Scenario == "callback-pause" || vector.Scenario == "transaction-contention") &&
