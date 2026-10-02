@@ -20,6 +20,7 @@ on:
       - '.github/safety/regression-proofs.json'
       - '.github/scripts/regression_proof.py'
       - '.github/scripts/repro_scaffold.py'
+      - '.github/scripts/proof_provenance.py'
       - '.github/scripts/safety_common.py'
       - '.github/workflows/regression-proof.yml'
   workflow_dispatch:
@@ -100,9 +101,13 @@ jobs:
         shell: bash
         env:
           COMMIT: ${{ matrix.commit }}
+          PR: ${{ matrix.pr }}
+          REPOSITORY: ${{ matrix.repository }}
         run: |
           feed="$RUNNER_TEMP/known-bad-feed"
-          python .github/scripts/regression_proof.py pack-known-bad --commit "$COMMIT" --feed "$feed"
+          # A pr-commit is fetched from its PR (a fork's public PR needs no token) when not yet local.
+          python .github/scripts/regression_proof.py pack-known-bad --commit "$COMMIT" --feed "$feed" \
+            --pr "$PR" --repository "$REPOSITORY"
           echo "RestoreAdditionalProjectSources=$feed" >> "$GITHUB_ENV"
 
       - name: Run the repro against the known-bad state and the candidate

@@ -5,7 +5,9 @@ real state in which the bug existed, in order of preference:
 
 1. a published NuGet package (`package`, the strongest evidence);
 2. a commit that existed on dev (`dev-commit`);
-3. a commit of the originating PR that never reached dev (`pr-commit`).
+3. a commit of the originating PR that never reached dev (`pr-commit`); a PR of
+   another repository (a fork) also names it as `repository: owner/name`
+   (proof_provenance.py resolves it there, never against upstream's PR number).
 
 A synthetic mutant is not a known-bad state. The repro's package variant is the
 known-bad state and its latest variant is the candidate source; ReproRunner runs
@@ -29,6 +31,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import proof_provenance as provenance
 import repro_scaffold
 import safety_common as common
 
@@ -39,12 +42,13 @@ REPROS = "LiteDB.ReproRunner/Repros"
 HARNESS = ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/", "LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/",
            "LiteDB.ReproRunner/Repros/SharedSelfTeardownProof/",
            ".github/scripts/regression_proof.py", ".github/scripts/repro_scaffold.py",
-           ".github/scripts/safety_common.py", ".github/workflows/regression-proof.yml")
+           ".github/scripts/proof_provenance.py", ".github/scripts/safety_common.py",
+           ".github/workflows/regression-proof.yml")
 NUGET_INDEX = "https://api.nuget.org/v3-flatcontainer/litedb/index.json"
-KINDS = ("package", "dev-commit", "pr-commit")
+KINDS = provenance.KINDS
 OUTCOMES = ["Reproduce", "NoRepro", "HardFail", "Intermittent"]
 STATES = ["Red", "Green", "Flaky"]
-SHA = re.compile(r"[0-9a-f]{40}\Z")
+SHA = provenance.SHA
 MIN_BUG_PROOFS = 1  # per bug-fix PR; add one proof per bug a PR fixes
 # Labels that make a PR a bug fix. bugfix-fix marks the automated bugfix worker's fixes.
 BUG_LABELS = ("bug", "bugfix-fix")
@@ -90,20 +94,11 @@ def validate_entry(tree, entry, report):
         report.error(f"{label}: {REPROS}/{repro}/repro.json does not exist", LEDGER)
         return
     bad = entry.get("knownBad") if isinstance(entry.get("knownBad"), dict) else {}
-    kind = bad.get("kind")
-    if kind not in KINDS:
-        report.error(f"{label}: knownBad.kind must be one of {', '.join(KINDS)} (a mutant is not a known-bad state)",
-                     LEDGER)
+    kind = provenance.check_shape(bad, label, report, LEDGER)
+    if kind is None:
         return
-    if kind == "package" and not bad.get("version"):
-        report.error(f"{label}: a package known-bad state names its published version", LEDGER)
-    if kind != "package":
-        if not SHA.match(str(bad.get("commit", ""))):
-            report.error(f"{label}: knownBad.commit must be a full 40-character commit id", LEDGER)
-        if len((bad.get("reason") or "").strip()) < 20:
-            report.error(f"{label}: explain why no published package containing the bug can be used", LEDGER)
-    if kind == "pr-commit" and not isinstance(bad.get("pr"), int):
-        report.error(f"{label}: a pr-commit known-bad state names its originating PR number", LEDGER)
+    if kind != "package" and len((bad.get("reason") or "").strip()) < 20:
+        report.error(f"{label}: explain why no published package containing the bug can be used", LEDGER)
     pinned = _pinned_version(tree, repro)
     if pinned != known_bad_version(bad):
         report.error(f"{label}: the repro's LiteDBPackageVersion is {pinned!r}; the known-bad state requires "
@@ -178,26 +173,7 @@ def check_provenance(entry, report, dev_ref, offline=False):
         if normalize_version(bad.get("version", "")) not in versions:
             report.error(f"{label}: LiteDB {bad.get('version')} is not a published NuGet package")
         return
-    commit = str(bad.get("commit"))
-    if bad.get("kind") == "pr-commit" and not offline:
-        subprocess.run(["git", "fetch", "-q", "origin", f"+refs/pull/{bad.get('pr')}/head:refs/proof/pr-{bad.get('pr')}"],
-                       cwd=common.repo_root(), check=False)
-    if _run(["git", "cat-file", "-e", f"{commit}^{{commit}}"]) != 0:
-        report.error(f"{label}: known-bad commit {commit} is not available in this clone")
-        return
-    on_dev = _run(["git", "merge-base", "--is-ancestor", commit, dev_ref]) == 0
-    if bad.get("kind") == "dev-commit" and not on_dev:
-        report.error(f"{label}: {commit} never existed on {dev_ref}; use pr-commit with its originating PR")
-    if bad.get("kind") == "pr-commit":
-        if on_dev:
-            report.error(f"{label}: {commit} is on {dev_ref}; classify it as dev-commit")
-        elif _run(["git", "merge-base", "--is-ancestor", commit, f"refs/proof/pr-{bad.get('pr')}"]) != 0:
-            report.error(f"{label}: {commit} is not part of PR #{bad.get('pr')}")
-
-
-def _run(command):
-    return subprocess.run(command, cwd=common.repo_root(), stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL).returncode
+    provenance.check_commit(bad, label, report, dev_ref, offline)
 
 
 def select(base, head, entries):
@@ -239,24 +215,33 @@ def published_versions():
 
 
 def parse_known_bad(value, reason):
-    """'latest', 'package:5.0.21', 'dev-commit:<sha>' or 'pr-commit:<sha>@<pr>'."""
-    usage = "--known-bad must be latest, package:<version>, dev-commit:<sha> or pr-commit:<sha>@<pr>"
+    """'latest', 'package:5.0.21', 'dev-commit:<sha>', 'pr-commit:<sha>@<pr>' or 'pr-commit:<sha>@<owner>/<name>#<pr>'."""
+    usage = ("--known-bad must be latest, package:<version>, dev-commit:<sha>, pr-commit:<sha>@<pr> "
+             "or pr-commit:<sha>@<owner>/<name>#<pr> (a fork's PR)")
     if value == "latest":
         return {"kind": "package", "version": published_versions()[-1]}
     kind, _, reference = value.partition(":")
     if kind == "package" and reference:
         return {"kind": "package", "version": reference}
     if kind in ("dev-commit", "pr-commit"):
-        commit, _, pr = reference.partition("@")
-        if kind == "pr-commit" and not pr.isdigit():
+        commit, _, origin = reference.partition("@")
+        repository, _, pr = origin.rpartition("#") if "#" in origin else ("", "", origin)
+        if kind == "pr-commit" and (not pr.isdigit() or (repository and not provenance.valid_repository(repository))):
             raise SystemExit(usage)
+        source = {"kind": kind, "commit": commit, "pr": int(pr) if pr.isdigit() else None}
+        if repository:
+            source["repository"] = repository
+        if kind == "pr-commit" and provenance.SHA.match(commit):
+            provenance.ensure_commit(source)  # a fork's commit may not be local yet
         try:
             commit = common.git("rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}").strip()
         except subprocess.CalledProcessError:
-            raise SystemExit(f"{usage}; {reference.partition('@')[0]!r} is not a commit in this clone") from None
+            raise SystemExit(f"{usage}; {commit!r} is not a commit in this clone") from None
         bad = {"kind": kind, "commit": commit, "reason": reason or ""}
         if kind == "pr-commit":
             bad["pr"] = int(pr)
+            if repository:
+                bad["repository"] = repository
         return bad
     raise SystemExit(usage)
 
@@ -280,14 +265,23 @@ def matrix_item(tree, entry):
     supports = [str(value).lower() for value in manifest.get("supports") or ["any"]]
     bad = entry["knownBad"]
     return {"repro": entry["repro"], "os": "windows-latest" if supports == ["windows"] else "ubuntu-latest",
-            "kind": bad["kind"], "commit": bad.get("commit", ""), "version": known_bad_version(bad)}
+            "kind": bad["kind"], "commit": bad.get("commit", ""), "version": known_bad_version(bad),
+            "pr": bad.get("pr", ""), "repository": bad.get("repository", "")}
 
 
-def pack_known_bad(commit, feed):
+def pack_known_bad(commit, feed, pr=None, repository=None):
     """Build LiteDB at a known-bad commit into a local feed as 0.0.0-knownbad.<commit>.
 
-    The commit's own build decides the version it stamps (older GitVersion setups
-    ignore overrides), so the produced package is re-versioned afterwards."""
+    A pr-commit (pr, and repository for a fork's PR) is fetched first when the
+    clone lacks it. The commit's own build decides the version it stamps (older
+    GitVersion setups ignore overrides), so the produced package is re-versioned
+    afterwards."""
+    if pr:
+        source = {"kind": "pr-commit", "commit": commit, "pr": int(pr)}
+        if repository:
+            source["repository"] = repository
+        if not provenance.ensure_commit(source):
+            raise SystemExit(f"{commit} is not available after fetching {provenance.describe(source)}")
     version = known_bad_version({"kind": "dev-commit", "commit": commit})
     scratch = Path(tempfile.mkdtemp(prefix="litedb-known-bad-"))
     checkout, packed = scratch / "src", scratch / "packed"
@@ -380,13 +374,16 @@ def main(argv=None):
     scaffold.add_argument("--issue", required=True, type=int)
     scaffold.add_argument("--title", required=True)
     scaffold.add_argument("--known-bad", default="latest",
-                          help="latest (newest published package), package:<v>, dev-commit:<sha>, pr-commit:<sha>@<pr>")
+                          help="latest (newest published package), package:<v>, dev-commit:<sha>, pr-commit:<sha>@<pr>, "
+                               "pr-commit:<sha>@<owner>/<name>#<pr> (a fork's PR)")
     scaffold.add_argument("--reason", help="Why no published package can be used (commit states)")
     scaffold.add_argument("--guard", action="append", default=[],
                           help="Permanent regression test 'path#Method', 'fuzz:<target>' or a script (repeatable)")
     pack = commands.add_parser("pack-known-bad", help="Pack LiteDB at a commit into a local feed")
     pack.add_argument("--commit", required=True)
     pack.add_argument("--feed", required=True)
+    pack.add_argument("--pr", help="The commit's originating PR (fetched when the commit is not local)")
+    pack.add_argument("--repository", help="With --pr, the fork that hosts the PR as owner/name")
     check_run = commands.add_parser("verify", help="Verify a ReproRunner report proves the fix")
     check_run.add_argument("--report", required=True)
     check_run.add_argument("--repro", required=True)
@@ -398,7 +395,7 @@ def main(argv=None):
         parser.error(str(error))
 
     if args.command == "pack-known-bad":
-        print(pack_known_bad(args.commit, args.feed))
+        print(pack_known_bad(args.commit, args.feed, args.pr or None, args.repository or None))
         return 0
     if args.command == "new":
         bad = parse_known_bad(args.known_bad, args.reason)

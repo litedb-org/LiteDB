@@ -3,11 +3,15 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
+from unittest.mock import patch
+
+import proof_provenance as provenance
 import regression_proof as proof
 import safety_common as common
 from safety_fixtures import GitRepo, csharp_class, run_quietly, script_closure
@@ -202,6 +206,158 @@ class ProvenanceTests(unittest.TestCase):
                         self.assertEqual(report.errors, [])
                     else:
                         self.assertTrue(any(expected in error for error in report.errors), report.errors)
+
+
+FORK = "someone/LiteDB"
+
+
+class ForkProvenanceTests(unittest.TestCase):
+    """A pr-commit of a fork's PR names the fork; without it the PR number means upstream's PR."""
+
+    def setUp(self):
+        self.host = Path(tempfile.mkdtemp(prefix="litedb-git-host-"))
+        self.addCleanup(shutil.rmtree, self.host, ignore_errors=True)
+        patcher = patch.object(provenance, "GIT_HOST", self.host.as_uri() + "/")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def upstream_and_fork(self, repo):
+        """Upstream PR #133 holds one commit; the fork's PR #133 another. Returns (upstream pr, fork pr) commits."""
+        base = repo.commit({"a.txt": "1"})
+        repo._git("branch", "dev")
+        repo._git("checkout", "-q", "-b", "upstream-pr")
+        upstream_pr = repo.commit({"a.txt": "upstream"})
+        repo._git("update-ref", "refs/pull/133/head", upstream_pr)
+        repo._git("checkout", "-q", "dev")
+        repo._git("remote", "add", "origin", str(repo.path))  # the clone's upstream is itself
+        fork = self.host / FORK.split("/")[0] / f"{FORK.split('/')[1]}.git"
+        fork.mkdir(parents=True)
+        git = GitRepo.__new__(GitRepo)
+        git.path = fork
+        git._git("init", "-q", "-b", "main")
+        git._git("fetch", "-q", str(repo.path), "dev:refs/heads/base")
+        git._git("checkout", "-q", "-B", "main", "base")
+        (fork / "a.txt").write_text("fork")
+        git._git("commit", "-q", "-am", "fork change")
+        fork_pr = git._git("rev-parse", "HEAD")
+        git._git("update-ref", "refs/pull/133/head", fork_pr)
+        return upstream_pr, fork_pr
+
+    def check(self, bad, offline=False):
+        report = common.Report("")
+        run_quietly(lambda _: provenance.check_commit(bad, "Proof", report, "dev", offline), None)
+        return report
+
+    def test_the_upstream_default_is_unchanged(self):
+        bad = {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 7}
+        self.assertEqual((provenance.proof_ref(bad), provenance.source(bad)), ("refs/proof/pr-7", "origin"))
+        with GitRepo() as repo:
+            upstream_pr, _ = self.upstream_and_fork(repo)
+            report = self.check({"kind": "pr-commit", "commit": upstream_pr, "pr": 133})
+            self.assertEqual(report.errors + report.warnings, [])
+            self.assertEqual(repo._git("rev-parse", "refs/proof/pr-133"), upstream_pr)
+
+    def test_a_fork_entry_resolves_through_the_forks_pull_ref(self):
+        with GitRepo() as repo:
+            _, fork_pr = self.upstream_and_fork(repo)
+            bad = {"kind": "pr-commit", "commit": fork_pr, "pr": 133, "repository": FORK}
+            self.assertFalse(provenance.has_commit(fork_pr))  # only the fetch brings it
+            report = self.check(bad)
+            self.assertEqual(report.errors + report.warnings, [])
+            self.assertEqual(repo._git("rev-parse", f"refs/proof/repo/{FORK}/pr-133"), fork_pr)
+            # The fork's ref never shadows upstream's PR of the same number.
+            self.assertEqual(repo._git("for-each-ref", "refs/proof/pr-133"), "")
+
+    def test_a_fork_commit_without_repository_is_rejected_with_the_fix_named(self):
+        with GitRepo() as repo:
+            _, fork_pr = self.upstream_and_fork(repo)
+            report = self.check({"kind": "pr-commit", "commit": fork_pr, "pr": 133})
+            self.assertTrue(any("not available in this clone after fetching PR #133 of the upstream" in error
+                                and "knownBad.repository" in error for error in report.errors), report.errors)
+            provenance.ensure_commit({"kind": "pr-commit", "commit": fork_pr, "pr": 133, "repository": FORK})
+            report = self.check({"kind": "pr-commit", "commit": fork_pr, "pr": 133})  # now local, still not upstream's
+            self.assertTrue(any("is not part of PR #133 (PR #133 of the upstream repository" in error
+                                and "names the fork as knownBad.repository" in error for error in report.errors),
+                            report.errors)
+
+    def test_a_fork_entry_is_not_part_of_another_pr_of_the_fork(self):
+        with GitRepo() as repo:
+            upstream_pr, _ = self.upstream_and_fork(repo)
+            report = self.check({"kind": "pr-commit", "commit": upstream_pr, "pr": 133, "repository": FORK})
+            self.assertTrue(any(f"is not part of PR #133 (PR #133 of {FORK}" in error for error in report.errors),
+                            report.errors)
+
+    def test_an_unreachable_repository_is_a_warning_then_a_missing_commit(self):
+        with GitRepo() as repo:
+            repo.commit({"a.txt": "1"})
+            repo._git("branch", "dev")
+            report = self.check({"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 5, "repository": "nobody/none"})
+            self.assertTrue(any("could not fetch the head of PR #5 of nobody/none" in item for item in report.warnings))
+            self.assertTrue(any("is not available in this clone" in error for error in report.errors))
+
+    def test_pack_known_bad_fetches_a_fork_commit(self):
+        with GitRepo() as repo:
+            _, fork_pr = self.upstream_and_fork(repo)
+            real, calls = subprocess.run, []
+
+            def fake_build(command, **kwargs):  # git runs for real; the worktree and dotnet pack are skipped
+                if command[0] == "dotnet" or command[1] == "worktree":
+                    calls.append(command)
+                    return subprocess.CompletedProcess(command, 0)
+                return real(command, **kwargs)
+
+            with patch.object(subprocess, "run", side_effect=fake_build), \
+                    self.assertRaisesRegex(SystemExit, "expected one LiteDB package"):
+                proof.pack_known_bad(fork_pr, str(self.host / "feed"), "133", FORK)
+            self.assertTrue(provenance.has_commit(fork_pr))
+            self.assertEqual(calls[0][:4] + calls[0][5:], ["git", "worktree", "add", "--detach", fork_pr])
+
+
+class ForkShapeTests(unittest.TestCase):
+    def test_repository_is_validated_offline(self):
+        repro_files = {f"{FOLDER}/{REPRO}.csproj": csproj("0.0.0-knownbad.aaaaaaaaaaaa")}
+        reason = "the defect was introduced and fixed inside the pull request"
+        cases = {
+            None: {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 133, "repository": FORK, "reason": reason},
+            "must be a GitHub repository as 'owner/name'":
+                {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 133, "repository": "https://x/y", "reason": reason},
+            "must be a GitHub repository as 'owner/name', not 'a/..'":
+                {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 133, "repository": "a/..", "reason": reason},
+            "only qualifies a pr-commit": {"kind": "dev-commit", "commit": BAD_COMMIT, "repository": FORK,
+                                           "reason": reason},
+            "names its originating PR number": {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": True,
+                                                "repository": FORK, "reason": reason},
+        }
+        for expected, bad in cases.items():
+            with self.subTest(expected), GitRepo() as repo:
+                repo.commit({**BASE, **repro_files, LEDGER: ledger(entry(knownBad=bad))})
+                code, output = run_quietly(proof.main, ["validate"])
+                if expected is None:
+                    self.assertEqual(code, 0, output)
+                else:
+                    self.assertEqual(code, 1, output)
+                    self.assertIn(expected, output)
+
+    def test_fork_known_bad_inputs_parse(self):
+        with GitRepo() as repo:
+            head = repo.commit(BASE)
+            bad = proof.parse_known_bad(f"pr-commit:{head[:9]}@{FORK}#133", "reason")
+            self.assertEqual(bad, {"kind": "pr-commit", "commit": head, "reason": "reason", "pr": 133,
+                                   "repository": FORK})
+            self.assertNotIn("repository", proof.parse_known_bad(f"pr-commit:{head}@133", "r"))
+            for value in (f"pr-commit:{head}@{FORK}#x", f"pr-commit:{head}@bad repo#1"):
+                with self.subTest(value), self.assertRaises(SystemExit):
+                    proof.parse_known_bad(value, "reason")
+
+    def test_the_matrix_carries_the_pr_and_repository(self):
+        with GitRepo() as repo:
+            repo.commit(BASE)
+            tree = common.Tree("HEAD")
+            bad = {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 133, "repository": FORK}
+            item = proof.matrix_item(tree, entry(knownBad=bad))
+            self.assertEqual((item["pr"], item["repository"]), (133, FORK))
+            item = proof.matrix_item(tree, entry())
+            self.assertEqual((item["pr"], item["repository"]), ("", ""))
 
 
 def run_report(package_actual=0, latest_actual=1, version="5.0.20", swapped=False):
