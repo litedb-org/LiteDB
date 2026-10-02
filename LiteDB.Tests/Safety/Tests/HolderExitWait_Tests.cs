@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
@@ -24,7 +25,7 @@ namespace LiteDB.Tests.Safety.Tests
                 Assert.True(owner.HasHolderThread, "the holder idles for HolderIdle after its last command");
 
                 // A zero design bound stands in for a host that starved the holder past it.
-                var result = HolderExitWait.Wait(owner, TimeSpan.Zero);
+                var result = HolderExitWait.Wait(owner, TimeSpan.Zero, HolderExitWait.LateExitBound);
 
                 Assert.Null(result.Violation);
                 Assert.False(result.Alive);
@@ -34,7 +35,7 @@ namespace LiteDB.Tests.Safety.Tests
         }
 
         [Fact]
-        public void A_holder_that_still_owns_the_OS_mutex_after_dispose_fails_without_the_late_allowance()
+        public void A_holder_that_keeps_the_OS_mutex_for_no_owner_fails_at_the_design_bound()
         {
             using (var file = new TempFile())
             {
@@ -48,7 +49,8 @@ namespace LiteDB.Tests.Safety.Tests
                     var result = ConnectionCleanProbe.Evaluate(db);
 
                     Assert.True(result.HolderThread);
-                    Assert.Contains("threads: the mutex owner thread still holds the OS mutex, so it cannot exit", result.Violations);
+                    Assert.Contains(result.Violations, v => v.StartsWith(
+                        "threads: the mutex owner thread holds the OS mutex for no owner", StringComparison.Ordinal));
                     Assert.True(result.WaitedMs < HolderExitWait.LateExitBound.TotalMilliseconds / 2,
                         $"a holder that cannot exit is judged at the design bound, waited {result.WaitedMs:F0} ms");
                 }
@@ -61,37 +63,66 @@ namespace LiteDB.Tests.Safety.Tests
         }
 
         [Fact]
-        public void A_holder_kept_busy_by_commands_after_dispose_fails_at_the_design_bound()
+        public void Commands_after_dispose_restart_the_design_bound_and_a_holder_that_exits_after_them_is_clean()
         {
             using (var file = new TempFile())
-            using (var stop = new ManualResetEventSlim())
             {
                 var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
                 var owner = UseHolder(db);
                 db.Dispose();
-                // Each command restarts the holder's idle clock; a release of nothing changes no other state.
-                var sender = new Thread(() =>
-                {
-                    while (!stop.Wait(50)) Send(owner, "Release");
-                }) { IsBackground = true };
-                sender.Start();
-                ConnectionCleanResult result;
+                // Calls racing Dispose acquire and release the mutex before their admission refuses them; these
+                // commands keep the holder busy past the design bound measured from Dispose, then stop.
+                var sender = Sender(owner, TimeSpan.FromSeconds(2.5));
+                var result = ConnectionCleanProbe.Evaluate(db);
+                sender.Join();
+
+                Assert.Empty(result.Violations);
+                Assert.False(result.HolderThread);
+                Assert.True(result.WaitedMs > 2500, $"the holder exits only after its last command, waited {result.WaitedMs:F0} ms");
+            }
+        }
+
+        [Fact]
+        public void A_holder_kept_busy_by_commands_past_the_late_bound_fails()
+        {
+            using (var file = new TempFile())
+            {
+                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                var owner = UseHolder(db);
+                db.Dispose();
+                var sender = Sender(owner, TimeSpan.FromSeconds(6));
+                HolderExitResult result;
                 try
                 {
-                    result = ConnectionCleanProbe.Evaluate(db);
+                    result = HolderExitWait.Wait(owner, QuiescentProbe.Grace, TimeSpan.FromSeconds(3));
                 }
                 finally
                 {
-                    stop.Set();
                     sender.Join();
                 }
 
-                Assert.True(result.HolderThread);
-                Assert.Contains(result.Violations, v => v.StartsWith("threads: the mutex owner thread outlived", StringComparison.Ordinal) &&
-                    v.Contains("command(s) after Dispose"));
-                Assert.False(result.HolderLateExit);
+                Assert.True(result.Alive);
+                Assert.StartsWith("threads: the mutex owner thread outlived 3000 ms after Dispose; ", result.Violation);
+                Assert.Contains("Release@", result.Violation);
+                Assert.False(result.LateIdleExit);
                 Assert.Null(HolderExitWait.Wait(owner).Violation);
             }
+        }
+
+        /// <summary>Sends a release of nothing every 50 ms for <paramref name="duration"/>: each restarts the idle clock and changes no other state.</summary>
+        private static Thread Sender(SharedMutexOwner owner, TimeSpan duration)
+        {
+            var sender = new Thread(() =>
+            {
+                var watch = Stopwatch.StartNew();
+                while (watch.Elapsed < duration)
+                {
+                    Send(owner, "Release");
+                    Thread.Sleep(50);
+                }
+            }) { IsBackground = true, Name = "holder-command-sender" };
+            sender.Start();
+            return sender;
         }
 
         private static SharedMutexOwner DisposedOwner(string path)
