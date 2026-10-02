@@ -17,7 +17,7 @@ at every step of every registered path, under two failure models.
 | Scenario state (armed fault, visits) | `LiteDB/Utils/TeardownScenario.cs` |
 | Step catalog (what fails, models, what a skip may leave) | `LiteDB.Tests/Safety/TeardownStepCatalog.cs` |
 | Drivers (prior state + entry per path) | `LiteDB.Tests/Safety/TeardownDrivers*.cs` |
-| Case runner and oracles | `LiteDB.Tests/Safety/TeardownSweep.cs`, `TeardownSweepPlan.cs`, `TeardownSweepRunner.cs` |
+| Case runner and oracles | `LiteDB.Tests/Safety/TeardownSweep.cs`, `TeardownSweepPlan.cs`, `TeardownSweepRunner.cs`, `TeardownDurable.cs` |
 | Known findings | `LiteDB.Tests/Safety/TeardownKnownFindings.cs`, reproductions in `LiteDB.Tests/Safety/Tests/TeardownKnownFinding_Tests.cs` |
 | xUnit sweep | `LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs` |
 | Fuzz target `teardown-faults` | `LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs` |
@@ -82,6 +82,15 @@ ledger), `scratch-live.*` (a live spilled reader's scratch exists, checked durin
 and `leak.page-buffers` (page buffers finalized while in use). A baseline (unarmed) run must
 be clean and must not throw or return failures. A baseline that reaches no step, or a step
 without a catalog entry, fails the driver.
+
+A Direct reopen opens the data file for writing with `FileShare.Read`, which Windows refuses
+while any other handle can write the file. When the reopen fails with a Windows sharing or lock
+violation and `quiescent.handles` already reports the data file or its WAL open, Durable checks a
+byte copy of both files in a fresh directory instead (`TeardownDurable.cs`): those bytes are what
+a reopen after the handle closes, or after the process exits, reads. The handle stays a
+`quiescent.handles` violation judged on its own; lost or resurrected data on the copy, or a copy
+that cannot be made or opened, still fails Durable. The case prints a `note:` line saying so
+(`notes` in `teardown.jsonl`). POSIX reopens never take this path.
 
 Each case runs on a fresh thread: a skipped release can leave a native mutex owned by, and a
 thread-static scope count set on, the thread that ran it; both end with that thread.
