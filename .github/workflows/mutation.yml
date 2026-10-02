@@ -1,0 +1,120 @@
+name: Mutation on the diff
+
+# Safety net 6 (mutation on the diff): Stryker.NET mutates the source files a PR
+# changed in LiteDB/Client/, LiteDB/Engine/Services/ and LiteDB/Engine/Engine/
+# (LiteDB.Tests/stryker-config.json), `--since` the merge-base, and
+# .github/scripts/mutation_gate.py lists the surviving mutants on the changed
+# lines. Survivors in cleanup and lock code (Dispose/Close/Release*, finally
+# blocks, lock/gate/monitor/mutex/pin/turnstile/lifetime types) fail the job;
+# the rest are advisory. The output is a list of lines to write behavior tests
+# for, not a score: no mutation-score threshold is applied (break-at is 0).
+#
+# Why not on every PR: Stryker builds the solution once, runs the test suite
+# with coverage capture, then reruns the covering tests for every batch of
+# mutants. Even a narrow diff costs tens of minutes because every mutant of a
+# changed file is tested, not only those on changed lines, and LiteDB's lock and
+# lifetime tests are slow by nature. The per-PR budget is 15-20 minutes, so the
+# job runs only for PRs labelled `critical` (45 minutes) and on demand.
+#
+# Local run (from a regular clone; Stryker's git library resolves a linked
+# `git worktree` to the main checkout and then diffs the wrong tree):
+#   dotnet tool restore
+#   cd LiteDB.Tests
+#   TestingEnabled=true dotnet stryker --since:$(git merge-base HEAD origin/dev) --output /tmp/litedb-stryker
+#   cd ..
+#   python .github/scripts/mutation_gate.py /tmp/litedb-stryker/reports/mutation-report.json --base $(git merge-base HEAD origin/dev)
+# Narrow a local run with "test-case-filter" in a copy of the config (--config-file);
+# the option is not available on the command line.
+# TestingEnabled=true must come from the environment: MSBuild reads environment
+# variables as properties, so Stryker's own project analysis compiles the
+# mutated LiteDB with the TESTING hooks the tests call.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Revision to diff against (default: the merge-base with origin/dev)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Mutation survivors on changed lines
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'critical') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'critical'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compute merge-base
+        id: base
+        env:
+          INPUT_BASE: ${{ inputs.base }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'dev' }}
+        run: |
+          if [ -n "$INPUT_BASE" ]; then
+            base=$(git rev-parse --verify "$INPUT_BASE^{commit}")
+          else
+            git fetch --no-tags origin "$BASE_REF"
+            base=$(git merge-base HEAD FETCH_HEAD)
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "Diffing $(git rev-parse HEAD) against merge-base $base"
+
+      - name: Restore tools and packages
+        run: |
+          dotnet tool restore
+          dotnet restore LiteDB.Tests/LiteDB.Tests.csproj
+
+      - name: Run Stryker on the diff
+        working-directory: LiteDB.Tests
+        env:
+          TestingEnabled: 'true'
+          MERGE_BASE: ${{ steps.base.outputs.sha }}
+        run: >-
+          dotnet stryker --since:"$MERGE_BASE" --output "$RUNNER_TEMP/stryker"
+          --skip-version-check --log-to-file
+
+      - name: List survivors on changed lines
+        env:
+          MERGE_BASE: ${{ steps.base.outputs.sha }}
+        run: >-
+          python .github/scripts/mutation_gate.py "$RUNNER_TEMP/stryker/reports/mutation-report.json"
+          --base "$MERGE_BASE" --head HEAD
+          --json "$RUNNER_TEMP/stryker/mutation-gate.json" --markdown "$RUNNER_TEMP/stryker/mutation-gate.md"
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: ${{ runner.temp }}/stryker
+          if-no-files-found: warn
+          retention-days: 14
