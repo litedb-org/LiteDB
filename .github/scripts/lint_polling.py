@@ -26,7 +26,9 @@ PRIMITIVES = re.compile("|".join([
     r"\bWaitHandle\.Wait(?:Any|All)\s*\([^,()]+,",     # WaitAny/WaitAll(handles, <timeout>)
     r"\bMonitor\.Wait\s*\([^,()]+,",                   # Monitor.Wait(x, <timeout>)
     r"\bMonitor\.TryEnter\s*\([^,()]+,(?!\s*ref\b)",  # Monitor.TryEnter(x, <timeout>)
-    r"(?<!Monitor)\.Wait\s*\(" + NOT_A_TIMEOUT,     # SemaphoreSlim/ManualResetEventSlim/Task.Wait(<n>)
+    # SemaphoreSlim/ManualResetEventSlim/Task.Wait(<n>); WaitGraph.Wait(...) is the test-build wait-for
+    # graph scope that wraps a wait (docs/wait-for-graph.md), not a wait itself: the wrapped wait is judged.
+    r"(?<!Monitor)(?<!WaitGraph)\.Wait\s*\(" + NOT_A_TIMEOUT,
     r"\bThread\.Sleep\s*\(",
     r"\bTask\.Delay\s*\(",                             # sync-over-async (or awaited) delays
     r"\bSpin(?:Wait|Until|Once)\b",                    # SpinWait, SpinWait.SpinUntil, SpinOnce

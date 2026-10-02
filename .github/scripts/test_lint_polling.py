@@ -68,6 +68,15 @@ class PollingLintTests(unittest.TestCase):
             with self.subTest(body):
                 self.assert_quiet(body)
 
+    def test_wait_graph_scope_is_not_a_wait_but_the_wait_it_wraps_is_judged(self):
+        scope = ("            while (!_done)\n            {{\n#if DEBUG || TESTING\n"
+                 "                using ({graph}.Wait(_graph, WaitBound.After(timeout), \"Waiter.Run\"))\n#endif\n"
+                 "                {wait}\n            }}")
+        for graph in ("WaitGraph", "LiteDB.Utils.WaitGraph"):
+            with self.subTest(graph):
+                self.assert_quiet(scope.format(graph=graph, wait="Monitor.Wait(_sync);"))
+                self.assert_fires(scope.format(graph=graph, wait="_gate.Wait(10);"))
+
     def test_only_added_lines_in_the_library_are_judged(self):
         loop = "            while (!_mutex.WaitOne(50)) { }"
         code, output = self.run_lint(loop, loop + "\n            var unrelated = 1;")
