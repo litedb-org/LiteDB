@@ -188,6 +188,30 @@ class DifferentialRunTests(unittest.TestCase):
                 self.assertEqual(len(details), 3, details)
                 self.assertTrue(any("new violation 'handles'" in item for item in details), details)
 
+    def test_fault_dispositions_and_reached_fault_points_are_compared(self):
+        self.runs.add("base", BASE)
+        self.runs.add("head", BASE)
+        rows = {"base": [{"fault": "pin-close", "fired": True}, {"fault": "commit", "fired": True},
+                         {"fault": None, "op": "Dispose", "declared": "discard", "observed": "discard"}],
+                "head": [{"fault": "pin-close", "fired": True}, {"fault": "new-hook", "fired": True},
+                         {"fault": None, "op": "Dispose", "declared": "discard", "observed": "propagated"}]}
+        for side, items in rows.items():
+            run = next((self.runs.root / side).rglob("run.json")).parent
+            (run / "faults.jsonl").write_text("".join(json.dumps(item) + "\n" for item in items))
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertEqual(failing(report), {("cleanup-change", "Dispose"), ("marker", "fault-point:commit")})
+        self.assertEqual(report["capabilities"]["faults"], ["new-hook"])
+
+    def test_quiescent_records_key_by_point(self):
+        self.runs.add("base", BASE, [{"point": "scenario end", "clean": True, "violations": []}],
+                      obligations="quiescent.jsonl")
+        self.runs.add("head", BASE, [{"point": "scenario end", "clean": False, "violations": ["scratch: -tmp left"]}],
+                      obligations="quiescent.jsonl")
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertEqual(failing(report), {("cleanup-change", "scenario end")})
+
     def test_head_only_operations_and_markers_are_capabilities(self):
         self.runs.add("base", BASE, markers={"maintenance:close-during-active-op": 3, "api:A": 0})
         self.runs.add("head", BASE + [record("BeginTransaction")], markers={"api:A": 1})
@@ -195,7 +219,7 @@ class DifferentialRunTests(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertEqual(failing(report), {("marker", "maintenance:close-during-active-op")})
         self.assertEqual(report["capabilities"], {"operations": ["BeginTransaction [mode=shared]"],
-                                                  "markers": ["api:A"]})
+                                                  "markers": ["api:A"], "faults": []})
         self.assertIn("`BeginTransaction [mode=shared]`", output)
 
     def test_advisory_mode_reports_and_exits_zero(self):

@@ -217,9 +217,10 @@ outcomes** per operation class and dimension (`op`, `dimension` in
   the primary failure survives when cleanup also fails (`primaryExceptionType`);
 - payloads and acknowledged effects (`payloadDigest`, `effectsDigest`), compared
   as multisets;
-- cleanup obligations (`ConnectionClean`, `Quiescent`, `ScratchLive` records): an
-  unclean evaluation, or a violation kind, that the base did not show;
-- markers the base reached that the head no longer reaches.
+- cleanup obligations: a `ConnectionClean` or `Quiescent` evaluation that is
+  unclean, or shows a violation kind, where the base was clean; a `FaultDisposed`
+  declared-to-observed disposition the base did not show;
+- markers and fault points the base reached that the head no longer reaches.
 
 Timings, raw traces, metric values and the order of legal concurrent winners
 are not compared. Performance is separate evidence. Concurrent targets are

@@ -13,8 +13,10 @@ compared, per operation class and dimension (`op`, `dimension` in outcomes.jsonl
 - exception contract: the set of exception types (+ errorCode) that escape, and whether
   the primary failure is preserved (`primaryExceptionType` -> escaped type pairs);
 - payloads and acknowledged effects: multisets of `payloadDigest` / `effectsDigest`;
-- cleanup obligations: per ConnectionClean/Quiescent/ScratchLive (or legacy ClosedClean)
-  evaluation, an unclean result or a violation kind the base never showed;
+- cleanup obligations: per ConnectionClean/Quiescent (or legacy ClosedClean) evaluation,
+  an unclean result or a violation kind the base never showed; per FaultDisposed row
+  (faults.jsonl), a declared -> observed disposition pair the base never showed;
+- fault points: a FaultReached fault point the base fired and the head never fires;
 - reachability: a marker the base reached and the head never reaches.
 
 No latency: performance is separate, class-3 evidence (paired repeated measurements).
@@ -56,7 +58,7 @@ import safety_common as common
 HARNESS_FILE = "outcomes.jsonl"
 FUZZ_PROJECT = "LiteDB.Fuzz/LiteDB.Fuzz.csproj"
 OBLIGATIONS = {"connection-clean.jsonl": "ConnectionClean", "quiescent.jsonl": "Quiescent",
-               "scratch-live.jsonl": "ScratchLive", "closed-clean.jsonl": "ClosedClean"}
+               "scratch-live.jsonl": "ScratchLive", "closed-clean.jsonl": "ClosedClean"}  # last two: optional/legacy
 OPTIONAL = {"payloadDigest": "payloads", "effectsDigest": "effects", "primaryExceptionType": "primary"}
 DEFAULT_TARGETS = "chaos,concurrent,cursor-handoff,conflict,integrity"
 
@@ -131,7 +133,8 @@ def _exception(name, code):
 def collect(roots, requested=None):
     """Aggregate normalized outcomes of every run below roots; requested = {(target, seed)} drops corpus replays."""
     summary = {"ops": defaultdict(_new_op), "obligations": defaultdict(lambda: {"evaluations": 0, "unclean": 0,
-               "violations": Counter()}), "markers": Counter(), "runs": 0, "withOutcomes": 0}
+               "violations": Counter()}), "markers": Counter(), "faults": Counter(),
+               "dispositions": defaultdict(Counter), "runs": 0, "withOutcomes": 0}
     for root in roots:
         for run_json in sorted(Path(root).rglob("run.json")):
             directory = run_json.parent
@@ -144,11 +147,16 @@ def collect(roots, requested=None):
                 _add_outcome(summary["ops"][(record.get("op"), record.get("dimension") or "")], record)
             for name, oracle in OBLIGATIONS.items():
                 for record in _jsonl(directory / name):
-                    key = (oracle, record.get("op") or oracle, record.get("dimension") or "")
+                    key = (oracle, record.get("op") or record.get("point") or oracle, record.get("dimension") or "")
                     entry = summary["obligations"][key]
                     entry["evaluations"] += 1
                     entry["unclean"] += record.get("clean") is False
                     entry["violations"].update(_violation_kind(item) for item in record.get("violations") or [])
+            for record in _jsonl(directory / "faults.jsonl"):  # FaultReached / FaultDisposed rows
+                if record.get("fault") and record.get("fired"):
+                    summary["faults"][record["fault"]] += 1
+                elif record.get("op"):
+                    summary["dispositions"][record["op"]][f"{record.get('declared')} -> {record.get('observed')}"] += 1
             markers = directory / "markers.json"
             if markers.is_file():
                 summary["markers"].update(json.loads(markers.read_text(encoding="utf-8")).get("hits", {}))
@@ -235,6 +243,12 @@ def compare(base, head, unstable=frozenset()):
                 "unclean, none on the base", oracle=oracle)
         for violation in sorted(set(new["violations"] if new else ()) - set(old["violations"] if old else ())):
             add("cleanup-change", op, dimension, f"{oracle}: new violation '{violation}'", oracle=oracle)
+    for op in sorted(set(head["dispositions"])):
+        for pair in sorted(set(head["dispositions"][op]) - set(base["dispositions"].get(op, ()))):
+            add("cleanup-change", op, "", f"FaultDisposed: declared -> observed disposition {pair} new on the head")
+    for fault in sorted(set(base["faults"]) - set(head["faults"])):
+        add("marker", f"fault-point:{fault}", "", f"FaultReached on the base ({base['faults'][fault]}x), never on the head")
+    capabilities["faults"] = sorted(set(head["faults"]) - set(base["faults"]))
     for marker in sorted(set(base["markers"]) | set(head["markers"])):
         if base["markers"][marker] and not head["markers"][marker]:
             add("marker", marker, "", f"reached {base['markers'][marker]}x on the base, never on the head")
@@ -344,7 +358,8 @@ def render(result):
     capabilities = result["capabilities"]
     lines += ["", "**Capabilities only on the head** (listed, not diffed): operations "
               + (", ".join(f"`{item}`" for item in capabilities["operations"]) or "none") + "; markers "
-              + (", ".join(f"`{item}`" for item in capabilities["markers"]) or "none") + "."]
+              + (", ".join(f"`{item}`" for item in capabilities["markers"]) or "none") + "; fault points "
+              + (", ".join(f"`{item}`" for item in capabilities.get("faults", [])) or "none") + "."]
     absent, partial = result["notCompared"]["absent"], result["notCompared"]["partial"]
     if absent:
         lines += ["", "**Not compared** (the harness records no such field on either side): "
