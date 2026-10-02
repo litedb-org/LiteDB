@@ -26,6 +26,14 @@ refusing waits from the flow holding the owning transaction handle with
 optional slow-wait observer (`SharedSlowWaitThreshold` must be positive or infinite).
 See [Shared writer waits](shared-writer-waits.md).
 
+## Shared handle holder reuse
+
+Shared transaction handles reuse their internal holder threads (a process-wide pool:
+at most two idle threads, each for at most one second) and one closed private wrapper
+per connection. Every handle still opens a fresh storage core and takes and releases
+the native writer mutex itself; completed handles retain no storage or writer
+ownership. See [transaction handles](transaction-handles.md#shared-mode).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only

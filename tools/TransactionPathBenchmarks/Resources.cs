@@ -55,6 +55,10 @@ internal static class Resources
 {
     // Unrelated runtime threads and handles (timers, tiering, the console) may come and go.
     private const int ThreadSlack = 2, HandleSlack = 8;
+    // Shared handle holders run on a process-wide pool (#3083): at most this many threads stay idle,
+    // each for at most HolderIdleExpiry. Mirrors SharedHolderScheduler; the runner sees only public API.
+    private const int HolderIdleThreads = 2;
+    private static readonly TimeSpan HolderIdleExpiry = TimeSpan.FromSeconds(1);
     private const long ManagedSlack = 256 * 1024;
 
     public static bool TryRun(RunSettings settings, JsonRecord record, out bool passed)
@@ -79,13 +83,16 @@ internal static class Resources
 #if HANDLES
     /// <summary>
     /// One open Shared handle owns the writer; N begins wait behind it, each on its own thread.
-    /// Holder threads must stay at most one alive at a time, at the peak and while the queue
-    /// drains, and every count must return to its baseline once all handles complete.
+    /// At the peak exactly one holder is alive. While the queue drains, at most one busy holder
+    /// plus the pool's idle holders are alive, and every count returns to its baseline once all
+    /// handles completed and the idle holders expired.
     /// </summary>
     private static bool PendingBegins(RunSettings settings, JsonRecord record, int pending)
     {
         using var db = new LiteDatabase(settings.Connection);
         using (var warm = db.BeginTransaction()) warm.Commit();
+        // The warm handle's holder idles in the pool until it expires: measure without it.
+        Thread.Sleep(HolderIdleExpiry + TimeSpan.FromMilliseconds(500));
         var before = Counters.Settled();
         int started = 0, acquired = 0;
         var callers = new Thread[pending];
@@ -133,16 +140,19 @@ internal static class Resources
         }
         foreach (var error in errors)
             if (error != null) throw new InvalidOperationException("A pending begin failed", error);
+        Thread.Sleep(HolderIdleExpiry + TimeSpan.FromMilliseconds(500));
         var after = Counters.Settled();
         var bound = pending + 1 + ThreadSlack;
+        var drainBound = bound + HolderIdleThreads;
         var passed = parkedWithoutAcquiring && Volatile.Read(ref acquired) == pending &&
-            peak.Threads - before.Threads <= bound && drainPeakThreads - before.Threads <= bound &&
-            drainNonCallers <= 1 + ThreadSlack &&
+            peak.Threads - before.Threads <= bound && drainPeakThreads - before.Threads <= drainBound &&
+            drainNonCallers <= 1 + HolderIdleThreads + ThreadSlack &&
             after.Threads - before.Threads <= ThreadSlack && after.Handles - before.Handles <= HandleSlack &&
             after.ManagedBytes - before.ManagedBytes <= ManagedSlack;
         record.Add("kind", "resource").Add("pending", pending).Add("parked", parkedWithoutAcquiring)
             .Add("before", before.ToJson()).Add("peak", peak.ToJson()).Add("after", after.ToJson())
-            .Add("drainPeakThreads", drainPeakThreads).Add("threadBound", bound)
+            .Add("drainPeakThreads", drainPeakThreads).Add("threadBound", bound).Add("drainThreadBound", drainBound)
+            .Add("holderIdleThreads", HolderIdleThreads)
             .Add("peakThreadDelta", peak.Threads - before.Threads).Add("drainThreadDelta", drainPeakThreads - before.Threads)
             .Add("drainNonCallerThreads", drainNonCallers)
             .Add("afterThreadDelta", after.Threads - before.Threads).Add("afterHandleDelta", after.Handles - before.Handles)
