@@ -77,6 +77,14 @@ namespace LiteDB
         private TransactionResources OpenTransactionResources(SemaphoreSlim gate, SharedWaitDeadline deadline, bool selfWait,
             ref SharedWaitRecorder.Outcome outcome, ref TransactionHolder holder)
         {
+            // The handle's holder waits natively behind this connection's own release still in
+            // flight; like an ordinary call, wait for that release first, outside the budget.
+            try { _owner.WaitForOwnRelease(deadline); }
+            catch (SharedWaitTimeoutException)
+            {
+                outcome = SharedWaitRecorder.Outcome.TimedOut;
+                throw this.TimeoutError(this.Waits, deadline, behindThisConnection: true);
+            }
             // Pending begins wait on their own thread, never on a holder thread or engine.
             if (!gate.Wait(0)) this.WaitForHandleGate(gate, deadline, selfWait, ref outcome);
             // Database disposal does not wait for a begin queued here: a connection disposed

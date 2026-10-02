@@ -207,6 +207,9 @@ namespace LiteDB.Client.Shared
             lock (_sync) return ReferenceEquals(thread, this.Owner) && _operations > 0;
         }
 
+        /// <summary>Wait until the holder released the mutex, without reporting its close error.</summary>
+        public void WaitEnded() => _released.Wait();
+
         /// <summary>Wait until the holder closed the engine and released the mutex.</summary>
         public void WaitReleased()
         {

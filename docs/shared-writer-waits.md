@@ -67,9 +67,14 @@ local handle queue. When it runs out the call throws `LiteException` with error 
   for another connection or process);
 - otherwise "another connection or process".
 
-The budget is spent only on waiting for another owner: this connection's own release of
-its previous call, still completing on its holder thread, is waited for first and not
-charged, so a zero budget ("try once") does not fail on an uncontended connection. A
+The budget is spent only on waiting for another owner. This connection's own release still
+in flight is waited for first and not charged: the release of its previous call on its
+holder thread, a previous pin of a leased reader closing its engine, and, for
+`BeginTransaction()`, the connection's posted release. So a zero budget ("try once") does
+not fail on an uncontended connection. An owner thread that exited while owning is
+different: its cleanup is recovery that can close engine resources, so a bounded wait waits
+for it only within the budget, and a timeout during it names "another thread of this
+connection". A
 timed-out wait leaves no turnstile, mutex or queue ownership behind. The turnstile
 and mutex waits block with the remaining budget; they do not poll.
 
@@ -96,13 +101,15 @@ engine. Statistics are per connection, kept in per-minute buckets for up to one 
 minutes (at most 60): at least the window, at most one minute more. `Window` reports the
 span actually covered, so a wait from a few seconds ago is never dropped just after a
 minute boundary.
-Every non-recursive acquisition is recorded, also one that did not have to wait. `Count`
+Every blocking non-recursive acquisition is recorded, also one that did not have to wait;
+best-effort acquisitions that never wait (internal try-acquire probes) are not. `Count`
 holds the waits that ended by acquiring ownership (including immediately, or by a failure
 that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWait` and the
 over-500 ms/1 s counts cover the same waits. A refused wait (`SharedSelfWaitGrace`), at once
 or after a grace, counts only in `Refused` and adds no wait time. A wait ends when ownership
-is acquired: opening the engine or recovering it afterward is not part of it, on any path
-(including a pin of a thread streaming a leased reader). `Owner` is what this process
+is acquired: opening the engine or recovering it afterward is not part of the recorded wait
+time, on any path (including a pin of a thread streaming a leased reader); `CurrentWaiters`
+and `LongestCurrentWait` may still include a begin while its core opens. `Owner` is what this process
 knows: a handle of this process, or `Unknown` (free, another connection, or another
 process). One `BeginTransaction()` is one wait on its connection, covering both its local
 handle queue and its native admission; it ends when native admission ends, so opening the

@@ -112,7 +112,13 @@ namespace LiteDB
         {
             this.RetireCoordinatedReads();
             var other = _pin;
-            if (other != null) other.RequestRelease(force: false);
+            if (other != null)
+            {
+                other.RequestRelease(force: false);
+                // This connection's own previous pin closing is not another owner: wait for it
+                // first, outside the budget, unless it can end only after this thread.
+                if (other.CanWaitFrom(Thread.CurrentThread)) other.WaitEnded();
+            }
 
             // A pin that ended for a waiting thread of this instance must not be replaced
             // ahead of it: let the waiters take the mutex first. This cannot deadlock. A
