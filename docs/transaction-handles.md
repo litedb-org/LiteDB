@@ -130,11 +130,15 @@ per connection may remain.
 
 Holder threads come from a process-wide pool: a thread runs one handle at a time,
 then waits up to one second for the next one (at most two wait; busy holders are
-never limited). A thread that left any ownership state behind exits instead of
-waiting. Each connection keeps the closed private `SharedEngine` wrapper of its
-last handle for the next one: only settings, mutex objects and owner bookkeeping
-survive, never a core, page cache, WAL index, mapped coordination participation or
-the mutex. A wrapper is discarded after any failure, when the connection's password
+never limited). A thread whose job left LiteDB's thread-local ownership bookkeeping
+unclean (a mutex scope, an open call frame, an inherited wait deadline or a bound
+transaction context) exits instead of waiting, so the OS abandons anything it still
+owns; ownership outside that bookkeeping is not detected, and no LiteDB path creates
+it. Each connection keeps the closed private `SharedEngine` wrapper of its last
+handle for the next one: its settings, its two named-mutex OS handles, owner
+bookkeeping, reader-registry and read-policy wrappers (the policy points at nothing
+while idle) and the connection's wait recorder survive; never a core, page cache, WAL
+index, mapped coordination participation or the mutex itself. A wrapper is discarded after any failure, when the connection's password
 or collation changed (a rebuild), and when the connection is disposed or collected.
 
 A Shared handle dropped without completion while its `LiteDatabase` stays alive
