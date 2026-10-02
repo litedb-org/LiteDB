@@ -272,6 +272,45 @@ requested generated seed shards. A new real finding
 should be minimized, added there with its target and reason, and accompanied by
 a focused xUnit regression whenever practical.
 
+## Per-PR target selection
+
+The Fuzz workflow's `PR-selected targets` job runs the targets a pull request's
+diff obliges (count 100; 30 when every target is selected), with a seed fixed
+per PR (`2947000 + PR number`, `2947` without `--pr`) so reruns are comparable. It is informational like the rest of this
+path-filtered workflow; the always-run gate is the Oracle smoke job of
+build-and-test. `.github/scripts/select_fuzz_targets.py` decides each changed
+file in this order and records the decision in `selection.json`:
+
+1. **Obligation map** ([`fuzz-obligations.json`](../.github/safety/fuzz-obligations.json)):
+   every obligation whose `paths` match the file, and whose `patterns` (when
+   given) match an added or removed line, adds its targets. Cross-cutting pattern
+   obligations (`"decides": false`, e.g. a new wait or `finally`) add targets
+   but still let the file's own subsystem be selected. `alwaysForLiteDB` is added
+   for any `LiteDB/` change.
+2. **Coverage** ([`fuzz-coverage-map.json`](../.github/safety/fuzz-coverage-map.json)):
+   the targets whose recorded coverage includes the file. Files under `ignore`
+   (documentation, unrelated tools) select nothing.
+3. **All targets** when neither decides; new code has no coverage yet.
+
+Required targets that do not exist in the tree are listed under `missing` with a
+warning. To add an obligation, add an entry with a kebab-case `id`, a `kind`, the
+plan row or rule as `reason`, `paths` globs, optional `patterns`, and `targets`;
+the Safety policy job runs `select_fuzz_targets.py --validate`, so an unknown
+target, a glob that matches nothing or a broken regex fails CI. Preview a
+selection with `python .github/scripts/select_fuzz_targets.py --base origin/dev`.
+
+Refresh the coverage map after adding or substantially changing a target:
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- --target all \
+  --seed 2947 --count 3 --coverage-guided --artifact-dir artifacts_temp/coverage-map
+python .github/scripts/generate_fuzz_coverage_map.py artifacts_temp/coverage-map \
+  --command "<the command above>"
+```
+
+Use a fresh artifact directory; the map records its commit, command and the
+targets it could not cover yet.
+
 ## Publishing raw results
 
 GitHub Actions always uploads the raw run directories. Maintainers can also

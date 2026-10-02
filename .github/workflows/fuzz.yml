@@ -21,7 +21,9 @@ on:
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
       - '.github/safety/markers.json'
+      - '.github/safety/fuzz-*.json'
       - '.github/scripts/check_reachability.py'
+      - '.github/scripts/select_fuzz_targets.py'
   push:
     branches: [dev]
     paths:
@@ -43,7 +45,9 @@ on:
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
       - '.github/safety/markers.json'
+      - '.github/safety/fuzz-*.json'
       - '.github/scripts/check_reachability.py'
+      - '.github/scripts/select_fuzz_targets.py'
   schedule:
     - cron: '23 2 * * *'
   workflow_dispatch:
@@ -182,6 +186,61 @@ jobs:
           name: fuzz-markers-${{ matrix.name }}
           path: artifacts/fuzz/**/markers.json
           if-no-files-found: warn
+
+  # Per-PR selection (LiteDB.Fuzz/README.md#per-pr-target-selection): the obligation map first,
+  # recorded coverage second, every target when neither decides a changed file. Informational:
+  # this workflow is path-filtered and must never be a required check; the always-run gate is
+  # build-and-test / Safety evidence with its Oracle smoke job.
+  pr-selected:
+    name: PR-selected targets
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: UTC
+      LANG: en_US.UTF-8
+      # Measured locally (24 cores, shared host, load ~7): Shared-mode change 5 targets x 100 in 232 s
+      # (shared dominates), query change 5 x 100 in 7 s, all 45 targets x 30 in 89 s.
+      SELECTED_COUNT: 100
+      ALL_TARGETS_COUNT: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      - name: Select targets for this change
+        id: select
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p artifacts/fuzz-pr
+          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" \
+            --github-output --output artifacts/fuzz-pr/selection.json
+      - name: Run selected targets
+        if: steps.select.outputs.targets != ''
+        env:
+          FUZZ_TARGETS: ${{ steps.select.outputs.targets }}
+          FUZZ_SEED: ${{ steps.select.outputs.seed }}
+          ALL_TARGETS: ${{ steps.select.outputs.all-targets }}
+        run: |
+          count="$SELECTED_COUNT"
+          if [ "$ALL_TARGETS" = "true" ]; then count="$ALL_TARGETS_COUNT"; fi
+          echo "Seed $FUZZ_SEED, count $count: $FUZZ_TARGETS"
+          dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
+            --target "$FUZZ_TARGETS" --seed "$FUZZ_SEED" --count "$count" \
+            --artifact-dir artifacts/fuzz-pr/runs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-pr-selected
+          path: artifacts/fuzz-pr
+          if-no-files-found: error
 
   reachability:
     name: Reachability gate
