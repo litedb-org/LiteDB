@@ -43,6 +43,18 @@ namespace LiteDB.Client.Shared
             return true;
         }
 
+        /// <summary>
+        /// Wait for this connection's own release in flight. A call's own release is not another
+        /// owner and is not charged to a budget: the holder completes it without waiting for
+        /// anything else. An exited owner's cleanup (recovery that can close engine resources)
+        /// is waited for only within a bounded budget.
+        /// </summary>
+        internal void WaitForOwnRelease(SharedWaitDeadline deadline)
+        {
+            if (deadline.IsInfinite || !_cleaningExited) { this.WaitForRelease(); return; }
+            while (!_released.Wait(deadline.Slice(Poll))) deadline.ThrowIfExpired(behindThisConnection: true);
+        }
+
         private void CleanUpExitedScope()
         {
             try { _ownerExited(); }

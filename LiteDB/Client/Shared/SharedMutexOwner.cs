@@ -44,6 +44,8 @@ namespace LiteDB.Client.Shared
         // holder completes it, the gate stays closed and the OS mutex held, although
         // nobody owns the connection any more.
         private readonly ManualResetEventSlim _released = new ManualResetEventSlim(true, SpinCount);
+        // The release in flight is an exited owner's cleanup (recovery), not a call's own release.
+        private volatile bool _cleaningExited;
         private Thread _holder;
         private Command _command;
         private SharedWaitDeadline _commandDeadline;
@@ -130,9 +132,7 @@ namespace LiteDB.Client.Shared
         public bool EnterWithin(bool scoped, SharedWaitDeadline deadline)
         {
             if (this.TryRecurse()) return false;
-            // This connection's own release in flight is not another owner, and is not charged
-            // to the budget: the holder completes it without waiting for anything else.
-            this.WaitForRelease();
+            this.WaitForOwnRelease(deadline);
             // A bounded wait never runs an exited owner's cleanup inline (it can close engine
             // resources); the gate stays closed until that cleanup completes elsewhere.
             while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(inline: deadline.IsInfinite); deadline.ThrowIfExpired(behindThisConnection: true); }
@@ -453,6 +453,7 @@ namespace LiteDB.Client.Shared
                 // release throws on this thread. The mutex and the gate stay held until
                 // the cleanup below finishes, so nobody enters meanwhile.
                 _released.Reset();
+                _cleaningExited = true;
                 _owner = null;
                 _recursion = 0;
                 _generation++;
@@ -463,7 +464,7 @@ namespace LiteDB.Client.Shared
             try { _ownerExited(); }
             catch (Exception) { /* The next open recovers; the mutex must still be released. */ }
             this.ReleaseMutex();
-            lock (_sync) { _gate.Release(); _released.Set(); }
+            lock (_sync) { _cleaningExited = false; _gate.Release(); _released.Set(); }
         }
     }
 }
