@@ -91,6 +91,40 @@ class RunMutationTests(unittest.TestCase):
                 os.chdir(repo.path)
                 subprocess.call(["git", "worktree", "remove", "--force", str(worktree)], cwd=repo.path)
 
+    def test_non_csharp_test_project_changes_do_not_disable_since(self):
+        with GitRepo() as repo:
+            base = repo.commit({**FILES, "LiteDB.Tests/Data/fixture.json": "{}\n", "LiteDB.Tests/Gone.txt": "x\n",
+                                "LiteDB.Tests/T.cs": "class T { }\n"})
+            repo.commit({"LiteDB/A.cs": "class A { int x; }\n", "LiteDB/A.json": "{}\n",
+                         "LiteDB.Tests/Data/fixture.json": "{\"changed\": 1}\n", "LiteDB.Tests/Gone.txt": None,
+                         "LiteDB.Tests/LiteDB.Tests.csproj": "<Project />\n", "LiteDB.Tests/T.cs": "class T { int y; }\n"})
+            (repo.path / "LiteDB.Tests/untracked.txt").write_text("u\n", encoding="utf-8")
+            recorder = Recorder()
+            code, output = self.run_main(["--base", base, "--output", str(self.output)], recorder)
+            self.assertEqual(code, 0, output)
+            command = next(call[0] for call in recorder.calls if call[0][:2] == ["dotnet", "stryker"])
+            config = json.loads(Path(command[command.index("--config-file") + 1]).read_text(encoding="utf-8"))
+            ignored = config["stryker-config"]["since"]["ignore-changes-in"]
+            self.assertEqual(ignored, ["**/LiteDB.Tests/Data/fixture.json", "**/LiteDB.Tests/Gone.txt",
+                                       "**/LiteDB.Tests/LiteDB.Tests.csproj", "**/LiteDB.Tests/untracked.txt"])
+            self.assertNotIn("test-case-filter", config["stryker-config"])
+            self.assertIn("4 changed non-C# file(s) under LiteDB.Tests", output)
+
+    def test_committed_ignore_patterns_are_kept_and_glob_characters_neutralised(self):
+        committed = json.dumps({"stryker-config": {"since": {"ignore-changes-in": ["**/*.md"]}}})
+        with GitRepo() as repo:
+            base = repo.commit({**FILES, runner_module.CONFIG: committed})
+            repo.commit({"LiteDB.Tests/Data/[a]*b?.bin": "x\n"})
+            recorder = Recorder()
+            code, output = self.run_main(["--base", base, "--output", str(self.output),
+                                          "--test-case-filter", "Name~X"], recorder)
+            self.assertEqual(code, 0, output)
+            command = next(call[0] for call in recorder.calls if call[0][:2] == ["dotnet", "stryker"])
+            config = json.loads(Path(command[command.index("--config-file") + 1]).read_text(encoding="utf-8"))
+            self.assertEqual(config["stryker-config"]["since"]["ignore-changes-in"],
+                             ["**/*.md", "**/LiteDB.Tests/Data/?a??b?.bin"])
+            self.assertEqual(config["stryker-config"]["test-case-filter"], "Name~X")
+
     def test_stryker_failure_skips_the_gate(self):
         with GitRepo() as repo:
             base = repo.commit(FILES)

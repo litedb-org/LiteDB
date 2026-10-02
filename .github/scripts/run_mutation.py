@@ -17,13 +17,26 @@ then diffs the wrong working tree. From a linked worktree the script therefore
 clones the worktree's HEAD into a temporary regular clone (sharing its objects)
 and runs there; uncommitted changes are not part of that run.
 
-Stryker's --since also treats a changed test file as invalidating every mutant
-its tests cover, so a test-only change re-tests those mutants (mutation_gate.py
-still reports only mutants on changed lines).
+How --since picks mutants (Stryker 5 SinceMutantFilter/GitDiffProvider): a
+changed file under the test project directory (the directory Stryker runs in,
+LiteDB.Tests/) is a "test file", any other changed file a "source file". A
+changed C# source file re-tests all of its mutants; a changed C# test file
+re-tests every mutant its tests cover (mutation_gate.py still reports only
+mutants on changed lines). A changed test file that does not end in ".cs"
+(a .json fixture, the .csproj, this config) re-tests every mutant in the
+whole mutate scope, because Stryker cannot tell which mutants it affects.
+The gate lists only mutants on changed lines, and every mutant of a changed
+source file is tested anyway, so that full-scope run buys nothing here. The
+helper therefore adds each changed non-C# file under LiteDB.Tests/ (tracked
+changes since the base, deletions included, and untracked files) to the
+config's since.ignore-changes-in; only C# changes decide the mutant set.
+Changed non-C# files elsewhere are source files that match no mutated file,
+so they never widened the set.
 """
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -60,16 +73,34 @@ def prepare_tree(root, scratch):
     return str(clone), str(clone)
 
 
-def stryker_config(tree, output, test_case_filter):
-    """The committed config, or a copy that adds a test-case-filter (config-file only option)."""
+def non_csharp_test_changes(tree, base):
+    """Files under TEST_PROJECT_DIR not ending in ".cs" that Stryker's diff (base tree vs working tree) sees."""
+    changed = common.git("diff", "--name-only", "--no-renames", base, "--", TEST_PROJECT_DIR, cwd=tree).splitlines()
+    untracked = common.git("ls-files", "--others", "--exclude-standard", "--", TEST_PROJECT_DIR, cwd=tree).splitlines()
+    return sorted({path for path in changed + untracked if path and not path.endswith(".cs")})
+
+
+def ignore_pattern(path):
+    """A since.ignore-changes-in glob matching the repository path; glob characters become '?'."""
+    return "**/" + re.sub(r"[*?\[\]{}]", "?", path)
+
+
+def stryker_config(tree, output, test_case_filter, ignored=()):
+    """The committed config, or a copy that adds a test-case-filter (config-file only option) and
+    since.ignore-changes-in entries for `ignored` paths."""
     config = Path(tree) / CONFIG
-    if not test_case_filter:
+    if not test_case_filter and not ignored:
         return config
     data = json.loads(config.read_text(encoding="utf-8"))
-    data["stryker-config"]["test-case-filter"] = test_case_filter
-    narrowed = Path(output) / "stryker-config.narrowed.json"
-    narrowed.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return narrowed
+    options = data["stryker-config"]
+    if test_case_filter:
+        options["test-case-filter"] = test_case_filter
+    if ignored:
+        since = options.setdefault("since", {})
+        since["ignore-changes-in"] = list(since.get("ignore-changes-in", [])) + [ignore_pattern(p) for p in ignored]
+    effective = Path(output) / "stryker-config.effective.json"
+    effective.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return effective
 
 
 def stryker_command(config, base, output, concurrency=None):
@@ -111,7 +142,11 @@ def main(argv=None, runner=run):
     scratch = tempfile.mkdtemp(prefix="litedb-mutation-")
     try:
         tree, clone = prepare_tree(root, scratch)
-        config = stryker_config(tree, output, args.test_case_filter)
+        ignored = non_csharp_test_changes(tree, base)
+        if ignored:
+            print(f"{len(ignored)} changed non-C# file(s) under {TEST_PROJECT_DIR}/ added to since.ignore-changes-in "
+                  "(they would make --since re-test the whole mutate scope): " + ", ".join(ignored), flush=True)
+        config = stryker_config(tree, output, args.test_case_filter, ignored)
         print(f"{TOOL} {tool_version(tree)} (pinned in .config/dotnet-tools.json); config {config}; "
               f"base {base}; head {head}; TestingEnabled=true TargetFramework={FRAMEWORK}", flush=True)
         code = runner(["dotnet", "tool", "restore"], tree)

@@ -18,9 +18,11 @@ name: Mutation on the diff
 # compiled only under DEBUG or TESTING) or "advisory"; the class only fails the
 # job once the net-modes switch is turned on.
 #
-# Changed test files broaden the mutant set: Stryker's --since treats a changed
-# test as invalidating every mutant its tests cover, so a test-only change
-# re-tests all of those mutants (the survivor list still covers changed lines only).
+# Changed C# test files broaden the mutant set: Stryker's --since treats a
+# changed test as invalidating every mutant its tests cover, so a test-only
+# change re-tests all of those mutants (the survivor list still covers changed
+# lines only). A changed non-C# file under LiteDB.Tests/ would re-test the whole
+# mutate scope; run_mutation.py adds those files to since.ignore-changes-in.
 #
 # Why not on every PR: Stryker builds LiteDB.Tests, runs the tests with coverage
 # capture, then reruns the covering tests for every batch of mutants of each

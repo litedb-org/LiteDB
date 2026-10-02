@@ -316,9 +316,14 @@ scope with the placeholder source `File ignored by mutate filter`. Survivors
 never fail an advisory run
 [test: .github/scripts/test_mutation_gate.py#test_advisory_mode_exits_zero_with_findings_and_placeholders].
 
-Changed test files broaden the mutant set. Stryker treats a changed test as
+Changed C# test files broaden the mutant set. Stryker treats a changed test as
 invalidating every mutant its tests cover, so a test-only change re-tests all
-of them; the survivor list still covers changed lines only. The run is not per
+of them; the survivor list still covers changed lines only. A changed file
+under `LiteDB.Tests/` that does not end in `.cs` (a fixture, the `.csproj`,
+the Stryker config) would make `--since` re-test the whole mutate scope.
+The helper adds each such file to `since.ignore-changes-in` in the config it
+passes, so only C# changes decide which mutants run. Every mutant of a
+changed source file runs either way. The run is not per
 PR because every mutant of a changed file is tested, and the cost is not yet
 measured on the full suite. Survivor outcomes are measured per run, not predicted.
 
