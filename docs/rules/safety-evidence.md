@@ -17,7 +17,10 @@ Every PR description has the `## Safety / regression evidence` section from the
 the template, so copy the section yourself. Answer each of the five prompts in a
 line or two and link tests, runs and reports instead of pasting logs. A change
 that cannot affect any previously supported behavior (documentation only) may
-replace the prompts with one `- Not applicable: <reason>` line.
+replace the prompts with one `- Not applicable: <reason>` line. A critical change
+(the `critical` label, set from the diff by `classify_critical.py`) also adds the
+generated `Critical change evidence` section; see
+[implement safely](implement-safely.md#the-pr-description).
 
 The **Safety section** workflow checks the section and requires every contract
 id that the changed paths implicate. The **Safety policy** CI job lists those
@@ -119,9 +122,14 @@ A new test that proves one property does not justify losing a separate property
 such as sustained-contention progress.
 
 The ledger's `quarantine` lists tests no CI leg executes, each with an owner, a
-reason, a review date and the gap it leaves. A quarantined test is a visible
-coverage gap, never passing evidence. A passed review date is reported on every
-run.
+reason, a linked `issue`, a `review` date, an `expires` date and the gap it leaves;
+an entry without them fails. A quarantined test is a visible coverage gap, never
+passing evidence. A passed review or expiry date is reported on every run. The
+weekly **Quarantine re-run** workflow (`quarantine_rerun.py`) runs every quarantined
+test, with its `Skip` removed in that run's checkout only, and every known-finding
+test (a method named `Known_finding_*` that pins a defect's current behavior). It
+fails when a quarantined test passes, a known-finding test fails, an entry produces
+no result, or a date has passed.
 
 ## Diff nets
 
@@ -132,7 +140,7 @@ reviewer cannot answer reliably. None of them proves the code correct.
 | --- | --- | --- |
 | [Diff lints](#diff-lints) | new polling loops, deleted invariant comments, unanchored doc claims | every PR (Safety policy, Safety section) |
 | [Differential run](#differential-run) | normalized behavior changes nobody declared, and declared changes that did not happen | PRs touching `LiteDB/` |
-| [Mutation on the diff](#mutation-on-the-diff) | changed cleanup and lock lines that no test pins down | PRs labelled `critical`, manual |
+| [Mutation on the diff](#mutation-on-the-diff) | changed cleanup and lock lines that no test pins down | critical PRs, manual |
 | [Contended acquire](performance.md#contended-acquire) | acquire-latency tails, overtaking and waiter progress | the writer-contention step of the shared-slot performance workflow |
 
 **Pilot: nothing blocks yet.** [`net-modes.json`](../../.github/safety/net-modes.json)
@@ -304,8 +312,8 @@ worktree, apply the harness commits on top and pass `--base-tree` (or
 
 ### Mutation on the diff
 
-Mutation on the diff is a pilot. PRs labelled `critical`, and manual runs,
-execute `mutation.yml`, which calls `.github/scripts/run_mutation.py`. The helper:
+Mutation on the diff is a pilot. Critical PRs (labelled, or classified from the
+diff), and manual runs, execute `mutation.yml`, which calls `.github/scripts/run_mutation.py`. The helper:
 
 - runs the pinned `dotnet-stryker` (`.config/dotnet-tools.json`) with the
   committed `LiteDB.Tests/stryker-config.json` (passed with `--config-file`),
