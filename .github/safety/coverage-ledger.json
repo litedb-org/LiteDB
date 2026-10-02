@@ -54,6 +54,16 @@
       "disposition": "strengthened",
       "invariant": "Every test method still runs in exactly one partition (verified by -VerifyPartitions); no timeout or filter of another partition changes.",
       "reason": "Moves LiteDB.Tests.Engine.Transaction* out of the engine partition into its own engine-transaction partition, so the added handle coverage (interleaving explorer, close races) does not push the engine partition past the per-session timeout."
+    },
+    {
+      "id": "3080-shared-waits-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every test method still runs in exactly one partition (verified by -VerifyPartitions); no timeout or filter of another partition changes.",
+      "reason": "Moves LiteDB.Tests.Engine.SharedWait* out of the engine partition into its own engine-shared-waits partition, so the Shared writer-wait coverage (stage, abandonment, budget and interrupt tests) does not push the engine partition past the per-session timeout."
     }
   ]
 }
