@@ -133,7 +133,8 @@ Permitted outcomes follow from what disturbs a node's connection (close, a dispo
 
 `ExplorerKnownFindings` registers defects the explorer reaches on this revision. Each entry has
 a fingerprint regex over `FAILURE_ID@scenario@mode=..@access=..@maintenance=..@callback=..`, an
-optional message regex, and evidence. Discovery continues past them: xUnit reports instead of
+optional message regex, evidence, and the upstream issue when one is filed (in parentheses in the
+table below). Discovery continues past them: xUnit reports instead of
 failing; the fuzz targets append them to `known-findings.jsonl` with the retained step directory.
 Only a finding that would **hang** an actor or **crash** the process is also excluded by a
 precise vector predicate (or, for the stale lock-timeout pragma, avoided by the fixture) (and `lifetime-chaos` withholds the matching generation choices, listing
@@ -142,12 +143,13 @@ them in the program text); exclusions are traced and counted, never silent.
 
 | Id | Class | Exclusion |
 | --- | --- | --- |
-| `direct-dispose-under-active-operation` | crash: Direct Dispose (or a fatal stop) under another thread's active operation returns at once; the operation fails with an internal ENSURE (LiteException 999) and leaked page buffers fail the PageBuffer finalizer ENSURE, which kills a TESTING process | Direct + close; Direct + callback dispose; Direct + fatal with A paused in its input teardown |
-| `direct-fatal-stop-during-upload-releases-page-buffers-twice` | crash: a fatal WAL write failure while `FileStorage.Upload` is paused in its source stream; the upload fails ("page buffer ownership was transferred to disk ... could not be rolled back") and page buffers end at share count -1, so the TESTING finalizer ENSURE kills the process | Direct + fatal, callback-pause upload point |
+| `direct-dispose-under-active-operation` (#3010) | crash: Direct Dispose (or a fatal stop) under another thread's active operation returns at once; the operation fails with an internal ENSURE (LiteException 999) and leaked page buffers fail the PageBuffer finalizer ENSURE, which kills a TESTING process | Direct + close; Direct + callback dispose; Direct + fatal with A paused in its input teardown |
+| `direct-fatal-stop-during-upload-releases-page-buffers-twice` (#3010) | crash: a fatal WAL write failure while `FileStorage.Upload` is paused in its source stream; the upload fails ("page buffer ownership was transferred to disk ... could not be rolled back") and page buffers end at share count -1, so the TESTING finalizer ENSURE kills the process | Direct + fatal, callback-pause upload point |
 | `shared-close-leaks-page-buffer` | class 2: after a Shared close raced a paused callback, a page buffer became garbage with share count 1 (not reproduced in isolation) | none (the fuzz targets' audit records it; xUnit would crash on it) |
 | `shared-dispose-from-input-teardown` | crash class: Shared auto-commit insert whose input sequence's `finally` disposes the connection fails with the same internal ENSURE | callback-pause, input-teardown point, Shared, non-transactional, callback dispose |
-| `shared-peer-call-inside-own-explicit-transaction` | hang: inside an explicit transaction a call on another connection to the same file on the same thread waits for the writer ownership its own thread holds. With `BeginTrans` it is the mechanism of open issue #3073 (explicit transactions count as idle owners, which #3072 does not refuse); with `FileStorage.Upload`, which opens its own transaction and reads the caller's source stream under it, the callback hangs where docs/shared-mode-safety.md promises a refusal for user code inside a call | Shared + peer callback with a transactional access kind, or the upload point |
-| `lock-timeout-pragma-stale-after-wal-restore` | 60 s lock waits: a connection that opens while TIMEOUT lives only in the WAL waits on locks with the data file's value (default 1 min) and ignores later `Timeout` changes (`LiteEngine.Open` builds `LockService` before the WAL restore replaces the header) | none: the fixture checkpoints its TIMEOUT and checks the lock service's effective value; include-known mode skips the checkpoint |
+| `shared-peer-call-inside-own-explicit-transaction` (#3073) | hang: inside an explicit transaction (`BeginTrans`) a call on another connection to the same file on the same thread waits for the writer ownership its own thread holds. It is the mechanism of open issue #3073 (explicit transactions count as idle owners, which #3072 does not refuse) | Shared + peer callback with a transactional access kind |
+| `shared-peer-call-from-upload-source-stream` (#3100) | hang: `FileStorage.Upload` opens its own transaction and reads the caller's source stream under it; a peer call from that stream waits for its own thread's writer ownership where docs/shared-mode-safety.md promises a refusal for user code inside a call | Shared + peer callback at the upload point, non-transactional access |
+| `lock-timeout-pragma-stale-after-wal-restore` (#3099) | 60 s lock waits: a connection that opens while TIMEOUT lives only in the WAL waits on locks with the data file's value (default 1 min) and ignores later `Timeout` changes (`LiteEngine.Open` builds `LockService` before the WAL restore replaces the header) | none: the fixture checkpoints its TIMEOUT and checks the lock service's effective value; include-known mode skips the checkpoint |
 
 ## Running it
 

@@ -17,6 +17,8 @@ namespace LiteDB.ConcurrencyTesting
         /// <summary>Vectors this finding would hang or crash; they are excluded unless LITEDB_EXPLORER_INCLUDE_KNOWN=1.</summary>
         public Func<ExplorerVector, bool> Excludes { get; set; }
         public string Evidence { get; set; }
+        /// <summary>The upstream issue that tracks the defect (litedb-org/LiteDB), or null when none is filed.</summary>
+        public string Issue { get; set; }
     }
 
     /// <summary>
@@ -34,6 +36,7 @@ namespace LiteDB.ConcurrencyTesting
             new ExplorerKnownFinding
             {
                 Id = "direct-dispose-under-active-operation",
+                Issue = "#3010",
                 Summary = "Direct: Dispose (or the fatal stop of a failed WAL write) while another thread's operation is active " +
                     "returns at once; the operation then fails with an internal ENSURE (LiteException 999 'transaction must be " +
                     "active to commit (current state: Disposed)') and page buffers keep a share count, whose finalizer ENSURE " +
@@ -49,6 +52,7 @@ namespace LiteDB.ConcurrencyTesting
             new ExplorerKnownFinding
             {
                 Id = "direct-fatal-stop-during-upload-releases-page-buffers-twice",
+                Issue = "#3010",
                 Summary = "Direct: a fatal WAL write failure on another thread while FileStorage.Upload is paused in its source " +
                     "stream; the upload fails with 'Upload failed (page buffer ownership was transferred to disk) and its " +
                     "transaction could not be rolled back' and page buffers end with share count -1 (released twice), so the " +
@@ -76,6 +80,7 @@ namespace LiteDB.ConcurrencyTesting
             new ExplorerKnownFinding
             {
                 Id = "lock-timeout-pragma-stale-after-wal-restore",
+                Issue = "#3099",
                 Summary = "LiteEngine.Open builds its LockService from the data file's header pragmas, then the WAL restore " +
                     "may replace the whole header. A connection that opens while the WAL holds a newer header (no checkpoint " +
                     "since TIMEOUT was set: CheckpointSize 0, a crash, an unclean close) reports TIMEOUT from the WAL header " +
@@ -106,20 +111,33 @@ namespace LiteDB.ConcurrencyTesting
             new ExplorerKnownFinding
             {
                 Id = "shared-peer-call-inside-own-explicit-transaction",
-                Summary = "Shared: code running inside an explicit transaction that calls another connection to the same file on " +
-                    "the same thread waits forever for the writer ownership its own thread holds: no refusal, no timeout. With " +
-                    "BeginTrans this is the mechanism of open issue #3073 (an explicit transaction counts as an idle owner, so the " +
-                    "#3072 refusal does not apply), reached here from a callback inside a call of that transaction. With " +
-                    "FileStorage.Upload the transaction is the library's own (LiteStorage.Upload begins one and reads the caller's " +
-                    "source stream under it), so a source-stream callback hangs where docs/shared-mode-safety.md promises a refusal " +
-                    "for user code running inside a call: a defect beyond #3073.",
-                Fingerprint = @"^DEADLINE_\w+@(callback-pause|transaction-contention)@mode=shared@access=\w+@maintenance=\w+@callback=peer$",
+                Issue = "#3073",
+                Summary = "Shared: code running inside an explicit transaction (BeginTrans) that calls another connection to the " +
+                    "same file on the same thread waits forever for the writer ownership its own thread holds: no refusal, no " +
+                    "timeout. This is the mechanism of open issue #3073 (an explicit transaction counts as an idle owner, so the " +
+                    "#3072 refusal does not apply), reached here from a callback inside a call of that transaction.",
+                Fingerprint = @"^DEADLINE_\w+@(callback-pause|transaction-contention)@mode=shared@access=(?!ordinary@)\w+@maintenance=\w+@callback=peer$",
                 Excludes = vector => vector.Configuration.Shared && vector.Configuration.Callback == ExplorerCallback.Peer &&
-                    ((vector.Scenario == "callback-pause" || vector.Scenario == "transaction-contention") &&
-                        ExplorerAccessKinds.Find(vector.Configuration.Access)?.Transactional == true ||
-                     vector.Scenario == "callback-pause" && vector.Variant % 4 == 2),
-                Evidence = "class 1 (forced): callback-pause variant 12/13 access=legacy and variant 14/38 (upload) access=ordinary, " +
-                    "mode=shared, callback=peer: every replay misses its deadline; the wait-for graph reports nothing (the holder is idle)"
+                    (vector.Scenario == "callback-pause" || vector.Scenario == "transaction-contention") &&
+                    ExplorerAccessKinds.Find(vector.Configuration.Access)?.Transactional == true,
+                Evidence = "class 1 (forced): callback-pause variant 12/13 access=legacy, mode=shared, callback=peer: every replay " +
+                    "misses its deadline; the wait-for graph reports nothing (the holder is idle)"
+            },
+            new ExplorerKnownFinding
+            {
+                Id = "shared-peer-call-from-upload-source-stream",
+                Issue = "#3100",
+                Summary = "Shared: FileStorage.Upload begins its own transaction and reads the caller's source stream under it; a " +
+                    "source-stream callback that calls another connection to the same file on the same thread waits forever for " +
+                    "the writer ownership its own thread holds, where docs/shared-mode-safety.md promises a refusal for user code " +
+                    "running inside a call (the same call from an input sequence or ReadTransform is refused). The caller wrote " +
+                    "no transaction, so this is a defect beyond #3073.",
+                Fingerprint = @"^DEADLINE_\w+@callback-pause@mode=shared@access=ordinary@maintenance=\w+@callback=peer$",
+                Excludes = vector => vector.Configuration.Shared && vector.Configuration.Callback == ExplorerCallback.Peer &&
+                    vector.Scenario == "callback-pause" && vector.Variant % 4 == 2 &&
+                    ExplorerAccessKinds.Find(vector.Configuration.Access)?.Transactional != true,
+                Evidence = "class 1 (forced): callback-pause variant 14/38 (upload point) access=ordinary, mode=shared, " +
+                    "callback=peer: every replay misses its deadline; the wait-for graph reports nothing (the holder is idle)"
             }
         };
 
