@@ -97,8 +97,11 @@ settings.SharedSlowWait = info => logger.LogWarning(
     info.Filename, info.Elapsed, info.TimedOut, info.Owner);
 ```
 
-The observer runs on the thread pool once each wait that reached the threshold ends
-(acquired or timed out). It never runs on the waiting thread or under internal locks,
+The threshold must be positive (up to `Int32.MaxValue` ms) or `Timeout.InfiniteTimeSpan`,
+the default (never report); zero or a negative value throws `ArgumentOutOfRangeException`,
+since every acquisition, immediate ones included, would be reported. The observer runs on
+the thread pool once each wait that reached the threshold ends (acquired or timed out; a
+refused wait is not reported). It never runs on the waiting thread or under internal locks,
 and its exceptions are ignored. A wait that never ends shows up in
 `CurrentWaiters`/`LongestCurrentWait`, and through the observer once a timeout ends it.
 `Owner` in a report is the owner known when that wait began.
