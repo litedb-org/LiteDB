@@ -22,7 +22,13 @@ namespace LiteDB
             if (!disposing || Volatile.Read(ref _disposed) != 0) return;
             this.ThrowIfTeardownReentry();
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            // A handle's wrapper returning after this point is disposed by its holder instead.
+            try { this.DisposeConnection(); }
+            finally { this.DisposeCachedTransactionChild(); }
+        }
 
+        private void DisposeConnection()
+        {
             this.RetireCoordinatedReads();
             // Any thread can end a pin; its holder closes the engine and releases. Read
             // under the lock that orders a starting pin's publication with this Dispose.
