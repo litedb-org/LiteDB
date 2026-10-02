@@ -75,18 +75,26 @@ def at(snippet, status, mutator="Statement mutation", replacement=";", text=SOUR
                                            "end": {"line": line, "column": column + len(snippet)}}}
 
 
-def stryker_report(root, mutants, source=SOURCE, key=None):
-    return {"schemaVersion": "1", "thresholds": {"high": 80, "low": 60}, "projectRoot": f"{root}/LiteDB",
-            "files": {key or f"{root}/{PATH}": {"language": "cs", "source": source, "mutants": mutants}}}
+# A changed file outside the mutate scope: Stryker 5 still lists it, with this placeholder instead of
+# its source and no mutants (excerpt of a real report: language "none", 29-character source).
+OTHER = "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
+PLACEHOLDER = {"language": "none", "source": "File ignored by mutate filter", "mutants": []}
+
+
+def stryker_report(root, mutants, source=SOURCE, key=None, extra=None):
+    files = {key or f"{root}/{PATH}": {"language": "cs", "source": source, "mutants": mutants}}
+    files.update({f"{root}/{name}": entry for name, entry in (extra or {}).items()})
+    return {"schemaVersion": "2", "thresholds": {"high": 80, "low": 60}, "projectRoot": f"{root}/LiteDB",
+            "files": files}
 
 
 class MutationGateTests(unittest.TestCase):
-    def run_gate(self, mutants, extra_args=(), source=SOURCE, key=None, head_files=None):
+    def run_gate(self, mutants, extra_args=(), source=SOURCE, key=None, head_files=None, extra=None):
         with GitRepo() as repo, tempfile.TemporaryDirectory() as scratch:
-            base = repo.commit({PATH: BASE})
-            repo.commit(head_files or {PATH: SOURCE})
+            base = repo.commit({PATH: BASE, OTHER: "class Other { }\n"})
+            repo.commit(head_files or {PATH: SOURCE, OTHER: "class Other { int changed; }\n"})
             report = Path(scratch) / "mutation-report.json"
-            report.write_text(json.dumps(stryker_report(repo.path, mutants, source, key)), encoding="utf-8")
+            report.write_text(json.dumps(stryker_report(repo.path, mutants, source, key, extra)), encoding="utf-8")
             args = [str(report), "--base", base, *[arg.replace("{scratch}", scratch) for arg in extra_args]]
             code, output = run_quietly(gate.main, args)
             written = {name.name: name.read_text(encoding="utf-8") for name in Path(scratch).iterdir()}
@@ -166,6 +174,26 @@ class MutationGateTests(unittest.TestCase):
     def test_unusable_report_fails_even_in_advisory_mode(self):
         code, output, _ = self.run_gate([at("_count--;", "Killed")], ["--advisory"], source=BASE)
         self.assertEqual(code, 1, output)
+
+    def test_out_of_scope_placeholder_files_are_skipped_not_mismatched(self):
+        for mode in ("--advisory", "--blocking"):
+            code, output, _ = self.run_gate([at("value + 1", "Survived", "Arithmetic mutation", "value - 1")],
+                                            [mode], extra={OTHER: PLACEHOLDER})
+            self.assertEqual(code, 0, output)
+            self.assertNotIn("differs from", output)
+            self.assertIn("1 changed file(s) in the report have no mutants (outside the mutate scope)", output)
+
+    def test_placeholder_source_with_mutants_is_still_a_mismatch(self):
+        broken = {**PLACEHOLDER, "mutants": [at("_count--;", "Killed")]}
+        code, output, _ = self.run_gate([at("value + 1", "Killed")], ["--advisory"], extra={OTHER: broken})
+        self.assertEqual(code, 1, output)
+        self.assertIn(f"The report's copy of {OTHER} differs from HEAD", output)
+
+    def test_advisory_mode_exits_zero_with_findings_and_placeholders(self):
+        code, output, _ = self.run_gate([at("_count--;", "Survived"), at("_count = -1;", "NoCoverage")],
+                                        ["--advisory"], extra={OTHER: PLACEHOLDER})
+        self.assertEqual(code, 0, output)
+        self.assertIn("2 finding(s), advisory (exit 0", output)
 
     def test_lock_named_file_blocks_everywhere_in_it(self):
         lock_path = "LiteDB/Engine/Services/Snapshot.Lifetime.cs"

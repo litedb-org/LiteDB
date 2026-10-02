@@ -12,8 +12,9 @@ Each survivor is classified: class "blocking" when it sits in cleanup or lock co
 reviewer. Whether a blocking-class survivor fails the job is decided by the single
 switch in .github/safety/net-modes.json (net "mutation-gate"; --advisory/--blocking
 override it locally): while the switch is off this is a pilot and the gate exits 0.
-An unusable input (unreadable report, report source differing from --head, a
-report file matching several changed files) fails in either mode.
+An unusable input (unreadable report, the report's source of a file with
+mutants differing from --head, a report file matching several changed files)
+fails in either mode; survivors never fail an advisory run.
 Killed and Timeout mutants are detected (a Timeout is a mutant that made the
 covering tests hang, which counts as detected, as in Stryker). CompileError and
 RuntimeError mutants could not be evaluated (Stryker's safe mode turns every
@@ -25,8 +26,11 @@ and are only counted.
 
 Locations are mapped onto the C# source of the head revision (comments and
 literals blanked with safety_common.blank_code, bodies found by brace matching),
-and the report's embedded source must equal that revision, or the line numbers
-could point at different code.
+and the report's embedded source of every file with mutants must equal that
+revision, or the line numbers could point at different code. A file without
+mutants has nothing to map: Stryker 5 lists every project file outside the
+mutate scope with the placeholder source "File ignored by mutate filter" and no
+mutants, so such files are counted as outside the mutate scope and skipped.
 """
 import argparse
 import json
@@ -205,10 +209,10 @@ def _suffix(left, right):
 
 
 def evaluate(report_data, base, head, gate_report):
-    """Return the list of mutant records on changed lines (survivors classified)."""
+    """Return (mutant records on changed lines, changed paths whose report entry has no mutants)."""
     changed = changed_lines(base, head)
     tree = common.Tree(head)
-    records = []
+    records, unmutated = [], []
     files = common.section(report_data, "files", dict, gate_report, "report")
     for name, entry in sorted(files.items()):
         try:
@@ -217,6 +221,10 @@ def evaluate(report_data, base, head, gate_report):
             gate_report.error(str(error))
             continue
         if path is None or not isinstance(entry, dict):
+            continue
+        mutants = entry.get("mutants") or []
+        if not mutants:  # outside the mutate scope (placeholder source) or nothing to mutate: no line to map
+            unmutated.append(path)
             continue
         source = tree.read(path)
         if source is None:
@@ -228,12 +236,12 @@ def evaluate(report_data, base, head, gate_report):
                               "mapped (was Stryker run on another revision?)", path)
             continue
         structure = Structure(source)
-        for mutant in entry.get("mutants", []):
+        for mutant in mutants:
             record = _record(path, mutant, changed[path], structure)
             if record:
                 records.append(record)
     tree.close()
-    return records
+    return records, unmutated
 
 
 def _record(path, mutant, lines, structure):
@@ -263,21 +271,24 @@ def _cell(text, limit=80):
     return text.replace("|", "\\|").replace("`", "'")
 
 
-def render(records, base, head):
+def render(records, base, head, unmutated=()):
     survivors = [record for record in records if record["status"] in SURVIVING]
     counts = {}
     for record in records:
         counts[record["status"]] = counts.get(record["status"], 0) + 1
     lines = [f"Mutants whose span touches a line changed between `{base}` and `{head}`: "
              + (", ".join(f"{status} {count}" for status, count in sorted(counts.items())) or "none") + ".",
-             "",
-             "Each survivor below is a changed line whose behavior no test pins down: write a behavior test "
-             "that fails when the code is changed as shown. This is a list of lines to test, not a score; "
-             "do not chase a percentage, and do not edit the code merely to make a mutant disappear.",
-             "",
-             f"Blocking scope: {BLOCKING_SCOPE}. Timeout counts as detected. CompileError, RuntimeError and "
-             "Pending mutants were not evaluated (warned about in cleanup and lock code); Ignored mutants are "
-             "excluded by configuration."]
+             ""]
+    if unmutated:
+        lines += [f"{len(unmutated)} changed file(s) in the report have no mutants (outside the mutate scope); "
+                  "skipped.", ""]
+    lines += ["Each survivor below is a changed line whose behavior no test pins down: write a behavior test "
+              "that fails when the code is changed as shown. This is a list of lines to test, not a score; "
+              "do not chase a percentage, and do not edit the code merely to make a mutant disappear.",
+              "",
+              f"Blocking scope: {BLOCKING_SCOPE}. Timeout counts as detected. CompileError, RuntimeError and "
+              "Pending mutants were not evaluated (warned about in cleanup and lock code); Ignored mutants are "
+              "excluded by configuration."]
     if not survivors:
         lines += ["", "No surviving mutants on changed lines."]
         return "\n".join(lines)
@@ -306,7 +317,7 @@ def main(argv=None):
     except (OSError, ValueError) as error:
         report.error(f"Cannot read the Stryker report {args.report}: {error}")
         return report.finish()  # a broken input fails in either mode
-    records = evaluate(data, args.base, args.head, report)
+    records, unmutated = evaluate(data, args.base, args.head, report)
     unusable = bool(report.errors)  # report/tree mismatch: the survivor list cannot be trusted
     for record in records:
         if record["blocking"]:
@@ -317,12 +328,12 @@ def main(argv=None):
             report.warning(f"{record['status']} mutant in cleanup/lock code ({record['reason']}) was not evaluated: "
                            f"{record['mutator']} -> {_cell(record['replacement'])}; this changed line has no "
                            "mutation evidence either way", record["path"], record["line"])
-    markdown = render(records, args.base, args.head)
+    markdown = render(records, args.base, args.head, unmutated)
     report.section(markdown)
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as handle:
             json.dump({"base": args.base, "head": args.head, "blockingScope": BLOCKING_SCOPE,
-                       "mutants": records}, handle, indent=2)
+                       "mutants": records, "unmutatedFiles": unmutated}, handle, indent=2)
             handle.write("\n")
     if args.markdown:
         with open(args.markdown, "w", encoding="utf-8") as handle:

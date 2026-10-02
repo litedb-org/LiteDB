@@ -299,7 +299,12 @@ lock code means:
 Survivors elsewhere are advisory. Timeout counts as detected. CompileError,
 RuntimeError and Pending mutants in that code are reported as not evaluated:
 Stryker discards every mutant of a method when one does not compile. A report
-that does not match the head revision fails in either mode.
+that does not match the head revision fails in either mode: unreadable, a file
+with mutants whose embedded source differs from the head, or a report key that
+matches several changed files. A file without mutants is skipped and counted,
+because there is no line to map. Stryker 5 lists every file outside the mutate
+scope with the placeholder source `File ignored by mutate filter`. Survivors
+never fail an advisory run.
 
 Changed test files broaden the mutant set. Stryker treats a changed test as
 invalidating every mutant its tests cover, so a test-only change re-tests all
