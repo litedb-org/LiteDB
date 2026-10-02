@@ -1,33 +1,37 @@
 name: Mutation on the diff
 
-# Safety net 6 (mutation on the diff): Stryker.NET mutates the source files a PR
-# changed in LiteDB/Client/, LiteDB/Engine/Services/ and LiteDB/Engine/Engine/
-# (LiteDB.Tests/stryker-config.json), `--since` the merge-base, and
-# .github/scripts/mutation_gate.py lists the surviving mutants on the changed
-# lines. Survivors in cleanup and lock code (Dispose/Close/Release*, finally
-# blocks, lock/gate/monitor/mutex/pin/turnstile/lifetime types) fail the job;
-# the rest are advisory. The output is a list of lines to write behavior tests
-# for, not a score: no mutation-score threshold is applied (break-at is 0).
+# Safety net 6 (mutation on the diff), a PILOT: nothing here blocks a merge
+# while .github/safety/net-modes.json has "blocking": false.
 #
-# Why not on every PR: Stryker builds the solution once, runs the test suite
-# with coverage capture, then reruns the covering tests for every batch of
-# mutants. Even a narrow diff costs tens of minutes because every mutant of a
-# changed file is tested, not only those on changed lines, and LiteDB's lock and
-# lifetime tests are slow by nature. The per-PR budget is 15-20 minutes, so the
-# job runs only for PRs labelled `critical` (45 minutes) and on demand.
+# .github/scripts/run_mutation.py runs the pinned dotnet-stryker
+# (.config/dotnet-tools.json) with the committed config
+# (LiteDB.Tests/stryker-config.json, passed with --config-file) `--since` the
+# merge-base, with TestingEnabled=true (MSBuild reads environment variables as
+# properties, so the mutated LiteDB has the TESTING hooks the tests call) and
+# TargetFramework=net8.0 (LiteDB and LiteDB.Tests build one framework only).
+# Stryker mutates the changed files in LiteDB/Client/, LiteDB/Engine/Services/
+# and LiteDB/Engine/Engine/; mutation_gate.py then lists the surviving mutants on
+# the changed lines as lines to write behavior tests for. It is not a score: no
+# score threshold applies (break-at is 0). Survivors are classified "blocking"
+# (cleanup or lock code: Dispose/Close/Release*/*Finally, finally blocks,
+# lock/gate/monitor/mutex/pin/turnstile/lifetime types or files) or "advisory";
+# the class only fails the job once the net-modes switch is turned on.
 #
-# Local run (from a regular clone; Stryker's git library resolves a linked
-# `git worktree` to the main checkout and then diffs the wrong tree):
-#   dotnet tool restore
-#   cd LiteDB.Tests
-#   TestingEnabled=true dotnet stryker --since:$(git merge-base HEAD origin/dev) --output /tmp/litedb-stryker
-#   cd ..
-#   python .github/scripts/mutation_gate.py /tmp/litedb-stryker/reports/mutation-report.json --base $(git merge-base HEAD origin/dev)
-# Narrow a local run with "test-case-filter" in a copy of the config (--config-file);
-# the option is not available on the command line.
-# TestingEnabled=true must come from the environment: MSBuild reads environment
-# variables as properties, so Stryker's own project analysis compiles the
-# mutated LiteDB with the TESTING hooks the tests call.
+# Changed test files broaden the mutant set: Stryker's --since treats a changed
+# test as invalidating every mutant its tests cover, so a test-only change
+# re-tests all of those mutants (the survivor list still covers changed lines only).
+#
+# Why not on every PR: Stryker builds LiteDB.Tests, runs the tests with coverage
+# capture, then reruns the covering tests for every batch of mutants of each
+# changed file (all of the file's mutants, not only those on changed lines).
+# The cost for the full suite is not yet measured; the job runs for PRs
+# labelled `critical` (45 minutes) and on demand until the pilot's numbers are
+# reviewed against the per-PR budget target.
+#
+# Local run (works from a linked git worktree too: the helper clones its HEAD,
+# because Stryker's git library resolves a worktree to the main checkout):
+#   python .github/scripts/run_mutation.py --base $(git merge-base HEAD origin/dev) --output /tmp/litedb-mutation
+# Add --test-case-filter '<vstest filter>' to narrow the tests for a quick look.
 on:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
@@ -88,33 +92,17 @@ jobs:
           echo "sha=$base" >> "$GITHUB_OUTPUT"
           echo "Diffing $(git rev-parse HEAD) against merge-base $base"
 
-      - name: Restore tools and packages
-        run: |
-          dotnet tool restore
-          dotnet restore LiteDB.Tests/LiteDB.Tests.csproj
-
-      - name: Run Stryker on the diff
-        working-directory: LiteDB.Tests
-        env:
-          TestingEnabled: 'true'
-          MERGE_BASE: ${{ steps.base.outputs.sha }}
-        run: >-
-          dotnet stryker --since:"$MERGE_BASE" --output "$RUNNER_TEMP/stryker"
-          --skip-version-check --log-to-file
-
-      - name: List survivors on changed lines
+      - name: Run Stryker on the diff and list survivors on changed lines
         env:
           MERGE_BASE: ${{ steps.base.outputs.sha }}
         run: >-
-          python .github/scripts/mutation_gate.py "$RUNNER_TEMP/stryker/reports/mutation-report.json"
-          --base "$MERGE_BASE" --head HEAD
-          --json "$RUNNER_TEMP/stryker/mutation-gate.json" --markdown "$RUNNER_TEMP/stryker/mutation-gate.md"
+          python .github/scripts/run_mutation.py --base "$MERGE_BASE" --output "$RUNNER_TEMP/mutation"
 
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mutation-report
-          path: ${{ runner.temp }}/stryker
+          path: ${{ runner.temp }}/mutation
           if-no-files-found: warn
           retention-days: 14
