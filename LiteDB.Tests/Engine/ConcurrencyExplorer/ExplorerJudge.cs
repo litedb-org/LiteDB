@@ -77,7 +77,7 @@ namespace LiteDB.ConcurrencyTesting
                 case LiteException lite when lite.ErrorCode == LiteException.LOCK_TIMEOUT: return Permit.LockTimeout;
                 case LiteException _ when refused: return Permit.Refusal;
                 case LiteException lite when lite.ErrorCode == LiteException.INVALID_TRANSACTION_STATE: return Permit.Refusal;
-                case LiteException lite when lite.InnerException is IOException: return Permit.Fatal;
+                case LiteException lite when CausedByIo(lite): return Permit.Fatal;
                 case LiteException _: return Permit.OtherLite;
                 case IOException _: return Permit.Fatal;
                 case InvalidOperationException _: return Permit.Refusal;
@@ -85,6 +85,18 @@ namespace LiteDB.ConcurrencyTesting
                 case TimeoutException _: return Permit.LockTimeout;
                 default: return null;
             }
+        }
+
+        /// <summary>True when an I/O fault caused <paramref name="error"/> (anywhere in its inner or aggregated exceptions).</summary>
+        internal static bool CausedByIo(Exception error)
+        {
+            for (var depth = 0; error != null && depth < 8; depth++)
+            {
+                if (error is IOException) return true;
+                if (error is AggregateException aggregate && aggregate.InnerExceptions.Any(inner => CausedByIo(inner))) return true;
+                error = error.InnerException;
+            }
+            return false;
         }
 
         internal static string Describe(Exception error) => error == null ? "ok"

@@ -48,6 +48,21 @@ namespace LiteDB.ConcurrencyTesting
             },
             new ExplorerKnownFinding
             {
+                Id = "direct-fatal-stop-during-upload-releases-page-buffers-twice",
+                Summary = "Direct: a fatal WAL write failure on another thread while FileStorage.Upload is paused in its source " +
+                    "stream; the upload fails with 'Upload failed (page buffer ownership was transferred to disk) and its " +
+                    "transaction could not be rolled back' and page buffers end with share count -1 (released twice), so the " +
+                    "TESTING finalizer ENSURE 'share count must be 0 in destroy PageBuffer (current: -1)' terminates the process.",
+                Fingerprint = @"^(EXPLORER_UNPERMITTED_UPLOAD_CALLBACK_\w+|EXPLORER_PAGE_BUFFER_FINALIZED_IN_USE)@callback-pause@mode=direct@access=\w+@maintenance=fatal@callback=[\w-]+$",
+                Excludes = vector => vector.Configuration.Mode == ExplorerMode.Direct && vector.Configuration.Maintenance == ExplorerMaintenance.Fatal &&
+                    vector.Scenario == "callback-pause" && vector.Variant % 4 == 2,
+                Evidence = "class 1 vector callback-pause variant 42 seed 1, direct, ordinary, fatal: the xUnit replay crashed the test " +
+                    "host in 1 of 4 runs (finalizer flush); in 200-step campaigns (seed 2947) the step-165 flush found eight buffers " +
+                    "at -1 or the process crashed there (023c2b4ba twice, dev once), and a prefix replay failed at step 164 with the " +
+                    "upload error above"
+            },
+            new ExplorerKnownFinding
+            {
                 Id = "lock-timeout-pragma-stale-after-wal-restore",
                 Summary = "LiteEngine.Open builds its LockService from the data file's header pragmas, then the WAL restore " +
                     "may replace the whole header. A connection that opens while the WAL holds a newer header (no checkpoint " +
