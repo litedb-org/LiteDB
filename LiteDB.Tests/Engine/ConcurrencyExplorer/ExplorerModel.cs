@@ -41,10 +41,31 @@ namespace LiteDB.ConcurrencyTesting
                     _uncertain.Add(collection, new Dictionary<int, HashSet<int?>>());
                 }
                 db.GetCollection("sentinel").Insert(Row(42, 900));
+                // Known finding lock-timeout-pragma-stale-after-wal-restore: a connection that opens with the
+                // TIMEOUT pragma only in the WAL waits on locks with the data file's value. Checkpoint it into
+                // the data file so the lock-bound deadlines hold (the include-known mode keeps it reachable).
+                if (!ExplorerKnownFindings.IncludeKnown) db.Checkpoint();
             }
-            // The lock-bound deadlines assume this TIMEOUT pragma; prove the fixture persisted it.
+            // The lock-bound deadlines assume this TIMEOUT pragma; prove the fixture persisted it and that a
+            // reopened connection's lock waits use it.
             using (var db = this.Open())
+            {
                 Require(db.Timeout == ExplorerSchedule.PragmaTimeout, "fixture-timeout", "the fixture's TIMEOUT pragma is " + db.Timeout);
+                var effective = LockTimeout(db);
+                Require(effective == null || effective == ExplorerSchedule.PragmaTimeout || ExplorerKnownFindings.IncludeKnown,
+                    "fixture-lock-timeout", "a reopened connection waits on locks for " + effective + ", not its TIMEOUT pragma " + db.Timeout);
+            }
+        }
+
+        /// <summary>The TIMEOUT a Direct connection's lock service waits with (null for Shared: its cores are transient).</summary>
+        internal static TimeSpan? LockTimeout(LiteDatabase db)
+        {
+            const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            if (!(ConnectionCleanProbe.EngineOf(db) is LiteEngine engine)) return null;
+            var locker = typeof(LiteEngine).GetField("_locker", Flags)?.GetValue(engine);
+            var pragmas = locker?.GetType().GetField("_pragmas", Flags)?.GetValue(locker) as EnginePragmas;
+            if (pragmas == null) throw new InvalidOperationException("LiteEngine._locker._pragmas no longer exists; update ExplorerModel.LockTimeout.");
+            return pragmas.Timeout;
         }
 
         internal string Path { get; }

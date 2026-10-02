@@ -40,6 +40,17 @@ namespace LiteDB.ConcurrencyTesting
                                 };
                                 index++;
                             }
+                // A scenario the pairing left without a vector (its only applicable points are skipped) gets every
+                // variant of its first applicable configuration, so each scenario runs in the default set.
+                if (index == 0)
+                {
+                    var first = ExplorerScenarios.Configurations(ExplorerAccessKinds.Upstream)
+                        .FirstOrDefault(c => c.Process == ExplorerProcess.Single &&
+                            scenario.NotApplicable(c, ExplorerAccessKinds.Find(c.Access)) == null);
+                    if (first != null)
+                        for (var variant = 0; variant < scenario.Variants; variant++)
+                            yield return new ExplorerVector { Scenario = scenario.Name, Variant = variant, Seed = variant % 2, Configuration = first };
+                }
                 foreach (var maintenance in new[] { ExplorerMaintenance.None, ExplorerMaintenance.Close })
                     yield return new ExplorerVector
                     {

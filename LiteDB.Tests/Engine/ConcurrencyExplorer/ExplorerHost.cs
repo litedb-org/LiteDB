@@ -87,14 +87,21 @@ namespace LiteDB.ConcurrencyTesting
         public void Execute(string op, string dimension, TimeSpan deadline, Action call)
         {
             var item = _watchdog.Begin(op, dimension, 0, deadline);
+            Exception thrown = null;
             try { call(); }
+            catch (Exception error)
+            {
+                thrown = error;
+                throw;
+            }
             finally
             {
                 _watchdog.End(item);
                 // A late completion still missed its deadline (the watchdog may not have polled yet).
                 if (item.ElapsedMs > deadline.TotalMilliseconds && _overdue == null)
                     _overdue = new ExplorerFailure("DEADLINE_" + ExplorerFailure.Safe(op),
-                        $"Operation {op} ({dimension}) took {item.ElapsedMs:F0} ms, beyond its {deadline.TotalSeconds:F0} s deadline.");
+                        $"Operation {op} ({dimension}) took {item.ElapsedMs:F0} ms, beyond its {deadline.TotalSeconds:F0} s deadline" +
+                        (thrown == null ? "." : $", then threw {thrown.GetType().FullName}: {thrown.Message}"));
             }
         }
 

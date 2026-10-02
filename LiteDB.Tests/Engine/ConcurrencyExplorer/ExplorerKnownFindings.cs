@@ -48,6 +48,20 @@ namespace LiteDB.ConcurrencyTesting
             },
             new ExplorerKnownFinding
             {
+                Id = "lock-timeout-pragma-stale-after-wal-restore",
+                Summary = "LiteEngine.Open builds its LockService from the data file's header pragmas, then the WAL restore " +
+                    "may replace the whole header. A connection that opens while the WAL holds a newer header (no checkpoint " +
+                    "since TIMEOUT was set: CheckpointSize 0, a crash, an unclean close) reports TIMEOUT from the WAL header " +
+                    "but waits on locks with the data file's value (default 1 min), and ignores later Timeout changes for its " +
+                    "whole life. Observed as collection-cycle losers and a rebuild's exclusive wait taking 60 s, not 5 s.",
+                Fingerprint = @"^DEADLINE_\w*WRITE_CROSS@collection-cycle@mode=direct@access=\w+@maintenance=none@callback=none$",
+                Evidence = "class 1 (forced): every collection-cycle vector on dev (variants 0/1, plain and encrypted) with the " +
+                    "fixture's TIMEOUT left in the WAL; reproduction outside the explorer: reopen after setting Timeout with " +
+                    "CheckpointSize 0 -> LockService._pragmas.Timeout 00:01:00 while db.Timeout is 00:00:05 (M3 report). The " +
+                    "fixture checkpoints its TIMEOUT to keep discovery going; LITEDB_EXPLORER_INCLUDE_KNOWN=1 skips that."
+            },
+            new ExplorerKnownFinding
+            {
                 Id = "shared-dispose-from-input-teardown",
                 Summary = "Shared, auto-commit: Dispose of the connection from the input sequence's finally block (the insert " +
                     "tearing its input down) on the operation's own thread returns; the insert then fails with an internal ENSURE " +
