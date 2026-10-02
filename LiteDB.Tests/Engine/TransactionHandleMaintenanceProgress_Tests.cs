@@ -49,6 +49,10 @@ namespace LiteDB.Tests.Engine
                 var heldBack = 0;
                 var callbackReads = 0;
                 var afterRebuild = new int[Workers];
+                // Per worker: a begin started after the rebuild queued, or a begin in progress
+                // (one that read the marker just before it was set may block behind the writer).
+                var lateSeen = new int[Workers];
+                var inBegin = new int[Workers];
                 using var started = new CountdownEvent(Workers);
                 using var stop = new ManualResetEventSlim();
                 Task rebuild = null;
@@ -57,8 +61,9 @@ namespace LiteDB.Tests.Engine
                 // callback that runs an ordinary read, then commit from a third thread.
                 void Iterate(int worker, int sequence)
                 {
+                    Volatile.Write(ref inBegin[worker], 1);
                     var late = Volatile.Read(ref queuedGate) != null;
-                    if (late) Interlocked.Increment(ref lateAttempts);
+                    if (late) { Interlocked.Increment(ref lateAttempts); Volatile.Write(ref lateSeen[worker], 1); }
                     ILiteTransaction tx;
                     try { tx = db.BeginTransaction(); }
                     catch (LiteException ex) when (rebuild != null && ex.ErrorCode == LiteException.ENGINE_DISPOSED)
@@ -68,6 +73,7 @@ namespace LiteDB.Tests.Engine
                         Assert.True(SpinWait.SpinUntil(() => rebuild.IsCompleted, TimeSpan.FromSeconds(30)));
                         return;
                     }
+                    finally { Volatile.Write(ref inBegin[worker], 0); }
                     // A handle begun after the rebuild queued must not hold a lease of the gate
                     // the rebuild is still waiting for.
                     if (late && ReferenceEquals(Gate(engine), queuedGate))
@@ -121,8 +127,10 @@ namespace LiteDB.Tests.Engine
                     }
                     Assert.True(Task.Run(() => anchor.GetCollection("anchor").Insert(AnchorInput())).Wait(TimeSpan.FromSeconds(10)),
                         "A callback of the executing handle was queued behind the writer it blocks.");
-                    // Barrier: every worker has started a begin after the rebuild queued.
-                    Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref lateAttempts) >= Workers || !errors.IsEmpty,
+                    // Barrier: every worker has started a begin after the rebuild queued, or is
+                    // inside a begin now (possibly held behind the queued rebuild).
+                    Assert.True(SpinWait.SpinUntil(() => !errors.IsEmpty || Enumerable.Range(0, Workers)
+                        .All(w => Volatile.Read(ref lateSeen[w]) == 1 || Volatile.Read(ref inBegin[w]) == 1),
                         TimeSpan.FromSeconds(30)), "Workers did not reach a begin after the rebuild queued.");
                     Assert.False(rebuild.IsCompleted);
                     Task.Run(() => anchor.Commit()).Wait();
