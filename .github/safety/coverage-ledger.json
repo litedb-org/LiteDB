@@ -98,6 +98,24 @@
       "disposition": "strengthened",
       "invariant": "Every smoke leg keeps its targets, seeds, counts, timeouts and uploads, and the reachability gate still judges all of them.",
       "reason": "Adds the PR-selected targets job (30-minute limit): it runs the fuzz targets that select_fuzz_targets.py picks for the pull request's diff, at capped counts in concurrent count groups, and uploads its selection, logs and runs with an upload that must not be empty. It also adds the linux-concurrency-explorer and linux-shared-contention smoke legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m3-framework-nets-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        ".github/framework-partitions.json",
+        ".github/workflows/_reusable-ci.yml",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorerDriverEdges_Tests.cs",
+        "LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs on every .NET Framework leg exactly once (the TestHost_Tests runtime guard once per job); no test is filtered out, sampled or skipped, and the 20-minute job limit is unchanged.",
+      "reason": "The .NET Framework leg runs LiteDB.Tests serially in one xunit.console process. Hosted net481 xUnit totals grew from 901 s on dev (job 966 s) to 995 s with the teardown sweep and 1139 s with the concurrency explorer, which hit the 20-minute limit (run 37069271628); the later parallel-property tests push it to about 1280 s (run 37069293910 was cancelled with 761 tests not run). Each framework now runs as two jobs: 'nets' runs the classes in .github/framework-partitions.json (ConcurrencyExplorer_Tests about 177-188 s, ConcurrencyExplorerDriverEdges_Tests 0.4 s, TeardownSweep_Tests 89-95 s on net481) plus the runtime guard, 'suite' runs every other class via xunit.console -noclass, so the list cannot drop a test. The nets job fails when a listed class runs no test, the suite job when one runs there, and ci-evidence.json requires evidence from both parts of every framework."
     }
   ]
 }

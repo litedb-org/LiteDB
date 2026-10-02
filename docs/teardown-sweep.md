@@ -17,8 +17,8 @@ at every step of every registered path, under two failure models.
 | Scenario state (armed fault, visits) | `LiteDB/Utils/TeardownScenario.cs` |
 | Step catalog (what fails, models, what a skip may leave) | `LiteDB.Tests/Safety/TeardownStepCatalog.cs` |
 | Drivers (prior state + entry per path) | `LiteDB.Tests/Safety/TeardownDrivers*.cs` |
-| Case runner and oracles | `LiteDB.Tests/Safety/TeardownSweep.cs`, `TeardownSweepPlan.cs`, `TeardownSweepRunner.cs` |
-| Known findings | `LiteDB.Tests/Safety/TeardownKnownFindings.cs`, reproductions in `LiteDB.Tests/Safety/Tests/TeardownKnownFinding_Tests.cs` |
+| Case runner and oracles | `LiteDB.Tests/Safety/TeardownSweep.cs`, `TeardownSweepPlan.cs`, `TeardownSweepRunner.cs`, `TeardownDurable.cs` |
+| Known findings | `LiteDB.Tests/Safety/TeardownKnownFindings.cs`, `TeardownKnownFindings.Windows.cs`, reproductions in `LiteDB.Tests/Safety/Tests/TeardownKnownFinding_Tests.cs` |
 | xUnit sweep | `LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs` |
 | Fuzz target `teardown-faults` | `LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs` |
 | Fault-point registration (family `teardown-step`) | `.github/safety/fault-points.json` |
@@ -82,6 +82,15 @@ ledger), `scratch-live.*` (a live spilled reader's scratch exists, checked durin
 and `leak.page-buffers` (page buffers finalized while in use). A baseline (unarmed) run must
 be clean and must not throw or return failures. A baseline that reaches no step, or a step
 without a catalog entry, fails the driver.
+
+A Direct reopen opens the data file for writing with `FileShare.Read`, which Windows refuses
+while any other handle can write the file. When the reopen fails with a Windows sharing or lock
+violation and `quiescent.handles` already reports the data file or its WAL open, Durable checks a
+byte copy of both files in a fresh directory instead (`TeardownDurable.cs`): those bytes are what
+a reopen after the handle closes, or after the process exits, reads. The handle stays a
+`quiescent.handles` violation judged on its own; lost or resurrected data on the copy, or a copy
+that cannot be made or opened, still fails Durable. The case prints a `note:` line saying so
+(`notes` in `teardown.jsonl`). POSIX reopens never take this path.
 
 Each case runs on a fresh thread: a skipped release can leave a native mutex owned by, and a
 thread-static scope count set on, the thread that ran it; both end with that thread.
@@ -177,18 +186,31 @@ and its test; their proof result is recorded as tuned-after-fix.
 
 A case whose unexpected violations all match a registered finding (path, steps, model, mode,
 violation kinds) is reported `known` and passes; a finding that no case of its path reproduces
-any more fails the sweep ("no longer reproduces; remove it together with its fix"). Each has a
+any more fails the sweep ("no longer reproduces; remove it together with its fix"). That verdict
+is withheld (an output line says why) when a driver of the path did not run its cases (its
+failed baseline already fails the test), and where a finding states that its path's drivers
+cannot observe it on this platform: `SharedMutexOwner.ReleaseAll`'s only visible leftover is
+mapped coordination, which exists on .NET 8+ only. Each has a
 minimal reproduction in `TeardownKnownFinding_Tests` that passes while the defect exists; a
-temporary try/finally fix makes each of them fail.
+temporary try/finally fix makes each of the first three fail.
+
+Windows-only findings (`TeardownKnownFindings.Windows.cs`) come from Windows file sharing:
+Windows refuses to delete, move or open for writing a file another handle keeps open without
+the matching share mode, where POSIX unlinks, renames and opens it. They match only on Windows
+(a finding's `When` condition) and their verdict is withheld elsewhere, so no other platform's
+classification changes. Their reproductions assert the Windows outcome on Windows and the
+POSIX contrast elsewhere; the defects cannot be reproduced on POSIX.
 
 | Id | Paths | Defect | Since | Evidence | Issue |
 | --- | --- | --- | --- | --- | --- |
-| `shared-dispose-aborts-remaining-cleanup` | SharedEngine.Dispose, ClosePin, CheckpointOnDispose, ReleaseAll; LiteDatabase.Dispose (Shared) | `SharedEngine.Dispose` sets `_disposed` and then runs its cleanup unguarded: a failing step (retire-reads, wait-pin rethrowing the holder's failure, the final checkpoint's scoped release, the reader registry, coordination) propagates and skips every later step; a second Dispose returns at once, so slot/lease handles and `-shared-live`/`-shared-state` stay open until process exit | #3003 (`3b9e579f1`) | class 1 (controlled fault at a named step) | #3096 |
+| `shared-dispose-aborts-remaining-cleanup` | SharedEngine.Dispose, ClosePin, CheckpointOnDispose, ReleaseAll; LiteDatabase.Dispose (Shared) | `SharedEngine.Dispose` sets `_disposed` and then runs its cleanup unguarded: a failing step (retire-reads, wait-pin rethrowing the holder's failure, the final checkpoint's scoped release, the reader registry, coordination) propagates and skips every later step; a second Dispose returns at once, so slot/lease handles and `-shared-live`/`-shared-state` stay open until process exit (on Windows also the cached data and WAL handles, unless an exited transaction owner's cleanup closes them) | #3003 (`3b9e579f1`) | class 1 (controlled fault at a named step) | #3096 |
 | `sortdisk-dispose-skips-scratch-delete` | LiteEngine.Close, CloseOnError, Dispose | `SortDisk.Dispose` has no try/finally: when closing the scratch streams fails, `-tmp` (the last spilled sort's keys) is never deleted | `c9eb2d9f2` (2019) | class 1 | #3097 |
 | `litedatabase-dispose-skips-engine-after-checkpoint-restore-failure` | LiteDatabase.Dispose (stream) | the checkpoint-override restore runs before `_engine.Dispose()` without try/finally: a non-fatal failure leaves the engine (streams, transactions, locks) open, and Dispose throws `INVALID_TRANSACTION_STATE` instead of the caller's error. Natural trigger, no injection: dispose a stream database while its thread still has an open transaction | #2652 (`bf3987fbc`) | class 1, natural reproduction | #3098 |
+| `sortdisk-delete-blocked-by-open-scratch-stream` (Windows) | LiteEngine.Close, CloseOnError, Dispose (baselines and cases with a live spilled query), SortDisk.Dispose (baseline), SortService.Dispose (skip return-reader) | `SortDisk.Dispose` deletes `-tmp` after its pool's Dispose, which closes only returned streams; a live spilled query keeps its rented scratch stream (no `FileShare.Delete`), so on Windows the delete fails: Close returns the sharing violation, Dispose discards it, and `-tmp` stays after the query ends. Distinct from #3097 | `c9eb2d9f2` (2019) | class 1, natural reproduction (Windows) | #3112 |
+| `rebuild-hides-close-failure-behind-sharing-violation` (Windows) | LiteEngine.Rebuild (skip Close.disk, DiskService data-pool, log-pool) | `Rebuild` drops the old engine's `Close()` failure list; a failed close that leaves a data or WAL handle open then makes the rebuild's write open (FileReaderV8) or WAL move fail with a sharing violation that does not carry the close failure. On POSIX the rebuild succeeds and the failure is discarded silently | `ec061d628` (2024) | class 1 (controlled fault at a named step) | #3113 |
 
-All three contradict [storage ownership](rules/storage-ownership.md#buffers-and-cleanup); none is
-fixed here (the safety net only reports).
+The first three and #3112 contradict [storage ownership](rules/storage-ownership.md#buffers-and-cleanup);
+#3113 hides a cleanup failure behind an unrelated error. None is fixed here (the safety net only reports).
 
 ## Fuzz target `teardown-faults`
 

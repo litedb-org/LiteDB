@@ -21,7 +21,10 @@
     "test-concurrency-models": {"tiers": ["pr", "full"]},
     "test-windows-framework": {
       "tiers": ["pr", "full"],
-      "legs": {"pr": {"framework": ["net481"]}, "full": {"framework": ["net462", "net481"]}}
+      "legs": {
+        "pr": {"framework": ["net481"], "part": ["suite", "nets"]},
+        "full": {"framework": ["net462", "net481"], "part": ["suite", "nets"]}
+      }
     },
     "test-macos": {
       "tiers": ["full"],

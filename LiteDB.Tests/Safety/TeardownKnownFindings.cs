@@ -26,11 +26,22 @@ namespace LiteDB.Tests.Safety
         public string Issue { get; set; }
         /// <summary>Evidence class (1: controlled/replayed; 2: native scheduling).</summary>
         public int EvidenceClass { get; set; } = 1;
+        /// <summary>
+        /// Why the path's drivers cannot observe the defect on this platform (null: they can). Cases still match the
+        /// finding; only the "no longer reproduces" check is withheld, as for a platform-only step.
+        /// </summary>
+        public string NotObservableHere { get; set; }
+        /// <summary>
+        /// A further condition on the case, such as the platform or the prior state the defect needs (null: none). A
+        /// finding whose condition never holds on this platform also sets <see cref="NotObservableHere"/>.
+        /// </summary>
+        public Func<TeardownRunResult, bool> When { get; set; }
 
         public bool Matches(TeardownRunResult result)
         {
             var spec = result.Spec;
             if (!string.Equals(spec.Driver.Path, this.Path, StringComparison.Ordinal)) return false;
+            if (this.When != null && !this.When(result)) return false;
             if (this.Mode.HasValue && spec.Driver.Mode != this.Mode.Value) return false;
             if (spec.Baseline) { if (!this.Baseline) return false; }
             else
@@ -57,7 +68,7 @@ namespace LiteDB.Tests.Safety
             SharedDisposeAbort("SharedEngine.Dispose"),
             SharedDisposeAbort("SharedEngine.ClosePin"),
             SharedDisposeAbort("SharedEngine.CheckpointOnDispose"),
-            SharedDisposeAbort("SharedMutexOwner.ReleaseAll"),
+            SharedDisposeAbort("SharedMutexOwner.ReleaseAll", notObservableHere: CoordinationOnly),
             SharedDisposeAbort("LiteDatabase.Dispose"),
             ScratchLeft("LiteEngine.Close"),
             ScratchLeft("LiteEngine.CloseOnError"),
@@ -78,16 +89,29 @@ namespace LiteDB.Tests.Safety
             },
         });
 
-        private static TeardownKnownFinding SharedDisposeAbort(string path) => new TeardownKnownFinding
+#if NET8_0_OR_GREATER
+        private const string CoordinationOnly = null;
+#else
+        /// <summary>
+        /// The foreign-transaction driver opens no reader, and its transaction owner's exit closes the core and the
+        /// idle cached handles (SharedEngine.OnOwnerExited), so the only leftover of an aborted Dispose it can show
+        /// is the mapped coordination files (-shared-live, -shared-state), which exist on .NET 8+ only.
+        /// </summary>
+        private const string CoordinationOnly = "its driver's only visible leftover is mapped coordination (-shared-live, " +
+            "-shared-state), which exists on .NET 8+ only";
+#endif
+
+        private static TeardownKnownFinding SharedDisposeAbort(string path, string notObservableHere = null) => new TeardownKnownFinding
         {
             Id = "shared-dispose-aborts-remaining-cleanup", Path = path, Steps = SharedDisposeAborts, Mode = TeardownMode.Shared,
-            Issue = "#3096",
+            Issue = "#3096", NotObservableHere = notObservableHere,
             Kinds = new[] { "quiescent.handles", "quiescent.readers" },
             Description = "SharedEngine.Dispose runs its cleanup unguarded: a failing step (retiring the cached coordinated read, " +
                 "waiting for the pin holder, which rethrows the holder's close failure, the final checkpoint's scoped release, " +
                 "the reader registry, coordination) propagates out of Dispose and skips every later step. _disposed is already set, " +
                 "so a second Dispose returns at once: the reader registry's slot/lease handles and the coordination files " +
-                "(-shared-live, -shared-state) stay open until the process exits (since #3003, 3b9e579f1). " +
+                "(-shared-live, -shared-state) stay open until the process exits, and on Windows so do the connection's cached " +
+                "data and WAL handles unless an exited transaction owner's cleanup closes them (since #3003, 3b9e579f1). " +
                 "docs/rules/storage-ownership.md requires a release path for exceptions and repeated disposal.",
             Reproduction = "TeardownKnownFinding_Tests.Known_finding_shared_dispose_failure_skips_the_remaining_cleanup_for_good; " +
                 "sweep cases SharedEngine.Dispose/open-work/shared fail-inside SharedEngine.Dispose.retire-reads#1 and .readers#1"
@@ -107,6 +131,8 @@ namespace LiteDB.Tests.Safety
 
         private static IReadOnlyList<TeardownKnownFinding> Build(List<TeardownKnownFinding> findings)
         {
+            // After the cross-platform findings: a case both explain keeps the cross-platform one.
+            findings.AddRange(WindowsFindings());
             OverlayFindings(findings);
             return findings;
         }

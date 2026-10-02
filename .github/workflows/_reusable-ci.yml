@@ -504,13 +504,16 @@ jobs:
           if-no-files-found: warn
 
   test-windows-framework:
-    name: Test (Windows ${{ matrix.framework }})
+    name: Test (Windows ${{ matrix.framework }} ${{ matrix.part }})
     runs-on: windows-2022
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         framework: ${{ fromJson(inputs.tier == 'full' && '["net462","net481"]' || '["net481"]') }}
+        # One serial xunit.console process per job: 'nets' runs the slow safety-net classes
+        # listed in .github/framework-partitions.json, 'suite' every other class.
+        part: [suite, nets]
     env:
       XUNIT_RUNNER_VERSION: 2.9.2
       LITEDB_EXPECTED_RUNTIME_MAJOR: '4'
@@ -543,30 +546,47 @@ jobs:
           LITEDB_EVIDENCE_MATRIX: ${{ toJSON(matrix) }}
         run: |
           $framework = '${{ matrix.framework }}'
+          $part = '${{ matrix.part }}'
           $runner = Join-Path $env:USERPROFILE ".nuget\packages\xunit.runner.console\$env:XUNIT_RUNNER_VERSION\tools\$framework\xunit.console.exe"
           $assembly = "LiteDB.Tests\bin\Release\$framework\LiteDB.Tests.dll"
-          $results = "LiteDB.Tests\TestResults\TestResults-$framework.xml"
+          $results = "LiteDB.Tests\TestResults\TestResults-$framework-$part.xml"
           New-Item -ItemType Directory -Force (Split-Path $results) | Out-Null
+          # One list decides both parts: 'nets' runs exactly the listed classes, 'suite' every
+          # other class, so no test is dropped or run twice. Both run the runtime guard class.
+          $guard = 'LiteDB.Tests.Engine.TestHost_Tests'
+          $nets = @((Get-Content '.github/framework-partitions.json' -Raw | ConvertFrom-Json).nets)
+          if ($nets.Count -eq 0 -or $nets -contains $guard) { throw 'framework-partitions.json must list nets classes other than the guard.' }
+          $selection = switch ($part) {
+            'nets' { @($nets + $guard | ForEach-Object { '-class', $_ }) }
+            'suite' { @($nets | ForEach-Object { '-noclass', $_ }) }
+            default { throw "Unknown part $part" }
+          }
           # Record what this leg tested for the Safety evidence job.
           [ordered]@{
             schemaVersion = 1; job = $env:GITHUB_JOB; matrix = ($env:LITEDB_EVIDENCE_MATRIX | ConvertFrom-Json)
             sha = (git rev-parse HEAD); tree = (git rev-parse 'HEAD^{tree}'); buildSha = (git rev-parse HEAD)
             framework = $framework; format = 'xunit'; discovery = $null
-            partitions = [ordered]@{ all = "TestResults-$framework.xml" }
+            partitions = [ordered]@{ $part = "TestResults-$framework-$part.xml" }
           } | ConvertTo-Json -Depth 8 | Set-Content 'LiteDB.Tests\TestResults\evidence-leg.json' -Encoding utf8
 
-          & $runner $assembly -nologo -xml $results
+          & $runner $assembly -nologo @selection -xml $results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           [xml]$report = Get-Content $results
           $total = [int]$report.assemblies.assembly.total
           if ($total -eq 0) { throw "The $framework runner discovered zero tests." }
+          # xunit.console ignores a class filter that matches nothing, so check each listed class.
+          $ran = @($report.SelectNodes('//test') | ForEach-Object { $_.GetAttribute('type') } | Sort-Object -Unique)
+          foreach ($class in $nets) {
+            if ($part -eq 'nets' -and $ran -notcontains $class) { throw "Listed class $class ran no test; update .github/framework-partitions.json." }
+            if ($part -eq 'suite' -and $ran -contains $class) { throw "Listed class $class ran in the suite part." }
+          }
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          name: test-results-${{ github.job }}-${{ matrix.framework }}-${{ matrix.part }}
           overwrite: true
           path: |
             LiteDB.Tests/TestResults/*.xml
