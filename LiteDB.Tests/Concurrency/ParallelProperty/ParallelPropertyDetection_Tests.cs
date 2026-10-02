@@ -55,6 +55,14 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
 
             var sequential = ParallelPropertyRunner.Run(1, 20, options, null, parallel: false);
             var parallel = ParallelPropertyRunner.Run(1, 150, options, null, parallel: true);
+            // Exposure needs another thread's read inside the update's window, a native-thread race (evidence
+            // class 2): 1 of 33 local campaigns of 150 cases missed it (net10.0, load ~22). A second campaign from
+            // another seed keeps the assertion (the property must catch this engine) and makes a miss negligible.
+            if (parallel.Passed)
+            {
+                _output.WriteLine("first campaign missed the race: " + parallel);
+                parallel = ParallelPropertyRunner.Run(2, 150, options, null, parallel: true);
+            }
 
             _output.WriteLine(sequential.ToString());
             _output.WriteLine(parallel.ToString());
