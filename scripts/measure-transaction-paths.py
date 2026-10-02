@@ -20,6 +20,7 @@ from pathlib import Path
 import platform
 import statistics
 import subprocess
+import sys
 import time
 
 CONTENTION = [f'shared-contention-{kind}-{n}' for kind in ('ordinary', 'legacy') for n in (2, 4, 8)]
@@ -72,7 +73,7 @@ def plan(workload):
 
 
 results = {}
-with args.output.open('x') as output:
+with args.output.open('x', encoding='utf-8') as output:
     for workload in args.workloads:
         variants = plan(workload)
         for pair in range(args.rounds):
@@ -164,9 +165,11 @@ if handles:
 if owned:
     tables.append(resources(owned))
 table = '\n\n'.join(tables)
+# Windows consoles default to a legacy code page; the tables contain non-ASCII headers.
+sys.stdout.reconfigure(encoding='utf-8')
 print(table)
 if args.summary:
     note = ', SMOKE: not evidence' if args.smoke else ''
-    with args.summary.open('a') as summary:
+    with args.summary.open('a', encoding='utf-8') as summary:
         summary.write(f"### {platform.platform()} ({args.rounds} alternating rounds{', A/A' if args.aa else ''}{note})\n\n"
                       f"{table}\n\n")
