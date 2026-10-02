@@ -268,10 +268,18 @@ namespace LiteDB
         private bool TryEnterForDispose(out bool abandoned)
         {
             var waited = Stopwatch.StartNew();
+#if DEBUG || TESTING
+            // A bounded poll for this connection's ownership and the OS mutex; it gives up after DisposeCheckpointWait.
+            using (LiteDB.Utils.WaitGraph.Wait(_owner.GraphOwnership, LiteDB.Utils.WaitBound.After(DisposeCheckpointWait),
+                "SharedEngine.TryEnterForDispose", this, also: _owner.GraphMutexResource))
+#endif
             while (true)
             {
                 if (_owner.TryEnter(out abandoned, scoped: this.CanScope)) return true;
                 if (waited.Elapsed >= DisposeCheckpointWait || !LogHasContent(_settings.Filename)) return false;
+#if DEBUG || TESTING
+                LiteDB.Utils.WaitGraph.Recheck();
+#endif
                 Thread.Sleep(10);
             }
         }

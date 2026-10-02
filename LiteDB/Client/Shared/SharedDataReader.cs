@@ -46,10 +46,27 @@ namespace LiteDB
 
         public bool HasValues => _reader.HasValues;
 
+#if DEBUG || TESTING
+        /// <summary>
+        /// Wait-for graph: the owner whose hold this reader retains (its connection, or the pin it
+        /// streams under). Its reads and disposal execute that owner's work on the calling thread.
+        /// </summary>
+        internal object GraphOwner { get; set; }
+#endif
+
         public bool Read()
         {
+#if DEBUG || TESTING
+            LiteDB.Utils.WaitGraph.Enter(this.GraphOwner);
+            try
+            {
+#endif
             if (_retains == null) return _reader.Read();
             using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _reader.Read();
+#if DEBUG || TESTING
+            }
+            finally { LiteDB.Utils.WaitGraph.Exit(this.GraphOwner); }
+#endif
         }
 
         public void Dispose()
@@ -72,9 +89,18 @@ namespace LiteDB
 
             if (disposing)
             {
+#if DEBUG || TESTING
+                LiteDB.Utils.WaitGraph.Enter(this.GraphOwner);
+                try
+                {
+#endif
                 if (_retains == null) this.Close();
                 // Ending the ownership can close its engine, which writes through caller streams.
                 else using (SharedCallFrames.Enter(_namespace, _connection, _retains)) this.Close();
+#if DEBUG || TESTING
+                }
+                finally { LiteDB.Utils.WaitGraph.Exit(this.GraphOwner); }
+#endif
             }
         }
 
