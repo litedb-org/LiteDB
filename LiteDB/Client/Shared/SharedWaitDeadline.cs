@@ -26,6 +26,10 @@ namespace LiteDB.Client.Shared
 
         internal static readonly SharedWaitDeadline Infinite = default;
 
+        /// <summary>A Shared wait setting: infinite, or 0 to Int32.MaxValue milliseconds.</summary>
+        internal static bool IsValidTimeout(TimeSpan value) =>
+            value == System.Threading.Timeout.InfiniteTimeSpan || (value >= TimeSpan.Zero && value.TotalMilliseconds <= int.MaxValue);
+
         internal bool IsInfinite => _end == 0;
 
         internal static SharedWaitDeadline Start(TimeSpan timeout)
