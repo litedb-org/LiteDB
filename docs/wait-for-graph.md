@@ -25,7 +25,13 @@ wait starting. A production build contains none of it
   of its owner on any thread, because those holds end only after the teardown returns.
 - **Wait (edge)**: a thread blocked on one or two resources, typed by **bound** (`unbounded`,
   `timeout(value)`, `cancellation`) and **origin** (`library`, or `driver` for test-driver
-  callbacks, joins and barriers). A wait *via handoff* is performed by a helper thread for the
+  callbacks, joins and barriers). A cycle is *bounded* only by a wait that ends without progress of
+  the cycle's own threads: a timeout, or a cancellation that has already been requested. A
+  cancellation nobody has requested yet (`WaitBound.CancelledBy(token)` with the token not
+  cancelled, or `WaitBound.Cancellation` when the site does not pass its token) is not a bound for
+  classification. Whether it ever comes is the application's choice (a close, a cancel), so until
+  then the cycle hangs exactly like an unbounded one. A token linked to a timeout (`CancelAfter`) is
+  a timeout; declare it with `WaitBound.After`. A wait *via handoff* is performed by a helper thread for the
   registering thread (a holder thread acquiring the OS mutex for its caller).
 - **Recursion**: `Monitor`, `Lock`, `NamedMutex` and `Ownership` let their owning thread enter
   again without waiting. A direct same-thread wait on a thread-affine hold of such a primitive is
@@ -42,8 +48,8 @@ then given up. The graph may miss a cycle; it must not invent one.
 | Rule id | Finding | Meaning |
 | --- | --- | --- |
 | `self-wait` | The holder executes on the waiting thread (length 1), and the edge is not a recursion the primitive grants | Candidate failure: no other thread's progress can end it (noted when the wait is bounded) |
-| `unbounded-cycle` | A cycle across threads whose every wait is unbounded | Candidate failure |
-| `bounded-cycle` | A cycle across threads with a bounded wait | Allowed when the outcomes are correct: a lock timeout is LiteDB's documented resolution (crossed collection locks) |
+| `unbounded-cycle` | A cycle across threads that none of its waits ends by itself: each is unbounded or only cancellable, with no cancellation requested | Candidate failure |
+| `bounded-cycle` | A cycle across threads with a wait that ends by itself (a timeout, or a cancellation already requested) | Allowed when the outcomes are correct: a lock timeout is LiteDB's documented resolution (crossed collection locks) |
 | `lock-order` | Lock order A then B on one thread, B then A seen on another thread, no active cycle | Advisory |
 
 Every rule **reports** by default. A harness may switch a rule to **fail**
@@ -166,4 +172,6 @@ When the handle PR merges, register: `OperationLifetime.Enter/Exclusive` (wait o
 held by each operation and the exclusive holder), `SessionLifetime.Close` (wait until operations
 drain), `TransactionHolder._opened.Wait` (wait on the holder thread's open, held by that thread),
 and the per-name writer semaphore in `SharedEngine.Transactions` (wait and hold per name). Each is
-a `WaitGraph.Wait` around the blocking call and `Acquired`/`Released` where the count changes.
+a `WaitGraph.Wait` around the blocking call and `Acquired`/`Released` where the count changes. Waits that a closing token can cancel pass
+it (`WaitBound.CancelledBy(closing)`, not the token-less `WaitBound.Cancellation`), so a cycle that a
+close has already started to cancel classifies as bounded.

@@ -51,13 +51,21 @@ namespace LiteDB.Utils
         Driver,
     }
 
-    /// <summary>The bound of one wait.</summary>
+    /// <summary>
+    /// The bound of one wait. Only a bound that ends the wait without progress of the cycle's own
+    /// threads makes a cycle <see cref="WaitRule.BoundedCycle"/>: a timeout, or a cancellation that
+    /// has been requested (<see cref="EndsByItself"/>). A cancellation nobody requested yet is not a
+    /// bound for classification: whether it ever comes is the application's choice (a close, a
+    /// cancel), so the cycle hangs until then, exactly like an unbounded one. A token whose source
+    /// is linked to a timeout (<c>CancelAfter</c>) is a timeout: declare it with <see cref="After"/>.
+    /// </summary>
     internal readonly struct WaitBound
     {
-        private WaitBound(WaitBoundKind kind, TimeSpan timeout)
+        private WaitBound(WaitBoundKind kind, TimeSpan timeout, System.Threading.CancellationToken token = default)
         {
             this.Kind = kind;
             this.Timeout = timeout;
+            this.Token = token;
         }
 
         internal WaitBoundKind Kind { get; }
@@ -65,9 +73,17 @@ namespace LiteDB.Utils
         /// <summary>The timeout, for <see cref="WaitBoundKind.Timeout"/>.</summary>
         internal TimeSpan Timeout { get; }
 
+        /// <summary>The token, for <see cref="WaitBoundKind.Cancellation"/> declared with <see cref="CancelledBy"/>.</summary>
+        internal System.Threading.CancellationToken Token { get; }
+
         internal static WaitBound Unbounded => default;
 
+        /// <summary>A cancellable wait whose token the site does not pass: never counted as requested.</summary>
         internal static WaitBound Cancellation => new WaitBound(WaitBoundKind.Cancellation, TimeSpan.Zero);
+
+        /// <summary>A wait that ends when <paramref name="token"/> is cancelled; a token that cannot be cancelled is unbounded.</summary>
+        internal static WaitBound CancelledBy(System.Threading.CancellationToken token) =>
+            token.CanBeCanceled ? new WaitBound(WaitBoundKind.Cancellation, TimeSpan.Zero, token) : Unbounded;
 
         /// <summary>A wait that gives up after <paramref name="timeout"/>; an infinite timeout is unbounded.</summary>
         internal static WaitBound After(TimeSpan timeout) =>
@@ -75,9 +91,24 @@ namespace LiteDB.Utils
                 ? Unbounded
                 : new WaitBound(WaitBoundKind.Timeout, timeout);
 
-        public override string ToString() => this.Kind == WaitBoundKind.Timeout
-            ? "timeout " + this.Timeout.TotalMilliseconds + " ms"
-            : this.Kind.ToString().ToLowerInvariant();
+        /// <summary>
+        /// Whether the wait ends without any thread of its cycle making progress: a timeout, or a
+        /// cancellation already requested. Read when a cycle is classified.
+        /// </summary>
+        internal bool EndsByItself =>
+            this.Kind == WaitBoundKind.Timeout ||
+            (this.Kind == WaitBoundKind.Cancellation && this.Token.IsCancellationRequested);
+
+        public override string ToString()
+        {
+            switch (this.Kind)
+            {
+                case WaitBoundKind.Timeout: return "timeout " + this.Timeout.TotalMilliseconds + " ms";
+                case WaitBoundKind.Cancellation:
+                    return this.Token.IsCancellationRequested ? "cancellation, requested" : "cancellation, not requested";
+                default: return "unbounded";
+            }
+        }
     }
 
     /// <summary>How a reported cycle or order is classified. Each rule reports by default.</summary>
@@ -88,11 +119,15 @@ namespace LiteDB.Utils
         /// primitive grants. No progress of another thread can end it. Candidate failure.
         /// </summary>
         SelfWait,
-        /// <summary>A cycle across threads whose every wait is unbounded. Candidate failure.</summary>
+        /// <summary>
+        /// A cycle across threads that no wait of it ends by itself: every wait is unbounded or only
+        /// cancellable, with no cancellation requested. Candidate failure.
+        /// </summary>
         UnboundedCycle,
         /// <summary>
-        /// A cycle across threads with at least one bounded wait: allowed when the outcomes are correct
-        /// (a lock timeout is LiteDB's documented resolution, for example crossed collection locks).
+        /// A cycle across threads with a wait that ends by itself (a timeout, or a requested
+        /// cancellation): allowed when the outcomes are correct (a lock timeout is LiteDB's
+        /// documented resolution, for example crossed collection locks).
         /// </summary>
         BoundedCycle,
         /// <summary>Lock order A then B on one thread, B then A seen on another thread, without an active cycle.</summary>
