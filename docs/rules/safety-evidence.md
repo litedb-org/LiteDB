@@ -121,6 +121,126 @@ reason, a review date and the gap it leaves. A quarantined test is a visible
 coverage gap, never passing evidence. A passed review date is reported on every
 run.
 
+## Diff nets
+
+These nets judge the change against its base. Each one answers a question a diff
+reviewer cannot answer reliably. None of them proves the code correct.
+
+| Net | Catches | Runs |
+| --- | --- | --- |
+| [Diff lints](#diff-lints) | new polling loops, deleted invariant comments, unanchored doc claims | every PR (Safety policy, Safety section) |
+| [Differential run](#differential-run) | behavior changes nobody declared, and declared changes that did not happen | PRs touching `LiteDB/` |
+| [Mutation on the diff](#mutation-on-the-diff) | changed cleanup and lock lines that no test pins down | PRs labelled `critical`, manual |
+| [Contention benchmark](performance.md#contended-acquire) | acquire-latency tails and starvation | the shared-slot performance workflow |
+
+### Diff lints
+
+The Safety policy job runs three lints on the lines a PR adds or removes:
+
+- `lint_polling.py`: a timed wait (`WaitOne(n)`, `Monitor.Wait(x, n)`,
+  `SemaphoreSlim`/`ManualResetEventSlim.Wait(n)`, `WaitAny(.., n)`), a sleep,
+  `Task.Delay` or a spin added inside a loop in `LiteDB/` needs
+  `// polling: <reason>` on its line or within the two lines above. A waiter that
+  times out and retries loses its place in the queue, so later arrivals can win
+  the handoff and tail latency grows with the interval.
+  [test: .github/scripts/test_lint_polling.py#test_timed_wait_in_loop_condition_fires]
+- `lint_invariant_comments.py`: a deleted comment in `LiteDB/` stating an
+  ordering or prohibition (`must not`, `never`, `invariant`, `do not`,
+  `must ... before/after`, `cannot`, `without`) must be listed in the PR
+  description, with where the invariant is enforced now:
+
+  ```markdown
+  ### Moved invariants
+
+  - LiteDB/Client/Shared/X.cs:120 → LiteDB.Tests/Shared/X_Tests.cs#Waiters_Keep_Their_Turn
+  - "readers must not outlive the pin" → [marker: refusal:pin-closed]
+  ```
+
+  Name the base location or quote three or more words of the comment; the
+  reference after the arrow must resolve at head. A comment moved or reflowed
+  unchanged is no deletion. The Safety section workflow checks the description;
+  the Safety policy job only lists the deletions.
+- `lint_doc_claims.py`: a new or changed sentence under `docs/` containing
+  `propagate`, `never`, `always`, `rejects`, `refuses` or `guaranteed` carries
+  `[test: <path-or-Class>#<Method>]` or `[marker: <name>]` on the same sentence,
+  and the anchor must resolve (a marker against `markers.json`, a test method in
+  a test project or a `.github/scripts/test_*.py` unittest). Unchanged sentences
+  are not judged; `--all` lists the backlog without failing.
+  [test: .github/scripts/test_lint_doc_claims.py#test_new_claim_without_anchor_fails]
+
+An anchor shows that evidence exists for the claim. It does not show that the
+claim is true; the differential run and the oracles judge behavior.
+
+### Differential run
+
+`differential_run.py` builds the merge-base and the head in separate worktrees
+(`TestingEnabled=true`), runs the same fuzz targets, seeds and counts on each
+tree's own harness, and compares the run directories' `outcomes.jsonl`,
+`closed-clean.jsonl` and `markers.json` per operation class and dimension:
+
+- escaped exception types (with error code) and outcome kinds, which fail when
+  they differ;
+- p50/p99 latency, which is advisory beyond +50 % and 5 ms and fails beyond 3x
+  and 5 ms, judged with at least 20 samples per side (runner noise is large;
+  a poll interval replacing a wake-up is a multiple);
+- ClosedClean metrics (a higher maximum or a new boolean value) and markers the
+  base reached that the head does not reach.
+
+Every difference must be claimed by an entry this PR adds to
+[`intended-changes.json`](../../.github/safety/intended-changes.json); an entry
+whose change is not observed fails as well, so a contract change that the docs
+promise but the code does not make is caught. Only entries added by the change
+count, as with the coverage ledger. An entry names the operation class, an
+optional dimension pattern, the change, the old and new behavior, the doc
+sentence that promises it and the reason:
+
+```json
+{"call": "Dispose", "dimension": "mode=shared", "change": "new-exception",
+ "before": "none", "after": "System.IO.IOException",
+ "doc": "docs/x.md#cleanup failures now propagate", "reason": "..."}
+```
+
+`change` is `new-exception`, `exception-removed`, `outcome-change`, `latency`,
+`closed-clean` or `marker`. The `doc` fragment quotes the promising sentence or
+names a heading whose section mentions the call; `check_intended_changes.py`
+validates both in the Safety policy job.
+[test: .github/scripts/test_check_intended_changes.py#test_invalid_entries_fail_with_their_reason]
+
+When a PR changes behavior on purpose: write the doc sentence with its anchor,
+add the manifest entry, run the differential run locally and put its markdown
+report in the PR description:
+
+```bash
+python .github/scripts/differential_run.py --base "$(git merge-base HEAD origin/dev)" \
+  --targets chaos,concurrent --seeds 2947,102947 --count 30
+```
+
+Both trees need the outcome-emitting fuzz harness. The workflow skips with a
+visible warning while the base lacks it. For an older tree, check it out as a
+worktree, apply the harness commits on top and pass `--base-tree` (or
+`--head-tree`); `--base-runs`/`--head-runs` compare existing run directories.
+
+### Mutation on the diff
+
+For PRs labelled `critical`, `mutation.yml` runs Stryker.NET
+(`LiteDB.Tests/stryker-config.json`; scope `LiteDB/Client`,
+`LiteDB/Engine/Services`, `LiteDB/Engine/Engine`) since the merge-base with
+`TestingEnabled=true` in the environment, and `mutation_gate.py` lists surviving
+mutants on changed lines. A survivor in cleanup or lock code (a `Dispose`,
+`Close`, `Release*` or `*Finally` method, a `finally` block, or a type or file
+named for a lock, gate, monitor, mutex, pin, turnstile or lifetime) fails the
+job; the rest are advisory. Survivors are lines to write behavior tests for,
+not a score to raise. It is not run on every PR because even a narrow diff
+costs tens of minutes. Run it locally from a regular clone; Stryker resolves a
+linked `git worktree` to the main checkout and diffs the wrong tree:
+
+```bash
+cd LiteDB.Tests
+TestingEnabled=true dotnet stryker --since:$(git merge-base HEAD origin/dev) --output /tmp/stryker
+cd .. && python .github/scripts/mutation_gate.py /tmp/stryker/reports/mutation-report.json \
+  --base $(git merge-base HEAD origin/dev)
+```
+
 ## Regression proofs
 
 A fix proves its regression test against a **real** state in which the bug

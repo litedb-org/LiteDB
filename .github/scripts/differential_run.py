@@ -150,6 +150,10 @@ def compare(base, head, settings):
     def add(kind, op, dimension, detail, severity="fail", **extra):
         found.append({"kind": kind, "op": op, "dimension": dimension, "detail": detail, "severity": severity, **extra})
 
+    for side, summary in (("base", base), ("head", head)):
+        if not summary["withOutcomes"]:  # an empty comparison is not a pass
+            add("harness", "-", "", f"no {side} run wrote {HARNESS_FILE} ({summary['runs']} runs): the selected "
+                "targets do not record outcomes, so nothing was compared")
     for key in sorted(set(base["ops"]) | set(head["ops"]), key=str):
         op, dimension = key
         if key not in head["ops"]:
@@ -347,6 +351,7 @@ def load_manifest(args, base_rev, head_rev, head_tree):
 def main(argv=None):
     args = parse(argv)
     out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
     info = {"settings": {"targets": args.target_list, "seeds": args.seed_list, "count": args.count,
                          **{name: getattr(args, name) for name in ("latency_relative", "latency_floor_ms",
                             "latency_hard_factor", "latency_min_samples", "outcome_share", "closed_clean_tolerance")}}}

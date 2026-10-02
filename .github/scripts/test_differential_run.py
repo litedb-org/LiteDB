@@ -135,6 +135,14 @@ class DifferentialRunTests(unittest.TestCase):
         severities = {item["op"]: item["severity"] for item in report["differences"]}
         self.assertEqual(severities, {"maintenance:close-during-active-op": "fail", "api:A": "advisory"})
 
+    def test_runs_without_outcome_records_fail(self):
+        self.runs.add("base", BASE)
+        self.runs.add("head", BASE)
+        (next((self.runs.root / "head").rglob("outcomes.jsonl"))).unlink()
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertIn("no head run wrote outcomes.jsonl", output)
+
     def test_collect_keeps_only_requested_runs(self):
         self.runs.add("base", BASE, seed=1)
         self.runs.add("base", [record("Corpus")], seed=99, name="corpus")
