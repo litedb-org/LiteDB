@@ -55,6 +55,10 @@ namespace LiteDB
             var gate = TransactionWriters.GetOrAdd(_mutexName, _ => new SemaphoreSlim(1, 1));
             // Pending begins wait on their own thread, never on a holder thread or engine.
             gate.Wait();
+            // Database disposal does not wait for a begin queued here: a connection disposed
+            // meanwhile must not open storage (recovery, file creation) after Dispose returned.
+            lock (_useLock)
+                if (_disposed != 0) { gate.Release(); throw new ObjectDisposedException(nameof(SharedEngine)); }
             TransactionHolder holder;
             var policyAnchor = _settings.ReadTransform;
             try
