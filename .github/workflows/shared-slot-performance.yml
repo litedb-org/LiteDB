@@ -42,6 +42,9 @@ on:
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
+      # Wait primitives of the Shared writer handoff: the contended-acquire gate exists for them.
+      - 'LiteDB/Client/Shared/SharedMutex*.cs'
+      - 'LiteDB/Client/Shared/SharedEngine.Waiters.cs'
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
       - 'scripts/measure-shared-contention.py'

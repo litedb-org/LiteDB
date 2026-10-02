@@ -27,6 +27,20 @@ Use this for optimization claims, benchmarks, cache budgets, and memory retentio
   `litedb-org/LiteDB-Artifacts` when publication is part of the task. Update stale
   benchmark claims after changing the implementation.
 
+## Contended acquire
+
+A change to a wait primitive, a lock handoff or the Shared writer path runs the
+contended-acquire scenario of
+[SharedReadBenchmarks](../../tools/SharedReadBenchmarks/README.md#contended-writer-acquisition)
+against its base (the shared-slot performance workflow does this for PRs touching
+the Shared mutex code). Two and four processes alternate as writer with fixed
+iteration counts; the gate (`.github/scripts/compare_contention.py`) compares
+medians of five alternating rounds: p99 acquire latency, maximum wait, the hand-off
+gap after a release and the starvation rate (a later arrival acquiring ahead of a
+waiting earlier one). State the tolerance in the PR when you change it. A poll
+hides in the hand-off gap and a barging owner in starvation and maximum wait, while
+p99 alone can improve.
+
 Existing runners: [QueryIrBenchmarks](../../tools/QueryIrBenchmarks/README.md),
 `tools/QueryOptimizationBenchmarks`, `tools/QueryParameterLifetimeBenchmarks`,
 [MemoryValidation](../../tools/MemoryValidation/README.md), and
