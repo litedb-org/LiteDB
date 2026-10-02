@@ -84,9 +84,7 @@ namespace LiteDB.Tests.Engine
                 Assert.True(new System.IO.FileInfo(log).Length > 0, "The committed seed must still be in the WAL.");
                 // The lease is taken on a creator thread that has exited; maintenance runs on another.
                 ILiteTransaction tx = null;
-                var creator = new Thread(() => tx = db.BeginTransaction());
-                creator.Start();
-                Assert.True(creator.Join(TimeSpan.FromSeconds(10)));
+                TransactionHandle_Tests.OnThread(() => tx = db.BeginTransaction());
                 var gate = Field(Field(Field(db, "_engine"), "_locker"), "_transaction");
                 var running = Task.Run(() => { if (maintenance == Maintenance.Rebuild) db.Rebuild(); else db.Checkpoint(); });
                 if (maintenance == Maintenance.Rebuild)

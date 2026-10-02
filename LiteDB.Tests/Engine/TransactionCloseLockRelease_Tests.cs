@@ -44,16 +44,22 @@ namespace LiteDB.Tests.Engine
             using var held = new ManualResetEventSlim();
             using var release = new ManualResetEventSlim();
             using var waiting = new ManualResetEventSlim();
+            Exception ownerError = null;
             var owner = new Thread(() =>
             {
-                db.BeginTrans();
-                db.GetCollection("rows").Insert(Row(1));
-                held.Set();
+                try
+                {
+                    db.BeginTrans();
+                    db.GetCollection("rows").Insert(Row(1));
+                }
+                catch (Exception error) { ownerError = error; }
+                finally { held.Set(); }
                 release.Wait(TimeSpan.FromSeconds(20));
                 try { db.Commit(); } catch { }
             });
             owner.Start();
             Assert.True(held.Wait(TimeSpan.FromSeconds(10)));
+            Assert.Null(ownerError);
             RowsLock(EngineOf(db)).BeforeWait = waiting.Set;
             Exception waiterError = null;
             var waiter = new Thread(() =>

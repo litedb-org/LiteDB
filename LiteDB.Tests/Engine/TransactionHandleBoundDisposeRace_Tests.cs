@@ -137,7 +137,8 @@ namespace LiteDB.Tests.Engine
                 var iterator = enumerator ? rows.FindAll().GetEnumerator() : null;
                 var reader = enumerator ? null : rows.Query().ExecuteReader();
                 Assert.True(enumerator ? iterator.MoveNext() : reader.Read());
-                var other = new Thread(() => rows.Insert(Input())) { IsBackground = true };
+                Exception otherError = null;
+                var other = new Thread(() => otherError = Record.Exception(() => rows.Insert(Input()))) { IsBackground = true };
                 other.Start();
                 Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
                 // As a foreach ending on another thread: disposal is not refused, and the
@@ -145,6 +146,7 @@ namespace LiteDB.Tests.Engine
                 var disposal = Record.Exception(() => { if (enumerator) iterator.Dispose(); else reader.Dispose(); });
                 release.Set();
                 Assert.True(other.Join(TimeSpan.FromSeconds(10)));
+                Assert.Null(otherError);
                 Assert.Null(disposal);
                 Assert.Equal(LiteTransactionState.Active, tx.State);
                 Assert.Throws<ObjectDisposedException>(() => enumerator ? iterator.MoveNext() : reader.Read());
