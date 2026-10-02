@@ -53,6 +53,17 @@ internal static class Program
             return;
         }
 
+        if (args.Length == 8 && args[0] == "acquire")
+        {
+            AcquireBenchmarks.Run(args);
+            return;
+        }
+        if (args.Length == 4 && args[0] == "acquire-verify")
+        {
+            AcquireBenchmarks.Verify(args[1], int.Parse(args[2], CultureInfo.InvariantCulture), int.Parse(args[3], CultureInfo.InvariantCulture));
+            return;
+        }
+
         if (args.Length == 2 && args[0] == "interop")
         {
             InteropBenchmarks.Run(Path.GetFullPath(args[1]));

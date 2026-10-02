@@ -130,6 +130,55 @@ physical memory when summed. WAL/handle/thread peaks are samples after operation
 not a guarantee of observing every transient peak. The benchmark does not set
 CPU affinity, reset host caches, or alter durability/checkpoint settings.
 
+## Contended writer acquisition
+
+`scripts/measure-shared-acquire.py` measures how the Shared writer mutex is handed
+between processes. Two and four worker processes (`acquire` subcommand) open one
+Shared database and each run a fixed number of explicit transactions (400 measured
+acquisitions per run in total, after 20 unmeasured warmup transactions per process
+and a synchronized start). A transaction reads and increments a ticket document and
+upserts the worker's own document, then commits; by default the worker re-arrives
+at once (`--think-us 0`), the most adversarial case for a releaser that barges.
+
+Each transaction is stamped with `Stopwatch.GetTimestamp()` (`CLOCK_MONOTONIC` on
+Linux, `QueryPerformanceCounter` on Windows; both host-wide, `Stopwatch.Frequency`
+is recorded): *arrival* immediately before `BeginTrans`, *acquired* immediately
+after it returns, *released* after `Commit` returns. In Shared mode `BeginTrans`
+returns only once this process owns the named mutex, the engine is open and the
+transaction started, so acquire latency (`acquired - arrival`) includes the engine
+open as a per-build constant. The acquisition stamp lies inside the exclusive
+ownership interval, so acquisition order is exact. Every run is rejected unless
+ticket order equals acquisition-stamp order, tickets are contiguous, all stamps lie
+between the driver's own reads of the same clock, a fresh process verifies the
+acknowledged final state, and final close leaves no WAL.
+
+`.github/scripts/compare_contention.py` computes per run p50/p99 (nearest rank),
+max wait, per-process counts and the *starvation count*: acquisitions that went
+ahead of at least one other waiter that arrived more than 0.1 ms earlier and was
+still waiting (counted once per acquisition; `bypasses` counts every pair), and
+the *hand-off gap*: for a waiter that arrived before the previous owner released,
+the time from that release stamp to its own acquisition. The gap excludes the
+predecessor's durable commit, so it isolates wake-up and engine open. The gate
+compares medians across five alternating rounds per process count and fails when
+head p99 exceeds base x 1.5 **and** base + 5 ms, max wait exceeds base x 3 **and**
+base + 100 ms, the starvation rate rises by more than 5 percentage points, or the
+median hand-off exceeds base x 2 **and** base + 1 ms. The thresholds and their
+reasons are in the script docstring; acquire p50 and hand-off p99 are reported
+only. A waiter that polls shows in the hand-off gap; an owner that barges past
+queued waiters shows in starvation and max wait (its own instant re-acquisitions
+can lower p99). Locally:
+
+```sh
+python3 scripts/measure-shared-acquire.py --baseline <baseline-runner> \
+  --candidate <candidate-runner> --scratch <private-dir> --output <new>.jsonl
+python3 .github/scripts/compare_contention.py --results <new>.jsonl
+```
+
+`--smoke` runs one short pair (not evidence), `--processes 2` limits the matrix and
+`--candidate-only` measures a single build; `compare_contention.py --base A.jsonl
+--head B.jsonl` compares separately produced runs. Waits are dominated by the peer's
+durable commit, so absolute values follow disk flush latency and host load.
+
 The current runner seeds ordinary-workload fixtures in a separate process. Its
 first query therefore includes a fresh engine open without first warming engine
 code by creating the fixture in that process. It still does not reset filesystem
