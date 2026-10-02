@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -193,6 +194,7 @@ namespace LiteDB.Engine
                 stream.Position = page.Position;
 
 #if DEBUG || TESTING
+                Reachability.FaultPoint("SimulateDiskWriteFail");
                 _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 

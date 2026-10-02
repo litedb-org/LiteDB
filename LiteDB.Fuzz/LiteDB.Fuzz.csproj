@@ -6,10 +6,14 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LiteDB.Fuzz</AssemblyName>
     <RootNamespace>LiteDB.Fuzz</RootNamespace>
+    <!-- The engine is always built with its test hooks here; TESTING also keeps the call sites of
+         conditional TESTING-only APIs (Reachability markers of fuzz targets) in this assembly. -->
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
     <Compile Include="..\LiteDB.Tests\Mapper\StableRandom.cs" Link="StableRandom.cs" />
+    <Compile Include="..\LiteDB.Tests\Safety\*.cs" Link="Safety\%(Filename)%(Extension)" />
     <Compile Include="..\LiteDB.Tests\Internals\MvccRetirementScenario.cs" Link="Targets\MvccRetirementScenario.cs" />
     <Compile Include="..\LiteDB.Tests\Internals\MvccRootedCheckpointScenario.cs" Link="Targets\MvccRootedCheckpointScenario.cs" />
     <Compile Include="..\LiteDB.Tests\Engine\PromotionPowerLossStream.cs" Link="Targets\PromotionPowerLossStream.cs" />

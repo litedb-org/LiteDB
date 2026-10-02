@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -13,11 +14,17 @@ namespace LiteDB.Engine
             {
                 if (page.ReadBool(BasePage.P_IS_CONFIRMED) &&
                     !confirmed.Add(page.ReadUInt32(BasePage.P_TRANSACTION_ID)))
+                {
+                    Reachability.Sometimes("refusal:checkpoint-wal-verification-failed");
                     throw new PageChecksumException(FileOrigin.Log, page.Position);
+                }
             }
             recovery.RequireRetirement(_disk.Retirement);
             if (recovery.InvalidTail || !confirmed.SetEquals(_confirmTransactions))
+            {
+                Reachability.Sometimes("refusal:checkpoint-wal-verification-failed");
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -21,9 +22,12 @@ namespace LiteDB
 
             var value = this.Serialize(type, entity, 0);
             if (value == null || !value.IsDocument)
+            {
+                Reachability.Sometimes("refusal:mapper-root-not-document");
                 throw new LiteException(LiteException.MAPPING_ERROR,
                     "Type '{0}' cannot be mapped as a root document (serialized as {1}). Use a document DTO or RegisterType with a document serializer.",
                     entity.GetType().FullName, value?.Type.ToString() ?? "null");
+            }
             return value.AsDocument;
         }
 

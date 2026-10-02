@@ -43,6 +43,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/check_fault_points.py --base "${BASE_SHA:-HEAD^}"
 
+      - name: Check the reachability marker registry
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/check_reachability.py --base "${BASE_SHA:-HEAD^}"
+
       - name: Report implicated safety contracts
         if: ${{ !cancelled() }}
         run: python .github/scripts/check_contracts.py --base "${BASE_SHA:-HEAD^}"
@@ -557,13 +561,59 @@ jobs:
             LiteDB.Tests/TestResults/discovered-tests.txt
           if-no-files-found: warn
 
+  # Always-run oracle evidence (the Fuzz workflow is path-filtered and must never be required):
+  # the oracle self-tests and the wired fuzz targets at a small count, judged by Safety evidence.
+  oracle-smoke:
+    name: Oracle smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Build the fuzz runner and oracle self-tests
+        run: dotnet build LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj --configuration Release /p:TestingEnabled=true
+
+      - name: Oracle self-tests
+        run: >-
+          dotnet test LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj --configuration Release --no-build /p:TestingEnabled=true
+          --filter "FullyQualifiedName~OracleSelfTest|FullyQualifiedName~OwnershipOracle|FullyQualifiedName~DeadlineOracle"
+
+      - name: Wired targets and oracle mutations under every oracle
+        run: >-
+          dotnet run --project LiteDB.Fuzz --configuration Release --framework net8.0 --no-build --
+          --target chaos,concurrent,cursor-handoff,conflict,integrity,oracle-selftest --seed 2947 --count 10
+          --artifact-dir artifacts/oracle-smoke
+
+      - name: Report reachability of the oracle smoke
+        if: ${{ !cancelled() }}
+        run: >-
+          python .github/scripts/check_reachability.py --runs artifacts/oracle-smoke
+          --output artifacts/oracle-smoke/reachability.json
+
+      - name: Upload oracle smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-smoke
+          path: artifacts/oracle-smoke
+          if-no-files-found: error
+
   # docs/rules/safety-evidence.md: green must mean complete, current and executed.
   # A skipped, cancelled or missing leg, a result from another revision, an empty
   # or truncated partition, or a test no leg executed fails this job.
   safety-evidence:
     name: Safety evidence
     if: ${{ !cancelled() }}
-    needs: [safety-policy, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
+    needs: [safety-policy, oracle-smoke, build-linux, test-linux, build-macos, test-macos, build-windows, test-windows, test-windows-framework, test-linux-arm64]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Artifacts of the current run download with the runner's own token; fork PRs

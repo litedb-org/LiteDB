@@ -71,6 +71,22 @@ model is complete. New persistent I/O (`FlushToDisk`, `SetLength`, renames and
 deletes) is flagged for review, and `unhookedTransitions` records known
 boundaries that have no hook, such as #3011.
 
+Changes to the safety machinery itself (oracles, markers, registries, corpus
+expectations, test settings, scripts and workflows) implicate the
+`safety-machinery` contract, so the PR section must name its evidence like any
+other risky change.
+
+[`markers.json`](../../.github/safety/markers.json) registers every reachability
+marker (TESTING-only `Reachability.Sometimes`): maintenance interleavings,
+documented refusals, situations of fuzz targets and `api:` markers. Fault-point
+markers are derived from `fault-points.json`, so every hook site also counts its
+marker. The Safety policy job runs `check_reachability.py`: an unregistered,
+non-literal or stale marker fails, and so does a public member added or changed
+on the `ILite*` interfaces (or a new public type) without a registered `api:`
+marker. The Fuzz workflow's Reachability gate then fails a PR whose smoke campaign
+never hit a marker its diff declares, unless the entry is `advisory` with a reason.
+A marker hit count is reachability evidence, not proof that an assertion ran there.
+
 ## Coverage accounting
 
 Coverage may change, but never silently. The Safety policy job compares the
@@ -268,11 +284,16 @@ fresh green Safety evidence run on that merge ref, then merge. The scheduled ful
 CI run is the post-merge backstop.
 
 Repository settings are unchanged for now: no check is required and there is no
-merge queue, so a check that fails to start cannot block every merge. When the
-checks have run reliably for a while, require **build-and-test / Safety
-evidence** first; it runs on every PR. Never require path-filtered workflows
-(Regression proof, Fuzz, index migration): a required check that does not run
-stays pending and blocks the PR.
+merge queue, so a check that fails to start cannot block every merge. The merge
+gate is **build-and-test / Safety evidence**: it runs on every PR (and accepts
+`merge_group`), and it requires every declared job, including the always-run
+**Oracle smoke** job (oracle self-tests and the oracle-wired fuzz targets at a
+small count), so the candidate tree carries oracle evidence even when the
+path-filtered Fuzz workflow does not run. A maintainer enables it in the
+repository settings: branch protection (or a ruleset) for `dev`, "Require status
+checks to pass", add `build-and-test / Safety evidence`. Never require
+path-filtered workflows (Regression proof, Fuzz, index migration): a required check
+that does not run stays pending and blocks the PR.
 
 ## Findings, gates and audits
 

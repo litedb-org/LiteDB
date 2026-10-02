@@ -1,4 +1,5 @@
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -31,7 +32,11 @@ namespace LiteDB.Engine
                 return new HeaderJournal { Header = intent, LegacyTail = true, FooterBytes = 0 };
             // Conversion stops after one torn write. More bytes than that came
             // from another writer; refuse rather than discard them.
-            if (stream.Length > slot + PAGE_SIZE) throw new PageChecksumException(FileOrigin.Log, slot);
+            if (stream.Length > slot + PAGE_SIZE)
+            {
+                Reachability.Sometimes("refusal:legacy-tail-unrecognized");
+                throw new PageChecksumException(FileOrigin.Log, slot);
+            }
             return null;
         }
 
@@ -92,6 +97,7 @@ namespace LiteDB.Engine
             var transactionID = new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(BasePage.P_TRANSACTION_ID);
             if (transactionID != new BufferSlice(record, 0, PAGE_SIZE).ReadUInt32(BasePage.P_TRANSACTION_ID)) return true;
             if (confirmation) return false;
+            Reachability.Sometimes("refusal:legacy-tail-unrecognized");
             throw new PageChecksumException(FileOrigin.Log, position);
         }
     }

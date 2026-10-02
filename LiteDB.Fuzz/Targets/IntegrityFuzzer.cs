@@ -1,10 +1,24 @@
 using LiteDB.Engine;
+using LiteDB.Tests.Safety;
+using LiteDB.Utils;
 using LiteDB.Vector;
 
 namespace LiteDB.Fuzz.Targets;
 
+/// <remarks>
+/// Oracles: building each fixture runs under a declared <see cref="FuzzOracles.Deadline{T}"/>; every
+/// dispose is followed by <see cref="FuzzOracles.ConnectionClean"/>; after all mutants, a read-only
+/// cold reopen of the baseline checks <see cref="FuzzOracles.Durable"/> (acknowledged rows present,
+/// deleted rows absent) without changing its bytes, and <see cref="FuzzOracles.Quiescent"/> ends the
+/// scenario for every fixture. No fault is injected (mutants are judged by the raw integrity
+/// oracle), so FaultReached/FaultDisposed do not apply; Ownership does not apply to Direct mode.
+/// </remarks>
 internal sealed class IntegrityFuzzer : IFuzzTarget
 {
+    private const string Dimension = "mode=direct";
+    // Building a fixture inserts 360 KB, builds a vector index and checkpoints; a rebuild is bulk work too.
+    private static readonly TimeSpan FixtureDeadline = TimeSpan.FromSeconds(60);
+
     public string Name => "integrity";
     public string Description => "Mutation tests proving the raw database integrity oracle rejects structural corruption.";
 
@@ -12,19 +26,26 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
     {
         context.Next();
         var baseline = context.RegisterFile(Path.Combine(context.DirectoryPath, "integrity.db"));
-        using (var db = new LiteDatabase(new ConnectionString { Filename = baseline, TransactionPageLimit = 4 }))
+        var acknowledged = new DurableLedger();
+        LiteDatabase baselineDb = null;
+        context.Deadline("BuildBaseline", () =>
         {
-            var rows = db.GetCollection("rows");
-            rows.EnsureIndex("group", "group");
-            for (var id = 1; id <= 30; id++)
-                rows.Insert(new BsonDocument { ["_id"] = id, ["group"] = id * 10, ["payload"] = new byte[12000] });
-            rows.DeleteMany("_id <= 15");
-            var vectors = db.GetCollection("vectors");
-            vectors.EnsureIndex("embedding_idx", BsonExpression.Create("$.embedding"), new VectorIndexOptions(3));
-            for (var id = 1; id <= 2; id++)
-                vectors.Insert(new BsonDocument { ["_id"] = id, ["embedding"] = new BsonValue(new[] { (float)id, id + .5f, -id }) });
-            db.Checkpoint();
-        }
+            using (var db = baselineDb = new LiteDatabase(new ConnectionString { Filename = baseline, TransactionPageLimit = 4 }))
+            {
+                var rows = db.GetCollection("rows");
+                rows.EnsureIndex("group", "group");
+                for (var id = 1; id <= 30; id++)
+                    rows.Insert(new BsonDocument { ["_id"] = id, ["group"] = id * 10, ["payload"] = new byte[12000] });
+                rows.DeleteMany("_id <= 15");
+                var vectors = db.GetCollection("vectors");
+                vectors.EnsureIndex("embedding_idx", BsonExpression.Create("$.embedding"), new VectorIndexOptions(3));
+                for (var id = 1; id <= 2; id++)
+                    vectors.Insert(new BsonDocument { ["_id"] = id, ["embedding"] = new BsonValue(new[] { (float)id, id + .5f, -id }) });
+                db.Checkpoint();
+                for (var id = 1; id <= 30; id++) acknowledged.Acknowledge("rows", id, id <= 15 ? null : rows.FindById(id));
+            }
+        }, Dimension, FixtureDeadline);
+        context.ConnectionClean(baselineDb);
         DatabaseIntegrityVerifier.Verify(context, baseline);
 
         var pages = ReadPages(baseline);
@@ -60,6 +81,10 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
             SegmentOffset(vectorTarget) + 6 + vectorLevel * (1 + VectorIndexNode.MaxNeighborsPerLevel * PageAddress.SIZE) +
             1 + backlinkIndex * PageAddress.SIZE, PageAddress.Empty));
         context.Check(detected == 10, "The integrity oracle accepted a known structural or semantic mutant.");
+        var cold = new LiteDatabase(new ConnectionString { Filename = baseline, ReadOnly = true });
+        using (cold) context.Durable(acknowledged, cold, "close and read-only cold reopen");
+        context.ConnectionClean(cold, "ColdReopenDispose");
+        context.Quiescent(baseline);
 
         VerifyPreallocated(context);
         VerifyEncrypted(context);
@@ -83,6 +108,7 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
             catch (FuzzFailureException error)
             {
                 context.Trace("integrity-mutant", new { name, detected = true, error = error.Message });
+                Reachability.Sometimes("situation:integrity-mutant-rejected");
                 return 1;
             }
         }
@@ -154,11 +180,17 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
     private static void VerifyPreallocated(FuzzContext context)
     {
         var file = context.RegisterFile(Path.Combine(context.DirectoryPath, "preallocated.db"));
-        using (var db = new LiteDatabase(new ConnectionString { Filename = file, InitialSize = 32L * Constants.PAGE_SIZE }))
+        LiteDatabase db = null;
+        context.Deadline("BuildPreallocated", () =>
         {
-            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preallocated" });
-            db.Checkpoint();
-        }
+            using (db = new LiteDatabase(new ConnectionString { Filename = file, InitialSize = 32L * Constants.PAGE_SIZE }))
+            {
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preallocated" });
+                db.Checkpoint();
+            }
+        }, Dimension, FixtureDeadline);
+        context.ConnectionClean(db);
+        context.Quiescent(file);
         DatabaseIntegrityVerifier.Verify(context, file);
     }
 
@@ -166,13 +198,19 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
     {
         const string password = "integrity-secret";
         var file = context.RegisterFile(Path.Combine(context.DirectoryPath, "encrypted.db"));
-        using (var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+        LiteDatabase db = null;
+        context.Deadline("BuildEncrypted", () =>
         {
-            var rows = db.GetCollection("rows");
-            rows.EnsureIndex("value", "value");
-            rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "encrypted" });
-            db.Checkpoint();
-        }
+            using (db = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+            {
+                var rows = db.GetCollection("rows");
+                rows.EnsureIndex("value", "value");
+                rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "encrypted" });
+                db.Checkpoint();
+            }
+        }, Dimension, FixtureDeadline);
+        context.ConnectionClean(db);
+        context.Quiescent(file);
         DatabaseIntegrityVerifier.Verify(context, file, password);
     }
 
@@ -187,13 +225,19 @@ internal sealed class IntegrityFuzzer : IFuzzTarget
         {
             var target = context.RegisterFile(Path.Combine(context.DirectoryPath, "legacy-" + Path.GetFileName(source)));
             File.Copy(source, target, true);
-            using (var db = new LiteDatabase(target))
+            LiteDatabase db = null;
+            context.Deadline("LegacyRebuild", () =>
             {
-                var documents = db.GetCollectionNames().Sum(name => db.GetCollection(name).Count());
-                context.Check(documents > 0, $"Legacy corpus file {Path.GetFileName(source)} opened without documents.");
-                db.Rebuild();
-                db.Checkpoint();
-            }
+                using (db = new LiteDatabase(target))
+                {
+                    var documents = db.GetCollectionNames().Sum(name => db.GetCollection(name).Count());
+                    context.Check(documents > 0, $"Legacy corpus file {Path.GetFileName(source)} opened without documents.");
+                    db.Rebuild();
+                    db.Checkpoint();
+                }
+            }, Dimension, FixtureDeadline);
+            context.ConnectionClean(db);
+            context.Quiescent(target);
             DatabaseIntegrityVerifier.Verify(context, target);
         }
         return files.Length;

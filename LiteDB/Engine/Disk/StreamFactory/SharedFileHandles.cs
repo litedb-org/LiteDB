@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -51,6 +52,7 @@ namespace LiteDB.Engine
         {
             if (!IsSupported) return false;
 #if DEBUG || TESTING
+            Reachability.FaultPoint("SimulatePosixDelete");
             var simulated = SimulatePosixDelete?.Invoke(filename);
             if (simulated.HasValue) return simulated.Value;
 #endif

@@ -179,6 +179,43 @@
       "gaps": [
         {"text": "Cached and uncached paths share one translator; CLR evaluation is the independent oracle only where semantics align."}
       ]
+    },
+    {
+      "id": "safety-machinery",
+      "title": "The safety machinery judges what it claims: oracles, markers, registries, corpus expectations, test settings and workflows",
+      "docs": [
+        "docs/rules/safety-evidence.md#coverage-accounting",
+        "docs/rules/validation.md#fuzzing"
+      ],
+      "paths": [
+        "LiteDB/Utils/Reachability.cs",
+        "LiteDB/Client/Shared/SharedOwnershipEvents.cs",
+        "LiteDB.Tests/Safety/**",
+        "LiteDB.Fuzz/Fuzz*.cs",
+        "LiteDB.Fuzz/Program.cs",
+        "LiteDB.Fuzz/SelfTests/**",
+        "LiteDB.Fuzz/Corpus/**",
+        "LiteDB.Fuzz/Targets/OracleSelfTestFuzzer.cs",
+        "LiteDB.Fuzz.Tests/**",
+        ".github/safety/**",
+        ".github/scripts/**",
+        ".github/workflows/**",
+        "tests.runsettings",
+        "tests.ci.runsettings",
+        "scripts/run-ci-tests.ps1"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Fuzz.Tests/DeadlineOracle_Tests.cs#A_stalled_actor_fails_its_child_process_although_another_actor_keeps_progressing", "proves": "A stalled operation fails its real child process with the replayable DEADLINE identity while another actor keeps completing operations."},
+        {"test": "LiteDB.Fuzz.Tests/OwnershipOracle_Tests.cs#Releasing_ownership_while_a_core_is_closing_fails_the_ownership_oracle", "proves": "Releasing the writer mutex while a protected core is still closing is latched and fails the ownership oracle."},
+        {"test": "LiteDB.Fuzz.Tests/OracleSelfTest_Tests.cs#Durable_fails_for_a_lost_acknowledged_effect_or_a_visible_aborted_one", "proves": "A lost acknowledged write and a visible aborted write each fail the durability oracle on a cold reopen."},
+        {"test": "LiteDB.Fuzz.Tests/OracleSelfTest_Tests.cs#FaultDisposed_matches_the_declared_contract_and_fails_for_a_swallowed_or_replaced_fault", "proves": "A swallowed or replaced injected fault fails against its declared disposition, while declared discard and failure lists pass."},
+        {"fuzz": "oracle-selftest", "proves": "Every smoke run feeds the core invariant families and the post-close, durability and fault-disposition oracles controlled bad states."},
+        {"script": ".github/scripts/check_reachability.py", "proves": "Unregistered markers fail statically, and a smoke campaign that never hits a marker its diff declares fails the Fuzz workflow."}
+      ],
+      "gaps": [
+        {"text": "A green self-test shows each oracle rejects one deliberately broken state, not that the oracle set is complete."},
+        {"text": "xUnit runs do not record reachability markers yet; markers reached only by tests are advisory."}
+      ]
     }
   ]
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -61,10 +62,13 @@ namespace LiteDB.Engine
             if (growth == 0) return;
             var required = checked((_currentPages + growth) * PAGE_SIZE);
             if (required > _limit)
+            {
+                Reachability.Sometimes("refusal:index-migration-limit-size");
                 throw new LiteException(0, "Index migration capacity exceeds LIMIT_SIZE. " +
                     "No migration changes were written. Retry with `index migration limit size=" + required +
                     "` (IndexMigrationLimitSize), or increase LIMIT_SIZE using the original engine. " +
                     "This conservative bound includes replacement pages and can exceed actual usage.");
+            }
         }
     }
 }

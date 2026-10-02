@@ -17,8 +17,11 @@ on:
       - 'scripts/test-v8-differential.py'
       - 'scripts/summarize-fuzz-artifacts.py'
       - 'scripts/test-fuzz-finding-triage.py'
+      - 'LiteDB.Tests/Safety/**'
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
+      - '.github/safety/markers.json'
+      - '.github/scripts/check_reachability.py'
   push:
     branches: [dev]
     paths:
@@ -36,8 +39,11 @@ on:
       - 'scripts/test-v8-differential.py'
       - 'scripts/summarize-fuzz-artifacts.py'
       - 'scripts/test-fuzz-finding-triage.py'
+      - 'LiteDB.Tests/Safety/**'
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
+      - '.github/safety/markers.json'
+      - '.github/scripts/check_reachability.py'
   schedule:
     - cron: '23 2 * * *'
   workflow_dispatch:
@@ -160,6 +166,44 @@ jobs:
           name: fuzz-smoke-${{ matrix.name }}
           path: artifacts/fuzz
           if-no-files-found: error
+      - name: Upload reachability markers
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-markers-${{ matrix.name }}
+          path: artifacts/fuzz/**/markers.json
+          if-no-files-found: warn
+
+  reachability:
+    name: Reachability gate
+    needs: smoke
+    # Judge whatever the smoke legs recorded, also when one of them failed.
+    if: always() && needs.smoke.result != 'skipped' && needs.smoke.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fuzz-markers-*
+          path: artifacts/markers
+      - name: Check that the smoke campaign reached the markers this change declares
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+        run: |
+          base="${BASE_SHA:-HEAD^}"
+          git cat-file -e "${base}^{commit}" 2>/dev/null || base="HEAD^"
+          mkdir -p artifacts/markers
+          python3 .github/scripts/check_reachability.py --base "$base" --runs artifacts/markers \
+            --output artifacts/reachability.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-reachability
+          path: artifacts/reachability.json
+          if-no-files-found: warn
 
   checksums:
     name: Checksums (${{ matrix.os }}, ${{ matrix.framework }})

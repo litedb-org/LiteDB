@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using LiteDB.Engine;
 using LiteDB.Vector;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -40,6 +41,7 @@ namespace LiteDB
 
             if (_query.VectorFilter != null)
             {
+                Reachability.Sometimes("refusal:vector-wherenear-repeated");
                 throw new InvalidOperationException("Only one WhereNear predicate is supported per query.");
             }
             if (_query.HasVectorFilter) this.ValidateMatchingVectorSearch(fieldExpr, target);
@@ -100,6 +102,7 @@ namespace LiteDB
             if (!VectorExpressionIdentity.HasSameSource(_query.VectorField, fieldExpr.Source) ||
                 !_query.VectorTarget.SequenceEqual(target))
             {
+                Reachability.Sometimes("refusal:vector-near-mismatch");
                 throw new InvalidOperationException("WhereNear and TopKNear must use the same vector expression and target.");
             }
         }
@@ -150,10 +153,12 @@ namespace LiteDB
         {
             if (!_query.HasVectorFilter)
             {
+                Reachability.Sometimes("refusal:vector-score-without-search");
                 throw new InvalidOperationException("WithScore requires WhereNear or TopKNear.");
             }
             if (_query.GroupBy != null || _query.Select.UseSource)
             {
+                Reachability.Sometimes("refusal:vector-score-aggregate");
                 throw new InvalidOperationException("Vector scores require individual documents, not aggregates or groups.");
             }
 

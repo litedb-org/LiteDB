@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -211,6 +212,10 @@ namespace LiteDB.Engine
             var cleanup = new LiteDB.Utils.TryCatch();
             foreach (var transaction in _transactions.Close())
             {
+                Reachability.Sometimes("maintenance:close-during-active-transaction");
+#if DEBUG || TESTING
+                if (!ReferenceEquals(transaction.OwnerThread, Thread.CurrentThread)) Reachability.Sometimes("maintenance:close-during-foreign-transaction");
+#endif
                 cleanup.Catch(transaction.Dispose);
             }
 

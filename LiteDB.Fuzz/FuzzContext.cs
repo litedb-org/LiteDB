@@ -17,6 +17,8 @@ internal sealed class FuzzContext : IDisposable
     private readonly string _heartbeatPath;
     private DateTimeOffset _lastHeartbeat;
     private readonly List<string> _stepFiles = new();
+    private readonly object _oracleLock = new();
+    private FuzzOracleState _oracles;
 
     internal FuzzContext(string target, int seed, int count, TimeSpan? duration, string directory,
         bool durationBoundReplay = false, string inputPath = null, string heartbeatPath = null)
@@ -50,6 +52,27 @@ internal sealed class FuzzContext : IDisposable
     internal bool DurationBound { get; }
     internal TimeSpan? RequestedDuration { get; }
     internal int? MinimizedCount { get; set; }
+
+    /// <summary>The runner's no-progress watchdog; every declared operation deadline stays below it.</summary>
+    internal TimeSpan HangTimeout { get; set; } = TimeSpan.FromSeconds(90);
+
+    /// <summary>
+    /// Records a deadline failure through the run's ordinary failure path (run.json, replay,
+    /// minimization). Called on the watchdog thread; the process exits when it returns.
+    /// </summary>
+    internal Func<FuzzFailureException, Task> DeadlineFailureHandler { get; set; }
+
+    /// <summary>Invariant oracle state (evidence files, deadline watchdog, ownership monitor); see <see cref="FuzzOracles"/>.</summary>
+    /// <summary>Fail the run with a violation an oracle latched outside any oracle call (none: no-op).</summary>
+    internal void ThrowLatchedOracleFailures()
+    {
+        lock (_oracleLock) _oracles?.ThrowLatched();
+    }
+
+    internal FuzzOracleState Oracles
+    {
+        get { lock (_oracleLock) return _oracles ??= new FuzzOracleState(this); }
+    }
 
     internal string TraceHash()
     {
@@ -159,6 +182,7 @@ internal sealed class FuzzContext : IDisposable
 
     public void Dispose()
     {
+        lock (_oracleLock) _oracles?.Dispose();
         _interesting.Dispose();
         _inputOffsets.Dispose();
         _trace.Dispose();

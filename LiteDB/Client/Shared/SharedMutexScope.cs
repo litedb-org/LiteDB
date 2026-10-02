@@ -39,6 +39,7 @@ namespace LiteDB.Client.Shared
 
         internal void Release()
         {
+            SharedOwnershipEvents.Release(_mutex);
             try { _mutex.ReleaseMutex(); }
             finally { _onThread--; }
         }

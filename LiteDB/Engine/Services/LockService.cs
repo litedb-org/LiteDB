@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -62,6 +63,7 @@ namespace LiteDB.Engine
                 // Rebuild can dispose the old admission gate while a new operation
                 // is queued behind its exclusive lease. Expose the engine contract,
                 // not the implementation detail of the retired gate.
+                Reachability.Sometimes("maintenance:operation-refused-by-close");
                 throw LiteException.EngineDisposed();
             }
         }
@@ -110,6 +112,9 @@ namespace LiteDB.Engine
             if (_transaction.IsWriteLockHeld) return false;
 
             // wait finish all transactions before enter in reserved mode
+#if DEBUG || TESTING
+            if (_transaction.CurrentReadCount > 0) Reachability.Sometimes("maintenance:rebuild-waits-for-active-transactions");
+#endif
             if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
 
 #if DEBUG || TESTING

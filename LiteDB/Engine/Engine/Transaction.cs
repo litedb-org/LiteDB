@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -123,6 +124,10 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
+                Reachability.Sometimes("maintenance:fatal-during-commit");
+#if DEBUG || TESTING
+                if (_state.Disposed) Reachability.Sometimes("maintenance:commit-cut-off-by-stopped-engine");
+#endif
                 // Completion may have partially persisted state. Do not let a later
                 // write reuse this transaction and report success without committing.
                 _state.Stop(ex);
