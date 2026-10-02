@@ -61,7 +61,10 @@ internal sealed class TeardownFaultsFuzzer : IFuzzTarget
             }
             var chosen = baselines[context.Random.Next(baselines.Count)];
             var pick = context.Random.Next(int.MaxValue);
-            var cases = TeardownSweepPlan.Cases(chosen.Driver, chosen.Result.Visits, TeardownSweepScope.Full);
+            // A Shared driver's visits interleave its holder and caller threads natively (class 2), so their order
+            // differs between runs of one seed. Pick from a stable order: the same reached set gives the same case.
+            var cases = TeardownSweepPlan.Cases(chosen.Driver, chosen.Result.Visits, TeardownSweepScope.Full)
+                .OrderBy(item => item.Step, StringComparer.Ordinal).ThenBy(item => item.Model).ThenBy(item => item.Occurrence).ToList();
             context.Trace("teardown", new { drivers = baselines.Select(item => item.Driver.Id).ToArray(), driver = chosen.Driver.Id,
                 prior = chosen.Prior.ToString(), sites = cases.Count });
             if (cases.Count == 0) continue;
