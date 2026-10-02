@@ -1,0 +1,6 @@
+{
+  "name": "waitgraph-pr133",
+  "description": "Historical overlay: the wait-for graph ported to PR #133 known-bad and fix trees with the PR-only blocking sites instrumented. run.sh applies the per-commit site patch, builds LiteDB.Tests and fails (WAIT_FOR_CYCLE:<rule>) only on a finding of a failing rule.",
+  "target": "net-proof-waitgraph-pr133",
+  "requires": ["handle-api"]
+}

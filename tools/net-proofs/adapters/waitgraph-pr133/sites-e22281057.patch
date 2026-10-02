@@ -1,0 +1,1572 @@
+diff --git a/LiteDB.Fuzz/Program.cs b/LiteDB.Fuzz/Program.cs
+index 49dfa151c..62a24e46c 100644
+--- a/LiteDB.Fuzz/Program.cs
++++ b/LiteDB.Fuzz/Program.cs
+@@ -62,7 +62,11 @@ internal static class Program
+             using var trial = new FuzzContext(selected[0].Name, options.Seed, options.Count, null,
+                 options.RunDirectory, options.DurationReplay, options.InputFile, options.HeartbeatFile);
+             string identity = null;
+-            try { await selected[0].RunAsync(trial); }
++            try
++            {
++                await selected[0].RunAsync(trial);
++                ReportWaitGraph(options.RunDirectory, verdict: true);
++            }
+             catch (Exception error) { identity = FailureIdentity.Get(error); }
+             await File.WriteAllTextAsync(options.Ledger, identity ?? string.Empty);
+             return identity == null ? 0 : 1;
+@@ -133,9 +137,11 @@ internal static class Program
+                 throw new FuzzFailureException("CORPUS_TRACE_CONTRACT_DRIFT",
+                     $"Corpus trace changed: expected {options.ExpectedTraceHash}, actual {context.TraceHash()}.");
+             }
++            ReportWaitGraph(directory, verdict: true);
+         }
+         catch (Exception error)
+         {
++            ReportWaitGraph(directory, verdict: false);
+             failure = error;
+             var failureText = error.ToString();
+             Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
+@@ -162,6 +168,22 @@ internal static class Program
+         return new RunResult(target.Name, seed, directory, failure == null);
+     }
+ 
++    /// <summary>
++    /// Write what the wait-for graph latched during the run to waitgraph.txt in the run directory (not
++    /// part of the hashed trace). With <paramref name="verdict"/>, a finding of a rule configured to fail
++    /// (LITEDB_WAITGRAPH_FAIL; none by default) fails the run as WAIT_FOR_CYCLE. See docs/wait-for-graph.md.
++    /// </summary>
++    private static void ReportWaitGraph(string directory, bool verdict)
++    {
++        var findings = LiteDB.Utils.WaitGraph.TakeFindings();
++        if (findings.Count == 0) return;
++        if (directory != null)
++            File.AppendAllLines(Path.Combine(directory, "waitgraph.txt"), findings.Select(x => x.ToString() + Environment.NewLine));
++        if (!verdict) return;
++        try { LiteDB.Utils.WaitGraph.ThrowIfFailing(findings); }
++        catch (Exception error) { throw new FuzzFailureException("WAIT_FOR_CYCLE", error.Message); }
++    }
++
+     private static async Task<int?> MinimizeAsync(IFuzzTarget target, FuzzContext failed, string failureId,
+         TimeSpan trialTimeout, string parentHeartbeat)
+     {
+diff --git a/LiteDB/Client/Direct/DirectEnginePool.cs b/LiteDB/Client/Direct/DirectEnginePool.cs
+index d50604b65..47626613b 100644
+--- a/LiteDB/Client/Direct/DirectEnginePool.cs
++++ b/LiteDB/Client/Direct/DirectEnginePool.cs
+@@ -109,6 +109,10 @@ namespace LiteDB.Client.Direct
+                     {
+                         reserved = new Slot { Opening = Thread.CurrentThread };
+                         Entries.Add(settings.Filename, reserved);
++#if DEBUG || TESTING
++                        // Proof overlay (PR #133): the opening thread holds the host slot until it publishes.
++                        LiteDB.Utils.WaitGraph.Acquired(GraphSlot(settings.Filename), site: "DirectEnginePool (opening)");
++#endif
+                         break;
+                     }
+                     if (slot.Target != null && slot.Target.TryGetTarget(out var entry))
+@@ -133,6 +137,10 @@ namespace LiteDB.Client.Direct
+                     var remaining = TimeSpan.FromSeconds(5) - started.Elapsed;
+ #if DEBUG || TESTING
+                     WaitingForClose?.Invoke(settings.Filename);
++#endif
++#if DEBUG || TESTING
++                    // Only an opening slot is modelled; a closing entry's final close is not (a miss).
++                    using (LiteDB.Utils.WaitGraph.Wait(GraphSlot(settings.Filename), LiteDB.Utils.WaitBound.After(TimeSpan.FromSeconds(5)), "DirectEnginePool.Open"))
+ #endif
+                     if (remaining <= TimeSpan.Zero || !Monitor.Wait(Gate, remaining))
+                         throw Conflict(settings, "The Direct engine is opening or closing; retry later.");
+@@ -147,6 +155,9 @@ namespace LiteDB.Client.Direct
+                 lock (Gate)
+                 {
+                     reserved.Target = new WeakReference<Entry>(opened);
++#if DEBUG || TESTING
++                    LiteDB.Utils.WaitGraph.Released(GraphSlot(settings.Filename));
++#endif
+                     reserved.Opening = null;
+                     Monitor.PulseAll(Gate);
+                 }
+@@ -159,6 +170,9 @@ namespace LiteDB.Client.Direct
+                 {
+                     lock (Gate)
+                     {
++#if DEBUG || TESTING
++                        LiteDB.Utils.WaitGraph.Released(GraphSlot(settings.Filename));
++#endif
+                         if (Entries.TryGetValue(settings.Filename, out var current) && ReferenceEquals(current, reserved))
+                             Entries.Remove(settings.Filename);
+                         Monitor.PulseAll(Gate);
+@@ -168,6 +182,11 @@ namespace LiteDB.Client.Direct
+             }
+         }
+ 
++#if DEBUG || TESTING
++        private static LiteDB.Utils.WaitGraph.Resource GraphSlot(string filename) =>
++            LiteDB.Utils.WaitGraph.Named("direct-pool-slot", filename, LiteDB.Utils.WaitPrimitive.Condition);
++
++#endif
+         internal static DatabaseAdmissionException Conflict(EngineSettings settings, string message) =>
+             new DatabaseAdmissionException(settings.Filename, new IOException(message));
+     }
+diff --git a/LiteDB/Client/Shared/DatabaseAdmissionRegistry.cs b/LiteDB/Client/Shared/DatabaseAdmissionRegistry.cs
+index ca4c9eedf..537367277 100644
+--- a/LiteDB/Client/Shared/DatabaseAdmissionRegistry.cs
++++ b/LiteDB/Client/Shared/DatabaseAdmissionRegistry.cs
+@@ -146,14 +146,27 @@ namespace LiteDB.Client.Shared
+                 {
+                     try
+                     {
++#if DEBUG || TESTING
++                        // Proof overlay (PR #133): a process-wide OS mutex, recursive for its thread.
++                        using (LiteDB.Utils.WaitGraph.Wait(this.Graph, LiteDB.Utils.WaitBound.After(TimeSpan.FromSeconds(5)), "DatabaseAdmissionRegistry.Enter"))
++#endif
+                         if (!_mutex.WaitOne(TimeSpan.FromSeconds(5))) throw new IOException("Database admission is busy; retry opening.");
+                     }
+                     catch (AbandonedMutexException) { }
+                 }
+                 catch { _mutex.Dispose(); throw; }
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Acquired(this.Graph, site: "DatabaseAdmissionRegistry.Enter");
++#endif
+             }
++#if DEBUG || TESTING
++            private LiteDB.Utils.WaitGraph.Resource Graph => LiteDB.Utils.WaitGraph.Of(_mutex, "named-mutex", LiteDB.Utils.WaitPrimitive.NamedMutex);
++#endif
+             public void Dispose()
+             {
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Released(this.Graph);
++#endif
+                 try { _mutex.ReleaseMutex(); }
+                 finally { _mutex.Dispose(); }
+             }
+diff --git a/LiteDB/Client/Shared/SharedDataReader.cs b/LiteDB/Client/Shared/SharedDataReader.cs
+index 2b8a2324f..a3f0ae767 100644
+--- a/LiteDB/Client/Shared/SharedDataReader.cs
++++ b/LiteDB/Client/Shared/SharedDataReader.cs
+@@ -28,7 +28,19 @@ namespace LiteDB
+ 
+         public bool HasValues => _reader.HasValues;
+ 
++#if DEBUG || TESTING
++        /// <summary>Wait-for graph (port to a tree without SharedCallFrames): the connection whose work a read executes.</summary>
++        internal object GraphOwner { get; set; }
++
++        public bool Read()
++        {
++            LiteDB.Utils.WaitGraph.Enter(this.GraphOwner);
++            try { return _reader.Read(); }
++            finally { LiteDB.Utils.WaitGraph.Exit(this.GraphOwner); }
++        }
++#else
+         public bool Read() => _reader.Read();
++#endif
+ 
+         public void Dispose()
+         {
+@@ -50,8 +62,17 @@ namespace LiteDB
+ 
+             if (disposing)
+             {
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Enter(this.GraphOwner);
++                try
++                {
++#endif
+                 try { _reader.Dispose(); }
+                 finally { _dispose(); }
++#if DEBUG || TESTING
++                }
++                finally { LiteDB.Utils.WaitGraph.Exit(this.GraphOwner); }
++#endif
+             }
+         }
+     }
+diff --git a/LiteDB/Client/Shared/SharedEngine.Calls.cs b/LiteDB/Client/Shared/SharedEngine.Calls.cs
+index b28a4af17..da148faef 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Calls.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Calls.cs
+@@ -28,8 +28,19 @@ namespace LiteDB
+             _admitted.TryGetValue(thread, out var depth);
+             _admitted[thread] = depth + 1;
+             _admittedCalls++;
++#if DEBUG || TESTING
++            LiteDB.Utils.WaitGraph.Acquired(_graphAdmitted, site: "SharedEngine.AdmitLocked");
++#endif
+         }
+ 
++#if DEBUG || TESTING
++        // Wait-for graph: admitted calls per thread (Dispose drains them) and threads queued for the mutex.
++        private readonly LiteDB.Utils.WaitGraph.Resource _graphAdmitted =
++            new LiteDB.Utils.WaitGraph.Resource("shared-admitted-calls", null, LiteDB.Utils.WaitPrimitive.Condition, ordered: false);
++        private readonly LiteDB.Utils.WaitGraph.Resource _graphMutexWaiters =
++            new LiteDB.Utils.WaitGraph.Resource("shared-mutex-waiters", null, LiteDB.Utils.WaitPrimitive.Condition, ordered: false);
++#endif
++
+         private int AdmittedDepth()
+         {
+             lock (_useLock) return _admitted.TryGetValue(Environment.CurrentManagedThreadId, out var depth) ? depth : 0;
+@@ -56,12 +67,19 @@ namespace LiteDB
+         private T Call<T>(Func<T> call)
+         {
+             var depth = this.AdmittedDepth();
++#if DEBUG || TESTING
++            // Wait-for graph: this connection's ownership executes on this thread during the call.
++            LiteDB.Utils.WaitGraph.Enter(this);
++#endif
+             try
+             {
+                 return call();
+             }
+             finally
+             {
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Exit(this);
++#endif
+                 this.EndAdmissions(depth);
+             }
+         }
+@@ -72,6 +90,9 @@ namespace LiteDB
+             lock (_useLock)
+             {
+                 if (!_admitted.TryGetValue(thread, out var current) || current <= depth) return;
++#if DEBUG || TESTING
++                for (var ended = depth; ended < current; ended++) LiteDB.Utils.WaitGraph.Released(_graphAdmitted);
++#endif
+                 _admittedCalls -= current - depth;
+                 if (depth == 0) _admitted.Remove(thread);
+                 else _admitted[thread] = depth;
+@@ -98,6 +119,11 @@ namespace LiteDB
+                     if (_admittedCalls - own <= 0) return;
+                     var remaining = DisposeCallWait - waited.Elapsed;
+                     if (remaining <= TimeSpan.Zero) return;
++#if DEBUG || TESTING
++                    // Calls of this thread are not waited for; the wait gives up after DisposeCallWait.
++                    using (LiteDB.Utils.WaitGraph.Wait(_graphAdmitted, LiteDB.Utils.WaitBound.After(DisposeCallWait),
++                        "SharedEngine.WaitForAdmittedCalls", this, excludeOwn: true))
++#endif
+                     Monitor.Wait(_useLock, remaining);
+                 }
+             }
+diff --git a/LiteDB/Client/Shared/SharedEngine.CoordinatedReads.cs b/LiteDB/Client/Shared/SharedEngine.CoordinatedReads.cs
+index 02677fe15..56469b214 100644
+--- a/LiteDB/Client/Shared/SharedEngine.CoordinatedReads.cs
++++ b/LiteDB/Client/Shared/SharedEngine.CoordinatedReads.cs
+@@ -270,7 +270,11 @@ namespace LiteDB
+                     Interlocked.Increment(ref MeasuredStreamingReaders);
+ #endif
+                 }
++#if DEBUG || TESTING
++                return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local)) { GraphOwner = this };
++#else
+                 return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local));
++#endif
+             }
+             catch
+             {
+diff --git a/LiteDB/Client/Shared/SharedEngine.Disposal.cs b/LiteDB/Client/Shared/SharedEngine.Disposal.cs
+index 08ce49ba7..7f27c08ed 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Disposal.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Disposal.cs
+@@ -66,6 +66,10 @@ namespace LiteDB
+             // Calls admitted before Dispose started finish first; later ones are refused.
+             cleanup.Catch(this.WaitForAdmittedCalls);
+             var closed = false;
++#if DEBUG || TESTING
++            // Wait-for graph: the close runs under every hold of this connection.
++            using (LiteDB.Utils.WaitGraph.Executing(this, claimsAll: true))
++#endif
+             lock (_useLock)
+             {
+                 if (_engine != null)
+diff --git a/LiteDB/Client/Shared/SharedEngine.Query.cs b/LiteDB/Client/Shared/SharedEngine.Query.cs
+index c14e2ef03..e88c13a92 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Query.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Query.cs
+@@ -147,6 +147,9 @@ namespace LiteDB
+                 });
+                 snapshot = null;
+                 lease = null;
++#if DEBUG || TESTING
++                result.GraphOwner = this;
++#endif
+                 return result;
+             }
+             finally
+@@ -176,7 +179,11 @@ namespace LiteDB
+                 use?.ToHold();
+                 // Any thread may dispose the reader and so end its mutex ownership.
+                 var generation = use == null ? _owner.Generation : -1;
++#if DEBUG || TESTING
++                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true, generation)) { GraphOwner = (object)use ?? this };
++#else
+                 return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true, generation));
++#endif
+             }
+             catch
+             {
+@@ -293,11 +300,15 @@ namespace LiteDB
+                     snapshot = null;
+                     reader = null;
+                     release = false;
+-                    return new SharedDataReader(continued, () =>
++                    var unleased = new SharedDataReader(continued, () =>
+                     {
+                         try { this.CloseMutexSnapshot(locked); }
+                         finally { _owner.Exit(generation); }
+                     });
++#if DEBUG || TESTING
++                    unleased.GraphOwner = this;
++#endif
++                    return unleased;
+                 }
+ 
+                 var ownedSnapshot = snapshot;
+@@ -315,6 +326,9 @@ namespace LiteDB
+                 snapshot = null;
+                 lease = null;
+                 reader = null;
++#if DEBUG || TESTING
++                result.GraphOwner = this;
++#endif
+                 return result;
+             }
+             finally
+diff --git a/LiteDB/Client/Shared/SharedEngine.Readers.cs b/LiteDB/Client/Shared/SharedEngine.Readers.cs
+index aa6b5eeed..bf98901eb 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Readers.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Readers.cs
+@@ -21,6 +21,9 @@ namespace LiteDB
+         internal TimeSpan PinIdleLimit { get; set; } = SharedMutexPin.IdleLimit;
+ 
+         internal TimeSpan PinHoldLimit { get; set; } = SharedMutexPin.HoldLimit;
++
++        // Proof port: test accessor used by the copied #3072 tests (exists on later dev).
++        internal SharedMutexPin Pin => _pin;
+ #else
+         private TimeSpan PinIdleLimit => SharedMutexPin.IdleLimit;
+ 
+@@ -263,10 +266,18 @@ namespace LiteDB
+         private bool TryEnterForDispose(out bool abandoned)
+         {
+             var waited = Stopwatch.StartNew();
++#if DEBUG || TESTING
++            // A bounded poll for this connection's ownership and the OS mutex; it gives up after DisposeCheckpointWait.
++            using (LiteDB.Utils.WaitGraph.Wait(_owner.GraphOwnership, LiteDB.Utils.WaitBound.After(DisposeCheckpointWait),
++                "SharedEngine.TryEnterForDispose", this, also: _owner.GraphMutexResource))
++#endif
+             while (true)
+             {
+                 if (_owner.TryEnter(out abandoned, scoped: this.CanScope)) return true;
+                 if (waited.Elapsed >= DisposeCheckpointWait || !LogHasContent(_settings.Filename)) return false;
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Recheck();
++#endif
+                 Thread.Sleep(10);
+             }
+         }
+diff --git a/LiteDB/Client/Shared/SharedEngine.Transactions.cs b/LiteDB/Client/Shared/SharedEngine.Transactions.cs
+index 7475ea7a4..7a0c206ea 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Transactions.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Transactions.cs
+@@ -64,6 +64,10 @@ namespace LiteDB
+             }
+             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
+             var gate = TransactionWriters.GetOrAdd(name, _ => new SemaphoreSlim(1, 1));
++#if DEBUG || TESTING
++            var graphGate = LiteDB.Utils.WaitGraph.Of(gate, "shared-handle-writer", LiteDB.Utils.WaitPrimitive.SemaphoreSlim);
++            if (graphGate.Label == null) graphGate.Label = name;
++#endif
+             // Pending begins use their caller's synchronous wait, never a holder thread/engine.
+             admission.WaitLocal(gate);
+             TransactionHolder holder;
+@@ -124,12 +128,28 @@ namespace LiteDB
+             private LiteEngine _engine;
+ #if DEBUG || TESTING
+             private readonly Func<string, bool, Action<string>> _streamProbe = NativeAdmissionStreamProbe.Attach;
++            // Proof overlay (PR #133) wait-for graph. The holder owns the per-name writer gate and owes the
++            // open signal and its job's completion; its Run (a frame that claims them) executes them. Its
++            // close wait waits for the handle (TransactionResources.GraphClose, held by the handle's context).
++            private readonly LiteDB.Utils.WaitGraph.Resource _graphGate;
++            private readonly LiteDB.Utils.WaitGraph.Resource _graphOpened =
++                new LiteDB.Utils.WaitGraph.Resource("shared-holder-opened", null, LiteDB.Utils.WaitPrimitive.Event, ordered: false);
++            private readonly LiteDB.Utils.WaitGraph.Resource _graphClose =
++                new LiteDB.Utils.WaitGraph.Resource("shared-holder-close", null, LiteDB.Utils.WaitPrimitive.Event, ordered: false);
++            private readonly LiteDB.Utils.WaitGraph.Resource _graphDone =
++                new LiteDB.Utils.WaitGraph.Resource("shared-holder-done", null, LiteDB.Utils.WaitPrimitive.TaskWait, ordered: false);
+ #endif
+ 
+             internal TransactionHolder(SharedEngine child, SemaphoreSlim gate, TransactionAdmission admission, object sessionToken, SharedEngine cacheOwner)
+             {
+                 _child = child; _gate = gate; _admission = admission; _sessionToken = sessionToken;
+                 _cacheOwner = new WeakReference<SharedEngine>(cacheOwner);
++#if DEBUG || TESTING
++                _graphGate = LiteDB.Utils.WaitGraph.Of(gate, "shared-handle-writer", LiteDB.Utils.WaitPrimitive.SemaphoreSlim);
++                LiteDB.Utils.WaitGraph.Acquired(_graphGate, this, site: "TransactionHolder (writer gate)");
++                LiteDB.Utils.WaitGraph.Acquired(_graphOpened, this, site: "TransactionHolder (open)");
++                LiteDB.Utils.WaitGraph.Acquired(_graphDone, this, site: "TransactionHolder (job)");
++#endif
+             }
+ 
+             internal TransactionResources Open(object policyAnchor)
+@@ -144,12 +164,26 @@ namespace LiteDB
+                 {
+                     try { _child.Dispose(); }
+                     catch (Exception cleanup) { error.Data["LiteDB.TransactionOpenCleanup"] = cleanup; }
+-                    finally { _gate.Release(); _opened.Dispose(); _close.Dispose(); }
++                    finally
++                    {
++#if DEBUG || TESTING
++                        this.GraphEnded();
++#endif
++                        _gate.Release(); _opened.Dispose(); _close.Dispose();
++                    }
+                     throw;
+                 }
++#if DEBUG || TESTING
++                using (LiteDB.Utils.WaitGraph.Wait(_graphOpened, LiteDB.Utils.WaitBound.Unbounded, "TransactionHolder.Open (opened)", this))
++#endif
+                 _opened.Wait();
+                 if (_error != null) Release();
++#if DEBUG || TESTING
++                return new TransactionResources(_engine, _engine.CurrentContext, Release, () => { LiteDB.Utils.WaitGraph.ReleaseAll(_graphClose); _close.Set(); }, policyAnchor)
++                { GraphClose = _graphClose };
++#else
+                 return new TransactionResources(_engine, _engine.CurrentContext, Release, () => _close.Set(), policyAnchor);
++#endif
+             }
+ 
+             private void Cleanup(Action action)
+@@ -170,11 +204,20 @@ namespace LiteDB
+                 NativeAdmissionStreamProbe.Attach = _streamProbe;
+ #endif
+                 var acquired = false;
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.Enter(this, claimsAll: true);
++#endif
+                 try
+                 {
+                     Acquire(ref acquired);
+                     _engine = _child._engine;
++#if DEBUG || TESTING
++                    LiteDB.Utils.WaitGraph.Released(_graphOpened, this, all: true);
++#endif
+                     _opened.Set();
++#if DEBUG || TESTING
++                    using (LiteDB.Utils.WaitGraph.Wait(_graphClose, LiteDB.Utils.WaitBound.Unbounded, "TransactionHolder.Run (close)", this))
++#endif
+                     _close.Wait();
+                 }
+                 catch (Exception error) { _error = error; }
+@@ -188,6 +231,10 @@ namespace LiteDB
+                     {
+                         Cleanup(_child.Dispose);
+                     }
++#if DEBUG || TESTING
++                    this.GraphEnded();
++                    LiteDB.Utils.WaitGraph.Exit(this);
++#endif
+                     _gate.Release();
+                     // Failed-open publication follows all cleanup and preserves its original error.
+                     _opened.Set();
+@@ -198,6 +245,15 @@ namespace LiteDB
+                 }
+             }
+ 
++#if DEBUG || TESTING
++            private void GraphEnded()
++            {
++                LiteDB.Utils.WaitGraph.Released(_graphGate, this, all: true);
++                LiteDB.Utils.WaitGraph.Released(_graphOpened, this, all: true);
++                LiteDB.Utils.WaitGraph.Released(_graphDone, this, all: true);
++            }
++
++#endif
+             [MethodImpl(MethodImplOptions.NoInlining)]
+             private void Acquire(ref bool acquired)
+             {
+@@ -213,9 +269,15 @@ namespace LiteDB
+ 
+             private void Release()
+             {
++#if DEBUG || TESTING
++                LiteDB.Utils.WaitGraph.ReleaseAll(_graphClose);
++#endif
+                 _close.Set();
+                 // Join this job, not the reusable thread. Task completion has no
+                 // disposable wait handle that could race its final Set operation.
++#if DEBUG || TESTING
++                using (LiteDB.Utils.WaitGraph.Wait(_graphDone, LiteDB.Utils.WaitBound.Unbounded, "TransactionHolder.Release (job)", this))
++#endif
+                 _done.Task.GetAwaiter().GetResult();
+                 _opened.Dispose();
+                 _close.Dispose();
+diff --git a/LiteDB/Client/Shared/SharedEngine.Waiters.cs b/LiteDB/Client/Shared/SharedEngine.Waiters.cs
+index d4583d897..eb8c271c6 100644
+--- a/LiteDB/Client/Shared/SharedEngine.Waiters.cs
++++ b/LiteDB/Client/Shared/SharedEngine.Waiters.cs
+@@ -33,8 +33,16 @@ namespace LiteDB
+                 else
+                 {
+                     closing.ThrowIfCancellationRequested();
++#if DEBUG || TESTING
++                    // Proof overlay (PR #133): a cancellable poll for ownership and the OS mutex.
++                    using (LiteDB.Utils.WaitGraph.Wait(_owner.GraphOwnership, LiteDB.Utils.WaitBound.Cancellation,
++                        "SharedEngine.EnterOwner (closing poll)", this, also: _owner.GraphMutexResource))
++#endif
+                     while (!_owner.TryEnter(out abandoned, scoped))
+                     {
++#if DEBUG || TESTING
++                        LiteDB.Utils.WaitGraph.Recheck();
++#endif
+                         closing.WaitHandle.WaitOne(10);
+                         closing.ThrowIfCancellationRequested();
+                     }
+@@ -84,10 +92,16 @@ namespace LiteDB
+         private void AddMutexWaiter()
+         {
+             lock (_waitersLock) _mutexWaiters++;
++#if DEBUG || TESTING
++            LiteDB.Utils.WaitGraph.Acquired(_graphMutexWaiters, site: "SharedEngine.AddMutexWaiter");
++#endif
+         }
+ 
+         private void RemoveMutexWaiter()
+         {
++#if DEBUG || TESTING
++            LiteDB.Utils.WaitGraph.Released(_graphMutexWaiters);
++#endif
+             lock (_waitersLock)
+             {
+                 if (--_mutexWaiters == 0) Monitor.PulseAll(_waitersLock);
+@@ -99,6 +113,12 @@ namespace LiteDB
+         {
+             lock (_waitersLock)
+             {
++#if DEBUG || TESTING
++                // Proof overlay (PR #133): the poll ends when a session close cancels it.
++                using (LiteDB.Utils.WaitGraph.Wait(_graphMutexWaiters,
++                    SessionCallContext.Closing.CanBeCanceled ? LiteDB.Utils.WaitBound.Cancellation : LiteDB.Utils.WaitBound.Unbounded,
++                    "SharedEngine.WaitForMutexWaiters", this))
++#endif
+                 while (_mutexWaiters > 0)
+                 {
+                     SessionCallContext.Closing.ThrowIfCancellationRequested();
+diff --git a/LiteDB/Client/Shared/SharedEngine.cs b/LiteDB/Client/Shared/SharedEngine.cs
+index a5acd3494..4991ac86a 100644
+--- a/LiteDB/Client/Shared/SharedEngine.cs
++++ b/LiteDB/Client/Shared/SharedEngine.cs
+@@ -437,6 +437,9 @@ namespace LiteDB
+ 
+         public void Dispose()
+         {
++#if DEBUG || TESTING
++            using (LiteDB.Utils.WaitGraph.Executing(this))
++#endif
+             Dispose(true);
+             GC.SuppressFinalize(this);
+         }
+diff --git a/LiteDB/Client/Shared/SharedMutexFactory.cs b/LiteDB/Client/Shared/SharedMutexFactory.cs
+index ff70390aa..5f7759875 100644
+--- a/LiteDB/Client/Shared/SharedMutexFactory.cs
++++ b/LiteDB/Client/Shared/SharedMutexFactory.cs
+@@ -13,6 +13,16 @@ namespace LiteDB
+ 
+         public static Mutex Create(string name)
+         {
++#if DEBUG || TESTING
++            // Every Mutex instance of one name is the same process-wide wait-for graph resource.
++            var mutex = CreateCore(name);
++            LiteDB.Utils.WaitGraph.Bind(mutex, LiteDB.Utils.WaitGraph.Named("named-mutex", name, LiteDB.Utils.WaitPrimitive.NamedMutex));
++            return mutex;
++        }
++
++        private static Mutex CreateCore(string name)
++        {
++#endif
+             var fullName = MutexPrefix + name + MutexSuffix;
+ 
+             if (!IsWindows())
+diff --git a/LiteDB/Client/Shared/SharedMutexOwner.cs b/LiteDB/Client/Shared/SharedMutexOwner.cs
+index f2a6cb910..4f513d07e 100644
+--- a/LiteDB/Client/Shared/SharedMutexOwner.cs
++++ b/LiteDB/Client/Shared/SharedMutexOwner.cs
+@@ -18,7 +18,7 @@ namespace LiteDB.Client.Shared
+     /// takes the OS mutex directly on that thread instead: nothing but that thread can
+     /// end it, so it needs no holder and saves two thread handoffs per operation.
+     /// </summary>
+-    internal sealed class SharedMutexOwner
++    internal sealed partial class SharedMutexOwner
+     {
+         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
+         // A holder that owns nothing exits after this long, so an undisposed
+@@ -78,6 +78,7 @@ namespace LiteDB.Client.Shared
+                     _owner = Thread.CurrentThread;
+                     _scope.Owner = _owner;
+                     _recursion = 1;
++                    this.GraphOwned(direct: true);
+                 }
+                 return true;
+             }
+@@ -116,6 +117,14 @@ namespace LiteDB.Client.Shared
+             get { lock (_sync) return ReferenceEquals(_owner, Thread.CurrentThread); }
+         }
+ 
++#if DEBUG || TESTING
++        // Proof port: test accessor used by the copied tests (exists on later dev).
++        internal bool IsHeld
++        {
++            get { lock (_sync) return _owner != null; }
++        }
++#endif
++
+         /// <summary>
+         /// Acquire, or enter recursively on the owner thread. Returns true when the
+         /// OS reported the mutex abandoned by another process.
+@@ -123,6 +132,9 @@ namespace LiteDB.Client.Shared
+         public bool Enter(bool scoped = false, CancellationToken closing = default)
+         {
+             if (this.TryRecurse()) return false;
++#if DEBUG || TESTING
++            using (this.GraphWait(GraphWaitSite.Gate, closing))
++#endif
+             while (!_gate.Wait(Poll, closing)) this.ReleaseIfOwnerExited();
+             bool abandoned;
+             if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned, closing);
+@@ -190,6 +202,7 @@ namespace LiteDB.Client.Shared
+                     _generation++;
+                     if (direct == null) _released.Reset();
+                 }
++                this.GraphEnded(mutex: true);
+                 _scope.Owner = null;
+             }
+             if (direct != null)
+@@ -215,6 +228,7 @@ namespace LiteDB.Client.Shared
+                 _owner = null;
+                 _recursion = 0;
+                 _generation++;
++                this.GraphEnded(mutex: _scope.Owner == null);
+                 // A scoped ownership's thread is still inside its operation. It releases
+                 // the OS mutex and the gate when that operation ends (see Exit).
+                 if (_scope.Owner != null) return;
+@@ -229,7 +243,11 @@ namespace LiteDB.Client.Shared
+         /// connection holds neither the gate nor the OS mutex on its own account.
+         /// The holder completes it without waiting for anything else.
+         /// </summary>
++#if DEBUG || TESTING
++        public void WaitForRelease() { using (this.GraphWait(GraphWaitSite.Release)) _released.Wait(); }
++#else
+         public void WaitForRelease() => _released.Wait();
++#endif
+ 
+         private bool TryRecurse()
+         {
+@@ -247,12 +265,16 @@ namespace LiteDB.Client.Shared
+             abandoned = false;
+             try
+             {
++#if DEBUG || TESTING
++                using (this.GraphWait(command == Command.Acquire ? GraphWaitSite.ViaHolder : GraphWaitSite.None, closing))
++#endif
+                 if (!this.Send(command, closing)) { _gate.Release(); return false; }
+                 abandoned = _abandoned;
+                 lock (_sync)
+                 {
+                     _owner = Thread.CurrentThread;
+                     _recursion = 1;
++                    this.GraphOwned(direct: false);
+                 }
+                 return true;
+             }
+@@ -271,6 +293,7 @@ namespace LiteDB.Client.Shared
+         {
+             Thread owner;
+             var direct = false;
++            this.GraphRecheck();
+             lock (_sync)
+             {
+                 owner = _owner ?? _scope.Owner;
+@@ -284,6 +307,7 @@ namespace LiteDB.Client.Shared
+                     _scope.Owner = null;
+                     _recursion = 0;
+                     _generation++;
++                    this.GraphEnded(mutex: true);
+                 }
+             }
+             if (direct)
+@@ -343,6 +367,9 @@ namespace LiteDB.Client.Shared
+ #endif
+                     _posted.Set();
+                 }
++#if DEBUG || TESTING
++                using (this.GraphWait(command == Command.Acquire ? GraphWaitSite.None : GraphWaitSite.Handoff))
++#endif
+                 _done.Wait();
+                 lock (_sync)
+                 {
+@@ -372,6 +399,7 @@ namespace LiteDB.Client.Shared
+ #if DEBUG || TESTING
+                     if (signaled && command == Command.None) Interlocked.Increment(ref EmptySignaledWakes);
+ #endif
++                    this.GraphCommand(command, started: true);
+                     if (command == Command.None && _held && _owner != null && !_owner.IsAlive) ownerExited = true;
+                     else if (command == Command.None && !_held && DateTime.UtcNow - idleSince > HolderIdle)
+                     {
+@@ -423,6 +451,7 @@ namespace LiteDB.Client.Shared
+                     _commandClosing = default;
+                     if (command == Command.ReleaseAndOpenGate) posted = true;
+                     else _error = error;
++                    this.GraphCommand(command, started: false);
+                 }
+                 if (posted)
+                 {
+@@ -476,11 +505,13 @@ namespace LiteDB.Client.Shared
+                 _recursion = 0;
+                 _generation++;
+             }
++            this.GraphExitedOwnerCleanup(started: true);
+ #if DEBUG || TESTING
+             this.BeforeOwnerExitedCleanup?.Invoke();
+ #endif
+             try { _ownerExited(); }
+             catch (Exception) { /* The next open recovers; the mutex must still be released. */ }
++            this.GraphExitedOwnerCleanup(started: false);
+             this.ReleaseMutex();
+             lock (_sync) { _gate.Release(); _released.Set(); }
+         }
+diff --git a/LiteDB/Client/Shared/SharedMutexPin.cs b/LiteDB/Client/Shared/SharedMutexPin.cs
+index 2b494038b..0655f03dd 100644
+--- a/LiteDB/Client/Shared/SharedMutexPin.cs
++++ b/LiteDB/Client/Shared/SharedMutexPin.cs
+@@ -2,6 +2,9 @@ using System;
+ using System.Diagnostics;
+ using System.Runtime.ExceptionServices;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB.Client.Shared
+ {
+@@ -105,12 +108,19 @@ namespace LiteDB.Client.Shared
+             pin._opening = closing;
+             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
+             holder.Start();
++#if DEBUG || TESTING
++            // The holder blocks on the OS mutex for this thread: it is this thread's wait.
++            using (WaitGraph.Wait(pin.GraphMutex, WaitBound.Unbounded, "SharedMutexPin.Acquire (via holder)", pin, viaHandoff: true))
++#endif
+             pin._acquired.Wait();
+             if (pin._error != null)
+             {
+                 holder.Join();
+                 ExceptionDispatchInfo.Capture(pin._error).Throw();
+             }
++#if DEBUG || TESTING
++            pin.GraphStarted();
++#endif
+             return pin;
+         }
+ 
+@@ -134,6 +144,9 @@ namespace LiteDB.Client.Shared
+                     return false;
+                 }
+                 _operations++;
++#if DEBUG || TESTING
++                WaitGraph.Enter(this);
++#endif
+                 return true;
+             }
+         }
+@@ -146,6 +159,9 @@ namespace LiteDB.Client.Shared
+                 if (hold) _holds--;
+                 else _operations--;
+                 _lastUse = _clock.Elapsed;
++#if DEBUG || TESTING
++                if (!hold) WaitGraph.Exit(this);
++#endif
+             }
+             _signal.Set();
+         }
+@@ -157,6 +173,9 @@ namespace LiteDB.Client.Shared
+             {
+                 _operations--;
+                 _holds++;
++#if DEBUG || TESTING
++                WaitGraph.Exit(this);
++#endif
+             }
+         }
+ 
+@@ -194,9 +213,20 @@ namespace LiteDB.Client.Shared
+             }
+         }
+ 
++#if DEBUG || TESTING
++        /// <summary>Proof port: test accessor used by the copied tests (exists on later dev).</summary>
++        internal bool IsOperatingOn(Thread thread)
++        {
++            lock (_sync) return ReferenceEquals(thread, this.Owner) && _operations > 0;
++        }
++
++#endif
+         /// <summary>Wait until the holder closed the engine and released the mutex.</summary>
+         public void WaitReleased()
+         {
++#if DEBUG || TESTING
++            using (WaitGraph.Wait(_graphEnd, WaitBound.Unbounded, "SharedMutexPin.WaitReleased", this))
++#endif
+             _released.Wait();
+             if (_error != null) ExceptionDispatchInfo.Capture(_error).Throw();
+         }
+@@ -221,10 +251,16 @@ namespace LiteDB.Client.Shared
+             _lastUse = _clock.Elapsed;
+             _acquired.Set();
+             var abandoned = this.WaitForEnd();
++#if DEBUG || TESTING
++            this.GraphClosing(started: true);
++#endif
+ 
+             Exception error = null;
+             try { _close(this, abandoned); }
+             catch (Exception ex) { error = ex; }
++#if DEBUG || TESTING
++            this.GraphClosing(started: false);
++#endif
+             try { _mutex.ReleaseMutex(); }
+             catch (Exception ex) { error = error ?? ex; }
+             _error = error;
+@@ -260,6 +296,37 @@ namespace LiteDB.Client.Shared
+             }
+         }
+ 
++#if DEBUG || TESTING
++        // Wait-for graph: the OS mutex and the pin's end. Both are held for the pin while the owner
++        // thread runs its operations (a frame of the pin), then by the holder while it closes.
++        private readonly WaitGraph.Resource _graphEnd = new WaitGraph.Resource("shared-pin-end", null, WaitPrimitive.Pin, ordered: false);
++
++        private WaitGraph.Resource GraphMutex => WaitGraph.Of(_mutex, "named-mutex", WaitPrimitive.NamedMutex);
++
++        /// <summary>On the owner thread, once the holder owns the mutex: its first operation runs here.</summary>
++        private void GraphStarted()
++        {
++            WaitGraph.Enter(this);
++            WaitGraph.Acquired(this.GraphMutex, this, site: "SharedMutexPin.Acquire");
++            WaitGraph.Acquired(_graphEnd, this, site: "SharedMutexPin.Acquire");
++        }
++
++        /// <summary>On the holder: its close runs on this thread, which alone ends both holds until it finishes.</summary>
++        private void GraphClosing(bool started)
++        {
++            if (started)
++            {
++                WaitGraph.Released(this.GraphMutex, this);
++                WaitGraph.Released(_graphEnd, this);
++                WaitGraph.Acquired(this.GraphMutex, site: "SharedMutexPin.Hold (close)");
++                WaitGraph.Acquired(_graphEnd, site: "SharedMutexPin.Hold (close)");
++                return;
++            }
++            WaitGraph.Released(this.GraphMutex);
++            WaitGraph.Released(_graphEnd);
++        }
++#endif
++
+         private bool ShouldEnd()
+         {
+             if (_operations > 0) return false;
+diff --git a/LiteDB/Client/Shared/SharedMutexTurnstile.cs b/LiteDB/Client/Shared/SharedMutexTurnstile.cs
+index a1099a3ef..e8c5f1655 100644
+--- a/LiteDB/Client/Shared/SharedMutexTurnstile.cs
++++ b/LiteDB/Client/Shared/SharedMutexTurnstile.cs
+@@ -1,6 +1,9 @@
+ using System;
+ using System.Runtime.InteropServices;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB.Client.Shared
+ {
+@@ -26,24 +29,44 @@ namespace LiteDB.Client.Shared
+         public SharedMutexTurnstile(Mutex turn)
+         {
+             _turn = turn;
++#if DEBUG || TESTING
++            _graphTurn = WaitGraph.Of(turn, "named-mutex", WaitPrimitive.NamedMutex);
++#endif
+         }
+ 
++#if DEBUG || TESTING
++        // A queued waiter holds the turn until it owns the shared mutex.
++        private readonly WaitGraph.Resource _graphTurn;
++#endif
++
+         /// <summary>
+         /// Block until <paramref name="mutex"/> is owned, queued at the turnstile.
+         /// Throws <see cref="AbandonedMutexException"/> as <see cref="WaitHandle.WaitOne()"/> does.
+         /// </summary>
+         public void Wait(Mutex mutex, CancellationToken closing = default)
+         {
++#if DEBUG || TESTING
++            bool queued;
++            var graphBound = closing.CanBeCanceled ? WaitBound.Cancellation : WaitBound.Unbounded;
++            using (WaitGraph.Wait(_graphTurn, graphBound, "SharedMutexTurnstile.Wait (turn)"))
++                queued = this.Enter(closing);
++            if (queued) WaitGraph.Acquired(_graphTurn, site: "SharedMutexTurnstile.Wait (turn)");
++#else
+             var queued = this.Enter(closing);
++#endif
+             try
+             {
+ #if DEBUG || TESTING
+                 this.BeforeMainWait?.Invoke();
++                using (WaitGraph.Wait(WaitGraph.Of(mutex, "named-mutex", WaitPrimitive.NamedMutex), graphBound, "SharedMutexTurnstile.Wait"))
+ #endif
+                 WaitCancellable(mutex, closing);
+             }
+             finally
+             {
++#if DEBUG || TESTING
++                if (queued) WaitGraph.Released(_graphTurn);
++#endif
+                 if (queued) _turn.ReleaseMutex();
+             }
+         }
+diff --git a/LiteDB/Client/Transactions/LiteTransaction.cs b/LiteDB/Client/Transactions/LiteTransaction.cs
+index da03b86ea..948143035 100644
+--- a/LiteDB/Client/Transactions/LiteTransaction.cs
++++ b/LiteDB/Client/Transactions/LiteTransaction.cs
+@@ -24,6 +24,11 @@ namespace LiteDB
+             _resources = resources;
+             _session = session;
+             _transaction = new TransactionContext(resources.Engine, resources.Session);
++#if DEBUG || TESTING
++            // Proof overlay (PR #133): only this handle's completion (a bound call, or the session's close
++            // worker for an idle handle) lets its Shared holder finish.
++            LiteDB.Utils.WaitGraph.Acquired(resources.GraphClose, _transaction, site: "LiteTransaction (holder close)");
++#endif
+             _client = new LiteDatabaseContext(new TransactionEngine(this, resources.Engine), mapper);
+             try
+             {
+diff --git a/LiteDB/Client/Transactions/SessionLifetime.cs b/LiteDB/Client/Transactions/SessionLifetime.cs
+index 7f7fa526e..0ac68bb52 100644
+--- a/LiteDB/Client/Transactions/SessionLifetime.cs
++++ b/LiteDB/Client/Transactions/SessionLifetime.cs
+@@ -4,6 +4,9 @@ using System.Diagnostics;
+ using System.Linq;
+ using System.Runtime.ExceptionServices;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB
+ {
+@@ -27,6 +30,11 @@ namespace LiteDB
+         internal TimeSpan? CloseWaitOverride;
+         internal Action BeforeCloseDispatch;
+         internal int ActiveHandles { get { lock (_gate) return _transactions.Count; } }
++        // Proof overlay (PR #133) wait-for graph: Close waits until the session is closed, which needs
++        // every session lease to end (held by the thread in the call), the close request to finish (held
++        // by the close worker while it runs) and the final release to run (held by the thread running it).
++        // Registered idle handles are rolled back by the close worker; busy ones end on a leased thread.
++        private readonly WaitGraph.Resource _graphClosed = new WaitGraph.Resource("session-lifetime", null, WaitPrimitive.Condition, ordered: false);
+ #endif
+ 
+         internal Lease Enter()
+@@ -38,6 +46,9 @@ namespace LiteDB
+                 _threads.TryGetValue(thread, out var depth);
+                 _threads[thread] = depth + 1;
+                 _active++;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphClosed, site: "SessionLifetime.Enter (lease)");
++#endif
+             }
+             return new Lease(this, thread);
+         }
+@@ -65,6 +76,9 @@ namespace LiteDB
+             bool closing;
+             lock (_gate)
+             {
++#if DEBUG || TESTING
++                WaitGraph.Released(_graphClosed, thread);
++#endif
+                 if (--_threads[thread] == 0) _threads.Remove(thread);
+                 _active--;
+                 closing = _closeRequested;
+@@ -113,6 +127,9 @@ namespace LiteDB
+ #endif
+             lock (_gate)
+             {
++#if DEBUG || TESTING
++                using (WaitGraph.Wait(_graphClosed, WaitBound.After(timeout), "SessionLifetime.Close"))
++#endif
+                 while (!_closed)
+                 {
+                     var remaining = timeout - elapsed.Elapsed;
+@@ -133,6 +150,9 @@ namespace LiteDB
+ 
+         private void RequestClose()
+         {
++#if DEBUG || TESTING
++            WaitGraph.Acquired(_graphClosed, site: "SessionLifetime.RequestClose (close worker)");
++#endif
+             try
+             {
+                 _closing.Cancel();
+@@ -142,6 +162,9 @@ namespace LiteDB
+             finally
+             {
+                 lock (_gate) { _requesting = false; _requestThread = null; _pendingRequests = null; }
++#if DEBUG || TESTING
++                WaitGraph.Released(_graphClosed);
++#endif
+                 TryFinish();
+             }
+         }
+@@ -155,12 +178,21 @@ namespace LiteDB
+                 _cleanupStarted = true;
+                 _cleanupThread = Thread.CurrentThread;
+                 release = _release;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphClosed, site: "SessionLifetime.TryFinish (release)");
++#endif
+             }
+             try { release(); }
+             catch (Exception error) { Report(error); }
+             finally
+             {
+-                lock (_gate) { _closed = true; _release = null; _cleanupThread = null; Monitor.PulseAll(_gate); }
++                lock (_gate)
++                {
++#if DEBUG || TESTING
++                    WaitGraph.Released(_graphClosed);
++#endif
++                    _closed = true; _release = null; _cleanupThread = null; Monitor.PulseAll(_gate);
++                }
+             }
+         }
+ 
+diff --git a/LiteDB/Client/Transactions/TransactionAdmission.cs b/LiteDB/Client/Transactions/TransactionAdmission.cs
+index 645ad0b05..ae8821380 100644
+--- a/LiteDB/Client/Transactions/TransactionAdmission.cs
++++ b/LiteDB/Client/Transactions/TransactionAdmission.cs
+@@ -2,6 +2,9 @@ using System;
+ using System.Diagnostics;
+ using System.Threading;
+ using LiteDB.Client.Shared;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB
+ {
+@@ -71,6 +74,10 @@ namespace LiteDB
+             if (_timeout > TimeSpan.Zero && remaining == 0) Expired();
+             try
+             {
++#if DEBUG || TESTING
++                using (WaitGraph.Wait(WaitGraph.Of(gate, "shared-handle-writer", WaitPrimitive.SemaphoreSlim), this.GraphBound,
++                    "TransactionAdmission.WaitLocal"))
++#endif
+                 if (!gate.Wait(remaining, _wait)) Expired();
+             }
+             catch (OperationCanceledException) { CheckCancellation(); throw; }
+@@ -81,6 +88,10 @@ namespace LiteDB
+         {
+ #if DEBUG || TESTING
+             Observe?.Invoke("native-wait");
++#endif
++#if DEBUG || TESTING
++            // A poll for the connection's ownership and the OS writer mutex, on the holder thread.
++            using (WaitGraph.Wait(owner.GraphOwnership, this.GraphBound, "TransactionAdmission.EnterNative", also: owner.GraphMutexResource))
+ #endif
+             while (true)
+             {
+@@ -89,10 +100,19 @@ namespace LiteDB
+                 if (_timeout > TimeSpan.Zero && remaining == 0) Expired();
+                 if (owner.TryEnter(out var abandoned, scoped)) return abandoned;
+                 if (remaining == 0) Expired();
++#if DEBUG || TESTING
++                WaitGraph.Recheck();
++#endif
+                 _wait.WaitHandle.WaitOne(remaining < 0 ? 10 : Math.Min(10, remaining));
+             }
+         }
+ 
++#if DEBUG || TESTING
++        /// <summary>Proof overlay (PR #133): one budget bounds both waits; else caller/close cancellation; else none.</summary>
++        private WaitBound GraphBound => _timeout != Timeout.InfiniteTimeSpan ? WaitBound.After(_timeout)
++            : _wait.CanBeCanceled ? WaitBound.Cancellation : WaitBound.Unbounded;
++
++#endif
+         internal void Acquired(string stage)
+         {
+ #if DEBUG || TESTING
+diff --git a/LiteDB/Client/Transactions/TransactionResources.cs b/LiteDB/Client/Transactions/TransactionResources.cs
+index 1bcd8e085..6ab869699 100644
+--- a/LiteDB/Client/Transactions/TransactionResources.cs
++++ b/LiteDB/Client/Transactions/TransactionResources.cs
+@@ -12,6 +12,10 @@ namespace LiteDB
+         private Action _release;
+         private Action _abandon;
+         private object _policyAnchor;
++#if DEBUG || TESTING
++        /// <summary>Proof overlay (PR #133): what a Shared holder's close wait waits for; the handle holds it.</summary>
++        internal LiteDB.Utils.WaitGraph.Resource GraphClose;
++#endif
+         internal TransactionResources(LiteEngine engine, EngineContext session, Action release, Action abandon = null, object policyAnchor = null)
+         { Engine = engine; Session = session; _release = release; _abandon = abandon; _policyAnchor = policyAnchor; }
+         public void Dispose()
+diff --git a/LiteDB/Engine/Services/CollectionLock.cs b/LiteDB/Engine/Services/CollectionLock.cs
+index 386b5f0a4..54b122551 100644
+--- a/LiteDB/Engine/Services/CollectionLock.cs
++++ b/LiteDB/Engine/Services/CollectionLock.cs
+@@ -1,5 +1,8 @@
+ using System;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB.Engine
+ {
+@@ -15,6 +18,12 @@ namespace LiteDB.Engine
+         private bool _stopping;
+ #if DEBUG || TESTING
+         internal Action BeforeWait;
++        /// <summary>Wait-for graph resource; the lock service names it after its collection.</summary>
++        // Proof overlay (PR #133): the lock is keyed by an owner object (the transaction's pages) and is
++        // recursive for that owner only, never for a thread: a waiter here is always another owner, so
++        // the primitive is a non-recursive condition (Monitor.Wait on "no other owner").
++        internal readonly WaitGraph.Resource Graph = new WaitGraph.Resource("collection-lock", null, WaitPrimitive.Condition);
++        private object _graphOwner;
+ #endif
+ 
+         public bool TryEnter(object owner, TimeSpan timeout)
+@@ -23,6 +32,12 @@ namespace LiteDB.Engine
+             lock (_lock)
+             {
+                 if (_stopping) throw LiteException.EngineDisposed();
++#if DEBUG || TESTING
++                var graphWait = default(WaitGraph.WaitScope);
++                var graphWaiting = false;
++                try
++                {
++#endif
+                 while (_owner != null && !ReferenceEquals(_owner, owner))
+                 {
+                     // Waiting for another session on this thread cannot make progress.
+@@ -32,6 +47,12 @@ namespace LiteDB.Engine
+                     if (remaining <= TimeSpan.Zero) return false;
+ #if DEBUG || TESTING
+                     BeforeWait?.Invoke();
++                    if (!graphWaiting)
++                    {
++                        graphWaiting = true;
++                        graphWait = WaitGraph.Wait(this.Graph, WaitBound.After(timeout), "CollectionLock.TryEnter", owner);
++                    }
++                    else WaitGraph.Recheck();
+ #endif
+                     if (!Monitor.Wait(_lock, remaining)) return false;
+                     if (_stopping) throw LiteException.EngineDisposed();
+@@ -39,7 +60,17 @@ namespace LiteDB.Engine
+                 _owner = owner;
+                 _thread = TransactionContext.AdmissionOwner as Thread;
+                 _depth++;
++#if DEBUG || TESTING
++                if (_depth == 1) this.GraphAcquired(owner);
++#endif
+                 return true;
++#if DEBUG || TESTING
++                }
++                finally
++                {
++                    graphWait.Dispose();
++                }
++#endif
+             }
+         }
+ 
+@@ -58,10 +89,28 @@ namespace LiteDB.Engine
+             {
+                 if (!ReferenceEquals(_owner, owner)) throw new SynchronizationLockException("Collection lock belongs to another transaction.");
+                 if (--_depth != 0) return;
++#if DEBUG || TESTING
++                WaitGraph.Released(this.Graph, _graphOwner, all: true);
++                _graphOwner = null;
++#endif
+                 _owner = null;
+                 _thread = null;
+                 Monitor.PulseAll(_lock);
+             }
+         }
++#if DEBUG || TESTING
++
++        /// <summary>
++        /// A thread-owned transaction (legacy or auto) progresses only on its thread: thread-affine hold.
++        /// An explicit transaction executes on whichever thread runs its handle call: a hold of its
++        /// context, executed by the frames <see cref="TransactionContext.Enter"/> opens.
++        /// </summary>
++        private void GraphAcquired(object owner)
++        {
++            var context = (owner as TransactionPages)?.GraphOwner;
++            _graphOwner = context ?? owner;
++            WaitGraph.Acquired(this.Graph, _graphOwner, threadAffine: context == null, site: "CollectionLock.TryEnter");
++        }
++#endif
+     }
+ }
+diff --git a/LiteDB/Engine/Services/LockService.cs b/LiteDB/Engine/Services/LockService.cs
+index 052ed59a5..733886ed2 100644
+--- a/LiteDB/Engine/Services/LockService.cs
++++ b/LiteDB/Engine/Services/LockService.cs
+@@ -96,6 +96,9 @@ namespace LiteDB.Engine
+ 
+             // get collection lock from dictionary (or create new if it does not exist)
+             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
++#if DEBUG || TESTING
++            if (collection.Graph.Label == null) collection.Graph.Label = collectionName;
++#endif
+ 
+             if (_stopping) throw LiteException.EngineDisposed();
+             if (collection.TryEnter(owner, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+diff --git a/LiteDB/Engine/Services/OperationLifetime.cs b/LiteDB/Engine/Services/OperationLifetime.cs
+index 67511ab89..9e8872226 100644
+--- a/LiteDB/Engine/Services/OperationLifetime.cs
++++ b/LiteDB/Engine/Services/OperationLifetime.cs
+@@ -2,6 +2,9 @@ using System;
+ using System.Collections.Generic;
+ using System.Diagnostics;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB.Engine
+ {
+@@ -19,6 +22,12 @@ namespace LiteDB.Engine
+         private Action _deferredClose;
+ #if DEBUG || TESTING
+         internal Action WaitingForMaintenance;
++        // Proof overlay (PR #133) wait-for graph: operation leases (thread-keyed, released by their
++        // thread), the exclusive (close/rebuild/deferred close) slot held by the thread that runs it, and
++        // the fence: a thread queued for exclusive holds it, and fresh operations wait for it.
++        private readonly WaitGraph.Resource _graphLeases = new WaitGraph.Resource("operation-lifetime", "leases", WaitPrimitive.Lease, ordered: false);
++        private readonly WaitGraph.Resource _graphExclusive = new WaitGraph.Resource("operation-lifetime", "exclusive", WaitPrimitive.Gate);
++        private readonly WaitGraph.Resource _graphFence = new WaitGraph.Resource("operation-lifetime", "maintenance-fence", WaitPrimitive.Gate, ordered: false);
+ #endif
+ 
+         internal Lease Enter(bool continuation = false)
+@@ -28,6 +37,12 @@ namespace LiteDB.Engine
+             {
+                 // A queued maintenance owner fences new work, while nested calls and
+                 // existing transaction/cursor completion must still drain its dependencies.
++#if DEBUG || TESTING
++                var graphWait = default(WaitGraph.WaitScope);
++                var graphWaiting = false;
++                try
++                {
++#endif
+                 while ((_exclusive != null && _exclusive != thread) ||
+                     (_exclusive == null && _waitingExclusive != 0 && !continuation &&
+                         !_threads.ContainsKey(thread) && !(_ownsTransaction?.Invoke() ?? false)))
+@@ -40,12 +55,27 @@ namespace LiteDB.Engine
+                         throw LiteException.EngineDisposed();
+ #if DEBUG || TESTING
+                     WaitingForMaintenance?.Invoke();
++                    if (!graphWaiting)
++                    {
++                        graphWaiting = true;
++                        // A fenced fresh operation waits for the queued maintenance owner too.
++                        graphWait = WaitGraph.Wait(_graphExclusive, WaitBound.Unbounded, "OperationLifetime.Enter",
++                            also: _exclusive == null ? _graphFence : null);
++                    }
++                    else WaitGraph.Recheck();
+ #endif
+                     Monitor.Wait(_gate);
+                 }
++#if DEBUG || TESTING
++                }
++                finally { graphWait.Dispose(); }
++#endif
+                 _threads.TryGetValue(thread, out var count);
+                 _threads[thread] = count + 1;
+                 _active++;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphLeases, site: "OperationLifetime.Enter");
++#endif
+             }
+             return new Lease(this, thread, false);
+         }
+@@ -55,9 +85,18 @@ namespace LiteDB.Engine
+             Action close = null;
+             lock (_gate)
+             {
+-                if (exclusive) _exclusive = null;
++                if (exclusive)
++                {
++#if DEBUG || TESTING
++                    WaitGraph.Released(_graphExclusive, thread);
++#endif
++                    _exclusive = null;
++                }
+                 else
+                 {
++#if DEBUG || TESTING
++                    WaitGraph.Released(_graphLeases, thread);
++#endif
+                     _active--;
+                     if (--_threads[thread] == 0) _threads.Remove(thread);
+                 }
+@@ -66,6 +105,9 @@ namespace LiteDB.Engine
+                     close = _deferredClose;
+                     _deferredClose = null;
+                     _exclusive = thread;
++#if DEBUG || TESTING
++                    WaitGraph.Acquired(_graphExclusive, site: "OperationLifetime.Exit (deferred close)");
++#endif
+                 }
+                 if (_active == 0 || exclusive) Monitor.PulseAll(_gate);
+             }
+@@ -76,7 +118,16 @@ namespace LiteDB.Engine
+         {
+             if (close == null) return;
+             try { close(); }
+-            finally { lock (_gate) { _exclusive = null; Monitor.PulseAll(_gate); } }
++            finally
++            {
++                lock (_gate)
++                {
++#if DEBUG || TESTING
++                    WaitGraph.Released(_graphExclusive, Thread.CurrentThread);
++#endif
++                    _exclusive = null; Monitor.PulseAll(_gate);
++                }
++            }
+         }
+ 
+         internal Lease Exclusive(Func<bool> dependenciesDrained, TimeSpan? timeout = null, Action stopWaiters = null, bool closing = false)
+@@ -94,6 +145,11 @@ namespace LiteDB.Engine
+                     Monitor.PulseAll(_gate);
+                 }
+                 _waitingExclusive++;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphFence, site: "OperationLifetime.Exclusive (queued)");
++                var graphWait = default(WaitGraph.WaitScope);
++                var graphWaiting = false;
++#endif
+                 try
+                 {
+                     while (true)
+@@ -106,12 +162,30 @@ namespace LiteDB.Engine
+                         }
+                         if (timeout.HasValue && elapsed.Elapsed >= timeout.Value)
+                             throw LiteException.LockTimeout("operation/maintenance", timeout.Value);
++#if DEBUG || TESTING
++                        // A poll for the active leases and the exclusive slot; bounded only when a timeout is given.
++                        // The dependenciesDrained() predicate is not modelled (a miss, never an invented edge).
++                        if (!graphWaiting)
++                        {
++                            graphWaiting = true;
++                            graphWait = WaitGraph.Wait(_graphLeases, timeout.HasValue ? WaitBound.After(timeout.Value) : WaitBound.Unbounded,
++                                "OperationLifetime.Exclusive", also: _graphExclusive);
++                        }
++                        else WaitGraph.Recheck();
++#endif
+                         Monitor.Wait(_gate, 10);
+                     }
+                     _exclusive = thread;
++#if DEBUG || TESTING
++                    WaitGraph.Acquired(_graphExclusive, site: "OperationLifetime.Exclusive");
++#endif
+                 }
+                 finally
+                 {
++#if DEBUG || TESTING
++                    graphWait.Dispose();
++                    WaitGraph.Released(_graphFence);
++#endif
+                     _waitingExclusive--;
+                     Monitor.PulseAll(_gate);
+                 }
+@@ -125,6 +199,9 @@ namespace LiteDB.Engine
+             {
+                 if (_active != 0 || _exclusive != null) { _deferredClose = close; return; }
+                 _exclusive = Thread.CurrentThread;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphExclusive, site: "OperationLifetime.Stop");
++#endif
+             }
+             FinishClose(close);
+         }
+diff --git a/LiteDB/Engine/Services/TransactionGate.cs b/LiteDB/Engine/Services/TransactionGate.cs
+index 19ddd1782..fb8e720ed 100644
+--- a/LiteDB/Engine/Services/TransactionGate.cs
++++ b/LiteDB/Engine/Services/TransactionGate.cs
+@@ -2,6 +2,9 @@ using System;
+ using System.Collections.Generic;
+ using System.Diagnostics;
+ using System.Threading;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
+ 
+ namespace LiteDB.Engine
+ {
+@@ -23,6 +26,12 @@ namespace LiteDB.Engine
+         private Thread _writer;
+         private int _waitingWriters;
+         private bool _disposed;
++#if DEBUG || TESTING
++        // Wait-for graph: leases (readers and the writer) block a writer; writers (active or
++        // queued) block a new reader.
++        private readonly WaitGraph.Resource _graphLeases = new WaitGraph.Resource("transaction-gate", "leases", WaitPrimitive.Gate);
++        private readonly WaitGraph.Resource _graphWriters = new WaitGraph.Resource("transaction-gate", "writers", WaitPrimitive.Gate, ordered: false);
++#endif
+ 
+         public bool IsReadLockHeld
+         {
+@@ -58,11 +67,20 @@ namespace LiteDB.Engine
+                 ThrowIfDisposed();
+                 while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread)))
+                 {
++#if DEBUG || TESTING
++                    using (WaitGraph.Wait(_graphWriters, WaitBound.After(timeout), "TransactionGate.TryEnterReadLock"))
++#endif
+                     if (!Wait(timeout, elapsed)) return false;
+                 }
+                 _readers.TryGetValue(thread, out var count);
+                 _readers[thread] = count + 1;
+                 _readerCount++;
++#if DEBUG || TESTING
++                // Proof overlay (PR #133): a lease belongs to its owner key, a thread or an explicit
++                // transaction context that executes wherever its handle call runs.
++                if (ReferenceEquals(thread, Thread.CurrentThread)) WaitGraph.Acquired(_graphLeases, site: "TransactionGate.TryEnterReadLock");
++                else WaitGraph.Acquired(_graphLeases, thread, site: "TransactionGate.TryEnterReadLock");
++#endif
+                 return true;
+             }
+         }
+@@ -74,6 +92,9 @@ namespace LiteDB.Engine
+                 // Transactions created within an exclusive operation do not take
+                 // separate leases. Disposal after engine shutdown is also harmless.
+                 if (ReferenceEquals(_writer, owner) || !_readers.TryGetValue(owner, out var count)) return;
++#if DEBUG || TESTING
++                WaitGraph.Released(_graphLeases, owner);
++#endif
+                 if (count == 1) _readers.Remove(owner);
+                 else _readers[owner] = count - 1;
+                 _readerCount--;
+@@ -90,17 +111,30 @@ namespace LiteDB.Engine
+                 ThrowIfDisposed();
+                 if (_readers.ContainsKey(CurrentOwner)) throw new LockRecursionException("Cannot enter exclusive mode inside a transaction.");
+                 _waitingWriters++;
++#if DEBUG || TESTING
++                WaitGraph.Acquired(_graphWriters, site: "TransactionGate.TryEnterWriteLock (queued)");
++#endif
+                 try
+                 {
+                     while (_writer != null || _readerCount != 0)
+                     {
++#if DEBUG || TESTING
++                        using (WaitGraph.Wait(_graphLeases, WaitBound.After(timeout), "TransactionGate.TryEnterWriteLock"))
++#endif
+                         if (!Wait(timeout, elapsed)) return false;
+                     }
+                     _writer = thread;
++#if DEBUG || TESTING
++                    WaitGraph.Acquired(_graphLeases, site: "TransactionGate.TryEnterWriteLock");
++                    WaitGraph.Acquired(_graphWriters, site: "TransactionGate.TryEnterWriteLock");
++#endif
+                     return true;
+                 }
+                 finally
+                 {
++#if DEBUG || TESTING
++                    WaitGraph.Released(_graphWriters);
++#endif
+                     _waitingWriters--;
+                     Monitor.PulseAll(_sync);
+                 }
+@@ -114,6 +148,10 @@ namespace LiteDB.Engine
+             lock (_sync)
+             {
+                 if (_writer != Thread.CurrentThread) throw new SynchronizationLockException();
++#if DEBUG || TESTING
++                WaitGraph.Released(_graphLeases);
++                WaitGraph.Released(_graphWriters);
++#endif
+                 _writer = null;
+                 Monitor.PulseAll(_sync);
+             }
+@@ -138,6 +176,10 @@ namespace LiteDB.Engine
+             lock (_sync)
+             {
+                 _disposed = true;
++#if DEBUG || TESTING
++                WaitGraph.ReleaseAll(_graphLeases);
++                WaitGraph.ReleaseAll(_graphWriters);
++#endif
+                 _readers.Clear();
+                 _readerCount = 0;
+                 Monitor.PulseAll(_sync);
+diff --git a/LiteDB/Engine/Services/TransactionService.cs b/LiteDB/Engine/Services/TransactionService.cs
+index 485d14023..56ee16959 100644
+--- a/LiteDB/Engine/Services/TransactionService.cs
++++ b/LiteDB/Engine/Services/TransactionService.cs
+@@ -66,6 +66,9 @@ namespace LiteDB.Engine
+             _walIndex = walIndex;
+             _monitor = monitor;
+             Owner = new TransactionOwner(monitor.CurrentContext);
++#if DEBUG || TESTING
++            _transPages.GraphOwner = Owner.Explicit;
++#endif
+ 
+             this.QueryOnly = queryOnly;
+             this.MaxTransactionSize = maxTransactionSize;
+diff --git a/LiteDB/Engine/Structures/TransactionPages.cs b/LiteDB/Engine/Structures/TransactionPages.cs
+index 4d854b670..6dd6d6efa 100644
+--- a/LiteDB/Engine/Structures/TransactionPages.cs
++++ b/LiteDB/Engine/Structures/TransactionPages.cs
+@@ -13,6 +13,14 @@ namespace LiteDB.Engine
+     /// </summary>
+     internal class TransactionPages
+     {
++#if DEBUG || TESTING
++        /// <summary>
++        /// Proof overlay (PR #133) wait-for graph owner of this transaction's holds: its explicit
++        /// <see cref="TransactionContext"/>, or null for a thread-owned transaction.
++        /// </summary>
++        internal object GraphOwner;
++
++#endif
+         /// <summary>
+         /// Transaction ID stored in WAL frames. It can be advanced before a later
+         /// batch so physical recovery order never moves backwards.
+diff --git a/LiteDB/Engine/TransactionContext.cs b/LiteDB/Engine/TransactionContext.cs
+index 18f684481..55a5dab7f 100644
+--- a/LiteDB/Engine/TransactionContext.cs
++++ b/LiteDB/Engine/TransactionContext.cs
+@@ -41,8 +41,20 @@ namespace LiteDB.Engine
+         internal readonly struct Scope : IDisposable
+         {
+             private readonly TransactionContext _previous;
++#if DEBUG || TESTING
++            // Proof overlay (PR #133): a bound call executes its transaction on this thread; no other
++            // thread can end the transaction's holds while it runs (overlapping calls are refused).
++            private readonly TransactionContext _graph;
++            internal Scope(TransactionContext transaction)
++            {
++                _previous = _executing; _executing = transaction; _graph = transaction;
++                LiteDB.Utils.WaitGraph.Enter(transaction, claimsAll: true);
++            }
++            public void Dispose() { LiteDB.Utils.WaitGraph.Exit(_graph); _executing = _previous; }
++#else
+             internal Scope(TransactionContext transaction) { _previous = _executing; _executing = transaction; }
+             public void Dispose() => _executing = _previous;
++#endif
+         }
+     }
+ }
