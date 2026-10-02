@@ -29,6 +29,23 @@ wait as usual. Code that never ran in the handle's flow is not detected; use
 `SharedWriterTimeout`. The check costs nothing while no Shared handle for the database is
 open in the process.
 
+What the marker can get wrong:
+- **False positives with grace `0`:** anything that inherits the flow is refused, even
+  when another flow is about to complete the handle. That includes child tasks, timers,
+  `Parallel.*`, long-lived tasks started while the flow was marked, and dedicated threads
+  that once ran a handle operation. A marker set at the top level of a flow never unwinds.
+- **False positives with a positive grace:** a call is refused once the handle has stayed
+  idle longer than the grace, for example while the code that will complete it awaits
+  slow I/O.
+- **Missed refusals (safe):** flows that don't inherit the marker are never refused; they
+  wait as usual. Examples are `ExecutionContext.SuppressFlow`, `UnsafeQueueUserWorkItem`,
+  and a handle begun inside a helper `async` method, whose marker does not flow back to
+  its caller.
+- **Fairness:** each grace slice gives up its turnstile place and the local writer turn,
+  then queues again. While a grace is configured, other processes and connections can
+  get ahead of a waiting call. This is polling with some coordination churn, and only
+  affects the opt-in mode.
+
 ## Bounding the wait: `SharedWriterTimeout`
 
 ```csharp
@@ -69,6 +86,9 @@ var d = db.GetSharedWaitDiagnostics();          // null unless Shared; last 5 mi
 // d.Recent / d.Total: Count, TotalWait, MaxWait, Over500Milliseconds, Over1Second, TimedOut, Refused
 var lastHour = db.GetSharedWaitDiagnostics(TimeSpan.FromHours(1));
 ```
+
+`GetSharedWaitDiagnostics` exists on `LiteDatabase` and `SharedEngine` (`GetWaitDiagnostics`),
+not on `ILiteDatabase`: adding an interface member would break existing implementations.
 
 `SharedEngine.GetWaitDiagnostics(...)` returns the same snapshot for a caller-owned
 engine. Statistics are per connection, kept in per-minute buckets for up to one hour.
