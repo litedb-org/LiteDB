@@ -116,24 +116,35 @@ namespace LiteDB.Utils
 
         private static void Classify(List<Step> path)
         {
+            // Only a bound that ends a wait without the cycle's own progress counts: a timeout, or a
+            // cancellation already requested. A cancellation nobody requested waits for the
+            // application to close or cancel, which it may never do (WaitBound).
             var bounded = false;
-            foreach (var step in path) bounded |= step.Wait.Bound.Kind != WaitBoundKind.Unbounded;
+            var cancellable = false;
+            foreach (var step in path)
+            {
+                bounded |= step.Wait.Bound.EndsByItself;
+                cancellable |= step.Wait.Bound.Kind == WaitBoundKind.Cancellation && !step.Wait.Bound.EndsByItself;
+            }
             WaitRule rule;
             string reason;
             if (path.Count == 1)
             {
                 rule = WaitRule.SelfWait;
-                reason = "the holder executes on the waiting thread (length 1)" + (bounded ? "; the wait is bounded" : "");
+                reason = "the holder executes on the waiting thread (length 1)" +
+                    (path[0].Wait.Bound.Kind != WaitBoundKind.Unbounded ? "; the wait is bounded" : "");
             }
             else if (!bounded)
             {
                 rule = WaitRule.UnboundedCycle;
-                reason = $"every wait is unbounded (length {path.Count})";
+                reason = cancellable
+                    ? $"no wait ends by itself: each is unbounded or only cancellable, and no cancellation was requested (length {path.Count})"
+                    : $"every wait is unbounded (length {path.Count})";
             }
             else
             {
                 rule = WaitRule.BoundedCycle;
-                reason = $"a bounded wait ends it; allowed when the outcomes are correct (length {path.Count})";
+                reason = $"a timeout or a requested cancellation ends it; allowed when the outcomes are correct (length {path.Count})";
             }
             Latch(rule, Signature(path), Format(path, rule.Id() + ": " + reason), path[0].Wait.Started);
         }
