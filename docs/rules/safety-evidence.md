@@ -296,6 +296,15 @@ lock code means:
 - a type or file whose name contains the word lock, gate, monitor, mutex, pin,
   turnstile or lifetime.
 
+Lines that a Release build without `TestingEnabled` cannot compile are not
+product code, so they never block
+[test: .github/scripts/test_mutation_gate.py#test_survivor_compiled_only_under_debug_or_testing_is_advisory]. Such a line is inside an `#if`, `#elif` or
+`#else` branch that is false whenever `DEBUG` and `TESTING` are undefined:
+`#if DEBUG || TESTING`, `#if TESTING`, `#if DEBUG`, or anything nested in
+them. Every other symbol counts as unknown, so the `#else` of
+`#if DEBUG || TESTING` stays product code. Survivors on such lines are
+listed in their own advisory bucket ("DEBUG/TESTING only"), with their count.
+
 Survivors elsewhere are advisory. Timeout counts as detected. CompileError,
 RuntimeError and Pending mutants in that code are reported as not evaluated:
 Stryker discards every mutant of a method when one does not compile. A report
@@ -304,7 +313,8 @@ with mutants whose embedded source differs from the head, or a report key that
 matches several changed files. A file without mutants is skipped and counted,
 because there is no line to map. Stryker 5 lists every file outside the mutate
 scope with the placeholder source `File ignored by mutate filter`. Survivors
-never fail an advisory run.
+never fail an advisory run
+[test: .github/scripts/test_mutation_gate.py#test_advisory_mode_exits_zero_with_findings_and_placeholders].
 
 Changed test files broaden the mutant set. Stryker treats a changed test as
 invalidating every mutant its tests cover, so a test-only change re-tests all

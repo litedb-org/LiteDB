@@ -208,6 +208,99 @@ class MutationGateTests(unittest.TestCase):
         self.assertIn("in file Snapshot.Lifetime.cs ('lifetime')", output)
 
 
+GUARDED_PATH = "LiteDB/Client/Shared/SharedMutexOwner.cs"
+GUARDED = """using System;
+
+namespace LiteDB
+{
+    internal sealed class SharedMutexOwner
+    {
+        public bool Take(int command)
+        {
+#if DEBUG || TESTING
+            Trace(command == 1 ? "via holder" : "none");
+#else
+            Count(command == 1 ? 2 : 3);
+#endif
+            return command > 0;
+        }
+    }
+}
+"""
+GUARDED_BASE = (GUARDED.replace('"via holder"', '"holder"').replace("? 2 : 3", "? 4 : 5")
+                .replace("command > 0", "command >= 0"))
+
+
+class TestingOnlyRegionTests(unittest.TestCase):
+    def run_gate(self, mutants, extra_args=("--blocking",)):
+        with GitRepo() as repo, tempfile.TemporaryDirectory() as scratch:
+            base = repo.commit({GUARDED_PATH: GUARDED_BASE})
+            repo.commit({GUARDED_PATH: GUARDED})
+            report = Path(scratch) / "r.json"
+            report.write_text(json.dumps(stryker_report(repo.path, mutants, GUARDED, f"{repo.path}/{GUARDED_PATH}")),
+                              encoding="utf-8")
+            return run_quietly(gate.main, [str(report), "--base", base, "--json", f"{scratch}/g.json", *extra_args]) \
+                + (json.loads((Path(scratch) / "g.json").read_text(encoding="utf-8")),)
+
+    def test_survivor_compiled_only_under_debug_or_testing_is_advisory(self):
+        mutant = at('"via holder"', "Survived", "String mutation", '""', text=GUARDED)
+        code, output, data = self.run_gate([mutant])
+        self.assertEqual(code, 0, output)
+        self.assertIn("advisory (DEBUG/TESTING only)", output)
+        self.assertIn("compiled only under DEBUG or TESTING", output)
+        self.assertIn("Surviving mutants: 0 blocking, 1 in cleanup/lock code compiled only under DEBUG or TESTING "
+                      "(advisory), 0 advisory elsewhere", output)
+        record = data["mutants"][0]
+        self.assertEqual((record["inBlockingScope"], record["testingOnly"], record["blocking"]), (True, True, False))
+
+    def test_else_branch_of_a_testing_guard_and_code_after_it_still_block(self):
+        for snippet, replacement in (("? 2 : 3", "? 3 : 2"), ("command > 0", "command < 0")):
+            mutant = at(snippet, "Survived", "Equality mutation", replacement, text=GUARDED)
+            code, output, data = self.run_gate([mutant])
+            self.assertEqual(code, 1, output)
+            self.assertIn("**blocking**", output)
+            self.assertFalse(data["mutants"][0]["testingOnly"], snippet)
+
+    def test_unevaluated_testing_only_mutant_does_not_warn(self):
+        mutant = at('"via holder"', "CompileError", "String mutation", '""', text=GUARDED)
+        code, output, _ = self.run_gate([mutant])
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("was not evaluated", output)
+
+
+class ReleaseExcludedLinesTests(unittest.TestCase):
+    def excluded(self, text):
+        lines = text.splitlines()
+        return [lines[number - 1].strip() for number in sorted(gate.release_excluded_lines(text))]
+
+    def test_debug_and_testing_branches_are_excluded_their_else_is_not(self):
+        text = "\n".join(["#if DEBUG || TESTING", "a();", "#else", "b();", "#endif",
+                          "#if TESTING", "c();", "#endif", "#if DEBUG", "d();", "#endif",
+                          "#if (TESTING) // instrumentation", "e();", "#endif", "  #  if !TESTING", "f();", "#endif"])
+        self.assertEqual(self.excluded(text), ["a();", "c();", "d();", "e();"])
+
+    def test_other_symbols_are_unknown_so_only_definitely_false_branches_go(self):
+        text = "\n".join(["#if DEBUG || NET8_0_OR_GREATER", "a();", "#endif",
+                          "#if DEBUG && NET8_0_OR_GREATER", "b();", "#endif",
+                          "#if NET8_0_OR_GREATER", "c();", "#elif TESTING", "d();", "#else", "e();", "#endif",
+                          "#if TESTING", "f();", "#elif NET8_0_OR_GREATER", "g();", "#elif DEBUG", "h();",
+                          "#else", "i();", "#endif",
+                          "#if TESTING == false", "j();", "#endif", "#if TESTING != true", "k();", "#endif",
+                          "#if false", "l();", "#endif", "#if !(DEBUG || TESTING) && X", "m();", "#endif"])
+        self.assertEqual(self.excluded(text), ["b();", "d();", "f();", "h();", "l();"])
+
+    def test_nesting_excludes_everything_under_a_false_branch(self):
+        text = "\n".join(["#if NET8_0_OR_GREATER", "a();", "#if TESTING", "b();", "#else", "c();", "#endif",
+                          "d();", "#endif", "#if DEBUG || TESTING", "e();", "#if NET8_0_OR_GREATER", "f();",
+                          "#else", "g();", "#endif", "h();", "#endif", "i();"])
+        self.assertEqual(self.excluded(text), ["b();", "e();", "f();", "g();", "h();"])
+
+    def test_directives_in_comments_and_strings_and_unparsable_conditions(self):
+        text = "\n".join(['var s = @"', "#if TESTING", "x", '";', "/*", "#if DEBUG", "*/", "a();",
+                          "#if TESTING ||", "b();", "#endif", "#region TESTING", "c();", "#endregion"])
+        self.assertEqual(self.excluded(text), [])
+
+
 class StructureTests(unittest.TestCase):
     def classify(self, snippet):
         line = line_of(snippet)

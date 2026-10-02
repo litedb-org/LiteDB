@@ -14,8 +14,9 @@ name: Mutation on the diff
 # the changed lines as lines to write behavior tests for. It is not a score: no
 # score threshold applies (break-at is 0). Survivors are classified "blocking"
 # (cleanup or lock code: Dispose/Close/Release*/*Finally, finally blocks,
-# lock/gate/monitor/mutex/pin/turnstile/lifetime types or files) or "advisory";
-# the class only fails the job once the net-modes switch is turned on.
+# lock/gate/monitor/mutex/pin/turnstile/lifetime types or files, minus lines
+# compiled only under DEBUG or TESTING) or "advisory"; the class only fails the
+# job once the net-modes switch is turned on.
 #
 # Changed test files broaden the mutant set: Stryker's --since treats a changed
 # test as invalidating every mutant its tests cover, so a test-only change

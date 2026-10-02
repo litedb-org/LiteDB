@@ -24,6 +24,15 @@ warned about (the changed line has no mutation evidence either way), but never
 blocking. Ignored mutants were excluded on purpose (mutate scope, ignore-methods)
 and are only counted.
 
+Code that a Release build without TestingEnabled cannot compile is not product
+code: a mutant starting on a line inside an #if/#elif/#else branch whose
+condition is false whenever DEBUG and TESTING are undefined (`#if DEBUG ||
+TESTING`, `#if TESTING`, `#if DEBUG`, nested under one of those, ...) is
+flagged "testingOnly" and, even in cleanup or lock code, listed in its own
+advisory bucket rather than blocking. Every other symbol (target framework,
+HAVE_*) counts as unknown, so a branch is excluded only when no symbol values
+can compile it; the #else of `#if DEBUG || TESTING` is production code.
+
 Locations are mapped onto the C# source of the head revision (comments and
 literals blanked with safety_common.blank_code, bodies found by brace matching),
 and the report's embedded source of every file with mutants must equal that
@@ -59,7 +68,16 @@ LOCK_WORD = re.compile(r"lock(?:s|ed|ing|er)?|gate[sd]?|gating|monitor(?:s|ed|in
 BLOCKING_SCOPE = (
     "a mutant is blocking when it lies in the body of a method named Dispose, DisposeAsync, Close, "
     "CloseAsync, Release* or *Finally (or a finalizer), inside a finally block, or in a type or file whose "
-    "name contains the word lock, gate, monitor, mutex, pin, turnstile or lifetime")
+    "name contains the word lock, gate, monitor, mutex, pin, turnstile or lifetime, unless its line is compiled "
+    "only under DEBUG or TESTING (an #if branch a Release build without TestingEnabled cannot compile), which is "
+    "listed as advisory")
+TESTING_ONLY = "compiled only under DEBUG or TESTING"
+
+# Symbols a Release build with TestingEnabled=false never defines: LiteDB.csproj adds DEBUG for the Debug
+# configuration only and TESTING for TestingEnabled=true only. Every other symbol is unknown.
+TEST_ONLY_SYMBOLS = ("DEBUG", "TESTING")
+_DIRECTIVE = re.compile(r"[ \t]*#[ \t]*(?P<name>if|elif|else|endif)\b(?P<condition>.*)")
+_CONDITION_TOKEN = re.compile(r"\s*(\|\||&&|==|!=|!|\(|\)|[A-Za-z_]\w*)")
 
 _TYPE = re.compile(r"\b(?:class|struct|record|interface)\s+(?P<name>[A-Za-z_]\w*)")
 _FINALLY = re.compile(r"\bfinally\s*\{")
@@ -92,6 +110,7 @@ class Structure:
         self.finally_blocks = [(match.end() - 1, common.matching(code, match.end() - 1, "{", "}"))
                                for match in _FINALLY.finditer(code)]
         self.methods = list(_methods(code))
+        self.testing_only_lines = release_excluded_lines(text)
 
     def offset(self, line, column):
         if line < 1 or line > len(self.line_starts):
@@ -130,6 +149,107 @@ class Structure:
         if word:
             reasons.append(f"in file {PurePosixPath(path).name} ('{word}')")
         return (True, "; ".join(dict.fromkeys(reasons))) if reasons else (False, "outside cleanup and lock code")
+
+
+def _not(value):
+    return None if value is None else not value
+
+
+def _and(left, right):
+    return False if left is False or right is False else (None if None in (left, right) else True)
+
+
+def _or(left, right):
+    return True if left is True or right is True else (None if None in (left, right) else False)
+
+
+def release_value(condition):
+    """Value of a preprocessor condition in a Release build without TestingEnabled: True, False, or None
+    (depends on other symbols, or not parsable)."""
+    tokens, position, condition = [], 0, condition.strip()
+    while position < len(condition):
+        match = _CONDITION_TOKEN.match(condition, position)
+        if not match:
+            return None
+        tokens.append(match.group(1))
+        position = match.end()
+    index = 0
+
+    def peek():
+        return tokens[index] if index < len(tokens) else None
+
+    def take():
+        nonlocal index
+        index += 1
+        return tokens[index - 1]
+
+    def disjunction():
+        value = conjunction()
+        while peek() == "||":
+            take()
+            value = _or(value, conjunction())
+        return value
+
+    def conjunction():
+        value = equality()
+        while peek() == "&&":
+            take()
+            value = _and(value, equality())
+        return value
+
+    def equality():
+        value = unary()
+        while peek() in ("==", "!="):
+            operator, right = take(), unary()
+            same = None if None in (value, right) else value == right
+            value = same if operator == "==" else _not(same)
+        return value
+
+    def unary():
+        token = take() if peek() is not None else None
+        if token == "!":
+            return _not(unary())
+        if token == "(":
+            value = disjunction()
+            if peek() != ")":
+                raise ValueError("unbalanced parentheses")
+            take()
+            return value
+        if token is None or not re.fullmatch(r"[A-Za-z_]\w*", token):
+            raise ValueError(f"unexpected {token!r}")
+        return {"true": True, "false": False}.get(token, False if token in TEST_ONLY_SYMBOLS else None)
+
+    try:
+        value = disjunction()
+    except ValueError:
+        return None
+    return value if index == len(tokens) else None
+
+
+def release_excluded_lines(text):
+    """Line numbers inside #if/#elif/#else branches that a Release build without TestingEnabled cannot compile.
+
+    Directives are read from the code with comments and literals blanked, so an "#if" inside a string or a
+    comment is text. Each open #if keeps (any earlier branch possibly taken, this branch's value); a line is
+    excluded when some enclosing branch is definitely false."""
+    frames, excluded = [], set()
+    for number, line in enumerate(common.blank_code(text).split("\n"), 1):
+        directive = _DIRECTIVE.match(line)
+        if directive:
+            name, value = directive.group("name"), release_value(directive.group("condition"))
+            if name == "if":
+                frames.append([value, value])
+            elif name == "elif" and frames:
+                earlier = frames[-1][0]
+                frames[-1] = [_or(earlier, value), _and(_not(earlier), value)]
+            elif name == "else" and frames:
+                frames[-1] = [True, _not(frames[-1][0])]
+            elif name == "endif" and frames:
+                frames.pop()
+            continue
+        if any(active is False for _, active in frames):
+            excluded.add(number)
+    return excluded
 
 
 def _block(code, after):
@@ -260,8 +380,11 @@ def _record(path, mutant, lines, structure):
               "statusReason": mutant.get("statusReason")}
     record["original"] = structure.snippet(first, start.get("column", 1), last, end.get("column"))
     scope, reason = structure.classify(path, first, start.get("column", 1))
-    record["inBlockingScope"], record["reason"] = scope, reason
-    record["blocking"] = scope and record["status"] in SURVIVING
+    testing_only = first in structure.testing_only_lines
+    if testing_only:
+        reason += f"; {TESTING_ONLY} (not in a Release build without TestingEnabled)"
+    record["inBlockingScope"], record["testingOnly"], record["reason"] = scope, testing_only, reason
+    record["blocking"] = scope and not testing_only and record["status"] in SURVIVING
     return record
 
 
@@ -269,6 +392,11 @@ def _cell(text, limit=80):
     text = " ".join(str(text or "").split())
     text = text if len(text) <= limit else text[:limit - 1] + "…"
     return text.replace("|", "\\|").replace("`", "'")
+
+
+def _bucket(record):
+    """0 blocking, 1 cleanup/lock code compiled only under DEBUG/TESTING, 2 other advisory."""
+    return 0 if record["blocking"] else (1 if record["inBlockingScope"] and record["testingOnly"] else 2)
 
 
 def render(records, base, head, unmutated=()):
@@ -292,11 +420,15 @@ def render(records, base, head, unmutated=()):
     if not survivors:
         lines += ["", "No surviving mutants on changed lines."]
         return "\n".join(lines)
-    lines += ["", "| Location | Status | Mutator | Original | Replacement | Class | Reason |",
+    buckets = [_bucket(record) for record in survivors]
+    lines += ["", f"Surviving mutants: {buckets.count(0)} blocking, {buckets.count(1)} in cleanup/lock code "
+                  f"{TESTING_ONLY} (advisory), {buckets.count(2)} advisory elsewhere.",
+              "", "| Location | Status | Mutator | Original | Replacement | Class | Reason |",
               "| --- | --- | --- | --- | --- | --- | --- |"]
-    for record in sorted(survivors, key=lambda item: (not item["blocking"], item["path"], item["line"])):
+    labels = ("**blocking**", "advisory (DEBUG/TESTING only)", "advisory")
+    for record in sorted(survivors, key=lambda item: (_bucket(item), item["path"], item["line"])):
         lines.append(f"| `{record['path']}:{record['line']}` | {record['status']} | {_cell(record['mutator'])} "
-                     f"| `{_cell(record['original'])}` | `{_cell(record['replacement'])}` | {'**blocking**' if record['blocking'] else 'advisory'} "
+                     f"| `{_cell(record['original'])}` | `{_cell(record['replacement'])}` | {labels[_bucket(record)]} "
                      f"| {_cell(record['reason'], 160)} |")
     return "\n".join(lines)
 
@@ -324,7 +456,7 @@ def main(argv=None):
             report.error(f"Surviving mutant in cleanup/lock code ({record['reason']}): {record['mutator']} -> "
                          f"{_cell(record['replacement'])}; a line to write a behavior test for",
                          record["path"], record["line"])
-        elif record["inBlockingScope"] and record["status"] in UNEVALUATED:
+        elif record["inBlockingScope"] and not record["testingOnly"] and record["status"] in UNEVALUATED:
             report.warning(f"{record['status']} mutant in cleanup/lock code ({record['reason']}) was not evaluated: "
                            f"{record['mutator']} -> {_cell(record['replacement'])}; this changed line has no "
                            "mutation evidence either way", record["path"], record["line"])
