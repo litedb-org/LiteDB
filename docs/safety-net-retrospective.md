@@ -269,16 +269,19 @@ runners differ.
 | Test leg, `remaining` partition (sweep, graph, safety, PBT) | 32 s | 119-132 s | +87-100 s per leg |
 | Whole net8.0 leg (sum of partitions) | 863 s | 1048-1399 s | about +185-270 s, noise-dominated |
 | Fuzz smoke legs | core 71 s | core 69 s; teardown 78-83 s; concurrency explorer 112 s; shared contention 32 s | 3 new legs on their own runners |
-| PR-selected fuzz, one line in `QueryExecutor.cs` | none | 355 s (7 targets x 100) | dominated by `lifetime-chaos` and `teardown-faults` |
-| PR-selected fuzz, a lock line in `SharedEngine.cs` | none | 897 s (8 targets x 100) | dominated by `shared-contention` x100 |
-| PR-selected fuzz, all-targets fallback | none | 306 s (50 targets x 30) | |
+| PR-selected fuzz, one line in `QueryExecutor.cs` | none | 152 s capped (355 s uncapped, 7 targets x 100) | dominated by `lifetime-chaos` x40 (150 s) and `teardown-faults` x30 (82 s) |
+| PR-selected fuzz, a lock line in `SharedEngine.cs` | none | 163 s capped (897 s uncapped, 8 targets x 100) | dominated by `lifetime-chaos` x40 (158 s) and `transaction-interleavings` x40 (132 s); uncapped it was `shared-contention` x100 |
+| PR-selected fuzz, all-targets fallback | none | 181-184 s capped (306 s uncapped, 50 targets x 30; paired rerun 224 s) | dominated by `lifetime-chaos` (108 s) |
 
 Runner time added on the PR tier is about 13 minutes (the two new partitions on three legs); wall
-clock grows by about 4.5 minutes when a test leg is the critical path. **Budget cap (preliminary,
-TODO(net-fixes)):** with per-target counts capped at the explorer and multi-process targets' smoke
-counts, uncommitted measurements give 152 s (typical change), 163 s (Shared change) and 184-242 s (all
-targets); the numbers become final when the budget commit lands. The 15-20 minute PR budget of the plan
-is met on these samples, but `shared-process` (217 s) and `engine-explorer` (170 s) sit near the 300 s
+clock grows by about 4.5 minutes when a test leg is the critical path. **Budget cap:** the
+PR-selected job runs the explorer and multi-process targets at their smoke counts (`prCounts` in
+`.github/safety/fuzz-obligations.json`: `lifetime-chaos` and `transaction-interleavings` 40,
+`teardown-faults`, `chaos-maintenance`, `shared` and `snapshot` 30, `shared-contention` 5), one
+concurrent run per count group. Measured with the workflow step verbatim (seed 2950080, 24 shared
+cores, load 9-18): 355 s to 152 s (typical change), 897 s to 163 s (Shared change) and 306 s to 181-184 s
+(all targets). A diff classified critical runs every target, so a Shared lock change costs the
+all-targets time in CI. The 15-20 minute PR budget of the plan is met on these samples, but `shared-process` (217 s) and `engine-explorer` (170 s) sit near the 300 s
 session limit on slower legs.
 
 ## Generator gaps (#3091)
