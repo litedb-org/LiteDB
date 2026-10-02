@@ -199,7 +199,8 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        try { this.CloseRetainedCore(engine); } finally { this.EndWriterPressure(); }
+                        try { if (this.CloseRetainedCore(engine).Count != 0) _closeFailures++; }
+                        finally { this.EndWriterPressure(); }
                     }
                 }
             }
