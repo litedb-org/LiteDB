@@ -44,6 +44,14 @@
       "disposition": "strengthened",
       "invariant": "Every smoke leg still runs its targets with unchanged seeds, counts, timeouts and artifact uploads.",
       "reason": "Adds an upload of each smoke leg's markers.json files (warn when none) and a 10-minute Reachability gate job that judges them after all legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m1-oracle-smoke",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/_reusable-ci.yml", ".github/safety/ci-evidence.json"],
+      "disposition": "strengthened",
+      "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
+      "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
     }
   ]
 }

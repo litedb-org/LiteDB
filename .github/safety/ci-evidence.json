@@ -3,6 +3,7 @@
   "description": "The jobs of _reusable-ci.yml and the test legs each tier must produce. check_test_evidence.py compares the actual job results and uploaded leg evidence with this file, so a skipped, cancelled, missing or unexpected leg fails the Safety evidence job. Changing it is a coverage change (see coverage-ledger.json).",
   "jobs": {
     "safety-policy": {"tiers": ["pr", "full"]},
+    "oracle-smoke": {"tiers": ["pr", "full"]},
     "build-linux": {"tiers": ["pr", "full"]},
     "build-windows": {"tiers": ["pr", "full"]},
     "build-macos": {"tiers": ["full"]},
