@@ -51,6 +51,45 @@ namespace LiteDB.Tests.Engine
             return before.Except(Pages(db, "source", "Index")).ToArray();
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Handle_read_snapshot_ignores_its_own_writes_to_a_reused_page(bool encrypted)
+        {
+            using var file = new TempFile();
+            using var db = new LiteDatabase(Settings(file, encrypted));
+            Seed(db);
+            var expected = Rows / Keys;
+
+            using var tx = db.BeginTransaction();
+            var source = tx.GetCollection("source");
+            // Pins the read snapshot of "source" with its "s" index (positive control).
+            source.Count(Query.EQ("s", Key(3))).Should().Be(expected);
+
+            // Another transaction frees the index pages; they go to the free list on commit.
+            var freed = FreeIndexPages(db);
+            freed.Should().NotBeEmpty();
+
+            // The handle reuses freed page IDs for "target" and safepoints them (limit 1).
+            tx.GetCollection("target").Insert(Filler()).Should().Be(40);
+
+            // Read-your-writes still resolves the handle's own safepointed pages.
+            tx.GetCollection("target").Count().Should().Be(41);
+
+            // The pinned snapshot still seeks the dropped index and must read its own version.
+            source.Query().Where("s = @0", Key(5)).GetPlan()["index"]["mode"].AsString.Should().StartWith("INDEX SEEK(s");
+            for (var key = 0; key < Keys; key++)
+                source.Count(Query.EQ("s", Key(key))).Should().Be(expected);
+            source.Query().Where("s = @0", Key(5)).Select("$._id").ToArray()
+                .Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(Enumerable.Range(1, Rows).Where(i => i % Keys == 5));
+
+            tx.Commit();
+            // The handle did reuse freed index pages for the other collection.
+            Pages(db, "target", "Data").Concat(Pages(db, "target", "Index")).Intersect(freed).Should().NotBeEmpty();
+            db.GetCollection("target").Count().Should().Be(41);
+            db.GetCollection("source").Count().Should().Be(Rows);
+        }
+
         [Fact]
         public void Page_dump_inside_a_transaction_still_lists_its_own_safepointed_pages()
         {
