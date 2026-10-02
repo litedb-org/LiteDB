@@ -154,6 +154,46 @@ class ReachabilityTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Fault hook site of fault-point:wal-before-flush has no marker", output)
 
+    def test_teardown_step_markers_count_through_their_dispatchers(self):
+        steps = "LiteDB/Utils/TeardownSteps.cs"
+        trycatch = "LiteDB/Utils/TryCatch.cs"
+        dispatcher = """namespace LiteDB.Utils
+{
+    internal static class TeardownSteps
+    {
+        internal static void Before(string step) { Reachability.FaultPoint(step); }
+        internal static void After(string step) { }
+    }
+}
+"""
+        catcher = "namespace LiteDB.Utils { internal class TryCatch { public void Step(string step) { Reachability.FaultPoint(step); } } }\n"
+        sort = "LiteDB/Engine/Sort/SortDisk.cs"
+        source = """namespace LiteDB.Engine
+{
+    internal class SortDisk
+    {
+        void Dispose(TryCatch tc)
+        {
+            TeardownSteps.Before("SortDisk.Dispose.pool"); _pool.Dispose(); TeardownSteps.After("SortDisk.Dispose.pool");
+            tc.Step("SortDisk.Dispose.delete");
+        }
+    }
+}
+"""
+        registry = json.loads(faults())
+        registry["hooks"] += [{"family": "teardown-step", "name": name, "protocol": "teardown: SortDisk.Dispose",
+                               "evidence": [{"fuzz": "chaos", "model": "exception", "proves": "p"}]}
+                              for name in ("SortDisk.Dispose.pool", "SortDisk.Dispose.delete")]
+        files = {steps: dispatcher, trycatch: catcher, sort: source, FAULTS: json.dumps(registry)}
+        code, output = self.run_check(files)
+        self.assertEqual(code, 0, output)
+        code, output = self.run_check({**files, steps: dispatcher.replace("Reachability.FaultPoint(step);", "")})
+        self.assertEqual(code, 1)
+        self.assertIn("Fault hook site of fault-point:SortDisk.Dispose.pool has no marker", output)
+        code, output = self.run_check({**files, trycatch: catcher.replace("Reachability.FaultPoint(step);", "")})
+        self.assertEqual(code, 1)
+        self.assertIn("Fault hook site of fault-point:SortDisk.Dispose.delete has no marker", output)
+
     def test_a_literal_fault_point_must_name_a_registered_hook(self):
         source = REBUILD_SOURCE.replace("void Install()\n        {", 'void Install()\n        {\n            Reachability.FaultPoint("gone");')
         code, output = self.run_check({REBUILD: source})
