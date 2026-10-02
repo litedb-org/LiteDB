@@ -20,6 +20,7 @@ at every step of every registered path, under two failure models.
 | Case runner and oracles | `LiteDB.Tests/Safety/TeardownSweep.cs`, `TeardownSweepPlan.cs`, `TeardownSweepRunner.cs` |
 | Known findings | `LiteDB.Tests/Safety/TeardownKnownFindings.cs`, reproductions in `LiteDB.Tests/Safety/Tests/TeardownKnownFinding_Tests.cs` |
 | xUnit sweep | `LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs` |
+| Fuzz target `teardown-faults` | `LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs` |
 | Fault-point registration (family `teardown-step`) | `.github/safety/fault-points.json` |
 
 Everything in `LiteDB/` compiles to nothing outside `DEBUG || TESTING`: the attribute and the
@@ -131,7 +132,8 @@ slowest path below 10 s (each test case is bounded by `TestCaseTimeout` 30 s).
 | `SharedMutexOwner.ReleaseExitedOwner` | `LiteDB/Client/Shared/SharedMutexOwner.cs:487` | Discarded | the owner-exited cleanup's failure is swallowed; mutex and gate released after it | cleanup (fail-inside only) | exited-owner/shared |
 | `SharedDataReader.Dispose` | `LiteDB/Client/Shared/SharedDataReader.cs:67` | Propagated, Discarded | the inner reader's and release callback's failures propagate; the core closes it triggers drop their lists | lease | leased/shared |
 
-Platform-only steps (the coverage fact excuses them elsewhere): `SharedEngine.Dispose.handles`, `.early-handles` and
+Platform-only steps (the coverage fact excuses them elsewhere; `faultPointGates` marks them
+advisory for the Linux smoke): `SharedEngine.Dispose.handles`, `.early-handles` and
 `SharedEngine.OnOwnerExited.idle-handles` run only where Shared mode caches file handles
 (Windows, `SharedFileHandles.IsSupportedFor`).
 
@@ -167,6 +169,19 @@ temporary try/finally fix makes each of them fail.
 
 All three contradict [storage ownership](rules/storage-ownership.md#buffers-and-cleanup); none is
 fixed here (the safety net only reports).
+
+## Fuzz target `teardown-faults`
+
+Each step takes the next driver (round robin from a random offset, so 30 steps cover every
+driver), draws a prior state within what the driver tolerates (document count, open reader and
+pending transaction on other threads, spilled sort, upload, encryption, Shared peer), runs the
+baseline and one random case from the Full plan. Outcomes go to `teardown.jsonl` and
+`faults.jsonl`, never to `trace.jsonl`; the trace records only the choices. A known finding
+passes unless `LITEDB_FUZZ_STRICT_KNOWN=1`; anything else fails as
+`TEARDOWN_FAULTS_<PATH>_<KIND>`. Markers: `situation:teardown-faults-skip-fired`,
+`situation:teardown-faults-fail-inside-fired`. Runs in the `linux-core-utc` smoke leg.
+Evidence class: Direct cases are controlled (class 1); Shared cases involve holder threads
+whose interleaving is native (class 2), so their records keep the full outcome.
 
 ## Adding a path or step
 

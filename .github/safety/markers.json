@@ -20,6 +20,18 @@
     "SimulatePosixDelete": {
       "gate": "advisory",
       "reason": "Evaluated only when Shared mode caches file handles (Windows); the Linux smoke legs never reach it."
+    },
+    "SharedEngine.Dispose.handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
+    },
+    "SharedEngine.Dispose.early-handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
+    },
+    "SharedEngine.OnOwnerExited.idle-handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
     }
   },
   "markers": [
@@ -821,6 +833,30 @@
         "integrity"
       ],
       "reason": "The raw integrity oracle rejected a deliberately corrupted copy of a valid database."
+    },
+    {
+      "name": "situation:teardown-faults-fail-inside-fired",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs"
+      ],
+      "targets": [
+        "teardown-faults"
+      ],
+      "doc": "docs/teardown-sweep.md",
+      "reason": "A fail-inside fault (thrown after a teardown step's action ran) fired inside a registered teardown path under random prior state."
+    },
+    {
+      "name": "situation:teardown-faults-skip-fired",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs"
+      ],
+      "targets": [
+        "teardown-faults"
+      ],
+      "doc": "docs/teardown-sweep.md",
+      "reason": "A skip fault (thrown before a teardown step's action, so the action never runs) fired inside a registered teardown path under random prior state."
     }
   ]
 }

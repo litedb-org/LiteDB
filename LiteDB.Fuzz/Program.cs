@@ -16,7 +16,8 @@ internal static class Program
         new StorageFailureFuzzer(), new OracleSelfTestFuzzer(), new PressureFuzzer(), new MalformedFileFuzzer(),
         new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
         new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
-        new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer(), new MvccRetirementFuzzer(), new MvccCheckpointFuzzer()
+        new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer(), new MvccRetirementFuzzer(), new MvccCheckpointFuzzer(),
+        new TeardownFaultsFuzzer()
     };
 
     // Oracle self-tests that fail by design: selectable by exact name, never by "all".
