@@ -387,8 +387,6 @@ namespace LiteDB
             GetCollection<BsonDocument>(name ?? throw new ArgumentNullException(nameof(name)), autoId);
         public IEnumerable<string> GetCollectionNames() => Run(() => Dispatch(() => _resources.Engine.GetTransactionCollectionNames()));
         public bool CollectionExists(string name) => GetCollectionNames().Contains(name, StringComparer.OrdinalIgnoreCase);
-        public bool DropCollection(string name) => throw new TransactionCapabilityException("Dropping collections is not supported inside transactions.");
-        public bool RenameCollection(string name, string newName) => throw new TransactionCapabilityException("Renaming collections is not supported inside transactions.");
     }
 
     /// <summary>An operation a transaction handle does not support, refused before mutation.</summary>

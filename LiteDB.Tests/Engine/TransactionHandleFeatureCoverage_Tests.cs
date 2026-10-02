@@ -62,8 +62,9 @@ namespace LiteDB.Tests.Engine
             using (var tx = db.BeginTransaction())
             {
                 tx.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
-                Assert.ThrowsAny<NotSupportedException>(() => tx.DropCollection("rows"));
-                Assert.ThrowsAny<NotSupportedException>(() => tx.RenameCollection("rows", "renamed"));
+                // Collection drop/rename is not part of a handle's surface.
+                Assert.Null(typeof(ILiteTransaction).GetMethod("DropCollection"));
+                Assert.Null(typeof(ILiteTransaction).GetMethod("RenameCollection"));
                 Assert.Equal(LiteTransactionState.Active, tx.State);
                 Assert.NotNull(tx.GetCollection("rows").FindById(1));
                 tx.Commit();

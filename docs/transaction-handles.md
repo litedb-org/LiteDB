@@ -80,8 +80,7 @@ lock-timeout error instead of waiting for work that only its own return can rele
 | Experimental `CoordinatedEngine`, custom or decorated `ILiteEngine` implementations | `NotSupportedException` before side effects; legacy/ordinary use unchanged |
 | Typed/BSON collections, bulk input, queries, Include, vector queries | Yes |
 | Index creation/removal, `GetCollectionNames`, `CollectionExists`, `$cols`/`$indexes` | Yes |
-| Collection drop/rename | `NotSupportedException` before mutation |
-| SQL, FileStorage, nested begin, checkpoint, rebuild, pragma changes | Not exposed through a handle |
+| SQL, FileStorage, nested begin, collection drop/rename, checkpoint, rebuild, pragma changes | Not exposed through a handle; drop or rename through the database outside the transaction |
 | Other system collections, external query input/output | `NotSupportedException` before mutation |
 
 ## Outcome and cleanup
