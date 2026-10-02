@@ -72,8 +72,13 @@ The fuzz targets observe the TESTING hook `PageBuffer.FinalizedInUse` and fail t
 The explorer adds **driver edges** to the wait-for graph (docs/wait-for-graph.md) by reflection,
 so it also compiles on trees without the graph: a boundary is owed by the controller until
 released, an actor owes its running operation until it finishes, a callback awaiting another
-actor's operation (`Dependency`), the controller awaiting an actor, and joins. The graph only
-reports; its findings for a failed run are written to `waitgraph.txt`.
+actor's operation (`Dependency`), the controller awaiting an actor, and joins. The harness's own
+coordination (boundaries, controller awaits, joins) is registered with the explorer's deadline
+(`ControllerBound`, which ends it with `EXPLORER_UNRELEASED_BOUNDARY` or
+`EXPLORER_CONTROLLER_TIMEOUT`), so a cycle through it, such as the controller awaiting an actor that
+still waits at a boundary the controller owes, is a non-failing `bounded-cycle`. A `Dependency`
+stands for the application's own wait and stays unbounded, so a library cycle through it fails. The
+graph only reports; its findings for a failed run are written to `waitgraph.txt`.
 
 ## Dimensions and access kinds
 

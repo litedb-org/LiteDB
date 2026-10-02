@@ -18,9 +18,16 @@ namespace LiteDB.ConcurrencyTesting
     /// <item><see cref="Join"/>: the controller joins an actor thread.</item>
     /// </list>
     /// The graph is reached by reflection, so the explorer still compiles and runs (without
-    /// driver edges) on trees that do not have it, such as historical proof revisions. Driver
-    /// waits are registered as unbounded: the harness deadline that ends them is a test bound,
-    /// not part of the dependency the scenario models. The graph only reports; it never throws.
+    /// driver edges) on trees that do not have it, such as historical proof revisions.
+    /// <para>Bounds: the harness's own coordination (<see cref="Boundary"/>, <see cref="Controller"/>,
+    /// <see cref="Join"/>) is bounded by the explorer's deadlines (<see cref="ExplorerSchedule.ControllerBound"/>,
+    /// which ends them with <c>EXPLORER_UNRELEASED_BOUNDARY</c> / <c>EXPLORER_CONTROLLER_TIMEOUT</c>), and
+    /// is registered with that timeout. A cycle through one of them is a schedule the controller
+    /// chose (it awaits an actor it still holds at a boundary): a <c>bounded-cycle</c>, never a
+    /// failing one; only the deadline decides. A <see cref="Dependency"/> models the application's
+    /// own wait (a callback awaiting another operation, which an application would do without a
+    /// bound) and stays unbounded, so a library cycle through it still fails. The graph only
+    /// reports; it never throws.</para>
     /// </summary>
     internal static class ExplorerDriverEdges
     {
@@ -32,8 +39,9 @@ namespace LiteDB.ConcurrencyTesting
         private static readonly MethodInfo DriverWaitMethod = Graph?.GetMethod("DriverWait", Static);
         private static readonly MethodInfo JoinMethod = Graph?.GetMethod("Join", Static);
         private static readonly MethodInfo RecheckMethod = Graph?.GetMethod("Recheck", Static);
-        private static readonly object Unbounded = Graph == null ? null
-            : Activator.CreateInstance(typeof(LiteDB.Engine.LiteEngine).Assembly.GetType("LiteDB.Utils.WaitBound"));
+        private static readonly Type BoundType = typeof(LiteDB.Engine.LiteEngine).Assembly.GetType("LiteDB.Utils.WaitBound");
+        private static readonly object Unbounded = Graph == null ? null : Activator.CreateInstance(BoundType);
+        private static readonly MethodInfo AfterMethod = BoundType?.GetMethod("After", Static);
         private static readonly object EventPrimitive = Graph == null ? null
             : Enum.Parse(typeof(LiteDB.Engine.LiteEngine).Assembly.GetType("LiteDB.Utils.WaitPrimitive"), "Event");
         private static readonly ConcurrentDictionary<string, Debt> Debts = new ConcurrentDictionary<string, Debt>(StringComparer.Ordinal);
@@ -45,24 +53,31 @@ namespace LiteDB.ConcurrencyTesting
 
         internal static void Paid(string boundary) => End("explorer-boundary", boundary);
 
+        /// <summary>An actor waits at a forced boundary until the controller releases it, at most <paramref name="bound"/>.</summary>
         internal static IDisposable Boundary(string boundary, TimeSpan bound) =>
-            Wait("explorer-boundary", boundary, "explorer boundary '" + boundary + "' (released by the controller)");
+            Wait("explorer-boundary", boundary, "explorer boundary '" + boundary + "' (released by the controller)", After(bound));
 
         /// <summary>The calling actor owes <paramref name="operation"/>'s completion until it finishes.</summary>
         internal static void Running(string operation) => Start("explorer-operation", operation);
 
         internal static void Finished(string operation) => End("explorer-operation", operation);
 
+        /// <summary>
+        /// A callback awaits another actor's operation. Unbounded although the harness gives up after
+        /// <paramref name="bound"/>: it stands for the application's wait, which has no bound.
+        /// </summary>
         internal static IDisposable Dependency(string waiter, string awaited, TimeSpan bound) =>
-            Wait("explorer-operation", awaited, "explorer dependency: " + waiter + " awaits " + awaited);
+            Wait("explorer-operation", awaited, "explorer dependency: " + waiter + " awaits " + awaited, Unbounded);
 
+        /// <summary>The controller awaits an actor's operation, at most <paramref name="bound"/>.</summary>
         internal static IDisposable Controller(string awaited, TimeSpan bound) =>
-            Wait("explorer-operation", awaited, "explorer controller awaits " + awaited);
+            Wait("explorer-operation", awaited, "explorer controller awaits " + awaited, After(bound));
 
+        /// <summary>The controller joins an actor thread, at most <paramref name="bound"/>.</summary>
         internal static IDisposable Join(Thread thread, TimeSpan bound)
         {
             if (!Available || JoinMethod == null) return Scope.None;
-            return Invoke(JoinMethod, thread, Unbounded, "explorer controller joins " + thread.Name) as IDisposable ?? Scope.None;
+            return Invoke(JoinMethod, thread, After(bound), "explorer controller joins " + thread.Name) as IDisposable ?? Scope.None;
         }
 
         /// <summary>Search again for the calling thread's registered wait (each iteration of a poll loop).</summary>
@@ -84,11 +99,15 @@ namespace LiteDB.ConcurrencyTesting
             Invoke(ReleasedMethod, debt.Resource, debt.Owner, true);
         }
 
-        private static IDisposable Wait(string kind, string name, string site)
+        private static IDisposable Wait(string kind, string name, string site, object bound)
         {
             if (!Available || !Debts.TryGetValue(kind + ":" + name, out var debt)) return Scope.None;
-            return Invoke(DriverWaitMethod, debt.Resource, Unbounded, site) as IDisposable ?? Scope.None;
+            return Invoke(DriverWaitMethod, debt.Resource, bound, site) as IDisposable ?? Scope.None;
         }
+
+        /// <summary>The graph's timeout bound; unbounded on a tree whose graph cannot express one.</summary>
+        private static object After(TimeSpan bound) =>
+            AfterMethod == null ? Unbounded : Invoke(AfterMethod, bound < TimeSpan.Zero ? TimeSpan.Zero : bound) ?? Unbounded;
 
         /// <summary>The wait-for graph's latched findings so far (not taken), as text; empty without the graph.</summary>
         internal static string[] Findings()
