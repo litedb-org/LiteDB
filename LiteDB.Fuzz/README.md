@@ -319,7 +319,8 @@ together. Slots bound concurrency only; seeds, inputs and traces are unchanged.
 Without the two variables there is no shared limit. Measured locally (24 cores, shared host, load
 6-18; seed 2950080): a one-line query change selects 7 targets and takes 152 s
 (lifetime-chaos x40 150 s, teardown-faults x30 82 s); a `lock` change in
-`SharedEngine.cs` selects 8 targets and takes 163 s (lifetime-chaos x40 158 s); every
+`SharedEngine.cs` selects 8 targets and takes 163 s (lifetime-chaos x40 158 s;
+`classify_critical.py` also marks it critical, which runs every target); every
 target (50, a `LiteDB.csproj` change) takes 184 s (lifetime-chaos 108 s). With
 every selected target at 100 steps (30 for all targets) the same changes took
 355 s, 897 s and 306 s.

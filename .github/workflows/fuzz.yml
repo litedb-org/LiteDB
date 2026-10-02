@@ -228,7 +228,7 @@ jobs:
     # the number of groups. Measured locally (24 cores,
     # shared host, load 6-18): query change 7 targets in 152 s (lifetime-chaos x40 150 s, teardown-faults x30
     # 82 s), Shared-mode change 8 targets in 163 s (lifetime-chaos x40 158 s, transaction-interleavings x40
-    # 132 s), all 50 targets in
+    # 132 s; classify_critical.py also marks such a change critical, which runs every target), all 50 targets in
     # 184 s (lifetime-chaos 108 s). Uncapped (everything at 100, or 30 for all targets): 355 s / 897 s / 306 s.
     steps:
       - uses: actions/checkout@v4
