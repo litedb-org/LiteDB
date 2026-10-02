@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -140,7 +141,12 @@ namespace LiteDB
                     try { ownedSnapshot.Dispose(); }
                     finally
                     {
-                        try { ownedLease.Dispose(); }
+                        try
+                        {
+                            TeardownSteps.Before("SharedDataReader.Dispose.lease");
+                            ownedLease.Dispose();
+                            TeardownSteps.After("SharedDataReader.Dispose.lease");
+                        }
                         finally { this.RemoveLocalReader(owner); }
                     }
                 });
@@ -293,7 +299,12 @@ namespace LiteDB
                     try { ownedSnapshot.Dispose(); }
                     finally
                     {
-                        try { ownedLease.Dispose(); }
+                        try
+                        {
+                            TeardownSteps.Before("SharedDataReader.Dispose.lease");
+                            ownedLease.Dispose();
+                            TeardownSteps.After("SharedDataReader.Dispose.lease");
+                        }
                         finally { this.RemoveLocalReader(owner); }
                     }
                 });

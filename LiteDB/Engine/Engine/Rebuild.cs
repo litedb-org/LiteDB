@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using LiteDB.Utils;
 using LiteDB.Vector;
 
 using static LiteDB.Constants;
@@ -16,6 +17,9 @@ namespace LiteDB.Engine
         /// A backup copy will be created with -backup extention. All data will be readed and re created in another database
         /// After run, will re-open database
         /// </summary>
+        [TeardownPath("LiteEngine.Rebuild", TeardownDisposition.Discarded | TeardownDisposition.Propagated,
+            "Closes the old engine with Close() and drops its failure list (Rebuild.cs); a failure while building the " +
+            "replacement (its own transaction release included) propagates (docs/rebuild-recovery.md: the rebuild exception is preserved).")]
         public long Rebuild(RebuildOptions options)
         {
             if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");

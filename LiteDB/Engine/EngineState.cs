@@ -70,6 +70,8 @@ namespace LiteDB.Engine
         }
 #endif
 
+        [TeardownPath("EngineState.Stop", TeardownDisposition.SuppressedPreservingPrimary,
+            "CompleteStop drops CloseOnError's failure list; the failing operation rethrows its own error (Transaction.cs, EngineState.cs).")]
         internal void Stop(Exception ex)
         {
             this.CompleteStop(ex, this.BeginStop(ex));

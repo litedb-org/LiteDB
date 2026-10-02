@@ -44,8 +44,8 @@
     "reason": "496 production lines unchanged since 7b71bc4d; adds only test-build wait-for graph frames (#if DEBUG || TESTING) marking Dispose as a public call and its close as a teardown that claims every hold of the connection. No further growth allowed."
   },
   "LiteDB/Client/Shared/SharedMutexOwner.cs": {
-    "maxLines": 520,
-    "reason": "492 production lines unchanged since 7b71bc4d; adds only test-build call sites: wait-for graph hooks (#if DEBUG || TESTING and [Conditional]) at each ownership transition and blocking wait, the ownership-release observer and one reachability marker. The hook bodies live in SharedMutexOwner.WaitGraph.cs. No further growth allowed."
+    "maxLines": 523,
+    "reason": "492 production lines unchanged since 7b71bc4d; adds only test-build call sites: wait-for graph hooks (#if DEBUG || TESTING and [Conditional]) at each ownership transition and blocking wait, the ownership-release observer, one reachability marker and teardown-sweep step boundaries. The hook bodies live in SharedMutexOwner.WaitGraph.cs. No further growth allowed."
   },
   "LiteDB/Document/BsonValue.cs": {
     "maxLines": 743,

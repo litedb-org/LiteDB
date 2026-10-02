@@ -62,6 +62,8 @@ namespace LiteDB.Engine
             _buffer = new BufferSlice(bytes, 0, _containerSize);
         }
 
+        [TeardownPath("SortService.Dispose", TeardownDisposition.Propagated,
+            "Every container and return runs in TryCatch; collected failures are thrown as AggregateException (SortService.cs).")]
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -69,11 +71,13 @@ namespace LiteDB.Engine
             // release all container positions
             foreach(var container in _containers)
             {
+                cleanup.Step("SortService.Dispose.container");
                 cleanup.Catch(container.Dispose);
 
                 // return only was used
                 if (container.Position >= 0)
                 {
+                    cleanup.Step("SortService.Dispose.return-position");
                     cleanup.Catch(() => _disk.Return(container.Position));
                 }
             }
@@ -81,6 +85,7 @@ namespace LiteDB.Engine
             // return open strem into disk
             if (_reader.IsValueCreated)
             {
+                cleanup.Step("SortService.Dispose.return-reader");
                 cleanup.Catch(() => _disk.Return(_reader.Value));
             }
             _containers.Clear();
