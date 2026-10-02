@@ -27,11 +27,33 @@ Concurrent targets are native-thread evidence (class 2): the outcome set of a ra
 operation can vary between runs of one tree. With --repeat N each tree runs every seed N
 times; an operation whose outcome or exception set (or a FaultDisposed key whose pair
 set) varies between repeats of the SAME tree is classified schedule-dependent, and its
-cross-tree differences are reported in that class instead of failing. With one repeat there is no such evidence and every
-difference counts.
+cross-tree differences are reported in that class instead of failing. With one repeat
+there is no such evidence and every difference counts.
+
 Every key carries its exercise count on both sides (differential_exercise.py), and the
 report states for each one: exercised and changed, exercised and unchanged, or not
 exercised on the base / on the head. "Unchanged" is evidence; "not exercised" is none.
+
+Early stops. A fuzz run stops at its first failure (run.json: status "failed", `steps` =
+the step it failed in, fewer than `count`), so a head run that stopped at step N never
+ran the steps after N that the base run of the same (target, seed, repeat) ran (repeat:
+the run's position among the runs of that target and seed on its side, in the order of
+the run directories; one --base-runs/--head-runs directory per repeat). An
+(op, dimension) the base exercised and the head did not is EXPLAINED BY AN EARLY STOP
+only when, for EVERY base run in which the key occurs, the head run with the same
+(target, seed, repeat) exists, stopped early at step N, and the key's first occurrence in
+that base run is at step >= N (step N itself did not complete on the head). If any base
+run shows the key at a step its head run reached, or its head run completed, or has no
+head counterpart, or the record carries no step, the absence is a real "no longer
+exercised" finding. An explained key is no evidence either way: it is not compared, its
+exercise state says so, and it is listed in ONE note per head run (target, seed, repeat,
+stop step, failure id, number of keys, examples) instead of one finding per key. The note
+fails the run, once and not coverable by the manifest, when the matching base run
+completed every requested step: the head then introduced the failure that cut the
+comparison short. When both runs stopped early the note is reported and does not fail;
+the fuzz failures themselves are findings of the fuzz targets. Only (op, dimension) keys
+are explained this way; a lost marker or fault point still fails individually.
+
 Optional fields absent on either side are reported as "not compared", never as passed
 (field contract: /tmp/safety-net/contracts/m4-outcomes.md, summarized in
 docs/rules/safety-evidence.md). Operation classes and markers that exist only on the head
@@ -63,7 +85,7 @@ from pathlib import Path
 import check_intended_changes as intended
 import differential_exercise as exercise
 import safety_common as common
-from differential_collect import HARNESS_FILE, collect, site_dimension
+from differential_collect import HARNESS_FILE, collect, site_dimension, stopped_runs
 
 FUZZ_PROJECT = "LiteDB.Fuzz/LiteDB.Fuzz.csproj"
 DEFAULT_TARGETS = "chaos,concurrent,cursor-handoff,conflict,integrity"
@@ -146,7 +168,7 @@ SCHEDULE_SENSITIVE = {"outcome-change", "new-exception", "exception-removed"}
 def compare(base, head, unstable=frozenset()):
     """Return (differences, capabilities, not_compared, exercised)."""
     found, capabilities, not_compared = [], {"operations": [], "markers": []}, {"absent": Counter(), "partial": []}
-    exercised = {}
+    exercised, explained = {}, {}
 
     def add(kind, op, dimension, detail, **extra):
         found.append({"kind": kind, "op": op, "dimension": dimension, "detail": detail, **extra})
@@ -161,7 +183,11 @@ def compare(base, head, unstable=frozenset()):
             capabilities["operations"].append(f"{op} [{dimension or '-'}]")
             continue
         if key not in head["ops"]:
-            add("outcome-change", op, dimension, "operation class no longer exercised on the head")
+            stopped = exercise.stopped_before(base["ops"][key]["first"], head["runList"])
+            if stopped:  # the head runs never reached the steps where the base saw it: grouped below
+                explained[key] = stopped
+            else:
+                add("outcome-change", op, dimension, "operation class no longer exercised on the head")
             continue
         before = len(found)
         _compare_op(add, not_compared, op, dimension, base["ops"][key], head["ops"][key])
@@ -190,7 +216,14 @@ def compare(base, head, unstable=frozenset()):
             add("marker", marker, "", f"reached {base['markers'][marker]}x on the base, never on the head")
         elif head["markers"][marker] and not base["markers"][marker]:
             capabilities["markers"].append(marker)
-    exercised["operations"] = exercise.op_rows(base, head, found)
+    exercised["operations"] = exercise.op_rows(base, head, found, set(explained))
+    exercised["stopNotes"] = exercise.stop_notes(explained, base, head)
+    for note in exercised["stopNotes"]:
+        if note["failing"]:
+            add("run-stopped-early", note["target"], f"seed={note['seed']};repeat={note['repeat']}",
+                f"head run stopped at step {note['stopStep']} ({note['failureId'] or note['status']}) where the base "
+                f"run completed; {note['keys']} base operation class(es) seen only later are not compared",
+                coverable=False)
     return found, capabilities, not_compared, exercised
 
 
@@ -234,7 +267,7 @@ def _compare_optional(add, not_compared, op, dimension, old, new):
                 f"{sum((new[bucket] - old[bucket]).values())} head-only digests")
 
 
-def apply_manifest(differences, entries, base, head):
+def apply_manifest(differences, entries, base, head, truncated=frozenset()):
     """Mark differences an entry covers; return (entries that cover nothing observed, status of every entry).
 
     An unused entry says why: its keys were exercised on both sides and unchanged, or not
@@ -258,7 +291,8 @@ def apply_manifest(differences, entries, base, head):
         if difference["kind"] == "outcome-change" and not difference.get("intended") \
                 and set(difference.get("kinds", ["?"])) <= {"threw", "refused"}:
             difference["intended"] = explained.get((difference["op"], difference["dimension"]))
-    statuses = [exercise.entry_status(entry, base, head, index in used) for index, entry in enumerate(entries)]
+    statuses = [exercise.entry_status(entry, base, head, index in used, truncated)
+                for index, entry in enumerate(entries)]
     unused = [{**entry, "why": status["why"], "state": status["state"], "exercised": {"base": status["base"],
                "head": status["head"]}} for entry, status in zip(entries, statuses) if status["state"] != "changed"]
     return unused, statuses
@@ -293,7 +327,7 @@ def render(result):
     for entry in result["unusedEntries"]:
         lines.append(f"- **{entry['why']}**: `{entry.get('call')}` {entry.get('dimension') or ''} "
                      f"{entry.get('change')} ({entry.get('doc')})")
-    lines += _render_exercise(result)
+    lines += exercise.render_stops(result) + exercise.render_exercise(result)
     capabilities = result["capabilities"]
     lines += ["", "**Capabilities only on the head** (listed, not diffed): operations "
               + (", ".join(f"`{item}`" for item in capabilities["operations"]) or "none") + "; markers "
@@ -320,33 +354,6 @@ def render(result):
             lines.append(f"- {side}: {len(failed)} fuzz run(s) failed; their outcomes are truncated: "
                          + ", ".join(f"{run['target']}/{run['seed']}" for run in failed))
     return "\n".join(lines) + "\n"
-
-
-def _render_exercise(result):
-    """Exercise counts: which keys both trees exercised, changed or not, and which only one side reached."""
-    exercised = result.get("exercise") or {}
-    lines = []
-    for label, rows in (("Operation classes", exercised.get("operations", [])),
-                        ("FaultDisposed (path, site, model)", exercised.get("dispositions", []))):
-        if rows:
-            counts = exercise.summarize_states(rows)
-            lines.append(f"- {label}: {counts['changed']} exercised and changed, {counts['unchanged']} exercised "
-                         f"and unchanged, {counts['not-exercised-head']} not exercised on the head, "
-                         f"{counts['not-exercised-base']} not exercised on the base.")
-    if exercised.get("dispositions"):
-        lines += ["", "<details><summary>FaultDisposed exercise per teardown path, site and model</summary>", "",
-                  "| Path | Site | Model | Base | Head | State | Base pairs | Head pairs |",
-                  "| --- | --- | --- | --- | --- | --- | --- | --- |"]
-        lines += [f"| `{row['path']}` | {row['site']} | {row['model']} | {row['base']} | {row['head']} | {row['state']} | "
-                  f"{', '.join(row['basePairs']) or '-'} | {', '.join(row['headPairs']) or '-'} |"
-                  for row in exercised["dispositions"]]
-        lines += ["", "</details>"]
-    statuses = result.get("manifestStatus") or []
-    if statuses:
-        lines += ["", "| Manifest entry | Change | Base | Head | State |", "| --- | --- | --- | --- | --- |"]
-        lines += [f"| {status.get('id') or ''} `{status['call']}` {status.get('dimension') or ''} | {status['change']} | "
-                  f"{status['base']} | {status['head']} | {status['state']} |" for status in statuses]
-    return ["", "**Exercise** (records per key on each side):"] + lines if lines else []
 
 
 def _verdict(difference):
@@ -378,12 +385,13 @@ def finish(result, out):
 def summarize(summary, rev, runs=None):
     return {"rev": rev, "runs": summary["runs"], "withOutcomes": summary["withOutcomes"],
             "operations": len(summary["ops"]), "markersHit": sum(1 for v in summary["markers"].values() if v),
-            "fuzzRuns": runs or []}
+            "fuzzRuns": runs or [], "stoppedEarly": stopped_runs(summary)}
 
 
 def judge(base, head, entries, advisory, info, unstable=frozenset()):
     differences, capabilities, not_compared, exercised = compare(base, head, unstable)
-    unused, statuses = apply_manifest(differences, entries, base, head)
+    truncated = {(row["op"], row["dimension"]) for row in exercised["operations"] if row.get("stoppedEarly")}
+    unused, statuses = apply_manifest(differences, entries, base, head, truncated)
     failing = len([d for d in differences if not d.get("intended") and not d.get("class")])
     failing += len(unused)
     info["unstable"] = sorted(f"{key[1]} [{site_dimension(*key[2])}]" if key[0] == "disposition"
@@ -474,9 +482,9 @@ def main(argv=None):
             for repeat in range(args.repeat):
                 runs += run_targets(tree, args.framework, args.target_list, args.seed_list, args.count,
                                     out / side / f"r{repeat}", args.run_timeout)
-            repeats = [collect([out / side / f"r{repeat}"], requested) for repeat in range(args.repeat)]
-            unstable |= instability(repeats)
-            sides[side] = (collect([out / side], requested), runs)
+            roots = [out / side / f"r{repeat}" for repeat in range(args.repeat)]
+            unstable |= instability([collect([root], requested) for root in roots])
+            sides[side] = (collect(roots, requested), runs)  # one root per repeat: runs pair up by repeat
         info.update(base=summarize(sides["base"][0], revs["base"], sides["base"][1]),
                     head=summarize(sides["head"][0], revs["head"], sides["head"][1]))
         entries = load_manifest(args, base_rev or revs["base"], args.head, args.head_tree)

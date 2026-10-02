@@ -15,6 +15,14 @@ pair from one site must not stand in for another:
   step written before it (the harness writes the two rows back to back);
 - model: the row's `model` field, else the model (`fail-inside`, `skip`) of the
   teardown.jsonl case row with the same step, site and driver path; '-' when unknown.
+
+Runs are identified by (target, seed, repeat), where repeat counts the runs of one
+(target, seed) in the order of the roots given (one root per repeat), so the base's and
+the head's runs of one schedule pair up. A run stopped early when its run.json says so:
+a status other than "passed", or fewer steps than its requested count. Its stop step is
+run.json's `steps` (the step it failed in), else the last step it recorded. A run.json
+without a status is taken as complete: no stop is inferred without evidence. Each
+(op, dimension) remembers the first step it appeared at in every run.
 """
 import json
 from collections import Counter, defaultdict
@@ -37,7 +45,7 @@ def jsonl(path):
 def new_op():
     return {"outcomes": Counter(), "exceptions": Counter(), "primary": Counter(), "payloads": Counter(),
             "effects": Counter(), "permitted": set(), "unpermitted": Counter(), "records": 0,
-            "present": Counter()}
+            "present": Counter(), "first": {}}
 
 
 def new_site():
@@ -51,22 +59,32 @@ def exception_name(name, code):
 def new_summary():
     return {"ops": defaultdict(new_op), "obligations": defaultdict(lambda: {"evaluations": 0, "unclean": 0,
             "violations": Counter()}), "markers": Counter(), "faults": Counter(),
-            "dispositions": defaultdict(lambda: defaultdict(new_site)), "runs": 0, "withOutcomes": 0}
+            "dispositions": defaultdict(lambda: defaultdict(new_site)), "runs": 0, "withOutcomes": 0,
+            "runList": {}}
 
 
 def collect(roots, requested=None):
     """Aggregate normalized outcomes of every run below roots; requested = {(target, seed)} drops corpus replays."""
-    summary = new_summary()
+    summary, repeats = new_summary(), Counter()
     for root in roots:
         for run_json in sorted(Path(root).rglob("run.json")):
             directory = run_json.parent
             meta = json.loads(run_json.read_text(encoding="utf-8"))
             if requested is not None and (meta.get("target"), meta.get("seed")) not in requested:
                 continue
+            run_id = (meta.get("target"), meta.get("seed"), repeats[(meta.get("target"), meta.get("seed"))])
+            repeats[run_id[:2]] += 1
             summary["runs"] += 1
             summary["withOutcomes"] += (directory / HARNESS_FILE).is_file()
+            steps = []
             for record in jsonl(directory / HARNESS_FILE):
-                _add_outcome(summary["ops"][(record.get("op"), record.get("dimension") or "")], record)
+                entry = summary["ops"][(record.get("op"), record.get("dimension") or "")]
+                _add_outcome(entry, record)
+                # A record without a step could be anywhere in the run: step 0, so no stop can explain its absence.
+                step = record.get("step") if isinstance(record.get("step"), int) else 0
+                entry["first"][run_id] = min(entry["first"].get(run_id, step), step)
+                steps.append(step)
+            summary["runList"][run_id] = run_info(meta, run_id, directory, steps)
             for name, oracle in OBLIGATIONS.items():
                 for record in jsonl(directory / name):
                     key = (oracle, record.get("op") or record.get("point") or oracle, record.get("dimension") or "")
@@ -79,6 +97,23 @@ def collect(roots, requested=None):
             if markers.is_file():
                 summary["markers"].update(json.loads(markers.read_text(encoding="utf-8")).get("hits", {}))
     return summary
+
+
+def run_info(meta, run_id, directory, steps):
+    """Identity and stop of one run: stop is None for a run that completed its requested steps."""
+    count, done = meta.get("count"), meta.get("steps")
+    short = isinstance(count, int) and isinstance(done, int) and done < count
+    stopped = short or meta.get("status") not in (None, "passed")
+    stop = (done if isinstance(done, int) else max(steps, default=0)) if stopped else None
+    return {"target": run_id[0], "seed": run_id[1], "repeat": run_id[2], "directory": str(directory),
+            "status": meta.get("status"), "count": count, "steps": done, "failureId": meta.get("failureId"),
+            "stop": stop}
+
+
+def stopped_runs(summary):
+    """The runs of one tree that stopped before their requested count, in a JSON-friendly shape."""
+    return [{key: run[key] for key in ("target", "seed", "repeat", "stop", "status", "failureId", "directory")}
+            for _, run in sorted(summary["runList"].items(), key=str) if run["stop"] is not None]
 
 
 def _add_faults(summary, directory):

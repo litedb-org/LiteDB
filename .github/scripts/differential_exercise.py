@@ -13,6 +13,8 @@ Keys: `(op, dimension)` for outcomes.jsonl, `(path, site, model)` for FaultDispo
 A manifest entry is matched against the keys its `call` (and optional `dimension` pattern)
 names, so an unused entry says whether its claim was exercised and unchanged or never
 exercised, and on which side.
+
+Early stops (stopped_before, stop_notes) follow the rule stated in differential_run.py.
 """
 import fnmatch
 
@@ -29,16 +31,52 @@ def _state(old, new, changed):
     return "not-exercised-head" if old else "not-exercised-base"
 
 
-def op_rows(base, head, differences):
+def op_rows(base, head, differences, truncated=frozenset()):
     """Exercise counts (records per side) and state of every (op, dimension)."""
     changed = {(item["op"], item["dimension"]) for item in differences if item["kind"] in OP_KINDS}
     rows = []
     for op, dimension in sorted(set(base["ops"]) | set(head["ops"]), key=str):
         old = base["ops"][(op, dimension)]["records"] if (op, dimension) in base["ops"] else 0
         new = head["ops"][(op, dimension)]["records"] if (op, dimension) in head["ops"] else 0
-        rows.append({"op": op, "dimension": dimension, "base": old, "head": new,
-                     "state": _state(old, new, (op, dimension) in changed)})
+        row = {"op": op, "dimension": dimension, "base": old, "head": new,
+               "state": _state(old, new, (op, dimension) in changed)}
+        rows.append({**row, "stoppedEarly": True} if (op, dimension) in truncated else row)
     return rows
+
+
+def stopped_before(first, other_runs):
+    """Ids of the other side's runs whose early stop explains a key's absence there, else None.
+
+    first maps each run id in which this side saw the key to the first step it appeared at.
+    """
+    ids = []
+    for run_id, step in sorted(first.items(), key=str):
+        run = other_runs.get(run_id)
+        if run is None or run["stop"] is None or step < run["stop"]:
+            return None
+        ids.append(run_id)
+    return ids or None
+
+
+def stop_notes(explained, base, head):
+    """One note per head run whose early stop explains base-only operation classes.
+
+    explained maps (op, dimension) -> head run ids (stopped_before). A note fails when the
+    base run of the same schedule completed every requested step.
+    """
+    keys_by_run = {}
+    for key, run_ids in explained.items():
+        for run_id in run_ids:
+            keys_by_run.setdefault(run_id, []).append(key)
+    notes = []
+    for run_id, keys in sorted(keys_by_run.items(), key=str):
+        run, other = head["runList"][run_id], base["runList"].get(run_id) or {}
+        notes.append({"target": run["target"], "seed": run["seed"], "repeat": run["repeat"], "stopStep": run["stop"],
+                      "status": run["status"], "failureId": run["failureId"], "directory": run["directory"],
+                      "baseStop": other.get("stop"), "baseStatus": other.get("status"), "keys": len(keys),
+                      "examples": [f"{op} [{dimension or '-'}]" for op, dimension in sorted(keys)[:3]],
+                      "failing": other.get("stop") is None and run_id in base["runList"]})
+    return notes
 
 
 def compare_dispositions(add, base, head, unstable=frozenset()):
@@ -85,13 +123,14 @@ def summarize_states(rows):
     return counts
 
 
-def entry_status(entry, base, head, used):
+def entry_status(entry, base, head, used, truncated=frozenset()):
     """Exercise counts of the keys a manifest entry names and its state; `why` for an unused entry."""
     change, call, pattern = entry.get("change"), entry.get("call"), entry.get("dimension")
 
     def named(dimension):
         return not pattern or fnmatch.fnmatchcase(dimension or "", pattern)
 
+    stopped = False
     if change == "marker":
         unit = "marker"
         fault = call[len("fault-point:"):] if str(call).startswith("fault-point:") else None
@@ -107,9 +146,10 @@ def entry_status(entry, base, head, used):
                    for key in set(base["obligations"]) | set(head["obligations"]) if key[1] == call and named(key[2])]
     else:
         unit = "dimension"
+        keys = [key for key in set(base["ops"]) | set(head["ops"]) if key[0] == call and named(key[1])]
         counts = [(base["ops"][key]["records"] if key in base["ops"] else 0,
-                   head["ops"][key]["records"] if key in head["ops"] else 0)
-                  for key in set(base["ops"]) | set(head["ops"]) if key[0] == call and named(key[1])]
+                   head["ops"][key]["records"] if key in head["ops"] else 0) for key in keys]
+        stopped = bool(keys) and all(key in truncated for key in keys)
     old, new = sum(item[0] for item in counts), sum(item[1] for item in counts)
     common = sum(1 for item in counts if item[0] and item[1])
     status = {"call": call, "dimension": pattern, "change": change, "base": old, "head": new}
@@ -123,6 +163,59 @@ def entry_status(entry, base, head, used):
     elif old or new:
         state = "not-exercised-head" if old else "not-exercised-base"
         why = f"claimed call not exercised on the {'head' if old else 'base'} (base {old}, head {new})"
+        why += "; the head runs stopped before the steps where the base exercised it" if stopped else ""
     else:
         state, why = "not-exercised", "claimed call not exercised on either side"
     return {**status, "state": state, "why": why}
+
+
+# --- reporting -------------------------------------------------------------
+
+def render_stops(result):
+    """One note per head run whose early stop explains base-only operation classes, then every early stop."""
+    lines = []
+    for note in (result.get("exercise") or {}).get("stopNotes", []):
+        base = "completed" if note["baseStop"] is None else f"stopped at step {note['baseStop']}"
+        lines.append(f"- `{note['target']}` seed {note['seed']} r{note['repeat']}: the head run stopped at step "
+                     f"{note['stopStep']} ({note['failureId'] or note['status']}); the base run {base}. "
+                     f"{note['keys']} operation class(es) the base exercised only at steps >= {note['stopStep']} are "
+                     f"not compared, e.g. " + ", ".join(f"`{item}`" for item in note["examples"])
+                     + (". **Fails**: the base run completed." if note["failing"] else "."))
+    if lines:
+        lines = ["", "**Not compared: head runs that stopped early** (one note per run; operation classes seen on "
+                 "the base only after the step where the head run stopped):"] + lines
+    for side in ("base", "head"):
+        stopped = result.get(side, {}).get("stoppedEarly") or []
+        if stopped:
+            lines.append(f"- {side}: {len(stopped)} run(s) stopped before their requested count: "
+                         + ", ".join(f"{run['target']}/{run['seed']}/r{run['repeat']}@{run['stop']}" for run in stopped))
+    return lines
+
+
+def render_exercise(result):
+    """Exercise counts: which keys both trees exercised, changed or not, and which only one side reached."""
+    exercised = result.get("exercise") or {}
+    lines = []
+    for label, rows in (("Operation classes", exercised.get("operations", [])),
+                        ("FaultDisposed (path, site, model)", exercised.get("dispositions", []))):
+        if rows:
+            counts = summarize_states(rows)
+            stopped = sum(1 for row in rows if row.get("stoppedEarly"))
+            lines.append(f"- {label}: {counts['changed']} exercised and changed, {counts['unchanged']} exercised "
+                         f"and unchanged, {counts['not-exercised-head']} not exercised on the head"
+                         + (f" ({stopped} of them only after a head run stopped early)" if stopped else "")
+                         + f", {counts['not-exercised-base']} not exercised on the base.")
+    if exercised.get("dispositions"):
+        lines += ["", "<details><summary>FaultDisposed exercise per teardown path, site and model</summary>", "",
+                  "| Path | Site | Model | Base | Head | State | Base pairs | Head pairs |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+        lines += [f"| `{row['path']}` | {row['site']} | {row['model']} | {row['base']} | {row['head']} | {row['state']} | "
+                  f"{', '.join(row['basePairs']) or '-'} | {', '.join(row['headPairs']) or '-'} |"
+                  for row in exercised["dispositions"]]
+        lines += ["", "</details>"]
+    statuses = result.get("manifestStatus") or []
+    if statuses:
+        lines += ["", "| Manifest entry | Change | Base | Head | State |", "| --- | --- | --- | --- | --- |"]
+        lines += [f"| {status.get('id') or ''} `{status['call']}` {status.get('dimension') or ''} | {status['change']} | "
+                  f"{status['base']} | {status['head']} | {status['state']} |" for status in statuses]
+    return ["", "**Exercise** (records per key on each side):"] + lines if lines else []

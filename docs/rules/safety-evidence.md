@@ -239,6 +239,24 @@ whether it was exercised and changed, exercised and unchanged, or not
 exercised on the base or on the head. "Unchanged" is evidence. "Not exercised"
 is none.
 
+A fuzz run stops at its first failure, so a head run that failed at step N did
+not run the later steps of the same target, seed and repeat. An operation class
+missing on the head is grouped under that run instead of reported as "no longer
+exercised" only when this holds for every base run that shows the class:
+
+- the head run of the same target, seed and repeat stopped early at step N;
+- the base run first shows the class at step N or later.
+
+A class the base showed at a step the head run reached is still a finding.
+The same holds for a class whose head run completed or is missing, and for a
+record without a step. Grouped classes are *not compared*. The report gives one
+note per head run: target, seed, repeat, stop step, failure id, number of
+classes and examples. The note fails the run once (the manifest cannot cover
+it) when the base run of that schedule completed every step: the head
+introduced the failure that cut the comparison short. When both runs stopped
+early, the note does not fail. The fuzz failures are the fuzz targets'
+findings. Lost markers and fault points are never grouped.
+
 Every remaining difference must be claimed by an entry this PR adds to
 [`intended-changes.json`](../../.github/safety/intended-changes.json). An entry
 whose change is not observed fails as well, so a promised contract change that
