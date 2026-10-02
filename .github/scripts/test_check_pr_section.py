@@ -146,6 +146,17 @@ No hot path touched: a no-op member on the public interface only.
         text = self.rendered()
         self.assertIn(f"`{SHA[:12]}` → explorer → not run yet (net proof `row99-net`, generic, not attempted)", text)
 
+    def test_rendered_recorded_entries_point_at_the_ledger(self):
+        proof = {"proofs": [{"id": "row98-net", "knownBad": {"kind": "dev-commit", "commit": SHA},
+                             "net": {"name": "explorer", "recorded": {"overlay": "x"}}, "level": "generic",
+                             "results": {"state": "not-fired", "recorded": True,
+                                         "knownBad": {"fired": False}}}]}
+        self.api_change(**{NET_PROOFS: json.dumps(proof)})
+        text = self.rendered()
+        self.assertIn(f"`{SHA[:12]}` → explorer → recorded (see .github/safety/net-proofs.json) "
+                      "(net proof `row98-net`, generic, not-fired)", text)
+        self.assertNotIn("not run yet", text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,7 +54,10 @@ def proofs(context, rows, head_tree):
     for name in context["proofs"]:
         if name in ledger:
             entry, results = ledger[name], ledger[name].get("results") or {}
-            assertion = (results.get("knownBad") or {}).get("assertion") or "not run yet"
+            recorded = results.get("recorded") or (entry.get("net") or {}).get("recorded")
+            # A recorded entry ran outside net_proof.py; its result lives in the ledger, it is not pending.
+            pending = f"recorded (see {section.NET_PROOFS})" if recorded else "not run yet"
+            assertion = (results.get("knownBad") or {}).get("assertion") or pending
             lines.append(f"- `{entry['knownBad']['commit'][:12]}` → {entry['net']['name']} → {assertion} "
                          f"(net proof `{name}`, {entry.get('level')}, {results.get('state', 'not attempted')})")
         else:
