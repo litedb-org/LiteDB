@@ -178,18 +178,26 @@ namespace LiteDB.Utils
         /// </summary>
         internal sealed class ThreadState
         {
-            internal readonly Thread Thread;
-            private readonly List<Resource> _held = new List<Resource>();
+            private static int _nextId;
+            // Weak: the graph must not keep a dead thread (and its execution context) alive.
+            private readonly WeakReference<Thread> _thread;
+            private readonly int _managedId;
+            /// <summary>Process-unique id; the lock-order history keeps this, not the state.</summary>
+            internal readonly int Id = Interlocked.Increment(ref _nextId);
+            // Weak: a hold that is never released (an abandoned transaction) must not let a live thread
+            // root its resource, the resource's holds and their owners (the lock-order history only).
+            private readonly List<WeakReference<Resource>> _held = new List<WeakReference<Resource>>();
             private volatile WaitRecord _wait;
             private volatile Frame _frames;
             internal int Version;
 
             internal ThreadState(Thread thread)
             {
-                this.Thread = thread;
+                _thread = new WeakReference<Thread>(thread);
+                _managedId = thread.ManagedThreadId;
                 // Joining a thread waits for its progress, which only that thread makes.
                 this.Progress = new Resource("thread-progress", null, WaitPrimitive.ThreadJoin, ordered: false);
-                this.Progress.Add(thread, this, threadAffine: true, site: "thread start");
+                this.Progress.Add(this, this, threadAffine: true, site: "thread start");
             }
 
             /// <summary>What a join of this thread waits for.</summary>
@@ -241,18 +249,27 @@ namespace LiteDB.Utils
             {
                 lock (_held)
                 {
-                    var before = _held.ToArray();
-                    _held.Add(resource);
-                    return before;
+                    var before = new List<Resource>(_held.Count);
+                    _held.RemoveAll(entry => !entry.TryGetTarget(out _));
+                    foreach (var entry in _held)
+                        if (entry.TryGetTarget(out var target)) before.Add(target);
+                    _held.Add(new WeakReference<Resource>(resource));
+                    return before.ToArray();
                 }
             }
 
             internal void Forget(Resource resource)
             {
-                lock (_held) _held.Remove(resource);
+                lock (_held)
+                {
+                    var index = _held.FindIndex(entry => entry.TryGetTarget(out var target) && ReferenceEquals(target, resource));
+                    if (index >= 0) _held.RemoveAt(index);
+                }
             }
 
-            public override string ToString() => Describe(this.Thread);
+            public override string ToString() => _thread.TryGetTarget(out var thread)
+                ? $"thread '{thread.Name ?? "unnamed"}' #{_managedId}"
+                : $"thread (exited) #{_managedId}";
         }
 
         /// <summary>A registered wait; dispose it as soon as the blocking call returns.</summary>
