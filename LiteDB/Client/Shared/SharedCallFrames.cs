@@ -40,6 +40,9 @@ namespace LiteDB.Client.Shared
             public void Dispose()
             {
                 // Frames nest with the calls, so the innermost one is this scope's.
+#if DEBUG || TESTING
+                if (_entered) LiteDB.Utils.WaitGraph.Exit(_frames[_frames.Count - 1].Connection);
+#endif
                 if (_entered) _frames.RemoveAt(_frames.Count - 1);
             }
         }
@@ -53,6 +56,10 @@ namespace LiteDB.Client.Shared
         {
             var frames = _frames ?? (_frames = new List<Frame>());
             frames.Add(new Frame(ns, connection, retains, teardown));
+#if DEBUG || TESTING
+            // The connection executes on this thread; a teardown runs under every hold of it.
+            LiteDB.Utils.WaitGraph.Enter(connection, claimsAll: teardown);
+#endif
             return new Scope(true);
         }
 
