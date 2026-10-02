@@ -4,7 +4,7 @@ using LiteDB.Utils;
 namespace LiteDB.ConcurrencyTesting
 {
     /// <summary>
-    /// Crossed collection locks (the PR #133 explorer's C04 schedule, on legacy transactions):
+    /// Crossed collection locks (the JKamsker/LiteDB#133 explorer's C04 schedule, on legacy transactions):
     /// A's unit holds rows, B's unit holds other, then each writes the other's collection. The
     /// documented resolution is a bounded wait: at least one loser gets LOCK_TIMEOUT, a failed
     /// operation rolls its unit back, and every winner commits. Direct mode with transactional

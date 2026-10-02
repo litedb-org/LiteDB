@@ -10,7 +10,7 @@ namespace LiteDB.ConcurrencyTesting
     /// <summary>
     /// One explorer run: a schedule vector executed by one scenario against fresh fixture files,
     /// with five dedicated actors (A owns the operation under test; B, C, D contend; E takes handoffs), connection
-    /// bookkeeping for the oracles, and the shell of the PR #133 explorer: actor checks,
+    /// bookkeeping for the oracles, and the shell of the JKamsker/LiteDB#133 explorer: actor checks,
     /// stop/join, live-fixture retention, reverse disposal with ConnectionClean, the independent
     /// cold check (Durable), Quiescent, and a failure artifact. Entry point: <see cref="Execute"/>.
     /// </summary>
@@ -155,7 +155,7 @@ namespace LiteDB.ConcurrencyTesting
             }
         }
 
-        /// <summary>The six orders of three contenders (the PR #133 permutation table).</summary>
+        /// <summary>The six orders of three contenders (the JKamsker/LiteDB#133 permutation table).</summary>
         internal static readonly int[][] Permutations =
         {
             new[] { 0, 1, 2 }, new[] { 0, 2, 1 }, new[] { 1, 0, 2 }, new[] { 1, 2, 0 }, new[] { 2, 0, 1 }, new[] { 2, 1, 0 }

@@ -3,7 +3,7 @@
 `LiteDB.Tests/Engine/ConcurrencyExplorer/` (namespace `LiteDB.ConcurrencyTesting`) drives real
 LiteDB connections from dedicated actor threads through schedules that a controller forces, and
 judges every operation against the outcomes its situation permits. It is the general form of the
-interleaving explorer first written for the transaction-handle work (fork PR #133, `b0e1a8bb`):
+interleaving explorer first written for the transaction-handle work (JKamsker/LiteDB#133, `b0e1a8bb`):
 the scenarios, dimensions and oracles below name library situations, not a particular defect.
 The same code runs as xUnit tests and, linked into `LiteDB.Fuzz`, as the fuzz targets
 `transaction-interleavings` and `lifetime-chaos`.

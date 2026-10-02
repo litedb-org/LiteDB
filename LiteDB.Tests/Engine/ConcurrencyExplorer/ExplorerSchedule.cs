@@ -11,7 +11,7 @@ namespace LiteDB.ConcurrencyTesting
 {
     /// <summary>
     /// Dedicated actor threads, forced boundaries and per-operation deadlines (ported from the
-    /// PR #133 explorer and generalized). The controller (the thread that owns the schedule) makes
+    /// JKamsker/LiteDB#133 explorer and generalized). The controller (the thread that owns the schedule) makes
     /// every scheduling decision; each decision is recorded in order, so a schedule vector replays
     /// the same decisions (evidence class 1). Each actor operation runs under the deadline its
     /// scenario declares, through the host (M1 Deadline semantics: the clock starts when the
