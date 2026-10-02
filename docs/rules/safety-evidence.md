@@ -513,6 +513,13 @@ logs. A re-run keeps the earlier attempt's failures, so classify them in the PR.
 The job runs from the PR merge ref with a read-only token and never needs
 privileged credentials for fork code.
 
+The .NET Framework leg runs `LiteDB.Tests` serially in one `xunit.console`
+process, so each framework is split by class into a `suite` and a `nets` job.
+[`framework-partitions.json`](../../.github/framework-partitions.json) lists the
+`nets` classes; `suite` runs every other class, both run the runtime guard, and a
+listed class that runs no test fails the job. When a part approaches its time
+limit, move classes between parts instead of raising the limit or sampling tests.
+
 ## Candidate-tree validation
 
 PR CI tests the merge of the head with the current base. A green result from an

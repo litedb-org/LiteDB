@@ -17,6 +17,8 @@ namespace LiteDB.Tests.Safety
         public string NotApplicable { get; set; }
         public IEnumerable<TeardownRunResult> All => this.Baseline == null ? this.Cases : new[] { this.Baseline }.Concat(this.Cases);
         public IEnumerable<TeardownRunResult> Failed => this.All.Where(result => !result.Passed);
+        /// <summary>The planned cases ran: a failed baseline or a driver problem stops the sweep before them.</summary>
+        public bool CasesRan => this.NotApplicable == null && this.Baseline != null && this.Baseline.Passed && this.Problems.Count == 0;
     }
 
     /// <summary>
