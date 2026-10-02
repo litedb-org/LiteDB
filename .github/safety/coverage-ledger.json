@@ -54,6 +54,21 @@
       "disposition": "strengthened",
       "invariant": "Every test method still runs in exactly one partition (verified by -VerifyPartitions); no timeout or filter of another partition changes.",
       "reason": "Moves LiteDB.Tests.Engine.Transaction* out of the engine partition into its own engine-transaction partition, so the added handle coverage (interleaving explorer, close races) does not push the engine partition past the per-session timeout."
+    },
+    {
+      "id": "3083-pending-begins-holder-pool",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/TransactionPathBenchmarks/Resources.cs"
+      ],
+      "disposition": "intentional-change",
+      "decision": "https://github.com/litedb-org/LiteDB/issues/3083",
+      "invariant": "Pending Shared begins wait on their own threads and never get a holder thread or engine; at the peak exactly one holder is alive, and every thread, handle and managed-byte count returns to its baseline once all handles complete.",
+      "reason": "Holder threads now come from a process-wide pool that keeps at most two idle threads for one second (#3083). The peak bound is unchanged; the drain bound allows one busy holder plus the two idle ones (non-caller threads 1 + 2 + slack, total pending + 1 + 2 + slack), and the baseline and final samples wait out the one-second idle expiry before settling, so the return-to-baseline check is as strict as before.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Busy_workers_are_never_capped_and_at_most_two_stay_idle",
+        "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Idle_worker_expires_and_counters_are_exact"
+      ]
     }
   ]
 }

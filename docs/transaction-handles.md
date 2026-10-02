@@ -121,11 +121,22 @@ A bounded close with deferred cleanup is the session-lifetime contract of
 
 ## Shared mode
 
-A Shared handle owns the native writer mutex for its whole lifetime. A dedicated
+A Shared handle owns the native writer mutex for its whole lifetime. An internal
 holder thread acquires it and opens a fresh storage core for the handle; the
 application's threads run the handle's operations on that core in turn. Commit,
 rollback or disposal closes the core and releases the mutex on the holder thread,
-so other processes and connections then proceed. Completed handles retain neither.
+so other processes and connections then proceed. Completed handles retain no storage
+or writer ownership; at most 2 idle holder threads per process and one closed wrapper
+per connection may remain.
+
+Holder threads come from a process-wide pool: a thread runs one handle at a time,
+then waits up to one second for the next one (at most two wait; busy holders are
+never limited). A thread that left any ownership state behind exits instead of
+waiting. Each connection keeps the closed private `SharedEngine` wrapper of its
+last handle for the next one: only settings, mutex objects and owner bookkeeping
+survive, never a core, page cache, WAL index, mapped coordination participation or
+the mutex. A wrapper is discarded after any failure, when the connection's password
+or collation changed (a rebuild), and when the connection is disposed or collected.
 
 A Shared handle dropped without completion while its `LiteDatabase` stays alive
 therefore blocks every other writer in every process until the database is
@@ -194,5 +205,5 @@ These parts of the v6 plan are separate follow-ups: the per-call
 `SharedWriterTimeout` bounds begin), bounded session
 close with deferred cleanup ([#3067](https://github.com/litedb-org/LiteDB/issues/3067)),
 a pooled Direct host shared by facades of one file
-([#3041](https://github.com/litedb-org/LiteDB/issues/3041)), Shared holder reuse, and
-transaction-bound SQL and FileStorage.
+([#3041](https://github.com/litedb-org/LiteDB/issues/3041)), keeping a Shared handle's
+storage core or writer mutex between handles, and transaction-bound SQL and FileStorage.
