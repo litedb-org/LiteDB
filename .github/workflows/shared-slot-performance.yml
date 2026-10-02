@@ -45,6 +45,9 @@ on:
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
       - 'scripts/measure-shared-contention.py'
+      - 'scripts/measure-shared-acquire.py'
+      - '.github/scripts/compare_contention.py'
+      - '.github/scripts/test_compare_contention.py'
       - 'scripts/measure-shared-readers.py'
       - 'scripts/verify-shared-slot-interop.py'
       - 'LiteDB.Fuzz/CheckpointedFileVerifier.cs'
@@ -128,6 +131,18 @@ jobs:
         run: |
           python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
+      - name: Two and four process contended writer acquisition
+        if: matrix.workload == 'core'
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-shared-acquire.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/acquire.jsonl
+          if ($LASTEXITCODE) { throw 'Acquire comparison failed' }
+      - name: Acquire latency and starvation within tolerance of base
+        if: matrix.workload == 'core'
+        shell: pwsh
+        run: |
+          python candidate/.github/scripts/compare_contention.py --results evidence/acquire.jsonl
+          if ($LASTEXITCODE) { throw 'Contended acquisition regressed beyond tolerance' }
       - name: Same-version production state campaign with writer death and raw validation
         if: matrix.workload == 'core'
         timeout-minutes: 5
@@ -280,6 +295,13 @@ jobs:
           }
           python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
+      - name: Contended writer acquisition within tolerance of base
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-shared-acquire.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/acquire.jsonl
+          if ($LASTEXITCODE) { throw 'Acquire comparison failed' }
+          python candidate/.github/scripts/compare_contention.py --results evidence/acquire.jsonl
+          if ($LASTEXITCODE) { throw 'Contended acquisition regressed beyond tolerance' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
