@@ -76,9 +76,13 @@ namespace LiteDB.Tests.Safety.Tests
             {
                 var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
                 var db = new LiteDatabase(engine, disposeOnClose: false);
-                SpillSort(db);
+                var reader = SpillSort(db);
                 var scratch = FileHelper.GetTempFile(file.Filename);
                 Assert.True(File.Exists(scratch), "the sort did not spill to the scratch file");
+                // End the query first: its rented scratch stream would stay open across the close, and Windows refuses
+                // to delete an open file with or without this defect. The scratch outlives its query until the close.
+                reader.Dispose();
+                Assert.True(File.Exists(scratch), "the scratch file did not outlive its query");
 
                 var scenario = Armed("SortDisk.Dispose.pool", TeardownStepSite.After);
                 using (TeardownSteps.Begin(scenario))
@@ -145,7 +149,7 @@ namespace LiteDB.Tests.Safety.Tests
             return scenario;
         }
 
-        /// <summary>A sorted query whose keys exceed one sort container, left open so its scratch stays live.</summary>
+        /// <summary>A sorted query whose keys exceed one sort container, returned partially read (the caller ends it).</summary>
         private static IEnumerator<BsonDocument> SpillSort(LiteDatabase db)
         {
             db.GetCollection("big").InsertBulk(Enumerable.Range(1, 1100).Select(id => new BsonDocument
