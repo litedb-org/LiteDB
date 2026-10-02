@@ -118,6 +118,16 @@ class CoverageRegressionTests(unittest.TestCase):
         self.assertIn(f"ci-test-config-changed: {workflow}", output)
         self.assertNotIn("new.yml", output)
 
+    def test_xunit_console_filter_and_framework_partition_changes_are_findings(self):
+        workflow, partitions = ".github/workflows/ci.yml", ".github/framework-partitions.json"
+        base = {workflow: "run: |\n  & $runner $assembly -nologo\n", partitions: '{"nets": ["A_Tests"]}'}
+        head = {workflow: "run: |\n  & $runner $assembly -nologo -noclass A_Tests\n  # sub-class -classic\n",
+                partitions: '{"nets": ["A_Tests", "B_Tests"]}'}
+        code, output = self.run_check(base, head)
+        self.assertEqual(code, 1)
+        self.assertIn(f"ci-test-config-changed: {workflow} (+& $runner $assembly -nologo -noclass A_Tests)", output)
+        self.assertIn(f"ci-test-config-changed: {partitions} (test settings modified)", output)
+
     def test_invalid_dispositions_are_rejected(self):
         removed = csharp_class("Sample_Tests", {"Keeps": ("Fact", "1.Should().Be(1); Assert.True(true);")})
         subject = ["LiteDB.Tests.Engine.Sample_Tests.Removed"]

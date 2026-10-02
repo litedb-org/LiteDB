@@ -27,10 +27,11 @@ HARNESSES = [common.glob_regex(pattern) for pattern in (
     "scripts/test-*.py", "tools/*Compatibility/**", "tools/IndexMigrationFixture/**",
     "tools/IndexMigrationRecovery/**", "tools/V8Differential/**")]
 TEST_SETTINGS = {"tests.runsettings", "tests.ci.runsettings", "LiteDB.Tests/xunit.runner.json",
-                 ".github/os-matrix.json", f"{common.SAFETY_DIR}/ci-evidence.json"}
+                 ".github/os-matrix.json", ".github/framework-partitions.json", f"{common.SAFETY_DIR}/ci-evidence.json"}
 CI_SENSITIVE = re.compile(
     r"timeout-minutes|continue-on-error|if-no-files-found|TestCaseFilter|FullyQualifiedName"
-    r"|--filter|-Filter\b|--list-tests|Required CI guard|\$guard|PartitionSuite", re.I)
+    r"|--filter|-Filter\b|--list-tests|Required CI guard|\$guard|PartitionSuite"
+    r"|(?<![\w-])-(?:no)?(?:class|method|namespace|trait)\b", re.I)  # last: xunit.console filters
 ASSERTION = re.compile(r"\.Should\w*\(|\bAssert\.\w+\(")
 KINDS = {
     "test-removed", "skip-added", "conditional-attribute", "assertions-reduced", "fixture-changed",

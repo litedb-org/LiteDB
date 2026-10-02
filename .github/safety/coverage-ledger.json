@@ -106,6 +106,40 @@
       "reason": "Adds the PR-selected targets job (30-minute limit): it runs the fuzz targets that select_fuzz_targets.py picks for the pull request's diff, at capped counts in concurrent count groups, and uploads its selection, logs and runs with an upload that must not be empty. It also adds the linux-concurrency-explorer and linux-shared-contention smoke legs; no existing step, timeout or filter changes."
     },
     {
+      "id": "safety-m3-framework-nets-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        ".github/framework-partitions.json",
+        ".github/workflows/_reusable-ci.yml",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorerDriverEdges_Tests.cs",
+        "LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs on every .NET Framework leg exactly once (the TestHost_Tests runtime guard once per job); no test is filtered out, sampled or skipped, and the 20-minute job limit is unchanged.",
+      "reason": "The .NET Framework leg runs LiteDB.Tests serially in one xunit.console process. Hosted net481 xUnit totals grew from 901 s on dev (job 966 s) to 995 s with the teardown sweep and 1139 s with the concurrency explorer, which hit the 20-minute limit (run 37069271628); the later parallel-property tests push it to about 1280 s (run 37069293910 was cancelled with 761 tests not run). Each framework now runs as two jobs: 'nets' runs the classes in .github/framework-partitions.json (ConcurrencyExplorer_Tests about 177-188 s, ConcurrencyExplorerDriverEdges_Tests 0.4 s, TeardownSweep_Tests 89-95 s on net481) plus the runtime guard, 'suite' runs every other class via xunit.console -noclass, so the list cannot drop a test. The nets job fails when a listed class runs no test, the suite job when one runs there, and ci-evidence.json requires evidence from both parts of every framework."
+    },
+    {
+      "id": "safety-m5-framework-nets-parallel-property",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/framework-partitions.json"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        ".github/framework-partitions.json",
+        "LiteDB.Tests/Concurrency/ParallelProperty/ParallelPropertyDetection_Tests.cs",
+        "LiteDB.Tests/Concurrency/ParallelProperty/ParallelProperty_Tests.cs",
+        "LiteDB.Tests/Concurrency/ParallelProperty/PermittedHistoryChecker_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs on every .NET Framework leg exactly once (the TestHost_Tests runtime guard once per job); no test is filtered out, sampled or skipped, and the 20-minute job limit is unchanged.",
+      "reason": "The parallel-property classes move from the suite part to the nets part of the .NET Framework leg: ParallelPropertyDetection_Tests (41 s on hosted net481) and ParallelProperty_Tests (13 s) would otherwise put the suite part at about 1010 s of an estimated 1280 s total (run 37069293910 was cancelled at 20 minutes with 761 tests not run); PermittedHistoryChecker_Tests (under 0.1 s) are the self-tests of the checker those tests use and move with them. The suite part still runs every unlisted class, so the move cannot drop a test."
+    },
+    {
       "id": "safety-m6-critical-classify-job",
       "kind": "ci-test-config-changed",
       "subjects": [

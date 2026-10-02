@@ -1,0 +1,11 @@
+{
+  "description": "Class split of the .NET Framework test leg (test-windows-framework in _reusable-ci.yml), which runs LiteDB.Tests serially in one xunit.console process per job. Its 'nets' part runs exactly these classes plus the TestHost_Tests runtime guard; its 'suite' part runs every other class (xunit.console -noclass), so each test runs once per framework whatever the list says and both parts stay within the job's time limit. The 'nets' part fails when a listed class runs no test. Changing this list is a coverage change (see .github/safety/coverage-ledger.json).",
+  "nets": [
+    "LiteDB.Tests.Concurrency.ParallelProperty.ParallelPropertyDetection_Tests",
+    "LiteDB.Tests.Concurrency.ParallelProperty.ParallelProperty_Tests",
+    "LiteDB.Tests.Concurrency.ParallelProperty.PermittedHistoryChecker_Tests",
+    "LiteDB.Tests.Engine.ConcurrencyExplorer_Tests",
+    "LiteDB.Tests.Engine.ConcurrencyExplorerDriverEdges_Tests",
+    "LiteDB.Tests.Safety.Tests.TeardownSweep_Tests"
+  ]
+}

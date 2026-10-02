@@ -46,6 +46,8 @@ namespace LiteDB.Tests.Safety
         public List<string> Violations { get; } = new List<string>();
         /// <summary>Violations the fault's model does not excuse (a skip excuses its step's own obligations).</summary>
         public List<string> Unexpected { get; } = new List<string>();
+        /// <summary>How an oracle reached its verdict when it had to deviate from its usual check (never a violation).</summary>
+        public List<string> Notes { get; } = new List<string>();
         /// <summary>The registered known finding that explains every unexpected violation, if any.</summary>
         public string KnownFinding { get; set; }
         public double ElapsedMs { get; set; }
@@ -60,7 +62,8 @@ namespace LiteDB.Tests.Safety
         public override string ToString() =>
             $"{this.Spec} [{this.Prior}] fired={this.Fired} observed={this.Observed} thrown={this.Thrown ?? "-"}" +
             (this.Unexpected.Count == 0 ? " clean" : this.KnownFinding != null ? $" known={this.KnownFinding}" : " FAILED") +
-            string.Concat(this.Violations.Select(item => Environment.NewLine + "    " + item));
+            string.Concat(this.Violations.Select(item => Environment.NewLine + "    " + item)) +
+            string.Concat(this.Notes.Select(item => Environment.NewLine + "    note: " + item));
     }
 
     /// <summary>
@@ -207,25 +210,11 @@ namespace LiteDB.Tests.Safety
                 foreach (var item in c.Ownership.TakeAll()) v.Add("ownership." + item);
             if (c.DatabasePath != null)
             {
-                foreach (var item in QuiescentProbe.Evaluate(c.DatabasePath, allowedThreads).Violations) v.Add("quiescent." + item);
-                if (c.CheckDurable) Durable(c, v);
+                var quiescent = QuiescentProbe.Evaluate(c.DatabasePath, allowedThreads);
+                foreach (var item in quiescent.Violations) v.Add("quiescent." + item);
+                if (c.CheckDurable) TeardownDurable.Check(c, quiescent.Handles, result);
             }
             v.AddRange(c.Violations);
-        }
-
-        private static void Durable(TeardownCase c, List<string> v)
-        {
-            try
-            {
-                var reopen = new ConnectionString
-                {
-                    Filename = c.DatabasePath, Connection = ConnectionType.Direct, Password = c.Password,
-                    AutoRebuild = c.ReopenWithAutoRebuild
-                };
-                using (var db = new LiteDatabase(reopen))
-                    foreach (var item in c.Ledger.Verify(db)) v.Add("durable." + item);
-            }
-            catch (Exception error) { v.Add("durable.REOPEN_FAILED: the cold reopen failed: " + Describe(error)); }
         }
 
         /// <summary>Excuse what a skip leaves of its own step; match the rest against the known findings.</summary>
