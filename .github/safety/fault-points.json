@@ -1692,6 +1692,7 @@
     }
   ],
   "observers": {
+    "BeforeIdleExpiry": "Interleaving hook on a pooled Shared transaction-holder thread before it leaves the idle pool on expiry (in-memory scheduling only); proves a racing dispatch runs exactly once on another thread. No persistent state changes.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
