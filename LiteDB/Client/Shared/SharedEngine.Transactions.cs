@@ -63,23 +63,10 @@ namespace LiteDB
             try
             {
                 var settings = _settings.SnapshotForTransactionHolder();
-                // The holder thread must not root application callbacks that can capture the
-                // facade/handle. The external resource owner retains the delegate while live.
-                if (policyAnchor != null)
-                {
-                    var callback = new WeakReference<Func<string, BsonValue, BsonValue>>(policyAnchor);
-                    settings.ReadTransform = (collection, value) => callback.TryGetTarget(out var transform)
-                        ? transform(collection, value) : throw new ObjectDisposedException("Transaction read policy");
-                }
                 settings.CoordinationSignals = null;
                 settings.SharedFileHandles = null;
                 settings.SharedSlowWait = null;
-                // The handle's native wait is this connection's wait: record it here. It also
-                // reports and extends this connection's recovery report.
-                var child = new SharedEngine(settings) { _transactionChild = true, _waitRecorder = this.Waits, _recoveryReport = _recoveryReport };
-                child._settings.SharedDurability = _settings.SharedDurability;
-                child._settings.CheckpointBackoff = _settings.CheckpointBackoff;
-                holder = new TransactionHolder(child, gate, deadline);
+                holder = new TransactionHolder(this.CheckoutTransactionChild(settings, policyAnchor), gate, deadline, this);
             }
             catch { gate.Release(); throw; }
             var resources = holder.Open(policyAnchor);
