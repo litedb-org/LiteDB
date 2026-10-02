@@ -14,6 +14,12 @@
       "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
     ]
   },
+  "Issue_3092_ReadSnapshotReusedPage": {
+    "reason": "Fixed read-snapshot page reuse is covered by the reused-page tests, plain and encrypted; the regression proof runs the historical comparison.",
+    "tests": [
+      "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+    ]
+  },
   "Issue_3071_SharedPeerCallback": {
     "reason": "Fixed Shared peer-callback self-wait is covered by the Shared peer callback tests on every route, plain and encrypted; the regression proof runs the historical comparison.",
     "tests": [
