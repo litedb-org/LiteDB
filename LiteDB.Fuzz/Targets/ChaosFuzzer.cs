@@ -1,9 +1,33 @@
 using LiteDB.Engine;
+using LiteDB.Tests.Safety;
+using LiteDB.Utils;
 
 namespace LiteDB.Fuzz.Targets;
 
+/// <remarks>
+/// Oracles: every step's operation family runs under a declared <see cref="FuzzOracles.Deadline{T}"/>
+/// (lock-bound default; maintenance and bulk families declare their own); each dispose is followed by
+/// <see cref="FuzzOracles.ConnectionClean"/>, the scenario end by <see cref="FuzzOracles.Quiescent"/>;
+/// the reopen family checks <see cref="FuzzOracles.Durable"/> against the acknowledged model; the
+/// throwing upload source checks <see cref="FuzzOracles.FaultReached"/> and that FileStorage.Upload
+/// propagates the source's fault (its declared disposition). Ownership does not apply: the target
+/// opens Direct-mode connections, which have no Shared writer mutex.
+/// </remarks>
 internal sealed class ChaosFuzzer : IFuzzTarget
 {
+    private const string Dimension = "mode=direct";
+    // Declared deadlines: these families do more than lock-bound work on a small database.
+    private static readonly TimeSpan MaintenanceDeadline = TimeSpan.FromSeconds(60);
+    private static readonly HashSet<string> MaintenanceFamilies = new(StringComparer.Ordinal)
+    {
+        "Storage", "Reopen", "Rebuild", "LongReader", "FailingStorage"
+    };
+    private static readonly string[] Families =
+    {
+        "Upsert", "Upsert", "UpdateMany", "DeleteMany", "Transaction", "Index", "Storage", "Reopen", "Rebuild",
+        "Pragmas", "SqlInsert", "Query", "RenameCollection", "DropCollection", "LongReader", "FailingStorage"
+    };
+
     public string Name => "chaos";
     public string Description => "Combined CRUD, bulk, index, transaction, SQL, storage, rebuild, reopen, and auto-checkpoint state machine.";
 
@@ -27,88 +51,97 @@ internal sealed class ChaosFuzzer : IFuzzTarget
                 var rows = db.GetCollection("rows");
                 var operation = context.Random.Next(16);
                 operations.Add(operation);
-                switch (operation)
+                var family = Families[operation];
+                context.Deadline(family, () =>
                 {
-                    case 0:
-                    case 1:
-                        Upsert(context, rows, model);
-                        break;
-                    case 2:
-                        UpdateMany(context, rows, model);
-                        break;
-                    case 3:
-                        DeleteMany(context, rows, model);
-                        break;
-                    case 4:
-                        Transaction(context, db, model);
-                        break;
-                    case 5:
-                        if (context.Steps % 2 == 0)
-                        {
-                            rows.EnsureIndex("value", "value");
-                            rows.EnsureIndex("unique", "unique", true);
-                        }
-                        else
-                        {
-                            rows.DropIndex("value");
-                            rows.DropIndex("unique");
-                        }
-                        break;
-                    case 6:
-                        Storage(context, db, files);
-                        break;
-                    case 7:
-                        db.Checkpoint();
-                        db.Dispose();
-                        db = new LiteDatabase(connection);
-                        db.CheckpointSize = 1;
-                        break;
-                    case 8:
-                        var nextPassword = connection.Password == "fuzz" ? "fuzz-next" : "fuzz";
-                        db.Rebuild(new RebuildOptions
-                        {
-                            Collation = context.Steps % 2 == 0 ? Collation.Binary : new Collation("en-US/IgnoreCase"),
-                            Password = nextPassword
-                        });
-                        connection.Password = nextPassword;
-                        break;
-                    case 9:
-                        db.UserVersion = context.Steps;
-                        db.UtcDate = context.Steps % 2 == 0;
-                        db.CheckpointSize = 1 + context.Steps % 3;
-                        break;
-                    case 10:
-                        SqlMutation(context, db, model);
-                        break;
-                    case 11:
-                        ReadPressure(context, rows, model);
-                        break;
-                    case 12:
-                        var canRename = db.CollectionExists("rows");
-                        var renamed = db.RenameCollection("rows", "rows_renamed");
-                        context.Check(renamed == canRename, "Chaos collection rename returned an impossible result.");
-                        if (renamed)
-                        {
-                            context.Check(db.GetCollection("rows_renamed").Count() == model.Count,
-                                "Renamed chaos collection changed count.");
-                            context.Check(db.RenameCollection("rows_renamed", "rows"),
-                                "Chaos collection rename-back failed.");
-                        }
-                        break;
-                    case 13:
-                        var existed = db.CollectionExists("rows");
-                        context.Check(db.DropCollection("rows") == existed,
-                            "Chaos collection drop returned an impossible result.");
-                        model.Clear();
-                        break;
-                    case 14:
-                        LongReaderMutation(context, db, model);
-                        break;
-                    case 15:
-                        FailingStorage(context, db, files);
-                        break;
-                }
-                Validate(context, db, model, files);
+                    switch (operation)
+                    {
+                        case 0:
+                        case 1:
+                            Upsert(context, rows, model);
+                            break;
+                        case 2:
+                            UpdateMany(context, rows, model);
+                            break;
+                        case 3:
+                            DeleteMany(context, rows, model);
+                            break;
+                        case 4:
+                            Transaction(context, db, model);
+                            break;
+                        case 5:
+                            if (context.Steps % 2 == 0)
+                            {
+                                rows.EnsureIndex("value", "value");
+                                rows.EnsureIndex("unique", "unique", true);
+                            }
+                            else
+                            {
+                                rows.DropIndex("value");
+                                rows.DropIndex("unique");
+                            }
+                            break;
+                        case 6:
+                            Storage(context, db, files);
+                            break;
+                        case 7:
+                            db.Checkpoint();
+                            db.Dispose();
+                            context.ConnectionClean(db, "Reopen");
+                            db = new LiteDatabase(connection);
+                            db.CheckpointSize = 1;
+                            if (model.Count > 0) Reachability.Sometimes("situation:chaos-reopen-with-acknowledged-rows");
+                            var ledger = new DurableLedger();
+                            ledger.ExpectExactly("rows", model.Values);
+                            context.Durable(ledger, db, "reopen");
+                            break;
+                        case 8:
+                            var nextPassword = connection.Password == "fuzz" ? "fuzz-next" : "fuzz";
+                            db.Rebuild(new RebuildOptions
+                            {
+                                Collation = context.Steps % 2 == 0 ? Collation.Binary : new Collation("en-US/IgnoreCase"),
+                                Password = nextPassword
+                            });
+                            connection.Password = nextPassword;
+                            break;
+                        case 9:
+                            db.UserVersion = context.Steps;
+                            db.UtcDate = context.Steps % 2 == 0;
+                            db.CheckpointSize = 1 + context.Steps % 3;
+                            break;
+                        case 10:
+                            SqlMutation(context, db, model);
+                            break;
+                        case 11:
+                            ReadPressure(context, rows, model);
+                            break;
+                        case 12:
+                            var canRename = db.CollectionExists("rows");
+                            var renamed = db.RenameCollection("rows", "rows_renamed");
+                            context.Check(renamed == canRename, "Chaos collection rename returned an impossible result.");
+                            if (renamed)
+                            {
+                                context.Check(db.GetCollection("rows_renamed").Count() == model.Count,
+                                    "Renamed chaos collection changed count.");
+                                context.Check(db.RenameCollection("rows_renamed", "rows"),
+                                    "Chaos collection rename-back failed.");
+                            }
+                            break;
+                        case 13:
+                            var existed = db.CollectionExists("rows");
+                            context.Check(db.DropCollection("rows") == existed,
+                                "Chaos collection drop returned an impossible result.");
+                            model.Clear();
+                            break;
+                        case 14:
+                            LongReaderMutation(context, db, model);
+                            break;
+                        case 15:
+                            FailingStorage(context, db, files);
+                            break;
+                    }
+                }, Dimension, MaintenanceFamilies.Contains(family) ? MaintenanceDeadline : null);
+                context.Deadline("Validate", () => Validate(context, db, model, files), Dimension, MaintenanceDeadline);
                 context.ObserveNovelty("chaos-state", operation, model.Count / 8, files.Count, db.CheckpointSize);
             }
             db.Checkpoint();
@@ -120,6 +153,8 @@ internal sealed class ChaosFuzzer : IFuzzTarget
             context.Metrics["files"] = files.Count;
         }
         finally { db.Dispose(); }
+        context.ConnectionClean(db);
+        context.Quiescent(file);
         return Task.CompletedTask;
     }
 
@@ -178,7 +213,11 @@ internal sealed class ChaosFuzzer : IFuzzTarget
             model.Clear();
             foreach (var pair in pending) model[pair.Key] = pair.Value;
         }
-        else db.Rollback();
+        else
+        {
+            db.Rollback();
+            Reachability.Sometimes("situation:chaos-explicit-rollback");
+        }
     }
 
     private static void Storage(FuzzContext context, LiteDatabase db, Dictionary<string, byte[]> files)
@@ -231,11 +270,12 @@ internal sealed class ChaosFuzzer : IFuzzTarget
         context.Check(reader.MoveNext(), "Chaos long reader could not pin a snapshot.");
         var id = 200 + context.Steps;
         var added = Document(context.Random, id);
-        var writer = Task.Run(() => db.GetCollection("rows").Upsert(Clone(added)));
+        var writer = Task.Run(() => context.Deadline("Upsert", () => db.GetCollection("rows").Upsert(Clone(added)), Dimension));
         context.Check(writer.Wait(TimeSpan.FromSeconds(10)),
             "Chaos writer did not complete while its old reader remained live.");
         writer.GetAwaiter().GetResult();
         model[id] = added;
+        Reachability.Sometimes("situation:chaos-long-reader-overlaps-writer");
         var actual = new List<BsonDocument> { Clone(reader.Current) };
         while (reader.MoveNext()) actual.Add(Clone(reader.Current));
         context.Check(actual.Count == expected.Length && actual.Zip(expected,
@@ -256,12 +296,16 @@ internal sealed class ChaosFuzzer : IFuzzTarget
         var replacement = new byte[12000];
         context.Random.NextBytes(replacement);
         Exception failure = null;
+        var source = new ChaosThrowingStream(replacement);
         try
         {
-            using var source = new ChaosThrowingStream(replacement);
-            db.FileStorage.Upload(id, "replacement.bin", source);
+            using (source) db.FileStorage.Upload(id, "replacement.bin", source);
         }
         catch (Exception error) { failure = error; }
+        // A throwing source is a skip fault (the read it replaces never happens); the upload's contract
+        // is to propagate it and keep the acknowledged file.
+        if (context.FaultReached("chaos-upload-source", source.Injected, required: true))
+            context.FaultDisposed("FileStorage.Upload", source.Injected, FaultDisposition.Propagated, failure);
         context.Check(failure is IOException, "Chaos throwing storage source did not preserve IOException.");
         using var output = new MemoryStream();
         db.FileStorage.Download(id, output);

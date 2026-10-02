@@ -711,6 +711,116 @@
       "gate": "advisory",
       "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
       "reason": "Appending transaction pages while a header publication footer is active is forbidden."
+    },
+    {
+      "name": "situation:chaos-explicit-rollback",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "An explicit transaction with three upserts is rolled back; its effects must stay invisible to the model check and the next reopen."
+    },
+    {
+      "name": "situation:chaos-long-reader-overlaps-writer",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "A reader pinned before a concurrent writer committed finishes on its original snapshot."
+    },
+    {
+      "name": "situation:chaos-reopen-with-acknowledged-rows",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "The database is closed and reopened while acknowledged rows exist, so ClosedClean and Durable judge a non-empty state."
+    },
+    {
+      "name": "situation:concurrent-checkpoint-under-cursor",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs"
+      ],
+      "targets": [
+        "concurrent"
+      ],
+      "reason": "A checkpoint on another thread overlaps a long cursor and completes once the cursor drains."
+    },
+    {
+      "name": "situation:concurrent-same-document-commits",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs"
+      ],
+      "targets": [
+        "concurrent"
+      ],
+      "reason": "Four threads each commit an explicit transaction on the same document in one round."
+    },
+    {
+      "name": "situation:conflict-rebuild-races-acknowledged-writer",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConflictFuzzer.cs"
+      ],
+      "targets": [
+        "conflict"
+      ],
+      "reason": "A rebuild races a writer released by the same barrier and the writer is acknowledged, so the reopen must show its row."
+    },
+    {
+      "name": "situation:conflict-same-id-uploads",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConflictFuzzer.cs"
+      ],
+      "targets": [
+        "conflict"
+      ],
+      "reason": "Two uploads to the same file id race a schema change and an update; the stored file must be one complete payload."
+    },
+    {
+      "name": "situation:cursor-handoff-checkpoint-overlaps-last-cursor",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs"
+      ],
+      "targets": [
+        "cursor-handoff"
+      ],
+      "reason": "A checkpoint is held at its index-lock stage while the last pinned cursor is drained or disposed on a foreign thread."
+    },
+    {
+      "name": "situation:cursor-handoff-foreign-disposal-keeps-transaction",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs"
+      ],
+      "targets": [
+        "cursor-handoff"
+      ],
+      "reason": "A thread with its own explicit transaction drains or disposes a cursor opened by a retired thread and still rolls back its own transaction."
+    },
+    {
+      "name": "situation:integrity-mutant-rejected",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/IntegrityFuzzer.cs"
+      ],
+      "targets": [
+        "integrity"
+      ],
+      "reason": "The raw integrity oracle rejected a deliberately corrupted copy of a valid database."
     }
   ]
 }
