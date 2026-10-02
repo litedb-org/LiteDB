@@ -30,6 +30,9 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>Whether no frame executes on this thread (a pooled holder thread between jobs).</summary>
+        internal static bool IsEmpty => _frames == null || _frames.Count == 0;
+
         /// <summary>Scope of one frame; disposing it removes the frame.</summary>
         public readonly struct Scope : IDisposable
         {

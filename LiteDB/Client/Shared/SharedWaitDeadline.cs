@@ -26,6 +26,9 @@ namespace LiteDB.Client.Shared
 
         internal static readonly SharedWaitDeadline Infinite = default;
 
+        /// <summary>Whether a holder's inherited deadline still applies on this thread.</summary>
+        internal static bool IsInherited => _hasInherited;
+
         /// <summary>A Shared wait setting: infinite, or 0 to Int32.MaxValue milliseconds.</summary>
         internal static bool IsValidTimeout(TimeSpan value) =>
             value == System.Threading.Timeout.InfiniteTimeSpan || (value >= TimeSpan.Zero && value.TotalMilliseconds <= int.MaxValue);
