@@ -218,8 +218,10 @@ jobs:
     env:
       TZ: UTC
       LANG: en_US.UTF-8
-      # Measured locally (24 cores, shared host, load ~7): Shared-mode change 5 targets x 100 in 232 s
-      # (shared dominates), query change 5 x 100 in 7 s, all 45 targets x 30 in 89 s.
+      # Measured locally on the integrated safety nets (24 cores, shared host, load 10-30; targets run in
+      # parallel): query change 7 targets x 100 in 355 s (lifetime-chaos 352 s, teardown-faults 243 s: both
+      # run for every LiteDB/ change), Shared-mode change 8 x 100 in 897 s (shared-contention 868 s, real
+      # processes), all 50 targets x 30 in 306 s. Before the explorer and teardown targets: 7 s / 232 s / 89 s.
       SELECTED_COUNT: 100
       ALL_TARGETS_COUNT: 30
     steps:
