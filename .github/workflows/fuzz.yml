@@ -82,7 +82,7 @@ jobs:
         include:
           - name: linux-core-utc
             os: ubuntu-latest
-            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
+            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,chaos-maintenance,boundary,read-only
             seed: 2947
             timezone: UTC
             culture: en_US.UTF-8

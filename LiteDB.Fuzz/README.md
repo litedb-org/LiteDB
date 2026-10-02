@@ -188,6 +188,7 @@ oracle evidence even when the path-filtered Fuzz workflow does not run.
 | `power-loss` | volatile/durable device model cut at every internal WAL/checkpoint phase |
 | `recovery` | dirty-WAL recovery interrupted again by transient and persistent I/O failures |
 | `chaos` | combined CRUD/bulk/index/transaction/SQL/storage/rebuild/reopen/auto-checkpoint model |
+| `chaos-maintenance` | Dispose, rebuild and fatal WAL-write failure forced against an active bulk write, reader, explicit transaction, checkpoint or rebuild on another thread (Direct and Shared, either side first); declared permitted outcomes, all invariant oracles, known findings recorded in `known-findings-hit.jsonl` (`LITEDB_FUZZ_STRICT_KNOWN=1` fails on them) |
 | `boundary` | exact slots, keys, document/page limits, transaction limits, headers, and nesting |
 | `read-only` | byte-identical data/WAL across generated read and read-only workloads |
 | `sql-dml` | SQL DML/DDL/transaction/pragma differential against equivalent API state |
