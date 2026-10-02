@@ -1,0 +1,79 @@
+name: Differential run
+
+# Base-vs-head behavior diff (docs/rules/safety-evidence.md#differential-run). The same
+# fuzz targets, seeds and counts run on the PR's merge-base and its head, each tree with
+# its own harness; escaped exceptions, outcomes, latency, ClosedClean metrics and markers
+# are compared per operation class, and every difference must be listed in
+# .github/safety/intended-changes.json by this PR.
+#
+# DEPENDS ON the outcome-emitting fuzz harness (outcomes.jsonl, closed-clean.jsonl,
+# markers.json per run; milestone M1). Until the PR's base contains it, the job is
+# SKIPPED with a warning and a step-summary note: it neither fails nor reports a pass.
+#
+# Seeds are derived from the PR number, so reruns of one PR compare identical schedules.
+# Budget: two Release builds of LiteDB.Fuzz (net8.0) plus 5 targets x 2 seeds x 30 steps
+# per tree, within the plan's 15-20 minute per-PR budget.
+on:
+  pull_request:
+    paths:
+      - 'LiteDB/**'
+      - '.github/safety/intended-changes.json'
+      - '.github/scripts/differential_run.py'
+      - '.github/workflows/differential.yml'
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Base revision (default merge-base with dev)
+        required: false
+        type: string
+      targets:
+        description: Comma-separated fuzz targets
+        default: chaos,concurrent,cursor-handoff,conflict,integrity
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: differential-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  differential:
+    name: Differential run
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Run the same seeds on the merge-base and the head
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.run_number }}
+          TARGETS: ${{ inputs.targets || 'chaos,concurrent,cursor-handoff,conflict,integrity' }}
+        run: |
+          git fetch --no-tags origin dev
+          base="$(git merge-base HEAD "${BASE_SHA:-origin/dev}")"
+          python .github/scripts/differential_run.py --base "$base" --head HEAD \
+            --pr "$PR_NUMBER" --seed-count 2 --count 30 --targets "$TARGETS" \
+            --run-timeout 300 --out artifacts_temp/differential
+
+      - name: Upload the differential report and run directories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-report
+          path: artifacts_temp/differential
+          if-no-files-found: ignore
+          retention-days: 14

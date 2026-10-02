@@ -528,15 +528,25 @@ def declared_markers(tree):
     if data is None:
         return None
     items = data.get("markers", data) if isinstance(data, dict) else data
-    if isinstance(items, dict):
-        return set(items)
-    return {item if isinstance(item, str) else item.get("name") for item in items
-            if isinstance(item, (str, dict))} - {None}
+    names = set(items) if isinstance(items, dict) else {
+        item if isinstance(item, str) else item.get("name") for item in items if isinstance(item, (str, dict))}
+    # Fault-point markers derive from the fault-point registry instead of being listed twice.
+    faults = tree.read_json(f"{SAFETY_DIR}/fault-points.json", {}) or {}
+    names |= {f"fault-point:{entry.get('name')}" for key in ("hooks", "injectors")
+              for entry in faults.get(key, []) if isinstance(entry, dict)}
+    return names - {None}
 
 
 def resolve_test_anchor(tree, reference):
-    """'path#Method', 'Class#Method' or 'Namespace.Class.Method' -> (path, TestMethod) or None."""
+    """'path#Method', 'Class#Method' or 'Namespace.Class.Method' -> (path, TestMethod) or None.
+
+    A path may also name a .github/scripts/test_*.py unittest method (returns (path, name)).
+    """
     if "#" in reference and "/" in reference.split("#")[0]:
+        path, _, name = reference.partition("#")
+        if re.match(r"\.github/scripts/test_\w+\.py\Z", path):  # a CI-script unittest
+            text = tree.read(path) or ""
+            return (path, name) if re.search(r"^\s+def " + re.escape(name) + r"\(", text, re.M) else None
         return resolve_test(tree, reference)
     owner, _, name = reference.rpartition("#") if "#" in reference else reference.rpartition(".")
     for fqn, found in collect_tests(tree).items():

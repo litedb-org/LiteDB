@@ -39,10 +39,14 @@ class DocClaimLintTests(unittest.TestCase):
 
     def test_resolving_anchors_pass(self):
         for anchor in (f"[test: {TESTS}#Close_Propagates]", "[test: Close_Tests#Close_Propagates]",
+                       "[test: .github/scripts/test_x.py#test_rejects]", "[marker: fault-point:wal-flush]",
                        "[test: LiteDB.Tests.Shared.Close_Tests.Close_Propagates]", "[marker: refusal:closed]"):
             with self.subTest(anchor):
                 doc = BASE_DOC + f"\nA closed database rejects new readers {anchor}.\n"
-                code, output = self.run_lint(doc, extra={MARKERS: json.dumps({"markers": [{"name": "refusal:closed"}]})})
+                code, output = self.run_lint(doc, extra={
+                    MARKERS: json.dumps({"markers": [{"name": "refusal:closed"}]}),
+                    ".github/scripts/test_x.py": "class T:\n    def test_rejects(self):\n        pass\n",
+                    ".github/safety/fault-points.json": json.dumps({"hooks": [{"name": "wal-flush"}]})})
                 self.assertEqual(code, 0, output)
 
     def test_anchor_after_the_full_stop_stays_on_its_sentence(self):
@@ -51,7 +55,8 @@ class DocClaimLintTests(unittest.TestCase):
         self.assertEqual(code, 0, output)
 
     def test_unresolved_anchors_fail(self):
-        for anchor in ("[test: Close_Tests#Missing]", f"[test: {TESTS}#Missing]", "[marker: refusal:unknown]"):
+        for anchor in ("[test: Close_Tests#Missing]", f"[test: {TESTS}#Missing]", "[marker: refusal:unknown]",
+                       "[test: .github/scripts/test_x.py#test_missing]"):
             with self.subTest(anchor):
                 doc = BASE_DOC + f"\nA closed database rejects new readers {anchor}.\n"
                 code, output = self.run_lint(doc, extra={MARKERS: json.dumps({"markers": ["refusal:closed"]})})
