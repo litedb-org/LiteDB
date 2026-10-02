@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Shared
 {
@@ -217,6 +218,9 @@ namespace LiteDB.Client.Shared
             lock (_sync)
             {
                 if (_owner == null) return;
+#if DEBUG || TESTING
+                if (!ReferenceEquals(_owner, Thread.CurrentThread)) Reachability.Sometimes("maintenance:shared-dispose-ends-foreign-ownership");
+#endif
                 _owner = null;
                 _recursion = 0;
                 _generation++;

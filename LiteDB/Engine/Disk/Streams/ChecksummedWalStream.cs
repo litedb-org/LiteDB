@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -53,7 +54,11 @@ namespace LiteDB.Engine
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (_checksum.JournalBytes != 0) throw new IOException("Cannot append WAL pages during header publication.");
+            if (_checksum.JournalBytes != 0)
+            {
+                Reachability.Sometimes("refusal:wal-append-during-header-publication");
+                throw new IOException("Cannot append WAL pages during header publication.");
+            }
             if (!_checksum.Enabled)
             {
                 _stream.Write(buffer, offset, count);

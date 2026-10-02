@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 namespace LiteDB.Engine
 {
@@ -320,6 +321,7 @@ namespace LiteDB.Engine
                     stream.Position = page.Position;
 
 #if DEBUG || TESTING
+                    Reachability.FaultPoint("SimulateDataWriteFail");
                     _state.SimulateDataWriteFail?.Invoke(page);
 #endif
 

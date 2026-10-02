@@ -1,3 +1,4 @@
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -23,12 +24,18 @@ namespace LiteDB.Engine
         {
             var coverage = header[CoveragePosition];
             if (coverage != CompleteMarker && coverage != MixedMarker)
+            {
+                Reachability.Sometimes("refusal:checksum-coverage-marker-invalid");
                 throw new PageChecksumException(FileOrigin.Data, 0);
+            }
             Mixed = coverage == MixedMarker;
             LegacyLastPageID = header.ReadUInt32(LegacyBoundaryPosition);
             if ((!Mixed && LegacyLastPageID != 0) ||
                 LegacyLastPageID > header.ReadUInt32(HeaderPage.P_LAST_PAGE_ID))
+            {
+                Reachability.Sometimes("refusal:checksum-coverage-marker-invalid");
                 throw new PageChecksumException(FileOrigin.Data, 0);
+            }
         }
 
         internal void Write(BufferSlice header)
@@ -45,7 +52,10 @@ namespace LiteDB.Engine
                 page[BasePage.P_PAGE_FORMAT] == PageChecksum.Legacy)
             {
                 if (page.ReadUInt32(BasePage.P_PAGE_ID) != position / PAGE_SIZE)
+                {
+                    Reachability.Sometimes("refusal:data-page-checksum-mismatch");
                     throw new PageChecksumException(FileOrigin.Data, position);
+                }
                 return;
             }
             PageChecksum.Validate(page, position);

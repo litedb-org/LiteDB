@@ -1,3 +1,4 @@
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -31,7 +32,10 @@ namespace LiteDB.Engine
             if (page[BasePage.P_PAGE_FORMAT] != Checksummed ||
                 page.ReadUInt32(BasePage.P_TRANSACTION_ID) != Compute(page) ||
                 page.ReadUInt32(BasePage.P_PAGE_ID) != position / PAGE_SIZE)
+            {
+                Reachability.Sometimes("refusal:data-page-checksum-mismatch");
                 throw new PageChecksumException(FileOrigin.Data, position);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ using System;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -133,6 +134,7 @@ namespace LiteDB
 
         internal static LiteException UnsupportedFileVersion(byte version)
         {
+            Reachability.Sometimes("refusal:unsupported-file-version");
             return new LiteException(UNSUPPORTED_FILE_VERSION,
                 "Database format version {0} is unsupported. This engine reads versions 8, 9, 10, 11, 12 and 13; use a compatible LiteDB engine.", version);
         }

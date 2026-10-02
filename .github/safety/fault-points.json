@@ -1701,6 +1701,7 @@
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
     "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "Observer": "Reachability observer: runs on the thread that hit a marker (for example a fault-point site) so a fuzz oracle can evaluate an invariant there; it never injects a fault.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
   },

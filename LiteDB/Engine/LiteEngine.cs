@@ -271,6 +271,7 @@ namespace LiteDB.Engine
 
             if (tc.InvalidDatafileState)
             {
+                Reachability.Sometimes("maintenance:invalid-datafile-state-close");
                 // Keep the data writer alive until the recovery marker is durable.
                 tc.Catch(() => _disk?.MarkAsInvalidState());
             }

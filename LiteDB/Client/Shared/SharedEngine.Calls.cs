@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -28,7 +29,11 @@ namespace LiteDB
         /// </summary>
         private void AdmitLocked()
         {
-            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                Reachability.Sometimes("refusal:shared-call-after-dispose");
+                throw new ObjectDisposedException(nameof(SharedEngine));
+            }
             var thread = Environment.CurrentManagedThreadId;
             _admitted.TryGetValue(thread, out var depth);
             _admitted[thread] = depth + 1;
@@ -122,6 +127,7 @@ namespace LiteDB
         private void ThrowIfCallerRetainsOwnership()
         {
             if (!SharedCallFrames.RetainedByOther(_mutexName, this)) return;
+            Reachability.Sometimes("refusal:shared-peer-waits-for-own-ownership");
             throw new InvalidOperationException(
                 "Cannot wait for shared-mode ownership of this database from inside an operation of another " +
                 "connection to it that holds the ownership on this thread, such as its input sequence or " +
@@ -131,7 +137,12 @@ namespace LiteDB
         private void ThrowIfTeardownReentry()
         {
             if (!SharedCallFrames.IsTearingDown(this)) return;
-            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                Reachability.Sometimes("refusal:shared-teardown-reentry-after-dispose");
+                throw new ObjectDisposedException(nameof(SharedEngine));
+            }
+            Reachability.Sometimes("refusal:shared-teardown-reentry");
             throw new InvalidOperationException("Cannot reenter a shared connection from inside its executing core teardown.");
         }
 
@@ -172,6 +183,7 @@ namespace LiteDB
                 {
                     _admitted.TryGetValue(thread, out var own);
                     if (_admittedCalls - own <= 0) return;
+                    Reachability.Sometimes("maintenance:shared-dispose-during-active-call");
                     var remaining = DisposeCallWait - waited.Elapsed;
                     if (remaining <= TimeSpan.Zero) return;
                     Monitor.Wait(_useLock, remaining);

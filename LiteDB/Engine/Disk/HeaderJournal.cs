@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -41,7 +42,10 @@ namespace LiteDB.Engine
             // otherwise makes the plaintext binding depend on chunk boundaries.
             var blockSize = Header[HeaderPage.P_FILE_VERSION] >= HeaderPage.MVCC_FILE_VERSION ? WalChecksum.FrameSize : PAGE_SIZE;
             if (BodyChecksum != ComputeBody(stream, Position, out _, blockSize))
+            {
+                Reachability.Sometimes("refusal:checkpoint-redo-damaged");
                 throw new PageChecksumException(FileOrigin.Log, 0);
+            }
         }
 
         internal bool IsPublished(byte[] header)
@@ -59,7 +63,11 @@ namespace LiteDB.Engine
                 _ = new HeaderPage(new PageBuffer(header, 0, 0));
             }
             // Released engines cannot append after v10 publication.
-            if (LegacyTail && published) throw new PageChecksumException(FileOrigin.Log, PAGE_SIZE);
+            if (LegacyTail && published)
+            {
+                Reachability.Sometimes("refusal:legacy-tail-after-publication");
+                throw new PageChecksumException(FileOrigin.Log, PAGE_SIZE);
+            }
             if (IntentOnly && !published)
                 for (var i = 0; i < PAGE_SIZE; i++)
                 {
@@ -101,7 +109,11 @@ namespace LiteDB.Engine
             // An older engine may also append commits after unsealed records.
             var tail = headerOnly ? ReadLegacyTail(stream, bytes) : null;
             if (tail != null) return tail;
-            if (stream.Length > footer + Size) throw new PageChecksumException(FileOrigin.Log, footer);
+            if (stream.Length > footer + Size)
+            {
+                Reachability.Sometimes("refusal:legacy-tail-unrecognized");
+                throw new PageChecksumException(FileOrigin.Log, footer);
+            }
             // Redo has not been sealed. Ignore all of it, including torn AES
             // blocks whose random plaintext could otherwise look confirmed.
             return new HeaderJournal { Header = bytes, IntentOnly = true, FooterBytes = stream.Length };
@@ -231,6 +243,7 @@ namespace LiteDB.Engine
                 {
                     stream.Write(bytes, part * PAGE_SIZE, PAGE_SIZE);
 #if DEBUG || TESTING
+                    Reachability.FaultPoint("promotion-after-journal-page-write");
                     EngineState.SimulateProcessCrash?.Invoke("promotion-after-journal-page-write");
 #endif
                 }

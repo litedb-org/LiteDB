@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -23,7 +24,10 @@ namespace LiteDB.Engine
             // A published retirement root can accompany partially checkpointed
             // data. Losing an older commit is never an ignorable recovery tail.
             if (Sequence < retirement.Sequence)
+            {
+                Reachability.Sometimes("refusal:retirement-sequence-not-reached");
                 throw new PageChecksumException(FileOrigin.Log, ConfirmedEnd);
+            }
             ConfirmedEnd = Math.Max(ConfirmedEnd, retirement.End);
         }
 
