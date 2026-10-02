@@ -41,6 +41,9 @@ namespace LiteDB
             /// <summary>The recovery report of the handle's core, once it opened.</summary>
             internal WalRecoveryReport RecoveryReport => _child._recoveryReport;
 
+            /// <summary>When the holder's native wait ended, or zero if it never ran.</summary>
+            internal long AdmittedAt => Volatile.Read(ref _child._admittedAt);
+
             internal TransactionResources Open(object policyAnchor)
             {
                 // The holder must not retain application AsyncLocals that could keep an abandoned

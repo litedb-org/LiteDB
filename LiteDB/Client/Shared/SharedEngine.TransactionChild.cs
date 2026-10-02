@@ -67,6 +67,8 @@ namespace LiteDB
             // and extends this connection's recovery report.
             child._waitRecorder = this.Waits;
             child._recoveryReport = _recoveryReport;
+            // A reused child must not report the previous handle's native admission time.
+            System.Threading.Volatile.Write(ref child._admittedAt, 0);
             return child;
         }
 
