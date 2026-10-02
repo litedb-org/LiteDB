@@ -9,9 +9,9 @@ import differential_run as diff
 from safety_fixtures import GitRepo, run_quietly
 
 
-def record(op, outcome="ok", exception=None, code=None, elapsed=1.0, dimension="mode=shared"):
+def record(op, outcome="ok", exception=None, code=None, elapsed=1.0, dimension="mode=shared", **extra):
     return {"target": "chaos", "step": 1, "op": op, "dimension": dimension, "outcome": outcome,
-            "exceptionType": exception, "errorCode": code, "elapsedMs": elapsed}
+            "exceptionType": exception, "errorCode": code, "elapsedMs": elapsed, **extra}
 
 
 class Runs:
@@ -20,17 +20,18 @@ class Runs:
     def __init__(self):
         self.root = Path(tempfile.mkdtemp(prefix="differential-test-"))
 
-    def add(self, side, outcomes, closed=(), markers=None, target="chaos", seed=1, name=None):
+    def add(self, side, outcomes, closed=(), markers=None, target="chaos", seed=1, name=None,
+            obligations="connection-clean.jsonl"):
         directory = self.root / side / (name or f"{target}-s{seed}") / f"20260101-{target}-s{seed}-w0-rabc"
         directory.mkdir(parents=True)
         (directory / "run.json").write_text(json.dumps({"target": target, "seed": seed, "count": 3}))
         (directory / "outcomes.jsonl").write_text("".join(json.dumps(item) + "\n" for item in outcomes))
-        (directory / "closed-clean.jsonl").write_text("".join(json.dumps(item) + "\n" for item in closed))
+        (directory / obligations).write_text("".join(json.dumps(item) + "\n" for item in closed))
         (directory / "markers.json").write_text(json.dumps({"target": target, "seed": seed, "hits": markers or {}}))
 
     def compare(self, manifest=None, extra=()):
         argv = ["--base-runs", str(self.root / "base"), "--head-runs", str(self.root / "head"),
-                "--out", str(self.root / "out"), *extra]
+                "--out", str(self.root / "out"), *(extra or ["--blocking"])]
         if manifest is not None:
             path = self.root / "manifest.json"
             path.write_text(json.dumps({"changes": manifest}))
@@ -46,6 +47,11 @@ class Runs:
 BASE = [record("Dispose"), record("Insert"), record("Insert", "threw", "LiteDB.LiteException", 132)]
 INTENDED = {"call": "Dispose", "dimension": "mode=shared", "change": "new-exception", "before": "none",
             "after": "System.IO.IOException", "doc": "docs/x.md#propagate", "reason": "Close errors propagate now."}
+CLEAN = {"op": "Dispose", "clean": True, "violations": [], "threads": 1, "openFds": 0}
+
+
+def failing(report):
+    return {(item["kind"], item["op"]) for item in report["differences"] if not item.get("intended")}
 
 
 class DifferentialRunTests(unittest.TestCase):
@@ -53,14 +59,14 @@ class DifferentialRunTests(unittest.TestCase):
         self.runs = Runs()
         self.addCleanup(self.runs.cleanup)
 
-    def test_identical_runs_pass(self):
-        closed = [{"op": "Dispose", "threads": 1, "openFds": 0, "mutexFree": True}]
-        self.runs.add("base", BASE, closed, {"maintenance:close": 2})
-        self.runs.add("head", BASE, closed, {"maintenance:close": 5})
+    def test_identical_normalized_outcomes_pass_despite_timing_and_metric_noise(self):
+        self.runs.add("base", BASE, [CLEAN], {"maintenance:close": 2})
+        head = [dict(item, elapsedMs=item["elapsedMs"] * 50, step=9) for item in reversed(BASE)]
+        self.runs.add("head", head, [dict(CLEAN, threads=4, openFds=3)], {"maintenance:close": 5})
         code, output, report = self.runs.compare()
         self.assertEqual(code, 0, output)
         self.assertEqual(report["status"], "passed")
-        self.assertIn("No behavior difference", output)
+        self.assertIn("No normalized behavior difference", output)
 
     def test_new_escaped_exception_fails_unless_the_manifest_covers_it(self):
         self.runs.add("base", BASE)
@@ -94,46 +100,112 @@ class DifferentialRunTests(unittest.TestCase):
                                                                                    "LiteDB.LiteException", 200)])
         code, output, report = self.runs.compare()
         self.assertEqual(code, 1, output)
-        kinds = {(item["kind"], item["op"]) for item in report["differences"] if item["severity"] == "fail"}
-        self.assertEqual(kinds, {("outcome-change", "Dispose"), ("new-exception", "Insert"),
-                                 ("exception-removed", "Insert"), ("outcome-change", "Checkpoint")})
+        self.assertEqual(failing(report), {("outcome-change", "Dispose"), ("new-exception", "Insert"),
+                                           ("exception-removed", "Insert"), ("outcome-change", "Checkpoint")})
         self.assertIn("LiteDB.LiteException#132", output)
 
-    def test_latency_is_advisory_unless_beyond_the_hard_factor(self):
-        cases = {(1.0, 2.5): None, (4.0, 8.0): None, (10.0, 17.0): "advisory", (2.0, 9.0): "fail"}
-        for (before, after), expected in cases.items():
-            with self.subTest(before=before, after=after):
+    def test_latency_is_not_compared(self):
+        self.runs.add("base", [record("Insert", elapsed=1.0) for _ in range(30)])
+        self.runs.add("head", [record("Insert", elapsed=500.0) for _ in range(30)])
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 0, output)
+        self.assertEqual(report["differences"], [])
+
+    def test_unpermitted_outcome_fails_and_is_not_coverable(self):
+        self.runs.add("base", [record("Read", permitted=["ok", "refused"])])
+        self.runs.add("head", [record("Read", permitted=["ok", "refused"]),
+                               record("Read", "threw", "System.ObjectDisposedException", permitted=["ok", "refused"])])
+        manifest = [{**INTENDED, "call": "Read", "after": "System.ObjectDisposedException"}]
+        code, output, report = self.runs.compare(manifest=manifest)
+        self.assertEqual(code, 1, output)
+        self.assertIn(("outcome-not-permitted", "Read"), failing(report))
+        self.assertIn("**not coverable**", output)
+
+    def test_primary_failure_replaced_by_cleanup_failure_fails(self):
+        preserved = record("Commit", "threw", "System.IO.IOException", primaryExceptionType="System.IO.IOException")
+        replaced = record("Commit", "threw", "LiteDB.LiteException", 9, primaryExceptionType="System.IO.IOException")
+        self.runs.add("base", [preserved, replaced])
+        self.runs.add("head", [preserved, replaced])
+        self.assertEqual(self.runs.compare()[0], 0)
+        runs = Runs()
+        self.addCleanup(runs.cleanup)
+        runs.add("base", [preserved])
+        runs.add("head", [replaced])
+        code, output, report = runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertIn(("primary-changed", "Commit"), failing(report))
+        self.assertIn("System.IO.IOException -> LiteDB.LiteException#9", output)
+
+    def test_payload_and_effect_digests_are_compared_as_multisets(self):
+        base = [record("Find", payloadDigest="a"), record("Find", payloadDigest="b"),
+                record("Insert", effectsDigest="x")]
+        self.runs.add("base", base)
+        self.runs.add("head", [record("Find", payloadDigest="b"), record("Find", payloadDigest="a"),
+                               record("Insert", effectsDigest="y")])
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertEqual(failing(report), {("effect-change", "Insert")})
+
+    def test_absent_optional_fields_are_reported_not_compared(self):
+        self.runs.add("base", [record("Find", payloadDigest="a")])
+        self.runs.add("head", [record("Find")])
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 0, output)
+        self.assertIn("Find [mode=shared]: payloads recorded for 1/1 base and 0/1 head calls", output)
+        self.assertEqual(report["notCompared"]["absent"], {"effects": 1, "primary": 1})
+        self.assertIn("effects for 1 operation class(es)", output)
+
+    def test_cleanup_obligations_compare_clean_results_and_violation_kinds(self):
+        for name in ("connection-clean.jsonl", "quiescent.jsonl", "closed-clean.jsonl"):
+            with self.subTest(name):
                 runs = Runs()
                 try:
-                    runs.add("base", [record("Insert", elapsed=before) for _ in range(30)])
-                    runs.add("head", [record("Insert", elapsed=after) for _ in range(30)])
+                    runs.add("base", BASE, [CLEAN], obligations=name)
+                    runs.add("head", BASE, [dict(CLEAN, clean=False, violations=["handles: -log open"]),
+                                            dict(CLEAN, violations=[{"kind": "threads"}])], obligations=name)
                     code, output, report = runs.compare()
                 finally:
                     runs.cleanup()
-                severities = {item["severity"] for item in report["differences"] if item["kind"] == "latency"}
-                self.assertEqual(severities, {expected} if expected else set(), output)
-                self.assertEqual(code, 1 if expected == "fail" else 0, output)
+                self.assertEqual(code, 1, output)
+                details = [item["detail"] for item in report["differences"]]
+                self.assertEqual(len(details), 3, details)
+                self.assertTrue(any("new violation 'handles'" in item for item in details), details)
 
-    def test_latency_needs_enough_samples(self):
-        self.runs.add("base", [record("Insert", elapsed=1.0) for _ in range(5)])
-        self.runs.add("head", [record("Insert", elapsed=100.0) for _ in range(5)])
-        code, output, _ = self.runs.compare()
-        self.assertEqual(code, 0, output)
-
-    def test_closed_clean_regressions_fail(self):
-        self.runs.add("base", BASE, [{"op": "Dispose", "openFds": 0, "mutexFree": True, "threads": 2}])
-        self.runs.add("head", BASE, [{"op": "Dispose", "openFds": 2, "mutexFree": False, "threads": 2}])
-        code, output, report = self.runs.compare()
-        self.assertEqual(code, 1, output)
-        self.assertEqual({item["op"] for item in report["differences"]}, {"openFds", "mutexFree"})
-
-    def test_lost_marker_fails_and_new_marker_is_advisory(self):
+    def test_head_only_operations_and_markers_are_capabilities(self):
         self.runs.add("base", BASE, markers={"maintenance:close-during-active-op": 3, "api:A": 0})
-        self.runs.add("head", BASE, markers={"api:A": 1})
+        self.runs.add("head", BASE + [record("BeginTransaction")], markers={"api:A": 1})
         code, output, report = self.runs.compare()
         self.assertEqual(code, 1, output)
-        severities = {item["op"]: item["severity"] for item in report["differences"]}
-        self.assertEqual(severities, {"maintenance:close-during-active-op": "fail", "api:A": "advisory"})
+        self.assertEqual(failing(report), {("marker", "maintenance:close-during-active-op")})
+        self.assertEqual(report["capabilities"], {"operations": ["BeginTransaction [mode=shared]"],
+                                                  "markers": ["api:A"]})
+        self.assertIn("`BeginTransaction [mode=shared]`", output)
+
+    def test_advisory_mode_reports_and_exits_zero(self):
+        self.runs.add("base", BASE)
+        self.runs.add("head", BASE + [record("Dispose", "threw", "System.IO.IOException")])
+        code, output, report = self.runs.compare(extra=["--advisory"])
+        self.assertEqual(code, 0, output)
+        self.assertEqual(report["status"], "advisory")
+        self.assertIn("would fail the run", output)
+        self.assertIn("2 unexplained difference(s) (advisory)", output)
+
+    def test_operations_varying_between_repeats_of_one_tree_are_schedule_dependent(self):
+        racing = [record("Upsert"), record("Upsert", "threw", "LiteDB.LiteException", 137)]
+        self.runs.add("base", racing, name="r0")
+        self.runs.add("base", [record("Upsert")], name="r1")
+        self.runs.add("head", [record("Upsert")], name="r0")
+        self.runs.add("head", [record("Upsert")], name="r1")
+        argv = ["--base-runs", str(self.runs.root / "base" / "r0"), str(self.runs.root / "base" / "r1"),
+                "--head-runs", str(self.runs.root / "head" / "r0"), str(self.runs.root / "head" / "r1"),
+                "--out", str(self.runs.root / "out"), "--blocking"]
+        code, output = run_quietly(diff.main, argv)
+        self.assertEqual(code, 0, output)
+        self.assertIn("schedule-dependent (varies between repeats", output)
+        self.assertIn("`Upsert [mode=shared]`", output)
+        argv[argv.index(str(self.runs.root / "base" / "r1"))] = str(self.runs.root / "base" / "r0")
+        code, output = run_quietly(diff.main, argv)
+        self.assertEqual(code, 1, output)
 
     def test_runs_without_outcome_records_fail(self):
         self.runs.add("base", BASE)

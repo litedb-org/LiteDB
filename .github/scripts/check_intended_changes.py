@@ -12,8 +12,9 @@ inherited from the base describe earlier PRs and are ignored.
      "reason": "Close errors were swallowed; callers could not see a lost checkpoint."}
 
 `call` is the operation class as recorded in outcomes.jsonl (a marker name for
-`marker`, a ClosedClean metric for `closed-clean`); `dimension` is optional and may
-use `*` wildcards. `doc` is `docs/<file>.md#<fragment>`: the fragment is either text
+`marker`; for `cleanup-change` the op of the ConnectionClean/Quiescent/ScratchLive
+evaluation); `dimension` is optional and may use `*` wildcards. Latency is not a
+contract change: performance is separate evidence. `doc` is `docs/<file>.md#<fragment>`: the fragment is either text
 quoted from the promising sentence, or a heading anchor whose section has a sentence
 naming the call. This check validates shape and doc references; whether the change
 happened is the differential run's verdict.
@@ -26,7 +27,8 @@ import sys
 import safety_common as common
 
 MANIFEST = f"{common.SAFETY_DIR}/intended-changes.json"
-CHANGES = {"new-exception", "exception-removed", "outcome-change", "latency", "closed-clean", "marker"}
+CHANGES = {"new-exception", "exception-removed", "primary-changed", "outcome-change", "payload-change",
+           "effect-change", "cleanup-change", "marker"}
 
 
 def entries(tree, report=None):

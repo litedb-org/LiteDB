@@ -35,13 +35,13 @@ class IntendedChangesTests(unittest.TestCase):
         self.assertIn("0 intended change(s)", output)
 
     def test_valid_entries_by_quote_or_heading_anchor_pass(self):
-        code, output = self.run_check(manifest(entry(), entry(change="latency", doc=f"{DOC}#disposal-errors")))
+        code, output = self.run_check(manifest(entry(), entry(change="primary-changed", doc=f"{DOC}#disposal-errors")))
         self.assertEqual(code, 0, output)
         self.assertIn("2 intended change(s)", output)
 
     def test_invalid_entries_fail_with_their_reason(self):
         cases = {
-            "change must be one of": entry(change="faster"),
+            "change must be one of": entry(change="latency"),
             "'after' is required": entry(after=None),
             "explain the reason": entry(reason="because"),
             "does not resolve": entry(doc=f"{DOC}#this text is nowhere"),
