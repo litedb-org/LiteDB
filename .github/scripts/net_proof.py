@@ -19,6 +19,14 @@ result JSON. `validate` checks the ledger offline (and provenance with
 --provenance); CI runs it in the Safety policy job. `capabilities` lists what a
 revision has.
 
+Recorded evidence: an entry with `net.recorded` and no `command` holds the result of
+a run made outside this runner (for example on a replay of a fork's history with the
+nets overlaid on every commit). `results.recorded` is then true and names its
+`source` and `verifier`; `run` reports such an entry as not-attempted without
+checking anything out, so CI never re-runs it and never counts it as passing. The
+optional `defects` table numbers the ledger rows (known-bad, fix, kind) and the
+optional `recordedOverlays` table describes the trees recorded entries ran on.
+
 Subcommands: validate, run, capabilities. See docs/rules/safety-evidence.md#net-proofs.
 """
 import argparse
@@ -45,7 +53,11 @@ SIDES = ("knownBad", "fix")
 STATES = ("proven", "not-fired", "fired-at-fix", "fired-differently", "not-reproduced",
           "not-applicable", "harness-error", "not-attempted")
 FAILING = ("not-fired", "fired-at-fix", "fired-differently", "not-reproduced", "not-applicable", "harness-error")
-LEVELS = ("generic", "reproduction", "harness-smoke")
+# generic: a net not written for the defect fired as designed; reproduction: the fix's own test or repro
+# turned into an attributable yell; model: an abstract model of the code (not the library) fired;
+# tuned-after-fix: the net, its scenario or its rule was changed after reading the fix (or its subject).
+LEVELS = ("generic", "reproduction", "model", "tuned-after-fix", "harness-smoke")
+DEFECT_KINDS = ("plan", "upstream", "later-fix", "merge")
 CLASSES = (1, 2, 3)
 DEFAULT_RUNS = {1: 1, 2: 3, 3: 5}
 MIN_RUNS = {1: 1, 2: 2, 3: 3}
@@ -58,7 +70,8 @@ PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 # --- ledger ------------------------------------------------------------------
 
-def load(tree, report):
+def load(tree, report, tables=None):
+    """(capabilities, proofs); `tables`, when given, receives the optional defects and recordedOverlays."""
     try:
         data = tree.read_json(LEDGER, {}) or {}
     except common.MalformedJson as error:
@@ -67,7 +80,34 @@ def load(tree, report):
     if data and data.get("schemaVersion") != 1:
         report.error(f"{LEDGER}: schemaVersion must be 1", LEDGER)
     capabilities = common.section(data, "capabilities", dict, report, LEDGER)
+    if tables is not None:
+        for name in ("defects", "recordedOverlays"):  # optional: absent means "not checked"
+            tables[name] = common.section(data, name, dict, report, LEDGER) if name in data else None
     return capabilities, common.section(data, "proofs", list, report, LEDGER)
+
+
+def validate_tables(tree, tables, capabilities, report):
+    """The defects table (ledger rows) and the descriptions of trees that recorded entries ran on."""
+    for row, defect in (tables.get("defects") or {}).items():
+        label = f"Defect row {row}"
+        if not str(row).isdigit() or int(row) < 1 or not isinstance(defect, dict):
+            report.error(f"{label}: rows are positive integers mapped to an object", LEDGER)
+            continue
+        if not str(defect.get("defect", "")).strip() or defect.get("kind") not in DEFECT_KINDS:
+            report.error(f"{label}: needs a defect description and a kind ({', '.join(DEFECT_KINDS)})", LEDGER)
+        provenance.check_shape(defect.get("knownBad"), label, report, LEDGER, kinds=provenance.COMMIT_KINDS)
+        commits = [(defect.get("fix") or {}).get("commit")] + list(defect.get("alsoKnownBad") or [])
+        if not all(provenance.SHA.match(str(commit)) for commit in commits):
+            report.error(f"{label}: fix.commit and alsoKnownBad are full 40-character commit ids", LEDGER)
+    for name, overlay in (tables.get("recordedOverlays") or {}).items():
+        label = f"Recorded overlay {name}"
+        if not ID.match(name) or not isinstance(overlay, dict) or not str(overlay.get("description", "")).strip():
+            report.error(f"{label}: needs a kebab-case name and a description", LEDGER)
+            continue
+        if "commit" in overlay and not provenance.SHA.match(str(overlay["commit"])):
+            report.error(f"{label}: commit must be a full 40-character commit id", LEDGER)
+        for adapter in _list(overlay, "adapters", label, report):
+            _validate_adapter(tree, str(adapter), capabilities, label, report)
 
 
 def validate_capabilities(capabilities, report):
@@ -87,8 +127,8 @@ def validate_capabilities(capabilities, report):
                 report.error(f"{label}: grep is not a valid regular expression: {error}", LEDGER)
 
 
-def validate_entry(tree, entry, capabilities, report):
-    """Offline checks of one net proof."""
+def validate_entry(tree, entry, capabilities, report, tables=None):
+    """Offline checks of one net proof (and, with `tables`, its row and recorded overlay)."""
     label = f"Net proof {entry.get('id') or '<missing id>'}"
     if not ID.match(str(entry.get("id", ""))):
         report.error(f"{label}: id must be kebab-case", LEDGER)
@@ -103,9 +143,16 @@ def validate_entry(tree, entry, capabilities, report):
                      LEDGER)
     if not str(entry.get("defect", "")).strip():
         report.error(f"{label}: describe the defect", LEDGER)
-    if not INDEPENDENCE.match(str(entry.get("independence", ""))):
+    independence = str(entry.get("independence", ""))
+    if not INDEPENDENCE.match(independence):
         report.error(f"{label}: independence must be designed-from-invariant, harness-smoke or "
                      "'tuned-after-fix: <what was tuned after reading the fix>'", LEDGER)
+    elif level in ("generic", "model") and not independence.startswith("designed-from-invariant"):
+        report.error(f"{label}: a {level} entry is designed from the invariant; a net changed after reading "
+                     "the fix is level tuned-after-fix", LEDGER)
+    elif level == "tuned-after-fix" and not independence.startswith("tuned-after-fix"):
+        report.error(f"{label}: level tuned-after-fix says what was tuned: independence 'tuned-after-fix: ...'",
+                     LEDGER)
     provenance.check_shape(entry.get("knownBad"), label, report, LEDGER, kinds=provenance.COMMIT_KINDS)
     fix = entry.get("fix") if isinstance(entry.get("fix"), dict) else {}
     if not provenance.SHA.match(str(fix.get("commit", ""))):
@@ -116,6 +163,59 @@ def validate_entry(tree, entry, capabilities, report):
         return
     _validate_net(tree, net, capabilities, label, report)
     _validate_results(entry.get("results"), label, report)
+    if tables is not None:
+        _validate_row(entry, tables.get("defects"), label, report)
+    _validate_recorded(tree, entry, (tables or {}).get("recordedOverlays"), capabilities, label, report)
+
+
+def _validate_row(entry, defects, label, report):
+    """Each row is in the defects table, and the entry's commits are that row's known-bad and fix."""
+    if defects is None:
+        return
+    for row in entry.get("rows") or []:
+        defect = defects.get(str(row))
+        if not isinstance(defect, dict):
+            report.error(f"{label}: row {row} is not in the defects table", LEDGER)
+            continue
+        bad = str((entry.get("knownBad") or {}).get("commit"))
+        allowed = [str((defect.get("knownBad") or {}).get("commit"))]
+        allowed += [str(commit) for commit in defect.get("alsoKnownBad") or []]
+        fix = str((entry.get("fix") or {}).get("commit"))
+        if bad not in allowed or fix != str((defect.get("fix") or {}).get("commit")):
+            report.error(f"{label}: knownBad/fix differ from row {row} of the defects table", LEDGER)
+
+
+def _validate_recorded(tree, entry, overlays, capabilities, label, report):
+    """A recorded entry names the tree it ran on and carries a recorded result."""
+    net = entry.get("net") if isinstance(entry.get("net"), dict) else {}
+    recorded = net.get("recorded")
+    results = entry.get("results") if isinstance(entry.get("results"), dict) else {}
+    if recorded is None:
+        if results.get("recorded"):
+            report.error(f"{label}: a recorded result needs net.recorded (the tree it ran on)", LEDGER)
+        return
+    if not isinstance(recorded, dict) or not str(recorded.get("command", "")).strip():
+        report.error(f"{label}: net.recorded is an object with the command that was run", LEDGER)
+        return
+    if overlays is not None and recorded.get("overlay") not in overlays:
+        report.error(f"{label}: net.recorded.overlay names an entry of recordedOverlays", LEDGER)
+    for side in ("knownBadTree", "fixTree"):
+        if recorded.get(side) is not None and not provenance.SHA.match(str(recorded[side])):
+            report.error(f"{label}: net.recorded.{side} must be a full 40-character commit id", LEDGER)
+    for adapter in _list(recorded, "adapters", label, report):
+        _validate_adapter(tree, str(adapter), capabilities, label, report)
+    if net.get("command") is None:
+        if not results.get("recorded") or not str(results.get("source", "")).strip() \
+                or not str(results.get("verifier", "")).strip():
+            report.error(f"{label}: a recorded entry has results with recorded: true, its source and verifier",
+                         LEDGER)
+            return
+        if results.get("state") in ("not-applicable", "not-attempted", None):
+            report.error(f"{label}: a recorded entry records what the net did, not {results.get('state')}", LEDGER)
+        for side in SIDES:
+            fired = (results.get(side) or {}).get("fired")
+            if not isinstance(fired, bool) and not (side == "fix" and fired is None):
+                report.error(f"{label}: results.{side}.fired is true or false (fix: null when not run)", LEDGER)
 
 
 def _validate_net(tree, net, capabilities, label, report):
@@ -232,11 +332,15 @@ def _validate_results(results, label, report):
         report.error(f"{label}: results.passed contradicts state {state}; only proven passes", LEDGER)
     if state == "not-applicable" and not results.get("missing"):
         report.error(f"{label}: a not-applicable result lists the missing capabilities", LEDGER)
+    bad, fix = results.get("knownBad") or {}, results.get("fix") or {}
     if state == "proven":
-        bad, fix = results.get("knownBad") or {}, results.get("fix") or {}
         if not bad.get("fired") or fix.get("fired") or results.get("missing"):
             report.error(f"{label}: a proven result fired at known-bad, stayed quiet at fix and missed no capability",
                          LEDGER)
+    elif state == "not-fired" and bad.get("fired"):
+        report.error(f"{label}: a not-fired result did not fire at known-bad", LEDGER)
+    elif state == "fired-differently" and bad.get("fired") is False:
+        report.error(f"{label}: a fired-differently result fired at known-bad", LEDGER)
 
 
 def check_provenance(entry, report, dev_ref, offline=False):
@@ -313,6 +417,10 @@ def probe_revision(capabilities, rev):
 
 class HarnessError(Exception):
     """The runner could not observe the net (checkout, overlay, build, timeout): never a firing."""
+
+
+class _Recorded(Exception):
+    """A recorded-only entry: nothing is checked out or run, and it is never counted as passing."""
 
 
 def _git(args, cwd):
@@ -402,6 +510,11 @@ class Run:
     def execute(self):
         started = time.monotonic()
         try:
+            if self.net.get("recorded") is not None and self.net.get("command") is None:
+                recorded = self.net["recorded"]
+                state = (self.entry.get("results") or {}).get("state")
+                raise _Recorded(f"recorded evidence on {recorded.get('overlay') or 'a recorded tree'} "
+                                f"(recorded state: {state}); this runner does not rebuild that tree")
             self._prepare()
             missing = {side: self.result[side]["missing"] for side in SIDES if self.result[side]["missing"]}
             if missing:
@@ -413,6 +526,8 @@ class Run:
             else:
                 self._build()
                 self._run_net()
+        except _Recorded as recorded:
+            self._finish("not-attempted", str(recorded))
         except HarnessError as error:
             self._finish("harness-error", str(error))
         except Exception as error:  # a runner defect is a harness error with its type, never a net result
@@ -573,7 +688,8 @@ def main(argv=None):
     run = commands.add_parser("run", help="Run net proofs and write result JSON")
     chosen = run.add_mutually_exclusive_group(required=True)
     chosen.add_argument("--id", help="The proof to run")
-    chosen.add_argument("--all", action="store_true", help="Every proof (skeletons report not-attempted)")
+    chosen.add_argument("--all", action="store_true",
+                        help="Every proof (skeletons and recorded-only entries report not-attempted)")
     run.add_argument("--work-dir", default=str(Path(tempfile.gettempdir()) / "litedb-net-proofs"),
                      help="Worktrees and artifacts go below this directory")
     run.add_argument("--keep", action="store_true", help="Keep the worktrees after the run")
@@ -587,17 +703,19 @@ def main(argv=None):
 
     report = common.Report("Net proof")
     head = common.Tree(args.head)
-    capabilities, entries = load(head, report)
+    tables = {}
+    capabilities, entries = load(head, report, tables)
     if args.command == "capabilities":
         commit = common.git("rev-parse", "--verify", f"{args.rev}^{{commit}}").strip()
         print(json.dumps({"rev": commit, "capabilities": probe_revision(capabilities, commit)}, indent=2))
         return report.finish() if report.errors else 0
     validate_capabilities(capabilities, report)
+    validate_tables(head, tables, capabilities, report)
     ids = [entry.get("id") for entry in entries]
     for duplicate in sorted({value for value in ids if ids.count(value) > 1}, key=str):
         report.error(f"{duplicate} has more than one net proof", LEDGER)
     for entry in entries:
-        validate_entry(head, entry, capabilities, report)
+        validate_entry(head, entry, capabilities, report, tables)
     if args.command == "validate":
         for entry in entries if args.provenance else []:
             check_provenance(entry, report, args.dev_ref)

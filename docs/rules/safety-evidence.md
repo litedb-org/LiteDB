@@ -468,6 +468,10 @@ packages cannot be overlaid). `level` says whether a net not written for the bug
 fired (`generic`) or a bug-specific test was turned into an attributable yell
 (`reproduction`); never present one as the other. `independence` records
 `tuned-after-fix: <why>` when the net was changed after reading the fix.
+Two more levels keep weaker evidence apart: `model` (an abstract model of the code
+fired, not the library) and `tuned-after-fix` (the net, scenario or rule was changed
+after reading the fix or its subject; such an entry says what in `independence`). A
+`generic` or `model` entry is designed from the invariant; `validate` checks both.
 
 `net_proof.py run --id <id>` checks out both commits as worktrees, applies the
 net's overlay (cherry-picked commits, patches, and adapter directories from
@@ -476,6 +480,20 @@ against the historical trees), builds, and runs the command under a hard
 wall-clock limit. Its result is `proven` or one of `not-fired`, `fired-at-fix`,
 `fired-differently`, `not-reproduced`, `harness-error`, `not-applicable`; only
 `proven` passes.
+
+**Recorded evidence.** A proof run outside `net_proof.py` (for example on a replay of a
+fork's history with the nets on every commit) is an entry with `net.recorded` and no
+`command`: the tree it ran on (`overlay`, a key of the ledger's `recordedOverlays`; the
+replay commits as `knownBadTree`/`fixTree`), the command that ran, and `results` with
+`recorded: true`, its `source` record and `verifier`. `results.knownBad.fired` and
+`results.fix.fired` say whether the net yelled for *this* defect; unattributed yells go
+to `otherFindings`. `run` reports such an entry as `not-attempted` without a checkout,
+so CI does not re-run it and does not count it. The optional `defects` table numbers the
+ledger rows (known-bad, fix, kind; `alsoKnownBad` for a defect-introducing commit that a
+diff net judges), and `validate` checks every entry's commits against its row.
+`render_net_proofs.py` renders the ledger into the
+[proven obligations](implement-safely.md#proven-obligations) and the tables of the
+[retrospective](../safety-net-retrospective.md); CI checks both are current.
 
 **Capabilities.** The ledger's capability table declares a probe (a file, or a
 regular expression over files) per capability, such as `handle-api`, which only
