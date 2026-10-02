@@ -26,10 +26,13 @@ namespace LiteDB
             Refused = refused;
         }
 
-        /// <summary>Completed acquisitions that could block, including immediate ones and timeouts.</summary>
+        /// <summary>
+        /// Completed waits for ownership: acquisitions (including immediate ones, and ones whose
+        /// call failed otherwise) and timeouts. Refused waits are not included; see <see cref="Refused"/>.
+        /// </summary>
         public long Count { get; }
 
-        /// <summary>Summed duration of all completed waits.</summary>
+        /// <summary>Summed duration of the waits in <see cref="Count"/>.</summary>
         public TimeSpan TotalWait { get; }
 
         /// <summary>Longest completed wait.</summary>
@@ -44,7 +47,10 @@ namespace LiteDB
         /// <summary>Waits that ran out of <c>SharedWriterTimeout</c>.</summary>
         public long TimedOut { get; }
 
-        /// <summary>Waits refused (SharedSelfWaitGrace) because their own flow held the idle owning handle.</summary>
+        /// <summary>
+        /// Waits refused (SharedSelfWaitGrace) because their own flow held the idle owning handle,
+        /// at once or after a grace. They add nothing to <see cref="Count"/>, <see cref="TotalWait"/> or <see cref="MaxWait"/>.
+        /// </summary>
         public long Refused { get; }
     }
 
@@ -79,7 +85,10 @@ namespace LiteDB
         /// <summary>For a <see cref="SharedWriterOwner.TransactionHandle"/> owner: time since its last operation.</summary>
         public TimeSpan OwnerIdle { get; }
 
-        /// <summary>The period <see cref="Recent"/> covers, in whole minutes.</summary>
+        /// <summary>
+        /// The period <see cref="Recent"/> covers: the current partial minute plus the requested window
+        /// rounded up to whole minutes (at most one hour), so at least the window and at most one minute more.
+        /// </summary>
         public TimeSpan Window { get; }
 
         /// <summary>Waits completed within <see cref="Window"/>.</summary>

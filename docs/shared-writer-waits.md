@@ -29,6 +29,23 @@ wait as usual. Code that never ran in the handle's flow is not detected; use
 `SharedWriterTimeout`. The check costs nothing while no Shared handle for the database is
 open in the process.
 
+What the marker can get wrong:
+- **False positives with grace `0`:** anything that inherits the flow is refused, even
+  when another flow is about to complete the handle. That includes child tasks, timers,
+  `Parallel.*`, long-lived tasks started while the flow was marked, and dedicated threads
+  that once ran a handle operation. A marker set at the top level of a flow never unwinds.
+- **False positives with a positive grace:** a call is refused once the handle has stayed
+  idle longer than the grace, for example while the code that will complete it awaits
+  slow I/O.
+- **Missed refusals (safe):** flows that don't inherit the marker are never refused; they
+  wait as usual. Examples are `ExecutionContext.SuppressFlow`, `UnsafeQueueUserWorkItem`,
+  and a handle begun inside a helper `async` method, whose marker does not flow back to
+  its caller.
+- **Fairness:** each grace slice gives up its turnstile place and the local writer turn,
+  then queues again. While a grace is configured, other processes and connections can
+  get ahead of a waiting call. This is polling with some coordination churn, and only
+  affects the opt-in mode.
+
 ## Bounding the wait: `SharedWriterTimeout`
 
 ```csharp
@@ -40,8 +57,19 @@ The default is infinite, which keeps the previous behavior. A finite timeout is 
 budget for the whole wait: the connection's local queue, a pin's holder, the
 cross-process turnstile and the native mutex, and for `BeginTransaction()` also the
 local handle queue. When it runs out the call throws `LiteException` with error code
-`LOCK_TIMEOUT` (120) before any side effect. The message says whether this process's
-transaction handle owns the mutex, and for how long it has held it and been idle. A
+`LOCK_TIMEOUT` (120) before any side effect. The message names what the wait was behind:
+
+- "another thread of this connection", when it queued behind one (that thread may itself
+  wait for another owner);
+- a transaction handle of this process, with how long it has held the mutex and been idle;
+- "this process's transaction handle (admitting)", when a handle of this process holds
+  the local handle queue but is not registered as the owner yet (it may itself still wait
+  for another connection or process);
+- otherwise "another connection or process".
+
+The budget is spent only on waiting for another owner: this connection's own release of
+its previous call, still completing on its holder thread, is waited for first and not
+charged, so a zero budget ("try once") does not fail on an uncontended connection. A
 timed-out wait leaves no turnstile, mutex or queue ownership behind. The turnstile
 and mutex waits block with the remaining budget; they do not poll.
 
@@ -59,11 +87,26 @@ var d = db.GetSharedWaitDiagnostics();          // null unless Shared; last 5 mi
 var lastHour = db.GetSharedWaitDiagnostics(TimeSpan.FromHours(1));
 ```
 
+`GetSharedWaitDiagnostics` exists on `LiteDatabase` and `SharedEngine` (`GetWaitDiagnostics`),
+not on `ILiteDatabase`: adding an interface member would break existing implementations.
+
 `SharedEngine.GetWaitDiagnostics(...)` returns the same snapshot for a caller-owned
 engine. Statistics are per connection, kept in per-minute buckets for up to one hour.
-`Count` includes acquisitions that did not have to wait. `Owner` is what this process
+`Recent` covers the current partial minute plus the requested window rounded up to whole
+minutes (at most 60): at least the window, at most one minute more. `Window` reports the
+span actually covered, so a wait from a few seconds ago is never dropped just after a
+minute boundary.
+Every non-recursive acquisition is recorded, also one that did not have to wait. `Count`
+holds the waits that ended by acquiring ownership (including immediately, or by a failure
+that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWait` and the
+over-500 ms/1 s counts cover the same waits. A refused wait (`SharedSelfWaitGrace`), at once
+or after a grace, counts only in `Refused` and adds no wait time. A wait ends when ownership
+is acquired: opening the engine or recovering it afterward is not part of it, on any path
+(including a pin of a thread streaming a leased reader). `Owner` is what this process
 knows: a handle of this process, or `Unknown` (free, another connection, or another
-process). A handle's begin records its own native acquisition on its connection.
+process). One `BeginTransaction()` is one wait on its connection, covering both its local
+handle queue and its native admission; it ends when native admission ends, so opening the
+handle's storage is not counted.
 
 To be notified of slow waits:
 
@@ -74,8 +117,11 @@ settings.SharedSlowWait = info => logger.LogWarning(
     info.Filename, info.Elapsed, info.TimedOut, info.Owner);
 ```
 
-The observer runs on the thread pool once each wait that reached the threshold ends
-(acquired or timed out). It never runs on the waiting thread or under internal locks,
+The threshold must be positive (up to `Int32.MaxValue` ms) or `Timeout.InfiniteTimeSpan`,
+the default (never report); zero or a negative value throws `ArgumentOutOfRangeException`,
+since every acquisition, immediate ones included, would be reported. The observer runs on
+the thread pool once each wait that reached the threshold ends (acquired or timed out; a
+refused wait is not reported). It never runs on the waiting thread or under internal locks,
 and its exceptions are ignored. A wait that never ends shows up in
 `CurrentWaiters`/`LongestCurrentWait`, and through the observer once a timeout ends it.
 `Owner` in a report is the owner known when that wait began.

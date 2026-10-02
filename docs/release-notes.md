@@ -23,7 +23,8 @@ Shared connections can bound waits for writer ownership with `SharedWriterTimeou
 (connection string `shared writer timeout`; default infinite, unchanged), opt in to
 refusing waits from the flow holding the owning transaction handle with
 `SharedSelfWaitGrace`, and observe waits with `GetSharedWaitDiagnostics()` and an
-optional slow-wait observer. See [Shared writer waits](shared-writer-waits.md).
+optional slow-wait observer (`SharedSlowWaitThreshold` must be positive or infinite).
+See [Shared writer waits](shared-writer-waits.md).
 
 ## Shared handle holder reuse
 

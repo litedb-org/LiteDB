@@ -130,9 +130,12 @@ namespace LiteDB.Client.Shared
         public bool EnterWithin(bool scoped, SharedWaitDeadline deadline)
         {
             if (this.TryRecurse()) return false;
+            // This connection's own release in flight is not another owner, and is not charged
+            // to the budget: the holder completes it without waiting for anything else.
+            this.WaitForRelease();
             // A bounded wait never runs an exited owner's cleanup inline (it can close engine
             // resources); the gate stays closed until that cleanup completes elsewhere.
-            while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(inline: deadline.IsInfinite); deadline.ThrowIfExpired(); }
+            while (!_gate.Wait(deadline.Slice(Poll))) { this.ReleaseIfOwnerExited(inline: deadline.IsInfinite); deadline.ThrowIfExpired(behindThisConnection: true); }
             bool abandoned;
             if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned, deadline);
             else this.TakeGate(Command.Acquire, out abandoned, deadline);

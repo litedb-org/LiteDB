@@ -272,8 +272,19 @@ namespace LiteDB.Engine
                 ? value : throw new ArgumentOutOfRangeException(nameof(SharedSelfWaitGrace), "Use a nonnegative grace up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
         }
 
-        /// <summary>Shared mode: waits for writer ownership this long or longer are reported to <see cref="SharedSlowWait"/>. Default: never.</summary>
-        public TimeSpan SharedSlowWaitThreshold { get; set; } = System.Threading.Timeout.InfiniteTimeSpan;
+        private TimeSpan _sharedSlowWaitThreshold = System.Threading.Timeout.InfiniteTimeSpan;
+
+        /// <summary>
+        /// Shared mode: waits for writer ownership this long or longer are reported to <see cref="SharedSlowWait"/>.
+        /// A positive duration up to Int32.MaxValue milliseconds, or <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>
+        /// (the default: never). Zero is rejected: every acquisition, even an immediate one, would be reported.
+        /// </summary>
+        public TimeSpan SharedSlowWaitThreshold
+        {
+            get => _sharedSlowWaitThreshold;
+            set => _sharedSlowWaitThreshold = value != TimeSpan.Zero && LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
+                ? value : throw new ArgumentOutOfRangeException(nameof(SharedSlowWaitThreshold), "Use a positive threshold up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
+        }
 
         /// <summary>
         /// Shared mode: notified, on the thread pool, of each completed wait that reached

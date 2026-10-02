@@ -72,9 +72,10 @@ namespace LiteDB.Client.Shared
             return new SharedWaitDeadline(Timeout, end == 0 ? 1 : end);
         }
 
-        internal void ThrowIfExpired()
+        /// <param name="behindThisConnection">The wait queued behind another thread of the same connection.</param>
+        internal void ThrowIfExpired(bool behindThisConnection = false)
         {
-            if (Expired) throw new SharedWaitTimeoutException();
+            if (Expired) throw new SharedWaitTimeoutException(behindThisConnection);
         }
 
         /// <summary>Make this deadline apply to Shared waits on the current (holder) thread.</summary>
@@ -102,6 +103,12 @@ namespace LiteDB.Client.Shared
     /// <summary>A Shared ownership wait ran out of its budget, before any side effect.</summary>
     internal sealed class SharedWaitTimeoutException : TimeoutException
     {
-        internal SharedWaitTimeoutException() : base("Shared writer ownership wait timed out.") { }
+        internal SharedWaitTimeoutException(bool behindThisConnection = false) : base("Shared writer ownership wait timed out.")
+        {
+            BehindThisConnection = behindThisConnection;
+        }
+
+        /// <summary>The budget ran out in a local stage, behind another thread of the same connection.</summary>
+        internal bool BehindThisConnection { get; }
     }
 }

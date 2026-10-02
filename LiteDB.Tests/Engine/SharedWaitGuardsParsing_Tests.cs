@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using LiteDB.Engine;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -32,6 +33,20 @@ namespace LiteDB.Tests.Engine
             // The engine setting accepts exactly what the parser accepts.
             var settings = new LiteDB.Engine.EngineSettings { SharedWriterTimeout = cs.SharedWriterTimeout };
             Assert.Equal(expected, settings.SharedWriterTimeout);
+        }
+
+        [Fact]
+        public void Slow_wait_threshold_rejects_zero_and_negative()
+        {
+            Assert.Equal(Timeout.InfiniteTimeSpan, new EngineSettings().SharedSlowWaitThreshold);
+            // Zero would report (and queue a thread-pool item for) every acquisition, immediate ones included.
+            Assert.Throws<ArgumentOutOfRangeException>(() => new EngineSettings { SharedSlowWaitThreshold = TimeSpan.Zero });
+            Assert.Throws<ArgumentOutOfRangeException>(() => new EngineSettings { SharedSlowWaitThreshold = TimeSpan.FromMilliseconds(-5) });
+            Assert.Throws<ArgumentOutOfRangeException>(() => new EngineSettings { SharedSlowWaitThreshold = TimeSpan.FromMilliseconds(-2) });
+            Assert.Throws<ArgumentOutOfRangeException>(() => new EngineSettings { SharedSlowWaitThreshold = TimeSpan.FromDays(30) });
+            Assert.Equal(TimeSpan.FromTicks(1), new EngineSettings { SharedSlowWaitThreshold = TimeSpan.FromTicks(1) }.SharedSlowWaitThreshold);
+            Assert.Equal(TimeSpan.FromMilliseconds(500), new EngineSettings { SharedSlowWaitThreshold = TimeSpan.FromMilliseconds(500) }.SharedSlowWaitThreshold);
+            Assert.Equal(Timeout.InfiniteTimeSpan, new EngineSettings { SharedSlowWaitThreshold = Timeout.InfiniteTimeSpan }.SharedSlowWaitThreshold);
         }
     }
 }

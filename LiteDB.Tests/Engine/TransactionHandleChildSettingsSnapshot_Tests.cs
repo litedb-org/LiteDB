@@ -66,6 +66,7 @@ namespace LiteDB.Tests.Engine
             ["_transactionPageLimit"] = "Backing field of TransactionPageLimit, compared through the property.",
             ["_sharedWriterTimeout"] = "Backing field of SharedWriterTimeout, compared through the property.",
             ["_sharedSelfWaitGrace"] = "Backing field of SharedSelfWaitGrace, compared through the property.",
+            ["_sharedSlowWaitThreshold"] = "Backing field of SharedSlowWaitThreshold, classified through the property.",
         };
 
         // Present only in DEBUG/TESTING builds of LiteDB.
