@@ -15,7 +15,8 @@ namespace LiteDB.Utils
     /// history is kept as well. Findings are latched in a side channel (<see cref="Findings"/>, and
     /// <c>LITEDB_WAITGRAPH_REPORT</c>) and reported at the end of a test or scenario. Nothing is ever
     /// thrown through library code. A harness fails on a finding only for rules configured to fail
-    /// (<c>LITEDB_WAITGRAPH_FAIL</c>, <see cref="SetFailing"/>); all rules report by default.
+    /// (<c>LITEDB_WAITGRAPH_FAIL</c>, <see cref="SetFailing"/>); by default only the proven rules in
+    /// <see cref="DefaultFailing"/> fail, every other rule reports.
     /// See docs/wait-for-graph.md. <c>LITEDB_WAITGRAPH=0</c> disables recording.
     /// </summary>
     internal static partial class WaitGraph

@@ -11,9 +11,9 @@ namespace LiteDB.Tests
     /// <summary>
     /// Applied to the whole test assembly: attributes wait-for graph findings to the running test
     /// (<see cref="WaitGraph.Context"/>) and prints those it latched, including cycles whose waits
-    /// later timed out or hung. Findings only report: a test fails here only for a rule configured
-    /// to fail (<c>LITEDB_WAITGRAPH_FAIL</c>, <see cref="WaitGraph.SetFailing"/>), which no rule is by
-    /// default. Tests run one at a time (xunit.runner.json), so a finding belongs to the running test;
+    /// later timed out or hung. A test fails here only for a finding of a failing rule: by default the
+    /// proven rules in <see cref="WaitGraph.DefaultFailing"/> (self-wait, unbounded cycle), else as configured by
+    /// <c>LITEDB_WAITGRAPH_FAIL</c> or <see cref="WaitGraph.SetFailing"/>. Tests run one at a time (xunit.runner.json), so a finding belongs to the running test;
     /// a background thread left by an earlier test is attributed to the test during which it waited.
     /// See docs/wait-for-graph.md.
     /// </summary>

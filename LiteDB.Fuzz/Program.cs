@@ -212,7 +212,8 @@ internal static class Program
     /// <summary>
     /// Write what the wait-for graph latched during the run to waitgraph.txt in the run directory (not
     /// part of the hashed trace). With <paramref name="verdict"/>, a finding of a rule configured to fail
-    /// (LITEDB_WAITGRAPH_FAIL; none by default) fails the run as WAIT_FOR_CYCLE. See docs/wait-for-graph.md.
+    /// (LITEDB_WAITGRAPH_FAIL; by default the proven rules, WaitGraph.DefaultFailing) fails the run as
+    /// WAIT_FOR_CYCLE. See docs/wait-for-graph.md.
     /// </summary>
     private static void ReportWaitGraph(string directory, bool verdict)
     {

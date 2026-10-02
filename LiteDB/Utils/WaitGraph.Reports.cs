@@ -21,6 +21,14 @@ namespace LiteDB.Utils
             new ConcurrentDictionary<long, KeyValuePair<int, string>>();
         private static readonly List<Finding> _findings = new List<Finding>();
         private static readonly Dictionary<string, Finding> _findingIndex = new Dictionary<string, Finding>(StringComparer.Ordinal);
+        /// <summary>
+        /// Rules that fail a harness when <c>LITEDB_WAITGRAPH_FAIL</c> is not set. A rule joins this set only
+        /// with a proof: it fired at a known-bad commit, stayed quiet at the fix and across the unchanged
+        /// suite (docs/wait-for-graph.md, "Failure rules"). Bounded cycles are allowed when outcomes are
+        /// correct and lock order is advisory, so neither is ever a default.
+        /// </summary>
+        internal static readonly IReadOnlyList<WaitRule> DefaultFailing = new[] { WaitRule.SelfWait, WaitRule.UnboundedCycle };
+
         private static readonly HashSet<WaitRule> _failing = ParseFailing(Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH_FAIL"));
         private static readonly string _reportPath = Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH_REPORT");
         private static readonly object _reportLock = new object();
@@ -75,7 +83,7 @@ namespace LiteDB.Utils
             get { lock (_findings) return _findings.ToArray(); }
         }
 
-        /// <summary>Whether a harness fails on findings of <paramref name="rule"/>; all rules only report by default.</summary>
+        /// <summary>Whether a harness fails on findings of <paramref name="rule"/> (by default the rules in <see cref="DefaultFailing"/>).</summary>
         internal static bool IsFailing(WaitRule rule)
         {
             lock (_failing) return _failing.Contains(rule);
@@ -158,14 +166,24 @@ namespace LiteDB.Utils
             }
         }
 
-        private static HashSet<WaitRule> ParseFailing(string value)
+        /// <summary>
+        /// Unset or empty: <see cref="DefaultFailing"/>. Otherwise a list of rule ids, <c>default</c>,
+        /// <c>all</c>, or <c>none</c> (report only).
+        /// </summary>
+        internal static HashSet<WaitRule> ParseFailing(string value)
         {
             var rules = new HashSet<WaitRule>();
-            if (string.IsNullOrEmpty(value)) return rules;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                rules.UnionWith(DefaultFailing);
+                return rules;
+            }
             foreach (var part in value.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
             {
+                if (string.Equals(part, "default", StringComparison.OrdinalIgnoreCase)) rules.UnionWith(DefaultFailing);
                 foreach (WaitRule rule in Enum.GetValues(typeof(WaitRule)))
-                    if (part == "all" || string.Equals(part, rule.Id(), StringComparison.OrdinalIgnoreCase)) rules.Add(rule);
+                    if (string.Equals(part, "all", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(part, rule.Id(), StringComparison.OrdinalIgnoreCase)) rules.Add(rule);
             }
             return rules;
         }

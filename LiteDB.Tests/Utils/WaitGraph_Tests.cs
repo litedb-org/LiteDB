@@ -64,7 +64,7 @@ namespace LiteDB.Tests.Utils
 
             var finding = Taken(site).Should().ContainSingle().Which;
             finding.Rule.Should().Be(WaitRule.SelfWait);
-            finding.Fails.Should().BeFalse("every rule only reports in this milestone");
+            finding.Fails.Should().Be(WaitGraph.IsFailing(WaitRule.SelfWait), "a finding fails exactly when its rule is configured to fail");
             finding.Text.Should().Contain("length 1").And.Contain(Thread.CurrentThread.ManagedThreadId.ToString())
                 .And.Contain(bounded ? "timeout 2000 ms" : "unbounded");
         }
@@ -250,6 +250,7 @@ namespace LiteDB.Tests.Utils
         {
             var resource = NewResource("test-failing");
             var site = "failing " + Guid.NewGuid().ToString("N");
+            var previous = WaitGraph.IsFailing(WaitRule.SelfWait);
             WaitGraph.SetFailing(WaitRule.SelfWait, true);
             try
             {
@@ -265,7 +266,7 @@ namespace LiteDB.Tests.Utils
             }
             finally
             {
-                WaitGraph.SetFailing(WaitRule.SelfWait, false);
+                WaitGraph.SetFailing(WaitRule.SelfWait, previous);
             }
         }
     }
