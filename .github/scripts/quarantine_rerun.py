@@ -77,9 +77,11 @@ def plan(args):
         for item in planned:
             if item["kind"] == "quarantine" and item["skipped"]:
                 file = Path(common.repo_root()) / item["path"]
-                text = file.read_text(encoding="utf-8-sig")
+                raw = file.read_bytes()
+                bom = raw.startswith(b"\xef\xbb\xbf")
+                text = raw.decode("utf-8-sig")  # bytes keep the file's BOM and line endings
                 method = common.parse_tests(text)[item["test"]]  # parse again: an earlier edit moved offsets
-                file.write_text(unskip(text, method.name, method.start), encoding="utf-8")
+                file.write_bytes((b"\xef\xbb\xbf" if bom else b"") + unskip(text, method.name, method.start).encode())
                 print(f"Unskipped {item['test']} in {item['path']} (this checkout only)")
     projects = sorted({item["path"].split("/", 1)[0] for item in planned if item["path"]})
     Path(args.output).write_text(json.dumps({"entries": planned, "projects": projects,

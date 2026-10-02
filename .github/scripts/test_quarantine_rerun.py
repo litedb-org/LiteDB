@@ -62,10 +62,14 @@ class QuarantineRerunTests(unittest.TestCase):
         quarantine = [{"test": "LiteDB.Tests.Engine.Sample_Tests.Quarantined", **ENTRY},
                       {"test": "LiteDB.Tests.Engine.Sample_Tests.Quarantined_theory", **ENTRY}]
         with GitRepo() as repo:
-            repo.commit({TESTS: SOURCE, LEDGER: json.dumps({"quarantine": quarantine})})
+            repo.commit({TESTS: b"\xef\xbb\xbf" + SOURCE.replace("\n", "\r\n").encode(),
+                         LEDGER: json.dumps({"quarantine": quarantine})})
             output = self.scratch / "plan.json"
             code, text = run_quietly(rerun.main, ["plan", "--output", str(output)] + (["--unskip"] if unskip else []))
-            source = (repo.path / TESTS).read_text(encoding="utf-8")
+            raw = (repo.path / TESTS).read_bytes()
+            self.assertTrue(raw.startswith(b"\xef\xbb\xbf"), "the BOM is kept")
+            self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"), "CRLF line endings are kept")
+            source = raw.decode("utf-8-sig").replace("\r\n", "\n")
         self.assertEqual(code, 0, text)
         return json.loads(output.read_text()), source
 
