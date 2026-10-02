@@ -15,8 +15,10 @@ namespace LiteDB.Utils
         // them. Bounded: past the cap new orders are not recorded and lock-order findings stop growing.
         private const int MaxOrders = 200000;
         private const int MaxFindings = 10000;
-        private static readonly ConcurrentDictionary<long, KeyValuePair<ThreadState, string>> _orders =
-            new ConcurrentDictionary<long, KeyValuePair<ThreadState, string>>();
+        // The thread is kept as its id, never as a reference: a dead Thread object retains its
+        // execution context (AsyncLocal values), which the history must not root.
+        private static readonly ConcurrentDictionary<long, KeyValuePair<int, string>> _orders =
+            new ConcurrentDictionary<long, KeyValuePair<int, string>>();
         private static readonly List<Finding> _findings = new List<Finding>();
         private static readonly Dictionary<string, Finding> _findingIndex = new Dictionary<string, Finding>(StringComparer.Ordinal);
         private static readonly HashSet<WaitRule> _failing = ParseFailing(Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH_FAIL"));
@@ -143,10 +145,10 @@ namespace LiteDB.Utils
                 if (!earlier.Ordered || ReferenceEquals(earlier, resource)) continue;
                 var key = ((long)earlier.Id << 32) | (uint)resource.Id;
                 var reverse = ((long)resource.Id << 32) | (uint)earlier.Id;
-                var inverted = _orders.TryGetValue(reverse, out var inverse) && !ReferenceEquals(inverse.Key, state);
+                var inverted = _orders.TryGetValue(reverse, out var inverse) && inverse.Key != state.Id;
                 if (!inverted && _orders.ContainsKey(key)) continue;
                 var description = $"{earlier} then {resource} on {state}" + (site == null ? "" : " at " + site);
-                if (_orders.Count < MaxOrders) _orders.TryAdd(key, new KeyValuePair<ThreadState, string>(state, description));
+                if (_orders.Count < MaxOrders) _orders.TryAdd(key, new KeyValuePair<int, string>(state.Id, description));
                 if (!inverted) continue;
                 var pair = string.CompareOrdinal(earlier.Kind, resource.Kind) <= 0
                     ? earlier.Kind + " / " + resource.Kind
