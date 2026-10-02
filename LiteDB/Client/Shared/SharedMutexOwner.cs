@@ -465,6 +465,7 @@ namespace LiteDB.Client.Shared
                 if (!_held) return;
                 _held = false;
             }
+            SharedOwnershipEvents.Release(_mutex);
             _mutex.ReleaseMutex();
         }
 

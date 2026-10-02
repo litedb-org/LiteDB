@@ -150,7 +150,12 @@ namespace LiteDB
         private List<Exception> CloseRetainedCore(LiteEngine core, bool checkpoint = true, bool final = false)
         {
             using (SharedCallFrames.Enter(_mutexName, this, HolderRetains, teardown: true))
-                return core.Close(checkpoint: checkpoint, final: final);
+            {
+                SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closing);
+                var errors = core.Close(checkpoint: checkpoint, final: final);
+                SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
+                return errors;
+            }
         }
 
         private void EndAdmissions(int depth)
