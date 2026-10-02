@@ -77,7 +77,8 @@ def main(argv=None):
     index = check_contracts.load(head, report)
     found = check_contracts.implicated(index, common.changed_files(args.base, args.head))
     check(body, [contract["id"] for contract, _ in found], report)
-    lint_invariant_comments.check_body(body, lint_invariant_comments.deletions(args.base, args.head), args.head, report)
+    lint_invariant_comments.check_body(body, lint_invariant_comments.deletions(args.base, args.head), args.head,
+                                       report, advisory=common.net_advisory("lint-invariant-comments"))
     report.section("Implicated contracts: " + (", ".join(f"`{contract['id']}`" for contract, _ in found) or "none"))
     return report.finish()
 

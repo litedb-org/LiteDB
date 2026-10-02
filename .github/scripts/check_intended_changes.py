@@ -104,6 +104,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base", help="Only entries added since this revision are validated")
     parser.add_argument("--head", default="HEAD")
+    common.add_mode_arguments(parser)
     args = parser.parse_args(argv)
     head = common.Tree(args.head)
     report = common.Report("Intended-changes manifest")
@@ -116,7 +117,7 @@ def main(argv=None):
     report.section("\n".join([f"{len(items)} intended change(s) claimed by this change."] + [
         f"- `{item.get('call')}` {item.get('dimension') or ''} {item.get('change')}: "
         f"{item.get('before')} → {item.get('after')} ({item.get('doc')})" for item in items]))
-    return report.finish()
+    return report.finish(advisory=common.net_advisory("intended-changes", args.blocking))
 
 
 if __name__ == "__main__":

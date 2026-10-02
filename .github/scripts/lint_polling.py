@@ -91,12 +91,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base", required=True, help="Base revision (PR base or merge-base)")
     parser.add_argument("--head", default="HEAD", help=f"Head revision or {common.WORKTREE}")
+    common.add_mode_arguments(parser)
     args = parser.parse_args(argv)
     report = common.Report("Wait-primitive lint")
     findings = check(args.base, args.head, report)
     report.section(f"{len(findings)} polling site(s) without a reason." if findings
                    else "No unexplained polling loop added.")
-    return report.finish()
+    return report.finish(advisory=common.net_advisory("lint-polling", args.blocking))
 
 
 if __name__ == "__main__":

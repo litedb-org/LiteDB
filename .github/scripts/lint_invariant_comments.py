@@ -60,8 +60,12 @@ def deletions(base, head):
     return found
 
 
-def check_body(body, found, head, report):
-    """Every deletion needs a '### Moved invariants' line naming it and a resolving reference."""
+def check_body(body, found, head, report, advisory=False):
+    """Every deletion needs a '### Moved invariants' line naming it and a resolving reference.
+
+    In advisory mode (net-modes.json) the findings are warnings, so the PR safety-section
+    check keeps failing only for its own prompts."""
+    log = report.warning if advisory else report.error
     match = SECTION.search(body or "")
     following = match and re.search(rf"^#{{1,{len(match.group(1))}}}\s+\S", body[match.end():], re.M)
     text = body[match.end():match.end() + following.start()] if following else body[match.end():] if match else ""
@@ -77,9 +81,9 @@ def check_body(body, found, head, report):
                        for quote in quotes)
         entry = next((item for item in entries if names(item, re.split(r"→|->", item)[0])), None)
         if entry is None:
-            report.error(f"Deleted invariant comment needs a '### Moved invariants' entry: \"{comment}\"", path, line)
+            log(f"Deleted invariant comment needs a '### Moved invariants' entry: \"{comment}\"", path, line)
         elif not any(verdict for _, verdict in common.resolve_references(tree, re.split(r"→|->", entry, 1)[1])):
-            report.error(f"Moved invariant \"{comment}\": name a test, marker or code reference that resolves "
+            log(f"Moved invariant \"{comment}\": name a test, marker or code reference that resolves "
                          f"(got: {entry.strip()})", path, line)
     tree.close()
 
@@ -89,7 +93,9 @@ def main(argv=None):
     parser.add_argument("--base", required=True, help="Base revision (PR base or merge-base)")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--pr-body-file", help="PR description to check; without it deletions are only listed")
+    common.add_mode_arguments(parser)
     args = parser.parse_args(argv)
+    advisory = common.net_advisory("lint-invariant-comments", args.blocking)
     report = common.Report("Invariant-comment lint")
     found = deletions(args.base, args.head)
     if args.pr_body_file:
@@ -100,7 +106,7 @@ def main(argv=None):
             report.warning(f"Deleted invariant comment; list it under '### Moved invariants' in the PR "
                            f"description with where it is enforced now: \"{comment}\"", path, line)
     report.section(f"{len(found)} deleted invariant comment(s)." if found else "No invariant comment deleted.")
-    return report.finish()
+    return report.finish(advisory=advisory)
 
 
 if __name__ == "__main__":

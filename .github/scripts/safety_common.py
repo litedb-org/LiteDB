@@ -624,8 +624,11 @@ class Report:
     def section(self, markdown):
         self.sections.append(markdown)
 
-    def finish(self):
+    def finish(self, advisory=False):
+        """Print the summary; exit code 1 on errors unless the net runs in advisory mode."""
         status = "failed" if self.errors else "passed"
+        if self.errors and advisory:
+            status = f"{len(self.errors)} finding(s), advisory (exit 0; see {NET_MODES})"
         lines = [f"## {self.title}: {status}", ""]
         lines += [f"- :x: {message}" for message in self.errors]
         lines += [f"- :warning: {message}" for message in self.warnings]
@@ -637,7 +640,7 @@ class Report:
                 handle.write(summary)
         else:
             print(summary)
-        return 1 if self.errors else 0
+        return 1 if self.errors and not advisory else 0
 
 
 def _annotate(level, message, path, line):
@@ -648,6 +651,31 @@ def _annotate(level, message, path, line):
     properties = ",".join(filter(None, [f"file={path}" if path else "", f"line={line}" if line else ""]))
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::{level}{' ' + properties if properties else ''}::{escaped}")
+
+
+# --- advisory/blocking switch for the diff nets ------------------------------
+
+NET_MODES = f"{SAFETY_DIR}/net-modes.json"
+
+
+def add_mode_arguments(parser):
+    """--advisory/--blocking override the single switch in net-modes.json for a local run."""
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--advisory", dest="blocking", action="store_false", default=None,
+                       help=f"Report findings but exit 0 (default: per {NET_MODES})")
+    group.add_argument("--blocking", dest="blocking", action="store_true", help="Exit 1 on findings")
+
+
+def net_advisory(net, blocking=None):
+    """True when `net` reports without failing. One switch: net-modes.json "blocking" for every net it
+    lists; a net it does not list, or a missing file, is blocking. An explicit argument wins."""
+    if blocking is not None:
+        return not blocking
+    path = Path(repo_root()) / NET_MODES
+    if not path.is_file():
+        return False
+    data = load_json_file(path)
+    return net in data.get("nets", {}) and not data.get("blocking", True)
 
 
 def load_json_file(path):

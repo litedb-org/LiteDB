@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import lint_polling as lint
@@ -72,6 +73,19 @@ class PollingLintTests(unittest.TestCase):
         code, output = self.run_lint(loop, loop + "\n            var unrelated = 1;")
         self.assertEqual(code, 0, output)
         self.assert_quiet(loop, path="LiteDB.Tests/Waiter.cs")
+
+    def test_single_switch_makes_findings_advisory(self):
+        loop = "            while (!_mutex.WaitOne(50)) { }"
+        modes = ".github/safety/net-modes.json"
+        for blocking, flags, expected in ((False, [], 0), (True, [], 1), (False, ["--blocking"], 1),
+                                          (True, ["--advisory"], 0)):
+            with self.subTest(blocking=blocking, flags=flags), GitRepo() as repo:
+                switch = json.dumps({"blocking": blocking, "nets": {"lint-polling": "x"}})
+                base = repo.commit({PATH: source(""), modes: switch})
+                repo.commit({PATH: source(loop)})
+                code, output = run_quietly(lint.main, ["--base", base, *flags])
+                self.assertEqual(code, expected, output)
+                self.assertIn("polling: <reason>", output)
 
     def test_in_loop_reads_enclosing_blocks(self):
         code = "void M() { while (a) { if (b) { X(); } } Y(); }"

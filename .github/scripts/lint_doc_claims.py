@@ -71,14 +71,15 @@ def main(argv=None):
     parser.add_argument("--base", help="Base revision; only new or changed sentences are judged")
     parser.add_argument("--head", default="HEAD", help=f"Head revision or {common.WORKTREE}")
     parser.add_argument("--all", action="store_true", help="List every unanchored claim (backlog) without failing")
+    common.add_mode_arguments(parser)
     args = parser.parse_args(argv)
     if not args.all and not args.base:
         parser.error("--base is required unless --all is given")
     report = common.Report("Doc-claim lint" + (" (backlog)" if args.all else ""))
     judged, flagged = check(args.base, args.head, report, everything=args.all)
     report.section(f"{judged} normative sentence(s) judged, {flagged} without a resolving anchor.")
-    code = report.finish()
-    return 0 if args.all else code
+    code = report.finish(advisory=args.all or common.net_advisory("lint-doc-claims", args.blocking))
+    return code
 
 
 if __name__ == "__main__":
