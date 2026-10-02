@@ -43,9 +43,18 @@ namespace LiteDB.Tests.Engine
         // The child task inherits nothing from the test thread's flow, and marks nothing on it.
         internal static Task<T> Unmarked<T>(Func<T> action)
         {
+            // A dedicated thread started without flow: a pool task could be inlined into the
+            // caller's flow by Wait/Result (it runs there if not started yet), marking that flow.
+            var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() =>
+            {
+                try { result.SetResult(action()); }
+                catch (Exception error) { result.SetException(error); }
+            }) { IsBackground = true };
             var flow = ExecutionContext.SuppressFlow();
-            try { return Task.Run(action); }
+            try { thread.Start(); }
             finally { flow.Undo(); }
+            return result.Task;
         }
 
         internal static Task Unmarked(Action action) => Unmarked(() => { action(); return true; });

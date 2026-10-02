@@ -112,13 +112,14 @@ namespace LiteDB
         {
             this.RetireCoordinatedReads();
             var other = _pin;
-            if (other != null)
-            {
-                other.RequestRelease(force: false);
-                // This connection's own previous pin closing is not another owner: wait for it
-                // first, outside the budget, unless it can end only after this thread.
-                if (other.CanWaitFrom(Thread.CurrentThread)) other.WaitEnded();
-            }
+            other?.RequestRelease(force: false);
+            // This connection's own previous pin closing is not another owner: wait for it first,
+            // outside the budget, unless it can end only after this thread. A pin detaches from
+            // _pin before it closes its engine and releases, so also wait for the ending one.
+            WaitForOwnPin(other);
+            WaitForOwnPin(Volatile.Read(ref _endingPin));
+            // So is the connection holder's posted release of a previous unpinned call.
+            _owner.WaitForOwnRelease(deadline);
 
             // A pin that ended for a waiting thread of this instance must not be replaced
             // ahead of it: let the waiters take the mutex first. This cannot deadlock. A
@@ -179,9 +180,21 @@ namespace LiteDB
             using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
         }
 
+        private static void WaitForOwnPin(SharedMutexPin pin)
+        {
+            if (pin != null && pin.CanWaitFrom(Thread.CurrentThread)) pin.WaitEnded();
+        }
+
+        // The last pin detached from _pin, possibly still closing its engine and releasing.
+        private SharedMutexPin _endingPin;
+
         private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
         {
-            if (ReferenceEquals(_pin, pin)) _pin = null;
+            if (ReferenceEquals(_pin, pin))
+            {
+                Volatile.Write(ref _endingPin, pin);
+                _pin = null;
+            }
             if (!pin.Counted) return;
 
             if (abandoned)
