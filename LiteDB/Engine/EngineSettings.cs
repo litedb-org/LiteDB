@@ -253,7 +253,7 @@ namespace LiteDB.Engine
         public TimeSpan SharedWriterTimeout
         {
             get => _sharedWriterTimeout;
-            set => _sharedWriterTimeout = value == System.Threading.Timeout.InfiniteTimeSpan || (value >= TimeSpan.Zero && value.TotalMilliseconds <= int.MaxValue)
+            set => _sharedWriterTimeout = LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
                 ? value : throw new ArgumentOutOfRangeException(nameof(SharedWriterTimeout), "Use a nonnegative timeout up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
         }
 
@@ -268,7 +268,7 @@ namespace LiteDB.Engine
         public TimeSpan SharedSelfWaitGrace
         {
             get => _sharedSelfWaitGrace;
-            set => _sharedSelfWaitGrace = value == System.Threading.Timeout.InfiniteTimeSpan || (value >= TimeSpan.Zero && value.TotalMilliseconds <= int.MaxValue)
+            set => _sharedSelfWaitGrace = LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
                 ? value : throw new ArgumentOutOfRangeException(nameof(SharedSelfWaitGrace), "Use a nonnegative grace up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
         }
 

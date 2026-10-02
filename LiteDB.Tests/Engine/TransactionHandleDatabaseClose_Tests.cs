@@ -45,6 +45,33 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public async Task Begin_queued_behind_another_connection_opens_nothing_after_its_database_is_disposed()
+        {
+            using var file = new TempFile();
+            var settings = Settings(file, shared: true);
+            using (var seed = new LiteDatabase(settings)) seed.GetCollection("rows").Insert(Row(1));
+            using var owner = new LiteDatabase(settings);
+            var held = owner.BeginTransaction();
+            held.GetCollection("rows").Insert(Row(2));
+            var db = new LiteDatabase(settings);
+            var waiting = Task.Run(() => db.BeginTransaction());
+            Assert.True(SharedHandleQueue.WaitForQueuedBegin(SharedHandleQueue.Of(db), TimeSpan.FromSeconds(10)));
+            // Disposal does not wait for the queued begin, which then gets the queue.
+            db.Dispose();
+            held.Commit();
+            var refused = await Assert.ThrowsAsync<ObjectDisposedException>(() => Bounded(waiting, TimeSpan.FromSeconds(20)));
+            // Refused by the disposed connection before any holder or storage open, not by the
+            // database after a holder had already opened the file.
+            Assert.Equal(nameof(SharedEngine), refused.ObjectName);
+            using (var peer = new LiteDatabase(settings))
+            {
+                using var tx = peer.BeginTransaction();
+                tx.GetCollection("rows").Insert(Row(3));
+                tx.Commit();
+            }
+        }
+
+        [Fact]
         public async Task Shared_begin_waiting_behind_a_handle_is_refused_after_close_settles_the_owner()
         {
             using var file = new TempFile();
@@ -54,7 +81,7 @@ namespace LiteDB.Tests.Engine
             var owner = db.BeginTransaction();
             owner.GetCollection("rows").Insert(Row(2));
             var waiting = Task.Run(() => db.BeginTransaction());
-            await Task.Delay(200);
+            Assert.True(SharedHandleQueue.WaitForQueuedBegin(SharedHandleQueue.Of(db), TimeSpan.FromSeconds(10)));
             Assert.False(waiting.IsCompleted);
 
             db.Dispose();

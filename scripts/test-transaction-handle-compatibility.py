@@ -161,7 +161,11 @@ def main():
     manifest = {"framework": args.framework, "parent_dll": str(args.parent_dll),
                 "candidate_dll": str(args.candidate_dll), "status": "fail"}
     try:
-        manifest["sdk"] = subprocess.run(["dotnet", "--version"], capture_output=True, text=True).stdout.strip()
+        try:
+            manifest["sdk"] = subprocess.run(["dotnet", "--version"], capture_output=True, text=True,
+                                             timeout=120).stdout.strip()
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("dotnet --version timed out after 120s") from error
         with tempfile.TemporaryDirectory(prefix="litedb-handle-api-") as temporary:
             hashes, parent_api = check(runner, args, Path(temporary))
         manifest.update(parent_sha256=hashes["parent"], candidate_sha256=hashes["candidate"],
