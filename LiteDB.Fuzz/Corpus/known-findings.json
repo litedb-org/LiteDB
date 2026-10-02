@@ -18,6 +18,30 @@
       "fingerprint": "HANG_API_BOUNDARY",
       "issue": 2984,
       "status": "fixed"
+    },
+    {
+      "target": "chaos-maintenance",
+      "fingerprint": "CHAOS_MAINTENANCE_KNOWN_DIRECT_SECOND_DISPOSE_RETURNS_EARLY",
+      "issue": 0,
+      "status": "known"
+    },
+    {
+      "target": "chaos-maintenance",
+      "fingerprint": "CHAOS_MAINTENANCE_KNOWN_SHARED_SECOND_DISPOSE_RETURNS_EARLY",
+      "issue": 0,
+      "status": "known"
+    },
+    {
+      "target": "chaos-maintenance",
+      "fingerprint": "CHAOS_MAINTENANCE_KNOWN_REBUILD_REOPENS_AFTER_DISPOSE",
+      "issue": 0,
+      "status": "known"
+    },
+    {
+      "target": "chaos-maintenance",
+      "fingerprint": "CHAOS_MAINTENANCE_KNOWN_CLOSE_RELEASES_ACTIVE_CALL_PAGES",
+      "issue": 0,
+      "status": "known"
     }
   ]
 }

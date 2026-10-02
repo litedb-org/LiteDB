@@ -52,6 +52,14 @@
       "disposition": "strengthened",
       "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
       "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
+    },
+    {
+      "id": "safety-m2b-chaos-maintenance-known-findings",
+      "kind": "expected-failure-added",
+      "subjects": ["chaos-maintenance:CHAOS_MAINTENANCE_KNOWN_DIRECT_SECOND_DISPOSE_RETURNS_EARLY", "chaos-maintenance:CHAOS_MAINTENANCE_KNOWN_SHARED_SECOND_DISPOSE_RETURNS_EARLY", "chaos-maintenance:CHAOS_MAINTENANCE_KNOWN_REBUILD_REOPENS_AFTER_DISPOSE", "chaos-maintenance:CHAOS_MAINTENANCE_KNOWN_CLOSE_RELEASES_ACTIVE_CALL_PAGES"],
+      "disposition": "strengthened",
+      "invariant": "No existing target, corpus case or test is relaxed; every outcome of the new chaos-maintenance target outside its declared permitted set still fails the run unless one of these precise predicates claims it.",
+      "reason": "The new chaos-maintenance target reaches four dev defects (concurrent Dispose returning early in Direct and Shared mode, Rebuild reopening after a concurrent Dispose, a Direct close releasing a running call's page buffers). Each is registered as known so the smoke campaign keeps exercising the target; each hit is recorded in known-findings-hit.jsonl with a situation marker, LITEDB_FUZZ_STRICT_KNOWN=1 fails on it, and the Shared one is pinned by SharedConcurrentDisposeKnownFinding_Tests."
     }
   ]
 }

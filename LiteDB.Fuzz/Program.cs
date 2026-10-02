@@ -13,6 +13,7 @@ internal static class Program
         new SnapshotFuzzer(), new ThreadedSnapshotFuzzer(), new ConcurrentFuzzer(),
         new PowerLossFuzzer(), new BoundaryFuzzer(), new ReadOnlyFuzzer(), new SqlDmlFuzzer(),
         new CompatibilityFuzzer(), new RecoveryFuzzer(), new ChaosFuzzer(), new ApiBoundaryFuzzer(),
+        new ChaosMaintenanceFuzzer(),
         new StorageFailureFuzzer(), new OracleSelfTestFuzzer(), new PressureFuzzer(), new MalformedFileFuzzer(),
         new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
         new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
