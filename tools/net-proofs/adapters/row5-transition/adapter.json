@@ -1,0 +1,6 @@
+{
+  "name": "row5-transition",
+  "description": "Post-freeze explorer scenario handle-disposed-bound-object: a disposed bound reader or enumerator of a transaction handle is used again (advance, Current, second Dispose; optionally after a refused overlapping Dispose); the handle must stay Active, commit its prior writes, and pass the cold Durable check. Needs the transaction-handle adapter in the same target directory.",
+  "target": "LiteDB.Tests/NetProofAdapters/Handle",
+  "requires": ["handle-api"]
+}

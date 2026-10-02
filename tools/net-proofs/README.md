@@ -18,6 +18,25 @@ SDK-style projects only compile files below their own directory. See
   **not a net**. It proves only that the worktree, overlay, build, run and
   classify pipeline works.
 
+## Adapters
+
+Every adapter below backs recorded entries of the ledger (`net.recorded.overlay` names the tree,
+`recordedOverlays` in the ledger lists which adapters it carried). Applying one by hand is described in
+its README.
+
+| Adapter | Applied by | Used for | Label |
+| --- | --- | --- | --- |
+| `harness-smoke` | copy | the pipeline self-check | not a net |
+| `transaction-handle` | copy | explorer `handle` access kind and handle-only scenarios on fork trees | frozen with the nets |
+| `pbt-handle` | copy + `register-handle-kind.patch` (+ `replay-overlay.patch`) | parallel property test `handle` access kind (rows 5, 12, 14) | frozen; its fail-fast options are tuned (see its README) |
+| `waitgraph-pr133` | `run.sh` (per-commit site patches) | wait-for graph on fork trees (rows 3, 4, 12, 13) | frozen |
+| `pr133-coverage` | `git apply pr133-coverage.patch` | coverage correction on replay trees (V-A2, later fixes) | harness configuration; masks the #3071 class where #3072 is missing |
+| `row5-transition` | copy (with `transaction-handle`) | row 5 transition check | post-freeze, tuned-after-fix |
+| `row8-crash-leftovers` | `git apply row8-scratch.patch` | row 8 crash-leftover prior and spilled-reader kind | crash-leftover prior tuned-after-fix |
+
+An adapter whose files must be patched into existing sources (rather than copied) ships a `.patch`
+and names an inert `target` (`net-proof-<name>/`), so `net_proof.py` can still copy it and probe it.
+
 ## `adapter.json`
 
 ```json

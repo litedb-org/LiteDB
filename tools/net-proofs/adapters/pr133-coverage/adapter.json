@@ -1,0 +1,6 @@
+{
+  "name": "pr133-coverage",
+  "description": "Coverage correction for net proofs on JKamsker/LiteDB#133 replay trees, applied with git apply (pr133-coverage.patch): (a) the base revision's #3071 hang (a Shared peer call from a callback waits for its own outer ownership) registered as an explorer known finding with generation exclusion, active only when the tree lacks the #3072 refusal (no LiteDB.Client.Shared.SharedCallFrames); (b) chaos-maintenance close declarations for the PR's documented session-close contract (docs/transaction-handles.md at 39f6c6b0), active only when the tree has the PR's LiteDB.SessionLifetime. A harness configuration, not a net change: no oracle, generator draw, deadline or fail rule changes.",
+  "target": "net-proof-pr133-coverage",
+  "requires": ["handle-api"]
+}

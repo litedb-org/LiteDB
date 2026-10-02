@@ -1,0 +1,6 @@
+{
+  "name": "pbt-handle",
+  "description": "The 'handle' access kind (explicit transaction handles: BeginTransaction/ILiteTransaction) for the parallel state-machine property test, plus a time-boxed campaign driver. Needs LiteDB.Tests/Concurrency/ParallelProperty/ (overlay it first) and the registration patch register-handle-kind.patch.",
+  "target": "LiteDB.Tests/Concurrency/ParallelProperty",
+  "requires": ["handle-api"]
+}
