@@ -93,8 +93,14 @@ namespace LiteDB.Client.Shared
             }
             if (_slowWait == null || _slowThreshold == Timeout.InfiniteTimeSpan || ToTime(elapsed) < _slowThreshold ||
                 !_slowWait.TryGetTarget(out var observer)) return;
-            var info = new SharedSlowWait(_filename, ToTime(elapsed), timedOut,
-                wait.HandleOwner ? SharedWriterOwner.TransactionHandle : SharedWriterOwner.Unknown);
+            Notify(observer, new SharedSlowWait(_filename, ToTime(elapsed), timedOut,
+                wait.HandleOwner ? SharedWriterOwner.TransactionHandle : SharedWriterOwner.Unknown));
+        }
+
+        // Separate from End: the closure capturing the observer is then allocated only for a
+        // slow wait, not on every acquisition.
+        private static void Notify(Action<SharedSlowWait> observer, SharedSlowWait info)
+        {
             // The caller may own the native mutex now: never run application code here.
             ThreadPool.UnsafeQueueUserWorkItem(state =>
             {
