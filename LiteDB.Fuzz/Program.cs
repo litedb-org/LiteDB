@@ -19,6 +19,9 @@ internal static class Program
         new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer(), new MvccRetirementFuzzer(), new MvccCheckpointFuzzer()
     };
 
+    // Oracle self-tests that fail by design: selectable by exact name, never by "all".
+    private static readonly IFuzzTarget[] SelfTestTargets = { new SelfTests.DeadlineSelfTestFuzzer() };
+
     internal static async Task<int> Main(string[] args)
     {
         FuzzOptions options;
@@ -61,6 +64,9 @@ internal static class Program
         {
             using var trial = new FuzzContext(selected[0].Name, options.Seed, options.Count, null,
                 options.RunDirectory, options.DurationReplay, options.InputFile, options.HeartbeatFile);
+            trial.HangTimeout = options.HangTimeout;
+            // An overdue operation never returns: report its identity for minimization, then exit.
+            trial.DeadlineFailureHandler = error => File.WriteAllTextAsync(options.Ledger, error.FailureId);
             string identity = null;
             try { await selected[0].RunAsync(trial); }
             catch (Exception error) { identity = FailureIdentity.Get(error); }
@@ -117,11 +123,21 @@ internal static class Program
         Exception failure = null;
         using var context = new FuzzContext(target.Name, seed, options.Count, options.Duration, directory,
             options.DurationReplay, options.InputFile, options.HeartbeatFile);
+        context.HangTimeout = options.HangTimeout;
+        // The deadline watchdog fails a run whose operation never returns: same artifacts, then exit.
+        context.DeadlineFailureHandler = async error =>
+        {
+            await RecordFailureAsync(target, options, context, started, error);
+            FuzzMarkers.Write(context);
+            await FuzzArtifacts.WriteResultAsync(context, started, error);
+        };
         Console.WriteLine($"START {target.Name} seed={seed} count={options.Count} worker={worker}");
         FuzzMarkers.Reset();
         try
         {
             await Task.Run(() => target.RunAsync(context));
+            // Ownership violations latched at mutex releases after the last oracle call.
+            context.ThrowLatchedOracleFailures();
             if (options.ExpectedInputHash != null &&
                 !string.Equals(options.ExpectedInputHash, context.Input.Hash(), StringComparison.OrdinalIgnoreCase))
             {
@@ -138,31 +154,44 @@ internal static class Program
         catch (Exception error)
         {
             failure = error;
-            var failureText = error.ToString();
-            Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
-            await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
-            FuzzMarkers.Write(context);
-            // Persist the original failure and flush recorded input before minimization replays it.
-            await FuzzArtifacts.WriteResultAsync(context, started, failure);
-            try
-            {
-                var failureId = FailureIdentity.Get(error);
-                var finding = FuzzFindingRegistry.Resolve(target.Name, failureId);
-                if (FuzzFindingRegistry.ShouldMinimize(options.Duration.HasValue, finding))
-                {
-                    context.MinimizedCount = await MinimizeAsync(target, context, failureId,
-                        options.MinimizationTimeout, options.HeartbeatFile);
-                }
-            }
-            catch (Exception minimizationError)
-            {
-                await File.WriteAllTextAsync(Path.Combine(directory, "minimization-error.txt"),
-                    minimizationError.ToString());
-            }
+            await RecordFailureAsync(target, options, context, started, error);
         }
         FuzzMarkers.Write(context);
         await FuzzArtifacts.WriteResultAsync(context, started, failure);
         return new RunResult(target.Name, seed, directory, failure == null);
+    }
+
+    /// <summary>Persist a failure, its markers and recorded input, then minimize it when the run calls for it.</summary>
+    private static async Task RecordFailureAsync(IFuzzTarget target, FuzzOptions options, FuzzContext context,
+        DateTimeOffset started, Exception error)
+    {
+        var directory = context.DirectoryPath;
+        var seed = context.Seed;
+        var failureText = error.ToString();
+        Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
+        await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
+        FuzzMarkers.Write(context);
+        // Persist the original failure and flush recorded input before minimization replays it.
+        await FuzzArtifacts.WriteResultAsync(context, started, error);
+        try
+        {
+            var failureId = FailureIdentity.Get(error);
+            var finding = FuzzFindingRegistry.Resolve(target.Name, failureId);
+            if (FuzzFindingRegistry.ShouldMinimize(options.Duration.HasValue, finding))
+            {
+                // A trial that reproduces an overdue operation runs past its deadline first.
+                var trialTimeout = failureId.StartsWith("DEADLINE_", StringComparison.Ordinal) &&
+                    context.Oracles.LongestDeadline + TimeSpan.FromSeconds(30) > options.MinimizationTimeout
+                    ? context.Oracles.LongestDeadline + TimeSpan.FromSeconds(30) : options.MinimizationTimeout;
+                context.MinimizedCount = await MinimizeAsync(target, context, failureId,
+                    trialTimeout, options.HeartbeatFile);
+            }
+        }
+        catch (Exception minimizationError)
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "minimization-error.txt"),
+                minimizationError.ToString());
+        }
     }
 
     private static async Task<int?> MinimizeAsync(IFuzzTarget target, FuzzContext failed, string failureId,
@@ -194,7 +223,7 @@ internal static class Program
     {
         var requested = names.ToArray();
         if (requested.Any(name => name.Equals("all", StringComparison.OrdinalIgnoreCase))) return Targets;
-        return requested.Select(name => Targets.FirstOrDefault(target => target.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+        return requested.Select(name => Targets.Concat(SelfTestTargets).FirstOrDefault(target => target.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
             ?? throw new ArgumentException($"Unknown target '{name}'. Use --list to see target names.")).Distinct().ToArray();
     }
 
