@@ -98,11 +98,8 @@ namespace LiteDB.Engine
                     var replacement = create();
                     // Includes can hold secondary collection snapshots not named
                     // by CursorInfo.Collection, so retain conservatively for any cursor.
-                    if (snapshot.Mode == LockMode.Read && this.OpenCursors.Count > 0)
-                    {
-                        snapshot.RetainForCursor();
-                        _cursorSnapshots.Add(snapshot);
-                    }
+                    // A retained read snapshot keeps its WAL version (Snapshot.ReadPage).
+                    if (snapshot.Mode == LockMode.Read && this.OpenCursors.Count > 0) _cursorSnapshots.Add(snapshot);
                     else snapshot.Dispose();
                     _snapshots[collection] = snapshot = replacement;
                 }

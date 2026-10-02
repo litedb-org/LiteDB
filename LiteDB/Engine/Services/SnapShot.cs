@@ -214,7 +214,10 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition) && !_retainedForCursor;
+            // Only write snapshots and the "$" page view ($dump/$page_list) see this transaction's pages: a
+            // collection read snapshot keeps its pinned version even if a page ID it reaches was reused here.
+            var walPosition = default(PagePosition);
+            var dirty = (_mode == LockMode.Write || _collectionName == "$") && _transPages.DirtyPages.TryGetValue(pageID, out walPosition);
             if (dirty)
             {
                 origin = FileOrigin.Log;
