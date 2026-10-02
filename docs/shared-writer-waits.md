@@ -76,7 +76,9 @@ Every non-recursive acquisition is recorded, also one that did not have to wait.
 holds the waits that ended by acquiring ownership (including immediately, or by a failure
 that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWait` and the
 over-500 ms/1 s counts cover the same waits. A refused wait (`SharedSelfWaitGrace`), at once
-or after a grace, counts only in `Refused` and adds no wait time. `Owner` is what this process
+or after a grace, counts only in `Refused` and adds no wait time. A wait ends when ownership
+is acquired: opening the engine or recovering it afterward is not part of it, on any path
+(including a pin of a thread streaming a leased reader). `Owner` is what this process
 knows: a handle of this process, or `Unknown` (free, another connection, or another
 process). One `BeginTransaction()` is one wait on its connection, covering both its local
 handle queue and its native admission; it ends when native admission ends, so opening the

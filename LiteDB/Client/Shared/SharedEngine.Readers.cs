@@ -103,10 +103,12 @@ namespace LiteDB
         private SharedMutexPin StartPin()
         {
             this.ThrowIfCallerRetainsOwnership();
-            return this.AcquireWithin(0, (engine, _, deadline) => engine.StartPin(deadline));
+            // Only the wait for the mutex is a writer wait: opening the engine (and any
+            // recovery) is not recorded as one, as for an ordinary acquisition.
+            return this.EnterPin(this.AcquireWithin(0, (engine, _, deadline) => engine.AcquirePin(deadline)));
         }
 
-        private SharedMutexPin StartPin(SharedWaitDeadline deadline)
+        private SharedMutexPin AcquirePin(SharedWaitDeadline deadline)
         {
             this.RetireCoordinatedReads();
             var other = _pin;
@@ -119,17 +121,21 @@ namespace LiteDB
             // which it does only without operations in flight, so this thread is not
             // inside one of its operations either. Nothing a waiter needs is held here.
             this.WaitForMutexWaiters(deadline);
-            SharedMutexPin pin;
             // Counted while acquiring, so that another pin of this instance ends for us too.
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.AcquireWithin(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit, deadline);
+                return SharedMutexPin.AcquireWithin(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit, deadline);
             }
             finally
             {
                 this.RemoveMutexWaiter();
             }
+        }
+
+        /// <summary>Open the engine for an acquired pin and enter its calling operation; on failure the pin ends.</summary>
+        private SharedMutexPin EnterPin(SharedMutexPin pin)
+        {
             try
             {
                 // The holder owns the mutex on behalf of this thread.

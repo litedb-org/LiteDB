@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteDB.Engine;
@@ -150,6 +151,47 @@ namespace LiteDB.Tests.Engine
                 Assert.False(report.TimedOut);
             }
             Verify(file, null, 1, 2, 3, 4);
+        }
+
+        [Fact]
+        public void Pin_wait_excludes_engine_open()
+        {
+            using var file = new TempFile();
+            Seed(file);
+            var reports = new ConcurrentQueue<SharedSlowWait>();
+            var settings = Settings(file);
+            settings.SharedSlowWaitThreshold = TimeSpan.FromMilliseconds(200);
+            settings.SharedSlowWait = reports.Enqueue;
+            // A read callback keeps queries off mapped snapshots, so the query below is a leased reader.
+            settings.ReadTransform = (_, value) => value;
+            using (var engine = new SharedEngine(settings))
+            using (var db = new LiteDatabase(engine))
+            {
+                // A thread streaming a leased reader writes through a pin, which opens the engine.
+                using var anchor = engine.Query("sentinel", new Query());
+                Assert.True(anchor.Read());
+                var applied = (EngineSettings)typeof(SharedEngine).GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                var opens = 0;
+                // A slow open (or recovery), with the mutex itself uncontended.
+                engine.SimulateOpenEngine = () =>
+                {
+                    opens++;
+                    Thread.Sleep(300);
+                    return new LiteEngine(applied);
+                };
+                var before = db.GetSharedWaitDiagnostics().Total;
+                try { db.GetCollection("rows").Insert(Row(3)); }
+                finally { engine.SimulateOpenEngine = null; }
+                Assert.Equal(1, opens);
+                Assert.NotNull(engine.Pin);
+                anchor.Dispose();
+                var after = db.GetSharedWaitDiagnostics().Total;
+                Assert.True(after.Count > before.Count, "The pin's acquisition was not recorded.");
+                Assert.True(after.MaxWait < TimeSpan.FromMilliseconds(100), $"The recorded wait includes the engine open: {after.MaxWait}");
+                // No wait reached the 200 ms threshold, so nothing was queued for the observer.
+                Assert.Empty(reports);
+            }
+            Verify(file, null, 1, 3);
         }
     }
 }
