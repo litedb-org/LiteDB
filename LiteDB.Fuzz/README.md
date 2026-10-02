@@ -310,6 +310,15 @@ target's seed. `--validate` fails when a cap differs from its smoke leg, and whe
 a target whose source starts child processes or drives the concurrency explorer
 is neither capped nor listed under `uncapped` with a reason.
 
+Each invocation runs at most four target processes at a time, so concurrent
+groups can run up to four each. Measured locally (24 cores, shared host, load
+6-18; seed 2950080): a one-line query change selects 7 targets and takes 152 s
+(lifetime-chaos x40 150 s, teardown-faults x30 82 s); a `lock` change in
+`SharedEngine.cs` selects 8 targets and takes 163 s (lifetime-chaos x40 158 s); every
+target (50, a `LiteDB.csproj` change) takes 184 s (lifetime-chaos 108 s). With
+every selected target at 100 steps (30 for all targets) the same changes took
+355 s, 897 s and 306 s.
+
 Required targets that do not exist in the tree are listed under `missing` with a
 warning. To add an obligation, add an entry with a kebab-case `id`, a `kind`, the
 plan row or rule as `reason`, `paths` globs, optional `patterns`, and `targets`;

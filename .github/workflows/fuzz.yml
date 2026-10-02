@@ -223,7 +223,12 @@ jobs:
     # Counts: prCounts in .github/safety/fuzz-obligations.json. A selected target runs 100 steps (30 when every
     # target is selected); explorer, teardown-sweep and multi-process targets are capped at the count of their
     # ubuntu-latest smoke leg (lifetime-chaos and transaction-interleavings 40, teardown-faults, chaos-maintenance,
-    # shared and snapshot 30, shared-contention 5), min(cap, count).
+    # shared and snapshot 30, shared-contention 5), min(cap, count). Each group is one invocation running at most
+    # 4 target processes at a time, so concurrent groups can run up to 4 per group. Measured locally (24 cores,
+    # shared host, load 6-18): query change 7 targets in 152 s (lifetime-chaos x40 150 s, teardown-faults x30
+    # 82 s), Shared-mode change 8 targets in 163 s (lifetime-chaos x40 158 s, transaction-interleavings x40
+    # 132 s), all 50 targets in
+    # 184 s (lifetime-chaos 108 s). Uncapped (everything at 100, or 30 for all targets): 355 s / 897 s / 306 s.
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
