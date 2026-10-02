@@ -1,0 +1,1 @@
+Copied by the harness-smoke adapter (tools/net-proofs/adapters/harness-smoke).

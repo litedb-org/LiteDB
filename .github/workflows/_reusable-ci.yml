@@ -51,6 +51,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/regression_proof.py validate
 
+      # Offline: schema, full commit ids, capability table, overlay paths. Proofs
+      # themselves run only in net-proofs.yml (manual), never on every PR.
+      - name: Validate the net-proof ledger
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/net_proof.py validate
+
   build-linux:
     name: Build (Linux)
     runs-on: ubuntu-latest

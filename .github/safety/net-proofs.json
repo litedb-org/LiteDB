@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "description": "Net proofs: a general safety net fires at a real known-bad commit and stays quiet at its fix. Regression proofs (regression-proofs.json) prove a fix with a ReproRunner repro; net proofs prove that a net not written for the defect detects it. Capabilities are probed on each tree before and after the overlay; a required capability that is missing makes the proof not-applicable, which is never a pass. Maintained by .github/scripts/net_proof.py; see docs/rules/safety-evidence.md#net-proofs.",
+  "capabilities": {
+    "legacy-transactions": {"description": "ILiteDatabase declares the thread-bound BeginTrans() (upstream ordinary/legacy access)", "grep": "\\bbool\\s+BeginTrans\\s*\\(", "in": "LiteDB/Client/Database/ILiteDatabase.cs"},
+    "handle-api": {"description": "A transaction-handle API: some type declares ILiteTransaction BeginTransaction(...) (fork PR #133 only; upstream's [Obsolete] messages mention the name but declare nothing)", "grep": "\\bILiteTransaction\\s+BeginTransaction\\s*\\(", "in": "LiteDB/Client/**/*.cs"},
+    "shared-call-frames": {"description": "Shared peer-call frames (#3072)", "file": "LiteDB/Client/Shared/SharedCallFrames.cs"},
+    "reachability": {"description": "Reachability (sometimes) markers", "file": "LiteDB/Utils/Reachability.cs"},
+    "wait-graph": {"description": "The TESTING wait-for graph", "file": "LiteDB/Utils/WaitGraph.cs"},
+    "fail-step": {"description": "The TryCatch.FailStep teardown fault hook", "grep": "\\bFailStep\\b", "in": "LiteDB/**/*.cs"},
+    "teardown-path-registry": {"description": "The teardown-path registry attribute with declared dispositions", "grep": "\\bclass\\s+TeardownPathAttribute\\b", "in": "LiteDB/**/*.cs"},
+    "fuzz": {"description": "The LiteDB.Fuzz harness", "file": "LiteDB.Fuzz/LiteDB.Fuzz.csproj"},
+    "fuzz-markers": {"description": "Fuzz runs write markers.json", "grep": "\"markers\\.json\"", "in": "LiteDB.Fuzz/**/*.cs"},
+    "fuzz-outcomes": {"description": "Fuzz runs write outcomes.jsonl", "grep": "\"outcomes\\.jsonl\"", "in": "LiteDB.Fuzz/**/*.cs"},
+    "oracle-ownership": {"description": "The engine-agnostic ownership oracle probe", "grep": "\\bclass\\s+Ownership\\w*\\b", "in": "LiteDB.Tests/Safety/**/*.cs"},
+    "oracle-durable": {"description": "The acknowledged-outcome (Durable) oracle ledger", "grep": "\\bclass\\s+DurableLedger\\b", "in": "LiteDB.Tests/Safety/**/*.cs"},
+    "interleaving-explorer": {"description": "A bounded interleaving explorer test harness", "grep": "\\bclass\\s+\\w*InterleavingExplorer\\b", "in": "LiteDB.Tests/**/*.cs"},
+    "repro-runner": {"description": "The ReproRunner CLI", "file": "LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj"},
+    "net-proof-smoke": {"description": "Harness self-check only: the harness-smoke adapter was copied into the tree", "file": "net-proof-smoke/marker.txt"}
+  },
+  "proofs": [
+    {
+      "id": "harness-smoke",
+      "rows": [],
+      "level": "harness-smoke",
+      "independence": "harness-smoke: a pipeline self-check, not a net; it proves nothing about any defect",
+      "defect": "None. Exercises worktrees, the patch and adapter overlay, capability probes, a build and classification: it fires where the #3077 guard test file is absent (023c2b4b) and stays quiet where it exists (7b71bc4d).",
+      "knownBad": {"kind": "dev-commit", "commit": "023c2b4ba8ffe637c955092ff05289d90eafdfb4"},
+      "fix": {"commit": "7b71bc4dd45b48a1df4418ddb4cd245832273b35"},
+      "net": {
+        "name": "harness-smoke (not a net)",
+        "evidenceClass": 1,
+        "requires": ["net-proof-smoke", "legacy-transactions"],
+        "overlay": {"commits": [], "patches": ["tools/net-proofs/smoke/harness-smoke.patch"], "adapters": ["tools/net-proofs/adapters/harness-smoke"]},
+        "build": ["LiteDB/LiteDB.csproj"],
+        "command": ["python3", "{harness}/tools/net-proofs/smoke/harness_smoke.py", "--tree", "{tree}", "--artifacts", "{artifacts}"],
+        "timeoutSeconds": 60,
+        "reports": ["smoke.json"],
+        "expect": {"knownBad": {"fires": true, "match": "HARNESS-SMOKE-FIRED: (?P<id>guard-test-absent)"}, "fix": {"fires": false}}
+      }
+    },
+    {
+      "id": "row16-wait-graph",
+      "rows": [16],
+      "level": "generic",
+      "independence": "designed-from-invariant",
+      "defect": "Shared peer call waits for its own outer ownership (#3072)",
+      "knownBad": {"kind": "dev-commit", "commit": "5dd942a7367c361fadd600be4ce10aace2768b27"},
+      "fix": {"commit": "265c2497bb54b98226d2d2098986a9cdaacbc529"},
+      "net": {"name": "wait-graph", "evidenceClass": 1, "requires": ["wait-graph"], "overlay": {"commits": [], "patches": [], "adapters": []}}
+    },
+    {
+      "id": "row17-ownership",
+      "rows": [17],
+      "level": "generic",
+      "independence": "designed-from-invariant",
+      "defect": "Same-connection teardown callback loses Shared writer ownership (#3077)",
+      "knownBad": {"kind": "dev-commit", "commit": "023c2b4ba8ffe637c955092ff05289d90eafdfb4"},
+      "fix": {"commit": "7b71bc4dd45b48a1df4418ddb4cd245832273b35"},
+      "net": {"name": "ownership", "evidenceClass": 1, "requires": ["oracle-ownership"], "overlay": {"commits": [], "patches": [], "adapters": []}}
+    },
+    {
+      "id": "row5-refusal-keeps-transaction",
+      "rows": [5],
+      "level": "generic",
+      "independence": "designed-from-invariant",
+      "defect": "Disposed reader/enumerator race aborts the transaction and loses prior writes (PR #133)",
+      "knownBad": {"kind": "pr-commit", "commit": "26406ecaf934ee39a9b1d0cf2179ac2e567844ad", "pr": 133, "repository": "JKamsker/LiteDB"},
+      "fix": {"commit": "9bf6137ca9a07cd3316fc17d7703b920b4864050"},
+      "net": {"name": "refusal-transition + durable-outcome", "evidenceClass": 1, "requires": ["handle-api", "oracle-durable"], "overlay": {"commits": [], "patches": [], "adapters": []}}
+    }
+  ]
+}
