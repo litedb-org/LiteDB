@@ -215,7 +215,8 @@ namespace LiteDB.Tests.Engine
                 Assert.True(after.Recent.Over500Milliseconds >= 1);
                 Assert.True(after.Recent.MaxWait >= TimeSpan.FromMilliseconds(500));
                 Assert.Equal(0, after.Total.TimedOut);
-                Assert.Equal(TimeSpan.FromMinutes(5), after.Window);
+                // The current partial minute plus five whole minutes.
+                Assert.InRange(after.Window, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(6));
             }
             Verify(file, null, 1, 2, 3);
         }

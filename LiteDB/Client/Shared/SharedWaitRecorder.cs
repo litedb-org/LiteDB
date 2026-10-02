@@ -7,15 +7,19 @@ namespace LiteDB.Client.Shared
 {
     /// <summary>
     /// Records one Shared connection's waits for writer ownership: totals since creation and
-    /// per-minute buckets for the last hour. Every non-recursive acquisition is recorded, also
-    /// one that did not have to block. <c>Count</c> holds the waits that ended by acquiring
-    /// (or otherwise without timeout or refusal) or by timing out; a refused wait counts only
-    /// in <c>Refused</c> and adds no wait time. Nothing is allocated per wait except a slow-wait
-    /// notification.
+    /// per-minute buckets for the last hour (the current partial minute plus 60 whole ones).
+    /// Every non-recursive acquisition is recorded, also one that did not have to block.
+    /// <c>Count</c> holds the waits that ended by acquiring (or otherwise without timeout or
+    /// refusal) or by timing out; a refused wait counts only in <c>Refused</c> and adds no wait
+    /// time. Nothing is allocated per wait except a slow-wait notification.
     /// </summary>
     internal sealed class SharedWaitRecorder
     {
         private const int Minutes = 60;
+        // The current partial minute plus Minutes whole ones.
+        private const int Buckets = Minutes + 1;
+        private static readonly long TicksPerMinute = Stopwatch.Frequency * 60;
+        private static readonly Func<long> Clock = Stopwatch.GetTimestamp;
         private static readonly long Ticks500 = Stopwatch.Frequency / 2;
         private static readonly long Ticks1000 = Stopwatch.Frequency;
 
@@ -26,9 +30,10 @@ namespace LiteDB.Client.Shared
         // Weak: a handle's holder shares this recorder and must not root the application's
         // observer (and through it a database or handle). The connection's settings keep it alive.
         private readonly WeakReference<Action<SharedSlowWait>> _slowWait;
-        private readonly long _created = Stopwatch.GetTimestamp();
+        private readonly Func<long> _timestamp;
+        private readonly long _created;
         private readonly List<long> _active = new List<long>();
-        private readonly Bucket[] _minutes = new Bucket[Minutes];
+        private readonly Bucket[] _minutes = new Bucket[Buckets];
         private Bucket _total;
 
         private struct Bucket
@@ -65,7 +70,15 @@ namespace LiteDB.Client.Shared
         }
 
         internal SharedWaitRecorder(string mutexName, string filename, TimeSpan slowThreshold, Action<SharedSlowWait> slowWait)
+            : this(mutexName, filename, slowThreshold, slowWait, Clock)
         {
+        }
+
+        /// <summary>As above, reading time (Stopwatch ticks) from <paramref name="timestamp"/>.</summary>
+        internal SharedWaitRecorder(string mutexName, string filename, TimeSpan slowThreshold, Action<SharedSlowWait> slowWait, Func<long> timestamp)
+        {
+            _timestamp = timestamp;
+            _created = timestamp();
             _mutexName = mutexName;
             _filename = filename;
             _slowThreshold = slowThreshold;
@@ -94,13 +107,13 @@ namespace LiteDB.Client.Shared
         /// <summary>Register a wait that is about to block. Pass the result to <see cref="End"/>.</summary>
         internal Wait Begin()
         {
-            var start = Stopwatch.GetTimestamp();
+            var start = _timestamp();
             lock (_sync) _active.Add(start);
             return new Wait(start, SharedHandleRegistry.Owner(_mutexName) != null);
         }
 
         /// <summary>The recorder's clock, for a wait that ended on another thread (<see cref="End"/>'s <c>end</c>).</summary>
-        internal long Now() => Stopwatch.GetTimestamp();
+        internal long Now() => _timestamp();
 
         /// <summary>
         /// End a wait exactly once. A refusal counts only in <c>Refused</c>. <paramref name="end"/>, when
@@ -109,7 +122,7 @@ namespace LiteDB.Client.Shared
         internal void End(Wait wait, Outcome outcome, long end = 0)
         {
             var start = wait.Start;
-            var now = end != 0 ? end : Stopwatch.GetTimestamp();
+            var now = end != 0 ? end : _timestamp();
             var elapsed = now - start;
             lock (_sync)
             {
@@ -138,7 +151,7 @@ namespace LiteDB.Client.Shared
         /// <summary>A refusal before any wait began (a zero <c>SharedSelfWaitGrace</c>).</summary>
         internal void Refused()
         {
-            var now = Stopwatch.GetTimestamp();
+            var now = _timestamp();
             lock (_sync)
             {
                 _total.Refused++;
@@ -146,18 +159,23 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>
+        /// A snapshot whose recent statistics cover the current partial minute plus N whole minutes,
+        /// N = <paramref name="window"/> rounded up (1 to 60): at least the window, at most one minute more.
+        /// </summary>
         internal SharedWaitDiagnostics Snapshot(TimeSpan window)
         {
             var minutes = (int)Math.Max(1, Math.Min(Minutes, Math.Ceiling(window.TotalMinutes)));
-            var now = Stopwatch.GetTimestamp();
+            var now = _timestamp();
             var minute = this.MinuteOf(now);
+            var covered = TimeSpan.FromMinutes(minutes) + ToTime((now - _created) % TicksPerMinute);
             Bucket recent = default, total;
             int waiters;
             long oldest = now;
             lock (_sync)
             {
                 foreach (var bucket in _minutes)
-                    if (bucket.Count + bucket.Refused != 0 && minute - bucket.Minute < minutes) recent.Merge(bucket);
+                    if (bucket.Count + bucket.Refused != 0 && minute - bucket.Minute <= minutes) recent.Merge(bucket);
                 total = _total;
                 waiters = _active.Count;
                 foreach (var start in _active) if (start < oldest) oldest = start;
@@ -166,7 +184,7 @@ namespace LiteDB.Client.Shared
             return new SharedWaitDiagnostics(waiters, ToTime(now - oldest),
                 owner == null ? SharedWriterOwner.Unknown : SharedWriterOwner.TransactionHandle,
                 owner?.Held ?? TimeSpan.Zero, owner?.Idle ?? TimeSpan.Zero,
-                TimeSpan.FromMinutes(minutes), recent.ToStatistics(), total.ToStatistics());
+                covered, recent.ToStatistics(), total.ToStatistics());
         }
 
         /// <summary>
@@ -191,12 +209,12 @@ namespace LiteDB.Client.Shared
         private ref Bucket Current(long now)
         {
             var minute = this.MinuteOf(now);
-            ref var bucket = ref _minutes[minute % Minutes];
+            ref var bucket = ref _minutes[minute % Buckets];
             if (bucket.Minute != minute || bucket.Count + bucket.Refused == 0) bucket = new Bucket { Minute = minute };
             return ref bucket;
         }
 
-        private long MinuteOf(long timestamp) => (timestamp - _created) / (Stopwatch.Frequency * 60);
+        private long MinuteOf(long timestamp) => (timestamp - _created) / TicksPerMinute;
 
         private static TimeSpan ToTime(long ticks) => TimeSpan.FromSeconds(ticks / (double)Stopwatch.Frequency);
     }

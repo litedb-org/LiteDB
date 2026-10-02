@@ -20,7 +20,8 @@ namespace LiteDB
         /// <summary>
         /// A snapshot of this connection's waits for writer ownership: current waiters, the
         /// owner this process knows of, and statistics for the last <paramref name="window"/>
-        /// (whole minutes, at most one hour) and since creation.
+        /// (at least that long and at most one minute more, up to one hour; see
+        /// <see cref="SharedWaitDiagnostics.Window"/>) and since creation.
         /// </summary>
         public SharedWaitDiagnostics GetWaitDiagnostics(TimeSpan window) => this.Waits.Snapshot(window);
 

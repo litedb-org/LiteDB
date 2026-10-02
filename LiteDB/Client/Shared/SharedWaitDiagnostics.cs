@@ -85,7 +85,10 @@ namespace LiteDB
         /// <summary>For a <see cref="SharedWriterOwner.TransactionHandle"/> owner: time since its last operation.</summary>
         public TimeSpan OwnerIdle { get; }
 
-        /// <summary>The period <see cref="Recent"/> covers, in whole minutes.</summary>
+        /// <summary>
+        /// The period <see cref="Recent"/> covers: the current partial minute plus the requested window
+        /// rounded up to whole minutes (at most one hour), so at least the window and at most one minute more.
+        /// </summary>
         public TimeSpan Window { get; }
 
         /// <summary>Waits completed within <see cref="Window"/>.</summary>

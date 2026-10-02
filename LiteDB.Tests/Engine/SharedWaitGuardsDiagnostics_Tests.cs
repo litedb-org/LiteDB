@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -192,6 +193,33 @@ namespace LiteDB.Tests.Engine
                 Assert.Empty(reports);
             }
             Verify(file, null, 1, 3);
+        }
+
+        [Fact]
+        public void Recent_window_covers_waits_just_before_a_minute_boundary()
+        {
+            using var file = new TempFile();
+            Seed(file);
+            using (var engine = new SharedEngine(Settings(file)))
+            using (var db = new LiteDatabase(engine))
+            {
+                db.GetCollection("rows").FindById(1);
+                // Move the recorder's epoch instead of waiting for a real minute boundary.
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var recorder = typeof(SharedEngine).GetField("_waitRecorder", flags).GetValue(engine);
+                var created = recorder.GetType().GetField("_created", flags);
+                var second = Stopwatch.Frequency;
+                // Now is 58 s into a minute: the next wait falls shortly before a minute boundary.
+                created.SetValue(recorder, Stopwatch.GetTimestamp() - 58 * second);
+                db.GetCollection("rows").Insert(Row(2));
+                // Four seconds later, just past the boundary.
+                created.SetValue(recorder, (long)created.GetValue(recorder) - 4 * second);
+                var diagnostics = db.GetSharedWaitDiagnostics(TimeSpan.FromMinutes(1));
+                Assert.True(diagnostics.Total.Count >= 2);
+                Assert.Equal(diagnostics.Total.Count, diagnostics.Recent.Count);
+                Assert.InRange(diagnostics.Window, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2));
+            }
+            Verify(file, null, 1, 2);
         }
     }
 }

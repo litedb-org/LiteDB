@@ -72,6 +72,10 @@ var lastHour = db.GetSharedWaitDiagnostics(TimeSpan.FromHours(1));
 
 `SharedEngine.GetWaitDiagnostics(...)` returns the same snapshot for a caller-owned
 engine. Statistics are per connection, kept in per-minute buckets for up to one hour.
+`Recent` covers the current partial minute plus the requested window rounded up to whole
+minutes (at most 60): at least the window, at most one minute more. `Window` reports the
+span actually covered, so a wait from a few seconds ago is never dropped just after a
+minute boundary.
 Every non-recursive acquisition is recorded, also one that did not have to wait. `Count`
 holds the waits that ended by acquiring ownership (including immediately, or by a failure
 that was neither a timeout nor a refusal) or by timing out; `TotalWait`, `MaxWait` and the
