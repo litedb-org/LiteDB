@@ -275,25 +275,44 @@ def resolves(tree, reference):
     return tree.read(reference.split("#")[0]) is not None
 
 
-def validate_quarantine(head, entries, report):
+QUARANTINE_FIELDS = ("test", "reason", "owner", "review", "gap", "issue", "expires")
+ISSUE = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/issues/\d+\Z|(?:[\w.-]+/[\w.-]+)?#\d+\Z")
+
+
+def validate_quarantine(head, entries, report, today=None):
+    """Every quarantine entry names its test, owner, reason, gap, a linked issue, a review date and an
+    expiry date (review <= expires). A passed date is a warning here (it must not fail unrelated PRs);
+    the weekly quarantine re-run (quarantine_rerun.py) reports it as a failure."""
     tests = common.collect_tests(head)
+    today = today or date.today()
     seen = set()
     for entry in entries:
         test = entry.get("test")
         if test in seen:
             report.error(f"Quarantine lists {test} twice", LEDGER)
         seen.add(test)
-        missing = [name for name in ("test", "reason", "owner", "review", "gap") if not entry.get(name)]
+        missing = [name for name in QUARANTINE_FIELDS if not entry.get(name)]
         if missing:
             report.error(f"Quarantine entry {test or '<missing test>'} lacks {', '.join(missing)}", LEDGER)
         if test and test not in tests:
             report.error(f"Quarantined test {test} no longer exists; remove its entry", LEDGER)
-        try:
-            if entry.get("review") and date.fromisoformat(entry["review"]) < date.today():
-                report.warning(f"Quarantine review date {entry['review']} has passed for {test} "
-                               f"(owner {entry.get('owner')})")
-        except ValueError:
-            report.error(f"Quarantine entry {test}: review must be an ISO date", LEDGER)
+        if entry.get("issue") and not ISSUE.match(str(entry["issue"])):
+            report.error(f"Quarantine entry {test}: issue must link a GitHub issue (URL, #n or owner/name#n)", LEDGER)
+        dates = {}
+        for name in ("review", "expires"):
+            try:
+                dates[name] = date.fromisoformat(entry[name]) if entry.get(name) else None
+            except (TypeError, ValueError):
+                report.error(f"Quarantine entry {test}: {name} must be an ISO date", LEDGER)
+                dates[name] = None
+        if dates["review"] and dates["expires"] and dates["review"] > dates["expires"]:
+            report.error(f"Quarantine entry {test}: the review date must not be after the expiry date", LEDGER)
+        if dates["expires"] and dates["expires"] < today:
+            report.warning(f"Quarantine of {test} expired on {entry['expires']} (owner {entry.get('owner')}, "
+                           f"{entry.get('issue')}): fix it, restore it, or renew the entry with a reason")
+        elif dates["review"] and dates["review"] < today:
+            report.warning(f"Quarantine review date {entry['review']} has passed for {test} "
+                           f"(owner {entry.get('owner')})")
 
 
 def collect_findings(base, head, changes):

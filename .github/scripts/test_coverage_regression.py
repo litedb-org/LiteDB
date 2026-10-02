@@ -2,6 +2,7 @@ import json
 import unittest
 
 import check_coverage_regression as check
+import safety_common as common
 from safety_fixtures import GitRepo, run_quietly, csharp_class
 
 LEDGER = ".github/safety/coverage-ledger.json"
@@ -151,6 +152,36 @@ class CoverageRegressionTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("no longer exists", output)
         self.assertIn("lacks reason, owner, review, gap", output)
+
+    def test_quarantine_needs_a_linked_issue_and_an_expiry_date(self):
+        tests = {"LiteDB.Tests/Engine/Sample_Tests.cs": csharp_class("Sample_Tests", {"Kept": ("Fact", "")})}
+        entry = {"test": "LiteDB.Tests.Engine.Sample_Tests.Kept", "reason": "r", "owner": "o", "gap": "g",
+                 "review": "2099-01-01"}
+        cases = {
+            json.dumps({**entry}): "lacks issue, expires",
+            json.dumps({**entry, "issue": "soon", "expires": "2099-02-01"}): "issue must link a GitHub issue",
+            json.dumps({**entry, "issue": "#12", "expires": "never"}): "expires must be an ISO date",
+            json.dumps({**entry, "issue": "#12", "expires": "2098-01-01"}): "must not be after the expiry date",
+        }
+        for item, expected in cases.items():
+            with self.subTest(expected):
+                code, output = self.run_check(tests, {**tests, LEDGER: ledger(quarantine=[json.loads(item)])})
+                self.assertEqual(code, 1, output)
+                self.assertIn(expected, output)
+        for issue in ("https://github.com/litedb-org/LiteDB/issues/3034", "litedb-org/LiteDB#3034", "#3034"):
+            with self.subTest(issue):
+                valid = {**entry, "issue": issue, "expires": "2099-02-01"}
+                code, output = self.run_check(tests, {**tests, LEDGER: ledger(quarantine=[valid])})
+                self.assertEqual(code, 0, output)
+
+    def test_an_expired_quarantine_is_reported(self):
+        report = common.Report("q")
+        entry = {"test": "X.Y", "reason": "r", "owner": "o", "gap": "g", "issue": "#1",
+                 "review": "2020-01-01", "expires": "2020-02-01"}
+        with GitRepo() as repo:
+            repo.commit({"README.md": "x"})
+            check.validate_quarantine(common.Tree("HEAD"), [entry], report)
+        self.assertTrue(any("expired on 2020-02-01" in message for message in report.warnings), report.warnings)
 
 
 if __name__ == "__main__":

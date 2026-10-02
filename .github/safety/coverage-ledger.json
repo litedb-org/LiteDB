@@ -1,12 +1,14 @@
 {
   "schemaVersion": 1,
-  "description": "Coverage accounting. 'quarantine' lists tests that no CI leg executes, each with an owner, a review date and the gap it leaves; the Safety evidence job fails on any other never-executed test. 'dispositions' explain removed or weakened coverage; check_coverage_regression.py accepts only dispositions added by the same change. See docs/rules/safety-evidence.md.",
+  "description": "Coverage accounting. 'quarantine' lists tests that no CI leg executes, each with an owner, a linked issue, a review date, an expiry date and the gap it leaves (check_coverage_regression.py); the weekly Quarantine re-run runs them; the Safety evidence job fails on any other never-executed test. 'dispositions' explain removed or weakened coverage; check_coverage_regression.py accepts only dispositions added by the same change. See docs/rules/safety-evidence.md.",
   "quarantine": [
     {
       "test": "LiteDB.Tests.Engine.Collation_Tests.Create_Database_Using_Current_Culture",
       "reason": "Collation.Default snapshots the culture once per process, so the test passes only as the first LiteDB use in the process; after another test created a database it sees that culture instead of 'fi'.",
       "owner": "JKamsker",
       "review": "2026-12-31",
+      "expires": "2026-12-31",
+      "issue": "https://github.com/litedb-org/LiteDB/issues/3034",
       "gap": "A new database taking its collation from the current thread culture is not asserted on any CI leg; product behaviour (process-wide snapshot) decides whether the test can be made order-independent."
     },
     {
@@ -14,6 +16,8 @@
       "reason": "Not supported yet: rebuilding 'ana'/'ANA' from en-US/None to en-US/IgnoreCase throws 'Cannot insert duplicate key' instead of recording the collision in _rebuild_errors.",
       "owner": "JKamsker",
       "review": "2026-12-31",
+      "expires": "2026-12-31",
+      "issue": "https://github.com/litedb-org/LiteDB/issues/3034",
       "gap": "Rebuilding to a collation under which unique keys collide is not exercised; the expected _rebuild_errors behaviour is not implemented."
     },
     {
@@ -21,6 +25,8 @@
       "reason": "Takes ~102 s (100 iterations with a 1 s sleep; passed 5/5 locally on net10.0). The DiskWriterQueue race of #2127 no longer exists; the queue was removed in 198f0a672.",
       "owner": "JKamsker",
       "review": "2026-12-31",
+      "expires": "2026-12-31",
+      "issue": "https://github.com/litedb-org/LiteDB/issues/2127",
       "gap": "Back-to-back file-backed inserts into 100 recreated databases do not run in CI; the original race cannot recur, so the test is a candidate to retire as obsolete."
     }
   ],
