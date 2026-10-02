@@ -144,6 +144,20 @@ maintenance operation at a time. No production code was changed.
    classified schedule-dependent; every late operation was refused with
    `ENGINE_DISPOSED`).
 
+Incidental, outside the models' abstraction (page accounting is not modeled): in that
+stress run a single `Dispose` racing an active `Insert` on an in-memory Direct engine
+left page buffers whose share count was -1 when finalized (524 buffers over 10 000
+trials; the TESTING-build finalizer check reports them). Native-thread evidence, kept
+as a finding for follow-up.
+
+The parallel property test found a Shared-mode defect: on one thread, `BeginTrans`, a write
+that fails (for example a duplicate key, which rolls the explicit transaction back), `BeginTrans`
+again and `Commit` all succeed, yet the idle thread keeps the connection's mutex. Every call of
+another thread then waits until that thread exits. Each started `BeginTrans` retains one ownership
+recursion (`SharedEngine.cs:244-252`), and the implicit rollback never returns the first one.
+It reproduced in 20 of 20 replays and standalone; generation avoids it through
+`KnownFindings.SharedRestartAfterAbortRetainsMutex`.
+
 Documented limitation, pinned rather than excluded: a Shared callback that waits
 for another thread's call on the same connection hangs
 ([shared mode safety](shared-mode-safety.md): "Waits that cross threads ... are
@@ -161,7 +175,11 @@ LITEDB_COYOTE_REPLAY=artifacts_temp/coyote/<name>.trace dotnet test LiteDB.Tests
 ```
 
 Each test runs 1000 iterations per strategy (random and Coyote's priority-based
-strategy) with a fixed seed; the project takes about 25 s. A violation writes
+strategy) with a fixed seed; the project takes about 25 s. The world serves step
+requests in arrival order, so the random strategy rarely delays one thread for many
+steps. Bugs that need a late operation (a close that starts only after another
+operation is deep in its callback) are found by the priority-based strategy, which is
+why both run. A violation writes
 `<name>-seed<seed>-<strategy>.trace` (Coyote's reproducible trace) and `.txt`
 (the property, every operation, every blocked thread, the model trace with
 source locations, and Coyote's readable trace) to `artifacts_temp/coyote` or
@@ -194,5 +212,48 @@ When a modeled state machine changes, update its model in the same change.
 
 ## Parallel property test
 
-Described in the section added with the parallel property test (Part B of the
-same milestone).
+`LiteDB.Tests/Concurrency/ParallelProperty` checks the real public collection API and per-thread
+transactions (`BeginTrans`/`Commit`/`Rollback`) in Direct and Shared mode against one model of
+collection contents, snapshots, collection locks, abort marks and the Shared mutex. Its core
+(generator, model, checker, shrinker, runner) does not depend on xUnit.
+
+- **Sequential property:** one thread; after every command its result and a full read-back (on
+  the same thread, and on another thread for the committed state) must match the model.
+- **Parallel property:** a sequential prefix, then 2-3 suffixes on real threads released
+  together. The observed history must be a *permitted history*: some order of the operations
+  that keeps each thread's program order and real-time order explains every result and the final
+  contents. The permitted set is listed with source references on `PermittedHistoryChecker`:
+  ordinary (automatic) versus bound (explicit transaction) access, refusals, rollback (explicit,
+  and after a failed operation inside a transaction, [explicit transactions](explicit-transactions.md)),
+  timed-out losers (only with a conflicting holder; their transaction is rolled back), and
+  uncertain outcomes (an interrupted call has its whole effect or none). This is not a
+  linearizability claim for the library in general.
+- After each case a probe writes every collection from another thread while the workers are
+  still alive, so retained locks or mutex ownership surface as probe failures.
+
+Run it with
+`dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter "FullyQualifiedName~ParallelProperty"`.
+`LITEDB_PBT_ITERATIONS` raises the case count for campaigns (`LITEDB_PBT_BASE_SEED` picks the
+first seed), `LITEDB_PBT_SEED` regenerates one case, and failure evidence goes to
+`LITEDB_PBT_ARTIFACT_DIR`. A fuzz driver calls `ParallelPropertyRunner.Run(seed, count, mode, log)`;
+a driver that records its own history checks it with `PermittedHistoryChecker.Check`.
+
+**Evidence class.** The seed regenerates a case's inputs exactly; the thread schedule is the
+operating system's, so the parallel property is native-thread evidence. A failure keeps the
+inputs, the observed history, the synchronization boundaries and the environment, is replayed
+(20 times by default), shrunk, and classified as reproducible, schedule-dependent,
+environment-dependent or harness nondeterminism. A failure that does not recur is still a finding.
+The checker's own controls run in CI: deliberately broken engines (a lost committed write; an
+update exposing an intermediate state to concurrent readers) must be rejected, hand-written
+impossible histories rejected, and a real crossed-transaction lock timeout accepted.
+
+**Known findings** are excluded from generation by one named rule each in `KnownFindings`;
+`LITEDB_PBT_INCLUDE_KNOWN_FINDINGS=1` generates them again. Remove the rule with the fix.
+
+**Adding an access kind** (for example transaction handles): implement `IAccessKind` in one file:
+name, capability, generation of self-contained units, shrinking, execution against
+`ThreadContext`, and model transitions through `ModelState`/`DataOperations.Apply`, with owner
+keys outside the thread range for transactions that do not belong to a thread. Then add it to
+`AccessKinds.All`. Select kinds with `LITEDB_PBT_ACCESS_KINDS`. A kind whose library surface
+is missing from the build makes the run NOT APPLICABLE: it is reported as such, never skipped
+silently, and never counted as passing.
