@@ -133,7 +133,7 @@ reviewer cannot answer reliably. None of them proves the code correct.
 | [Diff lints](#diff-lints) | new polling loops, deleted invariant comments, unanchored doc claims | every PR (Safety policy, Safety section) |
 | [Differential run](#differential-run) | normalized behavior changes nobody declared, and declared changes that did not happen | PRs touching `LiteDB/` |
 | [Mutation on the diff](#mutation-on-the-diff) | changed cleanup and lock lines that no test pins down | PRs labelled `critical`, manual |
-| [Contended acquire](performance.md#contended-acquire) | acquire-latency tails, waiter age and overtaking | the shared-slot performance workflow |
+| [Contended acquire](performance.md#contended-acquire) | acquire-latency tails, overtaking and waiter progress | the writer-contention step of the shared-slot performance workflow |
 
 **Pilot: nothing blocks yet.** [`net-modes.json`](../../.github/safety/net-modes.json)
 is the single switch for all of them. While its `blocking` is `false`, each net

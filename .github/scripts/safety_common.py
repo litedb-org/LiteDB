@@ -671,7 +671,11 @@ def net_advisory(net, blocking=None):
     lists; a net it does not list, or a missing file, is blocking. An explicit argument wins."""
     if blocking is not None:
         return not blocking
-    path = Path(repo_root()) / NET_MODES
+    try:
+        root = Path(repo_root())
+    except (subprocess.CalledProcessError, OSError):  # run outside a checkout: use the scripts' own repository
+        root = Path(__file__).resolve().parents[2]
+    path = root / NET_MODES
     if not path.is_file():
         return False
     data = load_json_file(path)
