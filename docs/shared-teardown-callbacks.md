@@ -36,7 +36,7 @@ unprotected checkpoint does not continue. A timeout is never successful proof.
 The fixed result requires the exact refusal, ownership retained inside the callback,
 positive controls, later writer progress, and repeated cold integrity checks.
 
-This defect predates transaction handles. A separate manifestation in fork PR #133
+This defect predates transaction handles. A separate manifestation in JKamsker/LiteDB#133
 waits on its own closing-core fence; the upstream proof intentionally targets the
 published early-release behavior. These tests establish process and exception
 behavior, not power-loss or physical-device guarantees. They do not expand
