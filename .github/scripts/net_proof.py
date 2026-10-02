@@ -148,12 +148,16 @@ def _validate_net(tree, net, capabilities, label, report):
         return  # a skeleton: capabilities are declared, the net is not runnable yet
     if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
         report.error(f"{label}: net.command must be a non-empty argument list", LEDGER)
-    timeout = net.get("timeoutSeconds")
-    if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
+    if not _positive(net.get("timeoutSeconds")):
         report.error(f"{label}: a runnable net declares its hard wall-clock limit as timeoutSeconds", LEDGER)
     build = net.get("build", ["LiteDB.sln"])
     if not isinstance(build, list) or not all(isinstance(item, str) for item in build):
         report.error(f"{label}: net.build must be a list of projects or solutions ([] builds nothing)", LEDGER)
+    for key, valid in (("reports", _strings), ("buildArgs", _strings), ("replays", _positive),
+                       ("buildTimeoutSeconds", _positive)):
+        if key in net and not valid(net[key]):
+            kind = "a list of strings" if valid is _strings else "a positive integer"
+            report.error(f"{label}: net.{key} must be {kind}", LEDGER)
     runs = net.get("runs", DEFAULT_RUNS.get(evidence, 1))
     if evidence in CLASSES and (not isinstance(runs, int) or runs < MIN_RUNS[evidence]):
         report.error(f"{label}: evidence class {evidence} needs runs >= {MIN_RUNS[evidence]}", LEDGER)
@@ -173,6 +177,14 @@ def _validate_net(tree, net, capabilities, label, report):
                          LEDGER)
     except re.error as error:
         report.error(f"{label}: expect.knownBad.match is not a valid regular expression: {error}", LEDGER)
+
+
+def _strings(value):
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _positive(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def _list(owner, key, label, report):

@@ -18,7 +18,8 @@ HANDLE_API = ("namespace LiteDB { public interface ILiteTransactionProvider { "
               "ILiteTransaction BeginTransaction(); } }\n")
 CAPABILITIES = {
     "legacy-transactions": {"description": "d", "grep": r"\bbool\s+BeginTrans\s*\(", "in": INTERFACE},
-    "handle-api": {"description": "d", "grep": r"\bILiteTransaction\s+BeginTransaction\s*\(", "in": "LiteDB/Client/**/*.cs"},
+    "handle-api": {"description": "d", "grep": r"\bILiteTransaction\s+BeginTransaction\s*\(",
+                   "in": "LiteDB/Client/**/*.cs"},
     "smoke-adapter": {"description": "d", "file": "adapted/marker.txt"},
     "overlay-commit": {"description": "d", "file": "overlay.txt"},
 }
@@ -87,6 +88,8 @@ class ValidateTests(unittest.TestCase):
             "overlay commit 'HEAD' must be a full": entry(net_overlay={"commits": ["HEAD"]}),
             "declares its hard wall-clock limit": entry(net_timeoutSeconds=None),
             "evidence class 2 needs runs >= 2": entry(net_evidenceClass=2, net_runs=1),
+            "net.replays must be a positive integer": entry(net_replays=0),
+            "net.reports must be a list of strings": entry(net_reports="run.json"),
             "states its tolerance": entry(net_evidenceClass=3),
             "expect.knownBad.fires must be true": entry(net_expect={"knownBad": {"fires": False, "match": "x"},
                                                                     "fix": {"fires": False}}),
