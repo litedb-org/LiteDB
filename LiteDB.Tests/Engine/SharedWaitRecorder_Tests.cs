@@ -19,8 +19,12 @@ namespace LiteDB.Tests.Engine
             // (a) no observer; (b) an observer whose threshold the waits never reach.
             var quiet = new SharedWaitRecorder("recorder-test-a-" + Guid.NewGuid().ToString("N"), "a.db", Timeout.InfiniteTimeSpan, null);
             var observed = new SharedWaitRecorder("recorder-test-b-" + Guid.NewGuid().ToString("N"), "b.db", TimeSpan.FromHours(1), observer);
-            Assert.Equal(0, Allocated(quiet));
-            Assert.Equal(0, Allocated(observed));
+            // Less than one byte per wait: the regression this guards against allocated 24 B per
+            // wait. A one-off runtime allocation (tier-up, a minute bucket) is not per wait.
+            var quietBytes = Allocated(quiet);
+            var observedBytes = Allocated(observed);
+            Assert.True(quietBytes < Pairs, $"{quietBytes} B over {Pairs} waits without an observer");
+            Assert.True(observedBytes < Pairs, $"{observedBytes} B over {Pairs} waits below the threshold");
 
             // Positive control: the measurement sees a slow wait's notification.
             using var notified = new ManualResetEventSlim();
