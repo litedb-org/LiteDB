@@ -121,6 +121,23 @@ class DifferentialRunTests(unittest.TestCase):
         self.assertIn(("outcome-not-permitted", "Read"), failing(report))
         self.assertIn("**not coverable**", output)
 
+    def test_differences_within_a_declared_permitted_set_are_permitted_variation(self):
+        allowed = ["ok", "threw:LiteDB.LiteException#137"]
+        self.runs.add("base", [record("Upsert", permitted=allowed)])
+        self.runs.add("head", [record("Upsert", permitted=allowed),
+                               record("Upsert", "threw", "LiteDB.LiteException", 137, permitted=allowed)])
+        code, output, report = self.runs.compare()
+        self.assertEqual(code, 0, output)
+        self.assertEqual({item.get("class") for item in report["differences"]}, {"permitted-variation"})
+        runs = Runs()
+        self.addCleanup(runs.cleanup)
+        runs.add("base", [record("Upsert", permitted=allowed)])
+        runs.add("head", [record("Upsert", permitted=allowed),
+                          record("Upsert", "threw", "LiteDB.LiteException", 132, permitted=allowed)])
+        code, output, report = runs.compare()
+        self.assertEqual(code, 1, output)
+        self.assertIn(("outcome-not-permitted", "Upsert"), failing(report))
+
     def test_primary_failure_replaced_by_cleanup_failure_fails(self):
         preserved = record("Commit", "threw", "System.IO.IOException", primaryExceptionType="System.IO.IOException")
         replaced = record("Commit", "threw", "LiteDB.LiteException", 9, primaryExceptionType="System.IO.IOException")

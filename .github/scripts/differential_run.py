@@ -6,7 +6,10 @@ order of legal concurrent winners vary between runs, so only normalized outcomes
 compared, per operation class and dimension (`op`, `dimension` in outcomes.jsonl):
 
 - permitted outcomes: the SET of outcome kinds observed (ok/threw/refused/hang); an
-  outcome outside a record's declared `permitted` set fails on its own;
+  outcome outside a record's declared `permitted` set ('ok', 'threw', 'threw:Type',
+  'threw:Type#code') fails on its own, and when both trees declare the same permitted
+  set for a racing operation, which permitted outcomes a run happened to observe is a
+  permitted variation, not a difference;
 - exception contract: the set of exception types (+ errorCode) that escape, and whether
   the primary failure is preserved (`primaryExceptionType` -> escaped type pairs);
 - payloads and acknowledged effects: multisets of `payloadDigest` / `effectsDigest`;
@@ -164,8 +167,14 @@ def _add_outcome(entry, record):
             entry[bucket][f"{record[field]} -> {escaped}" if bucket == "primary" else record[field]] += 1
     if isinstance(record.get("permitted"), list):
         entry["permitted"].update(record["permitted"])
-        if record.get("outcome") not in record["permitted"]:
-            entry["unpermitted"][record.get("outcome")] += 1
+        if not permitted(record, record["permitted"]):
+            entry["unpermitted"][f"{record.get('outcome')}:{escaped}"] += 1
+
+
+def permitted(record, allowed):
+    """An outcome is permitted by its kind ('threw'), or by kind and type ('threw:T', 'threw:T#code')."""
+    outcome, escaped = record.get("outcome"), _exception(record.get("exceptionType"), record.get("errorCode"))
+    return any(item in allowed for item in (outcome, f"{outcome}:{escaped.split('#')[0]}", f"{outcome}:{escaped}"))
 
 
 def _violation_kind(item):
@@ -210,10 +219,14 @@ def compare(base, head, unstable=frozenset()):
             continue
         before = len(found)
         _compare_op(add, not_compared, op, dimension, base["ops"][key], head["ops"][key])
-        if key in unstable:
-            for difference in found[before:]:
-                if difference["kind"] in SCHEDULE_SENSITIVE:
-                    difference["class"] = "schedule-dependent"
+        old, new = base["ops"][key], head["ops"][key]
+        declared = old["permitted"] and old["permitted"] == new["permitted"] \
+            and not old["unpermitted"] and not new["unpermitted"]
+        for difference in found[before:]:
+            if difference["kind"] in SCHEDULE_SENSITIVE and declared:
+                difference["class"] = "permitted-variation"
+            elif difference["kind"] in SCHEDULE_SENSITIVE and key in unstable:
+                difference["class"] = "schedule-dependent"
     for oracle, op, dimension in sorted(set(base["obligations"]) | set(head["obligations"])):
         old = base["obligations"].get((oracle, op, dimension))
         new = head["obligations"].get((oracle, op, dimension))
@@ -231,6 +244,11 @@ def compare(base, head, unstable=frozenset()):
 
 
 def _compare_op(add, not_compared, op, dimension, old, new):
+    _compare_contract(add, op, dimension, old, new)
+    _compare_optional(add, not_compared, op, dimension, old, new)
+
+
+def _compare_contract(add, op, dimension, old, new):
     for outcome, count in sorted(new["unpermitted"].items()):
         add("outcome-not-permitted", op, dimension, f"'{outcome}' {count}x outside the declared permitted set "
             f"{sorted(new['permitted'])}", coverable=False)
@@ -244,6 +262,9 @@ def _compare_op(add, not_compared, op, dimension, old, new):
             exception=exception)
     for exception in sorted(set(old["exceptions"]) - set(new["exceptions"])):
         add("exception-removed", op, dimension, f"no longer escapes {exception}", exception=exception)
+
+
+def _compare_optional(add, not_compared, op, dimension, old, new):
     for bucket, kind in (("primary", "primary-changed"), ("payloads", "payload-change"), ("effects", "effect-change")):
         if old["present"][bucket] < old["records"] or new["present"][bucket] < new["records"]:
             if old["present"][bucket] or new["present"][bucket]:
@@ -343,6 +364,8 @@ def render(result):
 def _verdict(difference):
     if difference.get("class") == "schedule-dependent":
         return "schedule-dependent (varies between repeats of one tree; not failing)"
+    if difference.get("class") == "permitted-variation":
+        return "permitted variation (both trees declare the same permitted outcomes; not failing)"
     return "**not coverable**" if difference.get("coverable") is False else "**not in manifest**"
 
 
@@ -373,7 +396,7 @@ def summarize(summary, rev, runs=None):
 def judge(base, head, entries, advisory, info, unstable=frozenset()):
     differences, capabilities, not_compared = compare(base, head, unstable)
     unused = apply_manifest(differences, entries, base, head)
-    failing = len([d for d in differences if not d.get("intended") and d.get("class") != "schedule-dependent"])
+    failing = len([d for d in differences if not d.get("intended") and not d.get("class")])
     failing += len(unused)
     info["unstable"] = sorted(f"{op} [{dimension or '-'}]" for op, dimension in unstable)
     status = "passed" if not failing else "advisory" if advisory else "failed"
