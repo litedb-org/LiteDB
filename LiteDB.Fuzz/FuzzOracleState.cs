@@ -94,7 +94,7 @@ internal sealed class FuzzOracleState : IDisposable
         {
             target = _context.Target, step = _context.Steps, op, mode = result.Mode, clean = result.Clean,
             coreOpen = result.CoreOpen, liveCores = result.LiveCores, mutexSnapshots = result.MutexSnapshots,
-            pinActive = result.PinActive, ownershipHeld = result.OwnershipHeld, holderThread = result.HolderThread,
+            pinActive = result.PinActive, ownershipHeld = result.OwnershipHeld, holderThread = result.HolderThread, holderLateExit = result.HolderLateExit,
             admittedCalls = result.AdmittedCalls, databaseUsers = result.DatabaseUsers,
             transferredReaders = result.TransferredReaders, openTransactions = result.OpenTransactions,
             engineDisposed = result.EngineDisposed, waitedMs = Math.Round(result.WaitedMs, 3), violations = result.Violations

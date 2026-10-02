@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Reflection;
-using System.Threading;
 using LiteDB.Engine;
 
 namespace LiteDB.Tests.Safety
@@ -17,6 +15,8 @@ namespace LiteDB.Tests.Safety
         public bool PinActive { get; set; }
         public bool OwnershipHeld { get; set; }
         public bool HolderThread { get; set; }
+        /// <summary>The idle owner thread exited after the design bound (host scheduling; see <see cref="HolderExitWait"/>).</summary>
+        public bool HolderLateExit { get; set; }
         public int AdmittedCalls { get; set; }
         public int DatabaseUsers { get; set; }
         /// <summary>Leased readers that legitimately outlive the connection (their lease moved with them).</summary>
@@ -33,7 +33,7 @@ namespace LiteDB.Tests.Safety
     /// is retired, released or validly transferred. Direct (LiteEngine): the engine is disposed
     /// and its transaction registry is empty. Shared (SharedEngine): no core of it is open or
     /// still closing, no mutex snapshot, pin, mutex ownership, admitted call or engine user
-    /// remains, and its mutex owner thread exits within the owner's idle limit plus two polls.
+    /// remains, and its mutex owner thread exits by the owner's own idle rule (<see cref="HolderExitWait"/>).
     /// Leased readers may outlive the connection with their lease (counted, not failed). Other
     /// connections to the same file are not judged here (see <see cref="QuiescentProbe"/>).
     /// </summary>
@@ -75,11 +75,11 @@ namespace LiteDB.Tests.Safety
         {
             var type = typeof(SharedEngine);
             var result = new ConnectionCleanResult { Mode = "shared" };
-            var waited = Stopwatch.StartNew();
             // The owner thread exits on its own once idle; everything else is released by Dispose itself.
-            while (engine.MutexOwner.HasHolderThread && waited.Elapsed < QuiescentProbe.Grace) Thread.Sleep(10);
-            result.WaitedMs = waited.Elapsed.TotalMilliseconds;
-            result.HolderThread = engine.MutexOwner.HasHolderThread;
+            var holder = HolderExitWait.Wait(engine.MutexOwner);
+            result.WaitedMs = holder.WaitedMs;
+            result.HolderThread = holder.Alive;
+            result.HolderLateExit = holder.LateIdleExit;
             result.CoreOpen = Read<object>(engine, type, "_engine") != null;
             result.MutexSnapshots = Count(Read<object>(engine, type, "_mutexSnapshots"));
             result.PinActive = engine.Pin != null;
@@ -93,7 +93,7 @@ namespace LiteDB.Tests.Safety
             if (result.MutexSnapshots > 0) violations.Add($"cores: {result.MutexSnapshots} snapshot(s) still stream under the mutex");
             if (result.PinActive) violations.Add("pins: a pin is still published");
             if (result.OwnershipHeld) violations.Add("ownership: the connection still owns the writer mutex");
-            if (result.HolderThread) violations.Add($"threads: the mutex owner thread outlived {QuiescentProbe.Grace.TotalMilliseconds:F0} ms");
+            if (holder.Violation != null) violations.Add(holder.Violation);
             if (result.AdmittedCalls > 0) violations.Add($"admissions: {result.AdmittedCalls} admitted call(s) remain");
             if (result.DatabaseUsers > 0) violations.Add($"admissions: {result.DatabaseUsers} engine user(s) remain");
             return result;
