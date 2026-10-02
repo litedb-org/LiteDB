@@ -95,6 +95,13 @@ checkpoints at its own close. Once every connection has closed, the data file
 alone is the database again, unless a reader of another connection still pins the
 WAL or CHECKPOINT is 0.
 
+A transaction handle reuses only its holder thread and its connection's closed private
+wrapper ([transaction handles](transaction-handles.md#shared-mode)): its storage core
+is opened afresh and closed again, and its native mutex is taken and released inside
+each handle, so every handle reads the files afresh like an operation does. A reused
+wrapper joins an existing mapped coordination authority for its handle and leaves it
+again; it never creates one.
+
 On Windows a connection keeps its data and WAL file handles open between
 operations; opening them was most of an operation's fixed cost. Only the handles
 are reused. Every operation still reads the header, WAL and pages afresh, because
