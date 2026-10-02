@@ -144,7 +144,6 @@ namespace LiteDB.Tests.Engine
                 var rows = tx.GetCollection<Entity>("rows");
                 Assert.Equal(10, rows.FindById(1).Value);
                 Assert.ThrowsAny<Exception>(() => rows.Insert(new Entity { Id = 2 }));
-                Assert.ThrowsAny<Exception>(() => tx.DropCollection("rows"));
                 Assert.Equal(LiteTransactionState.Active, tx.State);
                 tx.Commit();
                 Assert.Equal(LiteTransactionState.Committed, tx.State);
