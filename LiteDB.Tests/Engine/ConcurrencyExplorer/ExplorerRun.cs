@@ -140,6 +140,10 @@ namespace LiteDB.ConcurrencyTesting
             if (live.Length == 0) this.Host.Ownership(null, point);
         }
 
+        /// <summary>The stable id an oracle exception of a host carries (a FailureId property, often internal), or null.</summary>
+        internal static string CarriedFailureId(Exception error) => error?.GetType().GetProperty("FailureId",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(error) as string;
+
         internal static string DefaultFailureId(Exception error)
         {
             switch (error)
@@ -147,8 +151,7 @@ namespace LiteDB.ConcurrencyTesting
                 case ExplorerFailure failure: return failure.Id;
                 case null: return "UNKNOWN";
                 default:
-                    var id = error.GetType().GetProperty("FailureId")?.GetValue(error) as string;
-                    return id ?? "UNEXPECTED_EXCEPTION_" + ExplorerFailure.Safe(error.GetType().Name);
+                    return CarriedFailureId(error) ?? "UNEXPECTED_EXCEPTION_" + ExplorerFailure.Safe(error.GetType().Name);
             }
         }
 

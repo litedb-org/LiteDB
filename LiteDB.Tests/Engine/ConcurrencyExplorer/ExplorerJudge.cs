@@ -103,7 +103,8 @@ namespace LiteDB.ConcurrencyTesting
             if (error == null) return;
             if (error is ExplorerFailure failure) throw failure;
             // An oracle failure raised by a host (it carries a stable failure id) is never an operation outcome.
-            if (error.GetType().GetProperty("FailureId") != null) throw new ExplorerFailure(ExplorerRun.DefaultFailureId(error), error.Message, error);
+            var carried = ExplorerRun.CarriedFailureId(error);
+            if (carried != null) throw new ExplorerFailure(carried, error.Message, error);
             var kind = Classify(error, refused);
             if (kind == null)
                 throw new ExplorerFailure("UNEXPECTED_EXCEPTION_" + ExplorerFailure.Safe(error.GetType().Name),
