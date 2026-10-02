@@ -131,6 +131,8 @@ internal static class Program
         // The deadline watchdog fails a run whose operation never returns: same artifacts, then exit.
         context.DeadlineFailureHandler = async error =>
         {
+            // The overdue operation never returns, so the graph's findings so far are its evidence.
+            ReportWaitGraph(directory, verdict: false);
             await RecordFailureAsync(target, options, context, started, error);
             FuzzMarkers.Write(context);
             await FuzzArtifacts.WriteResultAsync(context, started, error);
