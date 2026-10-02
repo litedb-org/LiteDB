@@ -102,14 +102,16 @@ namespace LiteDB.Tests.Engine
                     Assert.NotNull(cached);
                     Assert.False(cached.MutexOwner.IsHeld);
                     var id = round;
-                    TransactionHandle_Tests.OnThread(() => peer.GetCollection("peer").Insert(Row(id)));
-                    // The raw OS mutex is free too: neither held nor abandoned by a pooled holder.
+                    // The raw OS mutex is free too: neither kept nor abandoned by the pooled holder. The
+                    // peer connection's own background work (a posted release, mapped-read upkeep) may
+                    // hold it briefly, so the raw wait is bounded instead of a zero-timeout probe.
                     TransactionHandle_Tests.OnThread(() =>
                     {
                         using var raw = SharedMutexFactory.Create(name);
-                        Assert.True(raw.WaitOne(0), "A pooled holder thread still owns the writer mutex.");
+                        Assert.True(raw.WaitOne(TimeSpan.FromSeconds(1)), "A pooled holder thread still owns the writer mutex.");
                         raw.ReleaseMutex();
                     });
+                    TransactionHandle_Tests.OnThread(() => peer.GetCollection("peer").Insert(Row(id)));
                 }
                 Assert.Equal(1, shared.TransactionChildrenCreated);
                 Assert.Equal(49, shared.TransactionChildrenReused);
