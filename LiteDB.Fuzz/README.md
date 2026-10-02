@@ -310,8 +310,13 @@ target's seed. `--validate` fails when a cap differs from its smoke leg, and whe
 a target whose source starts child processes or drives the concurrency explorer
 is neither capped nor listed under `uncapped` with a reason.
 
-Each invocation runs at most four target processes at a time, so concurrent
-groups can run up to four each. Measured locally (24 cores, shared host, load
+Each invocation runs at most four target processes at a time. The groups also
+share one limit sized to the runner: the job sets `LITEDB_FUZZ_SLOT_DIR` and
+`LITEDB_FUZZ_SLOTS=$(nproc)`, and every target run holds one of those slots
+(an exclusively opened lock file, freed by the OS if an invocation dies) for
+its duration, so concurrent groups never run more than `nproc` target processes
+together. Slots bound concurrency only; seeds, inputs and traces are unchanged.
+Without the two variables there is no shared limit. Measured locally (24 cores, shared host, load
 6-18; seed 2950080): a one-line query change selects 7 targets and takes 152 s
 (lifetime-chaos x40 150 s, teardown-faults x30 82 s); a `lock` change in
 `SharedEngine.cs` selects 8 targets and takes 163 s (lifetime-chaos x40 158 s); every

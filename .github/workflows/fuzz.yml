@@ -223,8 +223,9 @@ jobs:
     # Counts: prCounts in .github/safety/fuzz-obligations.json. A selected target runs 100 steps (30 when every
     # target is selected); explorer, teardown-sweep and multi-process targets are capped at the count of their
     # ubuntu-latest smoke leg (lifetime-chaos and transaction-interleavings 40, teardown-faults, chaos-maintenance,
-    # shared and snapshot 30, shared-contention 5), min(cap, count). Each group is one invocation running at most
-    # 4 target processes at a time, so concurrent groups can run up to 4 per group. Measured locally (24 cores,
+    # shared and snapshot 30, shared-contention 5), min(cap, count). Each group is one invocation; all groups
+    # share one limit of nproc target processes (FuzzProcessSlots), so the runner is never oversubscribed by
+    # the number of groups. Measured locally (24 cores,
     # shared host, load 6-18): query change 7 targets in 152 s (lifetime-chaos x40 150 s, teardown-faults x30
     # 82 s), Shared-mode change 8 targets in 163 s (lifetime-chaos x40 158 s, transaction-interleavings x40
     # 132 s), all 50 targets in
@@ -248,7 +249,8 @@ jobs:
           mkdir -p artifacts/fuzz-pr
           python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" \
             --github-output --output artifacts/fuzz-pr/selection.json
-      # One invocation per count group, all concurrently. Each group has its own artifact root: an invocation
+      # One invocation per count group, all concurrently, sharing nproc target-process slots
+      # (LITEDB_FUZZ_SLOT_DIR/LITEDB_FUZZ_SLOTS). Each group has its own artifact root: an invocation
       # rewrites interesting-corpus.jsonl and prunes interesting-inputs/ in its root when it ends, which two
       # invocations sharing a root would race. Output lines carry the group's label; full logs are kept.
       - name: Run selected targets
@@ -259,6 +261,8 @@ jobs:
           FUZZ_SEED: ${{ steps.select.outputs.seed }}
         run: |
           mkdir -p artifacts/fuzz-pr/logs
+          export LITEDB_FUZZ_SLOT_DIR="$RUNNER_TEMP/fuzz-pr-slots" LITEDB_FUZZ_SLOTS="$(nproc)"
+          echo "Shared limit: $LITEDB_FUZZ_SLOTS target processes across all groups"
           pids=(); labels=()
           for group in $COUNT_GROUPS; do
             count="${group%%:*}"; targets="${group#*:}"; label="count-$count"

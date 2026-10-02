@@ -17,8 +17,11 @@ internal static class FuzzProcessRunner
         IFuzzTarget target, FuzzOptions options, int worker, TimeSpan? allocatedDuration = null)
     {
         await ProcessSlots.WaitAsync();
+        IDisposable sharedSlot = null;
         try
         {
+            // Invocations started side by side share the runner (FuzzProcessSlots); this run waits for a slot.
+            sharedSlot = await FuzzProcessSlots.AcquireAsync();
             if (!allocatedDuration.HasValue)
             {
                 // A count-bound run is one epoch: the same budget gate, before it starts.
@@ -51,7 +54,11 @@ internal static class FuzzProcessRunner
             }
             return results;
         }
-        finally { ProcessSlots.Release(); }
+        finally
+        {
+            sharedSlot?.Dispose();
+            ProcessSlots.Release();
+        }
     }
 
     /// <summary>

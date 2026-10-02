@@ -83,6 +83,8 @@ internal static class Program
             return identity == null ? 0 : 1;
         }
 
+        try { FuzzProcessSlots.FromEnvironment(); }
+        catch (InvalidOperationException error) { Console.Error.WriteLine(error.Message); return 2; }
         var requestedRuns = selected.Length * options.Workers;
         TimeSpan? allocatedDuration = null;
         if (options.Duration.HasValue)
