@@ -81,7 +81,8 @@ Only executing work is refused. A same-thread wait on an idle owner of another
 connection still waits: an idle pin ends for the waiter, and a result left open can
 be disposed on any thread. An open explicit transaction is idle too, but only its
 own thread can complete it, so a same-thread write through another connection
-waits until that connection is disposed elsewhere; see
+waits until that connection is disposed elsewhere, and so does a transaction
+handle begun there through another connection; see
 [#3073](https://github.com/litedb-org/LiteDB/issues/3073). Waits that cross
 threads (a callback waiting for another thread's call) are not detected.
 

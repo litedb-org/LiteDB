@@ -8,7 +8,7 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Represent a single transaction service. Need a new instance for each transaction.
-    /// You must run each transaction in a different thread - no 2 transaction in same thread (locks as per-thread)
+    /// It belongs to its thread, or to an explicit handle that may run on any thread (TransactionOwner).
     /// </summary>
     internal class TransactionService : IDisposable
     {
@@ -26,15 +26,15 @@ namespace LiteDB.Engine
         private readonly TransactionPages _transPages = new TransactionPages();
 
         // transaction info
-        private readonly Thread _ownerThread = Thread.CurrentThread;
+        internal readonly TransactionOwner Owner;
         private readonly DateTime _startTime;
         private long _headerPosition = long.MaxValue;
         private LockMode _mode = LockMode.Read;
         private TransactionState _state = TransactionState.Active;
 
         // expose (as read only)
-        public int ThreadID => _ownerThread.ManagedThreadId;
-        internal Thread OwnerThread => _ownerThread;
+        public int ThreadID => Owner.Thread?.ManagedThreadId ?? 0;
+        internal Thread OwnerThread => Owner.Thread;
         public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;
         public LockMode Mode => _mode;
@@ -57,7 +57,7 @@ namespace LiteDB.Engine
         /// </summary>
         public volatile bool ExplicitTransaction = false;
 
-        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
+        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly, TransactionOwner owner)
         {
             // retain instances
             _header = header;
@@ -65,6 +65,8 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _monitor = monitor;
+            Owner = owner;
+            _transPages.LockOwner = owner.Admission;
 
             this.QueryOnly = queryOnly;
             this.MaxTransactionSize = maxTransactionSize;
@@ -96,11 +98,8 @@ namespace LiteDB.Engine
                     var replacement = create();
                     // Includes can hold secondary collection snapshots not named
                     // by CursorInfo.Collection, so retain conservatively for any cursor.
-                    if (snapshot.Mode == LockMode.Read && this.OpenCursors.Count > 0)
-                    {
-                        snapshot.RetainForCursor();
-                        _cursorSnapshots.Add(snapshot);
-                    }
+                    // A retained read snapshot keeps its WAL version (Snapshot.ReadPage).
+                    if (snapshot.Mode == LockMode.Read && this.OpenCursors.Count > 0) _cursorSnapshots.Add(snapshot);
                     else snapshot.Dispose();
                     _snapshots[collection] = snapshot = replacement;
                 }
@@ -306,7 +305,8 @@ namespace LiteDB.Engine
                 }
             }
 
-            // dispose all snapshots
+            // dispose all snapshots (a handle records its durable outcome first)
+            if (Owner.Explicit != null) Owner.Explicit.Outcome = LiteTransactionState.Committed;
             foreach (var snapshot in this.Snapshots)
             {
                 snapshot.Dispose();
@@ -475,8 +475,8 @@ namespace LiteDB.Engine
             {
                 foreach (var snapshot in this.Snapshots)
                 {
-                    TransactionPageCleanup.Release(snapshot, _disk.Cache,
-                        _ownerThread == Thread.CurrentThread, ref errors);
+                    // Legacy cleanup on a foreign thread keeps its locks, as before; a handle's may run anywhere.
+                    TransactionPageCleanup.Release(snapshot, _disk.Cache, Owner.Explicit != null || Owner.Thread == Thread.CurrentThread, ref errors);
                 }
             }
 

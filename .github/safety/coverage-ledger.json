@@ -34,6 +34,26 @@
       "disposition": "strengthened",
       "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    },
+    {
+      "id": "3064-interleaving-fuzz",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing fuzz jobs keep their targets, seeds, durations and timeouts; existing campaign shards keep the default 512 MB artifact budget.",
+      "reason": "Adds the transaction-interleavings smoke job (15-minute limit, artifacts required) and a nightly campaign shard; the campaign's artifact budget becomes a per-shard value so the new shard can keep failing fixtures (0 = never prune), with every existing shard set to the previous default of 512."
+    },
+    {
+      "id": "3064-transaction-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every test method still runs in exactly one partition (verified by -VerifyPartitions); no timeout or filter of another partition changes.",
+      "reason": "Moves LiteDB.Tests.Engine.Transaction* out of the engine partition into its own engine-transaction partition, so the added handle coverage (interleaving explorer, close races) does not push the engine partition past the per-session timeout."
     }
   ]
 }

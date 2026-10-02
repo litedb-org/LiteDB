@@ -16,6 +16,7 @@ namespace LiteDB.Vector
         /// </remarks>
         public static IEnumerable<VectorSearchResult<T>> WithScore<T>(this ILiteQueryableResult<T> source)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorEnumerable(inner => inner.VectorWithScore());
             return Unwrap(source).VectorWithScore();
         }
 

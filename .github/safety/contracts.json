@@ -36,7 +36,12 @@
         {"test": "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#FailedCheckpointSync_PreservesAtomicDataAndStopsWrites", "model": "exception", "proves": "A failed checkpoint sync performs zero data writes and stops later writes instead of acknowledging them."},
         {"test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership", "model": "exception", "proves": "Device failures at the Shared commit barrier recover whole transactions and release writer ownership."},
         {"fuzz": "shared", "model": "process-death", "proves": "Child processes die at the reached hook; the parent requires the matching durable intent marker and verifies the recovered state."},
-        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."}
+        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."},
+        {"test": "LiteDB.Tests/Internals/TransactionHandleProcessDeath_Tests.cs#Random_kill_points_preserve_every_acknowledged_commit", "model": "process-death", "proves": "Killing a process that commits through Shared handles (and legacy transactions) at random points keeps every acknowledged commit, recovers a contiguous prefix with at most one unreported extra commit, and keeps the index count equal to the document count over reopens."},
+        {"test": "LiteDB.Tests/Internals/TransactionHandleProcessDeath_Tests.cs#Waiters_alive_at_handle_owner_death_proceed", "model": "process-death", "proves": "Local and cross-process waiters alive when a Shared handle's owner process dies proceed within the bound; the dead handle's insert is absent on Shared and Direct reopens."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_racing_a_raw_engine_close_never_returns_while_active", "model": "exception", "proves": "A handle commit racing an engine close either returns as Committed or throws the engine's published failure with a non-active outcome; it never returns while the transaction is lost."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits", "model": "exception", "proves": "Database close racing thread-hopping handles returns, leaves no handle active, and two cold reopens hold exactly the acknowledged commits with an index that agrees with the data."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs#Uncaught_raw_call_is_refused_before_side_effects", "model": "exception", "proves": "Every public raw engine call from a bound mapper, input enumerable or ReadTransform is refused before any write, so no write escapes a handle's transaction."}
       ],
       "gaps": [
         {"text": "No OS/VM reset or physical-device campaign: the device model is unclaimed."},
@@ -98,10 +103,15 @@
         {"test": "LiteDB.Tests/Internals/MvccCursorModel_Tests.cs#LongLivedCursorsAcrossCheckpoints_MatchModel", "proves": "Long-lived cursors across partial checkpoints return exactly what an independent model predicts."},
         {"test": "LiteDB.Tests/Engine/SharedReaderModel_Tests.cs#InterleavedSharedInstances_ReadersMatchModel", "proves": "Held readers of interleaved Shared instances match an independent model."},
         {"test": "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Pin_owner_hands_off_to_each_repeated_waiter", "proves": "Each attempt observes ready, fresh-owner update and re-pin, release and completion, so every handoff is a real one (#3033)."},
+        {"test": "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page", "proves": "A read snapshot keeps its pinned version when its own transaction reuses a page ID another transaction freed and a safepoint marks it dirty, plain and encrypted (#3092)."},
         {"test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery", "model": "process-death", "proves": "A reclaimer killed mid-reclamation cannot invalidate another process's live reader or the reused-slot recovery."},
         {"fuzz": "threaded-snapshot", "proves": "Holds N and N+1 readers while two writers demonstrably complete, then overlaps checkpoint and slot reuse and checks all three versions."},
         {"fuzz": "transaction-gate", "proves": "Transaction admission overlaps checkpoints and readers under forced interleavings."},
-        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."}
+        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleInterleaving_Tests.cs#Forced_concurrent_histories_preserve_transaction_contracts", "proves": "Forced interleavings of bound cursors, overlap, close and maintenance across threads match the committed model after a cold reopen; commit is refused while a bound reader is open and use after dispose throws."},
+        {"fuzz": "transaction-interleavings", "proves": "Every retained handle interleaving schedule, Direct and Shared, plain and encrypted, matches the committed model after a cold reopen."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleMaintenanceProgress_Tests.cs#Maintenance_progresses_under_sustained_handle_callback_reads", "proves": "A rebuild queued behind thread-hopping reader handles completes and no reader that started after it queued gets ahead, except callbacks of the executing handle."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Reader_dispose_overlapping_a_handle_call_still_unregisters", "proves": "A bound reader or enumerator disposed on another thread during a call of its handle is released when that call returns; the handle then commits exactly its writes."}
       ],
       "gaps": [
         {"text": "Shared reader lease files have observer stages only; no registered fault point interrupts lease publication or expiry."}
@@ -178,6 +188,27 @@
       ],
       "gaps": [
         {"text": "Cached and uncached paths share one translator; CLR evaluation is the independent oracle only where semantics align."}
+      ]
+    },
+    {
+      "id": "legacy-transaction-api",
+      "title": "Existing transaction API consumers keep compiling, loading and behaving as before",
+      "docs": [
+        "docs/transaction-handles.md#migrating-legacy-callers",
+        "docs/transaction-handles.md#supported-surface"
+      ],
+      "paths": [
+        "LiteDB/Client/Database/**",
+        "LiteDB/Client/Transactions/**",
+        "LiteDB/Engine/ILiteEngine.cs",
+        "LiteDB/Engine/Engine/Transaction*.cs"
+      ],
+      "evidence": [
+        {"script": "scripts/test-transaction-handle-compatibility.py", "proves": "A consumer compiled against the parent DLL loads its own ILiteDatabase/ILiteEngine implementations on the candidate, runs legacy transactions (decorator, caller-owned engine), gets NotSupportedException without side effects from BeginTransaction on unsupported providers, and prints a legacy-outcome transcript identical to the parent's; warnings-as-errors fails with CS0618, WarningsNotAsErrors=CS0618 builds, a BeginTransaction() consumer builds warning-free."},
+        {"test": "LiteDB.Tests/Engine/TransactionCloseLockRelease_Tests.cs#Foreign_thread_cursor_dispose_keeps_the_legacy_lock_as_on_dev", "model": "exception", "proves": "A ForUpdate cursor disposed on a foreign thread keeps its collection lock exactly as on dev, so a later writer times out."}
+      ],
+      "gaps": [
+        {"text": "Runtime-only checks on net8.0/net10.0; .NET Framework/netstandard2.0 consumers and mocking libraries are not exercised."}
       ]
     }
   ]
