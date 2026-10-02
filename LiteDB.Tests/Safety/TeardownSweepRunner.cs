@@ -51,6 +51,35 @@ namespace LiteDB.Tests.Safety
                 return RunBaseline(driver, driver.Defaults(), root);
             })).Value;
 
+        private static readonly object _prefetch = new object();
+
+        /// <summary>
+        /// Run every not yet cached default baseline of <paramref name="drivers"/> in one parallel batch (the
+        /// process-wide checks once for the batch, one isolated run at a time if they trip) and cache them.
+        /// </summary>
+        public static void PrefetchDefaultBaselines(IEnumerable<TeardownDriver> drivers)
+        {
+            lock (_prefetch)
+            {
+                var pending = drivers.Where(driver => driver.NotApplicable == null && !_defaultBaselines.ContainsKey(driver.Id))
+                    .ToArray();
+                if (pending.Length == 0 || Parallelism <= 1) return;
+                var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "litedb-teardown-sweep", "baselines");
+                System.IO.Directory.CreateDirectory(root);
+                var priors = pending.ToDictionary(driver => driver.Id, driver => driver.Defaults());
+                var specs = pending.Select(driver => new TeardownCaseSpec { Driver = driver }).ToArray();
+                using (TeardownSweep.CountLeakedBuffers())
+                {
+                    TeardownSweep.CollectLeaks();
+                    foreach (var result in RunBatch(specs, spec => priors[spec.Driver.Id], root, null, 2 * Parallelism, checkLeaks: true))
+                    {
+                        var done = result;
+                        _defaultBaselines.TryAdd(result.Spec.Driver.Id, new Lazy<TeardownRunResult>(() => done));
+                    }
+                }
+            }
+        }
+
         private static TeardownRunResult RunBaseline(TeardownDriver driver, TeardownPrior prior, string root)
         {
             using (TeardownSweep.CountLeakedBuffers())
@@ -91,8 +120,8 @@ namespace LiteDB.Tests.Safety
                 var width = driver.Mode == TeardownMode.Shared ? 2 * Parallelism : Parallelism;
                 var mayLeak = cases.Where(ExcusesLeaks).ToArray();
                 var others = cases.Where(spec => !ExcusesLeaks(spec)).ToArray();
-                var results = RunBatch(mayLeak, prior, root, log, width, checkLeaks: false)
-                    .Concat(RunBatch(others, prior, root, log, width, checkLeaks: true))
+                var results = RunBatch(mayLeak, _ => prior, root, log, width, checkLeaks: false)
+                    .Concat(RunBatch(others, _ => prior, root, log, width, checkLeaks: true))
                     .ToDictionary(result => result.Spec);
                 sweep.Cases.AddRange(cases.Select(spec => results[spec]));
             }
@@ -103,31 +132,35 @@ namespace LiteDB.Tests.Safety
         private static bool ExcusesLeaks(TeardownCaseSpec spec) =>
             spec.Model == FaultModel.Skip && (TeardownStepCatalog.Find(spec.Step)?.SkipLeaves ?? new string[0]).Contains(TeardownStepCatalog.LeakedPages);
 
-        private static IEnumerable<TeardownRunResult> RunBatch(IReadOnlyList<TeardownCaseSpec> cases, TeardownPrior prior, string root,
-            Action<string> log, int width, bool checkLeaks)
+        private static IEnumerable<TeardownRunResult> RunBatch(IReadOnlyList<TeardownCaseSpec> cases, Func<TeardownCaseSpec, TeardownPrior> prior,
+            string root, Action<string> log, int width, bool checkLeaks)
         {
             if (cases.Count == 0) return new TeardownRunResult[0];
+            // Threads an earlier hung case left blocked are its own finding; judge this batch against what was there before it.
+            var threadsBefore = QuiescentProbe.LiteDbThreads(new List<string>())?.Length ?? 0;
             var results = new TeardownRunResult[cases.Count];
             using (var gate = new SemaphoreSlim(width))
             {
                 var tasks = cases.Select((spec, index) => Task.Run(() =>
                 {
                     gate.Wait();
-                    try { results[index] = TeardownSweep.Run(spec, prior, root, isolated: false); }
+                    try { results[index] = TeardownSweep.Run(spec, prior(spec), root, isolated: false); }
                     finally { gate.Release(); }
                 })).ToArray();
                 Task.WaitAll(tasks);
             }
             var leaked = TeardownSweep.CollectLeaks();
-            var threads = QuiescentProbe.Evaluate(System.IO.Path.Combine(root, "batch-threads.db")).Violations
-                .Where(item => item.StartsWith("threads", StringComparison.Ordinal)).ToArray();
-            if ((leaked == 0 || !checkLeaks) && threads.Length == 0)
+            var threads = QuiescentProbe.Evaluate(System.IO.Path.Combine(root, "batch-threads.db"), Math.Max(threadsBefore, QuiescentProbe.IdleThreadCap))
+                .Violations.Where(item => item.StartsWith("threads", StringComparison.Ordinal)).ToArray();
+            // A hung case keeps its threads blocked: rerunning would only hang again, and its violation already says so.
+            var hung = results.Any(result => result.Violations.Any(item => item.StartsWith("deadline.", StringComparison.Ordinal)));
+            if ((leaked == 0 || !checkLeaks) && (threads.Length == 0 || hung))
             {
                 foreach (var result in results) log?.Invoke(result.ToString());
                 return results;
             }
             log?.Invoke($"batch: {leaked} leaked page buffer(s), {string.Join("; ", threads)}; rerunning one case at a time");
-            return cases.Select(spec => Log(TeardownSweep.Run(spec, prior, root, isolated: true), log)).ToArray();
+            return cases.Select(spec => Log(TeardownSweep.Run(spec, prior(spec), root, isolated: true), log)).ToArray();
         }
 
         private static TeardownRunResult Log(TeardownRunResult result, Action<string> log)

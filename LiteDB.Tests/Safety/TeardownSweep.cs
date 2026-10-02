@@ -112,7 +112,13 @@ namespace LiteDB.Tests.Safety
             }) { IsBackground = true, Name = "teardown-sweep case" };
             thread.Start();
             if (!thread.Join(CaseBound))
-                throw new TimeoutException($"Teardown case {spec} did not finish within {CaseBound.TotalSeconds:F0} s.");
+            {
+                // A hang is a finding, not a harness error: report it and leave the blocked (background) thread behind.
+                var hung = new TeardownRunResult { Spec = spec, Prior = prior, ElapsedMs = CaseBound.TotalMilliseconds };
+                hung.Violations.Add($"deadline.case: the case did not finish within {CaseBound.TotalSeconds:F0} s (its thread is still blocked)");
+                Classify(hung);
+                return hung;
+            }
             if (error != null) throw new InvalidOperationException($"Teardown case {spec} failed in the harness.", error);
             if (isolated)
             {

@@ -52,6 +52,11 @@ namespace LiteDB.Tests.Safety
         public Action<TeardownPrior> Require { get; }
         /// <summary>Why the driver cannot run on this runtime (the path's code differs there); null when it runs.</summary>
         public string NotApplicable { get; }
+        /// <summary>
+        /// The driver's own check needs no armed fault (it judges what its teardown does unfaulted): Default scope
+        /// runs its baseline only, Full scope (and the fuzz target) also arms faults.
+        /// </summary>
+        public bool BaselineOnlyByDefault { get; set; }
         public string Id => $"{this.Path}/{this.Variant}/{this.Mode.ToString().ToLowerInvariant()}";
         public override string ToString() => this.Id;
     }

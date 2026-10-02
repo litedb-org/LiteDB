@@ -30,6 +30,7 @@ namespace LiteDB.Tests.Safety
 
         public static IReadOnlyList<TeardownCaseSpec> Cases(TeardownDriver driver, IEnumerable<TeardownVisit> baseline, TeardownSweepScope scope)
         {
+            if (scope == TeardownSweepScope.Default && driver.BaselineOnlyByDefault) return new TeardownCaseSpec[0];
             var visits = baseline.ToArray();
             var last = visits.GroupBy(visit => (visit.Step, visit.Site)).ToDictionary(group => group.Key, group => group.Max(visit => visit.Occurrence));
             var cases = new List<TeardownCaseSpec>();

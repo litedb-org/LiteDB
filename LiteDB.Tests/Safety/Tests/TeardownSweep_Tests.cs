@@ -68,6 +68,7 @@ namespace LiteDB.Tests.Safety.Tests
         public void Every_catalogued_step_is_reached_by_a_driver()
         {
             var reached = new HashSet<string>(StringComparer.Ordinal);
+            TeardownSweepRunner.PrefetchDefaultBaselines(TeardownDrivers.All);
             foreach (var driver in TeardownDrivers.All.Where(item => item.NotApplicable == null))
                 foreach (var visit in TeardownSweepRunner.DefaultBaseline(driver).Visits) reached.Add(visit.Step);
             var unreached = TeardownStepCatalog.Steps.Keys.Where(step => !reached.Contains(step)).OrderBy(step => step, StringComparer.Ordinal).ToArray();
@@ -91,6 +92,8 @@ namespace LiteDB.Tests.Safety.Tests
             {
                 var drivers = TeardownDrivers.For(path).ToArray();
                 Assert.True(drivers.Length > 0, $"new teardown path {path} has no sweep driver");
+                // The first sweep test runs every driver's baseline in one parallel batch; later ones reuse them.
+                TeardownSweepRunner.PrefetchDefaultBaselines(TeardownDrivers.All);
                 foreach (var driver in drivers)
                 {
                     var sweep = driver.NotApplicable != null ? TeardownSweepRunner.Sweep(driver, null, root, TeardownSweepPlan.Scope)

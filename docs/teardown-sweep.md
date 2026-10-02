@@ -93,12 +93,17 @@ thread-static scope count set on, the thread that ran it; both end with that thr
 | Default | the path's own steps, first and last occurrence, both models; one composition case per nested path (its first step reached, first occurrence, fail-inside where allowed); a path without own steps (it delegates its whole teardown, as `LiteEngine.Dispose` does) gets every nested step's first occurrence under both models |
 | Full (`LITEDB_TEARDOWN_SWEEP=full`) | every occurrence of every step site reached, both models |
 
+Drivers whose own check needs no armed fault (the teardown-callback drivers below) run only their
+baseline in Default scope; Full scope and the fuzz target also arm faults in them.
+
 Cases run in parallel batches on separate files (8 Direct, 16 Shared: a Shared case mostly
 waits about a second for idle holder threads to exit). Process-wide checks (LiteDB threads,
 leaked page buffers) run once per batch; if one fires, the batch reruns one case at a time so
 each violation is attributed. Skips that may leak page buffers by design form their own batch.
-Measured on a 24-core Linux host under other load: Default 25 paths in about 55 s total, the
-slowest path below 10 s (each test case is bounded by `TestCaseTimeout` 30 s).
+The first sweep test runs every driver's default baseline in one parallel batch and caches it;
+the per-path tests and the step coverage fact reuse them. Measured on a 24-core Linux host under
+other agents' load (load average 28): 32 tests (25 paths, 45 drivers) in 57 s total, the slowest
+path 7 s (each test case is bounded by `TestCaseTimeout` 30 s).
 
 ## Inventory
 
@@ -112,7 +117,7 @@ slowest path below 10 s (each test case is bounded by `TestCaseTimeout` 30 s).
 | `LiteEngine.Rebuild` | `LiteDB/Engine/Engine/Rebuild.cs:20` | Discarded, Propagated | drops the old engine's `Close()` list; a failure building the replacement propagates ([rebuild recovery](rebuild-recovery.md)) | none | committed/direct |
 | `EngineState.Stop` | `LiteDB/Engine/EngineState.cs:73` | SuppressedPreservingPrimary | `CompleteStop` drops `CloseOnError`'s list; the failing operation rethrows its own error | none | write-failure/direct |
 | `TransactionMonitor.Dispose` | `LiteDB/Engine/Services/TransactionMonitor.cs:209` | Propagated | `TryCatch`, one `AggregateException` | transaction, slot, explicit-aborted | open-work/direct |
-| `TransactionService.Dispose` | `LiteDB/Engine/Services/TransactionService.cs:463` | Propagated | page releases and reader attempted, `AggregateException` | snapshot-pages, snapshot-lock, reader | rollback/direct, auto-commit/direct |
+| `TransactionService.Dispose` | `LiteDB/Engine/Services/TransactionService.cs:462` | Propagated | page releases and reader attempted, `AggregateException` | snapshot-pages, snapshot-lock, reader | rollback/direct, auto-commit/direct |
 | `DiskService.Dispose` | `LiteDB/Engine/Disk/DiskService.Dispose.cs:10` | Propagated | every action in `TryAction`, `AggregateException` | data-pool, log-pool, delete-log, cache | after-monitor/direct |
 | `SortService.Dispose` | `LiteDB/Engine/Sort/SortService.cs:65` | Propagated | `TryCatch`, `AggregateException` | container, return-position, return-reader | spilled-reader/direct |
 | `SortDisk.Dispose` | `LiteDB/Engine/Sort/SortDisk.cs:106` | Propagated | no handling; `LiteEngine.Close` collects it | pool, delete | after-spill/direct |
@@ -120,17 +125,17 @@ slowest path below 10 s (each test case is bounded by `TestCaseTimeout` 30 s).
 | `BsonDataReader.Dispose` | `LiteDB/Document/DataReader/BsonDataReader.cs:148` | Propagated | marks itself disposed, then the source's disposal propagates | source | partial/direct |
 | `RebuildService.DiscardReplacement` | `LiteDB/Engine/Services/RebuildService.cs:347` | RecordedAsCleanupError | deletion failures go to the build failure's `Data[LiteDB.Rebuild.RollbackErrors]`, build failure rethrown ([rebuild recovery](rebuild-recovery.md)) | delete-data, delete-log | duplicate-key/direct |
 | `LiteDatabase.Dispose` | `LiteDB/Client/Database/LiteDatabase.cs:415` | Propagated, Discarded | the checkpoint-override restore propagates; engine disposal is the engine's own path | checkpoint-override | stream/direct, file/direct, shared/shared |
-| `SharedEngine.Dispose` | `LiteDB/Client/Shared/SharedEngine.cs:439` | Propagated, Discarded | unguarded steps propagate; core-close lists dropped (`CloseRetainedCore`); [shared-mode safety](shared-mode-safety.md): returns only after the release | retire-reads, wait-pin, early-handles, early-readers, handles, readers, coordination | open-work/shared, pin/shared, from-own-operation/shared |
+| `SharedEngine.Dispose` | `LiteDB/Client/Shared/SharedEngine.cs:436` | Propagated, Discarded | unguarded steps propagate; core-close lists dropped (`CloseRetainedCore`); [shared-mode safety](shared-mode-safety.md): returns only after the release | retire-reads, wait-pin, early-handles, early-readers, handles, readers, coordination | open-work/shared, pin/shared, from-own-operation/shared, self-callback-getter/shared, self-callback-dispose/shared |
 | `SharedEngine.ClosePin` | `LiteDB/Client/Shared/SharedEngine.Readers.cs:159` | Propagated, Discarded | runs on the pin holder; a failure becomes the pin's error, rethrown by `WaitReleased`, dropped when nobody waits | coordination | dispose/shared |
-| `SharedEngine.CheckpointAfterLastReader` | `LiteDB/Client/Shared/SharedEngine.Readers.cs:206` | Discarded, Propagated | I/O and access failures swallowed; database errors surface (code comments) | close-finally | last-reader/shared |
-| `SharedEngine.CheckpointOnDispose` | `LiteDB/Client/Shared/SharedEngine.Readers.cs:257` | Discarded, Propagated | I/O, access and `LiteException` swallowed ("Dispose must not fail because of this cleanup"); others propagate | close-finally | idle-wal/shared |
+| `SharedEngine.CheckpointAfterLastReader` | `LiteDB/Client/Shared/SharedEngine.Readers.cs:206` | Discarded, Propagated | I/O and access failures swallowed; database errors surface (code comments) | close-finally | last-reader/shared, self-callback-getter/shared, self-callback-dispose/shared |
+| `SharedEngine.CheckpointOnDispose` | `LiteDB/Client/Shared/SharedEngine.Readers.cs:257` | Discarded, Propagated | I/O, access and `LiteException` swallowed ("Dispose must not fail because of this cleanup"); others propagate | close-finally | idle-wal/shared, self-callback-getter/shared, self-callback-dispose/shared |
 | `SharedEngine.OnOwnerExited` | `LiteDB/Client/Shared/SharedEngine.cs:207` | Discarded | runs in `SharedMutexOwner`'s catch-all ("The next open recovers") | idle-handles | exited-owner/shared |
 | `SharedEngine.OpenEngine` | `LiteDB/Client/Shared/SharedEngine.Coordination.cs:16` | SuppressedPreservingPrimary | a core whose publication failed is closed best effort and the original error rethrown ([teardown callbacks](shared-teardown-callbacks.md)) | none | publication-failure/shared (.NET 8+; not applicable on .NET Framework) |
-| `SharedMutexPin.Hold` | `LiteDB/Client/Shared/SharedMutexPin.cs:206` | Propagated, Discarded | the close callback's failure becomes the pin's error; the mutex is released either way | close (fail-inside only) | reader-end/shared |
+| `SharedMutexPin.Hold` | `LiteDB/Client/Shared/SharedMutexPin.cs:206` | Propagated, Discarded | the close callback's failure becomes the pin's error; the mutex is released either way | close (fail-inside only) | reader-end/shared, self-callback-getter/shared, self-callback-dispose/shared |
 | `SharedMutexOwner.Exit` | `LiteDB/Client/Shared/SharedMutexOwner.cs:166` | Propagated | a scoped release failure propagates after the gate is reopened | scope-release | scoped-write/shared |
-| `SharedMutexOwner.ReleaseAll` | `LiteDB/Client/Shared/SharedMutexOwner.cs:223` | Discarded | "Never throws": the holder's release failure is swallowed | send-release | foreign-transaction/shared |
-| `SharedMutexOwner.ReleaseExitedOwner` | `LiteDB/Client/Shared/SharedMutexOwner.cs:487` | Discarded | the owner-exited cleanup's failure is swallowed; mutex and gate released after it | cleanup (fail-inside only) | exited-owner/shared |
-| `SharedDataReader.Dispose` | `LiteDB/Client/Shared/SharedDataReader.cs:67` | Propagated, Discarded | the inner reader's and release callback's failures propagate; the core closes it triggers drop their lists | lease | leased/shared |
+| `SharedMutexOwner.ReleaseAll` | `LiteDB/Client/Shared/SharedMutexOwner.cs:217` | Discarded | "Never throws": the holder's release failure is swallowed | send-release | foreign-transaction/shared |
+| `SharedMutexOwner.ReleaseExitedOwner` | `LiteDB/Client/Shared/SharedMutexOwner.cs:475` | Discarded | the owner-exited cleanup's failure is swallowed; mutex and gate released after it | cleanup (fail-inside only) | exited-owner/shared |
+| `SharedDataReader.Dispose` | `LiteDB/Client/Shared/SharedDataReader.cs:67` | Propagated, Discarded | the inner reader's and release callback's failures propagate; the core closes it triggers drop their lists | lease | leased/shared, self-callback-getter/shared, self-callback-dispose/shared |
 
 Platform-only steps (the coverage fact excuses them elsewhere; `faultPointGates` marks them
 advisory for the Linux smoke): `SharedEngine.Dispose.handles`, `.early-handles` and
@@ -152,6 +157,21 @@ core-close failure lists and `CheckpointOnDispose` swallows I/O and `LiteExcepti
 other steps propagate; [shared-mode safety](shared-mode-safety.md) promises that Dispose returns
 only after the release but says nothing about cleanup failures. `LiteEngine.Rebuild` drops the
 old engine's `Close()` list. The declarations record the code's behavior in both cases.
+
+## Teardown callbacks
+
+Some teardown paths reach user code: a Shared core's close writes through caller-owned data and
+log streams. The `self-callback-getter` and `self-callback-dispose` drivers
+(`TeardownDrivers.Callbacks.cs`) run a Shared connection over such streams and make the first data
+write of the teardown call back into the same connection (a getter, or Dispose), on five routes:
+a write-retaining reader's core close, the pin holder's close, the last leased reader's checkpoint,
+Dispose closing a retained core, and Dispose's idle-WAL checkpoint. Invariant (M1 Ownership): a
+protected core still tearing down keeps its native exclusion; a foreign thread probes the real
+writer mutex before and after the nested call (`ownership.released-in-teardown-callback`), and the
+usual oracles (M1's latched `ownership.RELEASED_BEFORE_TEARDOWN`, Durable on a cold reopen, ...)
+apply. A refusal of the nested call is a valid answer. These drivers were added after the row-17
+proof showed that no driver reached user code during teardown, and with knowledge of the #3077 fix
+and its test; their proof result is recorded as tuned-after-fix.
 
 ## Known findings (dev 7b71bc4d)
 

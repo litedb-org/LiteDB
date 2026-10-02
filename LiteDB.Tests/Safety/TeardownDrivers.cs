@@ -14,7 +14,7 @@ namespace LiteDB.Tests.Safety
     {
         private static readonly Lazy<TeardownDriver[]> _all = new Lazy<TeardownDriver[]>(() =>
         {
-            var drivers = Direct().Concat(Shared()).ToList();
+            var drivers = Direct().Concat(Shared()).Concat(Callbacks()).ToList();
             Overlay(drivers);
             return drivers.ToArray();
         });
