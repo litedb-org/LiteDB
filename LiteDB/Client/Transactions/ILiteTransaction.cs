@@ -45,12 +45,6 @@ namespace LiteDB
         /// <summary>Whether a user collection is visible to this transaction.</summary>
         bool CollectionExists(string name);
 
-        /// <summary>Not supported inside a transaction; throws <see cref="NotSupportedException"/> before mutation.</summary>
-        bool DropCollection(string name);
-
-        /// <summary>Not supported inside a transaction; throws <see cref="NotSupportedException"/> before mutation.</summary>
-        bool RenameCollection(string name, string newName);
-
         /// <summary>Commit the transaction. Close its bound readers first.</summary>
         void Commit();
 
