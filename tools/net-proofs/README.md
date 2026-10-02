@@ -69,3 +69,19 @@ and usually adds a probe that recognizes the copied adapter.
   compile against `dev`.
 - An adapter must not encode the defect it is used to detect. Drive the public
   surface (the handle API's operations), not the fix.
+
+## Where the recorded evidence lives
+
+Recorded entries of `.github/safety/net-proofs.json` name local proof refs
+(`recordedOverlays`, `net.recorded`: the replay of JKamsker/LiteDB#133 with the
+nets frozen on it, its coverage and row-specific overlays, and per-proof
+branches). They are published on the fork
+[JKamsker/LiteDB](https://github.com/JKamsker/LiteDB) under the prefix
+`safety-net-evidence/`: a branch or tag named `proof/pr133-replay` in the ledger
+is `refs/heads/safety-net-evidence/proof/pr133-replay` there, and the tags
+`proof/pr133-nets-frozen` and `proof/nets-squash-047a9a41d` are
+`refs/tags/safety-net-evidence/...`. Every commit id the ledger records is on
+`dev`, on the fork's pull request, or reachable from one of those refs. Fetch
+them with `git fetch https://github.com/JKamsker/LiteDB.git
+'refs/heads/safety-net-evidence/*:refs/remotes/evidence/*'
+'refs/tags/safety-net-evidence/*:refs/tags/safety-net-evidence/*'`.
