@@ -36,6 +36,8 @@ namespace LiteDB.Tests.Safety
         /// <summary>Sort scratch (<c>&lt;stem&gt;-tmp&lt;ext&gt;</c>) still present.</summary>
         public bool Scratch { get; set; }
         public double WaitedMs { get; set; }
+        /// <summary>Idle Shared holder threads outlived the grace and exited before the late bound (host scheduling).</summary>
+        public bool LateThreadExit { get; set; }
         public string[] Gaps { get; set; } = new string[0];
         public string[] Violations { get; set; } = new string[0];
         public bool Clean => this.Violations.Length == 0;
@@ -48,7 +50,9 @@ namespace LiteDB.Tests.Safety
     /// LiteDB starts no thread that outlives its connections except the Shared mutex owner thread,
     /// which exits once it has held nothing for <c>SharedMutexOwner.HolderIdle</c>, checking every
     /// <c>SharedMutexOwner.Poll</c>. So the cap is zero LiteDB threads, reached within
-    /// HolderIdle + 2 x Poll, plus a scheduling allowance for a loaded machine.
+    /// HolderIdle + 2 x Poll, plus a scheduling allowance for a loaded machine. Shared holder
+    /// threads still alive then are waited for up to <see cref="HolderExitWait.LateExitBound"/>
+    /// (their last poll may run late on a loaded host); any other LiteDB thread fails at the grace.
     /// </summary>
     internal static class QuiescentProbe
     {
@@ -60,10 +64,14 @@ namespace LiteDB.Tests.Safety
         // Thread names are "LiteDB ..." (SharedMutexOwner, SharedMutexPin, coordinator); Linux
         // truncates the OS name to 15 characters, which keeps this prefix.
         private const string ThreadPrefix = "LiteDB ";
+        // "LiteDB shared mutex owner" and "LiteDB shared mutex holder" (the pin) as Linux shows them.
+        private const string HolderThreadPrefix = "LiteDB shared m";
         private static readonly string[] CompanionSuffixes = { "-log", "-tmp", "-backup", "-temp", "-rebuild" };
 
+        /// <param name="lateBound">How long idle Shared holder threads may take to exit (default
+        /// <see cref="HolderExitWait.LateExitBound"/>); a parameter only so the self-tests run quickly.</param>
         public static QuiescentResult Evaluate(string path, int allowedThreads = IdleThreadCap,
-            SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
+            SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default, TimeSpan? lateBound = null)
         {
             var full = System.IO.Path.GetFullPath(path);
             var result = new QuiescentResult { Path = full };
@@ -77,11 +85,26 @@ namespace LiteDB.Tests.Safety
                 Thread.Sleep(20);
                 names = LiteDbThreads(gaps);
             }
+            // Only Shared holder threads exit on their own once idle; the grace is their design bound, but the
+            // host schedules their last poll (see HolderExitWait). Past it, wait for them up to the late bound
+            // instead of failing on scheduling delay. A holder that keeps a mutex never exits: this database's
+            // mutex is checked below, and any other holder fails at the late bound. Other threads stay strict.
+            var bound = Grace;
+            if (names != null && names.Length > allowedThreads && names.All(IsHolderThread))
+            {
+                bound = lateBound ?? HolderExitWait.LateExitBound;
+                while (names.Length > allowedThreads && names.All(IsHolderThread) && waited.Elapsed < bound)
+                {
+                    Thread.Sleep(20);
+                    names = LiteDbThreads(gaps);
+                }
+                result.LateThreadExit = names.Length <= allowedThreads;
+            }
             result.WaitedMs = waited.Elapsed.TotalMilliseconds;
             result.Threads = names?.Length ?? -1;
             result.ThreadNames = names ?? new string[0];
             if (names != null && names.Length > allowedThreads)
-                violations.Add($"threads: {names.Length} LiteDB thread(s) after {Grace.TotalMilliseconds:F0} ms " +
+                violations.Add($"threads: {names.Length} LiteDB thread(s) after {bound.TotalMilliseconds:F0} ms " +
                     $"(cap {allowedThreads}): {string.Join(", ", names)}");
 
             result.Handles = OpenHandles(full, gaps);
@@ -106,6 +129,8 @@ namespace LiteDB.Tests.Safety
             result.Violations = violations.ToArray();
             return result;
         }
+
+        private static bool IsHolderThread(string name) => name.StartsWith(HolderThreadPrefix, StringComparison.Ordinal);
 
         /// <summary>Names of live LiteDB threads, or null when the platform cannot enumerate them.</summary>
         internal static string[] LiteDbThreads(List<string> gaps)

@@ -108,7 +108,7 @@ internal sealed class FuzzOracleState : IDisposable
             openFds = result.OpenFds, handles = result.Handles.Select(Path.GetFileName).ToArray(),
             mutexFree = result.MutexFree, turnstileFree = result.TurnstileFree, mutexAbandoned = result.MutexAbandoned,
             readerRegistry = result.ReaderRegistry, scratch = result.Scratch, companions = result.Companions,
-            waitedMs = Math.Round(result.WaitedMs, 3), gaps = result.Gaps, violations = result.Violations
+            waitedMs = Math.Round(result.WaitedMs, 3), lateThreadExit = result.LateThreadExit, gaps = result.Gaps, violations = result.Violations
         });
 
     internal void WriteFault(string fault, string op, bool fired, FaultDisposition? declared, FaultDisposition? observed) =>

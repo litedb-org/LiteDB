@@ -124,6 +124,41 @@ public sealed class OracleSelfTest_Tests : IDisposable
     }
 
     [Fact]
+    public void Quiescent_waits_past_the_grace_for_an_idle_holder_thread_and_fails_one_that_never_exits()
+    {
+        if (!Directory.Exists("/proc/self/task")) return; // thread names are not enumerable here (stated as a gap)
+        var file = this.CreateClosedDatabase("holder.db");
+        // Named like the Shared mutex owner thread, the only LiteDB thread that exits on its own once idle.
+        using (var stop = new ManualResetEventSlim())
+        {
+            var late = new Thread(() => stop.Wait()) { IsBackground = true, Name = "LiteDB shared mutex owner" };
+            late.Start();
+            using var timer = new Timer(_ => stop.Set(), null, 2500, Timeout.Infinite);
+            var result = QuiescentProbe.Evaluate(file, lateBound: TimeSpan.FromSeconds(10));
+            late.Join();
+            Assert.True(result.Clean, string.Join("; ", result.Violations));
+            Assert.True(result.LateThreadExit);
+            Assert.True(result.WaitedMs > 2000, $"waited {result.WaitedMs:F0} ms");
+        }
+        using (var stop = new ManualResetEventSlim())
+        {
+            var leaked = new Thread(() => stop.Wait()) { IsBackground = true, Name = "LiteDB shared mutex owner" };
+            leaked.Start();
+            try
+            {
+                var result = QuiescentProbe.Evaluate(file, lateBound: TimeSpan.FromSeconds(3));
+                Assert.Contains(result.Violations, v => v.StartsWith("threads: 1 LiteDB thread(s) after 3000 ms", StringComparison.Ordinal));
+                Assert.False(result.LateThreadExit);
+            }
+            finally
+            {
+                stop.Set();
+                leaked.Join();
+            }
+        }
+    }
+
+    [Fact]
     public void Quiescent_grace_is_the_owner_thread_idle_limit_plus_two_polls()
     {
         var owner = typeof(LiteDatabase).Assembly.GetType("LiteDB.Client.Shared.SharedMutexOwner", throwOnError: true)!;
