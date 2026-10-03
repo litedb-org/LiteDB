@@ -1,0 +1,86 @@
+name: Critical label
+
+# Applies the `critical` label from the PR's diff (.github/scripts/classify_critical.py;
+# docs/rules/implement-safely.md#critical-changes). The label never gates a merge by
+# itself: it selects the heavier CI tiers (every fuzz target in the PR-selected job,
+# mutation on the diff) and the critical sections of the PR description.
+#
+# pull_request_target runs this file and its scripts from the BASE revision with a
+# write token, also for fork PRs. The PR head is fetched as git objects (data) and
+# diffed; it is never checked out, built or run, and the rules come from the base.
+# Removing the label by hand re-runs the classification: a critical diff gets the
+# label back with a comment saying why. Only the classifier, not a person, drops it.
+# Labels applied with this token start no other workflow; tier-selecting workflows
+# therefore classify the diff themselves as well as reading the label.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, unlabeled]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: critical-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    name: Classify critical change
+    if: github.event.action != 'unlabeled' || github.event.label.name == 'critical'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the base (trusted code only)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the PR head as data
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/head"
+
+      - name: Classify the diff with the base's rules
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ACTOR: ${{ github.event.sender.login }}
+        run: |
+          set -euo pipefail
+          fetched=$(git rev-parse refs/remotes/pr/head)
+          if [ "$fetched" != "$HEAD_SHA" ]; then
+            echo "The PR moved to $fetched; the run for that head classifies it."
+            echo "critical=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python .github/scripts/classify_critical.py --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --output "$RUNNER_TEMP/classification.json" --comment "$RUNNER_TEMP/comment.md" --actor "$ACTOR" \
+            --github-output
+
+      - name: Apply the label
+        if: steps.classify.outputs.critical == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          set -euo pipefail
+          gh label create critical -R "$REPO" --color b60205 --force \
+            --description "Set from the diff: heavier CI tiers and the critical PR sections; never a merge gate by itself"
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=critical" --silent
+          if [ "$ACTION" = "unlabeled" ]; then
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$RUNNER_TEMP/comment.md" --silent
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: critical-classification
+          path: ${{ runner.temp }}/classification.json
+          if-no-files-found: ignore

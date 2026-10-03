@@ -48,8 +48,28 @@ def entry(**changes):
     return value
 
 
-def ledger(*entries, capabilities=None):
-    return json.dumps({"schemaVersion": 1, "capabilities": capabilities or CAPABILITIES, "proofs": list(entries)})
+def ledger(*entries, capabilities=None, tables=None):
+    return json.dumps({"schemaVersion": 1, "capabilities": capabilities or CAPABILITIES, **(tables or {}),
+                       "proofs": list(entries)})
+
+
+TABLES = {"defects": {"16": {"kind": "upstream", "defect": "A sample defect",
+                             "knownBad": {"kind": "dev-commit", "commit": "a" * 40}, "fix": {"commit": "b" * 40}}},
+          "recordedOverlays": {"replay": {"description": "The nets overlaid on every commit of a replayed history",
+                                          "commit": "d" * 40}}}
+
+
+def recorded(**changes):
+    """An entry whose result was recorded elsewhere: no command, the tree it ran on, a recorded result."""
+    value = entry(**changes)
+    for key in ("command", "expect", "timeoutSeconds", "build"):
+        value["net"].pop(key)
+    value["net"].setdefault("recorded", {"overlay": "replay", "knownBadTree": "e" * 40, "fixTree": "f" * 40,
+                                         "command": "dotnet run --project LiteDB.Fuzz -- --target sample"})
+    value.setdefault("results", {"state": "proven", "passed": True, "recorded": True, "source": "proofs/sample.json",
+                                 "verifier": "V-X", "knownBad": {"fired": True, "assertion": "X"},
+                                 "fix": {"fired": False}})
+    return value
 
 
 ADAPTER_FILES = {f"{ADAPTER}/adapter.json": json.dumps({"name": "sample", "target": "adapted", "requires": []}),
@@ -57,10 +77,61 @@ ADAPTER_FILES = {f"{ADAPTER}/adapter.json": json.dumps({"name": "sample", "targe
 
 
 class ValidateTests(unittest.TestCase):
-    def validate(self, *entries, files=None, capabilities=None, argv=()):
+    def validate(self, *entries, files=None, capabilities=None, argv=(), tables=None):
         with GitRepo() as repo:
-            repo.commit({LEDGER: ledger(*entries, capabilities=capabilities), **ADAPTER_FILES, **(files or {})})
+            repo.commit({LEDGER: ledger(*entries, capabilities=capabilities, tables=tables), **ADAPTER_FILES,
+                         **(files or {})})
             return run_quietly(net.main, ["validate", *argv])
+
+    def test_recorded_entries_levels_and_the_defect_table_are_valid(self):
+        model = recorded(id="model", level="model")
+        tuned = recorded(id="tuned", level="tuned-after-fix",
+                         independence="tuned-after-fix: rule taken from later docs")
+        quiet = recorded(id="quiet", results={"state": "not-fired", "passed": False, "recorded": True, "source": "s",
+                                              "verifier": "V", "knownBad": {"fired": False}, "fix": {"fired": None}})
+        code, output = self.validate(recorded(), model, tuned, quiet, tables=TABLES)
+        self.assertEqual(code, 0, output)
+        self.assertIn("3 of 4 proven", output)
+
+    def test_invalid_recorded_entries_and_tables_are_rejected(self):
+        unknown_row = recorded(rows=[3])
+        other_commit = recorded(knownBad={"kind": "dev-commit", "commit": "c" * 40})
+        no_source = recorded()
+        del no_source["results"]["source"]
+        cases = {
+            "row 3 is not in the defects table": unknown_row,
+            "knownBad/fix differ from row 16 of the defects table": other_commit,
+            "net.recorded.overlay names an entry of recordedOverlays": recorded(
+                net_recorded={"overlay": "elsewhere", "command": "x"}),
+            "net.recorded.knownBadTree must be a full": recorded(
+                net_recorded={"overlay": "replay", "knownBadTree": "abc", "command": "x"}),
+            "results with recorded: true, its source and verifier": no_source,
+            "records what the net did, not not-attempted": recorded(results={
+                "state": "not-attempted", "recorded": True, "source": "s", "verifier": "v",
+                "knownBad": {"fired": False}, "fix": {"fired": False}}),
+            "a not-fired result did not fire at known-bad": recorded(results={
+                "state": "not-fired", "recorded": True, "source": "s", "verifier": "v",
+                "knownBad": {"fired": True}, "fix": {"fired": False}}),
+            "results.knownBad.fired is true or false": recorded(results={
+                "state": "not-fired", "recorded": True, "source": "s", "verifier": "v", "knownBad": {},
+                "fix": {"fired": False}}),
+            "a generic entry is designed from the invariant": recorded(
+                independence="tuned-after-fix: the scenario follows the fix's test"),
+            "level tuned-after-fix says what was tuned": recorded(level="tuned-after-fix"),
+            "a recorded result needs net.recorded": entry(results={"state": "not-fired", "recorded": True,
+                                                                   "knownBad": {"fired": False}}),
+        }
+        for expected, value in cases.items():
+            with self.subTest(expected):
+                code, output = self.validate(value, tables=TABLES)
+                self.assertEqual(code, 1, output)
+                self.assertIn(expected, output)
+        overlay = {"description": "d", "commit": "HEAD", "adapters": ["tools/net-proofs/adapters/none"]}
+        broken = {"defects": {"x": {}}, "recordedOverlays": {"replay": overlay}}
+        code, output = self.validate(entry(), tables=broken)
+        self.assertEqual(code, 1, output)
+        for expected in ("rows are positive integers", "commit must be a full 40-character", "has no adapter.json"):
+            self.assertIn(expected, output)
 
     def test_a_complete_entry_a_skeleton_and_a_fork_entry_are_valid(self):
         skeleton = entry(id="skeleton")
@@ -260,6 +331,14 @@ class RunTests(unittest.TestCase):
         code, output, summary, result = self.run_entry(value)
         self.assertEqual((code, result["state"], summary["passed"]), (0, "not-attempted", 0), output)
         self.assertEqual(result["knownBad"]["capabilities"]["overlay"], ["legacy-transactions"])
+
+    def test_a_recorded_entry_is_reported_not_attempted_without_a_checkout(self):
+        value = recorded(knownBad={"kind": "dev-commit", "commit": "BAD"}, fix={"commit": "FIXED"})
+        code, output, summary, result = self.run_entry(value)
+        self.assertEqual((code, result["state"], summary["passed"]), (0, "not-attempted", 0), output)
+        self.assertIn("recorded evidence on replay (recorded state: proven)", result["reason"])
+        self.assertEqual(result["knownBad"], {})  # nothing was checked out, built or run
+        self.assertIs(result["passed"], False)
 
     def test_native_stress_records_the_fire_rate(self):
         once = [sys.executable, "-c",

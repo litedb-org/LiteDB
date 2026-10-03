@@ -1,0 +1,6 @@
+{
+  "name": "row8-crash-leftovers",
+  "description": "Tuned dimensions for the row-8 proof, applied with git apply (row8-scratch.patch) to a pr133-replay tree: a crash-leftover prior for the teardown sweep and teardown-faults (a stale sort scratch next to the database, judged by the existing Quiescent check), a spilled-reader kind with ScratchLive in the explorer's reader-handoff scenario, and LITEDB_EXPLORER_KINDS plumbing for the full-matrix test.",
+  "target": "net-proof-row8-crash-leftovers",
+  "requires": ["teardown-path-registry"]
+}

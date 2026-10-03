@@ -55,6 +55,8 @@ call a pending run green or present a local run as hosted-CI evidence.
   it. A bug-fix PR (labelled `bug` or `bugfix-fix`) also adds a regression
   proof: a repro that fails on a real known-bad LiteDB and passes at the PR
   head. See [safety evidence](safety-evidence.md#regression-proofs).
+- A change CI labels `critical` follows [implement safely](implement-safely.md)
+  and adds the generated `Critical change evidence` section.
 - For bug sweeps, track each issue's reproduction, fix, tests, and remaining
   scope separately. A related new case need not mean the original fix regressed.
   Search existing issues before treating a finding as new; keep manifests and

@@ -1,0 +1,61 @@
+name: Quarantine re-run
+
+# Weekly: runs every test quarantined in .github/safety/coverage-ledger.json (no CI
+# leg runs them; their Skip argument is removed in this throwaway checkout only)
+# and every known-finding test (methods named Known_finding_*, which pin a defect's
+# current behavior), then reports each entry (.github/scripts/quarantine_rerun.py).
+# It fails when an entry needs attention: a quarantined test that now passes, a
+# known-finding test that now fails, an entry without a result, a passed review
+# date or an expired quarantine. Informational: never a required check.
+on:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rerun:
+    name: Re-run quarantined and known-finding tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Plan the entries (unskips quarantined tests in this checkout)
+        run: |
+          mkdir -p artifacts/quarantine
+          python3 .github/scripts/quarantine_rerun.py plan --unskip --output artifacts/quarantine/plan.json
+
+      - name: Run them
+        shell: bash
+        run: |
+          set +e
+          filter=$(jq -r .filter artifacts/quarantine/plan.json)
+          for project in $(jq -r '.projects[]' artifacts/quarantine/plan.json); do
+            dotnet build "$project" -c Release -f net8.0 -p:TestingEnabled=true
+            dotnet test "$project" -c Release -f net8.0 -p:TestingEnabled=true --no-build \
+              --settings tests.runsettings --filter "$filter" \
+              --logger "trx;LogFileName=$project.trx" --results-directory artifacts/quarantine/results
+            echo "$project: dotnet test exit $? (judged per entry by the report step)"
+          done
+          exit 0
+
+      - name: Report per entry
+        run: >-
+          python3 .github/scripts/quarantine_rerun.py report --plan artifacts/quarantine/plan.json
+          --results artifacts/quarantine/results --output artifacts/quarantine/report.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quarantine-rerun
+          path: artifacts/quarantine
+          if-no-files-found: error

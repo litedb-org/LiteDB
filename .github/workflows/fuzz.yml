@@ -228,7 +228,7 @@ jobs:
     # the number of groups. Measured locally (24 cores,
     # shared host, load 6-18): query change 7 targets in 152 s (lifetime-chaos x40 150 s, teardown-faults x30
     # 82 s), Shared-mode change 8 targets in 163 s (lifetime-chaos x40 158 s, transaction-interleavings x40
-    # 132 s), all 50 targets in
+    # 132 s; classify_critical.py also marks such a change critical, which runs every target), all 50 targets in
     # 184 s (lifetime-chaos 108 s). Uncapped (everything at 100, or 30 for all targets): 355 s / 897 s / 306 s.
     steps:
       - uses: actions/checkout@v4
@@ -240,14 +240,28 @@ jobs:
             10.0.x
       - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
       - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      # A critical change (label, or the diff per classify_critical.py; a label the labeler applies
+      # starts no run, so the diff is classified here too) runs every target.
+      - name: Classify the change
+        id: critical
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'critical') }}
+        run: |
+          mkdir -p artifacts/fuzz-pr
+          python3 .github/scripts/classify_critical.py --base "origin/$BASE_REF" \
+            --output artifacts/fuzz-pr/critical.json --github-output
+          if [ "$LABELLED" = "true" ]; then echo "critical=true" >> "$GITHUB_OUTPUT"; fi
       - name: Select targets for this change
         id: select
         env:
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          CRITICAL: ${{ steps.critical.outputs.critical }}
         run: |
-          mkdir -p artifacts/fuzz-pr
-          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" \
+          all=""
+          if [ "$CRITICAL" = "true" ]; then all="--all"; fi
+          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" $all \
             --github-output --output artifacts/fuzz-pr/selection.json
       # One invocation per count group, all concurrently, sharing nproc target-process slots
       # (LITEDB_FUZZ_SLOT_DIR/LITEDB_FUZZ_SLOTS). Each group has its own artifact root: an invocation

@@ -3,10 +3,12 @@ name: PR safety section
 # Checks the PR description's "Safety / regression evidence" section. It runs in
 # its own concurrency group, so editing a description never cancels or replaces
 # a CI run. The body is passed through the environment, never interpolated into
-# the script, and the job has a read-only token.
+# the script, and the job has a read-only token. A critical change (the `critical`
+# label, or a diff classify_critical.py classifies as critical) also needs the
+# "Critical change evidence" section; label changes re-run the check.
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize, ready_for_review]
+    types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
   merge_group:
     types: [checks_requested]
 
@@ -39,6 +41,8 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
-          python .github/scripts/check_pr_section.py --body "$RUNNER_TEMP/pr-body.md" --base "$BASE_SHA"
+          python .github/scripts/check_pr_section.py --body "$RUNNER_TEMP/pr-body.md" --base "$BASE_SHA" \
+            --labels "$PR_LABELS"

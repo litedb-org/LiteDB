@@ -1,0 +1,12 @@
+diff --git a/LiteDB.Tests/Concurrency/ParallelProperty/IAccessKind.cs b/LiteDB.Tests/Concurrency/ParallelProperty/IAccessKind.cs
+index 69799e75e..0e8d859b8 100644
+--- a/LiteDB.Tests/Concurrency/ParallelProperty/IAccessKind.cs
++++ b/LiteDB.Tests/Concurrency/ParallelProperty/IAccessKind.cs
+@@ -156,6 +156,7 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
+         {
+             Ordinary,
+             Legacy,
++            new HandleAccessKind(),
+         };
+ 
+         public static IAccessKind Get(string name)

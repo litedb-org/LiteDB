@@ -35,6 +35,9 @@ declares (transitively). --validate checks the map (unique ids, known kinds and
 targets, globs that match a file or are pending, compiling regexes, ignore globs
 that never hide LiteDB/) and the coverage map, and is run by the Safety policy job.
 
+`--all` (a critical change, see classify_critical.py) selects every known target whatever
+the decisions say; the decisions are still recorded.
+
 Counts come from the map's `prCounts`: {selected: n, allTargets: n, caps: {target: {count,
 smokeLeg, reason}}, uncapped: {target: reason}}. A selected target runs `selected` steps
 (`allTargets` when every target is selected), capped at its `caps` count: min(cap, mode
@@ -515,6 +518,7 @@ def main(argv=None):
                                                                        "(space-separated count:target,... groups), "
                                                                        "all-targets= and missing= to $GITHUB_OUTPUT")
     parser.add_argument("--strict", action="store_true", help="Exit 1 when a required target is unavailable")
+    parser.add_argument("--all", action="store_true", help="Select every known target (a critical change)")
     args = parser.parse_args(argv)
     root = common.repo_root()
     tree = common.Tree(common.WORKTREE)
@@ -556,6 +560,11 @@ def main(argv=None):
     available = parse_available(args.available, tree)
     required, everything, decisions, reasons = select(changes, diff_lines, policy, obligations, coverage, known,
                                                       tree, base_tree)
+    if args.all:
+        everything = True
+        for name in known:
+            required.add(name)
+            reasons.setdefault(name, []).append("critical change: all targets")
     seed = SEED_BASE + args.pr if args.pr is not None else DEFAULT_SEED
     targets = sorted(required & available)
     result = {"schemaVersion": 1, "base": base, "head": head, "seed": seed,

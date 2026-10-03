@@ -1,0 +1,219 @@
+diff --git a/.github/safety/markers.json b/.github/safety/markers.json
+index 4a8d70272..c1ccf0b83 100644
+--- a/.github/safety/markers.json
++++ b/.github/safety/markers.json
+@@ -1032,6 +1032,19 @@
+       "doc": "docs/concurrency-explorer.md",
+       "reason": "A reader opened on one thread was advanced on another and closed on a third (sequential handoff) while maintenance and writes ran."
+     },
++    {
++      "name": "situation:explorer-spilled-reader-live",
++      "kind": "situation",
++      "paths": [
++        "LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs"
++      ],
++      "targets": [
++        "transaction-interleavings",
++        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
++      ],
++      "doc": "docs/concurrency-explorer.md",
++      "reason": "proof/row8-scratch: a reader-handoff reader whose sort spilled to the file scratch is live (ScratchLive applies)."
++    },
+     {
+       "name": "situation:explorer-rebuild-under-dependencies",
+       "kind": "situation",
+diff --git a/LiteDB.Fuzz/Targets/FuzzExplorerHost.cs b/LiteDB.Fuzz/Targets/FuzzExplorerHost.cs
+index 54016e7ed..907698189 100644
+--- a/LiteDB.Fuzz/Targets/FuzzExplorerHost.cs
++++ b/LiteDB.Fuzz/Targets/FuzzExplorerHost.cs
+@@ -39,6 +39,8 @@ internal sealed class FuzzExplorerHost : IExplorerHost
+ 
+     public void Quiescent(string path, string point) => _context.Quiescent(path, point);
+ 
++    public void ScratchLive(string path, string point) => _context.ScratchLive(path, point);
++
+     public void Durable(DurableLedger ledger, ILiteDatabase reopened, string point) => _context.Durable(ledger, reopened, point);
+ 
+     public string FailureId(Exception error) => error is FuzzFailureException fuzz
+diff --git a/LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs b/LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs
+index 319c87a7e..f8fe8c7d0 100644
+--- a/LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs
++++ b/LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs
+@@ -96,6 +96,8 @@ internal sealed class TeardownFaultsFuzzer : IFuzzTarget
+             Encrypted = tolerated.Encrypted || random.Next(3) == 0
+         };
+         driver.Require(prior);
++        // Drawn last so every earlier choice of a campaign stays as frozen; forced on by the environment.
++        prior.CrashLeftovers = prior.CrashLeftovers || random.Next(2) == 0;
+         return prior;
+     }
+ 
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerHost.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerHost.cs
+index 03cd4c5b1..745340c91 100644
+--- a/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerHost.cs
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerHost.cs
+@@ -49,6 +49,9 @@ namespace LiteDB.ConcurrencyTesting
+ 
+         void Durable(DurableLedger ledger, ILiteDatabase reopened, string point);
+ 
++        /// <summary>ScratchLive: while a reader whose sort spilled to the file scratch is live, that scratch exists.</summary>
++        void ScratchLive(string path, string point);
++
+         /// <summary>The stable failure id of an exception a host or scenario raised.</summary>
+         string FailureId(Exception error);
+ 
+@@ -134,6 +137,12 @@ namespace LiteDB.ConcurrencyTesting
+                     $"at {point}: " + string.Join("; ", result.Violations));
+         }
+ 
++        public void ScratchLive(string path, string point)
++        {
++            var missing = QuiescentProbe.ScratchLive(path);
++            if (missing != null) throw new ExplorerFailure("SCRATCH_LIVE", $"at {point}: " + missing);
++        }
++
+         public void Durable(DurableLedger ledger, ILiteDatabase reopened, string point)
+         {
+             var violations = ledger.Verify(reopened);
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs
+index ac3830da6..ce068ab0f 100644
+--- a/LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs
+@@ -23,7 +23,8 @@ namespace LiteDB.ConcurrencyTesting
+ 
+         public string Name => "reader-handoff";
+         public string Description => "A reader opened on A, advanced on B, closed on E or A, under maintenance and writes.";
+-        public int Variants => 6 * 2 * 2;
++        // Reader kinds: query cursor, data reader, cursor over a sort that spilled to the scratch file.
++        public int Variants => 6 * 2 * 3;
+ 
+         public string NotApplicable(ExplorerConfiguration configuration, IExplorerAccess access) =>
+             access != null && access.ThreadAffine
+@@ -36,6 +37,7 @@ namespace LiteDB.ConcurrencyTesting
+             var order = ExplorerRun.Permutations[variant % 6];
+             var closeOnOther = variant / 6 % 2 == 0;
+             var dataReader = variant / 12 == 1;
++            var spilled = variant / 12 == 2;
+             var c = run.Configuration;
+             var disturbance = CallbackPauseScenario.Disturbance(c);
+             var record = new CallbackRecord();
+@@ -60,6 +62,20 @@ namespace LiteDB.ConcurrencyTesting
+             var snapshot = Enumerable.Range(100, 12).Select(id => (id, value: id)).Concat(new[] { (id: 1, value: 10) })
+                 .ToDictionary(pair => pair.id, pair => pair.value);
+ 
++            if (spilled)
++            {
++                // Sort keys well past one sort container, so the sorted reader's sort spills to the scratch.
++                var big = run.A.Invoke("InsertMany.big", () => db.GetCollection("big").InsertBulk(Enumerable.Range(1, 1100)
++                    .Select(id => new BsonDocument { ["_id"] = id, ["key"] = (id * 7919 % 1100).ToString("D6") + new string('k', 760) })),
++                    ExplorerSchedule.Extended);
++                run.A.Complete(big);
++                run.Judge(big, Permit.Success);
++            }
++            var scratchBacked = false;
++            Action<string> scratchLive = point =>
++            {
++                if (scratchBacked && !run.IsDisposed(db)) run.Host.ScratchLive(run.Model.Path, point);
++            };
+             IExplorerUnit unit = null;
+             IEnumerator<BsonDocument> cursor = null;
+             IBsonDataReader reader = null;
+@@ -72,6 +88,11 @@ namespace LiteDB.ConcurrencyTesting
+                     reader = db.Execute("SELECT $ FROM rows");
+                     if (reader.Read()) seen.Add(reader.Current.AsDocument);
+                 }
++                else if (spilled)
++                {
++                    cursor = unit.Collection("big").Query().OrderBy("key").ToEnumerable().GetEnumerator();
++                    cursor.MoveNext();
++                }
+                 else
+                 {
+                     cursor = unit.Collection("rows").FindAll().GetEnumerator();
+@@ -80,6 +101,9 @@ namespace LiteDB.ConcurrencyTesting
+             });
+             run.A.Complete(open);
+             run.Judge(open, Permit.Success);
++            // The reader's sort lives in the file scratch when this mode keeps scratch on disk (Shared snapshots keep it in memory).
++            scratchBacked = spilled && System.IO.File.Exists(LiteDB.Tests.Safety.QuiescentProbe.ScratchPath(run.Model.Path));
++            if (scratchBacked) Reachability.Sometimes("situation:explorer-spilled-reader-live");
+             var finished = false;
+             var advance = new Contender
+             {
+@@ -90,7 +114,7 @@ namespace LiteDB.ConcurrencyTesting
+                     {
+                         var more = dataReader ? reader.Read() : cursor.MoveNext();
+                         if (!more) { finished = true; break; }
+-                        seen.Add(dataReader ? reader.Current.AsDocument : cursor.Current);
++                        if (!spilled) seen.Add(dataReader ? reader.Current.AsDocument : cursor.Current);
+                     }
+                 },
+                 Account = work =>
+@@ -116,6 +140,12 @@ namespace LiteDB.ConcurrencyTesting
+             // for concurrent use; overlapping calls on one reader are outside every contract).
+             var advanced = works.First(w => w.Actor == run.B).Work;
+             run.B.Complete(advanced);
++            // A reader that just advanced and has rows left is live: its spilled sort's scratch must exist.
++            // Oracle self-test: LITEDB_EXPLORER_SCRATCH_SELFTEST=1 removes the live reader's scratch, which ScratchLive must report.
++            if (scratchBacked && Environment.GetEnvironmentVariable("LITEDB_EXPLORER_SCRATCH_SELFTEST") == "1")
++                System.IO.File.Delete(LiteDB.Tests.Safety.QuiescentProbe.ScratchPath(run.Model.Path));
++            if (advanced.Ok && !finished && c.Maintenance == ExplorerMaintenance.None) scratchLive("after the advance on B");
++            if (c.Maintenance == ExplorerMaintenance.None) scratchLive("before the reader closes");
+             var closer = closeOnOther ? run.E : run.A;
+             var close = closer.Invoke("ReaderClose", () =>
+             {
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs
+index f40bc9d92..7fb28b5dd 100644
+--- a/LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs
+@@ -45,7 +45,9 @@ namespace LiteDB.Tests.Engine
+             var failures = new List<string>();
+             var counts = new Dictionary<string, int>();
+             var index = 0;
+-            foreach (var vector in ExplorerScenarios.Matrix(ExplorerAccessKinds.Upstream))
++            // LITEDB_EXPLORER_KINDS (proof plumbing): run the matrix over these access kinds instead of the upstream ones.
++            var kinds = Environment.GetEnvironmentVariable("LITEDB_EXPLORER_KINDS")?.Split(',') ?? ExplorerAccessKinds.Upstream.ToArray();
++            foreach (var vector in ExplorerScenarios.Matrix(kinds))
+             {
+                 var text = vector.ToString();
+                 if (filter != null && !System.Text.RegularExpressions.Regex.IsMatch(text, filter)) continue;
+diff --git a/LiteDB.Tests/Safety/TeardownCase.cs b/LiteDB.Tests/Safety/TeardownCase.cs
+index 196d14355..3e7aa5a26 100644
+--- a/LiteDB.Tests/Safety/TeardownCase.cs
++++ b/LiteDB.Tests/Safety/TeardownCase.cs
+@@ -33,12 +33,18 @@ namespace LiteDB.Tests.Safety
+         public bool Peer { get; set; }
+         /// <summary>The database file is encrypted.</summary>
+         public bool Encrypted { get; set; }
++        /// <summary>
++        /// Crash leftovers: the companion files a process that died with work in flight leaves next to the
++        /// database (here the sort scratch <c>-tmp</c>). Forced on for every case by LITEDB_TEARDOWN_CRASH_LEFTOVERS=1.
++        /// </summary>
++        public bool CrashLeftovers { get; set; } = Environment.GetEnvironmentVariable("LITEDB_TEARDOWN_CRASH_LEFTOVERS") == "1";
+ 
+         public static TeardownPrior Minimal() => new TeardownPrior { Documents = 5, PendingTransaction = false, OpenReader = false };
+ 
+         public override string ToString() =>
+             $"docs={this.Documents};tx={On(this.PendingTransaction)};reader={On(this.OpenReader)};sort={On(this.SpilledSort)};" +
+-            $"upload={On(this.Upload)};peer={On(this.Peer)};enc={On(this.Encrypted)}";
++            $"upload={On(this.Upload)};peer={On(this.Peer)};enc={On(this.Encrypted)}" +
++            (this.CrashLeftovers ? ";leftovers=1" : "");
+ 
+         private static string On(bool value) => value ? "1" : "0";
+     }
+diff --git a/LiteDB.Tests/Safety/TeardownStates.cs b/LiteDB.Tests/Safety/TeardownStates.cs
+index 454249352..8d26ea0e8 100644
+--- a/LiteDB.Tests/Safety/TeardownStates.cs
++++ b/LiteDB.Tests/Safety/TeardownStates.cs
+@@ -34,6 +34,11 @@ namespace LiteDB.Tests.Safety
+             var template = Templates.GetOrAdd(key, _ => new Lazy<string>(() => Build(key, prior, c.Password))).Value;
+             var path = c.File(name);
+             File.Copy(template, path);
++            if (prior.CrashLeftovers)
++            {
++                // A sort scratch a crashed process left behind: nobody owns it any more.
++                File.WriteAllBytes(QuiescentProbe.ScratchPath(path), Enumerable.Repeat((byte)0x5A, 2 * Constants.PAGE_SIZE).ToArray());
++            }
+             for (var id = 1; id <= prior.Documents; id++) c.Ledger.Acknowledge("rows", id, Row(id));
+             c.DatabasePath = path;
+             return path;

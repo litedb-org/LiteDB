@@ -1,0 +1,176 @@
+diff --git a/LiteDB.Fuzz/Targets/ChaosMaintenanceDeclarations.cs b/LiteDB.Fuzz/Targets/ChaosMaintenanceDeclarations.cs
+index 554e82952..0237f1d1c 100644
+--- a/LiteDB.Fuzz/Targets/ChaosMaintenanceDeclarations.cs
++++ b/LiteDB.Fuzz/Targets/ChaosMaintenanceDeclarations.cs
+@@ -26,11 +26,15 @@ internal static class ChaosMaintenanceDeclarations
+     /// </summary>
+     internal const string Disposed = "threw:System.ObjectDisposedException";
+ 
+-    internal static readonly string[] SecondDispose = { Ok };
++    /// <summary>A second Dispose concurrent with a paused first one (PR #133 trees: see <see cref="ChaosMaintenancePr133Contract"/>).</summary>
++    internal static string[] SecondDispose => ChaosMaintenancePr133Contract.SecondDispose ?? new[] { Ok };
+ 
+     /// <param name="beforePoint">The call completes before the active thread's forced point.</param>
+     internal static string[] Permitted(MaintenancePlan plan, string role, string op, bool beforePoint = false)
+     {
++        // Historical adapter: on a revision with PR #133's session close the PR's documented close contract applies.
++        var pr133 = ChaosMaintenancePr133Contract.Permitted(plan, role, op, beforePoint);
++        if (pr133 != null) return pr133;
+         if (role == "maintenance") return Maintenance(plan, op);
+         // Before its forced point, active first, no maintenance has started yet.
+         if (beforePoint && plan.Order == MaintenanceOrder.ActiveFirst) return new[] { Ok };
+diff --git a/LiteDB.Fuzz/Targets/ChaosMaintenancePr133Contract.cs b/LiteDB.Fuzz/Targets/ChaosMaintenancePr133Contract.cs
+new file mode 100644
+index 000000000..19303be25
+--- /dev/null
++++ b/LiteDB.Fuzz/Targets/ChaosMaintenancePr133Contract.cs
+@@ -0,0 +1,58 @@
++namespace LiteDB.Fuzz.Targets;
++
++/// <summary>
++/// Historical adapter (tools/net-proofs/adapters/pr133-coverage): the close contract that fork PR #133
++/// documents for its session close, used as chaos-maintenance's declared outcome sets on revisions that
++/// carry that session close (capability: the PR's <c>LiteDB.SessionLifetime</c> type). Derived only
++/// from <c>docs/transaction-handles.md</c> at the PR's base of the replay, 39f6c6b0:
++/// <list type="bullet">
++/// <item>S1 "Disposal moves a session from Open through Closing to Closed. It rejects new work, cancels pending
++/// handle admission, settles idle owned handles, and drains executing work before releasing its engine lease."</item>
++/// <item>S2 "Each disposal call waits up to 10 seconds, including cleanup time. A timeout leaves the session Closing
++/// with needed resources retained; cleanup continues automatically when outstanding work finishes. A retry joins
++/// cleanup and reports any deferred cleanup failure once."</item>
++/// <item>S3 "Using a disposed <c>LiteDatabase</c> now throws <c>ObjectDisposedException</c> naming <c>LiteDatabase</c>,
++/// instead of <c>LiteException</c> with <c>ENGINE_DISPOSED</c>. [...] This is an intentional exception-contract change;
++/// it does not make concurrent use of a closing facade valid."</item>
++/// <item>S4 "Already-open ordinary readers retain their existing independent lifetime; bound readers belong to their
++/// handle/session."</item>
++/// </list>
++/// S2 does not name the timeout's type; it is the PR's own <c>TimeoutException</c> at 39f6c6b0
++/// (<c>SessionLifetime.Close</c>, "Session close is still draining active work"). Only the close maintenance is
++/// covered: the documents state no change for rebuild or a fatal write, so those keep the dev declarations.
++/// On revisions without the PR's session close this returns null and the dev declarations apply unchanged.
++/// </summary>
++internal static class ChaosMaintenancePr133Contract
++{
++    /// <summary>S2: a disposal call that waited its 10 s for executing work.</summary>
++    internal const string CloseTimedOut = "threw:System.TimeoutException";
++
++    internal static readonly bool Applies =
++        typeof(LiteDatabase).Assembly.GetType("LiteDB.SessionLifetime", false) != null;
++
++    /// <summary>S2: a second Dispose joins the close and waits up to 10 s for it.</summary>
++    internal static string[] SecondDispose => Applies
++        ? new[] { ChaosMaintenanceDeclarations.Ok, CloseTimedOut } : null;
++
++    /// <summary>The PR's declared set for a close scenario call, or null (dev's set applies: not a close scenario, not a
++    /// PR revision, or a contract the PR keeps).</summary>
++    internal static string[] Permitted(MaintenancePlan plan, string role, string op, bool beforePoint)
++    {
++        if (!Applies || plan.Maintenance != MaintenanceKind.Close) return null;
++        var ok = new[] { ChaosMaintenanceDeclarations.Ok };
++        // S3: a call on a closing or closed facade is refused (refusal marker on the PR's SessionLifetime.Enter).
++        var refused = new[] { ChaosMaintenanceDeclarations.SharedDisposed };
++        if (role == "maintenance") return op == "Dispose" ? new[] { ChaosMaintenanceDeclarations.Ok, CloseTimedOut } : null;
++        // Active first, before its forced point: no close has started.
++        if (beforePoint && plan.Order == MaintenanceOrder.ActiveFirst) return ok;
++        // Maintenance first: the close started before the call arrived (S1 "rejects new work", S3).
++        if (plan.Order == MaintenanceOrder.MaintenanceFirst) return refused;
++        // Active first, an ordinary reader paused between rows: its existing lifetime is kept (S4), so dev's declaration applies.
++        if (op == "Reader") return null;
++        // Active first: the call paused at its forced point is executing work, which the close drains (S1); it
++        // completes. An explicit transaction paused between its calls is idle: the close settles it (S1), and its
++        // later calls, Rollback included, use a disposed facade (S3). A commit paused in its WAL write is executing.
++        if (op is "TransactionUpsert" or "Rollback" || op == "Commit" && !plan.PausesInWal) return refused;
++        return ok;
++    }
++}
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.Pr133Coverage.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.Pr133Coverage.cs
+new file mode 100644
+index 000000000..ba8d41acc
+--- /dev/null
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.Pr133Coverage.cs
+@@ -0,0 +1,50 @@
++using System.Collections.Generic;
++
++namespace LiteDB.ConcurrencyTesting
++{
++    /// <summary>
++    /// Coverage correction for net proofs on old revisions (tools/net-proofs/adapters/pr133-coverage): a
++    /// known finding of the BASE revision, registered only on revisions that lack its fix. It is not a
++    /// finding of dev (dev has the fix), so on dev and on every revision with the fix the list is empty
++    /// and nothing is excluded or matched.
++    /// </summary>
++    internal static partial class ExplorerKnownFindings
++    {
++        internal const string BasePeerCallWaitsForOwnOwnership = "base-shared-peer-call-waits-for-own-outer-ownership";
++
++        /// <summary>
++        /// Capability probe: true when this revision lacks the #3072 refusal of a Shared peer call that would wait for its
++        /// own outer ownership (dev 265c2497, issue #3071). The refusal lives in <c>LiteDB.Client.Shared.SharedCallFrames</c>,
++        /// which arrives with #3072 and exists on every later dev revision.
++        /// </summary>
++        internal static bool BaseLacksPeerRefusal =>
++            typeof(LiteDatabase).Assembly.GetType("LiteDB.Client.Shared.SharedCallFrames", false) == null;
++
++        /// <summary>Scenarios whose callback dimension runs the peer body inside the actor's own Shared call or read.</summary>
++        private static readonly HashSet<string> PeerCallbackScenarios = new HashSet<string>
++        {
++            "callback-pause", "transaction-contention", "reader-handoff"
++        };
++
++        private static IEnumerable<ExplorerKnownFinding> BaseRevisionFindings()
++        {
++            if (!BaseLacksPeerRefusal) yield break;
++            yield return new ExplorerKnownFinding
++            {
++                Id = BasePeerCallWaitsForOwnOwnership,
++                Summary = "Base revision without #3072 (issue #3071): a synchronous user callback (lazy input, ReadTransform, " +
++                    "custom stream) runs inside a Shared call or retaining reader read that keeps the database's native mutex; " +
++                    "when it calls another connection to the same database on that thread, the peer waits for the mutex forever " +
++                    "(the outer ownership ends only after the callback returns). Dev refuses that wait since 265c2497 " +
++                    "(refusal:shared-peer-waits-for-own-ownership). Registered only while the revision lacks the refusal.",
++                Fingerprint = @"^DEADLINE_\w+@(callback-pause|transaction-contention|reader-handoff|lifetime-chaos)@mode=shared@access=\w+@maintenance=\w+@callback=peer$",
++                Excludes = vector => vector.Configuration.Shared && vector.Configuration.Callback == ExplorerCallback.Peer &&
++                    PeerCallbackScenarios.Contains(vector.Scenario),
++                Evidence = "class 1 and 2 at PR #133 replay trees before c6e6c848f (V-A first pass): transaction-interleavings seeds " +
++                    "303/404/505/707/1111/1212 and lifetime-chaos seeds 101/909 stop on DEADLINE_* with a thread blocked in " +
++                    "SharedMutexOwner.Enter under an explorer callback frame under an outer SharedEngine call (classifier " +
++                    "/tmp/safety-net/artifacts/v-a2/classify.py), identically at K' and F' of every row"
++            };
++        }
++    }
++}
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.cs
+index dbbdd9b54..bedc4353e 100644
+--- a/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.cs
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerKnownFindings.cs
+@@ -25,7 +25,7 @@ namespace LiteDB.ConcurrencyTesting
+     /// crash the process is excluded by a precise vector predicate instead, and the exclusion is
+     /// reported and counted, never silent. Keep each entry as narrow as its evidence.
+     /// </summary>
+-    internal static class ExplorerKnownFindings
++    internal static partial class ExplorerKnownFindings
+     {
+         internal const string IncludeVariable = "LITEDB_EXPLORER_INCLUDE_KNOWN";
+ 
+@@ -121,7 +121,7 @@ namespace LiteDB.ConcurrencyTesting
+                 Evidence = "class 1 (forced): callback-pause variant 12/13 access=legacy and variant 14/38 (upload) access=ordinary, " +
+                     "mode=shared, callback=peer: every replay misses its deadline; the wait-for graph reports nothing (the holder is idle)"
+             }
+-        };
++        }.Concat(BaseRevisionFindings()).ToList();
+ 
+         public static ExplorerKnownFinding Match(string fingerprint, string message = null) => fingerprint == null ? null
+             : All.FirstOrDefault(finding => finding.Fingerprint != null && Regex.IsMatch(fingerprint, finding.Fingerprint) &&
+diff --git a/LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosProgram.cs b/LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosProgram.cs
+index 8680395b8..6f807c4d1 100644
+--- a/LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosProgram.cs
++++ b/LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosProgram.cs
+@@ -186,6 +186,8 @@ namespace LiteDB.ConcurrencyTesting
+             if (!c.Shared && node.Body == ChaosBody.Dispose) return "direct-dispose-under-active-operation";
+             if (c.Shared && node.Body == ChaosBody.Peer && (access?.Transactional == true || node.Op == ChaosOp.Upload))
+                 return "shared-peer-call-inside-own-explicit-transaction";
++            if (c.Shared && node.Body == ChaosBody.Peer && ExplorerKnownFindings.BaseLacksPeerRefusal)
++                return ExplorerKnownFindings.BasePeerCallWaitsForOwnOwnership;
+             if (c.Shared && node.Body == ChaosBody.Dispose && node.Teardown && access?.Transactional != true)
+                 return "shared-dispose-from-input-teardown";
+             return null;

@@ -1,0 +1,46 @@
+diff --git a/LiteDB.Tests/Concurrency/ParallelProperty/ParallelPropertyDetection_Tests.cs b/LiteDB.Tests/Concurrency/ParallelProperty/ParallelPropertyDetection_Tests.cs
+index 2722a8ca4..9144f65f0 100644
+--- a/LiteDB.Tests/Concurrency/ParallelProperty/ParallelPropertyDetection_Tests.cs
++++ b/LiteDB.Tests/Concurrency/ParallelProperty/ParallelPropertyDetection_Tests.cs
+@@ -120,7 +120,9 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
+             new PropertyOptions(mode)
+             {
+                 EngineDecorator = decorator,
+-                AccessKindNames = null,
++                // Proof overlay (pbt-handle adapter): handles refuse decorated engines (docs/transaction-handles.md), so the
++                // broken-engine self-tests use the upstream kinds.
++                AccessKindNames = new[] { "ordinary", "legacy" },
+                 ShrinkAttempts = 4,
+                 ShrinkBudget = 60,
+                 ReproductionRuns = 5,
+diff --git a/LiteDB.Tests/Concurrency/ParallelProperty/PropertyCommand.cs b/LiteDB.Tests/Concurrency/ParallelProperty/PropertyCommand.cs
+index 0be9f1c5c..5dd741416 100644
+--- a/LiteDB.Tests/Concurrency/ParallelProperty/PropertyCommand.cs
++++ b/LiteDB.Tests/Concurrency/ParallelProperty/PropertyCommand.cs
+@@ -29,6 +29,9 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
+         public int Payload { get; }
+         public int Slot { get; }
+ 
++        /// <summary>Data operations name the access kind's slot (for example a handle) when it is set.</summary>
++        private string SlotSuffix => this.Slot == 0 ? "" : "#" + this.Slot;
++
+         public override string ToString()
+         {
+             switch (this.Op)
+@@ -36,13 +39,13 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
+                 case DataOperations.Insert:
+                 case DataOperations.Upsert:
+                 case DataOperations.Update:
+-                    return $"{this.Kind}.{this.Op}(c{this.Collection}, {this.Key}, p={this.Payload})";
++                    return $"{this.Kind}.{this.Op}(c{this.Collection}, {this.Key}, p={this.Payload})" + this.SlotSuffix;
+                 case DataOperations.Delete:
+                 case DataOperations.FindById:
+-                    return $"{this.Kind}.{this.Op}(c{this.Collection}, {this.Key})";
++                    return $"{this.Kind}.{this.Op}(c{this.Collection}, {this.Key})" + this.SlotSuffix;
+                 case DataOperations.Count:
+                 case DataOperations.FindAll:
+-                    return $"{this.Kind}.{this.Op}(c{this.Collection})";
++                    return $"{this.Kind}.{this.Op}(c{this.Collection})" + this.SlotSuffix;
+                 default:
+                     return this.Slot == 0 ? $"{this.Kind}.{this.Op}" : $"{this.Kind}.{this.Op}#{this.Slot}";
+             }

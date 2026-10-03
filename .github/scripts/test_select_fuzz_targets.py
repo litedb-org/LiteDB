@@ -182,6 +182,14 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(result["targets"], [])
         self.assertEqual(result["missing"], [])
 
+    def test_all_selects_every_known_target_for_a_critical_change(self):
+        code, _, result = self.run_select({"docs/guide.md": "# Changed\n"}, extra=["--all"])
+        self.assertEqual(code, 0)
+        self.assertTrue(result["allTargets"])
+        self.assertEqual(result["targets"], ["chaos", "index", "query", "shared"])
+        self.assertEqual(result["reasons"]["query"], ["critical change: all targets"])
+        self.assertEqual(self.decision(result, "docs/guide.md")["decidedBy"], "ignored")
+
     def test_an_unknown_non_product_file_falls_back_to_all_targets(self):
         _, _, result = self.run_select({"build/settings.props": "<Project />\n"})
         self.assertTrue(result["allTargets"])

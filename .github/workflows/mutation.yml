@@ -27,9 +27,11 @@ name: Mutation on the diff
 # Why not on every PR: Stryker builds LiteDB.Tests, runs the tests with coverage
 # capture, then reruns the covering tests for every batch of mutants of each
 # changed file (all of the file's mutants, not only those on changed lines).
-# The cost for the full suite is not yet measured; the job runs for PRs
-# labelled `critical` (45 minutes) and on demand until the pilot's numbers are
-# reviewed against the per-PR budget target.
+# The cost for the full suite is not yet measured; the job runs for critical PRs
+# (45 minutes) and on demand until the pilot's numbers are reviewed against the
+# per-PR budget target. Critical = labelled `critical`, or a diff that
+# classify_critical.py classifies as critical: the labeler's token starts no
+# `labeled` run, so the classify job judges the diff itself.
 #
 # Local run (works from a linked git worktree too: the helper clones its HEAD,
 # because Stryker's git library resolves a worktree to the main checkout):
@@ -53,12 +55,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: Classify critical change
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'critical')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      critical: ${{ steps.classify.outputs.critical }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Classify the diff
+        id: classify
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'critical') }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          if [ "$LABELLED" = "true" ]; then echo "critical=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          python .github/scripts/classify_critical.py --base FETCH_HEAD --github-output
+
   mutation:
     name: Mutation survivors on changed lines
+    needs: classify
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (contains(github.event.pull_request.labels.*.name, 'critical') &&
-       (github.event.action != 'labeled' || github.event.label.name == 'critical'))
+      always() &&
+      (github.event_name == 'workflow_dispatch' || needs.classify.outputs.critical == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

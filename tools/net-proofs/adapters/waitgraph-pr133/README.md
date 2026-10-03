@@ -3,7 +3,7 @@
 The wait-for graph (`docs/wait-for-graph.md`) ported to JKamsker/LiteDB#133 (`JKamsker/LiteDB`,
 `codex/transaction-handles`) trees, with the blocking sites that exist only on that branch
 instrumented. It lets `net_proof.py` re-run the wait-for graph proofs of ledger rows 3, 4, 12 and
-13 (`/tmp/safety-net/reports/V-waitgraph.md`, proofs `row{3,4,12,13}-wait-for-graph.json`).
+13 (ledger entries `row{3,4,12,13}-wait-for-graph` in `.github/safety/net-proofs.json`).
 Nothing here is compiled by this repository.
 
 ## Files
