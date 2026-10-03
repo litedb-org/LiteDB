@@ -23,6 +23,7 @@ internal static class MvccHarness
         if (SharedSafetyHarness.TryRun(mode, filename, password, args)) return true;
         if (SharedStorageHarness.TryRun(mode, filename, password, args)) return true;
         if (CoordinatorHarness.TryRun(mode, filename, password, args)) return true;
+        if (SharedWaitGuardsHarness.TryRun(mode, filename, password)) return true;
         var settings = new EngineSettings
         {
             Filename = filename, Password = password, TransactionPageLimit = 1, CacheSize = 8192
