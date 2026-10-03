@@ -15,7 +15,7 @@ namespace LiteDB.Tests.Engine
             // The PR subset runs every schedule in both modes once, alternating encryption and
             // outcome; LITEDB_EXPLORER_FULL=1 runs the whole Cartesian matrix.
             var full = Environment.GetEnvironmentVariable("LITEDB_EXPLORER_FULL") == "1";
-            foreach (var shared in new[] { false })
+            foreach (var shared in new[] { false, true })
                 for (var schedule = 0; schedule < TransactionInterleavingExplorer.ScheduleCount(shared); schedule++)
                     foreach (var encrypted in new[] { false, true })
                         foreach (var outcome in new[] { 0, 1 })
