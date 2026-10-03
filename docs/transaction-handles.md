@@ -136,18 +136,24 @@ that needs its writer mutex waits until the handle completes** — all writes, a
 other than those served by a qualified mapped snapshot on .NET 8+, through any
 connection. Once a handle's transaction exceeds its page limit and spills
 uncommitted pages to the WAL, mapped reads fall back to the mutex too until it
-completes, as with a spilled legacy transaction. Unlike a legacy `BeginTrans` block, whose same-thread calls join it, such a
-call made by the code that will later complete the handle (for example after an
-`await`) never returns. Obtain everything the flow needs from the handle, or complete
-the handle first. Direct mode has no such wait outside collection locks and exclusive maintenance.
+completes, as with a spilled legacy transaction. Unlike a legacy `BeginTrans` block,
+whose same-thread calls join it, such a call from the code that will later complete
+the handle (for example after an `await`) never returns, unless another thread
+completes the handle meanwhile. Obtain everything the flow needs from the handle, or
+complete the handle first. Opt in to `SharedSelfWaitGrace` to refuse such a wait,
+from the async flow that began or used the open handle, with
+`InvalidOperationException` (immediately, or once the handle stayed idle for the grace
+period), and `SharedWriterTimeout` to bound every Shared writer wait; see
+[Shared writer waits](shared-writer-waits.md). Direct mode has no such wait outside
+collection locks and exclusive maintenance.
 
 At most one handle per database (mutex name) in a process proceeds to native
 admission; later begins wait on their own threads, never on an extra holder. As with
-existing Shared writers, `BeginTransaction()` waits, without a timeout, until the
-current owner releases; do not begin a second handle on the only thread able to
-complete the first. A handle belongs to its `LiteDatabase`: disposing a caller-owned
-`SharedEngine` underneath (`disposeOnClose: false`) does not end it; dispose the
-handles or the database.
+existing Shared writers, `BeginTransaction()` waits until the current owner releases,
+without a timeout unless `SharedWriterTimeout` is set; do not begin a second handle on
+the only thread able to complete the first. A handle belongs to its `LiteDatabase`:
+disposing a caller-owned `SharedEngine` underneath (`disposeOnClose: false`) does not
+end it; dispose the handles or the database.
 
 Operations that would wait for writer ownership that only the executing handle can
 release are refused with `InvalidOperationException` before waiting: an ordinary call
@@ -182,8 +188,9 @@ Projects using `TreatWarningsAsErrors` can migrate incrementally with
 
 ## Not included
 
-These parts of the v6 plan are separate follow-ups: the opt-in
-`BeginTransaction(TimeSpan, CancellationToken)` admission controls, bounded session
+These parts of the v6 plan are separate follow-ups: the per-call
+`BeginTransaction(TimeSpan, CancellationToken)` admission controls (the connection-wide
+`SharedWriterTimeout` bounds begin), bounded session
 close with deferred cleanup ([#3067](https://github.com/litedb-org/LiteDB/issues/3067)),
 a pooled Direct host shared by facades of one file
 ([#3041](https://github.com/litedb-org/LiteDB/issues/3041)), Shared holder reuse, and
