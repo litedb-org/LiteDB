@@ -11,6 +11,8 @@ on:
       - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
       - 'LiteDB.Tests/Internals/MvccRetirementScenario.cs'
       - 'LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs'
+      - 'LiteDB.Tests/Engine/ConcurrencyExplorer/**'
+      - 'LiteDB.Tests/Engine/TransactionHandleInterleaving*.cs'
       - 'LiteDB.Tests/Engine/PromotionPowerLossStream.cs'
       - 'LiteDB.Tests/Engine/PromotionPowerLossScenario.cs'
       - 'tools/V8Differential/**'
@@ -30,6 +32,8 @@ on:
       - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
       - 'LiteDB.Tests/Internals/MvccRetirementScenario.cs'
       - 'LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs'
+      - 'LiteDB.Tests/Engine/ConcurrencyExplorer/**'
+      - 'LiteDB.Tests/Engine/TransactionHandleInterleaving*.cs'
       - 'LiteDB.Tests/Engine/PromotionPowerLossStream.cs'
       - 'LiteDB.Tests/Engine/PromotionPowerLossScenario.cs'
       - 'tools/V8Differential/**'
@@ -161,6 +165,45 @@ jobs:
           path: artifacts/fuzz
           if-no-files-found: error
 
+  concurrency:
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
+    name: Concurrency (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            framework: net8.0
+            seed: 133098
+          - os: windows-latest
+            framework: net10.0
+            seed: 233098
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f "${{ matrix.framework }}" --no-restore -p:TestingEnabled=true
+      # 232 cases = (31 Direct + 27 Shared schedules) x plain/encrypted x both outcomes:
+      # one pass over the whole matrix. Keep in sync with TransactionInterleavingFuzzer.CaseCount.
+      - name: Explore bounded actor schedules
+        run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
+          --target transaction-interleavings --seed "${{ matrix.seed }}" --count 232
+          --artifact-dir artifacts/concurrency --max-artifact-mb 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-concurrency-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts/concurrency
+          if-no-files-found: error
+
   checksums:
     name: Checksums (${{ matrix.os }}, ${{ matrix.framework }})
     if: github.event_name != 'workflow_dispatch' || inputs.tier != 'campaign'
@@ -223,11 +266,19 @@ jobs:
         include:
           - shard: correctness
             targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
+            artifactBudget: 512
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
             targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
+            artifactBudget: 512
             seedOffset: 1500000
+            framework: net10.0
+          - shard: concurrency
+            targets: transaction-interleavings
+            # Failed schedules retain their live fixtures in place; never prune them.
+            artifactBudget: 0
+            seedOffset: 2500000
             framework: net10.0
     env:
       TZ: Asia/Kolkata
@@ -257,13 +308,14 @@ jobs:
         env:
           FUZZ_TARGETS: ${{ matrix.targets }}
           SEED_OFFSET: ${{ matrix.seedOffset }}
+          FUZZ_ARTIFACT_BUDGET: ${{ matrix.artifactBudget }}
           FUZZ_FRAMEWORK: ${{ matrix.framework }}
         run: |
           FUZZ_SEED=$((GITHUB_RUN_ID % 2000000000 + SEED_OFFSET))
           echo "Rotating seed: $FUZZ_SEED"
           dotnet run --project LiteDB.Fuzz -c Release -f "$FUZZ_FRAMEWORK" --no-build -- \
             --target "$FUZZ_TARGETS" --seed "$FUZZ_SEED" --duration 150m --workers 2 \
-            --epoch-duration 2m --coverage-guided --artifact-dir artifacts/fuzz
+            --epoch-duration 2m --coverage-guided --artifact-dir artifacts/fuzz --max-artifact-mb "$FUZZ_ARTIFACT_BUDGET"
       - name: Classify findings by canonical fingerprint
         if: always()
         run: python3 scripts/summarize-fuzz-artifacts.py artifacts/fuzz --output artifacts/fuzz/failure-groups.json --github-summary
