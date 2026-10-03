@@ -22,7 +22,8 @@ internal static class ChaosMaintenanceDeclarations
     /// <summary>
     /// .NET's disposal contract: a Direct call that was already running when the engine (or the gate a
     /// rebuild retired) was disposed under it may fail with ObjectDisposedException. Its object name is
-    /// internal (TransactionGate, StreamPool); LockService.EnterTransaction maps the same race to ENGINE_DISPOSED.
+    /// internal (TransactionGate, StreamPool, the transaction monitor's ThreadLocal); LockService.EnterTransaction
+    /// maps the same race to ENGINE_DISPOSED.
     /// </summary>
     internal const string Disposed = "threw:System.ObjectDisposedException";
 
@@ -111,7 +112,11 @@ internal static class ChaosMaintenanceDeclarations
                 if (beforePoint) return new[] { Ok };
                 // Paused in its WAL write, the active write holds the header lock the fatal write needs to
                 // allocate a page or commit: the active commit completes before the fatal write can fail.
-                if (plan.PausesInWal) return new[] { Ok };
+                // The call's tail after the commit (snapshot and transaction release) holds no lock the fatal
+                // write waits for, and the fatal stop closes the engine without waiting for running calls
+                // (#3010): it can dispose the transaction monitor under that tail (Disposed). The write is
+                // then committed but reported failed; the scenario judges it uncertain.
+                if (plan.PausesInWal) return new[] { Ok, Disposed };
                 if (completion) return new[] { StoppedByIo };
                 return op == "Checkpoint" ? new[] { Ok, StoppedByIo, EngineDisposed, Disposed }
                     : new[] { StoppedByIo, EngineDisposed, Disposed };
