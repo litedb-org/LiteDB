@@ -39,7 +39,9 @@ NAME = re.compile(r"(?P<kind>[a-z-]+):[A-Za-z0-9][\w.\-]*\Z")
 # Fault hooks whose call goes through one method that counts the marker for every caller.
 DISPATCHERS = {"CrashPoint": "LiteDB/Engine/EngineState.cs", "TestCrashPoint": "LiteDB/Engine/EngineState.cs",
                "CheckpointStage": "LiteDB/Engine/Disk/DiskService.Checkpoint.cs",
-               "Observe": "LiteDB/Client/Shared/SharedCoordinationFile.cs"}
+               "Observe": "LiteDB/Client/Shared/SharedCoordinationFile.cs",
+               "TeardownSteps.Before": "LiteDB/Utils/TeardownSteps.cs", "TeardownSteps.After": "LiteDB/Utils/TeardownSteps.cs",
+               "Step": "LiteDB/Utils/TryCatch.cs"}
 API_TYPES = ("ILiteDatabase", "ILiteCollection", "ILiteQueryable", "ILiteQueryableResult", "ILiteEngine",
              "ILiteStorage", "ILiteRepository")
 TYPE = re.compile(r"\bpublic\s+(?:(?:static|sealed|abstract|partial|readonly)\s+)*"

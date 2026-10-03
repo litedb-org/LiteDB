@@ -100,6 +100,48 @@ class FaultPointTests(unittest.TestCase):
         self.assertEqual(output.count("ERROR: LiteDB/"), 1, output)
         self.assertIn(f"ERROR: {ENGINE}:7: Fault hook without a literal name", output)
 
+    def test_teardown_steps_are_a_hook_family_that_must_be_registered(self):
+        steps = "LiteDB/Utils/TeardownSteps.cs"
+        markers = """namespace LiteDB.Utils
+{
+    internal static class TeardownSteps
+    {
+        internal static void Before(string step, bool applies = true) { }
+        internal static void After(string step, bool applies = true) { }
+    }
+    internal class TryCatch
+    {
+        public void Step(string step, bool applies = true) { }
+    }
+}
+"""
+        sort = "LiteDB/Engine/Sort/SortDisk.cs"
+        source = """namespace LiteDB.Engine
+{
+    internal class SortDisk
+    {
+        void Dispose(TryCatch tc)
+        {
+            TeardownSteps.Before("SortDisk.Dispose.pool"); _pool.Dispose(); TeardownSteps.After("SortDisk.Dispose.pool");
+            tc.Step("SortDisk.Dispose.delete");
+        }
+    }
+}
+"""
+        sweep = "LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs"
+        test = csharp_class("TeardownSweep_Tests", {"Sweep": ("Fact", 'var steps = new[] { "SortDisk.Dispose.pool", "SortDisk.Dispose.delete" };')})
+        code, output = self.run_check({steps: markers, sort: source, sweep: test})
+        self.assertEqual(code, 1)
+        self.assertIn("teardown-step:SortDisk.Dispose.pool is not registered", output)
+        self.assertIn("teardown-step:SortDisk.Dispose.delete is not registered", output)
+        self.assertNotIn("TeardownSteps.cs", output)  # the marker declarations are not hook sites
+        hooks = json.loads(registry())["hooks"] + [
+            {"family": "teardown-step", "name": name, "protocol": "teardown: SortDisk.Dispose",
+             "evidence": [{"test": f"{sweep}#Sweep", "model": "exception", "proves": "p"}]}
+            for name in ("SortDisk.Dispose.pool", "SortDisk.Dispose.delete")]
+        code, output = self.run_check({steps: markers, sort: source, sweep: test, REGISTRY: registry(hooks=hooks)})
+        self.assertEqual(code, 0, output)
+
     def test_evidence_must_resolve_and_name_the_hook(self):
         cases = {
             "does not resolve": hook("wal-before-flush", [{"test": f"{TESTS}#Missing", "model": "exception", "proves": "p"}]),

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using LiteDB.Engine;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -411,13 +412,18 @@ namespace LiteDB
             this.Dispose(false);
         }
 
+        [TeardownPath("LiteDatabase.Dispose", TeardownDisposition.Propagated | TeardownDisposition.Discarded,
+            "Restoring the checkpoint override propagates; engine disposal is the engine's own path (Direct discards, " +
+            "Shared propagates or discards).")]
         protected virtual void Dispose(bool disposing)
         {
             if (disposing && _disposeOnClose)
             {
                 if (_checkpointOverride.HasValue)
                 {
+                    TeardownSteps.Before("LiteDatabase.Dispose.checkpoint-override");
                     _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
+                    TeardownSteps.After("LiteDatabase.Dispose.checkpoint-override");
                 }
 
                 _engine.Dispose();

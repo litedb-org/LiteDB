@@ -5,6 +5,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -80,6 +81,9 @@ namespace LiteDB
             this.Dispose(false);
         }
 
+        [TeardownPath("SharedDataReader.Dispose", TeardownDisposition.Propagated | TeardownDisposition.Discarded,
+            "The inner reader's and the release callback's failures propagate (try/finally runs the callback either way); " +
+            "the core closes the release triggers (pin end, last-reader checkpoint) drop their failure lists.")]
         protected virtual void Dispose(bool disposing)
         {
             // Atomic admission: the callback ends one mutex recursion and one engine user.

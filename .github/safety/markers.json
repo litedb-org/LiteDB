@@ -20,6 +20,18 @@
     "SimulatePosixDelete": {
       "gate": "advisory",
       "reason": "Evaluated only when Shared mode caches file handles (Windows); the Linux smoke legs never reach it."
+    },
+    "SharedEngine.Dispose.handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
+    },
+    "SharedEngine.Dispose.early-handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
+    },
+    "SharedEngine.OnOwnerExited.idle-handles": {
+      "gate": "advisory",
+      "reason": "Shared mode caches file handles only on Windows (SharedFileHandles.IsSupportedFor); the Linux smoke leg that runs teardown-faults never reaches this step. The xUnit sweep reaches it on Windows (TeardownSweep_Tests.Every_catalogued_step_is_reached_by_a_driver)."
     }
   },
   "markers": [
@@ -735,6 +747,116 @@
       "reason": "A reader pinned before a concurrent writer committed finishes on its original snapshot."
     },
     {
+      "name": "situation:chaos-maintenance-close-overlaps-active-op",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFuzzer.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "reason": "A Dispose on another thread starts while an active bulk write, reader, explicit transaction, checkpoint or rebuild is paused at its forced point and engages (waits behind it or completes) before the active call resumes."
+    },
+    {
+      "name": "situation:chaos-maintenance-fatal-overlaps-active-op",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFuzzer.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "reason": "A write whose WAL page write fails (fatal I/O stop) runs on another thread while an active call is paused at its forced point."
+    },
+    {
+      "name": "situation:chaos-maintenance-known-close-releases-active-call-pages",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFindings.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "gate": "advisory",
+      "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
+      "reason": "Known finding (#3010): a Direct close (Dispose or fatal stop) under a running call released that call's page buffers; the call failed the page-ownership check or a buffer was finalized with a non-zero share count."
+    },
+    {
+      "name": "situation:chaos-maintenance-known-direct-second-dispose-returns-early",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFindings.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "gate": "advisory",
+      "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
+      "reason": "Known finding (#3093): a second Direct Dispose returned while a concurrent first Dispose was still closing and the database files were open."
+    },
+    {
+      "name": "situation:chaos-maintenance-known-rebuild-reopens-after-dispose",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFindings.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "gate": "advisory",
+      "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
+      "reason": "Known finding (#3093): a Direct Rebuild holding exclusive admission completed and left the engine open after a concurrent Dispose returned."
+    },
+    {
+      "name": "situation:chaos-maintenance-known-shared-second-dispose-returns-early",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFindings.cs"
+      ],
+      "targets": [
+        "chaos-maintenance",
+        "LiteDB.Tests/Engine/SharedConcurrentDisposeKnownFinding_Tests.cs#Known_finding_a_second_shared_dispose_returns_while_the_first_still_holds_the_mutex"
+      ],
+      "doc": "docs/shared-mode-safety.md",
+      "gate": "advisory",
+      "gateReason": "Reached only while a dev defect is present (a registered chaos-maintenance known finding); a fixed tree must not be required to reach it.",
+      "reason": "Known finding (#3095): a second Shared Dispose returned while a concurrent first Dispose was still closing and held the files or the Shared mutex."
+    },
+    {
+      "name": "situation:chaos-maintenance-op-arrives-during-maintenance",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFuzzer.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "reason": "An operation starts while a close, rebuild or fatal write on another thread is paused inside its forced point (close checkpoint, exclusive admission, fatal write input)."
+    },
+    {
+      "name": "situation:chaos-maintenance-rebuild-overlaps-active-op",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFuzzer.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "reason": "A Rebuild on another thread starts while an active call is paused at its forced point and engages before the active call resumes."
+    },
+    {
+      "name": "situation:chaos-maintenance-shared-overlap",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosMaintenanceFuzzer.cs"
+      ],
+      "targets": [
+        "chaos-maintenance"
+      ],
+      "doc": "docs/shared-mode-safety.md",
+      "reason": "A close, rebuild or fatal write on one thread of a Shared connection engages while another thread's call on the same connection is paused at its forced point."
+    },
+    {
       "name": "situation:chaos-reopen-with-acknowledged-rows",
       "kind": "situation",
       "paths": [
@@ -821,6 +943,30 @@
         "integrity"
       ],
       "reason": "The raw integrity oracle rejected a deliberately corrupted copy of a valid database."
+    },
+    {
+      "name": "situation:teardown-faults-fail-inside-fired",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs"
+      ],
+      "targets": [
+        "teardown-faults"
+      ],
+      "doc": "docs/teardown-sweep.md",
+      "reason": "A fail-inside fault (thrown after a teardown step's action ran) fired inside a registered teardown path under random prior state."
+    },
+    {
+      "name": "situation:teardown-faults-skip-fired",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/TeardownFaultsFuzzer.cs"
+      ],
+      "targets": [
+        "teardown-faults"
+      ],
+      "doc": "docs/teardown-sweep.md",
+      "reason": "A skip fault (thrown before a teardown step's action, so the action never runs) fired inside a registered teardown path under random prior state."
     }
   ]
 }

@@ -30,12 +30,17 @@ CALLEES = [
     ("checkpoint-stage", "CheckpointStage?.Invoke", 0, None),
     ("coordination-file", "Observe", 1, re.compile(r"LiteDB/Client/Shared/SharedCoordinationFile\w*\.cs\Z")),
     ("coordination-file", "CreationStage?.Invoke", 1, None),
+    # Teardown step markers of [TeardownPath] routines (docs/teardown-sweep.md): one name per step,
+    # bracketing the step's action; TryCatch.Step names the next collected action.
+    ("teardown-step", "TeardownSteps.Before", 0, None),
+    ("teardown-step", "TeardownSteps.After", 0, None),
+    ("teardown-step", "Step", 0, None),
 ]
 NAMED_DELEGATES = {"SimulateProcessCrash": "process-crash", "SimulateInstallFailure": "rebuild-install",
                    "CheckpointStage": "checkpoint-stage", "CreationStage": "coordination-file"}
 CALL = re.compile(r"(?<![\w.])(?:[\w.]*\.)?(?P<callee>" + "|".join(
     sorted({re.escape(callee) for _, callee, _, _ in CALLEES}, key=len, reverse=True)) + r")\(")
-DECLARATION = re.compile(r"\bvoid\s+(?:(?:Test)?CrashPoint|CheckpointStage|Observe)\s*\(\s*string\b")
+DECLARATION = re.compile(r"\bvoid\s+(?:(?:Test)?CrashPoint|CheckpointStage|Observe|Before|After|Step)\s*\(\s*string\b")
 # Every delegate field declared under #if DEBUG/TESTING is a test hook and must be
 # classified: a named family above, a data-driven injector, or an observer.
 DELEGATE = re.compile(r"\b(?:Action|Func)(?:<[^;=]*?>)?\s+([A-Z]\w*)\s*[;=]")

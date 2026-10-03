@@ -110,4 +110,27 @@ replay, retention, and campaign options.
 Relevant target selection matters more than rerunning everything. For reader
 leases use `transaction-gate,cursor-handoff,concurrent`; for key-moving updates
 use `index`; for replacement recovery use `rebuild-transition`; for flush/order
-changes include `power-loss,recovery,wal` and the file-compatibility scripts.
+changes include `power-loss,recovery,wal` and the file-compatibility scripts;
+for close, rebuild or fatal-error paths during other work use `chaos-maintenance`.
+
+### Maintenance during an active operation
+
+`chaos-maintenance` forces a close, rebuild or fatal I/O failure on one thread
+against an operation paused at a forced point on another (and the reverse
+order). Keep its rules when extending it:
+
+- A forced point pauses one side; the coordinator releases it only after the
+  other side finished or is observed waiting behind it (an admission or
+  checkpoint hook, a Shared mutex waiter, the dispose drain marker, or the thread
+  blocked for longer than any timed wait on that path). A forced edge that is
+  never reached is a harness failure; if the waiting side blocks where it should
+  not, record that as a finding with a stack dump.
+- Every call declares its permitted outcomes before it runs (`permitted` in
+  `outcomes.jsonl`); anything outside the set fails as
+  `CHAOS_MAINTENANCE_NOT_PERMITTED_<OP>` unless a registered known finding's
+  precise predicate claims it. Known findings are recorded, not hidden: each hit
+  goes to `known-findings-hit.jsonl` and a `situation:chaos-maintenance-known-*`
+  marker, and `LITEDB_FUZZ_STRICT_KNOWN=1` turns them into failures.
+- Which side wins once both run is native scheduling (class 2 evidence): it is
+  kept in `maintenance-history.jsonl`, never in `trace.jsonl`, whose content is
+  a function of the drawn plan only.

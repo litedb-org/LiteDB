@@ -204,6 +204,7 @@ namespace LiteDB
         /// reader or transaction can no longer complete: drop the engine without
         /// writing. An exited transaction owner is reported to the next caller.
         /// </summary>
+        [TeardownPath("SharedEngine.OnOwnerExited", TeardownDisposition.Discarded, "Inside SharedMutexOwner's catch-all; core close list dropped.")]
         private void OnOwnerExited()
         {
             // The mutex stays owned until this cleanup returns; its closes reach caller streams.
@@ -216,7 +217,7 @@ namespace LiteDB
                 if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
                 this.CloseMutexSnapshotsLocked();
             }
-            _handles?.CloseIdle();
+            TeardownSteps.Before("SharedEngine.OnOwnerExited.idle-handles", _handles != null); _handles?.CloseIdle(); TeardownSteps.After("SharedEngine.OnOwnerExited.idle-handles", _handles != null);
         }
 
         #region Transaction Operations
@@ -435,13 +436,14 @@ namespace LiteDB
             Dispose(false);
         }
 
+        [TeardownPath("SharedEngine.Dispose", TeardownDisposition.Propagated | TeardownDisposition.Discarded, "Steps propagate; core close list dropped.")]
         protected virtual void Dispose(bool disposing)
         {
             if (!disposing || Volatile.Read(ref _disposed) != 0) return;
             this.ThrowIfTeardownReentry();
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            this.RetireCoordinatedReads();
+            TeardownSteps.Before("SharedEngine.Dispose.retire-reads"); this.RetireCoordinatedReads(); TeardownSteps.After("SharedEngine.Dispose.retire-reads");
             // Any thread can end a pin; its holder closes the engine and releases. Read
             // under the lock that orders a starting pin's publication with this Dispose.
             SharedMutexPin pin;
@@ -453,11 +455,11 @@ namespace LiteDB
                 if (!pin.CanWaitFrom(Thread.CurrentThread))
                 {
                     // The pin's holder still closes its engine; its streams close on return.
-                    _handles?.Dispose();
-                    _readers.Dispose();
+                    TeardownSteps.Before("SharedEngine.Dispose.early-handles", _handles != null); _handles?.Dispose(); TeardownSteps.After("SharedEngine.Dispose.early-handles", _handles != null);
+                    TeardownSteps.Before("SharedEngine.Dispose.early-readers"); _readers.Dispose(); TeardownSteps.After("SharedEngine.Dispose.early-readers");
                     return;
                 }
-                pin.WaitReleased();
+                TeardownSteps.Before("SharedEngine.Dispose.wait-pin"); pin.WaitReleased(); TeardownSteps.After("SharedEngine.Dispose.wait-pin");
             }
 
             // Calls admitted before Dispose started finish first; later ones are refused.
@@ -484,13 +486,13 @@ namespace LiteDB
             // Operations left a WAL below the close threshold: checkpoint it now, so
             // the data file alone is the database again once every connection closed.
             if (!closed) this.CheckpointOnDispose();
-            _handles?.Dispose();
+            TeardownSteps.Before("SharedEngine.Dispose.handles", _handles != null); _handles?.Dispose(); TeardownSteps.After("SharedEngine.Dispose.handles", _handles != null);
             // Leased readers may outlive the connection; the slot file closes after the last.
-            _readers.Dispose();
+            TeardownSteps.Before("SharedEngine.Dispose.readers"); _readers.Dispose(); TeardownSteps.After("SharedEngine.Dispose.readers");
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
-            this.DisposeCoordination();
+            TeardownSteps.Before("SharedEngine.Dispose.coordination"); this.DisposeCoordination(); TeardownSteps.After("SharedEngine.Dispose.coordination");
         }
     }
 }

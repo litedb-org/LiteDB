@@ -336,10 +336,17 @@ namespace LiteDB.Engine
         private static void DeleteReplacement(string tempFilename)
         {
             // Wait out a virus scanner or sync client inspecting the new file, as for the marker.
+            TeardownSteps.Before("RebuildService.DiscardReplacement.delete-data");
             FileHelper.Exec(ReplacementDeleteTimeoutSeconds, () => File.Delete(tempFilename));
+            TeardownSteps.After("RebuildService.DiscardReplacement.delete-data");
+            TeardownSteps.Before("RebuildService.DiscardReplacement.delete-log");
             FileHelper.Exec(ReplacementDeleteTimeoutSeconds, () => File.Delete(FileHelper.GetLogFile(tempFilename)));
+            TeardownSteps.After("RebuildService.DiscardReplacement.delete-log");
         }
 
+        [TeardownPath("RebuildService.DiscardReplacement", TeardownDisposition.RecordedAsCleanupError,
+            "Deletion failures are added to the build failure's Data[LiteDB.Rebuild.RollbackErrors] and the build failure " +
+            "is rethrown (RebuildService.cs; docs/rebuild-recovery.md).")]
         private static void DiscardReplacement(string tempFilename, Exception failure)
         {
             var cleanupErrors = new List<Exception>();

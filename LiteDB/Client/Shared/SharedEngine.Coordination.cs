@@ -1,5 +1,6 @@
 using System;
 using LiteDB.Client.Shared;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -12,6 +13,9 @@ namespace LiteDB
         /// </summary>
         public string CoordinationFallbackReason { get; private set; }
 
+        [TeardownPath("SharedEngine.OpenEngine", TeardownDisposition.SuppressedPreservingPrimary,
+            "A core whose publication failed is closed best effort (failures swallowed) and the original error rethrown " +
+            "(SharedEngine.Coordination.cs; docs/shared-teardown-callbacks.md).")]
         private void OpenEngine(bool recoveredAbandonedOwner, bool final = false, bool writing = false)
         {
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);

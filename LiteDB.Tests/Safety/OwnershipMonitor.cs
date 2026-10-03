@@ -51,9 +51,20 @@ namespace LiteDB.Tests.Safety
         }
 
         private int _ids;
+        private readonly Func<bool> _accept;
 
-        public OwnershipMonitor()
+        public OwnershipMonitor() : this(null)
         {
+        }
+
+        /// <param name="accept">
+        /// Evaluated on the thread raising each event: only events it accepts are tracked, so monitors
+        /// of scenarios running in parallel (for example one per teardown sweep case, recognised by the
+        /// sweep scenario its threads carry) do not see each other's connections. Null accepts all.
+        /// </param>
+        public OwnershipMonitor(Func<bool> accept)
+        {
+            _accept = accept;
             _stage = this.OnStage;
             _releasing = this.OnReleasing;
             SharedOwnershipEvents.CoreStage += _stage;
@@ -109,6 +120,7 @@ namespace LiteDB.Tests.Safety
 
         private void OnStage(SharedEngine connection, LiteEngine core, string stage)
         {
+            if (_accept != null && !_accept()) return;
             if (stage == SharedOwnershipEvents.Opened)
             {
                 _cores[core] = new Core
@@ -127,6 +139,7 @@ namespace LiteDB.Tests.Safety
 
         private void OnReleasing(Mutex mutex)
         {
+            if (_accept != null && !_accept()) return;
             var live = _cores.Values.Where(core => ReferenceEquals(core.Mutex, mutex) && core.Stage != SharedOwnershipEvents.Closed)
                 .Select(Describe).ToArray();
             if (live.Length == 0) return;

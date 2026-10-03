@@ -213,6 +213,8 @@ namespace LiteDB.Engine
             _writer.Write(array, offset, count);
         }
 
+        [TeardownPath("AesStream.Dispose", TeardownDisposition.Propagated,
+            "Every resource is released in TryCatch; collected failures are thrown as AggregateException (AesStream.cs).")]
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
@@ -225,11 +227,17 @@ namespace LiteDB.Engine
         private List<Exception> DisposeResources()
         {
             var cleanup = new TryCatch();
+            cleanup.Step("AesStream.Dispose.writer", _writer != null);
             cleanup.Catch(() => _writer?.Dispose());
+            cleanup.Step("AesStream.Dispose.reader", _reader != null);
             cleanup.Catch(() => _reader?.Dispose());
+            cleanup.Step("AesStream.Dispose.encryptor", _encryptor != null);
             cleanup.Catch(() => _encryptor?.Dispose());
+            cleanup.Step("AesStream.Dispose.decryptor", _decryptor != null);
             cleanup.Catch(() => _decryptor?.Dispose());
+            cleanup.Step("AesStream.Dispose.aes", _aes != null);
             cleanup.Catch(() => _aes?.Dispose());
+            cleanup.Step("AesStream.Dispose.stream");
             cleanup.Catch(() => _stream.Dispose());
             return cleanup.Exceptions;
         }

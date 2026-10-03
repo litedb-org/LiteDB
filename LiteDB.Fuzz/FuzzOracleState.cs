@@ -81,13 +81,22 @@ internal sealed class FuzzOracleState : IDisposable
         throw new FuzzFailureException($"OWNERSHIP_{FuzzOracles.Safe(this.Target)}_{violation.Kind}", violation.Detail);
     }
 
-    internal void WriteOutcome(string op, string dimension, int step, string outcome, Exception error, double elapsedMs) =>
-        this.Write(OutcomesFile, new
-        {
-            target = _context.Target, step, op, dimension = dimension ?? "", outcome,
-            exceptionType = error?.GetType().FullName, errorCode = (error as LiteException)?.ErrorCode,
-            elapsedMs = Math.Round(elapsedMs, 3)
-        });
+    /// <summary>
+    /// One outcomes.jsonl line. <paramref name="permitted"/> (the scenario's declared outcome set) is an
+    /// optional trailing field: records of calls that declare none keep the original shape.
+    /// </summary>
+    internal void WriteOutcome(string op, string dimension, int step, string outcome, Exception error, double elapsedMs,
+        string[] permitted = null)
+    {
+        var exceptionType = error?.GetType().FullName;
+        var errorCode = (error as LiteException)?.ErrorCode;
+        elapsedMs = Math.Round(elapsedMs, 3);
+        dimension ??= "";
+        if (permitted == null)
+            this.Write(OutcomesFile, new { target = _context.Target, step, op, dimension, outcome, exceptionType, errorCode, elapsedMs });
+        else
+            this.Write(OutcomesFile, new { target = _context.Target, step, op, dimension, outcome, exceptionType, errorCode, elapsedMs, permitted });
+    }
 
     internal void WriteConnectionClean(string op, ConnectionCleanResult result) =>
         this.Write(ConnectionCleanFile, new

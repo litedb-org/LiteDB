@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -14,6 +15,7 @@ namespace LiteDB.Engine
         {
             try
             {
+                TeardownSteps.Before("TransactionService.Dispose.snapshot-pages");
                 if (snapshot.Mode == LockMode.Write)
                 {
                     var pages = snapshot.GetWritablePages(true, true)
@@ -34,6 +36,7 @@ namespace LiteDB.Engine
                         ReleasePage(snapshot.CollectionPage, cache, false, ref errors);
                     }
                 }
+                TeardownSteps.After("TransactionService.Dispose.snapshot-pages");
             }
             catch (Exception ex)
             {
@@ -51,7 +54,9 @@ namespace LiteDB.Engine
             {
                 try
                 {
+                    TeardownSteps.Before("TransactionService.Dispose.snapshot-lock");
                     snapshot.Dispose();
+                    TeardownSteps.After("TransactionService.Dispose.snapshot-lock");
                 }
                 catch (Exception ex)
                 {

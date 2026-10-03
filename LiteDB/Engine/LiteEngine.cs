@@ -208,6 +208,8 @@ namespace LiteDB.Engine
         /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
         internal bool InvalidDatafileState { get; private set; }
 
+        [TeardownPath("LiteEngine.Close", TeardownDisposition.ReturnedAsFailureList,
+            "Each step runs in TryCatch and the collected failures are returned (LiteEngine.cs Close); callers decide.")]
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();
@@ -217,21 +219,26 @@ namespace LiteDB.Engine
             var tc = new TryCatch();
 
             // stop running all transactions
+            tc.Step("LiteEngine.Close.monitor", _monitor != null);
             tc.Catch(() => _monitor?.Dispose());
 
             if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
+                tc.Step("LiteEngine.Close.checkpoint", _walIndex != null);
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
             // close all disk streams (and delete log if empty)
+            tc.Step("LiteEngine.Close.disk", _disk != null);
             tc.Catch(() => _disk?.Dispose());
 
             // delete sort temp file
+            tc.Step("LiteEngine.Close.sort-disk", _sortDisk != null);
             tc.Catch(() => _sortDisk?.Dispose());
 
             // dispose lockers
+            tc.Step("LiteEngine.Close.locker", _locker != null);
             tc.Catch(() => _locker?.Dispose());
 
             return tc.Exceptions;
@@ -258,6 +265,8 @@ namespace LiteDB.Engine
         /// - Dispose locker
         /// - Checks Exception type for INVALID_DATAFILE_STATE to auto rebuild on open
         /// </summary>
+        [TeardownPath("LiteEngine.CloseOnError", TeardownDisposition.ReturnedAsFailureList,
+            "TryCatch seeded with the causal error; every step's failure is collected and the list returned.")]
         internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
             if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
@@ -267,22 +276,27 @@ namespace LiteDB.Engine
 
             var tc = new TryCatch(ex);
 
+            tc.Step("LiteEngine.CloseOnError.monitor", _monitor != null);
             tc.Catch(() => _monitor?.Dispose());
 
             if (tc.InvalidDatafileState)
             {
                 Reachability.Sometimes("maintenance:invalid-datafile-state-close");
                 // Keep the data writer alive until the recovery marker is durable.
+                tc.Step("LiteEngine.CloseOnError.mark-invalid", _disk != null);
                 tc.Catch(() => _disk?.MarkAsInvalidState());
             }
 
             // close disks streams
+            tc.Step("LiteEngine.CloseOnError.disk", _disk != null);
             tc.Catch(() => _disk?.Dispose());
 
             // close sort disk service
+            tc.Step("LiteEngine.CloseOnError.sort-disk", _sortDisk != null);
             tc.Catch(() => _sortDisk?.Dispose());
 
             // close engine lock service
+            tc.Step("LiteEngine.CloseOnError.locker", _locker != null);
             tc.Catch(() => _locker?.Dispose());
 
             return tc.Exceptions;
@@ -326,6 +340,8 @@ namespace LiteDB.Engine
             GC.SuppressFinalize(this);
         }
 
+        [TeardownPath("LiteEngine.Dispose", TeardownDisposition.Discarded,
+            "Calls Close() and drops its failure list (LiteEngine.cs Dispose(bool)); FOLLOWUP item 5: upstream Dispose discards.")]
         protected virtual void Dispose(bool disposing)
         {
             this.Close();

@@ -75,7 +75,9 @@ Every pin, pooled buffer, cursor, and underlying stream needs a clear owner and
 release path for completion, early termination, exceptions, and repeated disposal.
 Disposal admission must be atomic; lazy resource publication must coordinate with
 concurrent disposal. Logging/callback failures must not skip cleanup or replace the
-original error. Respect caller-stream ownership.
+original error. Respect caller-stream ownership. Mark a new or changed teardown path
+`[TeardownPath]` with its declared fault disposition and bracket its failing steps; the
+[teardown sweep](../teardown-sweep.md) fails until the path has a driver.
 
 Borrowed views cannot outlive the page/buffer that backs them. `byte[]` storage
 marshalled into structs may contain only unmanaged data; keep managed references

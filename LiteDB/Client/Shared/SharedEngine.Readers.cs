@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -155,6 +156,8 @@ namespace LiteDB
         /// abandoned or forced end closes the engine even under the owner's open
         /// readers and transactions; nothing else can use it after the release.
         /// </summary>
+        [TeardownPath("SharedEngine.ClosePin", TeardownDisposition.Propagated | TeardownDisposition.Discarded,
+            "Runs on the pin holder: a failure becomes the pin's error, rethrown by WaitReleased to a waiter; dropped when nobody waits.")]
         private void ClosePin(SharedMutexPin pin, bool abandoned)
         {
             using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
@@ -187,7 +190,10 @@ namespace LiteDB
                 this.CloseRetainedCore(engine);
                 _lastPinClose = close.Elapsed;
             }
-            if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
+            var disposed = Volatile.Read(ref _disposed) != 0;
+            TeardownSteps.Before("SharedEngine.ClosePin.coordination", disposed);
+            if (disposed) this.DisposeCoordination();
+            TeardownSteps.After("SharedEngine.ClosePin.coordination", disposed);
         }
 
         /// <summary>
@@ -197,6 +203,9 @@ namespace LiteDB
         /// was after the pre-v13 reader closed its engine. Best effort: it never
         /// waits for another owner of the mutex, whose own close checkpoints.
         /// </summary>
+        [TeardownPath("SharedEngine.CheckpointAfterLastReader", TeardownDisposition.Discarded | TeardownDisposition.Propagated,
+            "I/O and access failures are swallowed ('Reader disposal must not fail because the environment refused this cleanup'); " +
+            "database errors surface (SharedEngine.Readers.cs).")]
         private void CheckpointAfterLastReader()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
@@ -218,7 +227,9 @@ namespace LiteDB
                     this.AdmitLocked();
                 }
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
+                TeardownSteps.Before("SharedEngine.CheckpointAfterLastReader.close-finally");
                 using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
+                TeardownSteps.After("SharedEngine.CheckpointAfterLastReader.close-finally");
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -243,6 +254,9 @@ namespace LiteDB
         /// wait is bounded: this thread may itself keep that owner busy (another
         /// connection's operation on the same thread). A WAL another close removed ends it.
         /// </summary>
+        [TeardownPath("SharedEngine.CheckpointOnDispose", TeardownDisposition.Discarded | TeardownDisposition.Propagated,
+            "I/O, access and LiteException failures are swallowed ('Dispose must not fail because of this cleanup'); " +
+            "other exceptions propagate (SharedEngine.Readers.cs).")]
         private void CheckpointOnDispose()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
@@ -250,7 +264,9 @@ namespace LiteDB
             try
             {
                 if (abandoned || _engine != null || _transactionRunning) return;
+                TeardownSteps.Before("SharedEngine.CheckpointOnDispose.close-finally");
                 using (this.OwnershipFrame(this.CallRetains)) this.CloseFinally();
+                TeardownSteps.After("SharedEngine.CheckpointOnDispose.close-finally");
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is LiteException)
             {
