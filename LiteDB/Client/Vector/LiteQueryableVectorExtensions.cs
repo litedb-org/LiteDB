@@ -14,6 +14,7 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">The query already has WhereNear, or an incompatible TopKNear.</exception>
         public static ILiteQueryable<T> WhereNear<T>(this ILiteQueryable<T> source, string vectorField, float[] target, double maxDistance)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorQuery(inner => inner.VectorWhereNear(vectorField, target, maxDistance));
             return Unwrap(source).VectorWhereNear(vectorField, target, maxDistance);
         }
 
@@ -22,6 +23,7 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">The query already has WhereNear, or an incompatible TopKNear.</exception>
         public static ILiteQueryable<T> WhereNear<T>(this ILiteQueryable<T> source, BsonExpression fieldExpr, float[] target, double maxDistance)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorQuery(inner => inner.VectorWhereNear(fieldExpr, target, maxDistance));
             return Unwrap(source).VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
@@ -30,11 +32,14 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">The query already has WhereNear, or an incompatible TopKNear.</exception>
         public static ILiteQueryable<T> WhereNear<T, K>(this ILiteQueryable<T> source, Expression<Func<T, K>> field, float[] target, double maxDistance)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorQuery(inner => inner.VectorWhereNear(field, target, maxDistance));
             return Unwrap(source).VectorWhereNear(field, target, maxDistance);
         }
 
         public static IEnumerable<T> FindNearest<T>(this ILiteQueryable<T> source, string vectorField, float[] target, double maxDistance)
         {
+            if (source is TransactionQueryResult<T> bound)
+                return bound.VectorEnumerable(inner => inner.VectorWhereNear(vectorField, target, maxDistance).ToEnumerable());
             var queryable = Unwrap(source);
             return queryable.VectorWhereNear(vectorField, target, maxDistance).ToEnumerable();
         }
@@ -45,6 +50,7 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">An existing WhereNear uses a different expression or target.</exception>
         public static ILiteQueryableResult<T> TopKNear<T, K>(this ILiteQueryable<T> source, Expression<Func<T, K>> field, float[] target, int k)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorResult(inner => inner.VectorTopKNear(field, target, k));
             return Unwrap(source).VectorTopKNear(field, target, k);
         }
 
@@ -54,6 +60,7 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">An existing WhereNear uses a different expression or target.</exception>
         public static ILiteQueryableResult<T> TopKNear<T>(this ILiteQueryable<T> source, string field, float[] target, int k)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorResult(inner => inner.VectorTopKNear(field, target, k));
             return Unwrap(source).VectorTopKNear(field, target, k);
         }
 
@@ -63,6 +70,7 @@ namespace LiteDB.Vector
         /// <exception cref="InvalidOperationException">An existing WhereNear uses a different expression or target.</exception>
         public static ILiteQueryableResult<T> TopKNear<T>(this ILiteQueryable<T> source, BsonExpression fieldExpr, float[] target, int k)
         {
+            if (source is TransactionQueryResult<T> bound) return bound.VectorResult(inner => inner.VectorTopKNear(fieldExpr, target, k));
             return Unwrap(source).VectorTopKNear(fieldExpr, target, k);
         }
 
