@@ -1,5 +1,31 @@
 # Release notes
 
+## Explicit transaction handles
+
+`db.BeginTransaction()` returns an `ILiteTransaction` whose collections, queries and
+readers always use that transaction, independent of the calling thread. Sequential
+handoff across `await` is supported; overlapping use of one handle is rejected.
+Ordinary collections never enlist. Direct and filename-backed Shared databases are
+supported; in Shared mode ordinary calls that need the same database's writer mutex wait while a handle is open. The thread-bound `BeginTrans`, `Commit` and `Rollback` keep their behavior
+and now emit CS0618. See [transaction handles](transaction-handles.md).
+
+Observable differences for existing code: builds that treat warnings as errors fail
+on the legacy calls until CS0618 is suppressed; a read-only write refusal is now an
+internal `IOException` subclass (`catch (IOException)` is unaffected, exact-type checks
+are not); `$transactions` and `$open_cursors` report `threadID` 0 for handle
+transactions. A handle commit refused before it could publish (the engine already
+stopped or closed, or the transaction already ended) throws and reports `Failed`. Shared handles refuse begin and every
+operation on a thread under Windows impersonation, including an anonymous token.
+
+## Shared writer waits
+
+Shared connections can bound waits for writer ownership with `SharedWriterTimeout`
+(connection string `shared writer timeout`; default infinite, unchanged), opt in to
+refusing waits from the flow holding the owning transaction handle with
+`SharedSelfWaitGrace`, and observe waits with `GetSharedWaitDiagnostics()` and an
+optional slow-wait observer (`SharedSlowWaitThreshold` must be positive or infinite).
+See [Shared writer waits](shared-writer-waits.md).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only

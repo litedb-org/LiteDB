@@ -9,6 +9,11 @@ stop unsafe continuation, and make detected corruption visible.
 - Reader cursors can outlive their opening thread. Retain the actual `Thread`
   identity for admission, lookup, cleanup, and completion guards. Managed thread
   IDs can be recycled; use them only for diagnostics.
+- An explicit transaction handle, not a thread, owns its transaction, collection
+  locks and admission lease. Resolve it only through its bound call scope; the
+  thread-local slot is the legacy `BeginTrans` resolver. Composed engine calls
+  carry a dispatch ticket; a same-thread wait for the executing handle must fail
+  fast. See [transaction handles](../transaction-handles.md).
 - A foreign thread disposing a query must release that query's lease without
   committing, rolling back, or disposing the caller's independent transaction.
   Guard failures must leave the owner's transaction intact.
