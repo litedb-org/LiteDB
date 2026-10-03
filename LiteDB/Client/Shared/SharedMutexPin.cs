@@ -40,6 +40,7 @@ namespace LiteDB.Client.Shared
         private readonly ManualResetEventSlim _released = new ManualResetEventSlim(false);
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private Exception _error;
+        private SharedWaitDeadline _deadline;
         private bool _accepting = true;
         private bool _requested;
         private bool _forced;
@@ -98,9 +99,14 @@ namespace LiteDB.Client.Shared
         /// the holder, before release; its flag reports an abandoned or forced end.
         /// </summary>
         public static SharedMutexPin Acquire(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
-            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit) =>
+            AcquireWithin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit, default);
+
+        /// <summary>As <see cref="Acquire"/>, within <paramref name="deadline"/>.</summary>
+        public static SharedMutexPin AcquireWithin(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit, SharedWaitDeadline deadline)
         {
-            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
+            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit) { _deadline = deadline };
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             holder.Start();
             pin._acquired.Wait();
@@ -186,6 +192,12 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>A reader or transaction of the calling thread holds ownership until it ends.</summary>
+        internal bool IsHeldByCurrentThread
+        {
+            get { lock (_sync) return ReferenceEquals(this.Owner, Thread.CurrentThread) && _holds > 0; }
+        }
+
         /// <summary>
         /// True while an operation of <paramref name="thread"/> runs under this pin. The
         /// holder cannot release before it completes, even when forced.
@@ -194,6 +206,9 @@ namespace LiteDB.Client.Shared
         {
             lock (_sync) return ReferenceEquals(thread, this.Owner) && _operations > 0;
         }
+
+        /// <summary>Wait until the holder released the mutex, without reporting its close error.</summary>
+        public void WaitEnded() => _released.Wait();
 
         /// <summary>Wait until the holder closed the engine and released the mutex.</summary>
         public void WaitReleased()
@@ -206,7 +221,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _turnstile.Wait(_mutex); }
+                try { _turnstile.WaitWithin(_mutex, _deadline); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)

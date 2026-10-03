@@ -72,6 +72,8 @@ namespace LiteDB
         /// </summary>
         private T WriteDatabase<T>(Func<T> write, bool scoped = false) => this.Call(() =>
         {
+            // Pin acquisition bypasses OpenDatabase: refuse before choosing native ownership.
+            LiteDB.Engine.TransactionContext.ThrowIfSharedWait(_mutexName);
             var pin = _pin;
             var use = pin != null && pin.TryEnter() ? pin
                 : this.CanPin() ? this.StartPin()
@@ -101,9 +103,23 @@ namespace LiteDB
         private SharedMutexPin StartPin()
         {
             this.ThrowIfCallerRetainsOwnership();
+            // Only the wait for the mutex is a writer wait: opening the engine (and any
+            // recovery) is not recorded as one, as for an ordinary acquisition.
+            return this.EnterPin(this.AcquireWithin(0, (engine, _, deadline) => engine.AcquirePin(deadline)));
+        }
+
+        private SharedMutexPin AcquirePin(SharedWaitDeadline deadline)
+        {
             this.RetireCoordinatedReads();
             var other = _pin;
-            if (other != null) other.RequestRelease(force: false);
+            other?.RequestRelease(force: false);
+            // This connection's own previous pin closing is not another owner: wait for it first,
+            // outside the budget, unless it can end only after this thread. A pin detaches from
+            // _pin before it closes its engine and releases, so also wait for the ending one.
+            WaitForOwnPin(other);
+            WaitForOwnPin(Volatile.Read(ref _endingPin));
+            // So is the connection holder's posted release of a previous unpinned call.
+            _owner.WaitForOwnRelease(deadline);
 
             // A pin that ended for a waiting thread of this instance must not be replaced
             // ahead of it: let the waiters take the mutex first. This cannot deadlock. A
@@ -111,18 +127,22 @@ namespace LiteDB
             // connection's mutex ownership; a pin it could not enter has stopped accepting,
             // which it does only without operations in flight, so this thread is not
             // inside one of its operations either. Nothing a waiter needs is held here.
-            this.WaitForMutexWaiters();
-            SharedMutexPin pin;
+            this.WaitForMutexWaiters(deadline);
             // Counted while acquiring, so that another pin of this instance ends for us too.
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                return SharedMutexPin.AcquireWithin(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit, deadline);
             }
             finally
             {
                 this.RemoveMutexWaiter();
             }
+        }
+
+        /// <summary>Open the engine for an acquired pin and enter its calling operation; on failure the pin ends.</summary>
+        private SharedMutexPin EnterPin(SharedMutexPin pin)
+        {
             try
             {
                 // The holder owns the mutex on behalf of this thread.
@@ -160,9 +180,21 @@ namespace LiteDB
             using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
         }
 
+        private static void WaitForOwnPin(SharedMutexPin pin)
+        {
+            if (pin != null && pin.CanWaitFrom(Thread.CurrentThread)) pin.WaitEnded();
+        }
+
+        // The last pin detached from _pin, possibly still closing its engine and releasing.
+        private SharedMutexPin _endingPin;
+
         private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
         {
-            if (ReferenceEquals(_pin, pin)) _pin = null;
+            if (ReferenceEquals(_pin, pin))
+            {
+                Volatile.Write(ref _endingPin, pin);
+                _pin = null;
+            }
             if (!pin.Counted) return;
 
             if (abandoned)

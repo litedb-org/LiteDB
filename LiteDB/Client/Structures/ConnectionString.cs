@@ -108,6 +108,11 @@ namespace LiteDB
         /// </summary>
         public bool DurableCommits { get; set; } = true;
 
+        /// <summary>"shared writer timeout": see <see cref="EngineSettings.SharedWriterTimeout"/> ("30", "00:00:30", default "infinite").</summary>
+        public TimeSpan SharedWriterTimeout { get; set; } = System.Threading.Timeout.InfiniteTimeSpan;
+        /// <summary>"shared self wait grace": see <see cref="EngineSettings.SharedSelfWaitGrace"/> ("0", "00:00:02", default "infinite").</summary>
+        public TimeSpan SharedSelfWaitGrace { get; set; } = System.Threading.Timeout.InfiniteTimeSpan;
+
         /// <summary>
         /// "collation": Set default collaction when database creation (default: "[CurrentCulture]/IgnoreCase")
         /// </summary>
@@ -184,6 +189,7 @@ namespace LiteDB
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
             this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
+            SharedWaitConnectionOptions.Read(_values, this);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -210,6 +216,7 @@ namespace LiteDB
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("durable commits", StringComparison.OrdinalIgnoreCase) ||
+                SharedWaitConnectionOptions.IsKey(firstKey) ||
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
@@ -289,6 +296,7 @@ namespace LiteDB
                 AutoRebuild = this.AutoRebuild,
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
                 DurableCommits = this.DurableCommits,
+                SharedWriterTimeout = this.SharedWriterTimeout, SharedSelfWaitGrace = this.SharedSelfWaitGrace,
             };
 
             engineSettingsAction?.Invoke(settings);
@@ -449,6 +457,7 @@ namespace LiteDB
                     .Append(';');
             }
 
+            SharedWaitConnectionOptions.Append(bld, this);
             if (bld.Length == fileNameLength &&
                 !string.IsNullOrEmpty(Filename) &&
                 Filename == Filename.Trim() &&
