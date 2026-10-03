@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Built outside the repository by scripts/test-transaction-handle-compatibility.py:
+       once against the parent LiteDB.dll (the precompiled consumer) and again against the
+       candidate DLL for the warnings-as-errors checks. -->
+  <PropertyGroup>
+    <FixtureFramework Condition="'$(FixtureFramework)' == ''">net10.0</FixtureFramework>
+    <TargetFramework>$(FixtureFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="LegacyParity.cs" />
+    <Compile Include="MockDatabase.cs" />
+    <Compile Include="LegacyEngineDecorator.cs" />
+    <Reference Include="LiteDB">
+      <HintPath>$(LibraryPath)</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Target Name="RequireLibraryPath" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(LibraryPath)' == '' or !Exists('$(LibraryPath)')" Text="Set LibraryPath to an existing LiteDB.dll." />
+  </Target>
+</Project>
