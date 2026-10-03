@@ -40,6 +40,46 @@ namespace LiteDB.Engine
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
+        /// Settings for a Shared transaction handle's holder. A native holder must not retain
+        /// fields added by an application subclass, or the application's collation object:
+        /// either could reference the facade whose abandonment releases the holder.
+        /// </summary>
+        internal EngineSettings SnapshotForTransactionHolder()
+        {
+            var snapshot = this.GetType() == typeof(EngineSettings) ? this.Clone() : new EngineSettings
+            {
+                CompactStorage = this.CompactStorage,
+                MemoryProfile = this.MemoryProfile,
+                DataStream = this.DataStream,
+                LogStream = this.LogStream,
+                TempStream = this.TempStream,
+                Filename = this.Filename,
+                Password = this.Password,
+                InitialSize = this.InitialSize,
+                IndexMigrationLimitSize = this.IndexMigrationLimitSize,
+                CacheSize = this.CacheSize,
+                _transactionPageLimit = this._transactionPageLimit,
+                ReadOnly = this.ReadOnly,
+                LegacyIndexScan = this.LegacyIndexScan,
+                AutoRebuild = this.AutoRebuild,
+                Upgrade = this.Upgrade,
+                RejectInvalidLocalTime = this.RejectInvalidLocalTime,
+                DurableCommits = this.DurableCommits,
+                LocalTimeZone = this.LocalTimeZone,
+                ReadTransform = this.ReadTransform,
+                SharedMutexNameStrategy = this.SharedMutexNameStrategy,
+                SharedReaderFiles = this.SharedReaderFiles,
+#if DEBUG || TESTING
+                CheckpointStage = this.CheckpointStage,
+#endif
+            };
+            // Creation/validation serialize collation through ToString. Preserve that
+            // policy without retaining its application object (including Culture).
+            snapshot.Collation = this.Collation == null ? null : new Collation(this.Collation.ToString());
+            return snapshot;
+        }
+
+        /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>

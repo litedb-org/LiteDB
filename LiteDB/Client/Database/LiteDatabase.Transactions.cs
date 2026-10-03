@@ -44,6 +44,7 @@ namespace LiteDB
 
         private TransactionResources OpenTransactionResources()
         {
+            if (_engine is SharedEngine shared) return shared.OpenTransactionResources();
             if (_engine is LiteEngine engine) return new TransactionResources(engine, () => { });
             // Never emulate a handle over a legacy thread-bound API of an unknown engine.
             throw new NotSupportedException("This engine does not support thread-independent transaction handles.");
