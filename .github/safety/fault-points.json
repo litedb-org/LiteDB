@@ -1695,6 +1695,7 @@
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
+    "BeforeWait": "Interleaving hook before a collection-lock waiter blocks; proves a same-thread self-wait fails fast instead. No persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
     "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
