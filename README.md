@@ -158,6 +158,7 @@ using(var db = new LiteDatabase("MyOrderDatafile.db"))
 - OneBella - cross platform (windows, macos, linux) GUI tool : https://github.com/namigop/OneBella
 - LiteDB Studio - Fork of OneBella with bug fixes, updates and migrated to C# - https://github.com/MelnikovIG/LiteDB.Studio.Avalonia
 - LiteDB.Migration: Framework that makes schema migrations easier: https://github.com/JKamsker/LiteDB.Migration/
+- LiteDB Explorer for VS Code: https://marketplace.visualstudio.com/items?itemName=JaufrDevosse.litedb-vscode
 
 ## Changelog
 
