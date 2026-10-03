@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TieredCompilation>false</TieredCompilation>
+    <!-- The legacy transaction API is measured deliberately. -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+  </PropertyGroup>
+  <!-- Handle workloads need the candidate's API; a baseline build leaves them out. -->
+  <PropertyGroup Condition="'$(Handles)' == 'true'">
+    <DefineConstants>$(DefineConstants);HANDLES</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LiteDB">
+      <HintPath>$(LiteDBAssembly)</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
