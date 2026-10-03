@@ -73,7 +73,7 @@ namespace LiteDB.Engine
             // enter in lock mode according initial mode
             if (mode == LockMode.Write)
             {
-                _locker.EnterLock(_collectionName);
+                _locker.EnterLock(_collectionName, _transPages.LockOwner);
             }
 
             var srv = new CollectionService(_header, _disk, this, _transPages);
@@ -101,7 +101,7 @@ namespace LiteDB.Engine
                     if (_mode == LockMode.Write) _disk.Cache.DiscardPage(page.Buffer);
                     else page.Buffer.Release();
                 }
-                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);
+                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName, _transPages.LockOwner);
                 throw;
             }
         }
