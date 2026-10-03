@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            this.ValidatePublicDispatch();
             if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
 
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
