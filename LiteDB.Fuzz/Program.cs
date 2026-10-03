@@ -18,7 +18,7 @@ internal static class Program
         new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
         new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
         new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer(), new MvccRetirementFuzzer(), new MvccCheckpointFuzzer(),
-        new TeardownFaultsFuzzer()
+        new TeardownFaultsFuzzer(), new SharedContentionFuzzer(), new TransactionInterleavingsFuzzer(), new LifetimeChaosFuzzer()
     };
 
     // Oracle self-tests that fail by design: selectable by exact name, never by "all".
@@ -33,6 +33,9 @@ internal static class Program
 
         if (options.Child == "verify-checkpointed") return CheckpointedFileVerifier.Run(options);
         if (options.Child == "shared") return SharedProcessFuzzer.RunChild(options);
+        if (options.Child == "shared-contention") return SharedContentionChild.Run(options);
+        if (options.Child == LiteDB.ConcurrencyTesting.ExplorerWriterChild.Mode)
+            return LiteDB.ConcurrencyTesting.ExplorerWriterChild.Run(options.Database, Console.In, Console.Out);
         if (options.Child == "snapshot-writer") return SnapshotWriterProcess.RunChild(options);
         if (options.Child == "snapshot-reader") return SnapshotFuzzer.RunChild(options);
         if (options.List)
@@ -80,6 +83,8 @@ internal static class Program
             return identity == null ? 0 : 1;
         }
 
+        try { FuzzProcessSlots.FromEnvironment(); }
+        catch (InvalidOperationException error) { Console.Error.WriteLine(error.Message); return 2; }
         var requestedRuns = selected.Length * options.Workers;
         TimeSpan? allocatedDuration = null;
         if (options.Duration.HasValue)
@@ -270,6 +275,7 @@ internal static class Program
         Console.WriteLine("  --coverage-guided           retain seeds that add new LiteDB IL-range coverage");
         Console.WriteLine("  --determinism-check         rerun and compare input/trace hashes");
         Console.WriteLine("  --child verify-checkpointed --database <file>  read-only structural check of a quiescent fixture");
+        Console.WriteLine("  --child explorer-writer --database <file>      the concurrency explorer's external Shared writer (line protocol)");
         Console.WriteLine("  --list                      list targets");
     }
 

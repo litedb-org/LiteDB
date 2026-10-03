@@ -169,6 +169,9 @@ oracle evidence even when the path-filtered Fuzz workflow does not run.
 | `page` | slot payload model plus page/footer/accounting/overlap invariants |
 | `index` | scalar, multikey, unique, ordering, and key-moving update checks |
 | `shared` | real child processes, acknowledged ledgers, and owner-process death |
+| `shared-contention` | 2-4 real processes alternating Shared writer ownership (explicit transactions with commit/rollback, auto-commit writes, reads) behind a start barrier. Each child applies Deadline (lock-bound, TIMEOUT 10 s), Ownership after every operation, ConnectionClean, and Durable on a fresh connection; the parent bounds every join and checks Durable over the union of all acknowledged ledgers on a cold reopen, then Quiescent. Overtaking (a later arrival acquired before an earlier waiter, `arrive_i < arrive_j < acquired_j < acquired_i`) is a metric (`overtakings`, `overtakingRate`, `maxWaitMs`, `p99AcquireMs`), never a failure: [Shared mode is not strict FIFO](../docs/shared-performance-followups.md#ownership-and-compatibility). Evidence class 2: failed rounds keep ledgers, timings, child output, database files and `evidence.json` |
+| `transaction-interleavings` | the general concurrency explorer's forced actor schedules ([docs/concurrency-explorer.md](../docs/concurrency-explorer.md)): one applicable schedule vector per step (scenario x variant x mode x access kind x maintenance x callback x process x encryption, visited dimensions first from a seed-chosen start). Permitted outcomes per operation, Deadline per actor operation, Ownership after each judged operation (Shared), ConnectionClean after every dispose, Durable and an exact cold check on reopen, Quiescent, FaultReached/FaultDisposed for injected fatal writes. Evidence class 1 (the vector's recorded decisions replay). Vectors excluded by a registered hang/crash finding are traced and counted; other registered findings go to `known-findings.jsonl` and the campaign continues |
+| `lifetime-chaos` | random dependency programs: 2-6 operations on as many threads whose callbacks and input sequences await operations on other threads (nested up to depth 3), with a concurrent Dispose, Rebuild or injected fatal WAL write, Direct or Shared, every access kind. Same oracles as `transaction-interleavings`; permitted outcomes follow from what disturbs each operation's connection or file. Evidence class 2 (native threads): the program text is traced; failures keep the program, history and environment (`explorer-failure.json`, `evidence.json`) |
 | `bson` | contiguous vs fragmented reader/writer round trips and mutations |
 | `parser` | fresh vs cached SQL/expression parsing, binding, malformed errors |
 | `mapper` | supported CLR shape round trips and cyclic failure isolation |
@@ -271,6 +274,74 @@ for each selected target in every normal runner invocation, in addition to the
 requested generated seed shards. A new real finding
 should be minimized, added there with its target and reason, and accompanied by
 a focused xUnit regression whenever practical.
+
+## Per-PR target selection
+
+The Fuzz workflow's `PR-selected targets` job runs the targets a pull request's
+diff obliges (counts below), with a seed fixed
+per PR (`2947000 + PR number`, `2947` without `--pr`) so reruns are comparable. It is informational like the rest of this
+path-filtered workflow; the always-run gate is the Oracle smoke job of
+build-and-test. `.github/scripts/select_fuzz_targets.py` decides each changed
+file in this order and records the decision in `selection.json`:
+
+1. **Obligation map** ([`fuzz-obligations.json`](../.github/safety/fuzz-obligations.json)):
+   every obligation whose `paths` match the file, and whose `patterns` (when
+   given) match an added or removed line, adds its targets. Cross-cutting pattern
+   obligations (`"decides": false`, e.g. a new wait or `finally`) add targets
+   but still let the file's own subsystem be selected. `alwaysForLiteDB` is added
+   for any `LiteDB/` change.
+2. **Coverage** ([`fuzz-coverage-map.json`](../.github/safety/fuzz-coverage-map.json)):
+   the targets whose recorded coverage includes the file. Files under `ignore`
+   (documentation, unrelated tools) select nothing.
+3. **All targets** when neither decides; new code has no coverage yet.
+
+Step counts are data too (`prCounts` in the obligation map): a selected target
+runs 100 steps, 30 when every target is selected. Explorer, teardown-sweep and
+multi-process targets have a cap equal to the count of their `ubuntu-latest`
+smoke leg (`smokeLeg`), and run `min(cap, count)` steps: `lifetime-chaos` and
+`transaction-interleavings` 40, `teardown-faults`, `chaos-maintenance`, `shared`
+and `snapshot` 30, `shared-contention` 5. Every selected target still runs. The
+selector emits one group per count (`groups` in `selection.json`, `count-groups`
+as a step output), and the job runs the groups as concurrent invocations with
+the same seed, each in its own artifact root `runs/count-<n>/` (logs in
+`logs/count-<n>.log`). The seed a target runs with does not depend on the target
+list (`--seed` for a count run's only epoch of worker 0), so grouping changes no
+target's seed. `--validate` fails when a cap differs from its smoke leg, and when
+a target whose source starts child processes or drives the concurrency explorer
+is neither capped nor listed under `uncapped` with a reason.
+
+Each invocation runs at most four target processes at a time. The groups also
+share one limit sized to the runner: the job sets `LITEDB_FUZZ_SLOT_DIR` and
+`LITEDB_FUZZ_SLOTS=$(nproc)`, and every target run holds one of those slots
+(an exclusively opened lock file, freed by the OS if an invocation dies) for
+its duration, so concurrent groups never run more than `nproc` target processes
+together. Slots bound concurrency only; seeds, inputs and traces are unchanged.
+Without the two variables there is no shared limit. Measured locally (24 cores, shared host, load
+6-18; seed 2950080): a one-line query change selects 7 targets and takes 152 s
+(lifetime-chaos x40 150 s, teardown-faults x30 82 s); a `lock` change in
+`SharedEngine.cs` selects 8 targets and takes 163 s (lifetime-chaos x40 158 s); every
+target (50, a `LiteDB.csproj` change) takes 184 s (lifetime-chaos 108 s). With
+every selected target at 100 steps (30 for all targets) the same changes took
+355 s, 897 s and 306 s.
+
+Required targets that do not exist in the tree are listed under `missing` with a
+warning. To add an obligation, add an entry with a kebab-case `id`, a `kind`, the
+plan row or rule as `reason`, `paths` globs, optional `patterns`, and `targets`;
+the Safety policy job runs `select_fuzz_targets.py --validate`, so an unknown
+target, a glob that matches nothing or a broken regex fails CI. Preview a
+selection with `python .github/scripts/select_fuzz_targets.py --base origin/dev`.
+
+Refresh the coverage map after adding or substantially changing a target:
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- --target all \
+  --seed 2947 --count 3 --coverage-guided --artifact-dir artifacts_temp/coverage-map
+python .github/scripts/generate_fuzz_coverage_map.py artifacts_temp/coverage-map \
+  --command "<the command above>"
+```
+
+Use a fresh artifact directory; the map records its commit, command and the
+targets it could not cover yet.
 
 ## Publishing raw results
 

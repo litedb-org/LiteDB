@@ -48,7 +48,10 @@
     {
       "id": "safety-m1-oracle-smoke",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/_reusable-ci.yml", ".github/safety/ci-evidence.json"],
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
       "disposition": "strengthened",
       "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
       "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
@@ -60,6 +63,48 @@
       "disposition": "strengthened",
       "invariant": "No existing target, corpus case or test is relaxed; every outcome of the new chaos-maintenance target outside its declared permitted set still fails the run unless one of these precise predicates claims it.",
       "reason": "The new chaos-maintenance target reaches four dev defects (concurrent Dispose returning early in Direct and Shared mode, Rebuild reopening after a concurrent Dispose, a Direct close releasing a running call's page buffers). Each is registered as known so the smoke campaign keeps exercising the target; each hit is recorded in known-findings-hit.jsonl with a situation marker, LITEDB_FUZZ_STRICT_KNOWN=1 fails on it, and the Shared one is pinned by SharedConcurrentDisposeKnownFinding_Tests."
+    },
+    {
+      "id": "safety-m3-explorer-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        "scripts/run-ci-tests.ps1",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs in exactly one partition session on every leg; no test is filtered out, sampled or skipped.",
+      "reason": "The concurrency explorer's tests (about 145 s) move from the engine partition into their own engine-explorer partition so the engine session stays below the 300 s per-session limit; the script's partition coverage check verifies 2318 methods, each in exactly one partition, and an isolated .NET 8 run passed every partition."
+    },
+    {
+      "id": "safety-m3-pr-selected-job",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every smoke leg keeps its targets, seeds, counts, timeouts and uploads, and the reachability gate still judges all of them.",
+      "reason": "Adds the PR-selected targets job (30-minute limit): it runs the fuzz targets that select_fuzz_targets.py picks for the pull request's diff, at capped counts in concurrent count groups, and uploads its selection, logs and runs with an upload that must not be empty. It also adds the linux-concurrency-explorer and linux-shared-contention smoke legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m3-framework-nets-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "relocated",
+      "coveredBy": [
+        ".github/framework-partitions.json",
+        ".github/workflows/_reusable-ci.yml",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorerDriverEdges_Tests.cs",
+        "LiteDB.Tests/Safety/Tests/TeardownSweep_Tests.cs"
+      ],
+      "invariant": "Every LiteDB.Tests method still runs on every .NET Framework leg exactly once (the TestHost_Tests runtime guard once per job); no test is filtered out, sampled or skipped, and the 20-minute job limit is unchanged.",
+      "reason": "The .NET Framework leg runs LiteDB.Tests serially in one xunit.console process. Hosted net481 xUnit totals grew from 901 s on dev (job 966 s) to 995 s with the teardown sweep and 1139 s with the concurrency explorer, which hit the 20-minute limit (run 37069271628); the later parallel-property tests push it to about 1280 s (run 37069293910 was cancelled with 761 tests not run). Each framework now runs as two jobs: 'nets' runs the classes in .github/framework-partitions.json (ConcurrencyExplorer_Tests about 177-188 s, ConcurrencyExplorerDriverEdges_Tests 0.4 s, TeardownSweep_Tests 89-95 s on net481) plus the runtime guard, 'suite' runs every other class via xunit.console -noclass, so the list cannot drop a test. The nets job fails when a listed class runs no test, the suite job when one runs there, and ci-evidence.json requires evidence from both parts of every framework."
     }
   ]
 }

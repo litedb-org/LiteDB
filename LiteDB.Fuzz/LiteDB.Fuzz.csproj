@@ -19,6 +19,8 @@
     <Compile Include="..\LiteDB.Tests\Engine\PromotionPowerLossStream.cs" Link="Targets\PromotionPowerLossStream.cs" />
     <Compile Include="..\LiteDB.Tests\Engine\PromotionPowerLossScenario.cs" Link="Targets\PromotionPowerLossScenario.cs" />
     <Compile Include="..\LiteDB.Tests\Mapper\LinqCacheFuzzGenerator.cs" Link="Targets\LinqCacheFuzzGenerator.cs" />
+    <!-- The general concurrency explorer (docs/concurrency-explorer.md); targets transaction-interleavings and lifetime-chaos. -->
+    <Compile Include="..\LiteDB.Tests\Engine\ConcurrencyExplorer\*.cs" Link="Explorer\%(Filename)%(Extension)" />
     <None Include="Corpus\regressions.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Corpus\known-findings.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\LiteDB.Tests\Resources\Issue2255_Before2753.db" Link="Corpus\Legacy\Issue2255_Before2753.db" CopyToOutputDirectory="PreserveNewest" />

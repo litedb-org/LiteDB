@@ -1,0 +1,8 @@
+{
+  "name": "transaction-handle",
+  "description": "Historical transaction-handle adapter for the general concurrency explorer (docs/concurrency-explorer.md): access kind 'handle' (BeginTransaction/ILiteTransaction, not thread-affine) and the handle-only scenarios handle-overlap and handle-independence. Compiles only on fork revisions that have the handle API.",
+  "target": "LiteDB.Tests/NetProofAdapters/Handle",
+  "requires": [
+    "handle-api"
+  ]
+}

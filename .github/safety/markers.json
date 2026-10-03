@@ -934,6 +934,216 @@
       "reason": "A thread with its own explicit transaction drains or disposes a cursor opened by a retired thread and still rolls back its own transaction."
     },
     {
+      "name": "situation:explorer-callback-awaits-another-thread",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "lifetime-chaos",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Lifetime_chaos_programs_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A user callback (input sequence, ReadTransform or upload stream) of a running operation started operations on other threads and waited for them (a dependency edge of a lifetime-chaos program)."
+    },
+    {
+      "name": "situation:explorer-callback-disposed-its-own-connection",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerOps.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/CallbackPauseScenario.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A user callback disposed the connection whose operation was running it, and the Dispose returned."
+    },
+    {
+      "name": "situation:explorer-close-under-dependencies",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A lifetime-chaos program disposed a connection while its dependency operations were running or about to run."
+    },
+    {
+      "name": "situation:explorer-close-while-callback-paused",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerContenders.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "Another thread disposed the connection while an operation on it was paused inside its user callback, and the Dispose was judged."
+    },
+    {
+      "name": "situation:explorer-crossed-locks-timed-out-loser",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/CollectionCycleScenario.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "Two transactional units held opposite collection locks and wrote each other's collection; at least one gave up its bounded wait (LOCK_TIMEOUT) and the winners committed.",
+      "gate": "advisory",
+      "gateReason": "collection-cycle applies to 8 of the 62720 matrix vectors (Direct, transactional, no maintenance or callback), so a 40-step smoke rarely reaches it; the representative xUnit set runs it on every build."
+    },
+    {
+      "name": "situation:explorer-external-writer-contended",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerContenders.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExternalWriter.cs"
+      ],
+      "targets": [
+        "transaction-interleavings"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A write by another process on the same Shared file ran while an operation in this process was paused inside its callback, and the write was judged."
+    },
+    {
+      "name": "situation:explorer-fatal-stop-while-callback-paused",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerContenders.cs"
+      ],
+      "targets": [
+        "transaction-interleavings"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "An injected fatal WAL write failure stopped the engine of a connection while an operation on it was paused inside its user callback."
+    },
+    {
+      "name": "situation:explorer-fatal-under-dependencies",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A lifetime-chaos program injected a fatal WAL write failure on a connection while dependency operations were running or about to run."
+    },
+    {
+      "name": "situation:explorer-operation-after-dispose-refused",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/CallbackPauseScenario.cs"
+      ],
+      "targets": [
+        "transaction-interleavings"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "After a connection's Dispose returned, a new operation on it was refused (no work admitted after dispose)."
+    },
+    {
+      "name": "situation:explorer-peer-call-from-callback",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/CallbackPauseScenario.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A user callback of a running Shared operation called another connection to the same file on the same thread."
+    },
+    {
+      "name": "situation:explorer-reader-advanced-on-another-thread",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ReaderHandoffScenario.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A reader opened on one thread was advanced on another and closed on a third (sequential handoff) while maintenance and writes ran."
+    },
+    {
+      "name": "situation:explorer-rebuild-under-dependencies",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A lifetime-chaos program rebuilt a database while dependency operations were running or about to run."
+    },
+    {
+      "name": "situation:explorer-rebuild-while-callback-paused",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerContenders.cs"
+      ],
+      "targets": [
+        "transaction-interleavings"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "Another thread rebuilt the database while an operation on it was paused inside its user callback, and the Rebuild was judged."
+    },
+    {
+      "name": "situation:explorer-same-connection-call-from-callback",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/CallbackPauseScenario.cs",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/LifetimeChaosExecution.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "lifetime-chaos"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A user callback of a running operation called the same connection on the same thread."
+    },
+    {
+      "name": "situation:explorer-units-contend",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/TransactionContentionScenario.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A second unit of work wrote while the first was paused inside its input callback holding its unit, and its outcome was judged."
+    },
+    {
+      "name": "situation:explorer-write-retried-after-rebuild",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Tests/Engine/ConcurrencyExplorer/ExplorerContenders.cs"
+      ],
+      "targets": [
+        "transaction-interleavings",
+        "LiteDB.Tests/Engine/ConcurrencyExplorer_Tests.cs#Forced_schedules_keep_progress_durability_and_ownership"
+      ],
+      "doc": "docs/concurrency-explorer.md",
+      "reason": "A write that failed cleanly behind a rebuild (Issue2965 contract) succeeded when retried.",
+      "gate": "advisory",
+      "gateReason": "Reached only when a write is queued behind the rebuild's exclusive admission at the moment it starts (timing of the forced order); the smoke reaches it in some seeds, not all."
+    },
+    {
       "name": "situation:integrity-mutant-rejected",
       "kind": "situation",
       "paths": [
@@ -967,6 +1177,30 @@
       ],
       "doc": "docs/teardown-sweep.md",
       "reason": "A skip fault (thrown before a teardown step's action, so the action never runs) fired inside a registered teardown path under random prior state."
+    },
+    {
+      "name": "situation:shared-contention-rollback-under-contention",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/SharedContentionFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedContentionTimeline.cs"
+      ],
+      "targets": [
+        "shared-contention"
+      ],
+      "reason": "A process rolled back an explicit transaction while a peer process was waiting for writer ownership, and the peer acquired it after the rollback (judged by the parent from the children's merged acquisition records)."
+    },
+    {
+      "name": "situation:shared-contention-writer-waited-for-peer-process",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/SharedContentionFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedContentionTimeline.cs"
+      ],
+      "targets": [
+        "shared-contention"
+      ],
+      "reason": "A process's BeginTrans waited while another process owned the Shared writer mutex and acquired it after that peer, so writers alternated on the native mutex (judged by the parent from the children's merged acquisition records)."
     }
   ]
 }

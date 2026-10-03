@@ -21,7 +21,9 @@ on:
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
       - '.github/safety/markers.json'
+      - '.github/safety/fuzz-*.json'
       - '.github/scripts/check_reachability.py'
+      - '.github/scripts/select_fuzz_targets.py'
   push:
     branches: [dev]
     paths:
@@ -43,7 +45,9 @@ on:
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
       - '.github/safety/markers.json'
+      - '.github/safety/fuzz-*.json'
       - '.github/scripts/check_reachability.py'
+      - '.github/scripts/select_fuzz_targets.py'
   schedule:
     - cron: '23 2 * * *'
   workflow_dispatch:
@@ -79,6 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The pr-selected job caps explorer and multi-process targets at their ubuntu-latest leg's count
+        # (prCounts.caps in .github/safety/fuzz-obligations.json; select_fuzz_targets.py --validate keeps them equal).
         include:
           - name: linux-core-utc
             os: ubuntu-latest
@@ -137,6 +143,25 @@ jobs:
             culture: en_US.UTF-8
             framework: net8.0
             count: 30
+          # The concurrency explorer (docs/concurrency-explorer.md): forced schedules (class 1) and
+          # dependency programs with concurrent maintenance (class 2), 40 applicable steps each.
+          - name: linux-concurrency-explorer
+            os: ubuntu-latest
+            targets: transaction-interleavings,lifetime-chaos
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 40
+          # Real processes: each round spawns 2-4 children, so a few rounds bound the leg's cost.
+          - name: linux-shared-contention
+            os: ubuntu-latest
+            targets: shared-contention
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 5
     env:
       TZ: ${{ matrix.timezone }}
       LANG: ${{ matrix.culture }}
@@ -182,6 +207,89 @@ jobs:
           name: fuzz-markers-${{ matrix.name }}
           path: artifacts/fuzz/**/markers.json
           if-no-files-found: warn
+
+  # Per-PR selection (LiteDB.Fuzz/README.md#per-pr-target-selection): the obligation map first,
+  # recorded coverage second, every target when neither decides a changed file. Informational:
+  # this workflow is path-filtered and must never be a required check; the always-run gate is
+  # build-and-test / Safety evidence with its Oracle smoke job.
+  pr-selected:
+    name: PR-selected targets
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: UTC
+      LANG: en_US.UTF-8
+    # Counts: prCounts in .github/safety/fuzz-obligations.json. A selected target runs 100 steps (30 when every
+    # target is selected); explorer, teardown-sweep and multi-process targets are capped at the count of their
+    # ubuntu-latest smoke leg (lifetime-chaos and transaction-interleavings 40, teardown-faults, chaos-maintenance,
+    # shared and snapshot 30, shared-contention 5), min(cap, count). Each group is one invocation; all groups
+    # share one limit of nproc target processes (FuzzProcessSlots), so the runner is never oversubscribed by
+    # the number of groups. Measured locally (24 cores,
+    # shared host, load 6-18): query change 7 targets in 152 s (lifetime-chaos x40 150 s, teardown-faults x30
+    # 82 s), Shared-mode change 8 targets in 163 s (lifetime-chaos x40 158 s, transaction-interleavings x40
+    # 132 s), all 50 targets in
+    # 184 s (lifetime-chaos 108 s). Uncapped (everything at 100, or 30 for all targets): 355 s / 897 s / 306 s.
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      - name: Select targets for this change
+        id: select
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p artifacts/fuzz-pr
+          python3 .github/scripts/select_fuzz_targets.py --base "origin/$BASE_REF" --pr "$PR_NUMBER" \
+            --github-output --output artifacts/fuzz-pr/selection.json
+      # One invocation per count group, all concurrently, sharing nproc target-process slots
+      # (LITEDB_FUZZ_SLOT_DIR/LITEDB_FUZZ_SLOTS). Each group has its own artifact root: an invocation
+      # rewrites interesting-corpus.jsonl and prunes interesting-inputs/ in its root when it ends, which two
+      # invocations sharing a root would race. Output lines carry the group's label; full logs are kept.
+      - name: Run selected targets
+        if: steps.select.outputs.targets != ''
+        shell: bash
+        env:
+          COUNT_GROUPS: ${{ steps.select.outputs.count-groups }}
+          FUZZ_SEED: ${{ steps.select.outputs.seed }}
+        run: |
+          mkdir -p artifacts/fuzz-pr/logs
+          export LITEDB_FUZZ_SLOT_DIR="$RUNNER_TEMP/fuzz-pr-slots" LITEDB_FUZZ_SLOTS="$(nproc)"
+          echo "Shared limit: $LITEDB_FUZZ_SLOTS target processes across all groups"
+          pids=(); labels=()
+          for group in $COUNT_GROUPS; do
+            count="${group%%:*}"; targets="${group#*:}"; label="count-$count"
+            echo "[$label] seed $FUZZ_SEED, count $count: $targets"
+            (
+              set -o pipefail
+              dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
+                --target "$targets" --seed "$FUZZ_SEED" --count "$count" \
+                --artifact-dir "artifacts/fuzz-pr/runs/$label" 2>&1 \
+                | tee "artifacts/fuzz-pr/logs/$label.log" | sed -u "s/^/[$label] /"
+            ) &
+            pids+=("$!"); labels+=("$label")
+          done
+          failed=()
+          for index in "${!pids[@]}"; do
+            wait "${pids[$index]}" || failed+=("${labels[$index]}")
+          done
+          if [ "${#failed[@]}" -ne 0 ]; then
+            echo "::error::Fuzz group(s) failed: ${failed[*]} (logs: artifacts/fuzz-pr/logs)"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-pr-selected
+          path: artifacts/fuzz-pr
+          if-no-files-found: error
 
   reachability:
     name: Reachability gate
@@ -279,7 +387,7 @@ jobs:
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss,transaction-interleavings,lifetime-chaos
             seedOffset: 1500000
             framework: net10.0
     env:

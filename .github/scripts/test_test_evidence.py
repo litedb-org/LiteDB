@@ -61,8 +61,20 @@ class EvidenceTests(unittest.TestCase):
             "job": job, "matrix": {"item": {"runtimeMajor": runtime}}, "sha": sha, "buildSha": sha,
             "format": "trx", "discovery": "discovered-tests.txt", "partitions": {"all": "TestResults-all.trx"}}))
 
-    def run_check(self, needs=NEEDS, quarantine=QUARANTINE, tier="pr"):
-        files = {**SOURCE, ".github/safety/ci-evidence.json": json.dumps(CONFIG),
+    def xunit_leg(self, framework, part, results):
+        directory = self.artifacts / f"test-results-test-windows-framework-{framework}-{part}"
+        directory.mkdir()
+        name = f"TestResults-{framework}-{part}.xml"
+        rows = "".join(f'<test type="{fqn.rsplit(".", 1)[0]}" method="{fqn.rsplit(".", 1)[1]}" result="{result}"/>'
+                       for fqn, result in results)
+        (directory / name).write_text(f'<assemblies><assembly total="{len(results)}" failed="0" errors="0">'
+                                      f"<collection>{rows}</collection></assembly></assemblies>", encoding="utf-8")
+        (directory / "evidence-leg.json").write_text(json.dumps({
+            "job": "test-windows-framework", "matrix": {"framework": framework, "part": part}, "sha": SHA,
+            "buildSha": SHA, "format": "xunit", "discovery": None, "partitions": {part: name}}))
+
+    def run_check(self, needs=NEEDS, quarantine=QUARANTINE, tier="pr", config=CONFIG):
+        files = {**SOURCE, ".github/safety/ci-evidence.json": json.dumps(config),
                  ".github/safety/coverage-ledger.json": json.dumps({"quarantine": quarantine, "dispositions": []})}
         with GitRepo() as repo, patch.dict(os.environ, {"NEEDS_JSON": json.dumps(needs)}):
             repo.commit(files)
@@ -173,6 +185,24 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(code, 0, output)
         self.assertIn(f"Quarantined test {SKIPPED} executed on a leg", output)
 
+
+    def test_class_partitioned_xunit_legs_must_all_report_and_each_run_the_guard(self):
+        config = {"jobs": {"test-windows-framework": {"tiers": ["pr"], "legs": {
+            "pr": {"framework": ["net481"], "part": ["suite", "nets"]}}}}}
+        needs = {"test-windows-framework": {"result": "success"}}
+        self.xunit_leg("net481", "suite", [(GUARD, "Pass"), (SKIPPED, "Skip")])
+        code, output = self.run_check(needs=needs, config=config)
+        self.assertEqual(code, 1)
+        self.assertIn("no evidence for the expected leg framework=net481, part=nets", output)
+        self.assertIn(f"{RUNS} was not discovered on any leg", output)
+        self.xunit_leg("net481", "nets", [(RUNS, "Pass")])
+        code, output = self.run_check(needs=needs, config=config)
+        self.assertEqual(code, 1)
+        self.assertIn('{"framework": "net481", "part": "nets"}: the runtime/architecture guard', output)
+        shutil.rmtree(self.artifacts / "test-results-test-windows-framework-net481-nets")
+        self.xunit_leg("net481", "nets", [(GUARD, "Pass"), (RUNS, "Pass")])
+        code, output = self.run_check(needs=needs, config=config)
+        self.assertEqual(code, 0, output)
 
 if __name__ == "__main__":
     unittest.main()
