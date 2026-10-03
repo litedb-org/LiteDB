@@ -19,7 +19,7 @@ namespace LiteDB.Engine
         internal Action BeforeWait;
 #endif
 
-        /// <param name="owner">The owning thread or <see cref="object"/> handle.</param>
+        /// <param name="owner">The owning thread or <see cref="TransactionContext"/> handle.</param>
         /// <param name="timeout">How long to wait for another owner.</param>
         public bool TryEnter(object owner, TimeSpan timeout)
         {
@@ -30,7 +30,8 @@ namespace LiteDB.Engine
                 {
                     // The other owner can make progress only after this thread returns: a legacy
                     // transaction of this thread, or a handle executing this callback.
-                    if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
+                    if (ReferenceEquals(_owner, Thread.CurrentThread) ||
+                        ReferenceEquals((_owner as TransactionContext)?.ExecutingThread, Thread.CurrentThread)) return false;
                     var elapsed = (Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency;
                     var remaining = timeout - TimeSpan.FromSeconds(elapsed);
                     if (remaining <= TimeSpan.Zero) return false;

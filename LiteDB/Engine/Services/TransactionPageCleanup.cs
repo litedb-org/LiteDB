@@ -45,8 +45,8 @@ namespace LiteDB.Engine
 
             snapshot.ReleaseSnapshotPin();
 
-            // Collection locks are thread-affine. During normal release, free
-            // the lock even if a page lease failed; shutdown can run elsewhere.
+            // During normal release, free the lock even if a page lease failed. Legacy cleanup
+            // on another thread (shutdown) keeps it as before; a handle's may run on any thread.
             if (releaseLock && snapshot.Mode == LockMode.Write)
             {
                 try
