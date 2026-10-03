@@ -17,6 +17,15 @@ transactions. A handle commit refused before it could publish (the engine alread
 stopped or closed, or the transaction already ended) throws and reports `Failed`. Shared handles refuse begin and every
 operation on a thread under Windows impersonation, including an anonymous token.
 
+## Shared writer waits
+
+Shared connections can bound waits for writer ownership with `SharedWriterTimeout`
+(connection string `shared writer timeout`; default infinite, unchanged), opt in to
+refusing waits from the flow holding the owning transaction handle with
+`SharedSelfWaitGrace`, and observe waits with `GetSharedWaitDiagnostics()` and an
+optional slow-wait observer (`SharedSlowWaitThreshold` must be positive or infinite).
+See [Shared writer waits](shared-writer-waits.md).
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only
