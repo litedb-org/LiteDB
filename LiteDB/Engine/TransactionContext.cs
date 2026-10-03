@@ -42,6 +42,9 @@ namespace LiteDB.Engine
                     throw new InvalidOperationException("Cannot wait for shared writer ownership from inside a transaction handle callback for the same database.");
         }
 
+        /// <summary>Whether no handle is bound, dispatched or executing on this thread.</summary>
+        internal static bool IsThreadClear => _executing == null && _dispatch == null && _dependency == null;
+
         /// <summary>The handle bound to <paramref name="engine"/> on this thread, if any.</summary>
         internal static TransactionContext For(LiteEngine engine) =>
             engine != null && ReferenceEquals(_executing?.Engine, engine) ? _executing : null;
