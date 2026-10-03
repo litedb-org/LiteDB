@@ -110,31 +110,3 @@ namespace LiteDB.Engine
         internal TransactionOwner Owner;
     }
 }
-
-namespace LiteDB
-{
-    /// <summary>The outcome of one explicitly owned transaction, independent of resource cleanup.</summary>
-    internal enum LiteTransactionState
-    {
-        /// <summary>The transaction accepts operations and has not completed.</summary>
-        Active,
-
-        /// <summary>The commit was durably published under the configured durability contract.</summary>
-        Committed,
-
-        /// <summary>The transaction was rolled back; none of its writes are visible.</summary>
-        RolledBack,
-
-        /// <summary>An operation or rollback failed; the transaction cannot be used and did not commit.</summary>
-        Failed,
-
-        /// <summary>Commit failed after it may have published; the outcome must be established by reading.</summary>
-        Indeterminate
-    }
-
-    /// <summary>An operation a transaction handle does not support, refused before mutation.</summary>
-    internal sealed class TransactionCapabilityException : NotSupportedException
-    {
-        internal TransactionCapabilityException(string message) : base(message) { }
-    }
-}
