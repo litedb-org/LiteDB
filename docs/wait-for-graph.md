@@ -43,20 +43,33 @@ graph never shows a hold that does not exist. A search reads per-node versions a
 only if no hold, wait or frame it followed was removed meanwhile; an unstable search is retried and
 then given up. The graph may miss a cycle; it must not invent one.
 
-## Classification (reported, not enforced)
+## Classification and failure rules
 
-| Rule id | Finding | Meaning |
-| --- | --- | --- |
-| `self-wait` | The holder executes on the waiting thread (length 1), and the edge is not a recursion the primitive grants | Candidate failure: no other thread's progress can end it (noted when the wait is bounded) |
-| `unbounded-cycle` | A cycle across threads that none of its waits ends by itself: each is unbounded or only cancellable, with no cancellation requested | Candidate failure |
-| `bounded-cycle` | A cycle across threads with a wait that ends by itself (a timeout, or a cancellation already requested) | Allowed when the outcomes are correct: a lock timeout is LiteDB's documented resolution (crossed collection locks) |
-| `lock-order` | Lock order A then B on one thread, B then A seen on another thread, no active cycle | Advisory |
+| Rule id | Finding | Default | Proof (known-bad fires, fix quiet, unchanged suite quiet) |
+| --- | --- | --- | --- |
+| `self-wait` | The holder executes on the waiting thread (length 1), and the edge is not a recursion the primitive grants | **fails** | Row 12 (JKamsker/LiteDB#133 `e2228105`, fix `d189f7a8`): a handle's mapper callback inserts into the collection its own handle holds; the owner-keyed collection lock no longer refuses the same thread, so the callback waits for itself until `TIMEOUT`. 4/4 failing cases latch `self-wait` at 51-161 ms; the fix's 6 cases latch nothing; the 2 cases where the lock belongs to an *idle* handle another thread completes latch nothing. Row 16 (dev `5dd942a7`, fix `265c2497`): 28/28 hanging peer-callback cases latch `self-wait`. Level: reproduction (the fixes' own tests), not generic. |
+| `unbounded-cycle` | A cycle across threads that none of its waits ends by itself: each is unbounded or only cancellable, with no cancellation requested | **fails** | Row 13 (JKamsker/LiteDB#133 `cb36c346`, fix `0d5e5eff`): a raw close queues while an active read's callback waits, without a bound, for fresh work on another thread; the close fences that work. Latched as `unbounded-cycle` (length 3: fenced fresh op, close draining leases, callback joining the fresh op) at 29-184 ms; quiet at the fix. Level: reproduction, and only with the callback's wait registered as a driver edge (`WaitGraph.Join`): the fix's own test waits with `Task.Wait`, which the graph cannot see. Cancellable waits joined the rule later: a cycle through an unrequested cancellation used to be `bounded-cycle`, which hid real hangs on the JKamsker/LiteDB#133 trees (a handle callback calling its own Shared connection waits on the owner gate, typed with the session's closing token, which no one closes; V-E2 `69b0663a0`). The dev tree has no cancellable site, so the change is quiet on the unchanged suite. |
+| `bounded-cycle` | A cycle across threads with a wait that ends by itself (a timeout, or a cancellation already requested) | reports | Never a default. LiteDB resolves crossed collection locks by a lock timeout (latched with correct outcomes by the suite's permitted-history and site tests), and on the JKamsker/LiteDB#133 trees closing a database whose own thread still holds a transaction resolves by a 10 ms exclusive try (latched by existing tests that pass). Row 3 (JKamsker/LiteDB#133 `e28612aa`, raw close vs a collection-lock waiter) latches here, because the waiter's wait is bounded by `TIMEOUT`. |
+| `lock-order` | Lock order A then B on one thread, B then A seen on another thread, no active cycle | reports (advisory) | Never a default: a Shared pin's holder re-enters its connection with a non-blocking try while it owns the OS mutex (`named-mutex / shared-ownership`), on every tree. |
 
-Every rule **reports** by default. A harness may switch a rule to **fail**
-(`LITEDB_WAITGRAPH_FAIL=self-wait,unbounded-cycle` or `all`, or `WaitGraph.SetFailing`); then the
-harness, at the end of the test or scenario, raises `DeadlockDetectedException`
-(`WaitGraph.ThrowIfFailing`). Library code never throws it. Failure rules are enabled one at a
-time, each proven on a known-bad commit.
+A harness fails on the **failing rules**: by default `WaitGraph.DefaultFailing` (`self-wait`,
+`unbounded-cycle`). `LITEDB_WAITGRAPH_FAIL` replaces the set: rule ids, `default`, `all`, or `none`
+(report only); `WaitGraph.SetFailing` changes it at run time. At the end of the test or scenario the
+harness raises `DeadlockDetectedException` (`WaitGraph.ThrowIfFailing`). Library code never throws
+it, and the wait itself is never disturbed: a test that deadlocks still hangs or times out, and then
+also fails with the cycle printed.
+
+A rule joins the default set only with a proof: it fired at a known-bad commit, stayed quiet at the
+fix, and stayed quiet across the full `LiteDB.Tests` net8.0 suite on unchanged `dev` with the rule
+failing. Proof records: `.github/safety/net-proofs.json` (JKamsker/LiteDB#133 rows run through
+`tools/net-proofs/adapters/waitgraph-pr133`). A finding that turns out to be wrong is a defect of the
+site's typing (primitive, bound, owner) and is fixed there, never by removing the rule.
+
+The graph keeps no thread and no owner alive: a thread is referenced weakly (a finished thread
+keeps its execution context and `AsyncLocal` values), the lock-order history keeps thread ids, and a
+thread's list of held resources is weak, so a hold that is never released (an abandoned transaction)
+stays reachable only through its primitive, as the real lock does
+(`WaitGraphRetention_Tests`).
 
 Findings are deduplicated per rule, signature and context (`WaitGraph.Context`, the running test),
 with a count, the milliseconds from the start of the context to the first detection (`atMs`) and
@@ -67,13 +80,14 @@ Environment:
 - `LITEDB_WAITGRAPH=0` disables recording (diagnosis only; on by default).
 - `LITEDB_WAITGRAPH_REPORT=<path>` appends every finding as a JSON line (`rule`, `failing`,
   `signature`, `context`, `atMs`, `waitedMs`, `pid`, `text`). Child processes inherit it.
-- `LITEDB_WAITGRAPH_FAIL=<rule ids>` makes harnesses fail on those rules (none by default).
+- `LITEDB_WAITGRAPH_FAIL=<rule ids>|default|all|none` sets the failing rules (unset: `default`,
+  that is `self-wait,unbounded-cycle`).
 
 `LiteDB.Tests` applies `[assembly: WaitGraphCheck]`: it sets the context to the running test,
-prints the findings latched during it, and fails it only for a failing rule. A test that provokes
+prints the findings latched during it, and fails it for a finding of a failing rule. A test that provokes
 findings on purpose takes them with `WaitGraph.TakeFindings()`. `LiteDB.Fuzz` writes the findings
 of a run to `waitgraph.txt` in its run directory (outside the hashed trace) and fails the run as
-`WAIT_FOR_CYCLE` only for a failing rule.
+`WAIT_FOR_CYCLE` for a finding of a failing rule.
 
 ## Reading a finding
 
@@ -168,10 +182,15 @@ wherever `SharedEngine` creates a reader.
 
 ## Sites that arrive with explicit transaction handles
 
-When the handle PR merges, register: `OperationLifetime.Enter/Exclusive` (wait on the lifetime,
-held by each operation and the exclusive holder), `SessionLifetime.Close` (wait until operations
-drain), `TransactionHolder._opened.Wait` (wait on the holder thread's open, held by that thread),
-and the per-name writer semaphore in `SharedEngine.Transactions` (wait and hold per name). Each is
-a `WaitGraph.Wait` around the blocking call and `Acquired`/`Released` where the count changes. Waits that a closing token can cancel pass
-it (`WaitBound.CancelledBy(closing)`, not the token-less `WaitBound.Cancellation`), so a cycle that a
-close has already started to cancel classifies as bounded.
+When the handle PR merges, register its blocking sites with the typing the historical overlay
+`tools/net-proofs/adapters/waitgraph-pr133` uses on the JKamsker/LiteDB#133 trees (table in its README):
+`OperationLifetime.Enter/Exclusive` (operation leases per thread, the exclusive slot, and the
+maintenance fence a queued close/rebuild holds for fresh work), `SessionLifetime.Close` (session
+leases, close worker, final release), the per-name writer `SemaphoreSlim` and the
+`TransactionHolder` open/close/job events, the owner-keyed `CollectionLock` (a `Condition` recursive
+per owner key, never per thread: thread-owned transactions hold it thread-affinely, an explicit
+transaction through its `TransactionContext`, whose bound-call scope is a frame that claims all its
+holds), and the owner-keyed `TransactionGate` leases. Waits that the session's closing token can
+cancel should pass it (`WaitBound.CancelledBy(closing)`, not the overlay's token-less
+`WaitBound.Cancellation`), so a cycle that a close has already started to cancel classifies as
+bounded.

@@ -1,0 +1,1759 @@
+diff --git a/LiteDB.Tests/Utils/WaitGraphCheckAttribute.cs b/LiteDB.Tests/Utils/WaitGraphCheckAttribute.cs
+new file mode 100644
+index 000000000..985841434
+--- /dev/null
++++ b/LiteDB.Tests/Utils/WaitGraphCheckAttribute.cs
+@@ -0,0 +1,52 @@
++using System;
++using System.Linq;
++using System.Reflection;
++using LiteDB.Utils;
++using Xunit.Sdk;
++
++[assembly: LiteDB.Tests.WaitGraphCheck]
++
++namespace LiteDB.Tests
++{
++    /// <summary>
++    /// Applied to the whole test assembly: attributes wait-for graph findings to the running test
++    /// (<see cref="WaitGraph.Context"/>) and prints those it latched, including cycles whose waits
++    /// later timed out or hung. Findings only report: a test fails here only for a rule configured
++    /// to fail (<c>LITEDB_WAITGRAPH_FAIL</c>, <see cref="WaitGraph.SetFailing"/>), which no rule is by
++    /// default. Tests run one at a time (xunit.runner.json), so a finding belongs to the running test;
++    /// a background thread left by an earlier test is attributed to the test during which it waited.
++    /// See docs/wait-for-graph.md.
++    /// </summary>
++    [AttributeUsage(AttributeTargets.Assembly | AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
++    public sealed class WaitGraphCheckAttribute : BeforeAfterTestAttribute
++    {
++        private static int _findings;
++
++        /// <summary>Number of tests this hook has seen start; the graph's own tests check that it runs.</summary>
++        internal static int Started;
++
++        public override void Before(MethodInfo methodUnderTest)
++        {
++            // The sequence number tells theory cases apart (xUnit 2 does not pass their arguments here).
++            var sequence = System.Threading.Interlocked.Increment(ref Started);
++            WaitGraph.Context = methodUnderTest.DeclaringType?.FullName + "." + methodUnderTest.Name + " #" + sequence;
++            _findings = WaitGraph.Findings.Count;
++        }
++
++        public override void After(MethodInfo methodUnderTest)
++        {
++            var findings = WaitGraph.Findings.Skip(_findings).ToArray();
++            foreach (var finding in findings)
++                Console.WriteLine($"[wait-for graph] {WaitGraph.Context} {finding}");
++            try
++            {
++                WaitGraph.ThrowIfFailing(findings);
++            }
++            catch (DeadlockDetectedException ex)
++            {
++                throw new XunitException("The wait-for graph latched a finding of a failing rule during this test:" +
++                    Environment.NewLine + ex.Findings);
++            }
++        }
++    }
++}
+diff --git a/LiteDB.Tests/Utils/WaitGraphSites_Tests.cs b/LiteDB.Tests/Utils/WaitGraphSites_Tests.cs
+new file mode 100644
+index 000000000..26ad6ff30
+--- /dev/null
++++ b/LiteDB.Tests/Utils/WaitGraphSites_Tests.cs
+@@ -0,0 +1,171 @@
++using System;
++using System.Linq;
++using System.Threading;
++using FluentAssertions;
++using LiteDB.Client.Shared;
++using LiteDB.Engine;
++using LiteDB.Utils;
++using Xunit;
++
++namespace LiteDB.Tests.Utils
++{
++    /// <summary>
++    /// The instrumented blocking sites feed the wait-for graph: a second connection waiting for the Shared
++    /// ownership its own thread executes is latched as a self-wait (and the refused-then-hung wait is not
++    /// disturbed); releasing an ownership on another thread, or waiting for an idle reader's ownership, is
++    /// not a finding; crossed collection locks are a bounded cycle.
++    /// </summary>
++    public class WaitGraphSites_Tests : IDisposable
++    {
++        private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
++        private readonly IDisposable _enabled = WaitGraph.Force();
++
++        public void Dispose() => _enabled.Dispose();
++
++        private static SharedMutexOwner NewOwner(string name) =>
++            new SharedMutexOwner(SharedMutexFactory.Create(name), new SharedMutexTurnstile(SharedMutexFactory.Create(name + ".Turn")), () => { });
++
++        private static string NewName() => "LiteDB-waitgraph-" + Guid.NewGuid().ToString("N");
++
++        private static WaitGraph.Finding[] Taken(string text) =>
++            WaitGraph.TakeFindings().Where(x => x.Text.Contains(text)).ToArray();
++
++        [Fact]
++        public void A_second_connection_waiting_for_the_ownership_its_thread_executes_is_a_self_wait()
++        {
++            var name = NewName();
++            var outer = NewOwner(name);
++            var peer = NewOwner(name);
++            outer.Enter();
++            var generation = outer.Generation;
++            // Nothing is thrown: the nested wait blocks as it would without the graph. A reader disposed on
++            // another thread may end the outer ownership with its generation, which lets the peer through.
++            var release = new Thread(() =>
++            {
++                var deadline = DateTime.UtcNow + Prompt;
++                while (!WaitGraph.Findings.Any(x => x.Text.Contains(name)) && DateTime.UtcNow < deadline) Thread.Sleep(5);
++                outer.Exit(generation);
++            }) { IsBackground = true, Name = "wait-graph releaser" };
++            release.Start();
++
++            // As inside a user callback of the outer connection's call on this thread.
++            WaitGraph.Enter(outer.GraphOwner);
++            try
++            {
++                peer.Enter();
++                peer.Exit();
++                peer.WaitForRelease();
++            }
++            finally
++            {
++                WaitGraph.Exit(outer.GraphOwner);
++            }
++            release.Join(Prompt).Should().BeTrue();
++
++            var finding = Taken(name).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(WaitRule.SelfWait);
++            finding.Text.Should().Contain("SharedMutexOwner.Enter (via holder)").And.Contain("via a helper thread")
++                .And.Contain("[NamedMutex]").And.Contain("length 1");
++            peer.IsHeld.Should().BeFalse();
++        }
++
++        [Fact]
++        public void An_ownership_ended_on_another_thread_admits_the_waiter_without_a_finding()
++        {
++            var name = NewName();
++            var owner = NewOwner(name);
++            owner.Enter();
++            var generation = owner.Generation;
++            Exception error = null;
++            var waiter = new Thread(() =>
++            {
++                try
++                {
++                    var peer = NewOwner(name);
++                    peer.Enter();
++                    peer.Exit();
++                    peer.WaitForRelease();
++                }
++                catch (Exception ex) { error = ex; }
++            }) { IsBackground = true, Name = "wait-graph peer waiter" };
++            waiter.Start();
++            Thread.Sleep(100);
++
++            // A reader disposed on a third thread ends the ownership with its generation.
++            var releaser = new Thread(() => owner.Exit(generation)) { IsBackground = true };
++            releaser.Start();
++            releaser.Join(Prompt).Should().BeTrue();
++            waiter.Join(Prompt).Should().BeTrue();
++            error.Should().BeNull();
++            owner.IsHeld.Should().BeFalse();
++            Taken(name).Should().BeEmpty();
++        }
++
++        [Fact]
++        public void A_write_waits_for_an_idle_reader_of_another_thread_without_a_finding()
++        {
++            using var file = new TempFile();
++            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
++            engine.Insert("items", Enumerable.Range(1, 500).Select(i => new BsonDocument { ["_id"] = i }).ToArray(), BsonAutoId.Int32);
++
++            // A FOR UPDATE reader streams under the connection's ownership until disposed.
++            var reader = engine.Query("items", new Query { ForUpdate = true });
++            reader.Read().Should().BeTrue();
++            var write = new Thread(() => engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32))
++            { IsBackground = true, Name = "wait-graph writer" };
++            write.Start();
++            write.Join(TimeSpan.FromMilliseconds(200)).Should().BeFalse("the reader keeps the ownership");
++
++            var disposer = new Thread(() => reader.Dispose()) { IsBackground = true };
++            disposer.Start();
++            disposer.Join(Prompt).Should().BeTrue();
++            write.Join(Prompt).Should().BeTrue();
++            engine.Query("other", new Query()).ToList().Should().HaveCount(1);
++            WaitGraph.Findings.Where(x => x.Rule != WaitRule.LockOrder).Should().BeEmpty();
++        }
++
++        [Fact]
++        public void Crossed_collection_locks_of_two_transactions_are_a_bounded_cycle()
++        {
++            using var file = new TempFile();
++            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
++            engine.Pragma(Pragmas.TIMEOUT, 2);
++            engine.Insert("a", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
++            engine.Insert("b", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
++            using var bothLocked = new Barrier(2);
++            var outcomes = new Exception[2];
++
++            void Run(int index, string first, string second)
++            {
++                try
++                {
++                    engine.BeginTrans();
++                    engine.Update(first, new[] { new BsonDocument { ["_id"] = 1, ["by"] = index } });
++                    bothLocked.SignalAndWait(Prompt);
++                    if (index == 1) Thread.Sleep(200);
++                    engine.Update(second, new[] { new BsonDocument { ["_id"] = 1, ["by"] = index } });
++                    engine.Commit();
++                }
++                catch (Exception ex)
++                {
++                    outcomes[index] = ex;
++                    engine.Rollback();
++                }
++            }
++
++            var threads = new[]
++            {
++                new Thread(() => Run(0, "a", "b")) { IsBackground = true, Name = "wait-graph tx a-b" },
++                new Thread(() => Run(1, "b", "a")) { IsBackground = true, Name = "wait-graph tx b-a" },
++            };
++            foreach (var thread in threads) thread.Start();
++            foreach (var thread in threads) thread.Join(TimeSpan.FromSeconds(30)).Should().BeTrue();
++
++            // The accepted outcome: a loser times out and rolls back; the cycle is bounded and only reported.
++            outcomes.Where(x => x != null).Should().NotBeEmpty().And.OnlyContain(x => x is LiteException);
++            var finding = Taken("CollectionLock.TryEnter").Should().ContainSingle(x => x.Rule != WaitRule.LockOrder).Which;
++            finding.Rule.Should().Be(WaitRule.BoundedCycle);
++            finding.Text.Should().Contain("wait-graph tx a-b").And.Contain("wait-graph tx b-a").And.Contain("timeout 2000 ms");
++        }
++    }
++}
+diff --git a/LiteDB.Tests/Utils/WaitGraph_Tests.cs b/LiteDB.Tests/Utils/WaitGraph_Tests.cs
+new file mode 100644
+index 000000000..2902b8f7d
+--- /dev/null
++++ b/LiteDB.Tests/Utils/WaitGraph_Tests.cs
+@@ -0,0 +1,272 @@
++using System;
++using System.Linq;
++using System.Threading;
++using FluentAssertions;
++using LiteDB.Utils;
++using Xunit;
++
++namespace LiteDB.Tests.Utils
++{
++    /// <summary>
++    /// The wait-for graph's classification on synthetic resources. Findings are latched, never thrown:
++    /// a length-1 self-wait (also when bounded), an unbounded cycle, a bounded cycle (allowed), a lock-order
++    /// inversion across threads; recursion on a recursive primitive, an idle owner another thread
++    /// releases, and one thread taking both orders are not findings. Driver edges (joins) take part.
++    /// </summary>
++    public class WaitGraph_Tests : IDisposable
++    {
++        private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
++        private readonly IDisposable _enabled = WaitGraph.Force();
++
++        public void Dispose() => _enabled.Dispose();
++
++        private static WaitGraph.Resource NewResource(string kind, WaitPrimitive primitive = WaitPrimitive.SemaphoreSlim) =>
++            WaitGraph.Create(kind, primitive, Guid.NewGuid().ToString("N"));
++
++        private static Thread Start(string name, Action body)
++        {
++            var thread = new Thread(() => body()) { IsBackground = true, Name = name };
++            thread.Start();
++            return thread;
++        }
++
++        /// <summary>Findings of this test whose signature mentions <paramref name="site"/>; taken so the hook does not report them twice.</summary>
++        private static WaitGraph.Finding[] Taken(string site) =>
++            WaitGraph.TakeFindings().Where(x => x.Signature.Contains(site)).ToArray();
++
++        [Fact]
++        public void The_check_hook_runs_for_every_test()
++        {
++            WaitGraphCheckAttribute.Started.Should().BeGreaterThan(0);
++            WaitGraph.Context.Should().Contain(nameof(The_check_hook_runs_for_every_test) + " #");
++        }
++
++        [Theory]
++        [InlineData(false)]
++        [InlineData(true)]
++        public void A_wait_for_an_owner_executing_on_the_waiting_thread_is_a_self_wait(bool bounded)
++        {
++            var resource = NewResource("test-ownership", WaitPrimitive.Ownership);
++            var owner = new object();
++            var site = "nested call " + Guid.NewGuid().ToString("N");
++            WaitGraph.Enter(owner);
++            WaitGraph.Acquired(resource, owner, site: "outer call");
++            try
++            {
++                // Recorded before blocking; the wait itself is never disturbed.
++                WaitGraph.Wait(resource, bounded ? WaitBound.After(TimeSpan.FromSeconds(2)) : WaitBound.Unbounded, site).Dispose();
++            }
++            finally
++            {
++                WaitGraph.Released(resource, owner);
++                WaitGraph.Exit(owner);
++            }
++
++            var finding = Taken(site).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(WaitRule.SelfWait);
++            finding.Fails.Should().BeFalse("every rule only reports in this milestone");
++            finding.Text.Should().Contain("length 1").And.Contain(Thread.CurrentThread.ManagedThreadId.ToString())
++                .And.Contain(bounded ? "timeout 2000 ms" : "unbounded");
++        }
++
++        [Theory]
++        [InlineData("Monitor", false)]
++        [InlineData("NamedMutex", false)]
++        [InlineData("SemaphoreSlim", true)]
++        public void A_same_thread_wait_is_valid_only_on_a_recursive_primitive(string name, bool selfWait)
++        {
++            var primitive = (WaitPrimitive)Enum.Parse(typeof(WaitPrimitive), name);
++            var resource = NewResource("test-recursion", primitive);
++            var site = "re-enter " + primitive + " " + Guid.NewGuid().ToString("N");
++            WaitGraph.Acquired(resource, site: "first entry");
++            WaitGraph.Wait(resource, WaitBound.Unbounded, site).Dispose();
++            WaitGraph.Released(resource);
++
++            Taken(site).Select(x => x.Rule).Should().BeEquivalentTo(selfWait ? new[] { WaitRule.SelfWait } : new WaitRule[0]);
++        }
++
++        [Fact]
++        public void A_handoff_to_a_helper_thread_for_a_mutex_this_thread_holds_is_a_self_wait()
++        {
++            // A Mutex is recursive only for the thread that waits on it; a holder thread waiting for
++            // this thread's mutex never gets it.
++            var mutex = NewResource("test-mutex", WaitPrimitive.NamedMutex);
++            var site = "via holder " + Guid.NewGuid().ToString("N");
++            WaitGraph.Acquired(mutex, site: "direct ownership");
++            WaitGraph.Wait(mutex, WaitBound.Unbounded, site, viaHandoff: true).Dispose();
++            WaitGraph.Released(mutex);
++
++            Taken(site).Should().ContainSingle().Which.Rule.Should().Be(WaitRule.SelfWait);
++        }
++
++        [Theory]
++        [InlineData(false)]
++        [InlineData(true)]
++        public void A_cycle_across_two_threads_is_unbounded_or_bounded(bool bounded)
++        {
++            var first = NewResource("test-a");
++            var second = NewResource("test-b");
++            var site = "two-thread " + Guid.NewGuid().ToString("N");
++            using var registered = new ManualResetEventSlim();
++            using var release = new ManualResetEventSlim();
++            WaitGraph.Acquired(second, site: "main holds b");
++            var other = Start("wait-graph peer", () =>
++            {
++                WaitGraph.Acquired(first, site: "peer holds a");
++                using (WaitGraph.Wait(second, bounded ? WaitBound.After(TimeSpan.FromSeconds(5)) : WaitBound.Unbounded, site + " peer waits b"))
++                {
++                    registered.Set();
++                    release.Wait(Prompt);
++                }
++                WaitGraph.Released(first);
++            });
++            try
++            {
++                registered.Wait(Prompt).Should().BeTrue();
++                WaitGraph.Wait(first, WaitBound.Unbounded, site + " main waits a").Dispose();
++            }
++            finally
++            {
++                WaitGraph.Released(second);
++                release.Set();
++                other.Join(Prompt).Should().BeTrue();
++            }
++
++            var finding = Taken(site).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(bounded ? WaitRule.BoundedCycle : WaitRule.UnboundedCycle);
++            finding.Text.Should().Contain("length 2").And.Contain("wait-graph peer");
++        }
++
++        [Fact]
++        public void A_driver_join_of_a_thread_that_waits_for_the_joiner_is_a_cycle()
++        {
++            var resource = NewResource("test-driver", WaitPrimitive.Event);
++            var site = "driver " + Guid.NewGuid().ToString("N");
++            using var registered = new ManualResetEventSlim();
++            using var release = new ManualResetEventSlim();
++            // The test thread owes the event the worker waits for, then joins the worker.
++            WaitGraph.Acquired(resource, site: "test owes the signal");
++            var worker = Start("wait-graph worker", () =>
++            {
++                using (WaitGraph.DriverWait(resource, WaitBound.Unbounded, site + " worker waits for the test"))
++                {
++                    registered.Set();
++                    release.Wait(Prompt);
++                }
++            });
++            registered.Wait(Prompt).Should().BeTrue();
++            using (WaitGraph.Join(worker, WaitBound.Unbounded, site + " test joins the worker"))
++            {
++                WaitGraph.Released(resource);
++                release.Set();
++                worker.Join(Prompt).Should().BeTrue();
++            }
++
++            var finding = Taken(site).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(WaitRule.UnboundedCycle);
++            finding.Text.Should().Contain("driver").And.Contain("ThreadJoin");
++        }
++
++        [Fact]
++        public void A_lock_order_inverted_on_another_thread_is_reported()
++        {
++            var kindA = "test-order-a-" + Guid.NewGuid().ToString("N");
++            var kindB = "test-order-b-" + Guid.NewGuid().ToString("N");
++            var a = WaitGraph.Create(kindA, WaitPrimitive.Monitor, "a");
++            var b = WaitGraph.Create(kindB, WaitPrimitive.Monitor, "b");
++            WaitGraph.Acquired(a);
++            WaitGraph.Acquired(b);
++            WaitGraph.Released(b);
++            WaitGraph.Released(a);
++            // One thread taking both orders at different times cannot deadlock with itself.
++            WaitGraph.Acquired(b);
++            WaitGraph.Acquired(a);
++            WaitGraph.Released(a);
++            WaitGraph.Released(b);
++            WaitGraph.Findings.Should().NotContain(x => x.Signature.Contains(kindA));
++
++            Start("wait-graph inverted", () =>
++            {
++                WaitGraph.Acquired(b);
++                WaitGraph.Acquired(a);
++                WaitGraph.Released(a);
++                WaitGraph.Released(b);
++            }).Join(Prompt).Should().BeTrue();
++
++            var finding = Taken(kindA).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(WaitRule.LockOrder);
++            finding.Text.Should().Contain("wait-graph inverted");
++        }
++
++        [Fact]
++        public void An_idle_owner_is_waited_for_until_another_thread_releases_it()
++        {
++            var resource = NewResource("test-idle", WaitPrimitive.Ownership);
++            var owner = new object();
++            var site = "idle " + Guid.NewGuid().ToString("N");
++            WaitGraph.Acquired(resource, owner, site: "idle reader");
++            using var registered = new ManualResetEventSlim();
++            using var released = new ManualResetEventSlim();
++            var waiter = Start("wait-graph waiter", () =>
++            {
++                using (WaitGraph.Wait(resource, WaitBound.Unbounded, site))
++                {
++                    registered.Set();
++                    released.Wait(Prompt);
++                }
++            });
++            registered.Wait(Prompt).Should().BeTrue();
++            // The owner is held on this thread but executes no frame, so its release needs no progress here.
++            using (WaitGraph.Wait(NewResource("test-unrelated"), WaitBound.Unbounded, site + " unrelated")) { }
++            Start("wait-graph releaser", () => WaitGraph.Released(resource, owner)).Join(Prompt).Should().BeTrue();
++            released.Set();
++            waiter.Join(Prompt).Should().BeTrue();
++
++            Taken(site).Should().BeEmpty();
++        }
++
++        [Fact]
++        public void A_teardown_frame_claims_every_hold_of_its_owner()
++        {
++            var resource = NewResource("test-claim", WaitPrimitive.Ownership);
++            var owner = new object();
++            var site = "teardown " + Guid.NewGuid().ToString("N");
++            Start("wait-graph idle holder", () => WaitGraph.Acquired(resource, owner, site: "idle hold")).Join(Prompt).Should().BeTrue();
++
++            WaitGraph.Enter(owner, claimsAll: true);
++            WaitGraph.Wait(resource, WaitBound.Unbounded, site + " callback inside teardown").Dispose();
++            WaitGraph.Exit(owner);
++            // Once the teardown frame ended, the same hold is idle again.
++            WaitGraph.Wait(resource, WaitBound.Unbounded, site + " after teardown").Dispose();
++            WaitGraph.Released(resource, owner);
++
++            var finding = Taken(site).Should().ContainSingle().Which;
++            finding.Rule.Should().Be(WaitRule.SelfWait);
++            finding.Text.Should().Contain("claimed by a teardown frame").And.Contain("callback inside teardown");
++        }
++
++        [Fact]
++        public void A_rule_switched_to_failing_fails_the_harness_not_the_wait()
++        {
++            var resource = NewResource("test-failing");
++            var site = "failing " + Guid.NewGuid().ToString("N");
++            WaitGraph.SetFailing(WaitRule.SelfWait, true);
++            try
++            {
++                WaitGraph.Acquired(resource, site: "own hold");
++                Action wait = () => WaitGraph.Wait(resource, WaitBound.Unbounded, site).Dispose();
++                wait.Should().NotThrow("library wait sites never throw");
++                WaitGraph.Released(resource);
++
++                var findings = Taken(site);
++                findings.Should().ContainSingle().Which.Fails.Should().BeTrue();
++                Action verdict = () => WaitGraph.ThrowIfFailing(findings);
++                verdict.Should().Throw<DeadlockDetectedException>().Which.Findings.Should().Contain(site);
++            }
++            finally
++            {
++                WaitGraph.SetFailing(WaitRule.SelfWait, false);
++            }
++        }
++    }
++}
+diff --git a/LiteDB/Client/Shared/SharedMutexOwner.WaitGraph.cs b/LiteDB/Client/Shared/SharedMutexOwner.WaitGraph.cs
+new file mode 100644
+index 000000000..923b6f7af
+--- /dev/null
++++ b/LiteDB/Client/Shared/SharedMutexOwner.WaitGraph.cs
+@@ -0,0 +1,126 @@
++using System.Diagnostics;
++#if DEBUG || TESTING
++using LiteDB.Utils;
++#endif
++
++namespace LiteDB.Client.Shared
++{
++    /// <summary>
++    /// Wait-for graph hooks of <see cref="SharedMutexOwner"/>: the OS mutex (one resource per name,
++    /// process-wide), this connection's ownership (its gate), a command the holder thread runs, and a
++    /// posted release in flight. Calls of the conditional methods vanish outside test builds; see
++    /// docs/wait-for-graph.md.
++    /// </summary>
++    internal sealed partial class SharedMutexOwner
++    {
++#if DEBUG || TESTING
++        internal enum GraphWaitSite { None, Gate, ViaHolder, Handoff, Release }
++
++        private WaitGraph.Resource _graphMutex;
++        private readonly WaitGraph.Resource _graphOwnership = new WaitGraph.Resource("shared-ownership", null, WaitPrimitive.Ownership);
++        private readonly WaitGraph.Resource _graphHandoff = new WaitGraph.Resource("shared-holder-command", null, WaitPrimitive.Handoff, ordered: false);
++        private readonly WaitGraph.Resource _graphRelease = new WaitGraph.Resource("shared-release-in-flight", null, WaitPrimitive.Event, ordered: false);
++
++        private WaitGraph.Resource GraphMutex => _graphMutex ?? (_graphMutex = WaitGraph.Of(_mutex, "named-mutex", WaitPrimitive.NamedMutex));
++
++        /// <summary>This connection's ownership, for waits of the connection outside this class.</summary>
++        internal WaitGraph.Resource GraphOwnership => _graphOwnership;
++
++        /// <summary>The OS mutex, for waits of the connection outside this class.</summary>
++        internal WaitGraph.Resource GraphMutexResource => this.GraphMutex;
++
++        /// <summary>
++        /// The owner whose frames execute this ownership: the connection, which enters a frame for each
++        /// public call (its exited-owner callback is bound to it). A held ownership executes only there.
++        /// </summary>
++        internal object GraphOwner => _ownerExited?.Target as SharedEngine ?? (object)this;
++
++        private WaitGraph.WaitScope GraphWait(GraphWaitSite site, System.Threading.CancellationToken closing = default)
++        {
++            // Proof overlay (PR #133): a wait that a session close can cancel is cancellation-bounded.
++            var bound = closing.CanBeCanceled ? WaitBound.Cancellation : WaitBound.Unbounded;
++            switch (site)
++            {
++                case GraphWaitSite.Gate:
++                    return WaitGraph.Wait(_graphOwnership, bound, "SharedMutexOwner.Enter (gate)", this.GraphOwner);
++                case GraphWaitSite.ViaHolder:
++                    // The holder blocks on the OS mutex for this thread: it is this thread's wait.
++                    return WaitGraph.Wait(this.GraphMutex, bound, "SharedMutexOwner.Enter (via holder)", this.GraphOwner, viaHandoff: true);
++                case GraphWaitSite.Handoff:
++                    // An acquisition is registered by its caller as a wait on the mutex itself (ViaHolder).
++                    return WaitGraph.Wait(_graphHandoff, WaitBound.Unbounded, "SharedMutexOwner.Send (holder handoff)", this.GraphOwner);
++                case GraphWaitSite.Release:
++                    return WaitGraph.Wait(_graphRelease, WaitBound.Unbounded, "SharedMutexOwner.WaitForRelease", this.GraphOwner);
++                default:
++                    return default;
++            }
++        }
++#endif
++
++        /// <summary>Under _sync, after the calling thread became the owner.</summary>
++        [Conditional("DEBUG"), Conditional("TESTING")]
++        private void GraphOwned(bool direct)
++        {
++#if DEBUG || TESTING
++            WaitGraph.Acquired(_graphOwnership, this.GraphOwner, site: "SharedMutexOwner (gate)");
++            // A directly owned OS mutex can only be released by this thread.
++            WaitGraph.Acquired(this.GraphMutex, this.GraphOwner, threadAffine: direct,
++                site: direct ? "SharedMutexOwner (direct)" : "SharedMutexOwner (via holder)");
++#endif
++        }
++
++        /// <summary>
++        /// Under _sync, when the ownership ended. The mutex hold ends with it unless a scoped thread still
++        /// holds the OS mutex; a posted release then no longer depends on any owner's progress.
++        /// </summary>
++        [Conditional("DEBUG"), Conditional("TESTING")]
++        private void GraphEnded(bool mutex)
++        {
++#if DEBUG || TESTING
++            WaitGraph.Released(_graphOwnership, this.GraphOwner);
++            if (mutex) WaitGraph.Released(this.GraphMutex, this.GraphOwner);
++#endif
++        }
++
++        /// <summary>One more iteration of a poll loop (the gate wait calls the exited-owner check each round).</summary>
++        [Conditional("DEBUG"), Conditional("TESTING")]
++        private void GraphRecheck()
++        {
++#if DEBUG || TESTING
++            WaitGraph.Recheck();
++#endif
++        }
++
++        /// <summary>On the holder, under _sync: whoever waits for a command waits for this thread meanwhile.</summary>
++        [Conditional("DEBUG"), Conditional("TESTING")]
++        private void GraphCommand(Command command, bool started)
++        {
++#if DEBUG || TESTING
++            if (command == Command.None) return;
++            var resource = command == Command.ReleaseAndOpenGate ? _graphRelease : _graphHandoff;
++            if (started) WaitGraph.Acquired(resource, site: "SharedMutexOwner.Run " + command);
++            else WaitGraph.Released(resource);
++#endif
++        }
++
++        /// <summary>
++        /// On the holder: the exited owner's cleanup runs on this thread, which alone ends the mutex hold
++        /// and the release in flight until it finishes.
++        /// </summary>
++        [Conditional("DEBUG"), Conditional("TESTING")]
++        private void GraphExitedOwnerCleanup(bool started)
++        {
++#if DEBUG || TESTING
++            if (started)
++            {
++                this.GraphEnded(mutex: true);
++                WaitGraph.Acquired(this.GraphMutex, site: "SharedMutexOwner.ReleaseExitedOwner");
++                WaitGraph.Acquired(_graphRelease, site: "SharedMutexOwner.ReleaseExitedOwner");
++                return;
++            }
++            WaitGraph.Released(this.GraphMutex);
++            WaitGraph.Released(_graphRelease);
++#endif
++        }
++    }
++}
+diff --git a/LiteDB/Utils/DeadlockDetectedException.cs b/LiteDB/Utils/DeadlockDetectedException.cs
+new file mode 100644
+index 000000000..61bf087a8
+--- /dev/null
++++ b/LiteDB/Utils/DeadlockDetectedException.cs
+@@ -0,0 +1,26 @@
++#if DEBUG || TESTING
++using System;
++
++namespace LiteDB.Utils
++{
++    /// <summary>
++    /// Raised by a test harness at the end of a scenario (<see cref="WaitGraph.ThrowIfFailing"/>) when the
++    /// test-build wait-for graph latched a finding of a rule configured to fail. Library code never
++    /// throws it: wait sites only record. The message prints each finding: the waiting threads, wait
++    /// sites, primitives, bounds, resources, the owners holding them and the threads executing them.
++    /// It derives from <see cref="Exception"/> directly so that handlers for LiteDB's own exception
++    /// types cannot mistake it for a timeout or refusal.
++    /// </summary>
++    internal sealed class DeadlockDetectedException : Exception
++    {
++        internal DeadlockDetectedException(string findings)
++            : base(findings)
++        {
++            this.Findings = findings;
++        }
++
++        /// <summary>The printed findings, as also latched in <see cref="WaitGraph.Findings"/>.</summary>
++        internal string Findings { get; }
++    }
++}
++#endif
+diff --git a/LiteDB/Utils/WaitGraph.Detection.cs b/LiteDB/Utils/WaitGraph.Detection.cs
+new file mode 100644
+index 000000000..440277fbf
+--- /dev/null
++++ b/LiteDB/Utils/WaitGraph.Detection.cs
+@@ -0,0 +1,187 @@
++#if DEBUG || TESTING
++using System.Collections.Generic;
++using System.Text;
++using System.Threading;
++
++namespace LiteDB.Utils
++{
++    internal static partial class WaitGraph
++    {
++        private const int MaxDepth = 32;
++        private const int Attempts = 4;
++
++        /// <summary>One edge pair of a cycle: a waiter, the hold it waits for, and the thread that executes that hold.</summary>
++        private sealed class Step
++        {
++            internal ThreadState Waiter;
++            internal WaitRecord Wait;
++            internal Resource Resource;
++            internal Hold Hold;
++            internal ThreadState Executor;
++            internal bool Claimed;
++        }
++
++        /// <summary>
++        /// Search for a cycle back to <paramref name="start"/>. Holds and frames are read without a
++        /// global lock, so a search records the version of every node it read and accepts a cycle
++        /// only if none of them lost a hold, wait or frame meanwhile: then every edge of the cycle
++        /// existed at once. An unstable search is retried, then given up (a miss, never a false finding).
++        /// </summary>
++        private static void Check(ThreadState start, WaitRecord record)
++        {
++            for (var attempt = 0; attempt < Attempts; attempt++)
++            {
++                var versions = new List<KeyValuePair<object, int>>();
++                var path = new List<Step>();
++                var visited = new HashSet<ThreadState> { start };
++                var stable = true;
++                var found = Search(start, start, record, path, visited, versions, 0, ref stable);
++                if (!stable || !Validate(versions)) continue;
++                if (found) Classify(path);
++                return;
++            }
++        }
++
++        private static bool Search(ThreadState start, ThreadState waiter, WaitRecord wait, List<Step> path,
++            HashSet<ThreadState> visited, List<KeyValuePair<object, int>> versions, int depth, ref bool stable)
++        {
++            if (wait == null || depth > MaxDepth) return false;
++            return SearchResource(start, waiter, wait, wait.First, path, visited, versions, depth, ref stable) ||
++                   SearchResource(start, waiter, wait, wait.Second, path, visited, versions, depth, ref stable);
++        }
++
++        private static bool SearchResource(ThreadState start, ThreadState waiter, WaitRecord wait, Resource resource,
++            List<Step> path, HashSet<ThreadState> visited, List<KeyValuePair<object, int>> versions, int depth, ref bool stable)
++        {
++            if (resource == null) return false;
++            var holds = resource.Snapshot(out var version);
++            versions.Add(new KeyValuePair<object, int>(resource, version));
++            foreach (var hold in holds)
++            {
++                if (ReferenceEquals(hold.Thread, waiter))
++                {
++                    if (wait.ExcludeOwn) continue;
++                    // The waiting thread already owns a recursive primitive: its own wait is granted at once.
++                    if (hold.ThreadAffine && !wait.ViaHandoff && resource.Primitive.IsRecursive()) continue;
++                }
++                if (hold.ThreadAffine || Observe(hold.Thread, versions, ref stable).Executes(hold.Owner, false))
++                {
++                    if (Follow(start, waiter, wait, resource, hold, hold.Thread, false, path, visited, versions, depth, ref stable)) return true;
++                }
++                if (hold.ThreadAffine) continue;
++                foreach (var claimer in Claimers(hold.Owner))
++                {
++                    if (!Observe(claimer, versions, ref stable).Executes(hold.Owner, true)) continue;
++                    if (Follow(start, waiter, wait, resource, hold, claimer, true, path, visited, versions, depth, ref stable)) return true;
++                }
++            }
++            return false;
++        }
++
++        private static bool Follow(ThreadState start, ThreadState waiter, WaitRecord wait, Resource resource, Hold hold,
++            ThreadState executor, bool claimed, List<Step> path, HashSet<ThreadState> visited,
++            List<KeyValuePair<object, int>> versions, int depth, ref bool stable)
++        {
++            path.Add(new Step { Waiter = waiter, Wait = wait, Resource = resource, Hold = hold, Executor = executor, Claimed = claimed });
++            if (ReferenceEquals(executor, start)) return true;
++            if (visited.Add(executor))
++            {
++                var next = Observe(executor, versions, ref stable).Wait;
++                if (Search(start, executor, next, path, visited, versions, depth + 1, ref stable)) return true;
++            }
++            path.RemoveAt(path.Count - 1);
++            return false;
++        }
++
++        /// <summary>Record a thread's version before reading its waits or frames.</summary>
++        private static ThreadState Observe(ThreadState state, List<KeyValuePair<object, int>> versions, ref bool stable)
++        {
++            var version = Volatile.Read(ref state.Version);
++            if ((version & 1) != 0) stable = false;
++            versions.Add(new KeyValuePair<object, int>(state, version));
++            return state;
++        }
++
++        private static bool Validate(List<KeyValuePair<object, int>> versions)
++        {
++            foreach (var entry in versions)
++            {
++                var current = entry.Key is Resource resource
++                    ? Volatile.Read(ref resource.Version)
++                    : Volatile.Read(ref ((ThreadState)entry.Key).Version);
++                if (current != entry.Value) return false;
++            }
++            return true;
++        }
++
++        private static void Classify(List<Step> path)
++        {
++            var bounded = false;
++            foreach (var step in path) bounded |= step.Wait.Bound.Kind != WaitBoundKind.Unbounded;
++            WaitRule rule;
++            string reason;
++            if (path.Count == 1)
++            {
++                rule = WaitRule.SelfWait;
++                reason = "the holder executes on the waiting thread (length 1)" + (bounded ? "; the wait is bounded" : "");
++            }
++            else if (!bounded)
++            {
++                rule = WaitRule.UnboundedCycle;
++                reason = $"every wait is unbounded (length {path.Count})";
++            }
++            else
++            {
++                rule = WaitRule.BoundedCycle;
++                reason = $"a bounded wait ends it; allowed when the outcomes are correct (length {path.Count})";
++            }
++            Latch(rule, Signature(path), Format(path, rule.Id() + ": " + reason), path[0].Wait.Started);
++        }
++
++        private static string Signature(List<Step> path)
++        {
++            var parts = new List<string>();
++            foreach (var step in path) parts.Add(step.Resource.Kind + "@" + step.Wait.Site);
++            parts.Sort(System.StringComparer.Ordinal);
++            return string.Join(" | ", parts);
++        }
++
++        private static string Format(List<Step> path, string rule)
++        {
++            var text = new StringBuilder();
++            text.Append("Wait-for cycle, ").Append(rule).Append(':');
++            foreach (var step in path)
++            {
++                var wait = step.Wait;
++                text.AppendLine();
++                text.Append("  ").Append(step.Waiter).Append(" waits (").Append(wait.Bound).Append(", ")
++                    .Append(wait.Origin.ToString().ToLowerInvariant()).Append(wait.ViaHandoff ? ", via a helper thread" : "")
++                    .Append(") at ").Append(wait.Site ?? "?");
++                if (wait.Owner != null) text.Append(" for ").Append(Describe(wait.Owner));
++                text.Append(" on ").Append(step.Resource).Append(" [").Append(step.Resource.Primitive).Append(']');
++                text.AppendLine();
++                text.Append("    held by ").Append(Describe(step.Hold.Owner));
++                if (step.Hold.Site != null) text.Append(" (acquired at ").Append(step.Hold.Site).Append(')');
++                text.Append(step.Hold.ThreadAffine ? ", bound to " : step.Claimed ? ", claimed by a teardown frame on " : ", executing on ")
++                    .Append(step.Executor);
++            }
++            text.AppendLine();
++            text.Append("  frames (innermost first):");
++            var threads = new HashSet<ThreadState>();
++            foreach (var step in path)
++            {
++                if (!threads.Add(step.Executor)) continue;
++                text.AppendLine().Append("    ").Append(step.Executor).Append(": ");
++                var first = true;
++                for (var frame = step.Executor.Frames; frame != null; frame = frame.Outer)
++                {
++                    text.Append(first ? "" : " < ").Append(Describe(frame.Owner)).Append(frame.ClaimsAll ? " (claims all)" : "");
++                    first = false;
++                }
++                if (first) text.Append("none");
++            }
++            return text.ToString();
++        }
++    }
++}
++#endif
+diff --git a/LiteDB/Utils/WaitGraph.Nodes.cs b/LiteDB/Utils/WaitGraph.Nodes.cs
+new file mode 100644
+index 000000000..dc6cfe75a
+--- /dev/null
++++ b/LiteDB/Utils/WaitGraph.Nodes.cs
+@@ -0,0 +1,291 @@
++#if DEBUG || TESTING
++using System;
++using System.Collections.Generic;
++using System.Threading;
++
++namespace LiteDB.Utils
++{
++    internal static partial class WaitGraph
++    {
++        private static int _nextResourceId;
++
++        /// <summary>
++        /// Something a thread can wait for: a lock, a gate, a named OS mutex, a handoff. Its holds
++        /// say who must make progress before a waiter can. Holds change under the resource's own
++        /// monitor, a leaf lock that is never held while another is taken.
++        /// </summary>
++        internal sealed class Resource
++        {
++            internal readonly int Id;
++            internal readonly string Kind;
++            internal readonly List<Hold> Holds = new List<Hold>(1);
++            // Bumped (under the monitor) whenever a hold ends, so a search can prove that every
++            // hold it followed still existed when it finished.
++            internal int Version;
++
++            internal Resource(string kind, string label, WaitPrimitive primitive, bool ordered = true)
++            {
++                this.Id = Interlocked.Increment(ref _nextResourceId);
++                this.Kind = kind;
++                this.Label = label;
++                this.Primitive = primitive;
++                this.Ordered = ordered;
++            }
++
++            /// <summary>The primitive behind the resource, which decides whether its holder re-enters without waiting.</summary>
++            internal WaitPrimitive Primitive { get; }
++
++            /// <summary>Stable part of the name, such as a collection or mutex name; may be set once known.</summary>
++            internal string Label { get; set; }
++
++            /// <summary>Whether acquisitions take part in lock-order tracking (rule d). Events and counters do not.</summary>
++            internal bool Ordered { get; }
++
++            public override string ToString() =>
++                this.Label == null ? $"{this.Kind}#{this.Id}" : $"{this.Kind} '{this.Label}'#{this.Id}";
++
++            /// <summary>Add one acquisition; true when this created a new hold.</summary>
++            internal bool Add(object owner, ThreadState thread, bool threadAffine, string site)
++            {
++                lock (this)
++                {
++                    foreach (var hold in this.Holds)
++                    {
++                        if (!ReferenceEquals(hold.Owner, owner) || !ReferenceEquals(hold.Thread, thread)) continue;
++                        hold.Count++;
++                        return false;
++                    }
++                    this.Holds.Add(new Hold(owner, thread, threadAffine, site));
++                    return true;
++                }
++            }
++
++            /// <summary>End one acquisition of <paramref name="owner"/>, or all of them.</summary>
++            internal void Remove(object owner, bool all)
++            {
++                Hold removed = null;
++                lock (this)
++                {
++                    for (var i = 0; i < this.Holds.Count; i++)
++                    {
++                        var hold = this.Holds[i];
++                        if (!ReferenceEquals(hold.Owner, owner)) continue;
++                        if (!all && --hold.Count > 0) return;
++                        this.Holds.RemoveAt(i);
++                        this.Version++;
++                        removed = hold;
++                        break;
++                    }
++                }
++                removed?.Thread.Forget(this);
++            }
++
++            internal void Clear()
++            {
++                Hold[] removed;
++                lock (this)
++                {
++                    removed = this.Holds.ToArray();
++                    this.Holds.Clear();
++                    this.Version++;
++                }
++                foreach (var hold in removed) hold.Thread.Forget(this);
++            }
++
++            internal Hold[] Snapshot(out int version)
++            {
++                lock (this)
++                {
++                    version = this.Version;
++                    return this.Holds.Count == 0 ? Array.Empty<Hold>() : this.Holds.ToArray();
++                }
++            }
++        }
++
++        /// <summary>
++        /// A resource held by <see cref="Owner"/>, recorded on <see cref="Thread"/>. A thread-affine
++        /// hold (a monitor, a directly owned OS mutex, a lease keyed by its thread) can only end by
++        /// that thread's progress. Any other hold ends by its owner's progress, which runs on
++        /// <see cref="Thread"/> only while that thread executes a frame of the owner.
++        /// </summary>
++        internal sealed class Hold
++        {
++            internal readonly object Owner;
++            internal readonly ThreadState Thread;
++            internal readonly bool ThreadAffine;
++            internal readonly string Site;
++            internal int Count = 1;
++
++            internal Hold(object owner, ThreadState thread, bool threadAffine, string site)
++            {
++                this.Owner = owner;
++                this.Thread = thread;
++                this.ThreadAffine = threadAffine;
++                this.Site = site;
++            }
++        }
++
++        /// <summary>
++        /// One blocking wait, innermost on top of its thread's stack. A wait <see cref="ViaHandoff"/> is
++        /// performed by a helper thread for this one, so the primitive's recursion does not apply to it.
++        /// </summary>
++        internal sealed class WaitRecord
++        {
++            internal readonly Resource First;
++            internal readonly Resource Second;
++            internal readonly WaitBound Bound;
++            internal readonly WaitOrigin Origin;
++            internal readonly bool ViaHandoff;
++            internal readonly string Site;
++            internal readonly object Owner;
++            internal readonly bool ExcludeOwn;
++            internal readonly WaitRecord Outer;
++            internal readonly DateTime Started = DateTime.UtcNow;
++
++            internal WaitRecord(Resource first, Resource second, WaitBound bound, WaitOrigin origin, bool viaHandoff,
++                string site, object owner, bool excludeOwn, WaitRecord outer)
++            {
++                this.First = first;
++                this.Second = second;
++                this.Bound = bound;
++                this.Origin = origin;
++                this.ViaHandoff = viaHandoff;
++                this.Site = site;
++                this.Owner = owner;
++                this.ExcludeOwn = excludeOwn;
++                this.Outer = outer;
++            }
++        }
++
++        /// <summary>An owner whose work runs on the frame's thread now; immutable, innermost first.</summary>
++        internal sealed class Frame
++        {
++            internal readonly object Owner;
++            internal readonly bool ClaimsAll;
++            internal readonly Frame Outer;
++
++            internal Frame(object owner, bool claimsAll, Frame outer)
++            {
++                this.Owner = owner;
++                this.ClaimsAll = claimsAll;
++                this.Outer = outer;
++            }
++        }
++
++        /// <summary>
++        /// Per-thread waits and frames. Only the thread itself changes them; other threads read
++        /// them during a search. <see cref="Version"/> is odd while a wait or frame is removed.
++        /// </summary>
++        internal sealed class ThreadState
++        {
++            private static int _nextId;
++            // Weak: the graph must not keep a dead thread (and its execution context) alive.
++            private readonly WeakReference<Thread> _thread;
++            private readonly int _managedId;
++            /// <summary>Process-unique id; the lock-order history keeps this, not the state.</summary>
++            internal readonly int Id = Interlocked.Increment(ref _nextId);
++            // Weak: a hold that is never released (an abandoned transaction) must not let a live thread
++            // root its resource, the resource's holds and their owners (the lock-order history only).
++            private readonly List<WeakReference<Resource>> _held = new List<WeakReference<Resource>>();
++            private volatile WaitRecord _wait;
++            private volatile Frame _frames;
++            internal int Version;
++
++            internal ThreadState(Thread thread)
++            {
++                _thread = new WeakReference<Thread>(thread);
++                _managedId = thread.ManagedThreadId;
++                // Joining a thread waits for its progress, which only that thread makes.
++                this.Progress = new Resource("thread-progress", null, WaitPrimitive.ThreadJoin, ordered: false);
++                this.Progress.Add(this, this, threadAffine: true, site: "thread start");
++            }
++
++            /// <summary>What a join of this thread waits for.</summary>
++            internal Resource Progress { get; }
++
++            internal WaitRecord Wait => _wait;
++
++            internal Frame Frames => _frames;
++
++            internal void Push(WaitRecord record) => _wait = record;
++
++            internal void Pop(WaitRecord record)
++            {
++                Interlocked.Increment(ref this.Version);
++                if (ReferenceEquals(_wait, record)) _wait = record.Outer;
++                Interlocked.Increment(ref this.Version);
++            }
++
++            internal void Enter(object owner, bool claimsAll) => _frames = new Frame(owner, claimsAll, _frames);
++
++            /// <summary>Remove the innermost frame of <paramref name="owner"/>; null when there is none.</summary>
++            internal Frame Exit(object owner)
++            {
++                var path = new List<Frame>();
++                var frame = _frames;
++                while (frame != null && !ReferenceEquals(frame.Owner, owner))
++                {
++                    path.Add(frame);
++                    frame = frame.Outer;
++                }
++                if (frame == null) return null;
++                var rebuilt = frame.Outer;
++                for (var i = path.Count - 1; i >= 0; i--) rebuilt = new Frame(path[i].Owner, path[i].ClaimsAll, rebuilt);
++                Interlocked.Increment(ref this.Version);
++                _frames = rebuilt;
++                Interlocked.Increment(ref this.Version);
++                return frame;
++            }
++
++            internal bool Executes(object owner, bool claimsOnly)
++            {
++                for (var frame = _frames; frame != null; frame = frame.Outer)
++                    if (ReferenceEquals(frame.Owner, owner) && (!claimsOnly || frame.ClaimsAll)) return true;
++                return false;
++            }
++
++            /// <summary>Resources this thread holds, for lock-order tracking; any thread may end a hold.</summary>
++            internal Resource[] Remember(Resource resource)
++            {
++                lock (_held)
++                {
++                    var before = new List<Resource>(_held.Count);
++                    _held.RemoveAll(entry => !entry.TryGetTarget(out _));
++                    foreach (var entry in _held)
++                        if (entry.TryGetTarget(out var target)) before.Add(target);
++                    _held.Add(new WeakReference<Resource>(resource));
++                    return before.ToArray();
++                }
++            }
++
++            internal void Forget(Resource resource)
++            {
++                lock (_held)
++                {
++                    var index = _held.FindIndex(entry => entry.TryGetTarget(out var target) && ReferenceEquals(target, resource));
++                    if (index >= 0) _held.RemoveAt(index);
++                }
++            }
++
++            public override string ToString() => _thread.TryGetTarget(out var thread)
++                ? $"thread '{thread.Name ?? "unnamed"}' #{_managedId}"
++                : $"thread (exited) #{_managedId}";
++        }
++
++        /// <summary>A registered wait; dispose it as soon as the blocking call returns.</summary>
++        internal readonly struct WaitScope : IDisposable
++        {
++            private readonly ThreadState _state;
++            private readonly WaitRecord _record;
++
++            internal WaitScope(ThreadState state, WaitRecord record)
++            {
++                _state = state;
++                _record = record;
++            }
++
++            public void Dispose() => _state?.Pop(_record);
++        }
++    }
++}
++#endif
+diff --git a/LiteDB/Utils/WaitGraph.Reports.cs b/LiteDB/Utils/WaitGraph.Reports.cs
+new file mode 100644
+index 000000000..b80f9d50c
+--- /dev/null
++++ b/LiteDB/Utils/WaitGraph.Reports.cs
+@@ -0,0 +1,224 @@
++#if DEBUG || TESTING
++using System;
++using System.Collections.Concurrent;
++using System.Collections.Generic;
++using System.Diagnostics;
++using System.IO;
++using System.Linq;
++using System.Text;
++
++namespace LiteDB.Utils
++{
++    internal static partial class WaitGraph
++    {
++        // Lock orders seen so far, keyed by (first, second) resource ids, with the thread that took
++        // them. Bounded: past the cap new orders are not recorded and lock-order findings stop growing.
++        private const int MaxOrders = 200000;
++        private const int MaxFindings = 10000;
++        // The thread is kept as its id, never as a reference: a dead Thread object retains its
++        // execution context (AsyncLocal values), which the history must not root.
++        private static readonly ConcurrentDictionary<long, KeyValuePair<int, string>> _orders =
++            new ConcurrentDictionary<long, KeyValuePair<int, string>>();
++        private static readonly List<Finding> _findings = new List<Finding>();
++        private static readonly Dictionary<string, Finding> _findingIndex = new Dictionary<string, Finding>(StringComparer.Ordinal);
++        private static readonly HashSet<WaitRule> _failing = ParseFailing(Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH_FAIL"));
++        private static readonly string _reportPath = Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH_REPORT");
++        private static readonly object _reportLock = new object();
++        private static readonly Stopwatch _contextClock = Stopwatch.StartNew();
++        private static string _context;
++
++        /// <summary>A latched finding: one rule, one cycle or order signature, within one <see cref="Context"/>.</summary>
++        internal sealed class Finding
++        {
++            internal Finding(WaitRule rule, string signature, string text, string context, double atMs, double waitedMs)
++            {
++                this.Rule = rule;
++                this.Signature = signature;
++                this.Text = text;
++                this.Context = context;
++                this.AtMs = atMs;
++                this.WaitedMs = waitedMs;
++            }
++
++            internal WaitRule Rule { get; }
++            internal string Signature { get; }
++            internal string Text { get; }
++            internal string Context { get; }
++            /// <summary>Milliseconds from the start of the context (the test) to the first detection.</summary>
++            internal double AtMs { get; }
++            /// <summary>Milliseconds the detecting thread had been waiting when it was first detected.</summary>
++            internal double WaitedMs { get; }
++            internal int Count { get; set; } = 1;
++            internal bool Fails => IsFailing(this.Rule);
++
++            public override string ToString() =>
++                $"[{this.Rule.Id()}{(this.Fails ? ", failing" : "")}] x{this.Count} at {this.AtMs:0} ms{Environment.NewLine}{this.Text}";
++        }
++
++        /// <summary>What runs now, such as a test name; findings are attributed to it. Setting it restarts its clock.</summary>
++        internal static string Context
++        {
++            get => _context;
++            set
++            {
++                lock (_findings)
++                {
++                    _context = value;
++                    _contextClock.Restart();
++                }
++            }
++        }
++
++        /// <summary>Every finding latched so far that nobody took, in first-seen order.</summary>
++        internal static IReadOnlyList<Finding> Findings
++        {
++            get { lock (_findings) return _findings.ToArray(); }
++        }
++
++        /// <summary>Whether a harness fails on findings of <paramref name="rule"/>; all rules only report by default.</summary>
++        internal static bool IsFailing(WaitRule rule)
++        {
++            lock (_failing) return _failing.Contains(rule);
++        }
++
++        /// <summary>Switch <paramref name="rule"/> between reporting and failing (a harness decision, never a throw in library code).</summary>
++        internal static void SetFailing(WaitRule rule, bool failing)
++        {
++            lock (_failing)
++            {
++                if (failing) _failing.Add(rule);
++                else _failing.Remove(rule);
++            }
++        }
++
++        /// <summary>Test hook: remove and return the latched findings, for tests that provoke them on purpose.</summary>
++        internal static IReadOnlyList<Finding> TakeFindings()
++        {
++            lock (_findings)
++            {
++                var taken = _findings.ToArray();
++                _findings.Clear();
++                _findingIndex.Clear();
++                return taken;
++            }
++        }
++
++        /// <summary>
++        /// For harnesses at the end of a scenario: throw <see cref="DeadlockDetectedException"/> when
++        /// one of <paramref name="findings"/> belongs to a failing rule.
++        /// </summary>
++        internal static void ThrowIfFailing(IEnumerable<Finding> findings)
++        {
++            var failing = findings.Where(x => x.Fails).ToArray();
++            if (failing.Length == 0) return;
++            throw new DeadlockDetectedException(string.Join(Environment.NewLine + Environment.NewLine, failing.Select(x => x.ToString())));
++        }
++
++        private static void Latch(WaitRule rule, string signature, string text, DateTime waitStarted)
++        {
++            Finding finding;
++            lock (_findings)
++            {
++                var key = rule.Id() + "|" + signature + "|" + _context;
++                if (_findingIndex.TryGetValue(key, out var known))
++                {
++                    known.Count++;
++                    return;
++                }
++                if (_findings.Count >= MaxFindings) return;
++                finding = new Finding(rule, signature, text, _context, _contextClock.Elapsed.TotalMilliseconds,
++                    (DateTime.UtcNow - waitStarted).TotalMilliseconds);
++                _findingIndex.Add(key, finding);
++                _findings.Add(finding);
++            }
++            Append(finding);
++        }
++
++        /// <summary>
++        /// Lock-order history: <paramref name="resource"/> taken while holding <paramref name="held"/>. An
++        /// inversion counts when another thread took the opposite order; one thread alone cannot deadlock on it.
++        /// </summary>
++        private static void RecordOrder(ThreadState state, Resource[] held, Resource resource, string site)
++        {
++            foreach (var earlier in held)
++            {
++                if (!earlier.Ordered || ReferenceEquals(earlier, resource)) continue;
++                var key = ((long)earlier.Id << 32) | (uint)resource.Id;
++                var reverse = ((long)resource.Id << 32) | (uint)earlier.Id;
++                var inverted = _orders.TryGetValue(reverse, out var inverse) && inverse.Key != state.Id;
++                if (!inverted && _orders.ContainsKey(key)) continue;
++                var description = $"{earlier} then {resource} on {state}" + (site == null ? "" : " at " + site);
++                if (_orders.Count < MaxOrders) _orders.TryAdd(key, new KeyValuePair<int, string>(state.Id, description));
++                if (!inverted) continue;
++                var pair = string.CompareOrdinal(earlier.Kind, resource.Kind) <= 0
++                    ? earlier.Kind + " / " + resource.Kind
++                    : resource.Kind + " / " + earlier.Kind;
++                Latch(WaitRule.LockOrder, pair, "Lock-order inversion (no active cycle):" + Environment.NewLine +
++                    "  " + inverse.Value + Environment.NewLine + "  " + description, DateTime.UtcNow);
++            }
++        }
++
++        private static HashSet<WaitRule> ParseFailing(string value)
++        {
++            var rules = new HashSet<WaitRule>();
++            if (string.IsNullOrEmpty(value)) return rules;
++            foreach (var part in value.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
++            {
++                foreach (WaitRule rule in Enum.GetValues(typeof(WaitRule)))
++                    if (part == "all" || string.Equals(part, rule.Id(), StringComparison.OrdinalIgnoreCase)) rules.Add(rule);
++            }
++            return rules;
++        }
++
++        private static void Append(Finding finding)
++        {
++            if (string.IsNullOrEmpty(_reportPath)) return;
++            var invariant = System.Globalization.CultureInfo.InvariantCulture;
++            var line = new StringBuilder("{");
++            Field(line, "rule", finding.Rule.Id()).Append(',');
++            Field(line, "failing", finding.Fails ? "true" : "false", quoted: false).Append(',');
++            Field(line, "signature", finding.Signature).Append(',');
++            Field(line, "context", finding.Context).Append(',');
++            Field(line, "atMs", finding.AtMs.ToString("0.0", invariant), quoted: false).Append(',');
++            Field(line, "waitedMs", finding.WaitedMs.ToString("0.0", invariant), quoted: false).Append(',');
++            Field(line, "pid", Process.GetCurrentProcess().Id.ToString(invariant), quoted: false).Append(',');
++            Field(line, "text", finding.Text).Append('}');
++            try
++            {
++                lock (_reportLock) File.AppendAllText(_reportPath, line.AppendLine().ToString());
++            }
++            catch (IOException)
++            {
++                // The report is diagnostic; the in-memory list stays authoritative.
++            }
++            catch (UnauthorizedAccessException)
++            {
++            }
++        }
++
++        private static StringBuilder Field(StringBuilder line, string name, string value, bool quoted = true)
++        {
++            line.Append('"').Append(name).Append("\":");
++            if (value == null) return line.Append("null");
++            if (!quoted) return line.Append(value);
++            line.Append('"');
++            foreach (var c in value)
++            {
++                switch (c)
++                {
++                    case '"': line.Append("\\\""); break;
++                    case '\\': line.Append("\\\\"); break;
++                    case '\n': line.Append("\\n"); break;
++                    case '\r': line.Append("\\r"); break;
++                    case '\t': line.Append("\\t"); break;
++                    default:
++                        if (c < ' ') line.Append("\\u").Append(((int)c).ToString("x4"));
++                        else line.Append(c);
++                        break;
++                }
++            }
++            return line.Append('"');
++        }
++    }
++}
++#endif
+diff --git a/LiteDB/Utils/WaitGraph.Types.cs b/LiteDB/Utils/WaitGraph.Types.cs
+new file mode 100644
+index 000000000..8c31a5b8f
+--- /dev/null
++++ b/LiteDB/Utils/WaitGraph.Types.cs
+@@ -0,0 +1,122 @@
++#if DEBUG || TESTING
++using System;
++
++namespace LiteDB.Utils
++{
++    /// <summary>The synchronization primitive behind a wait-for graph resource; it decides recursion.</summary>
++    internal enum WaitPrimitive
++    {
++        /// <summary>A monitor (<c>lock</c>, <c>Monitor.TryEnter</c>); recursive for its owning thread.</summary>
++        Monitor,
++        /// <summary><c>System.Threading.Lock</c>; recursive for its owning thread.</summary>
++        Lock,
++        /// <summary>A named OS <c>Mutex</c>; recursive for the thread that acquired it.</summary>
++        NamedMutex,
++        /// <summary>A <c>SemaphoreSlim</c>; not recursive.</summary>
++        SemaphoreSlim,
++        /// <summary>A Shared connection's logical ownership; its owner thread re-enters without waiting.</summary>
++        Ownership,
++        /// <summary>The engine's transaction admission gate (leases and the exclusive writer).</summary>
++        Gate,
++        /// <summary>A reader or snapshot lease.</summary>
++        Lease,
++        /// <summary>A Shared pin: a holder thread keeps the mutex for an owner thread.</summary>
++        Pin,
++        /// <summary>A command handed to a helper thread, waited for by its sender.</summary>
++        Handoff,
++        /// <summary>A <c>ManualResetEvent(Slim)</c> or <c>AutoResetEvent</c> some thread owes a signal.</summary>
++        Event,
++        /// <summary>A <c>Monitor.Wait</c> on a predicate that other threads' holds keep false.</summary>
++        Condition,
++        /// <summary><c>Thread.Join</c>: the joined thread's progress.</summary>
++        ThreadJoin,
++        /// <summary><c>Task.Wait</c> or <c>.Result</c>.</summary>
++        TaskWait,
++        /// <summary>A barrier between test-driver threads.</summary>
++        Barrier,
++    }
++
++    /// <summary>How a wait can end without the resource: never, by a timeout, or by cancellation.</summary>
++    internal enum WaitBoundKind
++    {
++        Unbounded,
++        Timeout,
++        Cancellation,
++    }
++
++    /// <summary>Whether an edge comes from the library or from a test driver (callbacks, joins, barriers).</summary>
++    internal enum WaitOrigin
++    {
++        Library,
++        Driver,
++    }
++
++    /// <summary>The bound of one wait.</summary>
++    internal readonly struct WaitBound
++    {
++        private WaitBound(WaitBoundKind kind, TimeSpan timeout)
++        {
++            this.Kind = kind;
++            this.Timeout = timeout;
++        }
++
++        internal WaitBoundKind Kind { get; }
++
++        /// <summary>The timeout, for <see cref="WaitBoundKind.Timeout"/>.</summary>
++        internal TimeSpan Timeout { get; }
++
++        internal static WaitBound Unbounded => default;
++
++        internal static WaitBound Cancellation => new WaitBound(WaitBoundKind.Cancellation, TimeSpan.Zero);
++
++        /// <summary>A wait that gives up after <paramref name="timeout"/>; an infinite timeout is unbounded.</summary>
++        internal static WaitBound After(TimeSpan timeout) =>
++            timeout == System.Threading.Timeout.InfiniteTimeSpan || timeout == TimeSpan.MaxValue
++                ? Unbounded
++                : new WaitBound(WaitBoundKind.Timeout, timeout);
++
++        public override string ToString() => this.Kind == WaitBoundKind.Timeout
++            ? "timeout " + this.Timeout.TotalMilliseconds + " ms"
++            : this.Kind.ToString().ToLowerInvariant();
++    }
++
++    /// <summary>How a reported cycle or order is classified. Each rule reports by default.</summary>
++    internal enum WaitRule
++    {
++        /// <summary>
++        /// The holder executes on the waiting thread (length 1), and the edge is not a recursion the
++        /// primitive grants. No progress of another thread can end it. Candidate failure.
++        /// </summary>
++        SelfWait,
++        /// <summary>A cycle across threads whose every wait is unbounded. Candidate failure.</summary>
++        UnboundedCycle,
++        /// <summary>
++        /// A cycle across threads with at least one bounded wait: allowed when the outcomes are correct
++        /// (a lock timeout is LiteDB's documented resolution, for example crossed collection locks).
++        /// </summary>
++        BoundedCycle,
++        /// <summary>Lock order A then B on one thread, B then A seen on another thread, without an active cycle.</summary>
++        LockOrder,
++    }
++
++    internal static class WaitPrimitiveExtensions
++    {
++        /// <summary>Whether a thread that holds the primitive acquires it again without waiting.</summary>
++        internal static bool IsRecursive(this WaitPrimitive primitive) =>
++            primitive == WaitPrimitive.Monitor || primitive == WaitPrimitive.Lock ||
++            primitive == WaitPrimitive.NamedMutex || primitive == WaitPrimitive.Ownership;
++
++        /// <summary>Stable rule id, as used by <c>LITEDB_WAITGRAPH_FAIL</c> and reports.</summary>
++        internal static string Id(this WaitRule rule)
++        {
++            switch (rule)
++            {
++                case WaitRule.SelfWait: return "self-wait";
++                case WaitRule.UnboundedCycle: return "unbounded-cycle";
++                case WaitRule.BoundedCycle: return "bounded-cycle";
++                default: return "lock-order";
++            }
++        }
++    }
++}
++#endif
+diff --git a/LiteDB/Utils/WaitGraph.cs b/LiteDB/Utils/WaitGraph.cs
+new file mode 100644
+index 000000000..8d9561339
+--- /dev/null
++++ b/LiteDB/Utils/WaitGraph.cs
+@@ -0,0 +1,228 @@
++#if DEBUG || TESTING
++using System;
++using System.Collections.Concurrent;
++using System.Collections.Generic;
++using System.Runtime.CompilerServices;
++using System.Threading;
++
++namespace LiteDB.Utils
++{
++    /// <summary>
++    /// Test-build wait-for graph: typed dependency instrumentation in reporting mode. Blocking sites
++    /// register their wait (primitive, bound, origin) before they block; acquisitions and releases
++    /// register holds; frames tell which owner's work a thread executes now. Before a thread blocks, a
++    /// search looks for a cycle back to it and classifies it (<see cref="WaitRule"/>); a lock-order
++    /// history is kept as well. Findings are latched in a side channel (<see cref="Findings"/>, and
++    /// <c>LITEDB_WAITGRAPH_REPORT</c>) and reported at the end of a test or scenario. Nothing is ever
++    /// thrown through library code. A harness fails on a finding only for rules configured to fail
++    /// (<c>LITEDB_WAITGRAPH_FAIL</c>, <see cref="SetFailing"/>); all rules report by default.
++    /// See docs/wait-for-graph.md. <c>LITEDB_WAITGRAPH=0</c> disables recording.
++    /// </summary>
++    internal static partial class WaitGraph
++    {
++        private static readonly bool _environmentEnabled =
++            !string.Equals(Environment.GetEnvironmentVariable("LITEDB_WAITGRAPH"), "0", StringComparison.Ordinal);
++        private static volatile bool _forced;
++
++        private static readonly ConcurrentDictionary<string, Resource> _named =
++            new ConcurrentDictionary<string, Resource>(StringComparer.Ordinal);
++        private static readonly ConditionalWeakTable<object, Resource> _bound = new ConditionalWeakTable<object, Resource>();
++        private static readonly ConditionalWeakTable<Thread, ThreadState> _states = new ConditionalWeakTable<Thread, ThreadState>();
++        // Owners whose every hold a frame claims (a teardown runs under all of them), by owner.
++        private static readonly Dictionary<object, List<ThreadState>> _claims =
++            new Dictionary<object, List<ThreadState>>(IdentityComparer.Instance);
++
++        [ThreadStatic] private static ThreadState _current;
++
++        /// <summary>Whether hooks record anything.</summary>
++        internal static bool Enabled => _environmentEnabled || _forced;
++
++        /// <summary>Test hook: enable the graph for the graph's own tests even when the environment disabled it.</summary>
++        internal static IDisposable Force()
++        {
++            var previous = _forced;
++            _forced = true;
++            return new Restore(() => _forced = previous);
++        }
++
++        private static ThreadState Current => _current ?? (_current = StateOf(Thread.CurrentThread));
++
++        private static ThreadState StateOf(Thread thread)
++        {
++            lock (_states) return _states.GetValue(thread, t => new ThreadState(t));
++        }
++
++        /// <summary>A new resource for a primitive the caller owns.</summary>
++        internal static Resource Create(string kind, WaitPrimitive primitive, string label = null, bool ordered = true) =>
++            new Resource(kind, label, primitive, ordered);
++
++        /// <summary>The process-wide resource <paramref name="label"/> of <paramref name="kind"/>, such as a named OS mutex.</summary>
++        internal static Resource Named(string kind, string label, WaitPrimitive primitive) =>
++            _named.GetOrAdd(kind + ":" + label, _ => new Resource(kind, label, primitive));
++
++        /// <summary>Make <paramref name="key"/> (for example a Mutex instance) stand for <paramref name="resource"/>.</summary>
++        internal static void Bind(object key, Resource resource)
++        {
++            lock (_bound)
++            {
++                _bound.Remove(key);
++                _bound.Add(key, resource);
++            }
++        }
++
++        /// <summary>The resource bound to <paramref name="key"/>, else one of <paramref name="kind"/> for that object.</summary>
++        internal static Resource Of(object key, string kind, WaitPrimitive primitive)
++        {
++            lock (_bound) return _bound.GetValue(key, _ => new Resource(kind, null, primitive));
++        }
++
++        /// <summary>
++        /// Record, after the real acquisition, that <paramref name="owner"/> holds <paramref name="resource"/>
++        /// on this thread. Without an owner the hold is the calling thread's own (thread-affine).
++        /// </summary>
++        internal static void Acquired(Resource resource, object owner = null, bool threadAffine = false, string site = null)
++        {
++            if (!Enabled || resource == null) return;
++            var state = Current;
++            if (owner == null || ReferenceEquals(owner, Thread.CurrentThread))
++            {
++                // A thread's own hold is keyed by its graph state, never by the Thread object.
++                owner = state;
++                threadAffine = true;
++            }
++            else if (owner is Thread other) owner = StateOf(other);
++            if (!resource.Add(owner, state, threadAffine, site)) return;
++            var held = state.Remember(resource);
++            if (resource.Ordered) RecordOrder(state, held, resource, site);
++        }
++
++        /// <summary>
++        /// Record, before the real release, that one acquisition of <paramref name="owner"/> (default:
++        /// the calling thread) ended, or all of them. Any thread may call it.
++        /// </summary>
++        internal static void Released(Resource resource, object owner = null, bool all = false)
++        {
++            if (!Enabled || resource == null) return;
++            resource.Remove(owner == null ? Current : owner is Thread thread ? StateOf(thread) : owner, all);
++        }
++
++        /// <summary>End every hold of <paramref name="resource"/>, as disposing it does.</summary>
++        internal static void ReleaseAll(Resource resource)
++        {
++            if (!Enabled || resource == null) return;
++            resource.Clear();
++        }
++
++        /// <summary>
++        /// The calling thread starts executing work of <paramref name="owner"/> (a public call, a
++        /// read, a teardown). With <paramref name="claimsAll"/>, every hold of the owner, on any
++        /// thread, ends only after this frame does.
++        /// </summary>
++        internal static void Enter(object owner, bool claimsAll = false)
++        {
++            if (!Enabled || owner == null) return;
++            var state = Current;
++            state.Enter(owner, claimsAll);
++            if (!claimsAll) return;
++            lock (_claims)
++            {
++                if (!_claims.TryGetValue(owner, out var list)) _claims[owner] = list = new List<ThreadState>(1);
++                list.Add(state);
++            }
++        }
++
++        /// <summary>End the innermost frame of <paramref name="owner"/> on the calling thread.</summary>
++        internal static void Exit(object owner)
++        {
++            if (!Enabled || owner == null) return;
++            var state = Current;
++            var frame = state.Exit(owner);
++            if (frame == null || !frame.ClaimsAll) return;
++            lock (_claims)
++            {
++                if (!_claims.TryGetValue(owner, out var list)) return;
++                list.Remove(state);
++                if (list.Count == 0) _claims.Remove(owner);
++            }
++        }
++
++        /// <summary>Frame scope for a <c>using</c> statement.</summary>
++        internal static Restore Executing(object owner, bool claimsAll = false)
++        {
++            Enter(owner, claimsAll);
++            return new Restore(() => Exit(owner));
++        }
++
++        /// <summary>
++        /// Register that the calling thread is about to block on <paramref name="resource"/> (and
++        /// <paramref name="also"/>), then search for a cycle and latch what it finds. Never throws.
++        /// <paramref name="viaHandoff"/>: a helper thread performs the primitive wait for this thread.
++        /// <paramref name="excludeOwn"/>: the wait does not wait for the waiting thread's own holds.
++        /// Dispose the scope as soon as the blocking call returns.
++        /// </summary>
++        internal static WaitScope Wait(Resource resource, WaitBound bound, string site, object owner = null,
++            Resource also = null, bool excludeOwn = false, bool viaHandoff = false, WaitOrigin origin = WaitOrigin.Library)
++        {
++            if (!Enabled || resource == null) return default;
++            var state = Current;
++            var record = new WaitRecord(resource, also, bound, origin, viaHandoff, site, owner, excludeOwn, state.Wait);
++            state.Push(record);
++            Check(state, record);
++            return new WaitScope(state, record);
++        }
++
++        /// <summary>Search again for the innermost registered wait; call on each iteration of a poll loop.</summary>
++        internal static void Recheck()
++        {
++            if (!Enabled) return;
++            var state = Current;
++            var record = state.Wait;
++            if (record != null) Check(state, record);
++        }
++
++        /// <summary>Driver edge: a test driver waits on <paramref name="resource"/> (an event, barrier or callback).</summary>
++        internal static WaitScope DriverWait(Resource resource, WaitBound bound, string site) =>
++            Wait(resource, bound, site, origin: WaitOrigin.Driver);
++
++        /// <summary>Driver edge: the calling thread joins <paramref name="thread"/> and waits for its progress.</summary>
++        internal static WaitScope Join(Thread thread, WaitBound bound, string site) =>
++            Enabled ? Wait(StateOf(thread).Progress, bound, site, StateOf(thread), origin: WaitOrigin.Driver) : default;
++
++        internal static string Describe(object owner)
++        {
++            if (owner == null) return "nobody";
++            if (owner is Thread thread)
++                return $"thread '{thread.Name ?? "unnamed"}' #{thread.ManagedThreadId}";
++            if (owner is ThreadState state) return state.ToString();
++            return owner.GetType().Name + "#" + _ids.GetValue(owner, _ => new StrongBox<int>(Interlocked.Increment(ref _nextOwnerId))).Value;
++        }
++
++        private static readonly ConditionalWeakTable<object, StrongBox<int>> _ids = new ConditionalWeakTable<object, StrongBox<int>>();
++        private static int _nextOwnerId;
++
++        private static ThreadState[] Claimers(object owner)
++        {
++            lock (_claims) return _claims.TryGetValue(owner, out var list) ? list.ToArray() : Array.Empty<ThreadState>();
++        }
++
++        /// <summary>Disposable that runs an action once.</summary>
++        internal sealed class Restore : IDisposable
++        {
++            private Action _action;
++
++            internal Restore(Action action) => _action = action;
++
++            public void Dispose() => Interlocked.Exchange(ref _action, null)?.Invoke();
++        }
++
++        private sealed class IdentityComparer : IEqualityComparer<object>
++        {
++            internal static readonly IdentityComparer Instance = new IdentityComparer();
++
++            public new bool Equals(object x, object y) => ReferenceEquals(x, y);
++
++            public int GetHashCode(object obj) => RuntimeHelpers.GetHashCode(obj);
++        }
++    }
++}
++#endif
