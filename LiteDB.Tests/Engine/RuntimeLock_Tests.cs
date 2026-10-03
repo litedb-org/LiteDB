@@ -16,22 +16,24 @@ namespace LiteDB.Tests.Engine
         public async Task CollectionLock_Times_Out_While_Held_And_Can_Be_Reentered_After_Release()
         {
             var collectionLock = new CollectionLock();
+            var holderOwner = new object();
+            var waiterOwner = new object();
             using (var acquired = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
                 var holder = Task.Run(() =>
                 {
-                    collectionLock.TryEnter(TimeSpan.Zero).Should().BeTrue();
+                    collectionLock.TryEnter(holderOwner, TimeSpan.Zero).Should().BeTrue();
                     acquired.Set();
                     release.Wait();
-                    collectionLock.Exit();
+                    collectionLock.Exit(holderOwner);
                 });
 
                 try
                 {
                     acquired.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
-                    collectionLock.TryEnter(TimeSpan.FromMilliseconds(100)).Should().BeFalse();
+                    collectionLock.TryEnter(waiterOwner, TimeSpan.FromMilliseconds(100)).Should().BeFalse();
                 }
                 finally
                 {
@@ -40,8 +42,8 @@ namespace LiteDB.Tests.Engine
                 }
             }
 
-            collectionLock.TryEnter(TimeSpan.FromSeconds(1)).Should().BeTrue();
-            collectionLock.Exit();
+            collectionLock.TryEnter(waiterOwner, TimeSpan.FromSeconds(1)).Should().BeTrue();
+            collectionLock.Exit(waiterOwner);
         }
 
         [Fact]

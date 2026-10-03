@@ -17,7 +17,9 @@ namespace LiteDB.Engine
     {
         private readonly EnginePragmas _pragmas;
 
-        private readonly TransactionGate _transaction = new TransactionGate();
+        private readonly TransactionGate _transaction;
+        private readonly Func<object> _owner;
+        private readonly Action _validate;
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
 #if DEBUG || TESTING
@@ -26,10 +28,21 @@ namespace LiteDB.Engine
         internal Action AfterExclusiveAdmission { get; set; }
 #endif
 
-        internal LockService(EnginePragmas pragmas)
+        /// <param name="pragmas">Engine pragmas, including the lock timeout.</param>
+        /// <param name="owner">
+        /// Resolves the current lease owner: the explicit transaction handle executing on this
+        /// thread, if any, otherwise the thread itself.
+        /// </param>
+        /// <param name="validate">Throws the engine's published failure once it has stopped.</param>
+        internal LockService(EnginePragmas pragmas, Func<object> owner = null, Action validate = null)
         {
             _pragmas = pragmas;
+            _owner = owner;
+            _validate = validate;
+            _transaction = new TransactionGate(owner);
         }
+
+        private object CurrentOwner => _owner?.Invoke() ?? Thread.CurrentThread;
 
         /// <summary>
         /// Return if current thread have open transaction
@@ -44,7 +57,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Enter transaction read lock - should be called just before enter a new transaction
         /// </summary>
-        public void EnterTransaction()
+        public void EnterTransaction() => EnterTransaction(CurrentOwner);
+
+        internal void EnterTransaction(object owner)
         {
 #if DEBUG || TESTING
             BeforeTransactionAdmission?.Invoke();
@@ -54,7 +69,7 @@ namespace LiteDB.Engine
 
             try
             {
-                if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false)
+                if (_transaction.TryEnterReadLock(_pragmas.Timeout, owner) == false)
                     throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
             }
             catch (ObjectDisposedException)
@@ -69,32 +84,38 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction(Thread owner)
+        public void ExitTransaction(object owner)
         {
             _transaction.ExitReadLock(owner);
         }
 
         /// <summary>
-        /// Enter collection write lock mode (only 1 collection per time can have this lock)
+        /// Enter collection write lock mode (only 1 collection per time can have this lock).
+        /// The lock belongs to <paramref name="owner"/>: the writing transaction's thread or handle.
         /// </summary>
-        public void EnterLock(string collectionName)
+        public void EnterLock(string collectionName, object owner)
         {
             ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
 
             // get collection lock from dictionary (or create new if it does not exist)
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            if (collection.TryEnter(_pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            if (collection.TryEnter(owner, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+
+            // Closing the engine releases an idle handle's locks under their waiters: a waiter
+            // woken that way reports the engine's state instead of running into disposed services.
+            try { _validate?.Invoke(); }
+            catch { collection.Exit(owner); throw; }
         }
 
         /// <summary>
         /// Exit collection in reserved lock
         /// </summary>
-        public void ExitLock(string collectionName)
+        public void ExitLock(string collectionName, object owner)
         {
             if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
 
-            collection.Exit();
+            collection.Exit(owner);
         }
 
         /// <summary>
