@@ -45,6 +45,10 @@ namespace LiteDB.Tests.Engine
             ["SharedMutexNameStrategy"] = (Rule.Copied, null),
             ["SharedReaderFiles"] = (Rule.Copied, null),
             ["CheckpointStage"] = (Rule.Copied, null),
+            ["SharedWriterTimeout"] = (Rule.Copied, null),
+            ["SharedSelfWaitGrace"] = (Rule.Copied, null),
+            ["SharedSlowWaitThreshold"] = (Rule.Wiring, "The child's waits are recorded and reported by the parent connection's recorder, with the parent's threshold."),
+            ["SharedSlowWait"] = (Rule.Wiring, "Cleared by the holder: the parent connection's recorder reports the child's waits; the holder must not root the observer."),
             ["Collation"] = (Rule.CopiedByValue, "Serialized policy only: the application's Collation object (and its Culture) must not be rooted by the holder."),
             ["SharedReaderVersions"] = (Rule.Wiring, "Assigned by the child SharedEngine's constructor from its own reader registry."),
             ["AutoRebuildAllowed"] = (Rule.Wiring, "Assigned by the child SharedEngine's constructor."),
@@ -60,6 +64,9 @@ namespace LiteDB.Tests.Engine
         private static readonly Dictionary<string, string> Fields = new Dictionary<string, string>
         {
             ["_transactionPageLimit"] = "Backing field of TransactionPageLimit, compared through the property.",
+            ["_sharedWriterTimeout"] = "Backing field of SharedWriterTimeout, compared through the property.",
+            ["_sharedSelfWaitGrace"] = "Backing field of SharedSelfWaitGrace, compared through the property.",
+            ["_sharedSlowWaitThreshold"] = "Backing field of SharedSlowWaitThreshold, classified through the property.",
         };
 
         // Present only in DEBUG/TESTING builds of LiteDB.
@@ -153,6 +160,7 @@ namespace LiteDB.Tests.Engine
             if (typeof(Stream).IsAssignableFrom(underlying)) return new MemoryStream();
             if (underlying == typeof(Collation)) return new Collation("en-US/None");
             if (underlying == typeof(TimeZoneInfo)) return TimeZoneInfo.Utc;
+            if (underlying == typeof(TimeSpan)) return TimeSpan.FromMilliseconds(1234);
             if (underlying == typeof(ICoordinationSignals)) return new Signals();
             if (typeof(Delegate).IsAssignableFrom(underlying))
             {
