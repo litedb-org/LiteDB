@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import safety_common as common
@@ -137,3 +138,23 @@ class HelperTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NetModeTests(unittest.TestCase):
+    def test_switch_is_read_from_the_scripts_repository_outside_a_checkout(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        previous = os.getcwd()
+        common._ROOT.clear()
+        with tempfile.TemporaryDirectory() as outside:
+            os.chdir(outside)
+            try:
+                expected = json.loads((Path(__file__).resolve().parents[2] / common.NET_MODES).read_text())
+                listed = "lint-polling" in expected.get("nets", {})
+                self.assertEqual(common.net_advisory("lint-polling"), listed and not expected.get("blocking", True))
+                self.assertFalse(common.net_advisory("not-a-listed-net"))
+                self.assertTrue(common.net_advisory("lint-polling", blocking=False))
+            finally:
+                os.chdir(previous)
+                common._ROOT.clear()

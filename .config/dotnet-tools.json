@@ -22,6 +22,13 @@
         "dotnet-dump"
       ],
       "rollForward": false
+    },
+    "dotnet-stryker": {
+      "version": "5.0.0",
+      "commands": [
+        "dotnet-stryker"
+      ],
+      "rollForward": false
     }
   }
 }

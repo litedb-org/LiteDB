@@ -1,0 +1,111 @@
+name: Mutation on the diff
+
+# Safety net 6 (mutation on the diff), a PILOT: nothing here blocks a merge
+# while .github/safety/net-modes.json has "blocking": false.
+#
+# .github/scripts/run_mutation.py runs the pinned dotnet-stryker
+# (.config/dotnet-tools.json) with the committed config
+# (LiteDB.Tests/stryker-config.json, passed with --config-file) `--since` the
+# merge-base, with TestingEnabled=true (MSBuild reads environment variables as
+# properties, so the mutated LiteDB has the TESTING hooks the tests call) and
+# TargetFramework=net8.0 (LiteDB and LiteDB.Tests build one framework only).
+# Stryker mutates the changed files in LiteDB/Client/, LiteDB/Engine/Services/
+# and LiteDB/Engine/Engine/; mutation_gate.py then lists the surviving mutants on
+# the changed lines as lines to write behavior tests for. It is not a score: no
+# score threshold applies (break-at is 0). Survivors are classified "blocking"
+# (cleanup or lock code: Dispose/Close/Release*/*Finally, finally blocks,
+# lock/gate/monitor/mutex/pin/turnstile/lifetime types or files, minus lines
+# compiled only under DEBUG or TESTING) or "advisory"; the class only fails the
+# job once the net-modes switch is turned on.
+#
+# Changed C# test files broaden the mutant set: Stryker's --since treats a
+# changed test as invalidating every mutant its tests cover, so a test-only
+# change re-tests all of those mutants (the survivor list still covers changed
+# lines only). A changed non-C# file under LiteDB.Tests/ would re-test the whole
+# mutate scope; run_mutation.py adds those files to since.ignore-changes-in.
+#
+# Why not on every PR: Stryker builds LiteDB.Tests, runs the tests with coverage
+# capture, then reruns the covering tests for every batch of mutants of each
+# changed file (all of the file's mutants, not only those on changed lines).
+# The cost for the full suite is not yet measured; the job runs for PRs
+# labelled `critical` (45 minutes) and on demand until the pilot's numbers are
+# reviewed against the per-PR budget target.
+#
+# Local run (works from a linked git worktree too: the helper clones its HEAD,
+# because Stryker's git library resolves a worktree to the main checkout):
+#   python .github/scripts/run_mutation.py --base $(git merge-base HEAD origin/dev) --output /tmp/litedb-mutation
+# Add --test-case-filter '<vstest filter>' to narrow the tests for a quick look.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Revision to diff against (default: the merge-base with origin/dev)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Mutation survivors on changed lines
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'critical') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'critical'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compute merge-base
+        id: base
+        env:
+          INPUT_BASE: ${{ inputs.base }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'dev' }}
+        run: |
+          if [ -n "$INPUT_BASE" ]; then
+            base=$(git rev-parse --verify "$INPUT_BASE^{commit}")
+          else
+            git fetch --no-tags origin "$BASE_REF"
+            base=$(git merge-base HEAD FETCH_HEAD)
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "Diffing $(git rev-parse HEAD) against merge-base $base"
+
+      - name: Run Stryker on the diff and list survivors on changed lines
+        env:
+          MERGE_BASE: ${{ steps.base.outputs.sha }}
+        run: >-
+          python .github/scripts/run_mutation.py --base "$MERGE_BASE" --output "$RUNNER_TEMP/mutation"
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: ${{ runner.temp }}/mutation
+          if-no-files-found: warn
+          retention-days: 14

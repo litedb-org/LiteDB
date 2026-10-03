@@ -52,7 +52,9 @@ contracts. Each entry links to the normative documents, the paths that
 implicate it, and evidence items. Each evidence item is a test, fuzz target or
 compatibility script, with the failure model and the observed event it `proves`
 (a hit list, two live snapshots, an index plan, a real handoff), plus the known
-gaps. Every reference must resolve. Fuzz targets must run in `fuzz.yml`, and
+gaps. A contract's `claims` map normative documentation sentences to the
+evidence that establishes them, or to an explicit gap (the
+[semantic review](#semantic-review) record). Every reference must resolve. Fuzz targets must run in `fuzz.yml`, and
 scripts must run in a workflow, so a rename or an unscheduled target cannot leave
 a stale claim. The report's model matrix shows unclaimed models; a `-` is a gap,
 not a pass.
@@ -120,6 +122,254 @@ The ledger's `quarantine` lists tests no CI leg executes, each with an owner, a
 reason, a review date and the gap it leaves. A quarantined test is a visible
 coverage gap, never passing evidence. A passed review date is reported on every
 run.
+
+## Diff nets
+
+These nets judge the change against its base. Each one answers a question a diff
+reviewer cannot answer reliably. None of them proves the code correct.
+
+| Net | Catches | Runs |
+| --- | --- | --- |
+| [Diff lints](#diff-lints) | new polling loops, deleted invariant comments, unanchored doc claims | every PR (Safety policy, Safety section) |
+| [Differential run](#differential-run) | normalized behavior changes nobody declared, and declared changes that did not happen | PRs touching `LiteDB/` |
+| [Mutation on the diff](#mutation-on-the-diff) | changed cleanup and lock lines that no test pins down | PRs labelled `critical`, manual |
+| [Contended acquire](performance.md#contended-acquire) | acquire-latency tails, overtaking and waiter progress | the writer-contention step of the shared-slot performance workflow |
+
+**Pilot: nothing blocks yet.** [`net-modes.json`](../../.github/safety/net-modes.json)
+is the single switch for all of them. While its `blocking` is `false`, each net
+reports its findings in the job summary and annotations and exits 0. One
+reviewed change to `true` makes every listed net fail its job on findings, once
+the pilot numbers are reviewed. The scripts take `--advisory` or `--blocking` to
+override the switch locally. Jobs do not use `continue-on-error`, which would
+also hide a crashing script.
+
+### Diff lints
+
+The Safety policy job runs three lints on the lines a PR adds or removes:
+
+- `lint_polling.py`: a timed wait (`WaitOne(n)`, `Monitor.Wait(x, n)`,
+  `SemaphoreSlim`/`ManualResetEventSlim.Wait(n)`, `WaitAny(.., n)`), a sleep,
+  `Task.Delay` or a spin added inside a loop in `LiteDB/` needs
+  `// polling: <reason>` on its line or within the two lines above. A waiter that
+  times out and retries loses its place in the queue, so later arrivals can win
+  the handoff and tail latency grows with the interval.
+- `lint_invariant_comments.py`: a deleted comment in `LiteDB/` stating an
+  ordering or prohibition (`must not`, `never`, `invariant`, `do not`,
+  `must ... before/after`, `cannot`, `without`) must be listed in the PR
+  description, with where the invariant is enforced now:
+
+  ```markdown
+  ### Moved invariants
+
+  - LiteDB/Client/Shared/X.cs:120 → LiteDB.Tests/Shared/X_Tests.cs#Waiters_Keep_Their_Turn
+  - "readers must not outlive the pin" → [marker: refusal:pin-closed]
+  ```
+
+  Name the base location or quote three or more words of the comment; the
+  reference after the arrow must resolve at head. A comment moved or reflowed
+  unchanged is no deletion. The Safety section workflow checks the description;
+  the Safety policy job only lists the deletions.
+- `lint_doc_claims.py`: a new or changed sentence under `docs/` containing
+  `propagate`, `never`, `always`, `rejects`, `refuses` or `guaranteed` needs
+  either an inline anchor that resolves, `[test: <path-or-Class>#<Method>]` or
+  `[marker: <name>]`, or a claim in
+  [`contracts.json`](../../.github/safety/contracts.json) (see
+  [Contracts and fault points](#contracts-and-fault-points)). Unchanged
+  sentences are not judged; `--all` lists the backlog.
+
+An anchor proves that a reference exists, not that the test establishes the
+sentence. That judgment is the [semantic review](#semantic-review).
+
+### Semantic review
+
+For a [critical](validation.md#scale-evidence-with-complexity-and-persistence-risk)
+change, a reviewer who did not write the change reads every normative sentence
+the change adds or edits, together with the evidence named for it, and records
+the result as a `contracts.json` claim:
+
+```json
+{"doc": "docs/x.md", "sentence": "cleanup failures now propagate from Dispose",
+ "evidence": [{"test": "LiteDB.Tests/X_Tests.cs#Method", "proves": "the observed event that establishes it"}]}
+```
+
+`proves` states what the test observes, and must cover every mode and caller
+the sentence covers. A sentence whose evidence covers only part of it is
+narrowed, or recorded with `"gap": "<what is not covered>"`. `check_contracts.py`
+fails when a claimed sentence is no longer in its document, so an edited
+promise is reviewed again. A behavioral promise also gets an
+[`intended-changes.json`](#differential-run) entry, so the differential run
+checks that the code actually changed.
+
+### Differential run
+
+`differential_run.py` builds the merge-base and the head in separate worktrees
+(`TestingEnabled=true`) and runs the same fuzz targets, seeds and counts on each
+tree's own harness. Seeds are fixed per PR number. It compares **normalized
+outcomes** per operation class and dimension (`op`, `dimension` in
+`outcomes.jsonl`):
+
+- the set of outcome kinds observed. An outcome outside a record's declared
+  `permitted` set (`ok`, `threw`, `threw:Type#code`, ...) fails on its own. A
+  racing operation declares the outcomes it may legally end in; when both trees
+  declare the same set, which of them a run hit is a permitted variation, not a
+  difference;
+- the exception contract: the types (and error codes) that escape, and whether
+  the primary failure survives when cleanup also fails (`primaryExceptionType`);
+- payloads and acknowledged effects (`payloadDigest`, `effectsDigest`), compared
+  as multisets;
+- cleanup obligations: a `ConnectionClean` or `Quiescent` evaluation that is
+  unclean, or shows a violation kind, where the base was clean; a `FaultDisposed`
+  declared-to-observed disposition the base did not show at the same teardown
+  path, fault site and injector model (fail-inside or skip). A site only the
+  head exercised is compared with every disposition the base showed on that
+  path. The difference's dimension is `site=<site>;model=<model>`;
+- markers and fault points the base reached that the head no longer reaches.
+
+Timings, raw traces, metric values and the order of legal concurrent winners
+are not compared. Performance is separate evidence. Concurrent targets are
+native-thread evidence: with `--repeat N` (the workflow uses 2), an operation
+whose outcome set varies between runs of one tree is reported as
+schedule-dependent instead of failing. Repeats cannot classify a rare race that
+one tree happens not to hit, so declaring `permitted` is the real remedy. A field the harness does
+not record on both sides is listed as *not compared*. Operation classes and
+markers seen only on the head are listed as capabilities, not diffed.
+
+Each key carries its exercise count on both trees, and the report states
+whether it was exercised and changed, exercised and unchanged, or not
+exercised on the base or on the head. "Unchanged" is evidence. "Not exercised"
+is none.
+
+A fuzz run stops at its first failure, so a head run that failed at step N did
+not run the later steps of the same target, seed and repeat. An operation class
+missing on the head is grouped under that run instead of reported as "no longer
+exercised" only when this holds for every base run that shows the class:
+
+- the head run of the same target, seed and repeat stopped early at step N;
+- the base run first shows the class at step N or later.
+
+A class the base showed at a step the head run reached is still a finding.
+The same holds for a class whose head run completed or is missing, and for a
+record without a step. Grouped classes are *not compared*. The report gives one
+note per head run: target, seed, repeat, stop step, failure id, number of
+classes and examples. The note fails the run once (the manifest cannot cover
+it) when the base run of that schedule completed every step: the head
+introduced the failure that cut the comparison short. When both runs stopped
+early, the note does not fail. The fuzz failures are the fuzz targets'
+findings. Lost markers and fault points are never grouped.
+
+Every remaining difference must be claimed by an entry this PR adds to
+[`intended-changes.json`](../../.github/safety/intended-changes.json). An entry
+whose change is not observed fails as well, so a promised contract change that
+the code does not make is caught. The report says which case it is:
+
+- *exercised, unchanged*: both trees ran the claimed call, and the claimed
+  change did not happen;
+- *not exercised* on the base, the head or either side: the run has no evidence
+  about the claim. Add a target or seed that reaches the call. Only entries added by the change count, as
+with the coverage ledger. An entry names the operation class, an optional
+dimension pattern, the change, the old and new behavior, the doc sentence that
+promises it and the reason:
+
+```json
+{"call": "Dispose", "dimension": "mode=shared", "change": "new-exception",
+ "before": "none", "after": "System.IO.IOException",
+ "doc": "docs/x.md#cleanup failures now propagate", "reason": "..."}
+```
+
+`change` is one of `new-exception`, `exception-removed`, `primary-changed`,
+`outcome-change`, `payload-change`, `effect-change`, `cleanup-change` or `marker`.
+For a `cleanup-change` of a `FaultDisposed` row, `call` is the teardown path.
+`"dimension": "site=LiteEngine.Close.checkpoint;*"` limits the entry to one
+fault site.
+The `doc` fragment quotes the promising sentence, or names a heading whose
+section mentions the call; `check_intended_changes.py` validates both in the
+Safety policy job.
+
+When a PR changes behavior on purpose:
+
+1. Write the doc sentence and its contracts.json claim.
+2. Add the manifest entry.
+3. Run the differential run locally and put its markdown report in the PR
+   description:
+
+```bash
+python .github/scripts/differential_run.py --base "$(git merge-base HEAD origin/dev)" \
+  --targets chaos,concurrent --seeds 2947,102947 --count 30
+```
+
+Both trees need the outcome-emitting fuzz harness. The workflow skips with a
+visible warning while the base lacks it. For an older tree, check it out as a
+worktree, apply the harness commits on top and pass `--base-tree` (or
+`--head-tree`). `--base-runs`/`--head-runs` compare existing run directories.
+
+### Mutation on the diff
+
+Mutation on the diff is a pilot. PRs labelled `critical`, and manual runs,
+execute `mutation.yml`, which calls `.github/scripts/run_mutation.py`. The helper:
+
+- runs the pinned `dotnet-stryker` (`.config/dotnet-tools.json`) with the
+  committed `LiteDB.Tests/stryker-config.json` (passed with `--config-file`),
+  `--since` the full merge-base SHA;
+- sets `TestingEnabled=true` and `TargetFramework=net8.0` in the environment,
+  because the tests call TESTING hooks and the projects are multi-target;
+- mutates changed files in `LiteDB/Client`, `LiteDB/Engine/Services` and
+  `LiteDB/Engine/Engine`;
+- skips Stryker, and writes an empty survivor list that says why, when no
+  changed C# file matches those globs: no mutant can then touch a changed
+  line, and Stryker would still run the whole suite twice before `--since`
+  filters anything
+  [test: .github/scripts/test_run_mutation.py#test_no_changed_file_in_the_mutate_scope_skips_stryker_with_an_empty_gate];
+- from a linked `git worktree`, runs in a temporary clone of the worktree's
+  HEAD. Stryker resolves a worktree to the main checkout, and uncommitted
+  changes are not mutated.
+
+`mutation_gate.py` lists the surviving mutants (Survived, NoCoverage) whose span
+touches a changed line. They are lines to write behavior tests for, not a score;
+no score threshold applies. A survivor in cleanup or lock code is classed
+*blocking*, and the class fails the job only once the switch is on. Cleanup or
+lock code means:
+
+- the body of `Dispose`, `DisposeAsync`, `Close`, `CloseAsync`, `Release*` or
+  `*Finally`, or a finalizer;
+- a `finally` block;
+- a type or file whose name contains the word lock, gate, monitor, mutex, pin,
+  turnstile or lifetime.
+
+Lines that a Release build without `TestingEnabled` cannot compile are not
+product code, so they never block
+[test: .github/scripts/test_mutation_gate.py#test_survivor_compiled_only_under_debug_or_testing_is_advisory]. Such a line is inside an `#if`, `#elif` or
+`#else` branch that is false whenever `DEBUG` and `TESTING` are undefined:
+`#if DEBUG || TESTING`, `#if TESTING`, `#if DEBUG`, or anything nested in
+them. Every other symbol counts as unknown, so the `#else` of
+`#if DEBUG || TESTING` stays product code. Survivors on such lines are
+listed in their own advisory bucket ("DEBUG/TESTING only"), with their count.
+
+Survivors elsewhere are advisory. Timeout counts as detected. CompileError,
+RuntimeError and Pending mutants in that code are reported as not evaluated:
+Stryker discards every mutant of a method when one does not compile. A report
+that does not match the head revision fails in either mode: unreadable, a file
+with mutants whose embedded source differs from the head, or a report key that
+matches several changed files. A file without mutants is skipped and counted,
+because there is no line to map. Stryker 5 lists every file outside the mutate
+scope with the placeholder source `File ignored by mutate filter`. Survivors
+never fail an advisory run
+[test: .github/scripts/test_mutation_gate.py#test_advisory_mode_exits_zero_with_findings_and_placeholders].
+
+Changed C# test files broaden the mutant set. Stryker treats a changed test as
+invalidating every mutant its tests cover, so a test-only change re-tests all
+of them; the survivor list still covers changed lines only. A changed file
+under `LiteDB.Tests/` that does not end in `.cs` (a fixture, the `.csproj`,
+the Stryker config) would make `--since` re-test the whole mutate scope.
+The helper adds each such file to `since.ignore-changes-in` in the config it
+passes, so only C# changes decide which mutants run. Every mutant of a
+changed source file runs either way. The run is not per
+PR because every mutant of a changed file is tested, and the cost is not yet
+measured on the full suite. Survivor outcomes are measured per run, not predicted.
+
+```bash
+python .github/scripts/run_mutation.py --base "$(git merge-base HEAD origin/dev)" --output /tmp/mutation \
+  [--test-case-filter 'FullyQualifiedName~X']
+```
 
 ## Regression proofs
 

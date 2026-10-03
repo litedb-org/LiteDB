@@ -10,6 +10,7 @@ import re
 import sys
 
 import check_contracts
+import lint_invariant_comments
 import safety_common as common
 
 HEADING = re.compile(r"^#{2,3}\s*Safety\s*/\s*regression evidence\s*$", re.I | re.M)
@@ -28,7 +29,8 @@ def section(body):
     match = HEADING.search(body)
     if not match:
         return None
-    following = re.search(r"^#{1,3}\s+\S", body[match.end():], re.M)
+    level = len(match.group(0)) - len(match.group(0).lstrip("#"))  # subsections belong to the section
+    following = re.search(rf"^#{{1,{level}}}\s+\S", body[match.end():], re.M)
     end = match.end() + following.start() if following else len(body)
     return re.sub(r"<!--.*?-->", "", body[match.end():end], flags=re.S)
 
@@ -75,6 +77,8 @@ def main(argv=None):
     index = check_contracts.load(head, report)
     found = check_contracts.implicated(index, common.changed_files(args.base, args.head))
     check(body, [contract["id"] for contract, _ in found], report)
+    lint_invariant_comments.check_body(body, lint_invariant_comments.deletions(args.base, args.head), args.head,
+                                       report, advisory=common.net_advisory("lint-invariant-comments"))
     report.section("Implicated contracts: " + (", ".join(f"`{contract['id']}`" for contract, _ in found) or "none"))
     return report.finish()
 

@@ -113,6 +113,11 @@ use `index`; for replacement recovery use `rebuild-transition`; for flush/order
 changes include `power-loss,recovery,wal` and the file-compatibility scripts;
 for close, rebuild or fatal-error paths during other work use `chaos-maintenance`.
 
+A change to an exception contract, a wait primitive or a teardown path also runs
+the [differential run](safety-evidence.md#differential-run) against the
+merge-base with its intended changes declared; a `critical` change adds
+[mutation on the diff](safety-evidence.md#mutation-on-the-diff).
+
 ### Maintenance during an active operation
 
 `chaos-maintenance` forces a close, rebuild or fatal I/O failure on one thread

@@ -78,7 +78,9 @@ class Tree:
         return self._paths
 
     def exists(self, path):
-        return path in set(self.paths())
+        if getattr(self, "_path_set", None) is None:
+            self._path_set = set(self.paths())
+        return path in self._path_set
 
     def read(self, path):
         """Return the decoded file content, or None when the revision lacks it."""
@@ -155,6 +157,31 @@ def added_lines(base, head, paths, cwd=None):
         elif raw.startswith("+") and path is not None:
             yield path, line, raw[1:]
             line += 1
+
+
+def diff_lines(base, head, paths, cwd=None):
+    """Yield (sign, path, line, text): '-' lines numbered in base, '+' lines numbered in head."""
+    diff = git("diff", "-U0", "--no-renames", *_revisions(base, head), "--", *paths, cwd=cwd)
+    old_path = new_path = None
+    old = new = 0
+    for raw in diff.splitlines():
+        if raw.startswith("--- "):
+            old_path = None if raw[4:] == "/dev/null" else raw[6:]
+        elif raw.startswith("+++ "):
+            new_path = None if raw[4:] == "/dev/null" else raw[6:]
+        elif raw.startswith("@@"):
+            match = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)", raw)
+            old, new = int(match.group(1)), int(match.group(2))
+        elif raw.startswith("-") and old_path is not None:
+            yield "-", old_path, old, raw[1:]
+            old += 1
+        elif raw.startswith("+") and new_path is not None:
+            yield "+", new_path, new, raw[1:]
+            new += 1
+
+
+def merge_base(head="HEAD", upstream="origin/dev", cwd=None):
+    return git("merge-base", head, upstream, cwd=cwd).strip()
 
 
 # --- C# scanning -----------------------------------------------------------
@@ -432,6 +459,129 @@ def markdown_anchors(text):
     return anchors
 
 
+def comment_lines(text):
+    """Map line number -> the comment text on that line (C# //, ///, /* */), markers stripped."""
+    code = blank_code(text, keep_strings=True)
+    comments = {}
+    for number, (original, blanked) in enumerate(zip(text.split("\n"), code.split("\n")), 1):
+        comment = "".join(char if char != other else " " for char, other in zip(original, blanked))
+        comment = re.sub(r"^[\s/*]+|[\s*/]+$", "", re.sub(r"\s+", " ", comment))
+        if comment:
+            comments[number] = comment
+    return comments
+
+
+# --- documentation sentences ------------------------------------------------
+
+ANCHOR = re.compile(r"\[(test|marker):\s*([^\]\s]+)\s*\]")
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z`*_(\"]|\[(?!test:|marker:))")
+
+
+def doc_sentences(text):
+    """Yield (first line, last line, sentence) for markdown prose; code fences and headings skipped.
+
+    Paragraphs, list items and table rows are units; a unit is split after '.', '!' or '?'
+    unless an anchor such as '[test: ...]' follows, so a trailing anchor stays on its sentence.
+    """
+    unit, start, fenced = [], 0, False
+    for number, line in enumerate(text.split("\n") + [""], 1):
+        stripped = line.strip()
+        if stripped.startswith(("```", "~~~")):
+            fenced = not fenced
+        heading = re.match(r"#{1,6}\s", stripped)
+        boundary = fenced or not stripped or heading or stripped.startswith(("```", "~~~", "|", "- ", "* ", "> ")) \
+            or re.match(r"\d+\.\s", stripped)
+        if boundary and unit:
+            yield from _split_unit(unit, start)
+            unit = []
+        if fenced or not stripped or heading or stripped.startswith(("```", "~~~")):
+            continue
+        if stripped.startswith("|"):
+            yield number, number, stripped
+            continue
+        if not unit:
+            start = number
+        unit.append(stripped)
+
+
+def _split_unit(lines, start):
+    text = " ".join(lines)
+    offsets = [0]
+    for line in lines[:-1]:
+        offsets.append(offsets[-1] + len(line) + 1)
+    position = 0
+    for piece in _SENTENCE_END.split(text):
+        index = text.index(piece, position)
+        first = start + sum(1 for offset in offsets if offset <= index) - 1
+        last = start + sum(1 for offset in offsets if offset < index + len(piece)) - 1
+        position = index + len(piece)
+        yield first, last, piece
+
+
+def normalize_prose(text):
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def declared_markers(tree):
+    """Marker names from .github/safety/markers.json, or None when the registry does not exist."""
+    data = tree.read_json(f"{SAFETY_DIR}/markers.json")
+    if data is None:
+        return None
+    items = data.get("markers", data) if isinstance(data, dict) else data
+    names = set(items) if isinstance(items, dict) else {
+        item if isinstance(item, str) else item.get("name") for item in items if isinstance(item, (str, dict))}
+    # Fault-point markers derive from the fault-point registry instead of being listed twice.
+    faults = tree.read_json(f"{SAFETY_DIR}/fault-points.json", {}) or {}
+    names |= {f"fault-point:{entry.get('name')}" for key in ("hooks", "injectors")
+              for entry in faults.get(key, []) if isinstance(entry, dict)}
+    return names - {None}
+
+
+def resolve_test_anchor(tree, reference):
+    """'path#Method', 'Class#Method' or 'Namespace.Class.Method' -> (path, TestMethod) or None.
+
+    A path may also name a .github/scripts/test_*.py unittest method (returns (path, name)).
+    """
+    if "#" in reference and "/" in reference.split("#")[0]:
+        path, _, name = reference.partition("#")
+        if re.match(r"\.github/scripts/test_\w+\.py\Z", path):  # a CI-script unittest
+            text = tree.read(path) or ""
+            return (path, name) if re.search(r"^\s+def " + re.escape(name) + r"\(", text, re.M) else None
+        return resolve_test(tree, reference)
+    owner, _, name = reference.rpartition("#") if "#" in reference else reference.rpartition(".")
+    for fqn, found in collect_tests(tree).items():
+        if found[1].name == name and re.search(r"(?:^|[.+])" + re.escape(owner) + r"\Z", fqn[:-len(name) - 1]):
+            return found
+    return None
+
+
+_CODE_REFERENCE = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)+[\w.-]+\.\w+)(?:#(\w+)|:(\d+))?")
+
+
+def resolve_references(tree, text):
+    """Yield (reference, verdict) for anchors and repository paths named in text.
+
+    verdict is True (resolves), False (does not) or None (a marker while no marker
+    registry exists yet). Anchors are '[test: path-or-Class#Method]' and '[marker: name]';
+    paths may carry '#Method' (a test) or ':line'.
+    """
+    markers = None
+    for kind, value in ANCHOR.findall(text):
+        if kind == "marker":
+            markers = declared_markers(tree) if markers is None else markers
+            yield f"[marker: {value}]", None if markers is None else value in markers
+        else:
+            yield f"[test: {value}]", resolve_test_anchor(tree, value) is not None
+    for match in _CODE_REFERENCE.finditer(ANCHOR.sub("", text)):
+        path, method, line = match.groups()
+        content = tree.read(path) if tree.exists(path) else None
+        if method:
+            verdict = resolve_test(tree, f"{path}#{method}") is not None
+        else:
+            verdict = content is not None and (not line or int(line) <= content.count("\n") + 1)
+        yield match.group(0), verdict
+
+
 def glob_regex(pattern):
     """Translate a path glob with ** support into a compiled regex."""
     parts, index = [], 0
@@ -474,8 +624,11 @@ class Report:
     def section(self, markdown):
         self.sections.append(markdown)
 
-    def finish(self):
+    def finish(self, advisory=False):
+        """Print the summary; exit code 1 on errors unless the net runs in advisory mode."""
         status = "failed" if self.errors else "passed"
+        if self.errors and advisory:
+            status = f"{len(self.errors)} finding(s), advisory (exit 0; see {NET_MODES})"
         lines = [f"## {self.title}: {status}", ""]
         lines += [f"- :x: {message}" for message in self.errors]
         lines += [f"- :warning: {message}" for message in self.warnings]
@@ -487,7 +640,7 @@ class Report:
                 handle.write(summary)
         else:
             print(summary)
-        return 1 if self.errors else 0
+        return 1 if self.errors and not advisory else 0
 
 
 def _annotate(level, message, path, line):
@@ -498,6 +651,35 @@ def _annotate(level, message, path, line):
     properties = ",".join(filter(None, [f"file={path}" if path else "", f"line={line}" if line else ""]))
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::{level}{' ' + properties if properties else ''}::{escaped}")
+
+
+# --- advisory/blocking switch for the diff nets ------------------------------
+
+NET_MODES = f"{SAFETY_DIR}/net-modes.json"
+
+
+def add_mode_arguments(parser):
+    """--advisory/--blocking override the single switch in net-modes.json for a local run."""
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--advisory", dest="blocking", action="store_false", default=None,
+                       help=f"Report findings but exit 0 (default: per {NET_MODES})")
+    group.add_argument("--blocking", dest="blocking", action="store_true", help="Exit 1 on findings")
+
+
+def net_advisory(net, blocking=None):
+    """True when `net` reports without failing. One switch: net-modes.json "blocking" for every net it
+    lists; a net it does not list, or a missing file, is blocking. An explicit argument wins."""
+    if blocking is not None:
+        return not blocking
+    try:
+        root = Path(repo_root())
+    except (subprocess.CalledProcessError, OSError):  # run outside a checkout: use the scripts' own repository
+        root = Path(__file__).resolve().parents[2]
+    path = root / NET_MODES
+    if not path.is_file():
+        return False
+    data = load_json_file(path)
+    return net in data.get("nets", {}) and not data.get("blocking", True)
 
 
 def load_json_file(path):

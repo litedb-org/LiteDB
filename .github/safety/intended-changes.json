@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Contract ledger for the differential run (differential_run.py): each entry names an operation class from outcomes.jsonl, the behavior change this PR intends, and the doc sentence that promises it. Only entries added by a change count, so this list starts empty on dev and grows as a history of intended contract changes. Validated by check_intended_changes.py; see docs/rules/safety-evidence.md.",
+  "changes": []
+}

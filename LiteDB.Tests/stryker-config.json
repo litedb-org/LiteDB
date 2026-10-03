@@ -1,0 +1,23 @@
+{
+  "stryker-config": {
+    "project": "LiteDB.csproj",
+    "configuration": "Release",
+    "target-framework": "net8.0",
+    "mutate": [
+      "**/LiteDB/Client/**/*.cs",
+      "**/LiteDB/Engine/Services/**/*.cs",
+      "**/LiteDB/Engine/Engine/**/*.cs"
+    ],
+    "mutation-level": "Standard",
+    "coverage-analysis": "perTest",
+    "additional-timeout": 10000,
+    "concurrency": 4,
+    "reporters": ["progress", "json", "html"],
+    "thresholds": { "high": 100, "low": 0, "break": 0 },
+    "since": {
+      "enabled": true,
+      "target": "dev",
+      "ignore-changes-in": ["**/*.md", "**/.github/**", "**/docs/**"]
+    }
+  }
+}

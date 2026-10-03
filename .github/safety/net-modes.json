@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "description": "The single switch for the diff nets added by the safety-net plan (docs/rules/safety-evidence.md#diff-nets). While 'blocking' is false every net listed here reports its findings in the job summary and annotations but exits 0, so pilot numbers can be reviewed before anything blocks a merge. Set 'blocking' to true (one reviewed change) to make all of them fail their job on findings. Scripts accept --advisory/--blocking to override locally.",
+  "blocking": false,
+  "nets": {
+    "lint-polling": ".github/scripts/lint_polling.py (Safety policy job)",
+    "lint-invariant-comments": ".github/scripts/lint_invariant_comments.py (Safety policy job; PR body part in check_pr_section.py)",
+    "lint-doc-claims": ".github/scripts/lint_doc_claims.py (Safety policy job)",
+    "intended-changes": ".github/scripts/check_intended_changes.py (Safety policy job)",
+    "differential-run": ".github/scripts/differential_run.py (differential.yml)",
+    "mutation-gate": ".github/scripts/mutation_gate.py (mutation.yml)",
+    "contended-acquire": ".github/scripts/compare_contention.py (shared-slot-performance.yml)"
+  }
+}

@@ -61,6 +61,27 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/net_proof.py validate
 
+      # Diff lints (docs/rules/safety-evidence.md#diff-lints): polling loops need a reason,
+      # deleted invariant comments are listed (the PR body names where they are enforced
+      # now; the Safety section workflow checks that), new doc claims carry an anchor or a
+      # contracts.json claim. PILOT: advisory while .github/safety/net-modes.json has
+      # "blocking": false (findings in the summary, exit 0); flip that one switch to block.
+      - name: Lint added wait primitives for unexplained polling
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/lint_polling.py --base "${BASE_SHA:-HEAD^}"
+
+      - name: List deleted invariant comments
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/lint_invariant_comments.py --base "${BASE_SHA:-HEAD^}"
+
+      - name: Lint new documentation claims for evidence anchors
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/lint_doc_claims.py --base "${BASE_SHA:-HEAD^}"
+
+      - name: Validate the intended-changes manifest
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/check_intended_changes.py --base "${BASE_SHA:-HEAD^}"
+
       - name: Validate the fuzz target obligation map
         if: ${{ !cancelled() }}
         run: python .github/scripts/select_fuzz_targets.py --validate

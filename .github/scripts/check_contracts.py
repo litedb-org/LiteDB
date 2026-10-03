@@ -3,7 +3,9 @@
 Validates .github/safety/contracts.json (every doc anchor, test, fuzz target and
 script it names must exist, fuzz targets must be scheduled in CI and scripts must
 be invoked by a workflow) and, given a base revision, reports which contracts the
-changed paths implicate. Path matching suggests obligations; it never proves a
+changed paths implicate. A contract's `claims` map normative documentation sentences
+to the evidence that establishes them or to an explicit gap; lint_doc_claims.py
+accepts a claim registered here in place of an inline anchor, so there is one ledger. Path matching suggests obligations; it never proves a
 change is safe, and a transitive storage/concurrency effect still needs review.
 """
 import argparse
@@ -31,6 +33,7 @@ def load(tree, report):
         if not isinstance(contract.get("id"), str):
             contract["id"] = None
         contract["evidence"] = common.section(contract, "evidence", list, report, INDEX)
+        contract["claims"] = common.section(contract, "claims", list, report, INDEX)
         for key, kinds in (("docs", str), ("paths", str), ("gaps", (str, dict))):
             values = contract.get(key) or []
             contract[key] = [value for value in values if isinstance(value, kinds)] if isinstance(values, list) else []
@@ -56,6 +59,8 @@ def validate(tree, index, report):
             _check_doc(tree, label, doc, anchors, report)
         for item in contract.get("evidence", []):
             _check_evidence(tree, label, item, models, targets, scheduled, workflows, report)
+        for claim in contract.get("claims", []):
+            _check_claim(tree, label, claim, models, targets, scheduled, workflows, report)
         for gap in contract.get("gaps", []):
             if len(str(gap.get("text") if isinstance(gap, dict) else gap).strip()) < 10:
                 report.error(f"Contract {label}: describe each gap", INDEX)
@@ -71,6 +76,37 @@ def _check_doc(tree, label, doc, anchors, report):
         known = anchors.setdefault(path, common.markdown_anchors(text))
         if anchor not in known:
             report.error(f"Contract {label}: {path} has no heading anchor #{anchor}", INDEX)
+
+
+def claims(index):
+    """Every (contract id, claim) of the index."""
+    return [(contract.get("id"), claim) for contract in index.get("contracts", []) for claim in contract.get("claims", [])]
+
+
+def claim_matches(claim, path, sentence):
+    """True when the claim names this document and quotes (part of) this sentence."""
+    quoted = common.normalize_prose(str(claim.get("sentence") or ""))
+    return claim.get("doc") == path and bool(quoted) and quoted in common.normalize_prose(sentence)
+
+
+def _check_claim(tree, label, claim, models, targets, scheduled, workflows, report):
+    """A claim: {doc, sentence, evidence: [evidence items whose 'proves' says how they establish it]} or {doc,
+    sentence, gap}. The sentence must still be in the document, so an edited promise is reviewed again."""
+    where = f"Contract {label}: claim {claim.get('sentence')!r}"
+    text = tree.read(str(claim.get("doc") or ""))
+    if text is None:
+        report.error(f"{where}: document {claim.get('doc')!r} does not exist", INDEX)
+    elif not any(claim_matches(claim, claim["doc"], sentence) for _, _, sentence in common.doc_sentences(text)):
+        report.error(f"{where}: no sentence of {claim['doc']} contains it any more; review the claim", INDEX)
+    evidence, gap = claim.get("evidence"), str(claim.get("gap") or "").strip()
+    if bool(evidence) == bool(gap) or (gap and len(gap) < 10) or (evidence and not isinstance(evidence, list)):
+        report.error(f"{where}: give either evidence items or a gap of at least a sentence", INDEX)
+        return
+    for item in evidence or []:
+        if isinstance(item, dict):
+            _check_evidence(tree, label, item, models, targets, scheduled, workflows, report)
+        else:
+            report.error(f"{where}: each evidence item is an object", INDEX)
 
 
 def _check_evidence(tree, label, item, models, targets, scheduled, workflows, report):
