@@ -98,6 +98,17 @@ using(var db = new LiteDatabase(@"MyData.db"))
 }
 ```
 
+### BSON serialization
+
+If you need direct access to raw BSON, `BsonSerializer` exposes overloads that write into caller-supplied `Memory<byte>` or `IBufferWriter<byte>` instances. This allows applications to reuse buffers from pools without forcing an intermediate array allocation. The `Memory<byte>` must be backed by a managed array. The `IBufferWriter<byte>` overload is available in the `net8.0` and `net10.0` builds, but is omitted from the `netstandard2.0` API.
+
+```C#
+var writer = new ArrayBufferWriter<byte>();
+var written = BsonSerializer.Serialize(document, writer);
+
+// written now contains the BSON length and writer.WrittenSpan holds the bytes
+```
+
 Using fluent mapper and cross document reference for more complex data models
 
 ```C#

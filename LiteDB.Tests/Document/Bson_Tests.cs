@@ -179,5 +179,6 @@ namespace LiteDB.Tests.Document
                 return mapper.Deserialize<T>(doc);
             }
         }
+
     }
 }
