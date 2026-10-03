@@ -32,6 +32,13 @@ changes since the base, deletions included, and untracked files) to the
 config's since.ignore-changes-in; only C# changes decide the mutant set.
 Changed non-C# files elsewhere are source files that match no mutated file,
 so they never widened the set.
+
+When no changed C# file (added, modified or renamed; outside LiteDB.Tests/)
+matches the config's mutate globs, no mutant can touch a changed line, so the
+gate's list is empty by construction. Stryker would still build every mutant
+and run the whole suite twice (initial run, coverage capture) before --since
+filters anything, which outlasts the job limit. The helper then skips Stryker
+and writes an empty gate report that names the reason.
 """
 import argparse
 import json
@@ -78,6 +85,48 @@ def non_csharp_test_changes(tree, base):
     changed = common.git("diff", "--name-only", "--no-renames", base, "--", TEST_PROJECT_DIR, cwd=tree).splitlines()
     untracked = common.git("ls-files", "--others", "--exclude-standard", "--", TEST_PROJECT_DIR, cwd=tree).splitlines()
     return sorted({path for path in changed + untracked if path and not path.endswith(".cs")})
+
+
+def glob_regex(pattern):
+    """Stryker's mutate glob as a regex over a repository path: `**/` spans zero or more directories,
+    `*` and `?` stay within one path segment. Patterns start with `**/`, so a leading `/` is matched."""
+    out, index = "", 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            out, index = out + "(?:.*/)?", index + 3
+        elif pattern.startswith("**", index):
+            out, index = out + ".*", index + 2
+        elif pattern[index] == "*":
+            out, index = out + "[^/]*", index + 1
+        elif pattern[index] == "?":
+            out, index = out + "[^/]", index + 1
+        else:
+            out, index = out + re.escape(pattern[index]), index + 1
+    return re.compile(out + r"\Z")
+
+
+def mutate_scope_changes(tree, base):
+    """Changed C# files Stryker may mutate: added, modified or renamed since base, outside the test project,
+    matching an include glob of the config's `mutate` list (every file when it has none) and no `!` exclude."""
+    options = json.loads((Path(tree) / CONFIG).read_text(encoding="utf-8")).get("stryker-config", {})
+    patterns = options.get("mutate") or ["**/*.cs"]
+    include = [glob_regex(item) for item in patterns if not item.startswith("!")]
+    exclude = [glob_regex(item[1:]) for item in patterns if item.startswith("!")]
+    changed = common.git("diff", "--name-only", "--no-renames", "--diff-filter=d", base, "--", "*.cs",
+                         cwd=tree).splitlines()
+    return sorted(path for path in changed
+                  if path and not path.startswith(TEST_PROJECT_DIR + "/")
+                  and any(rule.match("/" + path) for rule in include)
+                  and not any(rule.match("/" + path) for rule in exclude))
+
+
+def write_skipped_gate(output, base, head, reason):
+    """The gate's outputs when no mutant can touch a changed line."""
+    (output / "mutation-gate.json").write_text(json.dumps(
+        {"base": base, "head": head, "skipped": reason, "mutants": [], "unmutatedFiles": []}, indent=2) + "\n",
+        encoding="utf-8")
+    (output / "mutation-gate.md").write_text(
+        f"No mutants on lines changed between `{base}` and `{head}`: {reason}\n", encoding="utf-8")
 
 
 def ignore_pattern(path):
@@ -142,6 +191,12 @@ def main(argv=None, runner=run):
     scratch = tempfile.mkdtemp(prefix="litedb-mutation-")
     try:
         tree, clone = prepare_tree(root, scratch)
+        if not mutate_scope_changes(tree, base):
+            reason = (f"no changed C# file outside {TEST_PROJECT_DIR}/ matches the mutate globs of {CONFIG}; "
+                      "Stryker was not run")
+            print(reason, flush=True)
+            write_skipped_gate(output, base, head, reason)
+            return 0
         ignored = non_csharp_test_changes(tree, base)
         if ignored:
             print(f"{len(ignored)} changed non-C# file(s) under {TEST_PROJECT_DIR}/ added to since.ignore-changes-in "

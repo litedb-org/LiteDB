@@ -314,6 +314,11 @@ execute `mutation.yml`, which calls `.github/scripts/run_mutation.py`. The helpe
   because the tests call TESTING hooks and the projects are multi-target;
 - mutates changed files in `LiteDB/Client`, `LiteDB/Engine/Services` and
   `LiteDB/Engine/Engine`;
+- skips Stryker, and writes an empty survivor list that says why, when no
+  changed C# file matches those globs: no mutant can then touch a changed
+  line, and Stryker would still run the whole suite twice before `--since`
+  filters anything
+  [test: .github/scripts/test_run_mutation.py#test_no_changed_file_in_the_mutate_scope_skips_stryker_with_an_empty_gate];
 - from a linked `git worktree`, runs in a temporary clone of the worktree's
   HEAD. Stryker resolves a worktree to the main checkout, and uncommitted
   changes are not mutated.
