@@ -33,20 +33,52 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void Reading_exactly_the_declared_length_never_returns_surplus_bytes()
+        public void Reading_exactly_the_declared_length_rejects_the_surplus_chunk()
         {
             using var db = WithOversizedLastChunk(out var declaredLength);
             using var reader = db.FileStorage.OpenRead("f");
             var buffer = new byte[declaredLength];
-            var total = 0;
-            int read;
 
-            while (total < buffer.Length && (read = reader.Read(buffer, total, buffer.Length - total)) > 0) total += read;
+            Action read = () =>
+            {
+                var total = 0;
+                int bytes;
 
-            total.Should().Be((int)declaredLength);
+                while (total < buffer.Length && (bytes = reader.Read(buffer, total, buffer.Length - total)) > 0) total += bytes;
+            };
 
-            var tail = Record.Exception(() => reader.Read(new byte[16], 0, 16).Should().Be(0));
-            if (tail != null) tail.Should().BeOfType<LiteException>();
+            read.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Reading_rejects_a_file_whose_chunks_overrun_the_declared_length()
+        {
+            using var db = new LiteDatabase(":memory:");
+            db.FileStorage.Upload("f", "f.bin", new MemoryStream(Enumerable.Repeat((byte)7, 600_000).ToArray()));
+
+            var chunks = db.GetCollection("_chunks");
+            var middle = chunks.FindAll().OrderBy(x => x["_id"]["n"].AsInt32).Skip(1).First();
+            middle["data"] = middle["data"].AsBinary.Concat(new byte[] { 1, 2, 3, 4, 5 }).ToArray();
+            chunks.Update(middle).Should().BeTrue();
+
+            Action download = () => db.FileStorage.Download("f", new MemoryStream());
+
+            download.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected()
+        {
+            using var db = WithOversizedLastChunk(out var declaredLength);
+            using var reader = db.FileStorage.OpenRead("f");
+
+            Action seekAndRead = () =>
+            {
+                reader.Seek(declaredLength - 10, SeekOrigin.Begin);
+                reader.Read(new byte[10], 0, 10).Should().Be(10);
+            };
+
+            seekAndRead.Should().Throw<LiteException>();
         }
     }
 }

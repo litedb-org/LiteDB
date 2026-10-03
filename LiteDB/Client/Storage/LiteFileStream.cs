@@ -37,7 +37,7 @@ namespace LiteDB
                 if (_file.Length < 0 || _file.Chunks < 0 || (_file.Length == 0) != (_file.Chunks == 0))
                     throw new LiteException(LiteException.INVALID_FORMAT, "File '{0}' has inconsistent length and chunk metadata.", _fileId);
                 // initialize first data block
-                _currentChunkData = this.GetChunkData(_currentChunkIndex);
+                _currentChunkData = this.GetChunkData(_currentChunkIndex, 0);
             }
             else if(mode == FileAccess.Write)
             {
