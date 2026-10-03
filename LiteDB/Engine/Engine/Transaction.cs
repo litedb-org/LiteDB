@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
@@ -37,6 +38,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: true);
@@ -60,15 +62,28 @@ namespace LiteDB.Engine
         /// <summary>
         /// Do rollback to current transaction. Clear dirty pages in memory and return new pages to main empty linked-list
         /// </summary>
-        public bool Rollback()
+        public bool Rollback() => this.Rollback(cleanup: false);
+
+        /// <summary>
+        /// Roll back a disposed handle's transaction. If another failure already stopped the
+        /// engine, its owner performs that cleanup; disposal must not rethrow a peer's error.
+        /// </summary>
+        internal bool RollbackHandleOnDispose() => this.Rollback(cleanup: true);
+
+        private bool Rollback(bool cleanup)
         {
-            _state.Validate();
+            this.ValidatePublicDispatch();
+            if (cleanup)
+            {
+                if (_state.IsUnavailable) return false;
+            }
+            else _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: false);
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {
-                this.RollbackAndReleaseTransaction(transaction);
+                this.RollbackAndReleaseTransaction(transaction, cleanup);
 
                 return true;
             }
@@ -87,7 +102,7 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
+            if (write && _settings.ReadOnly) throw new ReadOnlyRefusalException("Cannot modify a read-only database.");
 
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -105,9 +120,19 @@ namespace LiteDB.Engine
             {
                 if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
-                    this.RollbackAndReleaseTransaction(transaction);
+                    if (transaction.Owner.Explicit == null)
+                    {
+                        this.RollbackAndReleaseTransaction(transaction);
 
-                    if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
+                        if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
+                    }
+                    else
+                    {
+                        // A handle's statement error stays primary; a cleanup failure is attached.
+                        try { this.RollbackAndReleaseTransaction(transaction); }
+                        catch (Exception cleanup) { ex.Data["LiteDB.StatementRollback"] = cleanup; }
+                        finally { _monitor.MarkExplicitAbort(); }
+                    }
                 }
 
                 throw;
@@ -137,7 +162,7 @@ namespace LiteDB.Engine
             }
         }
 
-        private void RollbackAndReleaseTransaction(TransactionService transaction)
+        private void RollbackAndReleaseTransaction(TransactionService transaction, bool cleanup = false)
         {
             try
             {
@@ -146,6 +171,9 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
+                // A peer can publish failure after the initial availability check. Compare
+                // before Stop: Stop may publish this operation's own error unchanged.
+                if (cleanup && _state.IsPublishedFailure(ex)) return;
                 _state.Stop(ex);
                 throw;
             }

@@ -14,6 +14,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
+            this.ValidatePublicDispatch();
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 

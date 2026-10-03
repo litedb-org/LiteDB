@@ -18,8 +18,11 @@ namespace LiteDB.Engine
             // empty thread slot is expected here and says nothing about the other threads.
             var abortedHere = _monitor.ConsumeExplicitAbort();
 
-            if (commit && transaction == null && !abortedHere && _monitor.Transactions.Any(candidate =>
-                candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
+            // The diagnostic is legacy-only: a handle completes exactly its own transaction,
+            // and a handle's transaction is never a candidate for a thread's legacy completion.
+            if (commit && transaction == null && !abortedHere && TransactionContext.For(this) == null &&
+                _monitor.Transactions.Any(candidate =>
+                candidate.Owner.Explicit == null && candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
                 candidate.OwnerThread != Thread.CurrentThread))
             {
                 throw new LiteException(0, "No transaction belongs to this thread, but an explicit transaction is open on another thread. " +

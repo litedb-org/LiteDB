@@ -91,7 +91,7 @@ namespace LiteDB.Engine
                 _walIndex.Clear();
                 _disk.EnableChecksums(ref _header);
                 _monitor.Dispose();
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit, () => TransactionContext.For(this));
             }
             // Old binaries must reject even an unconfirmed migration WAL. The order
             // revision stays zero until the same transaction commits every index.
