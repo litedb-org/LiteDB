@@ -64,7 +64,7 @@ namespace LiteDB.Engine
                 // waiting for the handle executing that callback on this thread, nor a handle
                 // begun on a thread whose own cursor lease that writer waits for.
                 while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread) &&
-                    !_readers.ContainsKey(Thread.CurrentThread)))
+                    !_readers.ContainsKey(Thread.CurrentThread) && !HeldByExecutingHandle(Thread.CurrentThread)))
                 {
                     if (!Wait(timeout, elapsed)) return false;
                 }
@@ -105,6 +105,7 @@ namespace LiteDB.Engine
                     {
                         // A handle executing this callback keeps its lease until the
                         // callback returns: waiting for it cannot make progress.
+                        if (HeldByExecutingHandle(thread)) return false;
                         if (!Wait(timeout, elapsed)) return false;
                     }
                     _writer = thread;
@@ -128,6 +129,13 @@ namespace LiteDB.Engine
                 _writer = null;
                 Monitor.PulseAll(_sync);
             }
+        }
+
+        private bool HeldByExecutingHandle(Thread thread)
+        {
+            foreach (var reader in _readers.Keys)
+                if (reader is TransactionContext handle && ReferenceEquals(handle.ExecutingThread, thread)) return true;
+            return false;
         }
 
         private bool Wait(TimeSpan timeout, Stopwatch elapsed)

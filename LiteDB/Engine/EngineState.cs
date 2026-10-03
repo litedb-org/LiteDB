@@ -39,6 +39,10 @@ namespace LiteDB.Engine
 #endif
         }
 
+        internal bool IsUnavailable => Disposed || Volatile.Read(ref _exception) != null;
+        internal bool HasFailure => Volatile.Read(ref _exception) != null;
+        internal bool IsPublishedFailure(Exception error) => ReferenceEquals(Volatile.Read(ref _exception), error);
+
         public void Validate()
         {
             var failure = Volatile.Read(ref _exception);
