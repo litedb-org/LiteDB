@@ -16,6 +16,7 @@ namespace LiteDB.Engine
         // Legacy compatibility resolver: BeginTrans and automatic transactions are per thread.
         // An explicit handle never consults it; it supplies its own slot while bound.
         private readonly ThreadLocal<TransactionSlot> _legacy = new ThreadLocal<TransactionSlot>(() => new TransactionSlot());
+        private readonly Func<TransactionContext> _explicit;
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -37,7 +38,8 @@ namespace LiteDB.Engine
         public int TransactionPageLimit => _transactionPageLimit;
         public TransactionService[] GetTransactionsSnapshot() => _transactions.Snapshot().ToArray();
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit,
+            Func<TransactionContext> explicitContext = null)
         {
             if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));
 
@@ -46,18 +48,28 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _transactionPageLimit = transactionPageLimit;
+            _explicit = explicitContext;
         }
+
+        /// <summary>The explicit handle bound to this engine on the current thread, if any.</summary>
+        internal TransactionContext CurrentExplicit => _explicit?.Invoke();
 
         /// <summary>The current thread's legacy slot, regardless of any bound handle.</summary>
         internal TransactionSlot LegacySlot => _legacy.Value;
 
-        private TransactionSlot CurrentSlot => _legacy.Value;
+        private TransactionSlot CurrentSlot => this.CurrentExplicit?.Slot ?? _legacy.Value;
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
-            var slot = _legacy.Value;
+            var explicitContext = this.CurrentExplicit;
+            var slot = explicitContext?.Slot ?? _legacy.Value;
             var transaction = slot.Transaction;
+
+            // Fail closed: once a handle's transaction has ended, its bound calls never get a
+            // fresh (automatically committed) transaction, whatever path reached the engine.
+            if (create && transaction == null && explicitContext?.Transaction != null)
+                throw new InvalidOperationException("The transaction handle's transaction has ended; nothing further runs in it.");
 
             if (create && transaction == null)
             {
@@ -69,7 +81,7 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = slot.Owner ?? (slot.Owner = new TransactionOwner(null, slot));
+                var owner = slot.Owner ?? (slot.Owner = new TransactionOwner(explicitContext, slot));
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
@@ -84,6 +96,7 @@ namespace LiteDB.Engine
                     if (queryOnly == false)
                     {
                         slot.Transaction = transaction;
+                        if (explicitContext != null) explicitContext.Transaction = transaction;
                     }
                 }
                 catch
@@ -207,6 +220,8 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
+            var explicitContext = this.CurrentExplicit;
+            if (explicitContext != null) return explicitContext.Slot.Transaction;
             return _legacy.Value.Transaction ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 

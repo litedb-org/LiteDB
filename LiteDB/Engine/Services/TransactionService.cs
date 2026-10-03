@@ -306,6 +306,7 @@ namespace LiteDB.Engine
             }
 
             // dispose all snapshots (a handle records its durable outcome first)
+            if (Owner.Explicit != null) Owner.Explicit.Outcome = LiteTransactionState.Committed;
             foreach (var snapshot in this.Snapshots)
             {
                 snapshot.Dispose();

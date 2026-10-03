@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BsonValue Pragma(string name)
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
             return _header.Pragmas.Get(name);
         }
@@ -22,6 +23,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Pragma(string name, BsonValue value)
         {
+            this.ValidatePublicDispatch();
             if (this.Pragma(name) == value) return false;
 
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
