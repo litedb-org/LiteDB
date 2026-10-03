@@ -114,7 +114,7 @@ class RunMutationTests(unittest.TestCase):
         committed = json.dumps({"stryker-config": {"since": {"ignore-changes-in": ["**/*.md"]}}})
         with GitRepo() as repo:
             base = repo.commit({**FILES, runner_module.CONFIG: committed})
-            repo.commit({"LiteDB.Tests/Data/[a]*b?.bin": "x\n"})
+            repo.commit({"LiteDB.Tests/Data/[a]*b?.bin": "x\n", "LiteDB/A.cs": "class A { int z; }\n"})
             recorder = Recorder()
             code, output = self.run_main(["--base", base, "--output", str(self.output),
                                           "--test-case-filter", "Name~X"], recorder)
@@ -128,10 +128,57 @@ class RunMutationTests(unittest.TestCase):
     def test_stryker_failure_skips_the_gate(self):
         with GitRepo() as repo:
             base = repo.commit(FILES)
+            repo.commit({"LiteDB/A.cs": "class A { int x; }\n"})
             recorder = Recorder({"stryker": 3})
             code, _ = self.run_main(["--base", base, "--output", str(self.output)], recorder)
             self.assertEqual(code, 3)
             self.assertFalse(any(call[0][1].endswith("mutation_gate.py") for call in recorder.calls))
+
+    SCOPED = json.dumps({"stryker-config": {"project": "LiteDB.csproj", "target-framework": "net8.0",
+                                            "mutate": ["**/LiteDB/Client/**/*.cs", "!**/LiteDB/Client/Generated/**"]}})
+
+    def scoped_run(self, changes, base_files=None):
+        with GitRepo() as repo:
+            base = repo.commit({**FILES, runner_module.CONFIG: self.SCOPED, "LiteDB/Client/Old.cs": "class O { }\n",
+                                **(base_files or {})})
+            head = repo.commit(changes)
+            recorder = Recorder()
+            code, output = self.run_main(["--base", base, "--output", str(self.output)], recorder)
+            ran = any(call[0][:2] == ["dotnet", "stryker"] for call in recorder.calls)
+            return code, output, ran, base, head
+
+    def test_no_changed_file_in_the_mutate_scope_skips_stryker_with_an_empty_gate(self):
+        code, output, ran, base, head = self.scoped_run({
+            "LiteDB/Engine/Disk/A.cs": "class D { }\n", "tools/net-proofs/B.cs": "class B { }\n",
+            "LiteDB.Tests/Client/T.cs": "class T { }\n", "LiteDB/Client/notes.md": "x\n",
+            "LiteDB/Client/Generated/G.cs": "class G { }\n", "LiteDB/Client/Old.cs": None})
+        self.assertEqual(code, 0, output)
+        self.assertFalse(ran, "Stryker must not run when no mutant can touch a changed line")
+        gate = json.loads((self.output / "mutation-gate.json").read_text(encoding="utf-8"))
+        self.assertEqual((gate["base"], gate["head"], gate["mutants"]), (base, head, []))
+        self.assertIn("matches the mutate globs", gate["skipped"])
+        self.assertIn("Stryker was not run", (self.output / "mutation-gate.md").read_text(encoding="utf-8"))
+
+    def test_a_changed_file_in_the_mutate_scope_runs_stryker(self):
+        for path in ("LiteDB/Client/C.cs", "LiteDB/Client/Shared/Nested/C.cs"):
+            with self.subTest(path=path):
+                code, output, ran, _, _ = self.scoped_run({path: "class C { }\n"})
+                self.assertEqual(code, 0, output)
+                self.assertTrue(ran, f"{path} is in the mutate scope")
+
+    def test_a_file_renamed_into_the_mutate_scope_runs_stryker(self):
+        code, output, ran, _, _ = self.scoped_run({"LiteDB/Engine/R.cs": None, "LiteDB/Client/R.cs": "class R { }\n"},
+                                                  base_files={"LiteDB/Engine/R.cs": "class R { }\n"})
+        self.assertEqual(code, 0, output)
+        self.assertTrue(ran)
+
+    def test_mutate_globs_follow_stryker_directory_semantics(self):
+        rule = runner_module.glob_regex("**/LiteDB/Client/**/*.cs")
+        self.assertTrue(rule.match("/LiteDB/Client/A.cs"))
+        self.assertTrue(rule.match("/LiteDB/Client/x/y/A.cs"))
+        self.assertFalse(rule.match("/LiteDB/ClientX/A.cs"))
+        self.assertFalse(rule.match("/LiteDB/Client/A.csx"))
+        self.assertFalse(runner_module.glob_regex("**/LiteDB/*.cs").match("/LiteDB/Client/A.cs"))
 
 
 if __name__ == "__main__":

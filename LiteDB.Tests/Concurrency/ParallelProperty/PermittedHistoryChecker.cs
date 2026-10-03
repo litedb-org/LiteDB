@@ -48,10 +48,18 @@ namespace LiteDB.Tests.Concurrency.ParallelProperty
     /// (Services/SnapShot.cs:76-88; an earlier read snapshot is replaced, TransactionService.cs:91-96)
     /// and hold the lock until completion. Reads pin a snapshot of the collection at first access and
     /// see the transaction's own writes. Other threads never see uncommitted writes. Commit publishes
-    /// all of its writes at its position.</item>
+    /// all of its writes at its position. In Direct mode Commit and Rollback publish and release the
+    /// locks at one position and end the transaction at a later one within the call: the engine sets
+    /// the transaction's State after disposing its snapshots (Services/TransactionService.cs:309-315,
+    /// 352-375), so a foreign Commit (rule 3) may still be refused in between.</item>
     /// <item>Rejection: Commit on a thread without a transaction while another thread has an active
     /// explicit transaction throws LiteException (Engine/Engine/TransactionCompletionGuard.cs:19-27;
-    /// docs "Commit throws a descriptive LiteException"); Rollback there returns false. In Shared mode
+    /// docs "Commit throws a descriptive LiteException"); Rollback there returns false. The refusal is
+    /// not decided at one instant: the guard copies the registered transactions slot by slot, then
+    /// checks each copy's state (TransactionMonitor.cs:35, TransactionRegistry.cs:95-105). So in
+    /// Direct mode Commit may also return false while explicit transactions of other threads hand
+    /// over during the call (one ends, another begins); it must throw for one that stays active
+    /// throughout the call (two points: the scan, then the check). In Shared mode
     /// a Commit/Rollback of a thread that does not own the mutex only tries it: Commit throws while
     /// an explicit transaction runs, otherwise both return false (Client/Shared/SharedEngine.cs:276-280).
     /// No other exception (ObjectDisposedException included) is permitted for this alphabet.</item>
