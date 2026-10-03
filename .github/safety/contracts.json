@@ -36,7 +36,9 @@
         {"test": "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#FailedCheckpointSync_PreservesAtomicDataAndStopsWrites", "model": "exception", "proves": "A failed checkpoint sync performs zero data writes and stops later writes instead of acknowledging them."},
         {"test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership", "model": "exception", "proves": "Device failures at the Shared commit barrier recover whole transactions and release writer ownership."},
         {"fuzz": "shared", "model": "process-death", "proves": "Child processes die at the reached hook; the parent requires the matching durable intent marker and verifies the recovered state."},
-        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."}
+        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_racing_a_raw_engine_close_never_returns_while_active", "model": "exception", "proves": "A handle commit racing an engine close either returns as Committed or throws the engine's published failure with a non-active outcome; it never returns while the transaction is lost."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs#Uncaught_raw_call_is_refused_before_side_effects", "model": "exception", "proves": "Every public raw engine call from a bound mapper, input enumerable or ReadTransform is refused before any write, so no write escapes a handle's transaction."}
       ],
       "gaps": [
         {"text": "No OS/VM reset or physical-device campaign: the device model is unclaimed."},
@@ -102,7 +104,9 @@
         {"test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery", "model": "process-death", "proves": "A reclaimer killed mid-reclamation cannot invalidate another process's live reader or the reused-slot recovery."},
         {"fuzz": "threaded-snapshot", "proves": "Holds N and N+1 readers while two writers demonstrably complete, then overlaps checkpoint and slot reuse and checks all three versions."},
         {"fuzz": "transaction-gate", "proves": "Transaction admission overlaps checkpoints and readers under forced interleavings."},
-        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."}
+        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleInterleaving_Tests.cs#Forced_concurrent_histories_preserve_transaction_contracts", "proves": "Forced interleavings of bound cursors, overlap, close and maintenance across threads match the committed model after a cold reopen; commit is refused while a bound reader is open and use after dispose throws."},
+        {"test": "LiteDB.Tests/Engine/TransactionHandleMaintenanceProgress_Tests.cs#Maintenance_progresses_under_sustained_handle_callback_reads", "proves": "A rebuild queued behind thread-hopping reader handles completes and no reader that started after it queued gets ahead, except callbacks of the executing handle."}
       ],
       "gaps": [
         {"text": "Shared reader lease files have observer stages only; no registered fault point interrupts lease publication or expiry."}
@@ -179,6 +183,26 @@
       ],
       "gaps": [
         {"text": "Cached and uncached paths share one translator; CLR evaluation is the independent oracle only where semantics align."}
+      ]
+    },
+    {
+      "id": "legacy-transaction-api",
+      "title": "Existing transaction API consumers keep compiling, loading and behaving as before",
+      "docs": [
+        "docs/transaction-handles.md#migrating-legacy-callers",
+        "docs/transaction-handles.md#supported-surface"
+      ],
+      "paths": [
+        "LiteDB/Client/Database/**",
+        "LiteDB/Client/Transactions/**",
+        "LiteDB/Engine/ILiteEngine.cs",
+        "LiteDB/Engine/Engine/Transaction*.cs"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Tests/Engine/TransactionCloseLockRelease_Tests.cs#Foreign_thread_cursor_dispose_keeps_the_legacy_lock_as_on_dev", "model": "exception", "proves": "A ForUpdate cursor disposed on a foreign thread keeps its collection lock exactly as on dev, so a later writer times out."}
+      ],
+      "gaps": [
+        {"text": "Runtime-only checks on net8.0/net10.0; .NET Framework/netstandard2.0 consumers and mocking libraries are not exercised."}
       ]
     }
   ]
