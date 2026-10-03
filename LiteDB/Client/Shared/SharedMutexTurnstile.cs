@@ -29,15 +29,22 @@ namespace LiteDB.Client.Shared
         /// Block until <paramref name="mutex"/> is owned, queued at the turnstile.
         /// Throws <see cref="AbandonedMutexException"/> as <see cref="WaitHandle.WaitOne()"/> does.
         /// </summary>
-        public void Wait(Mutex mutex)
+        public void Wait(Mutex mutex) => this.WaitWithin(mutex, SharedWaitDeadline.Infinite);
+
+        /// <summary>
+        /// As <see cref="Wait(Mutex)"/>, within <paramref name="deadline"/>; a timed-out wait owns
+        /// neither mutex and throws <see cref="SharedWaitTimeoutException"/>. The waits block with
+        /// the remaining budget; they do not poll.
+        /// </summary>
+        public void WaitWithin(Mutex mutex, SharedWaitDeadline deadline)
         {
-            var queued = this.Enter();
+            var queued = this.Enter(deadline);
             try
             {
 #if DEBUG || TESTING
                 this.BeforeMainWait?.Invoke();
 #endif
-                mutex.WaitOne();
+                if (!mutex.WaitOne(deadline.RemainingMilliseconds)) throw new SharedWaitTimeoutException();
             }
             finally
             {
@@ -69,11 +76,12 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
-        private bool Enter()
+        private bool Enter(SharedWaitDeadline deadline)
         {
             try
             {
-                return _turn.WaitOne();
+                if (!_turn.WaitOne(deadline.RemainingMilliseconds)) throw new SharedWaitTimeoutException();
+                return true;
             }
             catch (AbandonedMutexException)
             {

@@ -1,4 +1,6 @@
+using System;
 using System.Threading;
+using LiteDB.Client.Shared;
 
 namespace LiteDB
 {
@@ -23,6 +25,14 @@ namespace LiteDB
             // Refuse before waiting at the gate too: another thread of this connection can
             // hold it only while it waits for the same native mutex.
             this.ThrowIfCallerRetainsOwnership();
+            return this.AcquireWithin((scoped, writing), EnterOwnerWithin);
+        }
+
+        private static readonly Func<SharedEngine, (bool Scoped, bool Writing), SharedWaitDeadline, bool> EnterOwnerWithin =
+            (engine, call, deadline) => engine.EnterOwner(call.Scoped, call.Writing, deadline);
+
+        private bool EnterOwner(bool scoped, bool writing, SharedWaitDeadline deadline)
+        {
 #if NET8_0_OR_GREATER
             long request = 0;
             if (writing)
@@ -31,7 +41,7 @@ namespace LiteDB
             this.AddMutexWaiter();
             try
             {
-                var abandoned = _owner.Enter(scoped);
+                var abandoned = _owner.EnterWithin(scoped, deadline);
 #if NET8_0_OR_GREATER
                 // A queued writer must not replace the current owner's local token.
                 if (writing) Interlocked.Exchange(ref _writerRequest, request);
@@ -88,11 +98,12 @@ namespace LiteDB
         }
 
         /// <summary>Block until no thread of this instance waits for the mutex.</summary>
-        private void WaitForMutexWaiters()
+        private void WaitForMutexWaiters(SharedWaitDeadline deadline = default)
         {
             lock (_waitersLock)
             {
-                while (_mutexWaiters > 0) Monitor.Wait(_waitersLock);
+                while (_mutexWaiters > 0)
+                    if (!Monitor.Wait(_waitersLock, deadline.RemainingMilliseconds)) deadline.ThrowIfExpired(behindThisConnection: true);
             }
         }
     }

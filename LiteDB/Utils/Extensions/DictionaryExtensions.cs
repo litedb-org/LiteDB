@@ -242,5 +242,24 @@ namespace LiteDB
 
             return 0;
         }
+
+        /// <summary>
+        /// Get a timeout: "infinite" or "-1", whole seconds ("30"), or a TimeSpan ("00:00:30").
+        /// </summary>
+        public static TimeSpan GetTimeout(this Dictionary<string, string> dict, string key, TimeSpan defaultValue)
+        {
+            var text = dict.GetValue<string>(key, null)?.Trim();
+            if (text == null) return defaultValue;
+            if (text.Equals("infinite", StringComparison.OrdinalIgnoreCase) || text == "-1") return System.Threading.Timeout.InfiniteTimeSpan;
+            TimeSpan value;
+            if (int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+                value = TimeSpan.FromSeconds(seconds);
+            else if (!TimeSpan.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, out value) || value < TimeSpan.Zero)
+                throw new LiteException(0, $"Invalid connection string value type for `{key}`");
+            // The same range the engine setting accepts, reported when the string is parsed.
+            if (!LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value))
+                throw new LiteException(0, $"`{key}` must be infinite or at most {TimeSpan.FromMilliseconds(int.MaxValue)} (Int32.MaxValue milliseconds)");
+            return value;
+        }
     }
 }

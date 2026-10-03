@@ -69,6 +69,8 @@ namespace LiteDB.Engine
                 ReadTransform = this.ReadTransform,
                 SharedMutexNameStrategy = this.SharedMutexNameStrategy,
                 SharedReaderFiles = this.SharedReaderFiles,
+                SharedWriterTimeout = this.SharedWriterTimeout,
+                SharedSelfWaitGrace = this.SharedSelfWaitGrace,
 #if DEBUG || TESTING
                 CheckpointStage = this.CheckpointStage,
 #endif
@@ -211,6 +213,56 @@ namespace LiteDB.Engine
         /// Determines how the mutex name is generated.
         /// </summary>
         public SharedMutexNameStrategy SharedMutexNameStrategy { get; set; }
+
+        private TimeSpan _sharedWriterTimeout = System.Threading.Timeout.InfiniteTimeSpan;
+
+        /// <summary>
+        /// Shared mode: the longest a call waits for the database's writer ownership, covering the
+        /// local queue, the cross-process turnstile and the native mutex. Past it the call throws
+        /// <see cref="LiteException"/> (LOCK_TIMEOUT) before any side effect. Default: infinite.
+        /// Collection lock waits keep the database TIMEOUT pragma.
+        /// </summary>
+        public TimeSpan SharedWriterTimeout
+        {
+            get => _sharedWriterTimeout;
+            set => _sharedWriterTimeout = LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
+                ? value : throw new ArgumentOutOfRangeException(nameof(SharedWriterTimeout), "Use a nonnegative timeout up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
+        }
+
+        private TimeSpan _sharedSelfWaitGrace = System.Threading.Timeout.InfiniteTimeSpan;
+
+        /// <summary>
+        /// Shared mode, opt-in: refuse a wait for writer ownership with <see cref="InvalidOperationException"/>
+        /// when it comes from the async flow holding the open transaction handle that owns it, and that
+        /// handle has stayed idle for this long while the flow waited. Zero refuses before waiting.
+        /// Default: infinite, never refuse, so another thread may complete the handle meanwhile.
+        /// </summary>
+        public TimeSpan SharedSelfWaitGrace
+        {
+            get => _sharedSelfWaitGrace;
+            set => _sharedSelfWaitGrace = LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
+                ? value : throw new ArgumentOutOfRangeException(nameof(SharedSelfWaitGrace), "Use a nonnegative grace up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
+        }
+
+        private TimeSpan _sharedSlowWaitThreshold = System.Threading.Timeout.InfiniteTimeSpan;
+
+        /// <summary>
+        /// Shared mode: waits for writer ownership this long or longer are reported to <see cref="SharedSlowWait"/>.
+        /// A positive duration up to Int32.MaxValue milliseconds, or <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>
+        /// (the default: never). Zero is rejected: every acquisition, even an immediate one, would be reported.
+        /// </summary>
+        public TimeSpan SharedSlowWaitThreshold
+        {
+            get => _sharedSlowWaitThreshold;
+            set => _sharedSlowWaitThreshold = value != TimeSpan.Zero && LiteDB.Client.Shared.SharedWaitDeadline.IsValidTimeout(value)
+                ? value : throw new ArgumentOutOfRangeException(nameof(SharedSlowWaitThreshold), "Use a positive threshold up to Int32.MaxValue milliseconds, or Timeout.InfiniteTimeSpan.");
+        }
+
+        /// <summary>
+        /// Shared mode: notified, on the thread pool, of each completed wait that reached
+        /// <see cref="SharedSlowWaitThreshold"/>. Exceptions it throws are ignored.
+        /// </summary>
+        public Action<SharedSlowWait> SharedSlowWait { get; set; }
 
         /// <summary>
         /// Create new IStreamFactory for datafile

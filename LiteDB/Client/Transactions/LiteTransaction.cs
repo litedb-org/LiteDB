@@ -21,12 +21,17 @@ namespace LiteDB
         private List<Action> _deferred;
         private Thread _executing;
         private bool _closing, _disposed;
+        // Shared only: marks the async flows that use this handle (refusal of self-waits only).
+        private readonly LiteDB.Client.Shared.SharedHandleFlow _flow;
+        // Shared only: tells waiting flows whether an operation of this handle is in flight.
+        private readonly LiteDB.Client.Shared.SharedHandleActivity _activity;
         private readonly bool _shared;
 
         internal LiteTransaction(TransactionResources resources, BsonMapper mapper, TransactionHandles handles)
         {
             _resources = resources;
             _handles = handles;
+            _activity = resources.Activity;
             _shared = resources.SharedMutexName != null;
             _transaction = new TransactionContext(resources.Engine, resources.SharedMutexName);
             _client = new LiteDatabaseContext(new TransactionEngine(this), mapper);
@@ -37,6 +42,8 @@ namespace LiteDB
                     throw new InvalidOperationException("Complete the legacy transaction before opening a transaction handle.");
                 using var binding = TransactionContext.Enter(_transaction);
                 resources.Engine.BeginHandleTransaction();
+                if (resources.SharedMutexName != null)
+                    LiteDB.Client.Shared.SharedHandleRegistry.Mark(_flow = new LiteDB.Client.Shared.SharedHandleFlow(resources.SharedMutexName, this));
             }
             catch (Exception error)
             {
@@ -87,11 +94,14 @@ namespace LiteDB
                 if (!terminalAllowed && State != LiteTransactionState.Active)
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
             }
+            if (_flow != null) LiteDB.Client.Shared.SharedHandleRegistry.Mark(_flow);
         }
 
         private void Exit()
         {
+            _activity?.OperationEnded();
             lock (_gate)
             {
                 _executing = null;
@@ -125,6 +135,7 @@ namespace LiteDB
                 // leave its reader registered (which refuses commit): release it after that call.
                 if (_executing != null) { (_deferred ?? (_deferred = new List<Action>())).Add(release); return; }
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
             }
             RunCore(() => { release(); return true; });
         }
@@ -345,6 +356,7 @@ namespace LiteDB
                     throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
                 }
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
                 return true;
             }
         }
@@ -370,6 +382,7 @@ namespace LiteDB
                 while (_executing != null) Monitor.Wait(_gate);
                 if (_disposed) return;
                 _executing = Thread.CurrentThread;
+                _activity?.OperationStarted();
             }
             try { DisposeCore(); }
             finally { Exit(); }

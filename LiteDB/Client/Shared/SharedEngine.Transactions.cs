@@ -52,14 +52,45 @@ namespace LiteDB
                 if (this.CannotWaitForOwnershipOnCurrentThread())
                     throw new InvalidOperationException("Complete the legacy transaction or close its locking reader before opening a transaction handle.");
             }
+            // A second handle of the flow that holds the first may be refused (SharedSelfWaitGrace).
+            var selfWait = this.IsSelfWait();
             var gate = TransactionWriters.GetOrAdd(_mutexName, _ => new SemaphoreSlim(1, 1));
+            // One SharedWriterTimeout budget, and one recorded wait, cover this local queue and
+            // native admission: the wait ends when the holder's native wait ended.
+            var deadline = SharedWaitDeadline.Start(_settings.SharedWriterTimeout);
+            var waits = this.Waits;
+            var wait = waits.Begin();
+            var outcome = SharedWaitRecorder.Outcome.Acquired;
+            TransactionHolder holder = null;
+            try
+            {
+                return this.OpenTransactionResources(gate, deadline, selfWait, ref outcome, ref holder);
+            }
+            catch (LiteException error) when (error.ErrorCode == LiteException.LOCK_TIMEOUT)
+            {
+                outcome = SharedWaitRecorder.Outcome.TimedOut;
+                throw;
+            }
+            finally { waits.End(wait, outcome, holder?.AdmittedAt ?? 0); }
+        }
+
+        private TransactionResources OpenTransactionResources(SemaphoreSlim gate, SharedWaitDeadline deadline, bool selfWait,
+            ref SharedWaitRecorder.Outcome outcome, ref TransactionHolder holder)
+        {
+            // The handle's holder waits natively behind this connection's own release still in
+            // flight; like an ordinary call, wait for that release first, outside the budget.
+            try { _owner.WaitForOwnRelease(deadline); }
+            catch (SharedWaitTimeoutException)
+            {
+                outcome = SharedWaitRecorder.Outcome.TimedOut;
+                throw this.TimeoutError(this.Waits, deadline, behindThisConnection: true);
+            }
             // Pending begins wait on their own thread, never on a holder thread or engine.
-            gate.Wait();
+            if (!gate.Wait(0)) this.WaitForHandleGate(gate, deadline, selfWait, ref outcome);
             // Database disposal does not wait for a begin queued here: a connection disposed
             // meanwhile must not open storage (recovery, file creation) after Dispose returned.
             lock (_useLock)
                 if (_disposed != 0) { gate.Release(); throw new ObjectDisposedException(nameof(SharedEngine)); }
-            TransactionHolder holder;
             var policyAnchor = _settings.ReadTransform;
             try
             {
@@ -74,11 +105,14 @@ namespace LiteDB
                 }
                 settings.CoordinationSignals = null;
                 settings.SharedFileHandles = null;
-                // The handle reports and extends this connection's recovery report.
-                var child = new SharedEngine(settings) { _transactionChild = true, _recoveryReport = _recoveryReport };
+                settings.SharedSlowWait = null;
+                // The handle's native wait is part of this begin's wait, recorded here; the child
+                // uses the recorder for its timeout message. It also reports and extends this
+                // connection's recovery report.
+                var child = new SharedEngine(settings) { _transactionChild = true, _waitRecorder = this.Waits, _recoveryReport = _recoveryReport };
                 child._settings.SharedDurability = _settings.SharedDurability;
                 child._settings.CheckpointBackoff = _settings.CheckpointBackoff;
-                holder = new TransactionHolder(child, gate);
+                holder = new TransactionHolder(child, gate, deadline);
             }
             catch { gate.Release(); throw; }
             var resources = holder.Open(policyAnchor);
@@ -86,25 +120,44 @@ namespace LiteDB
             return resources;
         }
 
+        /// <summary>The local queue stage of a begin's wait; the begin records the whole wait.</summary>
+        private void WaitForHandleGate(SemaphoreSlim gate, SharedWaitDeadline deadline, bool selfWait, ref SharedWaitRecorder.Outcome outcome)
+        {
+            bool acquired;
+            while (!(acquired = gate.Wait((selfWait ? deadline.Within(_settings.SharedSelfWaitGrace) : deadline).RemainingMilliseconds)) &&
+                selfWait && !deadline.Expired)
+                selfWait = this.StillSelfWaiting(ref outcome);
+            if (acquired) return;
+            outcome = SharedWaitRecorder.Outcome.TimedOut;
+            throw this.TimeoutError(this.Waits, deadline, behindThisConnection: false);
+        }
+
         /// <summary>One internal native owner per handle, independent of application threads.</summary>
         private sealed class TransactionHolder
         {
             private readonly SharedEngine _child;
             private readonly SemaphoreSlim _gate;
+            private readonly SharedWaitDeadline _deadline;
+            // Created once ownership is acquired, so held/idle durations exclude the admission wait.
+            private SharedHandleActivity _activity;
             private readonly ManualResetEventSlim _opened = new ManualResetEventSlim();
             private readonly ManualResetEventSlim _close = new ManualResetEventSlim();
             private readonly ManualResetEventSlim _done = new ManualResetEventSlim();
             private Exception _error;
             private LiteEngine _engine;
 
-            internal TransactionHolder(SharedEngine child, SemaphoreSlim gate)
+            internal TransactionHolder(SharedEngine child, SemaphoreSlim gate, SharedWaitDeadline deadline)
             {
                 _child = child;
                 _gate = gate;
+                _deadline = deadline;
             }
 
             /// <summary>The recovery report of the handle's core, once it opened.</summary>
             internal WalRecoveryReport RecoveryReport => _child._recoveryReport;
+
+            /// <summary>When the holder's native wait ended, or zero if it never ran.</summary>
+            internal long AdmittedAt => Volatile.Read(ref _child._admittedAt);
 
             internal TransactionResources Open(object policyAnchor)
             {
@@ -128,7 +181,7 @@ namespace LiteDB
                 try { _opened.Wait(); }
                 catch { _close.Set(); throw; }
                 if (_error != null) this.Release();
-                return new TransactionResources(_engine, this.Release, () => _close.Set(), policyAnchor, _child._mutexName);
+                return new TransactionResources(_engine, this.Release, () => _close.Set(), policyAnchor, _child._mutexName, _activity);
             }
 
             private void Cleanup(Action action)
@@ -146,9 +199,10 @@ namespace LiteDB
                 var acquired = false;
                 try
                 {
-                    _child.OpenDatabase(scoped: true, writing: !_child._settings.ReadOnly);
+                    using (_deadline.Inherit()) _child.OpenDatabase(scoped: true, writing: !_child._settings.ReadOnly);
                     acquired = true;
                     _engine = _child._engine;
+                    SharedHandleRegistry.Register(_child._mutexName, _activity = new SharedHandleActivity());
                     _opened.Set();
                     _close.Wait();
                 }
@@ -158,6 +212,7 @@ namespace LiteDB
                     // Closing the core without commit discards uncommitted work, then
                     // releases native writer ownership on the thread that owns it.
                     if (acquired) this.Cleanup(() => _child.CloseDatabase());
+                    if (_activity != null) SharedHandleRegistry.Unregister(_child._mutexName, _activity);
                     this.Cleanup(() => _child.EndAdmissions(0));
                     this.Cleanup(_child.Dispose);
                     _gate.Release();

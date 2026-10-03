@@ -24,12 +24,12 @@ namespace LiteDB.Client.Shared
             _turnstile = turnstile;
         }
 
-        internal bool Take(bool block, out bool abandoned)
+        internal bool Take(bool block, out bool abandoned, SharedWaitDeadline deadline = default)
         {
             abandoned = false;
             try
             {
-                if (block) _turnstile.Wait(_mutex);
+                if (block) _turnstile.WaitWithin(_mutex, deadline);
                 else if (!_turnstile.TryWait(_mutex)) return false;
             }
             catch (AbandonedMutexException) { abandoned = true; }
