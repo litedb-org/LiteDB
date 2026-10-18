@@ -43,6 +43,13 @@
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
       ]
+    },
+    {
+      "repro": "Issue_3097_SortDiskDispose",
+      "knownBad": {"kind": "dev-commit", "commit": "7b71bc4dd45b48a1df4418ddb4cd245832273b35", "reason": "Issue #3097 reproduces on this dev commit: when closing a pooled scratch stream throws, SortDisk skips deleting the -tmp file. The repro returns the active reader before injecting the fault through private sort/pool fields. No published package with compatible fields has been verified."},
+      "permanentGuard": [
+        "LiteDB.Tests/Internals/SortDiskLifecycle_Tests.cs#Dispose_DeletesScratchFile_AndPreservesDatabase"
+      ]
     }
   ]
 }

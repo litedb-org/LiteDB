@@ -104,9 +104,14 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
-            _pool.Dispose();
-
-            _factory.Delete();
+            try
+            {
+                _pool.Dispose();
+            }
+            finally
+            {
+                _factory.Delete();
+            }
         }
     }
 }
