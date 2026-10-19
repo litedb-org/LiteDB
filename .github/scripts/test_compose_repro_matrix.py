@@ -45,11 +45,12 @@ class ReproMatrixTests(unittest.TestCase):
                 for m in [json.loads(path.read_text())]]
 
     def test_fixed_repros_are_replaced_by_real_test_methods_in_both_tiers(self):
-        for tier, count in [("pr", 2), ("full", 3)]:
+        for tier, count in [("pr", 4), ("full", 6)]:
             with self.subTest(tier=tier):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
                 self.assertEqual(count, len(entries))
-                self.assertEqual({"Issue_2561_TransactionMonitor"}, {e["repro"] for e in entries})
+                self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_3097_SortDiskDispose"},
+                                 {e["repro"] for e in entries})
                 # Every retired repro is reported as skipped, none silently dropped.
                 retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
                 self.assertEqual(len(retired), len(skipped))
