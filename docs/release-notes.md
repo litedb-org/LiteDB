@@ -271,3 +271,17 @@ writes in it throw "can only be rolled back", and `Commit` rolls it back and thr
 transaction's own WAL slots no longer fails the next safepoint or commit (which used to stop
 the engine and mark the data file invalid): the new version is appended and the pinned slot
 stays readable.
+
+## Shared mode on Unix: long and non-ASCII database paths
+
+On Linux and macOS, `Connection=shared` now opens databases whose URI-escaped
+path would exceed the runtime's 255-character named-mutex limit, for example a
+directory named with a few dozen Cyrillic or CJK characters. Previously every
+shared open of such a path threw `ArgumentException` from the `Mutex` constructor;
+5.0.21 opened them. With the default and `UriEscape` strategies, a Unix name is
+hashed (`sha1-` + SHA-1 of the lower-cased full path) only when the escaped name
+plus the longest mutex suffix (`.Turn.Mutex`) would exceed that limit; escaped
+names of up to 244 characters keep their existing identity, and Windows naming is
+unchanged. Earlier prereleases without the `.Turn` mutex could open names of 245
+to 249 characters; running them together with this version on such a path is
+unsupported.

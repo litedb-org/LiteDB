@@ -55,5 +55,18 @@
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
     ]
+  },
+  "Issue_3027_SharedMutexNameLength": {
+    "reason": "Regression proof of #3051 slice S02 (Regression proof workflow); shared-mode mutex names beyond the Unix limit are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+    ]
+  },
+  "Issue_3092_ReadSnapshotReusedPage": {
+    "reason": "Fixed read-snapshot page reuse is covered by the reused-page tests, plain and encrypted; the regression proof runs the historical comparison.",
+    "tests": [
+      "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+    ]
   }
 }
