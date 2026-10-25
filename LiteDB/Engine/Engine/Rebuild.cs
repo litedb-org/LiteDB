@@ -33,7 +33,12 @@ namespace LiteDB.Engine
             // admitted between that wait and Close(). Close disposes the old lock,
             // so this exclusive lease intentionally is not released here.
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
-            _locker.EnterExclusive();
+            var mustExit = _locker.EnterExclusive();
+
+            RebuildAdmission ownership;
+            try { ownership = RebuildAdmission.Enter(_settings); }
+            catch { if (mustExit) _locker.ExitExclusive(); throw; }
+            using var admission = ownership;
 
             this.Close();
 

@@ -6,6 +6,39 @@ LiteDB tries to restore the original pair or publish the completed replacement.
 It never restores the original WAL beside replacement data. When a replacement
 remains live, the shared connection retains its requested password and collation.
 
+File-backed engine admission and rebuild share a process-wide named mutex for the
+normalized database path. Opening waits at most 60 seconds for an active owner;
+explicit rebuild retains ownership from engine close through replacement and
+reopen. Opening recovery and v4 upgrade retain the same ownership through their
+entire open. The OS releases this transient claim on process death. It does not
+replace the durable recovery marker described below.
+
+On runtimes without named-mutex support, ordinary Direct opens (including
+read-only opens) retain their previous behavior without this admission mutex.
+Shared/Coordinated mode, explicit rebuild, and opens requesting `AutoRebuild` or
+`Upgrade` still require it and fail if unavailable. Permission errors and mutex
+timeouts are not treated as unsupported platforms. The durable recovery marker
+is checked even when an ordinary Direct open cannot use a mutex.
+
+Direct rebuild additionally holds exclusive handles on the original data and WAL
+through construction and installation. Its file reader borrows these handles,
+so finishing the scan cannot admit another writer before the marker is created.
+The completed candidate is also held exclusively through installation and
+rollback. Windows handles allow rename/delete, but not competing reads or writes;
+Unix retains exclusive locks on the open inodes through rename. Rebuild checks
+that those locks actually exclude a second handle and refuses unsupported or
+disabled locking before reading records. An existing Direct reader or writer
+must close before rebuild can acquire these handles. Shared/Coordinated rebuilds
+retain their existing mutex, reader-admission and cached-handle protocol.
+
+Use one consistent data/WAL path for all connections. Absolute and relative paths
+that normalize to that same path share admission. Filesystem symlink/hard-link
+aliases and older engines do not share the path-based protocol and must not run
+concurrently with replacement; aliases can also name different WAL/marker files.
+The physical claims exclude handles to the claimed inodes, but do not establish
+equivalence of those sidecar paths. Rebuilding a filename combined with
+caller-provided data/WAL streams is rejected without closing those streams.
+
 Before the first rename, LiteDB creates and flushes a recovery marker next to the
 database (`data-rebuild.db` for `data.db`). Its text records the live, backup and
 replacement paths, including any numbered suffixes. It contains no passwords.
@@ -62,3 +95,22 @@ Regression coverage includes the repeated-failure cases from #2979, an exhaustiv
 installation/rollback matrix, marker creation and cleanup failures, reads and
 writes through reused shared connections, fresh opens, encryption and collation
 changes, and original-pair/replacement recoverability.
+
+`RebuildOwnership_Tests` adds competing data/WAL handles, exact backup preservation,
+claim-cleanup failures, retained replacement credentials, read-only sharing and
+caller-stream ownership. `RebuildOwnershipProcess_Tests` forces a second process
+to contend before the marker, during installation, and during the handoff to
+reopen, for both plaintext and encrypted files. It also kills the owner twice
+before marker publication, verifies unchanged original data/WAL and successful
+retry, and kills it after publication to verify that abandoning the mutex does
+not bypass the persistent marker. Further process cases park the recovery rebuild
+service after claiming the source, during installation and after closing its
+claims while Direct, Shared and Coordinated processes wait; their writes are then
+acknowledged and survive a cold reopen. `RebuildOwnershipModes_Tests` races real
+Direct, Shared and Coordinated engines in one process and observes each opener
+blocked in the admission wait, including against a Shared rebuild through its
+reopen. `RebuildAdmissionPlatform_Tests` covers runtimes without named mutexes.
+CI runs these classes on Linux, Windows and macOS for every PR. These tests model
+process death and injected cleanup failures on supported local filesystems, not
+storage devices ignoring flushes or uncoordinated access through different
+sidecar identities.

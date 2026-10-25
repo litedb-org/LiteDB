@@ -65,8 +65,8 @@ namespace LiteDB.Tests.Issues
             using var shortReads = new ShortReadStream(original.ToArray());
             var settings = new EngineSettings { DataStream = shortReads, Password = password };
             // Rebuild installation requires files; exercise its stream-backed detection and reader directly.
-            Action classify = () => new RebuildService(settings);
-            classify.Should().NotThrow();
+            RebuildService.ReadFileVersion(settings).Should().BeOneOf(
+                (int)HeaderPage.COMPACT_FILE_VERSION, HeaderPage.MVCC_FILE_VERSION);
             var errors = new List<FileReaderError>();
             using (var reader = new FileReaderV8(settings, errors))
             {
@@ -97,8 +97,7 @@ namespace LiteDB.Tests.Issues
             var original = File.ReadAllBytes(path);
             using var shortReads = new ShortReadStream(original.ToArray());
             var settings = new EngineSettings { DataStream = shortReads, Password = password };
-            Action classify = () => new RebuildService(settings);
-            classify.Should().NotThrow();
+            RebuildService.ReadFileVersion(settings).Should().Be(7);
             using (var reader = new FileReaderV7(settings))
             {
                 reader.Open();

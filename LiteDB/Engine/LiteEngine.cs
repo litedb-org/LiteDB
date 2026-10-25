@@ -83,6 +83,7 @@ namespace LiteDB.Engine
 
         internal bool Open()
         {
+            using var admission = RebuildAdmission.EnterForOpen(_settings);
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
             _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);

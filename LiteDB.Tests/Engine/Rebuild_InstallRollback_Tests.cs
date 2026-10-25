@@ -100,8 +100,10 @@ namespace LiteDB.Tests.Engine
             probe.Should().Throw<Exception>();
         }
 
-        [Fact]
-        public void A_real_sharing_violation_on_the_source_restores_the_wal()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void A_real_sharing_violation_preserves_source_and_wal_in_both_modes(bool shared)
         {
             // Only Windows refuses to rename a file that is open without FileShare.Delete.
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
@@ -116,8 +118,13 @@ namespace LiteDB.Tests.Engine
             var logFile = FileHelper.GetLogFile(file.Filename);
             var tempFile = FileHelper.GetSuffixFile(file.Filename, "-temp", false);
             File.Exists(logFile).Should().BeTrue();
+            var data = File.ReadAllBytes(file.Filename);
+            var log = File.ReadAllBytes(logFile);
 
             var settings = new EngineSettings { Filename = file.Filename };
+            // Shared mode permits cached peer handles, so this path still reaches
+            // the actual Windows rename failure after moving the WAL aside.
+            if (shared) settings.SharedReaderVersions = () => Array.Empty<int>();
             Exception failure;
             using (File.Open(file.Filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
@@ -125,9 +132,18 @@ namespace LiteDB.Tests.Engine
             }
 
             failure.Should().BeAssignableTo<IOException>();
-            failure.Data[RebuildService.LiveStateDataKey].Should().Be(RebuildService.LiveStateOriginal);
-            File.Exists(logFile).Should().BeTrue("the WAL moved aside before the failure must come back");
+            if (shared)
+                failure.Data[RebuildService.LiveStateDataKey].Should().Be(RebuildService.LiveStateOriginal);
+            else
+            {
+                // Direct fails at source acquisition, before building or renaming.
+                failure.Data[RebuildService.LiveStateDataKey].Should().BeNull();
+                File.Exists(FileHelper.GetSuffixFile(file.Filename, "-backup", false)).Should().BeFalse();
+            }
+            File.ReadAllBytes(file.Filename).Should().Equal(data);
+            File.ReadAllBytes(logFile).Should().Equal(log);
             File.Exists(tempFile).Should().BeFalse();
+            File.Exists(RebuildRecovery.GetMarkerFilename(file.Filename)).Should().BeFalse();
 
             using var recovered = new LiteDatabase(file.Filename);
             recovered.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("old");
