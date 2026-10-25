@@ -31,7 +31,7 @@ NEEDS_PROOF = "regression: needs proof"
 HARNESS_FILES = {
     ".github/workflows/regression-proof.yml", ".github/workflows/pr-evidence-labels.yml",
     ".github/scripts/regression_proof.py", ".github/scripts/pr_evidence.py", ".github/scripts/repro_scaffold.py",
-    ".github/scripts/safety_common.py",
+    ".github/scripts/proof_provenance.py", ".github/scripts/safety_common.py",
 }
 HARNESS_DIRS = ("LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/", "LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/")
 
