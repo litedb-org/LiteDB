@@ -65,6 +65,68 @@ namespace LiteDB.Tests.Regressions
             data.ToArray().Should().Equal(original);
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Explicit_read_only_error_close_preserves_both_caller_streams(bool writableData)
+        {
+            var (original, _) = CurrentFile(CompactStorageMode.Auto);
+            using var data = writableData ? Writable(original) : new MemoryStream(original, writable: false);
+            using var log = new MemoryStream();
+            var settings = new EngineSettings { DataStream = data, LogStream = log, ReadOnly = true };
+
+            using (var engine = new LiteEngine(settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                engine.SimulateDiskReadFail = page => throw LiteException.InvalidDatafileState("injected read-only damage");
+                Action query = () => db.GetCollection("rows").FindAll().ToList();
+                query.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+                engine.Dispose();
+                engine.Dispose();
+            }
+
+            data.ToArray().Should().Equal(original);
+            log.Length.Should().Be(0, "a read-only error close must not publish a header journal");
+            data.CanRead.Should().BeTrue();
+            log.CanWrite.Should().BeTrue();
+            settings.ReadOnlyStorage.Should().BeFalse();
+
+            using var reopened = new LiteDatabase(Writable(original), null, Writable(log.ToArray()));
+            reopened.GetCollection("rows").FindAll().Select(row => row["_id"].AsInt32)
+                .OrderBy(id => id).Should().Equal(Enumerable.Range(1, 50));
+            reopened.GetCollection("rows").Find(Query.EQ("value", 3)).Count().Should().Be(7);
+        }
+
+        [Theory]
+        [InlineData(FileAccess.Read)]
+        [InlineData(FileAccess.ReadWrite)]
+        public void Explicit_read_only_error_close_preserves_files_and_reopens(FileAccess access)
+        {
+            var (original, _) = CurrentFile(CompactStorageMode.Auto);
+            using var dataFile = new TempFile();
+            using var logFile = new TempFile();
+            File.WriteAllBytes(dataFile.Filename, original);
+
+            using (var data = new FileStream(dataFile.Filename, FileMode.Open, access))
+            using (var log = new FileStream(logFile.Filename, FileMode.Create, FileAccess.ReadWrite))
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, ReadOnly = true }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                engine.SimulateDiskReadFail = page => throw LiteException.InvalidDatafileState("injected file damage");
+                Action query = () => db.GetCollection("rows").FindAll().ToList();
+                query.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
+            }
+
+            File.ReadAllBytes(dataFile.Filename).Should().Equal(original);
+            new FileInfo(logFile.Filename).Length.Should().Be(0);
+            using (var reopened = new LiteDatabase(dataFile.Filename))
+            {
+                reopened.GetCollection("rows").FindAll().Select(row => row["_id"].AsInt32)
+                    .OrderBy(id => id).Should().Equal(Enumerable.Range(1, 50));
+                reopened.GetCollection("rows").Find(Query.EQ("value", 3)).Count().Should().Be(7);
+            }
+        }
+
         /// <summary>
         /// A v11 file (every migrated 5.0.21 file until its first compact write) must promote its
         /// format before a compact write, which storage that cannot be written cannot take: such

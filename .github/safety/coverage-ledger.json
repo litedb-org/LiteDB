@@ -81,6 +81,16 @@
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_rejects_a_file_whose_chunks_overrun_the_declared_length",
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected"
       ]
+    },
+    {
+      "id": "3059-caller-stream-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy caller-stream regressions use authenticated damaged-document and dropped-index fixture bytes without changing the release corpus.",
+      "reason": "Unions the S07 fixture inventory with the S01 empty manifest now on dev. Adds two archives pinned to e059a85e1cbd641e4a682882a70b1c84906d393f and their unchanged SHA-256 hashes; no existing fixture entry is removed or repinned, and the release corpus has its separate manifest."
     }
   ]
 }
