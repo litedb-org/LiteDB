@@ -401,7 +401,7 @@ def main(argv=None):
         parser.error(str(error))
 
     if args.command == "pack-known-bad":
-        print(pack_known_bad(args.commit, args.feed, args.pr or None, args.repository or None))
+        print(pack_known_bad(args.commit, args.feed, args.pr, args.repository))
         return 0
     if args.command == "new":
         bad = parse_known_bad(args.known_bad, args.reason)
