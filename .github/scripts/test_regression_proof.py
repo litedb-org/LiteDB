@@ -424,6 +424,48 @@ class VersionTests(unittest.TestCase):
 
 
 class PackTests(unittest.TestCase):
+    def test_cli_rejects_empty_arguments_before_fetch_or_build(self):
+        for arguments, error in ((["--pr", ""], "--pr must be"),
+                                 (["--pr", "1", "--repository", ""], "--repository must be")):
+            with self.subTest(arguments=arguments), \
+                    patch.object(proof.common, "repo_root", return_value=Path.cwd()), \
+                    patch.object(proof.provenance, "ensure_commit") as fetch, \
+                    patch.object(proof.subprocess, "run", side_effect=AssertionError("fetch/build must not run")) as run:
+                with self.assertRaisesRegex(SystemExit, error):
+                    proof.main(["pack-known-bad", "--commit", BAD_COMMIT, "--feed", "unused", *arguments])
+                fetch.assert_not_called()
+                run.assert_not_called()
+
+    def test_cli_packs_with_omitted_upstream_and_fork_arguments(self):
+        for arguments, source in (([], None),
+                                  (["--pr", "1"], {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 1}),
+                                  (["--pr", "1", "--repository", FORK],
+                                   {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 1, "repository": FORK})):
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as directory:
+                def fake_build(command, **kwargs):
+                    if command[0] == "dotnet":
+                        packed = Path(command[command.index("-o") + 1])
+                        packed.mkdir(parents=True)
+                        with zipfile.ZipFile(packed / "LiteDB.6.0.0.nupkg", "w") as package:
+                            package.writestr("LiteDB.nuspec", "<package><metadata><version>6.0.0</version>"
+                                                              "</metadata></package>")
+                    return subprocess.CompletedProcess(command, 0)
+
+                feed = Path(directory) / "feed"
+                with patch.object(proof.provenance, "ensure_commit", return_value=True) as fetch, \
+                        patch.object(proof.common, "repo_root", return_value=Path(directory)), \
+                        patch.object(proof.tempfile, "mkdtemp", return_value=str(Path(directory) / "scratch")), \
+                        patch.object(proof.subprocess, "run", side_effect=fake_build):
+                    code, output = run_quietly(proof.main, ["pack-known-bad", "--commit", BAD_COMMIT,
+                                                          "--feed", str(feed), *arguments])
+                self.assertEqual(code, 0, output)
+                self.assertIn("0.0.0-knownbad.aaaaaaaaaaaa", output)
+                self.assertTrue((feed / "LiteDB.0.0.0-knownbad.aaaaaaaaaaaa.nupkg").is_file())
+                if source is None:
+                    fetch.assert_not_called()
+                else:
+                    fetch.assert_called_once_with(source)
+
     def test_pack_rejects_invalid_arguments_before_fetch_or_build(self):
         cases = [("abc", None), ("0", None), ("-1", None), (True, None), ("", None),
                  ("1", "../repo"), ("1", "owner/repo..bad"), ("1", ""),

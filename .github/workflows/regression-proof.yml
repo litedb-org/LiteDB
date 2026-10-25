@@ -106,8 +106,11 @@ jobs:
         run: |
           feed="$RUNNER_TEMP/known-bad-feed"
           # A pr-commit is fetched from its PR (a fork's public PR needs no token) when not yet local.
+          provenance_args=()
+          if [[ -n "$PR" ]]; then provenance_args+=(--pr "$PR"); fi
+          if [[ -n "$REPOSITORY" ]]; then provenance_args+=(--repository "$REPOSITORY"); fi
           python .github/scripts/regression_proof.py pack-known-bad --commit "$COMMIT" --feed "$feed" \
-            --pr "$PR" --repository "$REPOSITORY"
+            "${provenance_args[@]}"
           echo "RestoreAdditionalProjectSources=$feed" >> "$GITHUB_ENV"
 
       - name: Run the repro against the known-bad state and the candidate
