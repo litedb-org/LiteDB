@@ -89,7 +89,8 @@ namespace LiteDB.Engine
             catch (ReadOnlyOpenRequiredException)
             {
                 // Opening storage that cannot be written would have changed it; nothing was written.
-                // _settings is the engine's own copy (see above): the caller's settings stay as they were.
+                // Keep retry flags on an engine-owned copy, including explicit ReadOnlyStorage settings.
+                if (ReferenceEquals(_settings, settings)) _settings = settings.Clone();
                 _settings.ReadOnly = true;
                 _settings.LegacyIndexScan = true;
                 this.Open();

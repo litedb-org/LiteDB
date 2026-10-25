@@ -130,6 +130,28 @@ namespace LiteDB.Tests.Regressions
             }
         }
 
+        [Fact]
+        public void Explicit_ReadOnlyStorage_fallback_preserves_callers_settings()
+        {
+            using var zip = new ZipArchive(typeof(ReadOnlyStorageEngine_Tests).Assembly.GetManifestResourceStream("LiteDB.Tests.Resources.IndexMigration_5_0_21.zip"));
+            using var entry = zip.GetEntry("plain.db").Open();
+            using var bytes = new MemoryStream();
+            entry.CopyTo(bytes);
+            using var data = new MemoryStream(bytes.ToArray(), writable: false);
+            using var log = new MemoryStream();
+            var settings = new EngineSettings { DataStream = data, LogStream = log, ReadOnlyStorage = true };
+            using (var engine = new LiteEngine(settings))
+            {
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.GetCollection("rows").Count().Should().BeGreaterThan(0);
+            }
+            settings.ReadOnly.Should().BeFalse("internal retry must not mutate caller-owned settings");
+            settings.LegacyIndexScan.Should().BeFalse();
+            settings.ReadOnlyStorage.Should().BeTrue();
+            data.ToArray().Should().Equal(bytes.ToArray());
+            log.Length.Should().Be(0);
+        }
+
         private static (byte[] data, byte version) CurrentFile(CompactStorageMode mode)
         {
             var data = new MemoryStream();
