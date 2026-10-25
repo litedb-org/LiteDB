@@ -10,6 +10,8 @@ import tempfile
 import urllib.request
 import zipfile
 
+from release_compatibility import source_sha256
+
 root = pathlib.Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--artifacts", type=pathlib.Path, help="Local compatibility/released directory (otherwise use pinned GitHub files)")
@@ -26,11 +28,6 @@ def read(name):
         return response.read()
 
 
-def source_sha256(path):
-    # The generator hashed LF checkouts; Windows runners may check out CRLF.
-    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-
-
 manifest = json.loads(read("manifest.json"))
 expected = {"4.0.0", *["4.1." + str(i) for i in range(5)], *["5.0." + str(i) for i in range(22)]}
 actual = {(item["version"], item["variant"]) for item in manifest["fixtures"]}
@@ -39,8 +36,11 @@ if actual != {(v, variant) for v in expected for variant in ("plain", "encrypted
 # Expected documents come from Corpus.cs; it must be the source the writers used.
 if source_sha256(tools / "Corpus.cs") != manifest["corpus_sha256"]:
     raise RuntimeError("Corpus.cs differs from the source that generated revision " + revision)
-if source_sha256(root / "scripts/generate-release-corpus.py") != manifest["generator_sha256"]:
-    raise RuntimeError("generate-release-corpus.py differs from the generator of revision " + revision)
+# Keep the exact producer of the immutable corpus even when the current tool gains
+# operational fixes. Newly generated corpora can still match the current generator.
+generators = [root / "scripts/generate-release-corpus.py", tools / "provenance/generate-release-corpus.py"]
+if not any(source_sha256(path) == manifest["generator_sha256"] for path in generators):
+    raise RuntimeError("No preserved generator matches the producer of revision " + revision)
 
 # Fixtures whose probe fails until a later engine fix. Each is still run and must
 # fail with its recorded diagnostic, so a fix forces activation.
