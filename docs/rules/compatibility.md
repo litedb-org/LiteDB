@@ -78,7 +78,11 @@ ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the
 checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
-coverage and the boundary; new/rebuilt files use Complete. Keep coverage Mixed
+coverage and the boundary; new/rebuilt files use Complete. Released v5 engines wrote
+only ordinary indexes (IndexType 0) and left stale index-entry bytes after the index
+list on DropIndex; every vector-index writer, v8 prereleases included, stores the vector
+section right after the list. Read a collection page's vector section only when the page
+lists a vector index (IndexType 1). Keep coverage Mixed
 conservatively until explicit rebuild; there is no background migration.
 Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use
@@ -166,3 +170,6 @@ checkpoint introduces earlier holes. Only full checkpoint can clear the root and
 rotate salt after all data is durable. A rooted v13 data file requires its WAL.
 Run the `mvcc-retirement` target, corruption tests and separate-process MVCC suite.
 See [retirement format](../mvcc-retirement-format.md).
+
+Released-file corpus: see [legacy file validation](../legacy-file-validation.md).
+Run `python3 scripts/test-release-compatibility.py` for every stable v5 package and v4 upgrade coverage, including read-only inspection, direct writes, rollback and reopen.

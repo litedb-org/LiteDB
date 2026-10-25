@@ -48,5 +48,12 @@
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
     ]
+  },
+  "Issue_3027_LegacyDroppedIndex": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); collections 5.0.21 dropped indexes from stay writable in the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+      "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+    ]
   }
 }

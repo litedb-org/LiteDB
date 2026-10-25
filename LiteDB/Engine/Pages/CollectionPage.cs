@@ -73,16 +73,39 @@ namespace LiteDB.Engine
                     _indexes[index.Name] = index;
                 }
 
-                var vectorCount = r.ReadByte();
+                // Released v5 engines wrote only ordinary indexes (IndexType 0) and never cleared the
+                // bytes after the index list, so a dropped index leaves a stale tail there. Every
+                // writer of a vector index (IndexType 1) stores its section right after the list.
+                if (_indexes.Values.Any(x => x.IndexType == 1)) this.ReadVectorSection(r);
+            }
+        }
 
-                for (var i = 0; i < vectorCount; i++)
+        /// <summary>
+        /// Keep the vector section only when it names exactly this page's vector indexes. A release
+        /// without vector support (5.0.21) that rewrote the index list of a file a vector prerelease
+        /// wrote left the old bytes after the new list: they may not even decode. Without their
+        /// section, the vector indexes have no metadata, which a writable open reports as damage
+        /// (a rebuild then drops only them) instead of every open failing.
+        /// </summary>
+        private void ReadVectorSection(BufferReader r)
+        {
+            var section = new Dictionary<string, VectorIndexMetadata>(StringComparer.Ordinal);
+            try
+            {
+                var count = r.ReadByte();
+                for (var i = 0; i < count; i++)
                 {
                     var name = r.ReadCString();
-                    var metadata = new VectorIndexMetadata(r);
-
-                    _vectorIndexes[name] = metadata;
+                    section[name] = new VectorIndexMetadata(r);
                 }
             }
+            catch (Exception ex) when (!(ex is OutOfMemoryException))
+            {
+                return;
+            }
+            var names = _indexes.Values.Where(x => x.IndexType == 1).Select(x => x.Name);
+            if (!section.Keys.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(names.OrderBy(x => x, StringComparer.Ordinal))) return;
+            foreach (var pair in section) _vectorIndexes[pair.Key] = pair.Value;
         }
 
         public override PageBuffer UpdateBuffer()

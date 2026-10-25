@@ -79,6 +79,17 @@
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
       ]
+    },
+    {
+      "repro": "Issue_3027_LegacyDroppedIndex",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+      ]
     }
   ]
 }
