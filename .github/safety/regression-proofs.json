@@ -82,7 +82,16 @@
       },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
-        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable",
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+      ]
+    },
+    {
+      "repro": "Issue_3082_AllocationPublication",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
         "LiteDB.Tests/Engine/AllocationPublication_Tests.cs#Abandoned_allocations_leave_a_complete_reusable_page_graph",
         "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph",
         "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph",
