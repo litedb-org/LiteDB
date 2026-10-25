@@ -107,7 +107,17 @@ internal static class Program
         private bool _committed;
         private bool _triggered;
 
+        private readonly Stopwatch _clock = Stopwatch.StartNew();
+        private int _writes;
+
         internal FaultController(string mode, string stage) { _mode = mode; _stage = stage; }
+
+        /// <summary>Report progress on stderr, so a run that times out shows how far it got.</summary>
+        internal void Progress(bool log)
+        {
+            if (++_writes % 1000 == 0)
+                Console.Error.WriteLine($"writes={_writes} walPages={_walPages} committed={_committed} last={(log ? "log" : "data")} ms={_clock.ElapsedMilliseconds}");
+        }
 
         internal bool ShouldFail(bool log, long position, byte[] buffer, int offset, int count)
         {
@@ -128,6 +138,7 @@ internal static class Program
         {
             Console.WriteLine("FAULT:" + _mode + ":" + _stage);
             Console.Out.Flush();
+            Console.Error.WriteLine($"fault after writes={_writes} ms={_clock.ElapsedMilliseconds}");
             if (_mode == "crash")
             {
                 Process.GetCurrentProcess().Kill();
@@ -154,6 +165,7 @@ internal static class Program
 
         public override void Write(byte[] buffer, int offset, int count)
         {
+            _controller.Progress(_log);
             var fail = _controller.ShouldFail(_log, Position, buffer, offset, count);
             _file.Partial = fail && _controller.Partial;
             _inner.Write(buffer, offset, count);
