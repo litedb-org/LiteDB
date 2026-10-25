@@ -357,6 +357,18 @@ namespace LiteDB
                 if (!IsNegateSupported(node.Operand.Type) || !IsNegateSupported(negated.Type))
                     throw Unsupported(node, $"-{TypeName(negated.Type)} (supported for numeric members; negate outside the query or filter in memory)");
 
+                // Only discard casts that preserve every possible value. In particular,
+                // -(int)longValue must not become subtraction of the original Int64.
+                for (var operand = node.Operand; operand is UnaryExpression cast &&
+                    (cast.NodeType == ExpressionType.Convert || cast.NodeType == ExpressionType.ConvertChecked); operand = cast.Operand)
+                {
+                    if (!LinqNumericConversions.IsWidening(negated.Type, cast.Type) &&
+                        !(cast.NodeType == ExpressionType.Convert &&
+                          (cast.Operand.Type == typeof(double) || cast.Operand.Type == typeof(decimal)) &&
+                          (cast.Type == typeof(int) || cast.Type == typeof(long))))
+                        throw Unsupported(node, "negation through a narrowing or checked conversion (negate outside the query or filter in memory)");
+                }
+
                 return Subtract(Zero(node.Operand.Type), node.Operand);
             }
             if (node.NodeType == ExpressionType.OnesComplement) return TranslateComplement(node);
@@ -395,7 +407,7 @@ namespace LiteDB
             // semantics while every one of them can still represent the value being complemented
             foreach (var target in conversions)
             {
-                if (!IsWideningConversion(operand.Type, target))
+                if (!LinqNumericConversions.IsWidening(operand.Type, target))
                     throw Unsupported(node, $"~({target.Name}){operand.Type.Name} (the cast cannot be applied before the complement; filter in memory)");
             }
 
@@ -420,25 +432,6 @@ namespace LiteDB
         {
             var underlying = Nullable.GetUnderlyingType(type);
             return underlying == null ? type.Name : underlying.Name + "?";
-        }
-
-        private static bool IsWideningConversion(Type from, Type to)
-        {
-            if (from.GetTypeInfo().IsEnum || to.GetTypeInfo().IsEnum) return false;
-            if (from == to) return true;
-
-            if (to == typeof(long))
-                return from == typeof(int) || from == typeof(uint) || from == typeof(short) ||
-                       from == typeof(ushort) || from == typeof(byte) || from == typeof(sbyte);
-
-            if (to == typeof(int))
-                return from == typeof(short) || from == typeof(ushort) || from == typeof(byte) || from == typeof(sbyte);
-
-            if (to == typeof(uint)) return from == typeof(byte) || from == typeof(ushort);
-            if (to == typeof(short)) return from == typeof(byte) || from == typeof(sbyte);
-            if (to == typeof(ushort)) return from == typeof(byte);
-
-            return false;
         }
 
         // the left operand is bound as a parameter: an inline Int64 constant would render to the

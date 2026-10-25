@@ -156,6 +156,45 @@ public class Issue2921_Tests
         unsignedToSigned.Should().Throw<NotSupportedException>();
     }
 
+    [Theory]
+    [InlineData(2147483649L)]
+    [InlineData(long.MinValue)]
+    [InlineData(long.MaxValue)]
+    public void Negation_through_narrowing_is_explicitly_rejected(long value)
+    {
+        using var db = new LiteDatabase(":memory:");
+        var collection = db.GetCollection<Account>("accounts");
+        var account = new Account { Id = 1, Mask = value };
+        collection.Insert(account);
+        Expression<Func<Account, int>> projection = x => -(int)x.Mask;
+        var expected = projection.Compile()(account);
+        if (value == 2147483649L) expected.Should().Be(int.MaxValue);
+        Expression<Func<Account, bool>> predicate = x => -(int)x.Mask == expected;
+        predicate.Compile()(account).Should().BeTrue();
+
+        Action query = () => collection.Find(predicate).ToArray();
+        query.Should().Throw<NotSupportedException>().WithMessage("*narrowing or checked conversion*");
+    }
+
+    [Fact]
+    public void Negation_through_checked_narrowing_does_not_discard_overflow()
+    {
+        Expression<Func<Account, int>> projection = x => -checked((int)x.Mask);
+        Action clr = () => projection.Compile()(new Account { Mask = 2147483649L });
+        clr.Should().Throw<OverflowException>();
+        Action translate = () => BsonMapper.Global.GetExpression(projection);
+        translate.Should().Throw<NotSupportedException>().WithMessage("*narrowing or checked conversion*");
+    }
+
+    [Fact]
+    public void Negation_through_an_intermediate_truncating_cast_is_rejected()
+    {
+        Action truncated = () => BsonMapper.Global.GetExpression<Account, long>(x => -(long)(int)x.Mask);
+        Action signed = () => BsonMapper.Global.GetExpression<Account, int>(x => -(int)x.Unsigned);
+        truncated.Should().Throw<NotSupportedException>();
+        signed.Should().Throw<NotSupportedException>();
+    }
+
     [Fact]
     public void Checked_negation_is_rejected()
     {
