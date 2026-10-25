@@ -71,6 +71,16 @@
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_rejects_a_file_whose_chunks_overrun_the_declared_length",
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected"
       ]
+    },
+    {
+      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
+      "reason": "Current dev has the S01 empty manifest at revision 88b857f6fde39742cac2ad5399c9372bf54a9b3c. Retain the six S05/S06 fixture entries and their unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no existing fixture bytes or expectations are removed or repinned."
     }
   ]
 }
