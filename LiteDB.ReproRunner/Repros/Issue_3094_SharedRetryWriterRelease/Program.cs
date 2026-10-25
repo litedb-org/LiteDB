@@ -74,8 +74,6 @@ internal static class Program
                 using var peer = new LiteDatabase(connection);
                 peerWriteEntered.Set();
                 peer.GetCollection("c").Insert(Row(3));
-                if (rows.Count(Query.EQ("_id", 1)) != 1) throw new InvalidOperationException("Incorrect committed row count.");
-                rows.Insert(Row(2));
             }
             catch (Exception error) { failure = error; }
         }) { IsBackground = true };
@@ -87,6 +85,8 @@ internal static class Program
         Console.WriteLine($"retry={retry}, encrypted={encrypted}, completed={completed}, elapsed={clock.Elapsed}");
         if (!completed) return true;
         if (failure != null) throw new InvalidOperationException("Writer failed", failure);
+        if (rows.Count(Query.EQ("_id", 1)) != 1) throw new InvalidOperationException("Incorrect committed row count.");
+        rows.Insert(Row(2));
         if (db.Commit() || db.Rollback()) throw new InvalidOperationException("Phantom transaction remains.");
         db.Dispose();
         using var verify = new LiteDatabase(new ConnectionString { Filename = filename, Password = connection.Password });
