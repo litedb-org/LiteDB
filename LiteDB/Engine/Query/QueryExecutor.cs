@@ -210,6 +210,7 @@ namespace LiteDB.Engine
             // otherwise insert as normal collection
             else
             {
+                using var dispatch = TransactionContext.Dispatch(_engine);
                 result = _engine.Insert(into, GetResultset(), autoId);
             }
 
