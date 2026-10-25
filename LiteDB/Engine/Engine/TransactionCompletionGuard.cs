@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 
 namespace LiteDB.Engine
 {
@@ -19,7 +20,7 @@ namespace LiteDB.Engine
 
             if (commit && transaction == null && !abortedHere && _monitor.Transactions.Any(candidate =>
                 candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
-                candidate.ThreadID != Environment.CurrentManagedThreadId))
+                candidate.OwnerThread != Thread.CurrentThread))
             {
                 throw new LiteException(0, "No transaction belongs to this thread, but an explicit transaction is open on another thread. " +
                     "BeginTrans, writes, Commit and Rollback must run synchronously on the same thread; do not await inside the transaction.");

@@ -163,7 +163,9 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact (Skip = "Not supported yet")]
+        [Fact(Skip = "Not supported yet: rebuilding 'ana'/'ANA' from en-US/None to en-US/IgnoreCase throws LiteException "
+            + "'Cannot insert duplicate key in unique index '_id'' from RebuildContent instead of recording the collision "
+            + "in _rebuild_errors and keeping en-US/None.")]
         public void Rebuild_Change_Culture_Error()
         {
             using (var file = new TempFile())

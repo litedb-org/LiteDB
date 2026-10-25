@@ -80,12 +80,7 @@ namespace LiteDB
         {
             if (value.IsNumber)
             {
-                if (!IsDecimalConvertible(value))
-                {
-                    return CombineHashCodes(value.Type.GetHashCode(), value.AsDouble.GetHashCode());
-                }
-
-                return Convert.ToDecimal(value.RawValue).GetHashCode();
+                return BsonNumberComparison.GetHashCode(value);
             }
 
             switch (value.Type)
@@ -121,10 +116,6 @@ namespace LiteDB
 
             foreach (var element in document)
             {
-                // BsonDocument.CompareTo reads a missing key as Null, so { a: null } equals
-                // { b: null }. Null-valued elements must not contribute their key to the hash.
-                if (element.Value.IsNull) continue;
-
                 var elementHash = CombineHashCodes(
                     StringComparer.OrdinalIgnoreCase.GetHashCode(element.Key),
                     GetEqualityHashCode(element.Value));
@@ -155,32 +146,5 @@ namespace LiteDB
 
         #endregion
 
-        #region Numeric range helpers
-
-        /// <summary>
-        /// True when Convert.ToDecimal can hold this number. Only doubles can fail: NaN, infinity,
-        /// or a magnitude of 2^96 and above. (double)Decimal.MaxValue rounds up to exactly 2^96,
-        /// which itself overflows, so the bounds are exclusive.
-        /// </summary>
-        internal static bool IsDecimalConvertible(BsonValue value)
-        {
-            if (!value.IsDouble) return true;
-
-            var number = value.AsDouble;
-
-            return !Double.IsNaN(number) && !Double.IsInfinity(number) &&
-                number < (double)Decimal.MaxValue && number > (double)Decimal.MinValue;
-        }
-
-        /// <summary>
-        /// Sort position of a double that decimal cannot hold, relative to any decimal-convertible
-        /// number. NaN and negative values sort first, matching Double.CompareTo.
-        /// </summary>
-        private static int OutOfDecimalRangeSign(double number)
-        {
-            return number > 0 ? 1 : -1;
-        }
-
-        #endregion
     }
 }

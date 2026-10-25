@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "description": "The jobs of _reusable-ci.yml and the test legs each tier must produce. check_test_evidence.py compares the actual job results and uploaded leg evidence with this file, so a skipped, cancelled, missing or unexpected leg fails the Safety evidence job. Changing it is a coverage change (see coverage-ledger.json).",
+  "jobs": {
+    "safety-policy": {"tiers": ["pr", "full"]},
+    "build-linux": {"tiers": ["pr", "full"]},
+    "build-windows": {"tiers": ["pr", "full"]},
+    "build-macos": {"tiers": ["full"]},
+    "test-linux": {
+      "tiers": ["pr", "full"],
+      "legs": {"pr": {"item.runtimeMajor": [8, 10]}, "full": {"item.runtimeMajor": [8, 9, 10]}}
+    },
+    "test-windows": {
+      "tiers": ["pr", "full"],
+      "legs": {
+        "pr": {"os": ["windows-latest"], "arch": ["x64"], "item.runtimeMajor": [10]},
+        "full": {"os": ["windows-latest", "windows-2022"], "arch": ["x64", "x86"], "item.runtimeMajor": [8, 9, 10]}
+      }
+    },
+    "test-windows-framework": {
+      "tiers": ["pr", "full"],
+      "legs": {"pr": {"framework": ["net481"]}, "full": {"framework": ["net462", "net481"]}}
+    },
+    "test-macos": {
+      "tiers": ["full"],
+      "legs": {"full": {"item.runtimeMajor": [8, 9, 10]}}
+    },
+    "test-linux-arm64": {
+      "tiers": ["full"],
+      "legs": {"full": {"item.runtimeMajor": [8, 9, 10]}}
+    }
+  }
+}

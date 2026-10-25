@@ -237,38 +237,17 @@ namespace LiteDB.Engine
         private bool IsNumber() => this.Type == BsonType.Int32 || this.Type == BsonType.Int64 ||
             this.Type == BsonType.Double || this.Type == BsonType.Decimal;
 
-        private bool IsDecimalConvertible()
-        {
-            if (this.Type != BsonType.Double) return true;
+        // Int32/Int64/Decimal values are held exactly by a decimal. Doubles never use it.
+        private decimal ExactValue => this.Type == BsonType.Decimal ? _decimal : _integer;
 
-            return !Double.IsNaN(_double) && !Double.IsInfinity(_double) &&
-                _double < (double)Decimal.MaxValue && _double > (double)Decimal.MinValue;
-        }
-
-        private decimal AsDecimal()
-        {
-            switch (this.Type)
-            {
-                case BsonType.Int32:
-                case BsonType.Int64: return _integer;
-                case BsonType.Double: return Convert.ToDecimal(_double);
-                default: return _decimal;
-            }
-        }
-
+        // Share BsonValue's mixed-number semantics exactly; see BsonNumberComparison.
         private static int CompareNumbers(BorrowedBsonValue left, BorrowedBsonValue right)
         {
-            var leftConvertible = left.IsDecimalConvertible();
-            var rightConvertible = right.IsDecimalConvertible();
-
-            if (leftConvertible && rightConvertible)
-            {
-                return left.AsDecimal().CompareTo(right.AsDecimal());
-            }
-
-            return leftConvertible
-                ? -(right._double > 0 ? 1 : -1)
-                : (left._double > 0 ? 1 : -1);
+            var leftIsDouble = left.Type == BsonType.Double;
+            var rightIsDouble = right.Type == BsonType.Double;
+            return BsonNumberComparison.Compare(
+                leftIsDouble, left._double, leftIsDouble ? 0m : left.ExactValue,
+                rightIsDouble, right._double, rightIsDouble ? 0m : right.ExactValue);
         }
     }
 }

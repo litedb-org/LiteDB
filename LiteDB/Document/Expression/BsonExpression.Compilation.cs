@@ -1,16 +1,37 @@
 using System;
 using System.Linq.Expressions;
+#if DEBUG || TESTING
+using System.Threading;
+#endif
 
 namespace LiteDB
 {
     public sealed partial class BsonExpression
     {
+#if DEBUG || TESTING
+        private static int _cacheEnabled = 1;
+
+        /// <summary>
+        /// Gets or sets whether expression parsing, compilation, SQL template, and
+        /// LINQ shape caches may be used. Disable this process-wide switch as a
+        /// diagnostic or compatibility workaround when cached and fresh execution
+        /// differ. Changing it is thread-safe and affects subsequent operations.
+        /// </summary>
+        public static bool CacheEnabled
+        {
+            get => Volatile.Read(ref _cacheEnabled) != 0;
+            set => Volatile.Write(ref _cacheEnabled, value ? 1 : 0);
+        }
+
 #if TESTING
         [ThreadStatic]
         internal static bool DisableCompilationCache;
-        private static bool CacheEnabled => !DisableCompilationCache;
-#else
-        private static bool CacheEnabled => true;
+#endif
+        private static bool UseCache => CacheEnabled
+#if TESTING
+            && !DisableCompilationCache
+#endif
+            ;
 #endif
         private static BsonExpression CreateRoot()
         {
@@ -57,7 +78,11 @@ namespace LiteDB
         {
             if (string.IsNullOrWhiteSpace(expression)) throw new ArgumentNullException(nameof(expression));
 
-            var eligible = CacheEnabled && expression.Length <= ParsedExpressionCache.MaximumExpressionLength;
+            var eligible =
+#if DEBUG || TESTING
+                UseCache &&
+#endif
+                expression.Length <= ParsedExpressionCache.MaximumExpressionLength;
             var repeated = false;
             if (eligible && _parsedCache.TryGet(expression, out var template, out repeated))
             {
@@ -127,23 +152,39 @@ namespace LiteDB
             // in both case, try use cached compiled version
             if (expr.IsScalar)
             {
-                var cached = CacheEnabled ? _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source) : null;
+#if DEBUG || TESTING
+                var cached = UseCache ? _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source) : null;
+#else
+                var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source);
+#endif
                 if (cached == null)
                 {
                     var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
-                    cached = CacheEnabled ? CompileScalarWhenNeeded(expr, lambda) : lambda.Compile();
+#if DEBUG || TESTING
+                    cached = UseCache ? CompileScalarWhenNeeded(expr, lambda) : lambda.Compile();
+#else
+                    cached = CompileScalarWhenNeeded(expr, lambda);
+#endif
                 }
 
                 expr._funcScalar = cached;
             }
             else
             {
-                var cached = CacheEnabled ? _compiledCache.Get<BsonExpressionEnumerableDelegate>(expr.Source) : null;
+#if DEBUG || TESTING
+                var cached = UseCache ? _compiledCache.Get<BsonExpressionEnumerableDelegate>(expr.Source) : null;
+#else
+                var cached = _compiledCache.Get<BsonExpressionEnumerableDelegate>(expr.Source);
+#endif
                 if (cached == null)
                 {
                     var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionEnumerableDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
                     cached = lambda.Compile();
-                    if (CacheEnabled) _compiledCache.Add(expr.Source, cached);
+#if DEBUG || TESTING
+                    if (UseCache) _compiledCache.Add(expr.Source, cached);
+#else
+                    _compiledCache.Add(expr.Source, cached);
+#endif
                 }
 
                 expr._funcEnumerable = cached;

@@ -815,7 +815,7 @@ namespace LiteDB.Tests.QueryTest
             results.Select(x => x.Id).Should().Equal(expected.Select(x => x.Id));
         }
 
-        [Fact(Skip = "Skip for now cause flaky test. Feature is moved in the future so fixing now is not priority for now.")]
+        [Fact]
         public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_PersistedUpdate()
         {
             using var file = new MemoryStream();
@@ -905,7 +905,7 @@ namespace LiteDB.Tests.QueryTest
                         : ReadExternalVector(dataService, node.ExternalVector, metadata.Dimensions);
 
                     using var reader = new BufferReader(dataService.Read(node.DataBlock));
-                    var document = reader.ReadDocument().GetValue();
+                    var document = dataService.ReadDocument(reader, null, false, node.DataBlock).GetValue();
                     var typed = BsonMapper.Global.ToObject<VectorDocument>(document);
 
                     var expected = documents.Single(d => d.Id == typed.Id).Embedding;

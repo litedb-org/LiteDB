@@ -18,6 +18,8 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
+
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
             options = options ?? new RebuildOptions();
             var password = options.ResolvePassword(_settings.Password);
@@ -26,13 +28,35 @@ namespace LiteDB.Engine
 
             var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
+            // Rebuild replaces the database files and all engine services. Wait for
+            // existing transactions to finish and prevent a new one from being
+            // admitted between that wait and Close(). Close disposes the old lock,
+            // so this exclusive lease intentionally is not released here.
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            _locker.EnterExclusive();
+
             this.Close();
 
             // run build service
             var rebuilder = new RebuildService(_settings);
 
-            // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options, collation);
+            long diff;
+            try
+            {
+                // return how many bytes of diference from original/rebuild version
+                diff = rebuilder.Rebuild(options, collation);
+            }
+            catch (Exception ex)
+            {
+                // SharedEngine retains this settings instance after disposing the
+                // failed inner engine. Match it to a replacement left at the live path.
+                if (ex.Data[RebuildService.LiveStateDataKey] as string == RebuildService.LiveStateReplacement)
+                {
+                    _settings.Password = password;
+                    _settings.Collation = collation;
+                }
+                throw;
+            }
 
             // SharedEngine retains this same settings instance for subsequent opens.
             _settings.Password = password;
