@@ -57,6 +57,7 @@ namespace LiteDB.Engine
 
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
+        internal object TransactionOwner { get; set; }
         internal bool BypassDirectHost { get; set; }
         internal bool SharedMode { get; set; }
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }

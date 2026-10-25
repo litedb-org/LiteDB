@@ -24,13 +24,13 @@ namespace LiteDB.Engine
 
         private readonly int _transactionPageLimit;
         private int _disposed;
-        private object _owner = new object();
+        private object _owner = new TransactionOwnerToken();
         internal object Owner => _owner;
         internal void ValidateOwner() => this.ThrowIfDisposed();
         internal TransactionMonitor CreateOwner()
         {
             var view = (TransactionMonitor)this.MemberwiseClone();
-            view._owner = new object();
+            view._owner = new TransactionOwnerToken();
             view._explicitAborted = new ThreadLocal<bool>();
             return view;
         }
@@ -78,7 +78,7 @@ namespace LiteDB.Engine
         public int TransactionPageLimit => _transactionPageLimit;
         public TransactionService[] GetTransactionsSnapshot() => _transactions.Snapshot().ToArray();
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit, object owner = null)
         {
             if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));
 
@@ -87,6 +87,7 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _transactionPageLimit = transactionPageLimit;
+            if (owner != null) _owner = owner;
         }
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)

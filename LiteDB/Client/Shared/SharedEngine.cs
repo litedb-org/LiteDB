@@ -37,6 +37,7 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
+            _settings.TransactionOwner = new TransactionOwnerToken();
             _settings.SharedMode = true;
             if (NativeAdmission.IsFile(_settings)) NativeAdmission.Normalize(_settings);
             // Bind reopens, mutex and snapshot registry to one construction-time path.
