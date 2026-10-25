@@ -4,6 +4,7 @@
   "jobs": {
     "safety-policy": {"tiers": ["pr", "full"]},
     "oracle-smoke": {"tiers": ["pr", "full"]},
+    "released-file-compatibility": {"tiers": ["pr", "full"]},
     "build-linux": {"tiers": ["pr", "full"]},
     "build-windows": {"tiers": ["pr", "full"]},
     "build-macos": {"tiers": ["full"]},

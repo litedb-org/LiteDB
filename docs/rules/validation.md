@@ -61,6 +61,19 @@ coverage ledger, and new fault hooks need registered evidence; see
   is different from a passing regression guard. Configuration/handshake errors
   must fail even if the child prints a success marker or expected exit code.
 
+## Binary fixtures
+
+Do not commit new `.zip` or `.db` fixtures under `LiteDB.Tests/Resources`. Keep
+the generator in this repository, upload the produced file to
+`litedb-org/LiteDB-Artifacts`, and add its name, repository path and SHA-256 to
+`LiteDB.Tests/Resources/artifacts.json`, whose `revision` pins the artifacts
+commit. Tests call `ArtifactFixtures.Path("<name>")`, which returns a verified
+file from `$LITEDB_ARTIFACTS_DIR`, the per-user cache
+`<temp>/litedb-artifacts/<revision>/`, or a download from that revision. A hash
+mismatch fails the test. For offline work, set `LITEDB_ARTIFACTS_DIR` to a
+LiteDB-Artifacts checkout at the pinned revision (or a directory with the same
+layout); the cache is not consulted then.
+
 ## Runtime and environment coverage
 
 Validate culture and timezone-sensitive changes outside UTC and invariant culture.
