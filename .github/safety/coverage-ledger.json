@@ -111,6 +111,17 @@
       "disposition": "strengthened",
       "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
       "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
+    },
+    {
+      "id": "3059-refuse-volatile-only-writes",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Explicit transactions that only read must commit or roll back without modifying caller data, including a partial page tail; write APIs must not acknowledge volatile-only changes.",
+      "reason": "Changes the existing no-match DeleteMany assertion from successful no-op to IOException when no caller log is supplied, matching the intentional refusal of all write operations before acknowledgement. Retains indexed reads, byte preservation, commit and rollback assertions and executes them for both partial-tail cases; adds eight loss/refusal regressions and two caller-file-log retention controls. No test is removed or skipped.",
+      "decision": "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
     }
   ]
 }

@@ -92,6 +92,11 @@ namespace LiteDB.Engine
 
             if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
 
+            // Without a caller log, changes would only reach the engine-owned volatile WAL:
+            // non-writable storage cannot checkpoint it before the engine releases it.
+            if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
+                throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
+
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try

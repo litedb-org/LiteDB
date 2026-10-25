@@ -254,7 +254,12 @@ scan` instead, as 5.0.21 read such streams: explicit transactions still work, wr
 operations are rejected. Such storage is never checkpointed, promoted to compact
 storage, marked for rebuild or rebuilt (`Checkpoint()` and `Rebuild()` return 0, as
 in 5.x; a checkpoint of a non-empty caller log throws `NotSupportedException`), and
-the caller's `EngineSettings` instance is not modified. Durability promises for other
+the caller's `EngineSettings` instance is not modified. A non-writable data stream
+without a caller-supplied log stream rejects writes with `IOException` before they
+are acknowledged, including when opening needs no changes. Explicit transactions
+that only read remain available. For writable sessions over non-writable data,
+supply a writable log stream and retain it alongside the data: commits stay in that
+log and reopening requires both streams. Durability promises for other
 custom streams are unchanged (#3044).
 
 ## Legacy collection pages and vector metadata

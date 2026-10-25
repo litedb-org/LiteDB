@@ -109,6 +109,17 @@
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
       ]
+    },
+    {
+      "repro": "Issue_3059_ReadOnlyStorageNoLog",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_without_a_log_refuses_writes_before_acknowledgement",
+        "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_with_a_caller_file_log_retains_commits_on_reopen"
+      ]
     }
   ]
 }

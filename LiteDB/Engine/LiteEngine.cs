@@ -259,7 +259,7 @@ namespace LiteDB.Engine
         }
 
         /// <summary>WAL size (in pages) that triggers a checkpoint; 0 disables automatic checkpoints.</summary>
-        // Storage that cannot be written is never checkpointed: its changes stay in the log, as in 5.x.
+        // Storage that cannot be written is never checkpointed: writes require a caller-supplied log.
         // Neither is a read-only engine (its read transactions complete through CommitAndReleaseTransaction).
         private int CheckpointPages => _settings.ReadOnlyStorage || _settings.ReadOnly ? 0 : _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
 

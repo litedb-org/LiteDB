@@ -19,8 +19,8 @@ namespace LiteDB.Tests.Regressions
     /// Uses the real 5.0.21 fixture DropIndex_5_0_21.zip from LiteDB-Artifacts (checked with the 5.0.21 package).
     ///
     /// Only an open that would change the file falls back to read-only: over a current file the
-    /// engine stays writable, so explicit transactions and writes that change nothing work as in
-    /// 5.0.21 (checked with the 5.0.21 package: BeginTrans/Commit and a DeleteMany matching nothing).
+    /// engine still accepts explicit read transactions. Without a caller log, write operations
+    /// are refused even when they would change nothing, so no commit can disappear on close.
     /// </summary>
     [Trait("Category", "RegressionSince5021")]
     public class LegacyReadOnlyStream_Tests
@@ -71,15 +71,13 @@ namespace LiteDB.Tests.Regressions
                 var items = db.GetCollection("items");
                 items.FindOne(Query.EQ("name", "a"))["_id"].AsInt32.Should().Be(1);
                 ReadOnly(db).Should().Be(partialTail);
-                if (!partialTail)
-                {
-                    db.BeginTrans().Should().BeTrue();
-                    (items.FindById(1) != null).Should().BeTrue();
-                    items.DeleteMany(Query.EQ("name", "missing")).Should().Be(0);
-                    db.Commit().Should().BeTrue();
-                    db.BeginTrans().Should().BeTrue();
-                    db.Rollback().Should().BeTrue();
-                }
+                db.BeginTrans().Should().BeTrue();
+                (items.FindById(1) != null).Should().BeTrue();
+                items.Invoking(x => x.DeleteMany(Query.EQ("name", "missing")))
+                    .Should().Throw<IOException>().WithMessage("*read-only*");
+                db.Commit().Should().BeTrue();
+                db.BeginTrans().Should().BeTrue();
+                db.Rollback().Should().BeTrue();
             }
             File.ReadAllBytes(file.Filename).Should().Equal(original, "nothing was changed");
         }

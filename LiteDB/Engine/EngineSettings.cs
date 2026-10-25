@@ -50,6 +50,8 @@ namespace LiteDB.Engine
         /// (recovery or repair, trimming a partial page, index migration, format conversion); then
         /// it reads the streams as they are, with <see cref="ReadOnly"/> and
         /// <see cref="LegacyIndexScan"/>, and still accepts explicit transactions that only read.
+        /// Without a caller-supplied log stream, writes are rejected: an engine-owned log cannot
+        /// retain changes after close when the data stream cannot be checkpointed.
         /// </summary>
         internal bool ReadOnlyStorage { get; set; }
 
