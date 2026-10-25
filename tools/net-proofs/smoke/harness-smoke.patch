@@ -1,0 +1,6 @@
+diff --git a/net-proof-smoke/patched.txt b/net-proof-smoke/patched.txt
+new file mode 100644
+--- /dev/null
++++ b/net-proof-smoke/patched.txt
+@@ -0,0 +1 @@
++Applied by tools/net-proofs/smoke/harness-smoke.patch.
