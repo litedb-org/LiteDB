@@ -23,6 +23,10 @@ public sealed class DeadlineOracleCompletion_Tests : IDisposable
         var result = Assert.Single(runs);
         Assert.False(result.Passed);
         const string id = "DEADLINE_ORACLE_DEADLINE_COMPLETION_SELFTEST_FINISHES";
+        var completion = Path.Combine(result.Directory, DeadlineCompletionSelfTestFuzzer.CompletionObservedFile);
+        Assert.True(File.Exists(completion), "The operation never finished while the watchdog handler owned failure reporting.");
+        Assert.Equal(id, File.ReadAllText(completion));
+        Assert.False(File.Exists(Path.Combine(result.Directory, "deadline-handler-error.txt")));
         using var run = JsonDocument.Parse(File.ReadAllText(Path.Combine(result.Directory, "run.json")));
         Assert.Equal(id, run.RootElement.GetProperty("failureId").GetString());
         Assert.Equal(new[] { id }, File.ReadAllLines(Path.Combine(result.Directory, "handler-calls.txt")));

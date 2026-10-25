@@ -1,9 +1,12 @@
+using System.Diagnostics;
+
 namespace LiteDB.Fuzz.SelfTests;
 
 /// <summary>Forces an overdue call to finish while its watchdog is recording the failure.</summary>
 internal sealed class DeadlineCompletionSelfTestFuzzer : IFuzzTarget
 {
     internal const string TargetName = "oracle-deadline-completion-selftest";
+    internal const string CompletionObservedFile = "completion-observed.txt";
     public string Name => TargetName;
     public string Description => "Deadline reporting races with synchronous/asynchronous completion (self-test only).";
 
@@ -15,8 +18,16 @@ internal sealed class DeadlineCompletionSelfTestFuzzer : IFuzzTarget
         {
             File.AppendAllText(Path.Combine(context.DirectoryPath, "handler-calls.txt"), error.FailureId + "\n");
             reported.Set();
-            // Let the original call finish while this handler still owns failure reporting.
-            await Task.Delay(200);
+            // End removes the operation before the completion path checks failure ownership.
+            // Keep this handler in control until that interleaving actually occurs.
+            var wait = Stopwatch.StartNew();
+            while (context.Oracles.Watchdog.Snapshot().Length != 0)
+            {
+                if (wait.Elapsed >= TimeSpan.FromSeconds(10))
+                    throw new TimeoutException("The overdue operation did not finish while the watchdog owned failure reporting.");
+                await Task.Delay(10);
+            }
+            File.WriteAllText(Path.Combine(context.DirectoryPath, CompletionObservedFile), error.FailureId);
             await handler(error);
         };
         while (context.Next())
