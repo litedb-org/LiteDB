@@ -5,6 +5,28 @@ internal static class SharedOneFileHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (mode.StartsWith("one-file-facade-", StringComparison.Ordinal))
+        {
+            try
+            {
+                using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true, Password = args[3] == "-" ? null : args[3] });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                if (mode.EndsWith("refused", StringComparison.Ordinal)) throw new Exception("Conflicting open admitted");
+                if (mode.EndsWith("hold", StringComparison.Ordinal))
+                {
+                    db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" });
+                    db.GetCollection("docs").EnsureIndex("value");
+                    db.BeginTrans();
+                    db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2 });
+                    Console.WriteLine("ready");
+                    Console.ReadLine();
+                    db.Rollback();
+                }
+            }
+            catch (IOException) when (mode.EndsWith("refused", StringComparison.Ordinal)) { }
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "one-file-reader-hold")
         {
             var table = SharedMemoryReaderTable.Open(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true });

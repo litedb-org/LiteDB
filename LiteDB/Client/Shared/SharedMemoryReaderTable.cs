@@ -17,12 +17,15 @@ namespace LiteDB.Client.Shared
         private readonly Stack<int> _free = new Stack<int>();
         internal readonly SharedMemoryAuthority Authority;
         private readonly NativeAdmission _admission;
+        internal readonly EngineSettings Settings;
+        internal Action ClosedCallback;
         private int _references = 1;
         internal bool Closed { get { lock (_gate) return _references == 0; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
 
-        private SharedMemoryReaderTable(SharedMemoryAuthority authority, NativeAdmission admission)
+        private SharedMemoryReaderTable(SharedMemoryAuthority authority, NativeAdmission admission, EngineSettings settings)
         {
+            Settings = settings;
             Authority = authority;
             _admission = admission;
             for (var i = authority.Header.Generations - 1; i >= 0; i--) _free.Push(i);
@@ -34,6 +37,13 @@ namespace LiteDB.Client.Shared
                 throw new NotSupportedException("ABI-2 file-replacing upgrade/auto-rebuild requires slice 9 qualification.");
             var captured = settings.Clone();
             captured.SharedMode = true;
+            // Retain only immutable opening choices, never facade callbacks/resources.
+            captured.SharedReaderVersions = null;
+            captured.AutoRebuildAllowed = null;
+            captured.SharedAdmission = null;
+            captured.SharedFileHandles = null;
+            captured.CoordinationSignals = null;
+            captured.TransactionOwner = null;
             var admission = NativeAdmission.Open(captured, true);
             try
             {
@@ -55,20 +65,22 @@ namespace LiteDB.Client.Shared
                         coreSettings.SharedReaderVersions = () => Scan(current);
                         coreSettings.AutoRebuildAllowed = () => false;
                         using var core = new LiteEngine(coreSettings);
+                        captured.Collation = new Collation(core.Pragma(Pragmas.COLLATION).AsString);
                     }
                     finally { if (held) main.ReleaseMutex(); }
                 });
-                return new SharedMemoryReaderTable(authority, admission);
+                return new SharedMemoryReaderTable(authority, admission, captured);
             }
             catch { admission.Dispose(); throw; }
         }
 
-        internal void Retain()
+        internal bool TryRetain()
         {
             lock (_gate)
             {
-                if (_references == 0) throw new ObjectDisposedException(nameof(SharedMemoryReaderTable));
+                if (_references == 0) return false;
                 _references++;
+                return true;
             }
         }
 
@@ -78,7 +90,7 @@ namespace LiteDB.Client.Shared
             {
                 if (--_references != 0) return;
                 try { Authority.Dispose(); }
-                finally { _admission.Dispose(); }
+                finally { try { _admission.Dispose(); } finally { ClosedCallback?.Invoke(); } }
             }
         }
 

@@ -9,6 +9,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -20,7 +21,7 @@ namespace LiteDB.Internals
         private EngineSettings Settings(int generations = 256) => new EngineSettings
         { Filename = Filename, SharedOneFile = true, SharedGenerationCapacity = generations };
 
-        [Fact]
+        [OneFileFact]
         public async Task All_256_exact_generations_version_zero_duplicates_churn_and_off_thread_double_release()
         {
             var table = SharedMemoryReaderTable.Open(Settings());
@@ -43,7 +44,7 @@ namespace LiteDB.Internals
             await MvccProcess.Run("direct-host-direct-open", Filename, null);
         }
 
-        [Fact]
+        [OneFileFact]
         public void Malformed_live_record_and_slot_identity_return_unknown_not_an_empty_floor_set()
         {
             var table = SharedMemoryReaderTable.Open(Settings());
@@ -62,7 +63,7 @@ namespace LiteDB.Internals
             table.LiveVersions().Should().Equal(0);
         }
 
-        [Fact]
+        [OneFileFact]
         public async Task Paused_reader_stays_live_killed_records_disappear_and_slot_reuse_changes_incarnation()
         {
             using var first = new MvccProcess("one-file-reader-hold", Filename, null);
@@ -86,7 +87,7 @@ namespace LiteDB.Internals
             table.LiveVersions().Should().BeEmpty();
         }
 
-        [Fact]
+        [OneFileFact]
         public void Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint()
         {
             using (var seed = new LiteDatabase(Filename))
@@ -131,7 +132,7 @@ namespace LiteDB.Internals
             engine.CoordinatedReadHits.Should().Be(0, "warm mapped admission belongs to slice 6");
         }
 
-        [Fact]
+        [OneFileFact]
         public async Task Generation_capacity_fails_before_stateful_query_callback_executes()
         {
             using (var seed = new LiteDatabase(Filename)) seed.GetCollection("docs").Insert(Documents(0));
@@ -149,7 +150,7 @@ namespace LiteDB.Internals
             callbacks.Should().Be(before);
         }
 
-        [Fact]
+        [OneFileFact]
         public void New_and_legacy_shared_protocols_cannot_mix_locally()
         {
             using var engine = new SharedEngine(Settings());

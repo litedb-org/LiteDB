@@ -49,12 +49,14 @@ namespace LiteDB.Client.Shared
                 result = new SharedMemoryAuthority(path);
                 Stage("created");
                 result._file = new FileStream(DatabaseFileIdentity.Open(path, false, false, writable: true), FileAccess.ReadWrite);
+                if (DatabaseFileIdentity.Read(result._file.SafeFileHandle) != result.Locks.Identity)
+                    throw new IOException("Shared mapped file identity differs from liveness owner.");
                 using (var verify = new DatabaseFileLock(path, false, false))
                     if (verify.Identity != result.Locks.Identity) throw new IOException("Shared pathname replaced during open.");
                 var first = result.Locks.TryExclusiveDms();
                 if (first) result.Locks.EnterWrite();
                 else result.Locks.ShareDms();
-                var old = result.ReadExisting(settings.Filename, identity, first);
+                var old = result.ReadExisting(settings.Filename, identity, first, settings.SharedMutexNameStrategy);
                 if (first)
                 {
                     result.Header = SharedMemoryEnvelope.Create(settings, identity);
@@ -70,6 +72,8 @@ namespace LiteDB.Client.Shared
                     result.Map = CreateMap(result._file, result.Header.Size);
                     Stage("mapped");
                     result.Map.Zero(0, result.Header.Size);
+                    result.Map.Store(SharedMemoryLayout.CommittedVersion, -1);
+                    result.Map.Store(SharedMemoryLayout.FastAdmissionDisabled, 1);
                     result.Map.Store(SharedMemoryLayout.Control + 8, 1); // odd, not Ready
                     Stage("odd");
                     result.Map.Write(0, result.Header.Bytes);
@@ -110,7 +114,7 @@ namespace LiteDB.Client.Shared
             finally { if (held) bootstrap.ReleaseMutex(); }
         }
 
-        private SharedMemoryEnvelope ReadExisting(string path, string identity, bool first)
+        private SharedMemoryEnvelope ReadExisting(string path, string identity, bool first, SharedMutexNameStrategy strategy)
         {
             var length = _file.Length;
             if (length == 0) return null;
@@ -134,7 +138,7 @@ namespace LiteDB.Client.Shared
                     if (!first) throw new IOException("Live Shared envelope is incomplete.");
                     continue;
                 }
-                var decoded = SharedMemoryEnvelope.Decode(candidate, path, identity, quiescent: first);
+                var decoded = SharedMemoryEnvelope.Decode(candidate, path, identity, quiescent: first, strategy: strategy);
                 if (!first && valid != null && !valid.Bytes.SequenceEqual(decoded.Bytes)) throw new IOException("Shared envelopes disagree.");
                 valid = decoded;
             }

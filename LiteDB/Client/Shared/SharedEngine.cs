@@ -44,8 +44,7 @@ namespace LiteDB
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
             _settings.SharedDurability = new SharedDurabilityState();
-            _readers = CreateReaderRegistry(_settings);
-            _settings.SharedReaderVersions = _readers.LiveVersions;
+            _settings.SharedReaderVersions = () => _readers.LiveVersions();
             // A rebuild would replace the files under live snapshot readers. Scan the
             // registry only when an open is about to rebuild, not on every operation.
             _settings.AutoRebuildAllowed = () => !_readers.OldestVersion().HasValue;
@@ -77,7 +76,20 @@ namespace LiteDB
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
             _owner = new SharedMutexOwner(_mutex, _turnstile, this.OnOwnerExited);
-            if (NativeAdmission.IsFile(_settings)) _settings.SharedAdmission = _admission = NativeAdmission.Open(_settings, shared: true);
+            try
+            {
+                if (NativeAdmission.IsFile(_settings)) _settings.SharedAdmission = _admission = NativeAdmission.Open(_settings, shared: true);
+                _readers = CreateReaderRegistry(_settings);
+                BindParticipantSettings(_settings, _readers);
+            }
+            catch
+            {
+                _readers?.Dispose();
+                _admission?.Dispose();
+                _handles?.Dispose();
+                _mutex.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -345,32 +357,6 @@ namespace LiteDB
         #region Write Operations
 
         public int Checkpoint() => WriteDatabase(() => _engine.Checkpoint(), scoped: true);
-
-        public long Rebuild(RebuildOptions options)
-        {
-            return WriteDatabase(() =>
-            {
-                if (_settings.SharedOneFile) throw new NotSupportedException("ABI-2 maintenance requires slice 9 qualification.");
-                // Publish before inspecting leases: a cached reader may be admitting
-                // without the database mutex and must not accept a replaced file set.
-                _settings.CoordinationSignals?.StructuralBegin();
-                try
-                {
-                    if (_readers.OldestVersion().HasValue)
-                    {
-                        Reachability.Sometimes("refusal:shared-rebuild-with-open-readers");
-                        throw new LiteException(0, "Close shared readers before rebuilding the database.");
-                    }
-                    _handles?.CloseIdle();
-                    return _engine.Rebuild(options);
-                }
-                finally
-                {
-                    _handles?.CloseIdle();
-                    _settings.CoordinationSignals?.StructuralEnd(-1);
-                }
-            });
-        }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {

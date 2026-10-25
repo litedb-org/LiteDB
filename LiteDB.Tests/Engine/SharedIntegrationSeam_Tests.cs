@@ -19,6 +19,18 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Unsupported_mapped_targets_refuse_explicit_opt_in()
+        {
+#if !NET8_0_OR_GREATER
+            System.Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = ":memory:", SharedOneFile = true }); };
+            open.Should().Throw<System.PlatformNotSupportedException>();
+#else
+            System.Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = ":memory:", SharedOneFile = true }); };
+            open.Should().Throw<System.NotSupportedException>();
+#endif
+        }
+
+        [Fact]
         public void Lock_bytes_and_reserved_future_fields_cannot_overlap_payload()
         {
             SharedMemoryLayout.Dms.Should().Be(0x40000000);

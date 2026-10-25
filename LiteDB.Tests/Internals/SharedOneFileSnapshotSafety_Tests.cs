@@ -7,12 +7,13 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
     public class SharedOneFileSnapshotSafety_Tests
     {
-        [Fact]
+        [OneFileFact]
         public void Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation()
         {
             using var file = new LiteDB.Tests.TempFile();
@@ -60,7 +61,7 @@ namespace LiteDB.Internals
             File.Delete(file.Filename + "-shm");
         }
 
-        [Fact]
+        [OneFileFact]
         public void Include_keeps_referenced_collection_at_its_exact_admitted_generation()
         {
             var directory = Path.Combine(Path.GetTempPath(), "litedb-shm-include-" + Guid.NewGuid().ToString("N"));

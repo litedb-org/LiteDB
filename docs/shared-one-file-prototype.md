@@ -46,3 +46,17 @@ validation. No live ABI-2 writer can exist in that state. Live attachment releas
 the independent bootstrap gate after publishing its slot/request and before
 waiting for main ownership. Ordinary writer main->WRITE publication belongs to
 slice 5; no warm status is trusted by these slices.
+
+Through slice 4 the registry shares one mapping, DMS, process-slot lock, exact
+reader table, durability diagnostics and checkpoint backoff across compatible
+local facades. Main ownership/core state remain per facade until slices 7/8.
+The participant captures no facade callbacks or facade token. Initialization is
+per physical identity; unrelated identities never wait behind its entry gate.
+Closing the last facade/result retires that exact entry without erasing a successor.
+
+Qualification is currently Linux x64/.NET 8+ on the mapped local-volume allowlist.
+Other mapped platforms explicitly refuse opt-in; their prototype tests report a
+capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
+Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
+starts with committed-version unknown and fast-admission disabled; slices 5/6 must
+publish all storage fences before any warm reader trusts these reserved fields.

@@ -6,12 +6,26 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+        internal SharedMemoryReaderTable MappedReaderTable => (_readers as SharedMemoryReaders)?.Table;
+#endif
+        private static void BindParticipantSettings(EngineSettings settings, ISharedReaderRegistry readers)
+        {
+#if NET8_0_OR_GREATER
+            if (readers is SharedMemoryReaders mapped)
+            {
+                settings.CheckpointBackoff = mapped.Table.Settings.CheckpointBackoff;
+                settings.SharedDurability = mapped.Table.Settings.SharedDurability;
+            }
+#endif
+        }
+
         private static ISharedReaderRegistry CreateReaderRegistry(EngineSettings settings)
         {
             if (!settings.SharedOneFile) return new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
 #if NET8_0_OR_GREATER
             if (!NativeAdmission.IsFile(settings)) throw new NotSupportedException("SharedOneFile requires a physical database file.");
-            return new SharedMemoryReaders(SharedMemoryReaderTable.Open(settings));
+            return SharedParticipantRegistry.Attach(settings);
 #else
             throw new PlatformNotSupportedException("SharedOneFile requires .NET 8 or later.");
 #endif

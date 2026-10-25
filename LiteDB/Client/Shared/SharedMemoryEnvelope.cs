@@ -54,12 +54,12 @@ namespace LiteDB.Client.Shared
             Put(bytes, 48, 1L); // required capability: native OFD/range liveness
             Buffer.BlockCopy(Guid.NewGuid().ToByteArray(), 0, bytes, 64, 16);
             Buffer.BlockCopy(Hash(identity), 0, bytes, 80, 32);
-            Buffer.BlockCopy(Hash(settings.Filename), 0, bytes, 112, 32);
+            Buffer.BlockCopy(NamespaceHash(settings.Filename, settings.SharedMutexNameStrategy), 0, bytes, 112, 32);
             Buffer.BlockCopy(Hash(bytes.Take(HashOffset).ToArray()), 0, bytes, HashOffset, 32);
             return new SharedMemoryEnvelope(bytes);
         }
 
-        internal static SharedMemoryEnvelope Decode(byte[] bytes, string path, string identity, bool quiescent = false)
+        internal static SharedMemoryEnvelope Decode(byte[] bytes, string path, string identity, bool quiescent = false, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
         {
             if (bytes.Length != SharedMemoryLayout.EnvelopeBytes || !Magic.SequenceEqual(bytes.Take(8)))
                 throw new IOException("Unknown Shared coordination magic.");
@@ -70,7 +70,7 @@ namespace LiteDB.Client.Shared
                 BitConverter.ToInt32(bytes, 44) != 8 || BitConverter.ToInt64(bytes, 48) != 1 ||
                 BitConverter.ToInt64(bytes, 56) != 0 || bytes.Skip(144).Take(80).Any(b => b != 0))
                 throw new IOException("Unsupported Shared coordination ABI/layout/capabilities.");
-            if (!Hash(identity).SequenceEqual(bytes.Skip(80).Take(32)) || !Hash(path).SequenceEqual(bytes.Skip(112).Take(32)))
+            if (!Hash(identity).SequenceEqual(bytes.Skip(80).Take(32)) || !NamespaceHash(path, strategy).SequenceEqual(bytes.Skip(112).Take(32)))
                 throw new IOException("Shared coordination database identity/namespace mismatch.");
             var result = new SharedMemoryEnvelope(bytes);
             if (result.Processes < 1 || result.Processes > 65536 || result.Generations < 1 || result.Generations > 65536 ||
@@ -83,6 +83,8 @@ namespace LiteDB.Client.Shared
             return result;
         }
 
+        private static byte[] NamespaceHash(string path, SharedMutexNameStrategy strategy) =>
+            Hash(path + "\0" + SharedMutexNameFactory.Create(path, strategy));
         internal static bool IsZero(byte[] bytes) => bytes.All(b => b == 0);
         internal static byte[] Hash(string value) => Hash(Encoding.UTF8.GetBytes(value));
         internal static byte[] Hash(byte[] value) { using var sha = SHA256.Create(); return sha.ComputeHash(value); }

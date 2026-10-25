@@ -9,6 +9,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -48,7 +49,7 @@ namespace LiteDB.Internals
             finally { mutex.ReleaseMutex(); }
         }
 
-        [Theory]
+        [OneFileTheory]
         [MemberData(nameof(Boundaries))]
         public void Every_bootstrap_exception_boundary_releases_and_reinitializes_twice(string cut)
         {
@@ -71,7 +72,7 @@ namespace LiteDB.Internals
             Directory.GetFiles(_directory).Select(Path.GetFileName).Should().BeEquivalentTo(new[] { "test.db", "test.db-shm" });
         }
 
-        [Theory]
+        [OneFileTheory]
         [MemberData(nameof(Boundaries))]
         public async Task Every_bootstrap_process_death_boundary_recovers_after_repeated_death(string cut)
         {
@@ -87,7 +88,7 @@ namespace LiteDB.Internals
             recovered.Map.Load(SharedMemoryLayout.Control).Should().Be(1);
         }
 
-        [Fact]
+        [OneFileFact]
         public void First_opener_chooses_capacity_later_openers_map_declared_size_and_only_quiescence_changes_it()
         {
             var settings = Settings(2, 3);
@@ -112,7 +113,7 @@ namespace LiteDB.Internals
             resized.Header.Generations.Should().Be(512);
         }
 
-        [Theory]
+        [OneFileTheory]
         [InlineData(8)] [InlineData(48)] [InlineData(80)] [InlineData(112)] [InlineData(224)]
         public void Unknown_abi_capabilities_identity_and_damaged_live_headers_refuse_without_mutation(int offset)
         {
@@ -133,7 +134,7 @@ namespace LiteDB.Internals
             valid.Header.Authority.Should().Be(live.Header.Authority);
         }
 
-        [Fact]
+        [OneFileFact]
         public void Replay_or_copied_path_cannot_authorize_another_database()
         {
             var settings = Settings();
@@ -156,7 +157,7 @@ namespace LiteDB.Internals
             calls.Should().Be(1);
         }
 
-        [Fact]
+        [OneFileFact]
         public void Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap()
         {
             var settings = Settings();
@@ -183,7 +184,7 @@ namespace LiteDB.Internals
             using var recovered = Open(settings, admission);
         }
 
-        [Fact]
+        [OneFileFact]
         public void Torn_ephemeral_checksums_reset_only_without_surviving_participants()
         {
             var settings = Settings();
@@ -202,7 +203,7 @@ namespace LiteDB.Internals
             for (var repeat = 0; repeat < 2; repeat++) { using var reset = Open(settings, admission); }
         }
 
-        [Fact]
+        [OneFileFact]
         public void Successful_bootstrap_visits_all_registered_boundaries_and_invalid_settings_execute_nothing()
         {
             var settings = Settings();
@@ -220,7 +221,7 @@ namespace LiteDB.Internals
             using var again = Open(Settings(), admission);
         }
 
-        [Fact]
+        [OneFileFact]
         public void Empty_and_zero_partial_initialization_reset_but_declared_wrong_length_refuses()
         {
             var settings = Settings();
@@ -235,7 +236,21 @@ namespace LiteDB.Internals
             executed.Should().BeFalse();
         }
 
-        [Fact]
+        [OneFileFact]
+        public void Live_authority_refuses_a_different_main_mutex_namespace_before_storage_validation()
+        {
+            var settings = Settings();
+            using var admission = NativeAdmission.Open(settings, true);
+            using var first = Open(settings, admission);
+            var changed = Settings();
+            changed.SharedMutexNameStrategy = SharedMutexNameStrategy.Sha1Hash;
+            var executed = false;
+            Action attach = () => { using var other = Open(changed, admission, () => executed = true); };
+            attach.Should().Throw<IOException>().WithMessage("*namespace*");
+            executed.Should().BeFalse();
+        }
+
+        [OneFileFact]
         public void Connection_string_round_trips_configurable_size_and_capacity()
         {
             var connection = new ConnectionString("filename=a.db;connection=shared;shared one file=true;shared memory size=2MB;shared process capacity=8;shared generation capacity=512");
