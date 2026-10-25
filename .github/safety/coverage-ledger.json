@@ -71,6 +71,16 @@
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_rejects_a_file_whose_chunks_overrun_the_declared_length",
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected"
       ]
+    },
+    {
+      "id": "3060-preserve-vector-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released dropped-index and prerelease vector fixtures remain pinned and hash-verified alongside the S01 corpus scaffold.",
+      "reason": "S01 has an empty fixture map at revision 88b857f6; preserve the two S05 entries and their unchanged hashes at e059a85e1cbd641e4a682882a70b1c84906d393f. No fixture is removed or repinned."
     }
   ]
 }

@@ -40,3 +40,8 @@ hashes. Early v5 writers do not produce healthy indexes on .NET 8, so the histor
 writer runtime is part of the fixture provenance. The current reader uses .NET 8.
 Commit the output to LiteDB-Artifacts, then pin the new revision in
 `artifacts-revision.txt`; the database files never enter this repository.
+
+The exact generator of the pinned released corpus is preserved at
+`tools/ReleaseCompatibility/provenance/generate-release-corpus.py`. The verifier
+requires the manifest producer hash to match that snapshot or the current generator;
+operational timeout fixes to the current tool do not rewrite historical provenance.
