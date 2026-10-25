@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ReleaseVersion Condition="'$(ReleaseVersion)' == ''">5.0.21</ReleaseVersion>
+    <DefineConstants Condition="$(ReleaseVersion.StartsWith('4.'))">V4</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Corpus.cs" />
+    <PackageReference Include="LiteDB" Version="$(ReleaseVersion)" />
+  </ItemGroup>
+</Project>
