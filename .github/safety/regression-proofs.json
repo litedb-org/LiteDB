@@ -91,6 +91,27 @@
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable",
         "scripts/test-5021-regression-compatibility.py"
       ]
+    },
+    {
+      "repro": "Issue_3027_SharedMutexNameLength",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+      ]
+    },
+    {
+      "repro": "Issue_3092_ReadSnapshotReusedPage",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      ]
     }
   ]
 }
