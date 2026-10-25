@@ -42,6 +42,13 @@ namespace LiteDB
             return transaction;
         }
 
+        /// <summary>
+        /// Shared mode: a snapshot of this database's waits for writer ownership over the last
+        /// <paramref name="window"/> (default five minutes). Null for other engines.
+        /// </summary>
+        public SharedWaitDiagnostics GetSharedWaitDiagnostics(TimeSpan? window = null) =>
+            (_engine as SharedEngine)?.GetWaitDiagnostics(window ?? TimeSpan.FromMinutes(5));
+
         private TransactionResources OpenTransactionResources()
         {
             if (_engine is SharedEngine shared) return shared.OpenTransactionResources();
