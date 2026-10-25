@@ -160,3 +160,6 @@ checkpoint introduces earlier holes. Only full checkpoint can clear the root and
 rotate salt after all data is durable. A rooted v13 data file requires its WAL.
 Run the `mvcc-retirement` target, corruption tests and separate-process MVCC suite.
 See [retirement format](../mvcc-retirement-format.md).
+
+Released-file corpus: see [legacy file validation](../legacy-file-validation.md).
+Run `python3 scripts/test-release-compatibility.py` for every stable v5 package and v4 upgrade coverage, including read-only inspection, direct writes, rollback and reopen.
