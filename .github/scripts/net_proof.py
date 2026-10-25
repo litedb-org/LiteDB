@@ -479,8 +479,9 @@ class Run:
                 for index in range(runs):
                     self._attempt(side, index)
             if evidence == 1:  # a controlled net must replay: the same assertion again
+                matched = any(attempt["assertion"] for attempt in self.result["knownBad"]["attempts"])
                 for index in range(runs, runs + self.net.get("replays", 1)):
-                    if self.result["knownBad"]["attempts"][0]["assertion"] is None:
+                    if not matched:
                         break
                     self._attempt("knownBad", index, replay=True)
         self.result["wallSeconds"]["net"] = round(time.monotonic() - started, 2)
@@ -524,15 +525,18 @@ class Run:
             if metrics:
                 record["metricMedian"] = metrics[len(metrics) // 2]
         bad, fix = self.result["knownBad"], self.result["fix"]
-        # None: the attempt did not fire, or fired without the expected assertion.
-        assertions = [attempt["assertion"] if attempt["fired"] else None for attempt in bad["attempts"]]
+        # A quiet ordinary run does not invalidate a later detection. A failed run
+        # without the expected assertion, or a quiet replay, still cannot prove replay.
+        assertions = [attempt["assertion"] for attempt in bad["attempts"] if attempt["fired"]]
+        replays = [attempt for attempt in bad["attempts"] if attempt["replay"]]
         matched = [value for value in assertions if value is not None]
         bad["assertion"] = matched[0] if matched else None
         if not bad["fired"]:
             self._finish("not-fired", "the net stayed quiet at the known-bad commit")
         elif not matched:
             self._finish("fired-differently", "the net failed at known-bad, but not with the expected assertion")
-        elif evidence == 1 and len(set(assertions)) != 1:
+        elif evidence == 1 and (len(set(assertions)) != 1 or not replays or
+                                any(not attempt["assertion"] for attempt in replays)):
             self._finish("not-reproduced", "a controlled net must reproduce the same assertion on replay; "
                                            f"observed {assertions}")
         elif fix["fired"]:

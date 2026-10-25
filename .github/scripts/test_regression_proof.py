@@ -424,6 +424,19 @@ class VersionTests(unittest.TestCase):
 
 
 class PackTests(unittest.TestCase):
+    def test_pack_rejects_invalid_arguments_before_fetch_or_build(self):
+        cases = [("abc", None), ("0", None), ("-1", None), (True, None), ("", None),
+                 ("1", "../repo"), ("1", "owner/repo..bad"), ("1", ""),
+                 (None, "owner/repo")]
+        for pr, repository in cases:
+            with self.subTest(pr=pr, repository=repository), \
+                    patch.object(proof.provenance, "ensure_commit") as fetch, \
+                    patch.object(proof.subprocess, "run") as run:
+                with self.assertRaisesRegex(SystemExit, "--pr|--repository"):
+                    proof.pack_known_bad("a" * 40, "unused", pr, repository)
+                fetch.assert_not_called()
+                run.assert_not_called()
+
     def test_reversion_rewrites_only_the_package_version(self):
         directory = Path(tempfile.mkdtemp())
         try:

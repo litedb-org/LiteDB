@@ -247,6 +247,29 @@ class RunTests(unittest.TestCase):
                 self.assertEqual((code, result["state"]), (1, state), output)
                 self.assertEqual(summary["passed"], 0)
 
+    def test_controlled_replay_can_follow_a_quiet_first_attempt(self):
+        command = [sys.executable, "-c",
+                   "import os, pathlib, sys; bad = pathlib.Path('state.txt').read_text().strip() == 'bad'; "
+                   "fire = bad and not os.environ['NET_PROOF_ARTIFACTS'].endswith('run-0'); "
+                   "print('NET-FIRED: id=late' if fire else 'quiet'); sys.exit(int(fire))"]
+        code, output, _, result = self.run_entry(self.sample(net_runs=2, net_command=command))
+        self.assertEqual((code, result["state"]), (0, "proven"), output)
+        self.assertEqual([attempt["assertion"] for attempt in result["knownBad"]["attempts"]],
+                         [None, "late", "late"])
+        self.assertTrue(result["knownBad"]["attempts"][-1]["replay"])
+
+    def test_a_quiet_replay_or_an_unmatched_failure_is_not_proven(self):
+        for mode in ("quiet-replay", "unmatched-failure"):
+            with self.subTest(mode):
+                command = [sys.executable, "-c",
+                           "import os, pathlib, sys; bad = pathlib.Path('state.txt').read_text().strip() == 'bad'; "
+                           "run = os.environ['NET_PROOF_ARTIFACTS']; "
+                           f"match = not run.endswith('run-2' if {mode!r} == 'quiet-replay' else 'run-0'); "
+                           "print('NET-FIRED: id=x' if bad and match else 'quiet'); "
+                           f"sys.exit(int(bad and (match or {mode!r} == 'unmatched-failure')))"]
+                code, output, _, result = self.run_entry(self.sample(net_runs=2, net_command=command))
+                self.assertEqual((code, result["state"]), (1, "not-reproduced"), output)
+
     def test_a_conflicting_overlay_is_a_harness_error(self):
         value = self.sample(net_overlay={"patches": ["tools/net-proofs/p.patch"]})
         broken = "diff --git a/state.txt b/state.txt\n--- a/state.txt\n+++ b/state.txt\n@@ -1 +1 @@\n-other\n+x\n"
