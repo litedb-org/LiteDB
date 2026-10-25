@@ -245,6 +245,45 @@
         {"text": "A green self-test shows each oracle rejects one deliberately broken state, not that the oracle set is complete."},
         {"text": "xUnit runs do not record reachability markers yet; markers reached only by tests are advisory."}
       ]
+    },
+    {
+      "id": "shared-one-file",
+      "title": "ABI-2 bootstrap and exact mapped reader floors retain native liveness",
+      "docs": [
+        "docs/shared-one-file-prototype.md",
+        "docs/rules/data-safety.md"
+      ],
+      "paths": [
+        "LiteDB/Client/Shared/SharedMemory*.cs",
+        "LiteDB/Client/Shared/SharedRangeLocks.cs"
+      ],
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+          "model": "exception",
+          "proves": "All bootstrap/close hooks hit twice with preserved payload/index/unrelated collection checks before Ready."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death",
+          "model": "process-death",
+          "proves": "Actual child death twice at every reached bootstrap/close boundary followed by protected validation."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileSnapshotSafety_Tests.cs#Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+          "model": "exception",
+          "proves": "All protected WAL offsets survive checkpoint with three mapped floors; clearing floors permits full checkpoint."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs#Malformed_live_record_and_slot_identity_return_unknown_not_an_empty_floor_set",
+          "model": "corrupt-input",
+          "proves": "Malformed live record and Ready identity return unknown rather than omit a reader."
+        }
+      ],
+      "gaps": [
+        {
+          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Warm admission, writer publication and handoff are dormant follow-on slices."
+        }
+      ]
     }
   ]
 }

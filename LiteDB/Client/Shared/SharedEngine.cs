@@ -22,7 +22,7 @@ namespace LiteDB
         private readonly SharedMutexOwner _owner;
         // Guards the engine's user count, which a reader disposed on another thread also updates.
         private readonly object _useLock = new object();
-        private readonly SharedReaderRegistry _readers;
+        private readonly ISharedReaderRegistry _readers;
         private readonly SharedFileHandles _handles;
         private LiteEngine _engine;
         private WalRecoveryReport _recoveryReport;
@@ -44,7 +44,7 @@ namespace LiteDB
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
             _settings.SharedDurability = new SharedDurabilityState();
-            _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
+            _readers = CreateReaderRegistry(_settings);
             _settings.SharedReaderVersions = _readers.LiveVersions;
             // A rebuild would replace the files under live snapshot readers. Scan the
             // registry only when an open is about to rebuild, not on every operation.
@@ -330,7 +330,6 @@ namespace LiteDB
         #endregion
 
         #region Read Operation
-
         public BsonValue Pragma(string name)
         {
             return QueryDatabase(() => _engine.Pragma(name));
@@ -351,6 +350,7 @@ namespace LiteDB
         {
             return WriteDatabase(() =>
             {
+                if (_settings.SharedOneFile) throw new NotSupportedException("ABI-2 maintenance requires slice 9 qualification.");
                 // Publish before inspecting leases: a cached reader may be admitting
                 // without the database mutex and must not accept a replaced file set.
                 _settings.CoordinationSignals?.StructuralBegin();

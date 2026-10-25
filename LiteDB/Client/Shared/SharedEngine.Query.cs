@@ -90,7 +90,7 @@ namespace LiteDB
             {
                 // A direct owner must establish protection before executing the query: a
                 // reader cannot escape its thread if registration subsequently fails.
-                if (_owner.OwnsDirectly)
+                if (_owner.OwnsDirectly || _settings.SharedOneFile)
                 {
                     lease = this.TryRegisterLease();
                     if (lease == null)
@@ -190,7 +190,7 @@ namespace LiteDB
                 _leaseState = LEASES_AVAILABLE;
                 return lease;
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (!(ex is SharedGenerationCapacityException) && (ex is IOException || ex is UnauthorizedAccessException))
             {
                 _leaseState = LEASES_UNAVAILABLE;
                 return null;
@@ -210,7 +210,7 @@ namespace LiteDB
                 _readers.Probe(version);
                 _leaseState = LEASES_AVAILABLE;
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (!(ex is SharedGenerationCapacityException) && (ex is IOException || ex is UnauthorizedAccessException))
             {
                 _leaseState = LEASES_UNAVAILABLE;
             }
@@ -236,7 +236,7 @@ namespace LiteDB
             var release = true;
             try
             {
-                if (_owner.OwnsDirectly)
+                if (_owner.OwnsDirectly || _settings.SharedOneFile)
                 {
                     lease = this.TryRegisterLease(snapshot.ReadVersion);
                     if (lease == null)

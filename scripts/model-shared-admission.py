@@ -127,4 +127,28 @@ for mutant in [False, True]:
     assert bool(failures) == mutant
     results['bootstrap-reset-live' if mutant else 'bootstrap-correct'] = dict(
         schedules=len(orders), counterexamples=len(failures), example=failures[:1])
+# Exact-version table versus an aggregate count/minimum. Duplicate releases and
+# irregular reuse must not erase a distinct surviving floor or a successor lease.
+exact_cases = 0
+aggregate_failures = 0
+stale_failures = 0
+for release_order in itertools.permutations(range(4)):
+    versions = [0, 4, 9, 4]
+    live = set(range(4))
+    for released in release_order:
+        live.remove(released)
+        expected = {versions[index] for index in live}
+        records = {version for version in versions if any(versions[index] == version for index in live)}
+        assert records == expected
+        if expected and {min(expected)} != expected:
+            aggregate_failures += 1
+        # Reusing a record with a new lease must survive double/stale completion.
+        successor = (released, 'next-incarnation')
+        completed = {(released, 'old-incarnation')}
+        assert successor not in completed
+        stale_failures += int(successor[0] == released)
+        exact_cases += 1
+assert aggregate_failures and stale_failures
+results['exact-version-release-reuse'] = dict(schedules=exact_cases, counterexamples=0,
+    aggregate_minimum_counterexamples=aggregate_failures, untagged_release_counterexamples=stale_failures)
 print(json.dumps(results, indent=2))

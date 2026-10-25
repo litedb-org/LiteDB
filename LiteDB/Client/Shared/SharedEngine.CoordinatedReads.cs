@@ -35,6 +35,7 @@ namespace LiteDB
 
         private void EnsureReadCoordination()
         {
+            if (_settings.SharedOneFile) return;
             // The first read already owns the database mutex and cannot retain a
             // cached snapshot. It needs neither an authority nor a filesystem probe.
             // Writable opens still discover an existing authority before mutation.
@@ -47,6 +48,7 @@ namespace LiteDB
         // The caller owns the database mutex, so nobody can create a competing authority.
         private void EnsureCoordination(bool allowCreate = true, bool writing = false)
         {
+            if (_settings.SharedOneFile) return; // writer publications/warm reads belong to slices 5/6
             if (_coordination != null) return;
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {

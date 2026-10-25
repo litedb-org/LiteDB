@@ -5,6 +5,17 @@ internal static class SharedOneFileHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (mode == "one-file-reader-hold")
+        {
+            var table = SharedMemoryReaderTable.Open(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true });
+            using var facade = new SharedMemoryReaders(table);
+            using var reader = facade.Register(11);
+            Console.WriteLine("ready");
+            Console.WriteLine(table.Authority.Slot + ":" + table.Authority.Incarnation);
+            Console.ReadLine();
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "one-file-bootstrap-cut")
         {
             var settings = new LiteDB.Engine.EngineSettings { Filename = filename, SharedMode = true };

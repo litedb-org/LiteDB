@@ -18,7 +18,7 @@ namespace LiteDB.Client.Shared
         {
             internal DatabaseFileLock File;
             internal string Path;
-            internal bool Shared;
+            internal bool Shared, OneFile;
             internal volatile bool Faulted;
             internal int References;
         }
@@ -71,7 +71,7 @@ namespace LiteDB.Client.Shared
                     }
                     if (Entries.TryGetValue(file.Identity, out var entry))
                     {
-                        if (entry.Shared != shared || !string.Equals(entry.Path, settings.Filename,
+                        if (entry.Shared != shared || (shared && entry.OneFile != settings.SharedOneFile) || !string.Equals(entry.Path, settings.Filename,
                             DatabaseFileIdentity.Windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                             throw new IOException("Incompatible local Direct/Shared access or database alias.");
                         if (entry.Faulted) throw new IOException("Native replacement failed. Close all local connections before reopening.");
@@ -81,11 +81,15 @@ namespace LiteDB.Client.Shared
                     }
                     file.Lock(DatabaseFileLock.Admission, exclusive: !shared);
                     RebuildRecovery.EnsureAvailable(settings);
-                    if (shared) DatabasePathLock.Claim(file, settings.Filename);
+                    if (shared)
+                    {
+                        DatabasePathLock.Claim(file, settings.Filename);
+                        ClaimFamily(file, settings.SharedOneFile);
+                    }
                     using (var probe = new DatabaseFileLock(settings.Filename, true, false, settings.Filename, qualify: false))
                         if (probe.Identity != file.Identity || !probe.Conflicts(DatabaseFileLock.Admission))
                             throw new IOException("Filesystem did not enforce native database admission.");
-                    entry = new Entry { File = file, Path = settings.Filename, Shared = shared, References = 1 };
+                    entry = new Entry { File = file, Path = settings.Filename, Shared = shared, OneFile = settings.SharedOneFile, References = 1 };
                     Entries.Add(file.Identity, entry);
                     file = null;
                     return new NativeAdmission(entry);
@@ -96,6 +100,14 @@ namespace LiteDB.Client.Shared
                 }
                 finally { file?.Dispose(); }
             }
+        }
+
+        private static void ClaimFamily(DatabaseFileLock file, bool oneFile)
+        {
+            // Claim before probing: unlike concurrent claimants cannot both pass.
+            file.Lock(DatabaseFileLock.Family + (oneFile ? 1 : 0), false);
+            if (file.Conflicts(DatabaseFileLock.Family + (oneFile ? 0 : 1)))
+                throw new IOException("Incompatible Shared coordination ABI family; stop all participants before switching.");
         }
 
         internal NativeAdmission Retain()
@@ -222,6 +234,7 @@ namespace LiteDB.Client.Shared
                                 if (_entry.Shared)
                                 {
                                     DatabasePathLock.Claim(_replacement, _entry.Path);
+                                    ClaimFamily(_replacement, _entry.OneFile);
                                     _replacement.Downgrade(DatabaseFileLock.Admission);
                                 }
                                 return;

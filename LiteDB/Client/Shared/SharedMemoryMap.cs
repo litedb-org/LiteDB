@@ -56,8 +56,10 @@ namespace LiteDB.Client.Shared
             if (!_acquired) throw new ObjectDisposedException(nameof(SharedMemoryMap));
             if (offset < 0 || count < 0 || offset > Size - count) throw new ArgumentOutOfRangeException(nameof(offset));
         }
+        ~SharedMemoryMap() { this.Dispose(); }
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }
             _view?.Dispose();
             _map?.Dispose();

@@ -33,3 +33,16 @@ Process requests and wake words have separate cache lines. A reserved 512-byte
 coordinator region has no semantics yet; no coordinator is implemented. A newcomer
 must eventually claim/publish/wake without the writer mutex (slice 8); slot
 publication therefore needs independent bootstrap serialization, not writer tenure.
+
+Through slice 3 all read-only engines still open under the named mutex; ABI-1
+cached admission is bypassed. Exact mapped records replace only the reader
+provider. Unknown liveness/records skip checkpoint and reclamation. Generation
+exhaustion throws before query/callback execution. Rebuild, file-replacing upgrade
+and auto-rebuild are explicitly refused until slice 9. Existing artifacts are
+preserved/refused; offline cleanup is not implemented in this round.
+
+The first exclusive-DMS initializer owns WRITE while invoking protected storage
+validation. No live ABI-2 writer can exist in that state. Live attachment releases
+the independent bootstrap gate after publishing its slot/request and before
+waiting for main ownership. Ordinary writer main->WRITE publication belongs to
+slice 5; no warm status is trusted by these slices.

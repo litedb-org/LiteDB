@@ -29,7 +29,10 @@ namespace LiteDB.Client.Shared
 
         private SharedMemoryAuthority(string path) { Locks = new SharedRangeLocks(path); }
 
-        internal static SharedMemoryAuthority Open(EngineSettings settings, string identity, Action validateStorage)
+        internal static SharedMemoryAuthority Open(EngineSettings settings, string identity, Action validateStorage) =>
+            Open(settings, identity, _ => validateStorage());
+
+        internal static SharedMemoryAuthority Open(EngineSettings settings, string identity, Action<SharedMemoryAuthority> validateStorage)
         {
             RebuildRecovery.EnsureAvailable(settings);
             RequirePlatform(settings.Filename);
@@ -74,7 +77,7 @@ namespace LiteDB.Client.Shared
                     result.Map.Write(SharedMemoryLayout.Page, result.Header.Bytes);
                     Stage("envelope-b");
                     Stage("before-storage");
-                    validateStorage(); // must open/recover independently under main
+                    validateStorage(result); // must open/recover independently under main
                     Stage("after-storage");
                     result.Map.Store(SharedMemoryLayout.Control + 8, 2);
                     Stage("before-ready");
@@ -99,7 +102,7 @@ namespace LiteDB.Client.Shared
                 result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 1);
                 bootstrap.ReleaseMutex();
                 held = false;
-                if (!first) { Stage("before-storage"); validateStorage(); Stage("after-storage"); }
+                if (!first) { Stage("before-storage"); validateStorage(result); Stage("after-storage"); }
                 result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 0);
                 return result;
             }
