@@ -91,6 +91,26 @@
       "disposition": "strengthened",
       "invariant": "Legacy caller-stream regressions use authenticated damaged-document and dropped-index fixture bytes without changing the release corpus.",
       "reason": "Unions the S07 fixture inventory with the S01 empty manifest now on dev. Adds two archives pinned to e059a85e1cbd641e4a682882a70b1c84906d393f and their unchanged SHA-256 hashes; no existing fixture entry is removed or repinned, and the release corpus has its separate manifest."
+    },
+    {
+      "id": "3060-preserve-vector-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released dropped-index and prerelease vector fixtures remain pinned and hash-verified alongside the S01 corpus scaffold.",
+      "reason": "S01 has an empty fixture map at revision 88b857f6; preserve the two S05 entries and their unchanged hashes at e059a85e1cbd641e4a682882a70b1c84906d393f. No fixture is removed or repinned."
+    },
+    {
+      "id": "3060-preserve-corpus-producer",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-release-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
+      "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
     }
   ]
 }

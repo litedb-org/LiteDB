@@ -257,6 +257,20 @@ in 5.x; a checkpoint of a non-empty caller log throws `NotSupportedException`), 
 the caller's `EngineSettings` instance is not modified. Durability promises for other
 custom streams are unchanged (#3044).
 
+## Legacy collection pages and vector metadata
+
+A collection from which a released 5.x engine (5.0.21) dropped an index stays writable after
+the writable open migrates it. 5.0.21 left the tail of the dropped index entries after the
+collection page's index list, and this version read those bytes as vector metadata: every
+insert then failed with "request page must be less or equals lastest page in data file", after
+the file had been converted, so 5.0.21 could not open it any more either. A page's vector
+section is now read only when the page lists a vector index, and kept only when it decodes and
+names exactly those indexes. A vector index whose section a release without vector support
+(5.0.21) displaced when it rewrote the index list has no metadata: read-only opens work, a
+writable open reports it as damage (`INVALID_DATAFILE_STATE`), and the rebuild drops only that
+index, listing it in `_rebuild_errors` instead of rebuilding it as an ordinary index. Vector
+indexes written by 6.0.0 prereleases keep their metadata through migration and rebuild.
+
 ## Shared mode on Unix: long and non-ASCII database paths
 
 On Linux and macOS, `Connection=shared` now opens databases whose URI-escaped
