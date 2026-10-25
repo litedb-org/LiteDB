@@ -171,7 +171,7 @@ namespace LiteDB
                 use?.ToHold();
                 // Any thread may dispose the reader and so end its mutex ownership.
                 var generation = use == null ? _owner.Generation : -1;
-                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true, generation));
+                return this.RetainingReader(reader, () => this.CloseDatabase(use, hold: true, generation), use, generation);
             }
             catch
             {
@@ -277,11 +277,11 @@ namespace LiteDB
                     snapshot = null;
                     reader = null;
                     release = false;
-                    return new SharedDataReader(continued, () =>
+                    return this.RetainingReader(continued, () =>
                     {
                         try { this.CloseMutexSnapshot(locked); }
                         finally { _owner.Exit(generation); }
-                    });
+                    }, null, generation);
                 }
 
                 var ownedSnapshot = snapshot;
@@ -375,6 +375,16 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Readers streaming under the mutex end with their ownership, like the
+        /// operation engine: a later read would no longer be ordered with writers.
+        /// </summary>
+        private void CloseMutexSnapshotsLocked()
+        {
+            foreach (var snapshot in _mutexSnapshots) this.CloseRetainedCore(snapshot, checkpoint: false);
+            _mutexSnapshots.Clear();
+        }
+
+        /// <summary>
         /// Close a snapshot that streamed under the mutex, unless the connection's
         /// Dispose or an exited mutex owner already closed it.
         /// </summary>
@@ -384,7 +394,7 @@ namespace LiteDB
             {
                 if (!_mutexSnapshots.Remove(snapshot)) return;
             }
-            snapshot.Dispose();
+            this.CloseRetainedCore(snapshot);
         }
 
         /// <summary>

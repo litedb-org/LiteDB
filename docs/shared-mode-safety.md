@@ -65,6 +65,26 @@ holder. A connection's own checkpoint attempts wait for that release before tryi
 the mutex, and `Dispose` returns only after it: a disposed connection holds no
 mutex, so the next connection's final close finds it free.
 
+User code can run while a connection holds the mutex: a lazy input sequence of a
+write, a `ReadTransform`, a custom stream. On the same thread, such code may call
+the same connection again (recursion) or a connection to another database. A
+second connection to the same database would wait for a mutex that is released
+only after the callback returns, so it refuses instead with
+`InvalidOperationException`. This also covers results streamed under the mutex,
+whose callbacks run after the query returned, and engine closes that write through
+a custom stream outside any call: disposing such a result, a pin ending on its
+holder thread, the checkpoint after the last leased reader, owner-exit cleanup and
+disposing the connection. An uncaught refusal aborts the outer operation like any
+exception from its callback.
+
+Only executing work is refused. A same-thread wait on an idle owner of another
+connection still waits: an idle pin ends for the waiter, and a result left open can
+be disposed on any thread. An open explicit transaction is idle too, but only its
+own thread can complete it, so a same-thread write through another connection
+waits until that connection is disposed elsewhere; see
+[#3073](https://github.com/litedb-org/LiteDB/issues/3073). Waits that cross
+threads (a callback waiting for another thread's call) are not detected.
+
 Each operation opens and closes an engine. Its close checkpoints only once the
 WAL holds 50 pages (or the CHECKPOINT pragma if smaller), so between operations
 committed work can remain in the WAL, which stays authoritative: a killed process
@@ -129,6 +149,7 @@ value describes that connection, not every writer that has accessed the file.
 | Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
 | An operation's close checkpoints only a WAL past its threshold; the connection's final close, and the last streamed result's disposal, checkpoint the rest; read-only connections change neither file; the WAL between operations recovers every committed operation. | [SharedLazyCheckpoint_Tests](../LiteDB.Tests/Engine/SharedLazyCheckpoint_Tests.cs): counts reclaiming checkpoints below and past the threshold, a smaller or disabled CHECKPOINT pragma, explicit checkpoint, two connections closing in either order, byte-preserving read-only access and plain/encrypted crash images. Both the old close-every-operation behavior and a missing final checkpoint fail it. |
 | Confirmation respects the durability setting, and fallback cannot be hidden by the next shared operation. | [SharedDurability_Tests](../LiteDB.Tests/Internals/SharedDurability_Tests.cs): observed device syncs, automatic/explicit commits, encrypted wrappers, injected unsupported sync, retry and connection-local diagnostics. |
+| A callback of an operation or streamed result that holds the mutex never waits for it through another connection to the same database; recursion, other databases, leased results and idle pins keep working. | [SharedPeerCallback_Tests](../LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs) and [SharedPeerReaderCallback_Tests](../LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs): lazy input on the owned and pinned routes, write-query, pinned and unleased readers, and [SharedPeerCloseCallback_Tests](../LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs) for custom-stream writes during result disposal, pin close, last-reader and connection-dispose checkpoints; plain/encrypted, with cold state checked through the index. Every refusal case deadlocks without the check, while all controls pass. Regression proof `Issue_3071_SharedPeerCallback` against the published `6.0.0-prerelease.319`. |
 | Lost/torn new writes cannot damage the previously acknowledged prefix or expose a partial transaction. | [SharedCommitFailure_Tests](../LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs): durable/volatile file images, lost writes, later sectors persisting ahead of a torn frame, failure after successful sync, and a successful-sync control. Covers BSON/compact, plain/encrypted, automatic/explicit commits; repeated shared recovery checks full documents, indexes and an untouched collection. A foreign thread verifies writer-mutex release. |
 | Process death preserves acknowledged transactions, discards unconfirmed safepoints and preserves another process's snapshot. | [SharedStorageProcess_Tests](../LiteDB.Tests/Internals/SharedStorageProcess_Tests.cs): actual killed writers, proven nonempty/unconfirmed WAL, full payload/index checks and checkpoint after readers drain. |
 | Damaged data fails with a page diagnostic; damaged WAL follows the verified-prefix recovery policy and reports discarded bytes. | The same process suite checks repeated data-page rejection, read-only data/WAL byte preservation, repeated recovery and checkpoint/reopen across BSON/compact and plain/encrypted files. |
@@ -136,7 +157,7 @@ value describes that connection, not every writer that has accessed the file.
 Run the focused suite with `TestingEnabled=true` and `tests.runsettings`:
 
 ```sh
-dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedLazyCheckpoint|FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedMutexOwnership|FullyQualifiedName~Issue3005|FullyQualifiedName~SharedUnsyncableLog|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
+dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedLazyCheckpoint|FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedMutexOwnership|FullyQualifiedName~SharedPeer|FullyQualifiedName~Issue3005|FullyQualifiedName~SharedUnsyncableLog|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
 ```
 
 Repeat on `net10.0`; the stream-fault and durability tests also compile/run on the

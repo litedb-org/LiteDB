@@ -15,12 +15,24 @@ stop unsafe continuation, and make detected corruption visible.
 - Distinguish a transaction created by an operation from one it joined. A failed
   `BeginTrans`/join result or an occupied shared mutex alone does not establish
   explicit-transaction ownership. Include transparent public engine decorators.
+- User callbacks (lazy inputs, ReadTransform, custom streams) run inside the
+  ownership of their call or streamed result. A new blocking Shared acquisition
+  path must check the thread's executing frames (`SharedCallFrames`) before it
+  waits, so a callback cannot wait on ownership only its own return releases.
+  Work outside a public call that can reach user code under the mutex (result
+  disposal, pin and owner-exit cleanup, dispose checkpoints) needs a frame too.
+  Refuse only for frames that execute; idle owners stay waitable (#3073).
 - Keep publication, ownership handoff, and cleanup ordered. Cleanup after releasing
   a lock must not erase the next owner's state. Check abandoned-owner paths as
   well as ordinary completion.
 - Cursors retain all snapshots they use, including referenced collections through
   INCLUDE. Upgrading a collection snapshot for writing must not dispose a snapshot
   still reachable by an active cursor or replay pipeline.
+- A transaction's dirty-page map is keyed by page ID, and freed page IDs are reused
+  across collections. Only its write snapshots may resolve pages through it; a read
+  snapshot always reads the version it pinned. The one exception is the "$" page
+  view behind `$dump` and `$page_list`: it is not a collection snapshot and shows the
+  transaction's own pages.
 
 Read [explicit transactions](../explicit-transactions.md),
 [reader ownership](../issue-2991-reader-ownership.md), and
