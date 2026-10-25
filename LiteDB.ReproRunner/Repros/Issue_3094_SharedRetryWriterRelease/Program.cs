@@ -65,21 +65,24 @@ internal static class Program
         if (!db.Commit()) throw new InvalidOperationException("Commit failed.");
         Exception? failure = null;
         using var entered = new ManualResetEventSlim();
+        using var peerWriteEntered = new ManualResetEventSlim();
         var worker = new Thread(() =>
         {
             try
             {
                 entered.Set();
-                if (rows.Count() != 1) throw new InvalidOperationException("Incorrect committed row count.");
-                rows.Insert(Row(2));
                 using var peer = new LiteDatabase(connection);
+                peerWriteEntered.Set();
                 peer.GetCollection("c").Insert(Row(3));
+                if (rows.Count(Query.EQ("_id", 1)) != 1) throw new InvalidOperationException("Incorrect committed row count.");
+                rows.Insert(Row(2));
             }
             catch (Exception error) { failure = error; }
         }) { IsBackground = true };
         var clock = Stopwatch.StartNew();
         worker.Start();
         if (!entered.Wait(TimeSpan.FromSeconds(5))) throw new InvalidOperationException("Worker did not start.");
+        if (!peerWriteEntered.Wait(TimeSpan.FromSeconds(3))) throw new InvalidOperationException("Worker did not reach peer write.");
         var completed = worker.Join(TimeSpan.FromSeconds(3));
         Console.WriteLine($"retry={retry}, encrypted={encrypted}, completed={completed}, elapsed={clock.Elapsed}");
         if (!completed) return true;
