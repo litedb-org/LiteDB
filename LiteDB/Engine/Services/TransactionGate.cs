@@ -12,20 +12,23 @@ namespace LiteDB.Engine
     internal sealed class TransactionGate : IDisposable
     {
         private readonly object _sync = new object();
-        private readonly Dictionary<int, int> _readers = new Dictionary<int, int>();
+        // A cursor can outlive its originating thread. Numeric managed IDs can
+        // be recycled after that thread is collected, so retain its identity
+        // until the last lease is released, including release on another thread.
+        private readonly Dictionary<Thread, int> _readers = new Dictionary<Thread, int>();
         private int _readerCount;
-        private int _writer;
+        private Thread _writer;
         private int _waitingWriters;
         private bool _disposed;
 
         public bool IsReadLockHeld
         {
-            get { lock (_sync) return _readers.ContainsKey(Environment.CurrentManagedThreadId); }
+            get { lock (_sync) return _readers.ContainsKey(Thread.CurrentThread); }
         }
 
         public bool IsWriteLockHeld
         {
-            get { lock (_sync) return _writer == Environment.CurrentManagedThreadId; }
+            get { lock (_sync) return _writer == Thread.CurrentThread; }
         }
 
         public int CurrentReadCount
@@ -37,18 +40,18 @@ namespace LiteDB.Engine
         {
             get
             {
-                lock (_sync) return _readers.TryGetValue(Environment.CurrentManagedThreadId, out var count) ? count : 0;
+                lock (_sync) return _readers.TryGetValue(Thread.CurrentThread, out var count) ? count : 0;
             }
         }
 
         public bool TryEnterReadLock(TimeSpan timeout)
         {
             var elapsed = Stopwatch.StartNew();
-            var thread = Environment.CurrentManagedThreadId;
+            var thread = Thread.CurrentThread;
             lock (_sync)
             {
                 ThrowIfDisposed();
-                while (_writer != 0 || (_waitingWriters != 0 && !_readers.ContainsKey(thread)))
+                while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread)))
                 {
                     if (!Wait(timeout, elapsed)) return false;
                 }
@@ -59,7 +62,7 @@ namespace LiteDB.Engine
             }
         }
 
-        public void ExitReadLock(int owner)
+        public void ExitReadLock(Thread owner)
         {
             lock (_sync)
             {
@@ -76,7 +79,7 @@ namespace LiteDB.Engine
         public bool TryEnterWriteLock(TimeSpan timeout)
         {
             var elapsed = Stopwatch.StartNew();
-            var thread = Environment.CurrentManagedThreadId;
+            var thread = Thread.CurrentThread;
             lock (_sync)
             {
                 ThrowIfDisposed();
@@ -84,7 +87,7 @@ namespace LiteDB.Engine
                 _waitingWriters++;
                 try
                 {
-                    while (_writer != 0 || _readerCount != 0)
+                    while (_writer != null || _readerCount != 0)
                     {
                         if (!Wait(timeout, elapsed)) return false;
                     }
@@ -105,8 +108,8 @@ namespace LiteDB.Engine
         {
             lock (_sync)
             {
-                if (_writer != Environment.CurrentManagedThreadId) throw new SynchronizationLockException();
-                _writer = 0;
+                if (_writer != Thread.CurrentThread) throw new SynchronizationLockException();
+                _writer = null;
                 Monitor.PulseAll(_sync);
             }
         }

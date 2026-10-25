@@ -42,7 +42,7 @@ namespace LiteDB.Tests.QueryTest
                     var query = rows.Query().Where(predicate).OrderBy("Value", order);
                     query.GetPlan().ContainsKey("filters").Should().BeFalse();
                     var results = query.ToArray();
-                    results.Select(x => x["_id"]).Should().BeEquivalentTo(expected);
+                    Int32IdAssertions.BeEquivalentTo(results.Select(x => x["_id"]), expected);
                     for (var i = 1; i < results.Length; i++)
                         (results[i - 1]["Value"].CompareTo(results[i]["Value"], collation) * order).Should().BeLessThanOrEqualTo(0);
                 }

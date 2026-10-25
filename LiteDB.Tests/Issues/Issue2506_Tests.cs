@@ -9,8 +9,9 @@ public class Issue2506_Tests
     [Fact]
     public void Test()
     {
-        // Open database connection
-        using LiteDatabase dataBase = new("demo.db");
+        // Isolate the fixture from files left by earlier runs/formats.
+        using var databaseFile = new TempFile();
+        using LiteDatabase dataBase = new(databaseFile.Filename);
 
         // Get the file metadata/chunks storage
         ILiteStorage<string> fileStorage = dataBase.GetStorage<string>("myFiles", "myChunks");

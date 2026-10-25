@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading;
 using LiteDB;
 
+if (MvccHarness.TryRun(args)) return;
+
 var executablePath = Environment.ProcessPath ?? throw new InvalidOperationException("ProcessPath could not be determined.");
 var options = HarnessOptions.Parse(args, executablePath);
 

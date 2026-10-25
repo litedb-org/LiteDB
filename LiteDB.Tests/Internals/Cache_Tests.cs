@@ -432,7 +432,7 @@ namespace LiteDB.Internals
 
             cache.DiscardPage(page);
 
-            page.Array.Skip(page.Offset).Take(page.Count).Should().OnlyContain(x => x == 0xFF);
+            page.Array.Skip(page.Offset).Take(page.Count).Should().OnlyContain(x => x == 0xDD);
             Action readStaleSlice = () => slice.ReadInt32(0);
             readStaleSlice.Should().Throw<LiteException>();
         }

@@ -31,6 +31,7 @@ namespace LiteDB.Tests.Issues
             using var file = new TempFile();
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, InitialSize = 5000 }); };
             open.Should().Throw<LiteException>();
+            file.Size.Should().Be(0, "invalid settings must be rejected before a database header is written");
             using (File.Open(file.Filename, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
         }
 

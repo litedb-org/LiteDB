@@ -50,6 +50,14 @@ namespace LiteDB
                 return null;
             }
 
+            // Chunks are fetched lazily. Refuse to splice chunks from a replacement
+            // into a reader that was opened for the previous file version.
+            var current = _files.FindById(_fileId);
+            if (current == null || current.UploadDate != _file.UploadDate || current.Length != _file.Length ||
+                current.Chunks != _file.Chunks || current.Filename != _file.Filename)
+                throw new LiteException(LiteException.INVALID_FORMAT,
+                    "File '{0}' changed while it was being read. Open a new reader.", _fileId);
+
             // check if there is no more chunks in this file
             var chunk = _chunks
                 .FindOne("_id = { f: @0, n: @1 }", _fileId, index);

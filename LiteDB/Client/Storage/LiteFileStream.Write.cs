@@ -63,7 +63,9 @@ namespace LiteDB
             {
                 this.PublishStagedChunks();
 
-                _file.UploadDate = DateTime.Now;
+                var uploadDate = DateTime.Now;
+                if (uploadDate <= _file.UploadDate) uploadDate = _file.UploadDate.AddMilliseconds(1);
+                _file.UploadDate = uploadDate;
                 _file.Length = _streamPosition;
 
                 _files.Upsert(_file);

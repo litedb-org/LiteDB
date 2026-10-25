@@ -17,13 +17,15 @@ namespace LiteDB.Engine
         private readonly Stream _stream;
         private readonly string _password;
         private readonly bool _ownsStream;
+        private readonly bool _isLog;
         private int _disposed;
 
-        public StreamFactory(Stream stream, string password, bool ownsStream = false)
+        public StreamFactory(Stream stream, string password, bool ownsStream = false, bool isLog = false)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _password = password;
             _ownsStream = ownsStream;
+            _isLog = isLog;
         }
 
         /// <summary>
@@ -45,7 +47,9 @@ namespace LiteDB.Engine
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true), allowRecovery: false);
+                var stream = new ConcurrentStream(_stream, canWrite, true);
+                return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                    new AesStream(_password, stream, allowRecovery: false);
             }
         }
 
@@ -70,6 +74,11 @@ namespace LiteDB.Engine
                     var position = _stream.Position;
                     try
                     {
+                        if (_isLog)
+                        {
+                            using (var reader = EncryptedLogPreamble.Open(_password, new ConcurrentStream(_stream, false, true)))
+                                return reader.Length;
+                        }
                         _stream.Position = 0;
                         return _stream.ReadByte() == 1 ? 0 : length;
                     }

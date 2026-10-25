@@ -60,6 +60,7 @@ namespace LiteDB.Tests.Issues
             var bytes = File.ReadAllBytes(file.Filename);
             var page = Enumerable.Range(1, bytes.Length / 8192 - 1).First(p => bytes[p * 8192 + 4] == 4);
             bytes[page * 8192 + 4] = 3; // Controlled on-disk corruption: Data -> Index page.
+            LiteDB.Engine.PageChecksum.Write(new BufferSlice(bytes, page * 8192, 8192)); // Test semantic corruption beyond checksum validation.
             File.WriteAllBytes(file.Filename, bytes);
             using var broken = new LiteDatabase(file.Filename);
             Action trigger = () => broken.DropCollection("a");

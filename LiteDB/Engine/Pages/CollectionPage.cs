@@ -9,7 +9,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
-    internal class CollectionPage : BasePage
+    internal partial class CollectionPage : BasePage
     {
         #region Buffer Field Positions
 
@@ -47,6 +47,8 @@ namespace LiteDB.Engine
             }
 
             if (this.PageType != PageType.Collection) throw LiteException.InvalidPageType(PageType.Collection, this);
+
+            this.ReadStorageMetadata();
 
             // create new buffer area to store BsonDocument indexes
             var area = _buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE);
