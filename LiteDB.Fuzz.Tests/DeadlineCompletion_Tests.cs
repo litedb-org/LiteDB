@@ -12,10 +12,10 @@ public sealed class DeadlineOracleCompletion_Tests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "litedb-deadline-completion-" + Guid.NewGuid().ToString("N"));
 
     [Theory]
-    [InlineData(12)]
-    [InlineData(13)]
-    [InlineData(14)]
-    public async Task A_reported_operation_that_finishes_has_one_failure_owner_and_still_minimizes(int seed)
+    [InlineData(12, "returned")]
+    [InlineData(13, "threw: System.InvalidOperationException: Operation failed after its deadline.")]
+    [InlineData(14, "async-completed")]
+    public async Task A_reported_operation_that_finishes_has_one_failure_owner_and_still_minimizes(int seed, string expected)
     {
         var options = FuzzOptions.Parse(new[] { "--artifact-dir", _root, "--count", "3", "--seed", seed.ToString() });
         var runs = await FuzzProcessRunner.RunEpochsAsync(new DeadlineCompletionSelfTestFuzzer(), options, 0)
@@ -23,10 +23,7 @@ public sealed class DeadlineOracleCompletion_Tests : IDisposable
         var result = Assert.Single(runs);
         Assert.False(result.Passed);
         const string id = "DEADLINE_ORACLE_DEADLINE_COMPLETION_SELFTEST_FINISHES";
-        var completion = Path.Combine(result.Directory, DeadlineCompletionSelfTestFuzzer.CompletionObservedFile);
-        Assert.True(File.Exists(completion), "The operation never finished while the watchdog handler owned failure reporting.");
-        Assert.Equal(id, File.ReadAllText(completion));
-        Assert.False(File.Exists(Path.Combine(result.Directory, "deadline-handler-error.txt")));
+        AssertCompletion(result.Directory, id, expected);
         using var run = JsonDocument.Parse(File.ReadAllText(Path.Combine(result.Directory, "run.json")));
         Assert.Equal(id, run.RootElement.GetProperty("failureId").GetString());
         Assert.Equal(new[] { id }, File.ReadAllLines(Path.Combine(result.Directory, "handler-calls.txt")));
@@ -37,7 +34,26 @@ public sealed class DeadlineOracleCompletion_Tests : IDisposable
         using var trial = JsonDocument.Parse(File.ReadAllText(Path.Combine(result.Directory, "minimization", "2",
             FuzzOracleState.DeadlineFailureFile)));
         Assert.Equal("skipped: minimization trial", trial.RootElement.GetProperty("stacks").GetString());
+        AssertCompletion(Path.Combine(result.Directory, "minimization", "2"), id, expected);
+        Assert.False(File.Exists(Path.Combine(result.Directory, "minimization", "1",
+            DeadlineCompletionSelfTestFuzzer.CompletionObservedFile)));
         Assert.False(File.Exists(Path.Combine(result.Directory, "minimization-error.txt")));
+    }
+
+    private static void AssertCompletion(string directory, string id, string expected)
+    {
+        var handlerError = Path.Combine(directory, "deadline-handler-error.txt");
+        Assert.False(File.Exists(handlerError), File.Exists(handlerError) ? File.ReadAllText(handlerError) : null);
+        var result = Path.Combine(directory, DeadlineCompletionSelfTestFuzzer.CompletionResultFile);
+        Assert.True(File.Exists(result), "No actual completion outcome was recorded in " + directory);
+        Assert.Equal(expected, File.ReadAllText(result));
+        var completion = Path.Combine(directory, DeadlineCompletionSelfTestFuzzer.CompletionObservedFile);
+        Assert.True(File.Exists(completion), "The intended completion never reached Watchdog.End in " + directory);
+        using var observed = JsonDocument.Parse(File.ReadAllText(completion));
+        Assert.Equal(id, observed.RootElement.GetProperty("failureId").GetString());
+        Assert.Equal(expected, observed.RootElement.GetProperty("outcome").GetString());
+        Assert.Equal(new[] { id }, File.ReadAllLines(Path.Combine(directory, "handler-calls.txt")));
+        Assert.Single(File.ReadAllLines(Path.Combine(directory, FuzzOracleState.OutcomesFile)));
     }
 
     [Fact]
