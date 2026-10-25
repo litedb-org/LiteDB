@@ -1,0 +1,61 @@
+name: Net proofs
+
+# docs/rules/safety-evidence.md#net-proofs: a general safety net fires at a real
+# known-bad commit and stays quiet at its fix. Each proof checks out both commits,
+# applies the net's overlay, probes capabilities (a missing one is reported as
+# not-applicable, never as a pass), builds and runs the net. Proofs are heavy
+# (two solution builds each), so this workflow is manual only: it never runs on
+# pull requests. The ledger itself is validated offline by the Safety policy job.
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: Net proof id to run (empty runs every entry; skeletons report not-attempted)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: net-proofs-${{ github.ref }}-${{ inputs.id }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Run net proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      # Fork known-bad commits are fetched from the fork's public pull/<n>/head ref.
+      - name: Verify every known-bad and fix commit
+        run: |
+          git fetch -q origin +refs/heads/dev:refs/remotes/origin/dev
+          python .github/scripts/net_proof.py validate --provenance
+
+      - name: Run net proofs
+        env:
+          ID: ${{ inputs.id }}
+        run: |
+          if [ -n "$ID" ]; then selection=(--id "$ID"); else selection=(--all); fi
+          python .github/scripts/net_proof.py run "${selection[@]}" --work-dir "$RUNNER_TEMP/net-proofs"
+
+      - name: Upload results and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: net-proofs
+          path: ${{ runner.temp }}/net-proofs
+          if-no-files-found: warn
