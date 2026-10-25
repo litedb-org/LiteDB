@@ -17,6 +17,7 @@ internal static class MvccHarness
         var filename = args[2];
         var password = args[3] == "-" ? null : args[3];
         if (AllocationHarness.TryRun(mode, filename, password, args)) return true;
+        if (SharedOneFileHarness.TryRun(mode, filename, args)) return true;
         if (DirectHostHarness.TryRun(mode, filename, password)) return true;
         if (mode == "group-review-kill") return GroupCommitReviewHarness.Run(filename, args[4]);
         if (SharedPolicyHarness.TryRun(mode, filename, password)) return true;

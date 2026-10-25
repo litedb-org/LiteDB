@@ -51,6 +51,8 @@ namespace LiteDB.Internals
             _errors = _process.StandardError.ReadToEndAsync();
         }
 
+        internal int ProcessId => _process.Id;
+
         internal async Task Expect(string expected)
         {
             var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));

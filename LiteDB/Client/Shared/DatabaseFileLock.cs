@@ -80,12 +80,24 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
+        // Only documented lock conflicts mean busy. Other errors must propagate;
+        // callers must never infer death from access, unsupported-kernel or I/O errors.
+        internal bool TryLock(long offset, bool exclusive)
+        {
+            if (!DatabaseFileIdentity.Windows)
+                return this.UnixLock(offset, exclusive ? WriteLock : ReadLock, false, allowConflict: true) != -1;
+            var position = Position(offset);
+            if (LockFileEx(_handle, exclusive ? 3u : 1u, 0, 1, 0, ref position)) return true;
+            if (Marshal.GetLastWin32Error() == 33) return false;
+            throw Error("LockFileEx");
+        }
+
         private static bool Darwin => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         private static short ReadLock => Darwin ? (short)1 : (short)0;
         private static short WriteLock => Darwin ? (short)3 : (short)1;
         private static short UnlockLock => 2;
 
-        private short UnixLock(long offset, short type, bool query, long length = 1)
+        private short UnixLock(long offset, short type, bool query, long length = 1, bool allowConflict = false)
         {
             int result;
             short actual;
@@ -104,7 +116,12 @@ namespace LiteDB.Client.Shared
                     actual = value.Type;
                 }
             } while (result < 0 && Marshal.GetLastWin32Error() == 4); // EINTR
-            if (result < 0) throw Error("fcntl OFD lock");
+            if (result < 0)
+            {
+                var error = Marshal.GetLastWin32Error();
+                if (allowConflict && (error == 13 || error == (Darwin ? 35 : 11))) return -1;
+                throw Error("fcntl OFD lock");
+            }
             return actual;
         }
 
