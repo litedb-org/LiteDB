@@ -50,12 +50,19 @@ class ReproMatrixTests(unittest.TestCase):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
                 self.assertEqual(count, len(entries))
                 self.assertEqual({"Issue_2561_TransactionMonitor"}, {e["repro"] for e in entries})
-                self.assertEqual(4, len(skipped))
+                # Every retired repro is reported as skipped, none silently dropped.
+                retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
+                self.assertEqual(len(retired), len(skipped))
 
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
-        # 2561 and 2586 on all three images; 2614 and the Linux-only #3027 stream proofs on two.
-        self.assertEqual(12, len(entries))
+        platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
+        expected = {(repro["name"], label) for repro in self.inventory()
+                    for platform, labels in platforms.items()
+                    if "any" in repro["supports"] or platform in repro["supports"]
+                    for label in labels}
+        self.assertEqual(expected, {(entry["repro"], entry["os"]) for entry in entries})
+        self.assertEqual(len(expected), len(entries))
         self.assertEqual([], skipped)
 
     def test_new_repros_are_not_silently_retired(self):
