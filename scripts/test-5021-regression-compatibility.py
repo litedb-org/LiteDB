@@ -68,7 +68,11 @@ def main():
     args = parser.parse_args()
 
     def run(*command):
-        subprocess.run([str(value) for value in command], cwd=root, check=True)
+        arguments = [str(value) for value in command]
+        try:
+            subprocess.run(arguments, cwd=root, check=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            raise SystemExit(f"Command {' '.join(arguments)} did not finish within 600 s.") from None
 
     with tempfile.TemporaryDirectory(prefix="litedb-5021-regressions-", dir=args.temp_root) as directory:
         temporary = pathlib.Path(directory).resolve()

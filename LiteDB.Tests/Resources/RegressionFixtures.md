@@ -5,7 +5,7 @@ LiteDB 5.0.21 and 6.0.0-prerelease.114 NuGet packages, not by this repository's 
 tests that read them assert how the current engine reads, migrates or refuses real files of
 those versions. This file records,
 per issue #3034 §5, the producer, the generator, the runtime, the configuration, any bytes
-changed afterwards, the pinned hashes, the expected outcome and why each fixture is kept.
+changed afterward, the pinned hashes, the expected outcome and why each fixture is kept.
 
 ## Location
 
@@ -132,7 +132,7 @@ The program opened `Filename=<path>` (direct connection, no password, default pr
 indexed `value` in collection `docs`, inserted `{_id: 0..99, value: 0}` and checkpointed. It
 then updated `_id` 0..19 to `value: 7` and inserted `{_id: 100, value: 7}`; these commits
 exist only in the WAL. The same process copied both files while the engine held them open,
-then exited with `Environment.Exit(0)` without disposing. No bytes were changed afterwards.
+then exited with `Environment.Exit(0)` without disposing. No bytes were changed afterward.
 5.0.21 recovers 101 documents, 21 of them with value 7.
 
 The current engine is expected to behave as follows:

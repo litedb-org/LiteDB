@@ -262,8 +262,8 @@ A collection from which a released 5.x engine (5.0.21) dropped an index stays wr
 the writable open migrates it. 5.0.21 left the tail of the dropped index entries after the
 collection page's index list, and this version read those bytes as vector metadata: every
 insert then failed with "request page must be less or equals lastest page in data file", after
-the file had been converted, so 5.0.21 could not open it any more either. A page's vector
-section is now read only when the page lists a vector index, and kept only when it decodes and
+the file had been converted, so 5.0.21 could not open it anymore either. The engine now reads
+a page's vector section only when the page lists a vector index, and keeps it only when it decodes and
 names exactly those indexes. A vector index whose section a release without vector support
 (5.0.21) displaced when it rewrote the index list has no metadata: read-only opens work, a
 writable open reports it as damage (`INVALID_DATAFILE_STATE`), and the rebuild drops only that

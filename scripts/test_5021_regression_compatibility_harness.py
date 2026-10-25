@@ -15,6 +15,42 @@ spec.loader.exec_module(compatibility)
 
 
 class RegressionCompatibilityHarnessTests(unittest.TestCase):
+    def test_hung_setup_build_or_cleanup_reports_the_command_and_removes_temporary_files(self):
+        for hung_operation in range(4):
+            with self.subTest(operation=hung_operation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                archive = root / "fixture.zip"
+                with zipfile.ZipFile(archive, "w"):
+                    pass
+                runs = root / "runs"
+                runs.mkdir()
+                helpers = []
+
+                def run(command, **kwargs):
+                    if command[:3] == ["git", "worktree", "add"]:
+                        assembly = Path(command[4]) / "LiteDB/bin/Release/net8.0/LiteDB.dll"
+                        assembly.parent.mkdir(parents=True)
+                        assembly.write_bytes(b"fake production assembly; no engine code executes")
+                    if command[0] == "dotnet" and command[1].endswith("Probe.dll"):
+                        return subprocess.CompletedProcess(command, 0)
+                    helpers.append(command)
+                    if len(helpers) - 1 == hung_operation:
+                        self.assertEqual(600, kwargs.get("timeout"))
+                        self.assertTrue(kwargs.get("check"))
+                        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+                    return subprocess.CompletedProcess(command, 0)
+
+                with patch.object(compatibility.subprocess, "run", side_effect=run), \
+                        patch.object(compatibility, "artifact", return_value=archive), \
+                        patch("sys.argv", [str(SCRIPT), "--temp-root", str(runs)]):
+                    with self.assertRaisesRegex(SystemExit, "did not finish within 600 s") as error:
+                        compatibility.main()
+
+                self.assertIn(" ".join(helpers[hung_operation]), str(error.exception))
+                self.assertTrue(any(command[:3] == ["git", "worktree", "remove"] for command in helpers),
+                                "setup/build failures must still attempt worktree cleanup")
+                self.assertEqual([], list(runs.iterdir()))
+
     def test_hung_probe_reports_failure_and_removes_its_worktree(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
