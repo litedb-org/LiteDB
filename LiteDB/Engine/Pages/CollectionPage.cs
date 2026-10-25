@@ -96,7 +96,8 @@ namespace LiteDB.Engine
                 for (var i = 0; i < count; i++)
                 {
                     var name = r.ReadCString();
-                    section[name] = new VectorIndexMetadata(r);
+                    if (section.ContainsKey(name)) return;
+                    section.Add(name, new VectorIndexMetadata(r));
                 }
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException))

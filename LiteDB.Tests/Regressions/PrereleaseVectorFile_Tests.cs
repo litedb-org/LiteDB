@@ -154,23 +154,38 @@ namespace LiteDB.Tests.Regressions
         /// <summary>
         /// A section that decodes but names more indexes than the page lists as vector indexes (here
         /// "embedding" and "other", beside a list without "other") is not this page's: "embedding"
-        /// gets no metadata from it, and a writable open reports it.
+        /// gets no metadata from it, and a writable open reports it. Duplicate names must also
+        /// invalidate the section rather than overwrite an entry and appear to match the index list.
         /// </summary>
-        [Fact]
-        public void Vector_section_naming_other_indexes_is_ignored()
+        [Theory]
+        [InlineData("other")]
+        [InlineData("embedding")]
+        public void Vector_section_naming_other_indexes_is_ignored(string secondName)
         {
             using var file = new TempFile();
             var bytes = Fixture("vectors.db");
-            WriteVectorSection(bytes, "embedding", "other");
+            WriteVectorSection(bytes, "embedding", secondName);
             File.WriteAllBytes(file.Filename, bytes);
 
             using (var readOnly = new LiteDatabase($"Filename={file.Filename};readonly=true;legacy index scan=true"))
             {
                 readOnly.GetCollection("docs").Count().Should().Be(40);
             }
+            File.ReadAllBytes(file.Filename).Should().Equal(bytes, "read-only inspection preserves the corrupt input");
             Action open = () => new LiteDatabase(file.Filename).Dispose();
             open.Should().Throw<LiteException>().Where(x => x.ErrorCode == LiteException.INVALID_DATAFILE_STATE)
                 .WithMessage("*vector index 'embedding' has no vector metadata*");
+
+            using (var rebuilt = new LiteDatabase($"Filename={file.Filename};Auto-Rebuild=true"))
+            {
+                rebuilt.GetCollection("docs").Count().Should().Be(40);
+                rebuilt.GetCollection("$indexes").Find(Query.EQ("name", "embedding")).Should().BeEmpty();
+                rebuilt.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
+                    .Should().Contain(x => x.Contains("'embedding'"));
+            }
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("docs").Count(Query.EQ("name", "d7")).Should().Be(1);
+            NearestComputed(reopened.GetCollection("computed"), 7f).Should().Contain(7);
         }
 
         /// <summary>After the index list of the page listing "embedding", a section naming these indexes with its metadata.</summary>
