@@ -119,17 +119,21 @@ public class Issue2922_Tests
         select.Parameters["key"] = "unused";
         having.Parameters["least"] = 6;
 
-        var parameters = new BsonDocument { ["key"] = "caller", ["least"] = 6 };
-        var cities = new System.Collections.Generic.List<string>();
+        var query = db.GetCollection("rows").Query()
+            .GroupBy("City")
+            .Having(having)
+            .Select(select);
 
-        using (var reader = db.Execute("SELECT { city: @key, n: COUNT(*) } FROM rows GROUP BY City HAVING COUNT(*) >= @least", parameters))
-        {
-            while (reader.Read()) cities.Add(reader.Current["city"].AsString);
-        }
+        var rows = query.ToArray();
+        rows.Select(row => row["city"].AsString).Should().BeEquivalentTo(new[] { "City0", "City1", "City2" });
+        rows.Select(row => row["n"].AsInt32).Should().BeEquivalentTo(new[] { 6, 7, 7 });
 
-        cities.Should().BeEquivalentTo(new[] { "City0", "City1", "City2" });
-        parameters["key"].AsString.Should().Be("caller");
-        parameters["least"].AsInt32.Should().Be(6);
+        // Reuse the same instances with a different expression-local binding.
+        having.Parameters["least"] = 7;
+        query.ToArray().Select(row => row["city"].AsString).Should().BeEquivalentTo(new[] { "City1", "City2" });
+        having.Parameters["least"] = 6;
+        query.ToArray().Should().HaveCount(3);
+
         select.Parameters["key"].AsString.Should().Be("unused");
         having.Parameters["least"].AsInt32.Should().Be(6);
     }
