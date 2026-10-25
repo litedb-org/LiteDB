@@ -41,17 +41,19 @@ namespace LiteDB.Tests.Regressions
                     db.BeginTrans().Should().BeTrue();
                     db.GetCollection("pending").Insert(new BsonDocument { ["_id"] = 1 });
 
+                    Exception commitFailure = null;
                     var failing = new Thread(() =>
                     {
                         engine.SimulateDiskWriteFail = _ =>
                         {
                             if (Thread.CurrentThread.Name == "failing") throw new IOException("injected WAL write failure");
                         };
-                        Action commit = () => Update(db, 2);
-                        commit.Should().Throw<IOException>().WithMessage("injected WAL write failure");
-                    }) { Name = "failing" };
+                        try { Update(db, 2); }
+                        catch (Exception ex) { commitFailure = ex; }
+                    }) { Name = "failing", IsBackground = true };
                     failing.Start();
-                    failing.Join();
+                    failing.Join(TimeSpan.FromSeconds(30)).Should().BeTrue("the failing commit must finish");
+                    commitFailure.Should().BeOfType<IOException>().Which.Message.Should().Be("injected WAL write failure");
 
                     Action complete = () => db.Commit();
                     var thrown = complete.Should().Throw<IOException>().Which;
