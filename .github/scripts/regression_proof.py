@@ -276,7 +276,13 @@ def pack_known_bad(commit, feed, pr=None, repository=None):
     clone lacks it. The commit's own build decides the version it stamps (older
     GitVersion setups ignore overrides), so the produced package is re-versioned
     afterwards."""
-    if pr:
+    if repository is not None and not provenance.valid_repository(repository):
+        raise SystemExit("--repository must be a GitHub repository as 'owner/name'")
+    if repository is not None and pr is None:
+        raise SystemExit("--repository requires --pr")
+    if pr is not None:
+        if isinstance(pr, bool) or not re.fullmatch(r"[0-9]+", str(pr)) or int(pr) <= 0:
+            raise SystemExit("--pr must be a positive PR number")
         source = {"kind": "pr-commit", "commit": commit, "pr": int(pr)}
         if repository:
             source["repository"] = repository
