@@ -66,9 +66,23 @@
     },
     {
       "repro": "Issue_3092_ReadSnapshotReusedPage",
-      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.322"},
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
       "permanentGuard": [
         "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyDroppedIndex",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
       ]
     },
     {
