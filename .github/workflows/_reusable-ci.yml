@@ -51,6 +51,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: python .github/scripts/regression_proof.py validate
 
+      # Offline: schema, full commit ids, capability table, overlay paths. Proofs
+      # themselves run only in net-proofs.yml (manual), never on every PR.
+      - name: Validate the net-proof ledger
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/net_proof.py validate
   # docs/legacy-file-validation.md: pinned databases from every stable v4/v5 writer.
   # The PR tier covers ICU and NLS; the full tier adds Windows/ICU and macOS/ICU.
   released-file-compatibility:
