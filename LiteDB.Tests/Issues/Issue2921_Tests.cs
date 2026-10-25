@@ -186,6 +186,37 @@ public class Issue2921_Tests
         translate.Should().Throw<NotSupportedException>().WithMessage("*narrowing or checked conversion*");
     }
 
+    public static TheoryData<string, Expression<Func<Account, long>>> FractionalNegations => new()
+    {
+        { "double to int", x => -(int)x.Ratio },
+        { "double to long", x => -(long)x.Ratio },
+        { "decimal to int", x => -(int)x.Balance },
+        { "decimal to long", x => -(long)x.Balance },
+    };
+
+    [Theory]
+    [MemberData(nameof(FractionalNegations))]
+    public void Negation_through_fractional_narrowing_is_explicitly_rejected(
+        string because, Expression<Func<Account, long>> projection)
+    {
+        using var db = new LiteDatabase(":memory:");
+        var collection = db.GetCollection<Account>("accounts");
+
+        foreach (var value in new[] { 1.5, -1.5, 1.5 })
+        {
+            var account = new Account { Id = 1, Ratio = value, Balance = (decimal)value };
+            collection.Upsert(account);
+            var expected = projection.Compile()(account);
+            expected.Should().Be(value > 0 ? -1L : 1L, because);
+            var predicate = Expression.Lambda<Func<Account, bool>>(
+                Expression.Equal(projection.Body, Expression.Constant(expected)), projection.Parameters);
+            predicate.Compile()(account).Should().BeTrue(because);
+
+            Action query = () => collection.Find(predicate).ToArray();
+            query.Should().Throw<NotSupportedException>(because).WithMessage("*narrowing or checked conversion*");
+        }
+    }
+
     [Fact]
     public void Negation_through_an_intermediate_truncating_cast_is_rejected()
     {

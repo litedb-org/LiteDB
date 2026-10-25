@@ -362,10 +362,7 @@ namespace LiteDB
                 for (var operand = node.Operand; operand is UnaryExpression cast &&
                     (cast.NodeType == ExpressionType.Convert || cast.NodeType == ExpressionType.ConvertChecked); operand = cast.Operand)
                 {
-                    if (!LinqNumericConversions.IsWidening(negated.Type, cast.Type) &&
-                        !(cast.NodeType == ExpressionType.Convert &&
-                          (cast.Operand.Type == typeof(double) || cast.Operand.Type == typeof(decimal)) &&
-                          (cast.Type == typeof(int) || cast.Type == typeof(long))))
+                    if (!LinqNumericConversions.IsWidening(negated.Type, cast.Type))
                         throw Unsupported(node, "negation through a narrowing or checked conversion (negate outside the query or filter in memory)");
                 }
 
