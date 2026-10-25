@@ -7,23 +7,29 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Transaction read leases can be released by a cursor-disposal thread.
-    /// Exclusive operations remain owned by the thread performing the checkpoint.
+    /// A lease belongs to its thread, or to an explicit transaction handle that may run on
+    /// any thread. Exclusive operations remain owned by the thread performing the checkpoint.
     /// </summary>
     internal sealed class TransactionGate : IDisposable
     {
         private readonly object _sync = new object();
+        private readonly Func<object> _owner;
         // A cursor can outlive its originating thread. Numeric managed IDs can
         // be recycled after that thread is collected, so retain its identity
         // until the last lease is released, including release on another thread.
-        private readonly Dictionary<Thread, int> _readers = new Dictionary<Thread, int>();
+        private readonly Dictionary<object, int> _readers = new Dictionary<object, int>();
         private int _readerCount;
         private Thread _writer;
         private int _waitingWriters;
         private bool _disposed;
 
+        internal TransactionGate(Func<object> owner = null) { _owner = owner; }
+
+        private object CurrentOwner => _owner?.Invoke() ?? Thread.CurrentThread;
+
         public bool IsReadLockHeld
         {
-            get { lock (_sync) return _readers.ContainsKey(Thread.CurrentThread); }
+            get { var owner = CurrentOwner; lock (_sync) return _readers.ContainsKey(owner); }
         }
 
         public bool IsWriteLockHeld
@@ -40,18 +46,25 @@ namespace LiteDB.Engine
         {
             get
             {
-                lock (_sync) return _readers.TryGetValue(Thread.CurrentThread, out var count) ? count : 0;
+                var owner = CurrentOwner;
+                lock (_sync) return _readers.TryGetValue(owner, out var count) ? count : 0;
             }
         }
 
-        public bool TryEnterReadLock(TimeSpan timeout)
+        public bool TryEnterReadLock(TimeSpan timeout) => TryEnterReadLock(timeout, CurrentOwner);
+
+        internal bool TryEnterReadLock(TimeSpan timeout, object owner)
         {
             var elapsed = Stopwatch.StartNew();
-            var thread = Thread.CurrentThread;
+            var thread = owner;
             lock (_sync)
             {
                 ThrowIfDisposed();
-                while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread)))
+                // Writer priority must not queue a callback behind a writer that is itself
+                // waiting for the handle executing that callback on this thread, nor a handle
+                // begun on a thread whose own cursor lease that writer waits for.
+                while (_writer != null || (_waitingWriters != 0 && !_readers.ContainsKey(thread) &&
+                    !_readers.ContainsKey(Thread.CurrentThread)))
                 {
                     if (!Wait(timeout, elapsed)) return false;
                 }
@@ -62,13 +75,13 @@ namespace LiteDB.Engine
             }
         }
 
-        public void ExitReadLock(Thread owner)
+        public void ExitReadLock(object owner)
         {
             lock (_sync)
             {
                 // Transactions created within an exclusive operation do not take
                 // separate leases. Disposal after engine shutdown is also harmless.
-                if (_writer == owner || !_readers.TryGetValue(owner, out var count)) return;
+                if (ReferenceEquals(_writer, owner) || !_readers.TryGetValue(owner, out var count)) return;
                 if (count == 1) _readers.Remove(owner);
                 else _readers[owner] = count - 1;
                 _readerCount--;
@@ -80,15 +93,18 @@ namespace LiteDB.Engine
         {
             var elapsed = Stopwatch.StartNew();
             var thread = Thread.CurrentThread;
+            var current = CurrentOwner;
             lock (_sync)
             {
                 ThrowIfDisposed();
-                if (_readers.ContainsKey(thread)) throw new LockRecursionException("Cannot enter exclusive mode inside a transaction.");
+                if (_readers.ContainsKey(current)) throw new LockRecursionException("Cannot enter exclusive mode inside a transaction.");
                 _waitingWriters++;
                 try
                 {
                     while (_writer != null || _readerCount != 0)
                     {
+                        // A handle executing this callback keeps its lease until the
+                        // callback returns: waiting for it cannot make progress.
                         if (!Wait(timeout, elapsed)) return false;
                     }
                     _writer = thread;

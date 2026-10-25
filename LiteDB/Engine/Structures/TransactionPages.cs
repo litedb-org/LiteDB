@@ -20,6 +20,12 @@ namespace LiteDB.Engine
         public uint TransactionID { get; set; }
 
         /// <summary>
+        /// Owner of this transaction's collection write locks: its thread for legacy, automatic
+        /// and cursor transactions (recursive per thread, as before), or its explicit handle.
+        /// </summary>
+        internal object LockOwner { get; set; }
+
+        /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
         internal long? IndexMigrationLimitSize { get; set; }
