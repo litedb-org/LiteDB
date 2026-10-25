@@ -121,7 +121,7 @@ internal static class CrashImages
         for (var i = 0; i < 20; i++) col.Update(new BsonDocument { ["_id"] = i, ["value"] = 7 });
         col.Insert(new BsonDocument { ["_id"] = 100, ["value"] = 7 });
         File.Copy(path, Path.Combine(dir, "crash.db"), true);
-        File.Copy(path.Replace(".db", "-log.db"), Path.Combine(dir, "crash-log.db"), true);
+        File.Copy(Path.Combine(dir, "src-log.db"), Path.Combine(dir, "crash-log.db"), true);
         Console.WriteLine("data " + new FileInfo(Path.Combine(dir, "crash.db")).Length + " log " + new FileInfo(Path.Combine(dir, "crash-log.db")).Length);
         Environment.Exit(0); // do not dispose
         return 0;
@@ -159,7 +159,8 @@ internal static class CrashImages
         started.Wait();
         for (var i = 100; i < 103; i++) b.Insert(new BsonDocument { ["_id"] = i, ["v"] = new string('y', 6000) });
         Thread.Sleep(2000);
-        Console.WriteLine("crashing");
+        Console.WriteLine(Program.IntendedCrashMarker + "concurrent-crash");
+        Console.Out.Flush();
         Environment.FailFast("simulated crash after T2 committed while T1 is open");
         return 1;
     }
@@ -175,7 +176,8 @@ internal static class CrashImages
         var db = new LiteDatabase($"Filename={path};Connection=direct");
         db.GetCollection("fresh").Insert(new BsonDocument { ["_id"] = 1, ["v"] = "foreign" });
         Thread.Sleep(2000);
-        Console.WriteLine("crashing");
+        Console.WriteLine(Program.IntendedCrashMarker + "foreign-crash");
+        Console.Out.Flush();
         Environment.FailFast("simulated crash");
         return 1;
     }

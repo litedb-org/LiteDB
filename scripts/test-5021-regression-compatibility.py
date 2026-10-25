@@ -103,8 +103,11 @@ def main():
             extracted = digests(fixtures)
             work = temporary / "work"
             work.mkdir()
-            result = subprocess.run(["dotnet", str(probe / "bin/Release/net8.0/Probe.dll"), str(fixtures), str(work)],
-                                    cwd=root)
+            try:
+                result = subprocess.run(["dotnet", str(probe / "bin/Release/net8.0/Probe.dll"), str(fixtures), str(work)],
+                                        cwd=root, timeout=600)
+            except subprocess.TimeoutExpired:
+                raise SystemExit("The probe did not finish within 600 s (a hung open?).")
             if digests(fixtures) != extracted:
                 raise SystemExit("The probe changed an extracted fixture instead of a copy.")
             if result.returncode == 2:

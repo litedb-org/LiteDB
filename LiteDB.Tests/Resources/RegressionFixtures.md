@@ -60,7 +60,7 @@ From the repository root, into an empty directory:
 
 ```sh
 dotnet run --project tools/RegressionFixtures5021 -- WalCrash /tmp/fixtures/WalCrash
-DOTNET_ROLL_FORWARD=LatestMajor dotnet run --project tools/RegressionFixtures5021 -- DropIndex /tmp/fixtures/DropIndex
+DOTNET_ROLL_FORWARD=LatestMajor dotnet run --project tools/RegressionFixtures5021 -- EncryptedWalCrash /tmp/fixtures/EncryptedWalCrash
 dotnet run --project tools/PrereleaseVectorFixture -- /tmp/fixtures/Vectors
 ```
 

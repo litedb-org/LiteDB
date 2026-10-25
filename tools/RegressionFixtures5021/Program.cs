@@ -15,6 +15,7 @@ using System.Text;
 internal static class Program
 {
     internal const string ChildMarker = "--child";
+    internal const string IntendedCrashMarker = "LITEDB_FIXTURE_INTENDED_CRASH:";
 
     private static readonly Dictionary<string, Action<string>> Fixtures = new Dictionary<string, Action<string>>(StringComparer.OrdinalIgnoreCase)
     {
@@ -88,7 +89,7 @@ internal static class Program
     {
         var (exitCode, stdout, stderr) = StartChild(mode, path);
         Console.Write(stdout);
-        if (crashes ? exitCode == 0 : exitCode != 0)
+        if (crashes ? exitCode == 0 || !stdout.Split('\n').Any(line => line.TrimEnd('\r') == IntendedCrashMarker + mode) : exitCode != 0)
             throw new InvalidOperationException($"child {mode} exited with {exitCode}: {stderr}");
         if (crashes) Console.WriteLine($"child {mode} killed itself (exit {exitCode})");
     }
