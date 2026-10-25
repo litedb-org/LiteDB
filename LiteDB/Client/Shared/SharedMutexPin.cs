@@ -186,6 +186,12 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>A reader or transaction of the calling thread holds ownership until it ends.</summary>
+        internal bool IsHeldByCurrentThread
+        {
+            get { lock (_sync) return ReferenceEquals(this.Owner, Thread.CurrentThread) && _holds > 0; }
+        }
+
         /// <summary>
         /// True while an operation of <paramref name="thread"/> runs under this pin. The
         /// holder cannot release before it completes, even when forced.

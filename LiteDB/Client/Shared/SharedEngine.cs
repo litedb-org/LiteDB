@@ -96,6 +96,8 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
+            // Neither retirement nor a pin may wait on ownership of an executing handle.
+            TransactionContext.ThrowIfSharedWait(_mutexName);
             // Writers retire idle read handles before _useLock, preserving lock order.
             if (writing) this.RetireCoordinatedReads();
             var pin = _pin;
@@ -107,7 +109,7 @@ namespace LiteDB
             }
 
             // Acquire mutex for every call to open DB.
-            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && (this.CanScope || _transactionChild), writing);
 
             try
             {
@@ -483,7 +485,7 @@ namespace LiteDB
             _owner.ReleaseAll();
             // Operations left a WAL below the close threshold: checkpoint it now, so
             // the data file alone is the database again once every connection closed.
-            if (!closed) this.CheckpointOnDispose();
+            if (!closed && !_transactionChild) this.CheckpointOnDispose();
             _handles?.Dispose();
             // Leased readers may outlive the connection; the slot file closes after the last.
             _readers.Dispose();

@@ -209,9 +209,6 @@ namespace LiteDB.Engine
         /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
         internal bool InvalidDatafileState { get; private set; }
 
-        /// <summary>Whether this engine stopped on a published failure (a failed write, an invalid state).</summary>
-        internal bool HasFailed => _state.HasFailure;
-
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();

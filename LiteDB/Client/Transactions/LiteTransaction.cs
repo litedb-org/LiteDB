@@ -76,6 +76,7 @@ namespace LiteDB
         private void Enter(bool terminalAllowed = false)
         {
             // Before any side effect: the handle stays usable from a non-impersonating thread.
+            if (_shared) Client.Shared.TransactionHolderContext.Validate();
             lock (_gate)
             {
                 // A sequential call that lands during close sees the close, not an overlap;
