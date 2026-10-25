@@ -16,9 +16,9 @@ namespace LiteDB
             var cache = Volatile.Read(ref _sqlQueryCache);
             var repeated = false;
             if (eligible && cache != null && cache.TryGet(command, out var template, out repeated))
-                return template.Execute(_engine, parameters);
+                return template.Execute(_context.Engine, parameters);
 
-            var sql = new SqlParser(_engine, new Tokenizer(command), parameters, captureSelect: repeated);
+            var sql = new SqlParser(_context.Engine, new Tokenizer(command), parameters, captureSelect: repeated);
             var reader = sql.Execute();
             if (eligible && sql.ParsedSelect)
             {

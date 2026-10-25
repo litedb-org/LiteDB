@@ -45,16 +45,19 @@ namespace LiteDB
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         bool BeginTrans();
 
         /// <summary>
         /// Commit the current thread transaction; throws if only other threads have explicit transactions.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         bool Commit();
 
         /// <summary>
         /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         bool Rollback();
 
         /// <summary>

@@ -1,4 +1,4 @@
-# Explicit transaction thread ownership
+# Explicit transaction thread ownership (legacy `BeginTrans`)
 
 `BeginTrans`, all operations in the transaction, and `Commit` or `Rollback` must
 run synchronously on the same managed thread. Do not put `await` inside that block.
@@ -19,8 +19,10 @@ returns false even while other threads have explicit transactions open. A later
 This guard cannot distinguish two logical tasks that reuse a thread which already
 owns a transaction. It does not make explicit transactions async-safe. Keep the
 whole block synchronous, use a dedicated thread when necessary, or rely on the
-per-operation automatic transactions. An explicit transaction-handle API and
-non-thread-affine write locks remain separate future work.
+per-operation automatic transactions. These legacy methods are obsolete (CS0618):
+new code should use [transaction handles](transaction-handles.md), which support
+sequential thread handoff. Handle transactions never take part in this
+legacy-only foreign-completion check.
 
 In shared mode, if the owner thread exits and abandons its named mutex, the next
 operation on that instance rejects the abandoned transaction and discards its uncommitted state.
