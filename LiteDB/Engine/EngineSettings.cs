@@ -63,6 +63,15 @@ namespace LiteDB.Engine
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
+        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
+        public bool SharedOneFile { get; set; }
+        /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
+        public long SharedMemorySize { get; set; }
+        /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>
+        public int SharedProcessCapacity { get; set; } = 256;
+        /// <summary>Distinct snapshot generations per process chosen at initialization (default 256).</summary>
+        public int SharedGenerationCapacity { get; set; } = 256;
+
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.

@@ -1769,6 +1769,45 @@
           "proves": "Queued writer finishes with terminal refusal before failure teardown; later attempts preserve the exact WAL bytes."
         }
       ]
+    },
+    {
+      "name": "BootstrapStage",
+      "protocol": "ABI-2 ephemeral mapping bootstrap and final close",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+          "model": "exception",
+          "proves": "Each named bootstrap/final-close boundary is hit, injected twice and followed by protected document/index/unrelated payload validation."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death",
+          "model": "process-death",
+          "proves": "Two kills at each reached bootstrap/close boundary then protected storage validation before Ready."
+        }
+      ],
+      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+    },
+    {
+      "name": "AllocateFile",
+      "protocol": "ABI-2 ephemeral mapping allocation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+          "model": "exception",
+          "proves": "Modeled ENOSPC and map failure repeat twice, preserve DB bytes and release all partial locks before validated retry."
+        }
+      ]
+    },
+    {
+      "name": "MapFile",
+      "protocol": "ABI-2 ephemeral mapping allocation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+          "model": "exception",
+          "proves": "Modeled ENOSPC and map failure repeat twice, preserve DB bytes and release all partial locks before validated retry."
+        }
+      ]
     }
   ],
   "observers": {

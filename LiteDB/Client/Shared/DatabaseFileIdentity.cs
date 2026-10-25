@@ -11,7 +11,7 @@ namespace LiteDB.Client.Shared
         internal static bool Windows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         private static bool Darwin => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 
-        internal static SafeFileHandle Open(string filename, bool readOnly, bool create)
+        internal static SafeFileHandle Open(string filename, bool readOnly, bool create, bool writable = false)
         {
             RequirePlatform();
             SafeFileHandle handle;
@@ -19,7 +19,7 @@ namespace LiteDB.Client.Shared
             {
                 // LockFileEx needs only read access. Sharing delete permits rebuild's
                 // rename while the old inode remains locked until its final lease ends.
-                handle = CreateFileW(WindowsPath(filename), 0x80000000, 7, IntPtr.Zero, create ? 4u : 3u, 0, IntPtr.Zero);
+                handle = CreateFileW(WindowsPath(filename), writable ? 0xc0000000u : 0x80000000u, 7, IntPtr.Zero, create ? 4u : 3u, 0, IntPtr.Zero);
             }
             else
             {
