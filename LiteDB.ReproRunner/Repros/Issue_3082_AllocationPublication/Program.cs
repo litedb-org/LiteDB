@@ -28,7 +28,7 @@ internal static class Program
 
         try
         {
-            var reproduced = Reproduce(Path.Combine(directory, "repro.db"));
+            var reproduced = Reproduce(Path.Combine(directory, "repro-" + context.InstanceIndex + ".db"));
             host.SendResult(reproduced, reproduced ? "The bug reproduced." : "The bug did not reproduce.");
             return reproduced ? 0 : 1;
         }
