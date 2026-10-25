@@ -1,1 +1,6 @@
 .githooks/* text eol=lf
+scripts/generate-release-corpus.py text eol=lf
+scripts/test-release-compatibility.py text eol=lf
+scripts/release_compatibility.py text eol=lf
+tools/ReleaseCompatibility/provenance/generate-release-corpus.py text eol=lf
+tools/ReleaseCompatibility/Corpus.cs text eol=lf

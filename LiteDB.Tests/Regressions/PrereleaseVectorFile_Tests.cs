@@ -99,7 +99,14 @@ namespace LiteDB.Tests.Regressions
             var bytes = Fixture("vectors.db");
             // Rename the vector section entry: the page still lists "embedding" as a vector index.
             var name = System.Text.Encoding.UTF8.GetBytes("embedding\0");
-            var occurrences = Enumerable.Range(0, bytes.Length - name.Length).Where(i => bytes.Skip(i).Take(name.Length).SequenceEqual(name)).ToArray();
+            var occurrences = Enumerable.Range(0, bytes.Length - name.Length).Where(i =>
+            {
+                for (var j = 0; j < name.Length; j++)
+                {
+                    if (bytes[i + j] != name[j]) return false;
+                }
+                return true;
+            }).ToArray();
             occurrences.Should().HaveCount(2, "the index list entry and the vector section entry");
             bytes[occurrences[1] + name.Length - 2] = (byte)'X';
             File.WriteAllBytes(file.Filename, bytes);
