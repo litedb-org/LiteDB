@@ -44,7 +44,7 @@ namespace LiteDB
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
             _settings.SharedDurability = new SharedDurabilityState();
-            _settings.SharedReaderVersions = () => _readers.LiveVersions();
+            _readers = _settings.SharedOneFile ? null : CreateReaderRegistry(_settings);
             // A rebuild would replace the files under live snapshot readers. Scan the
             // registry only when an open is about to rebuild, not on every operation.
             _settings.AutoRebuildAllowed = () => !_readers.OldestVersion().HasValue;
@@ -79,7 +79,8 @@ namespace LiteDB
             try
             {
                 if (NativeAdmission.IsFile(_settings)) _settings.SharedAdmission = _admission = NativeAdmission.Open(_settings, shared: true);
-                _readers = CreateReaderRegistry(_settings);
+                _readers = _readers ?? CreateReaderRegistry(_settings);
+                _settings.SharedReaderVersions = _readers.LiveVersions;
                 BindParticipantSettings(_settings, _readers);
             }
             catch

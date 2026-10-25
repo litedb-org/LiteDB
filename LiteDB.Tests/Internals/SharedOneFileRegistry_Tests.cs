@@ -221,6 +221,20 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Default_legacy_file_locking_refusal_creates_no_database_or_coordination_files()
+        {
+            AppContext.TryGetSwitch("System.IO.DisableFileLocking", out var previous);
+            AppContext.SetSwitch("System.IO.DisableFileLocking", true);
+            try
+            {
+                Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = Filename }); };
+                open.Should().Throw<PlatformNotSupportedException>();
+                Directory.GetFileSystemEntries(_directory).Should().BeEmpty();
+            }
+            finally { AppContext.SetSwitch("System.IO.DisableFileLocking", previous); }
+        }
+
+        [OneFileFact]
         public void Hard_links_refuse_without_mutating_storage_or_creating_an_authority()
         {
             using (var seed = new LiteDatabase(Filename)) seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
