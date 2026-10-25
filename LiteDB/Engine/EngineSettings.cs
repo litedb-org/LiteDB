@@ -82,6 +82,34 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Whether a cached Shared holder wrapper configured with these settings may serve a begin
+        /// whose <see cref="SnapshotForTransactionHolder"/> is <paramref name="other"/>. Rebuild can
+        /// change the connection's password and collation; any difference discards the wrapper.
+        /// The holder's read policy is a re-targetable box, so only its presence is compared.
+        /// </summary>
+        internal bool SameHolderSettings(EngineSettings other) =>
+            other != null &&
+            string.Equals(this.Filename, other.Filename, StringComparison.Ordinal) &&
+            string.Equals(this.Password, other.Password, StringComparison.Ordinal) &&
+            string.Equals(this.Collation?.ToString(), other.Collation?.ToString(), StringComparison.Ordinal) &&
+            this.ReadOnly == other.ReadOnly &&
+            this.DataStream == other.DataStream && this.LogStream == other.LogStream && this.TempStream == other.TempStream &&
+            this.CompactStorage == other.CompactStorage && this.MemoryProfile == other.MemoryProfile &&
+            this.InitialSize == other.InitialSize && this.IndexMigrationLimitSize == other.IndexMigrationLimitSize &&
+            this.CacheSize == other.CacheSize && this._transactionPageLimit == other._transactionPageLimit &&
+            this.LegacyIndexScan == other.LegacyIndexScan && this.AutoRebuild == other.AutoRebuild &&
+            this.Upgrade == other.Upgrade && this.RejectInvalidLocalTime == other.RejectInvalidLocalTime &&
+            this.DurableCommits == other.DurableCommits && Equals(this.LocalTimeZone, other.LocalTimeZone) &&
+            (this.ReadTransform == null) == (other.ReadTransform == null) &&
+            this.SharedMutexNameStrategy == other.SharedMutexNameStrategy &&
+            this.SharedReaderFiles == other.SharedReaderFiles &&
+            this.SharedWriterTimeout == other.SharedWriterTimeout && this.SharedSelfWaitGrace == other.SharedSelfWaitGrace
+#if DEBUG || TESTING
+            && this.CheckpointStage == other.CheckpointStage
+#endif
+            ;
+
+        /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>

@@ -5,6 +5,7 @@ internal static class TransactionHandleHarness
     internal static bool TryRun(string mode, string filename, string? password, string[] args)
     {
         if (!mode.StartsWith("handle-", StringComparison.Ordinal) && mode != "legacy-loop") return false;
+        if (mode == "handle-reuse-peer") return ReusePeer(filename, password, int.Parse(args[4]));
         if (mode == "handle-first-culture")
             System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
         using var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = password,
@@ -115,6 +116,26 @@ internal static class TransactionHandleHarness
         // Keep the completed handle and facade alive while a peer acquires writer ownership.
         Console.ReadLine();
         transaction!.Dispose();
+        return true;
+    }
+
+    /// <summary>
+    /// Between two reused handles of the parent (#3083): one bounded write session of another process.
+    /// It fails with LOCK_TIMEOUT if a pooled holder still owned the writer mutex. Round r sets every
+    /// row's value to r, replaces index idx(r-1) by idx(r) and checkpoints the WAL into the data file.
+    /// </summary>
+    private static bool ReusePeer(string filename, string? password, int round)
+    {
+        using var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = password,
+            Connection = ConnectionType.Shared, SharedWriterTimeout = TimeSpan.FromSeconds(1) });
+        var rows = db.GetCollection("rows");
+        var updated = rows.FindAll().ToList();
+        foreach (var row in updated) row["value"] = round;
+        if (rows.Update(updated) != 64) throw new InvalidOperationException("Peer did not update every row");
+        if (!rows.DropIndex("idx" + (round - 1))) throw new InvalidOperationException("Previous index missing");
+        if (!rows.EnsureIndex("idx" + round, "$.value")) throw new InvalidOperationException("Index not created");
+        db.Checkpoint();
+        Console.WriteLine("done");
         return true;
     }
 }
