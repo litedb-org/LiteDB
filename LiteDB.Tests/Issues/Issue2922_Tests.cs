@@ -118,6 +118,7 @@ public class Issue2922_Tests
 
         select.Parameters["key"] = "unused";
         having.Parameters["least"] = 6;
+        having.Parameters["key"] = "having caller";
 
         var query = db.GetCollection("rows").Query()
             .GroupBy("City")
@@ -136,5 +137,6 @@ public class Issue2922_Tests
 
         select.Parameters["key"].AsString.Should().Be("unused");
         having.Parameters["least"].AsInt32.Should().Be(6);
+        having.Parameters["key"].AsString.Should().Be("having caller");
     }
 }
