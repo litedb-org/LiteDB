@@ -186,13 +186,15 @@ namespace LiteDB.Engine
 
         private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index, IndexMigrationCapacity capacity)
         {
+            var metadata = snapshot.CollectionPage.GetVectorIndexMetadata(index.Name);
+            ENSURE(metadata != null, "vector index '{0}' has no vector metadata", index.Name);
             if (IndexExpressionIdentity.IsMemberPath(index.BsonExpr)) return;
             var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
             foreach (var node in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
             {
                 using (var reader = new BufferReader(data.Read(node.DataBlock)))
                     index.BsonExpr.ExecuteScalar(reader.ReadDocument().GetValue(), _header.Pragmas.Collation);
-                capacity.AddVectorDocument(snapshot.CollectionPage.GetVectorIndexMetadata(index.Name).Dimensions);
+                capacity.AddVectorDocument(metadata.Dimensions);
                 snapshot.Safepoint();
             }
         }
