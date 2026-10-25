@@ -43,7 +43,7 @@ namespace LiteDB
         private readonly ITypeNameBinder _typeNameBinder;
 
         /// <summary>
-        /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
+        /// Global mapper whose configuration is cloned when no mapper is supplied to LiteDatabase.
         /// </summary>
         public static BsonMapper Global = new BsonMapper();
 
@@ -119,7 +119,7 @@ namespace LiteDB
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
+            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString, UriKind.RelativeOrAbsolute));
             RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
             RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
             RegisterType<Regex>(
@@ -162,16 +162,17 @@ namespace LiteDB
             return new EntityBuilder<T>(this, _typeNameBinder);
         }
 
-        #region Get LinqVisitor processor
+        #region LINQ expression translation
+
+        private readonly LinqExpressionCache _linqExpressionCache = new LinqExpressionCache();
+        internal int LinqExpressionCacheCount => _linqExpressionCache.Count;
 
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
         /// </summary>
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(typeof(K) == typeof(bool));
+            var expr = _linqExpressionCache.Resolve(this, predicate, typeof(K) == typeof(bool));
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -183,9 +184,7 @@ namespace LiteDB
         /// </summary>
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(false);
+            var expr = _linqExpressionCache.Resolve(this, predicate, false);
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -328,6 +327,7 @@ namespace LiteDB
                 foreach (var item in (IEnumerable)list)
                 {
                     if (item == null) continue;
+                    if (idField == null) throw new LiteException(0, "There is no _id field mapped in your type: " + member.UnderlyingType.FullName);
 
                     var id = idField.Getter(item);
 

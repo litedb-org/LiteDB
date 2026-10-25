@@ -14,8 +14,16 @@ namespace LiteDB.Engine
     internal class TransactionPages
     {
         /// <summary>
+        /// Transaction ID stored in WAL frames. It can be advanced before a later
+        /// batch so physical recovery order never moves backwards.
+        /// </summary>
+        public uint TransactionID { get; set; }
+
+        /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
+        internal long? IndexMigrationLimitSize { get; set; }
+
         private int _transactionSize;
 
         public int TransactionSize
@@ -61,6 +69,11 @@ namespace LiteDB.Engine
         {
             this.Commit?.Invoke(header);
         }
+
+        /// <summary>
+        /// Detect if committing will run header callbacks (collection add/drop/rename, pragmas)
+        /// </summary>
+        public bool HasCommitCallbacks => this.Commit != null;
 
         /// <summary>
         /// Detect if this transaction will need persist header page (has added/deleted pages or added/deleted collections)

@@ -111,7 +111,7 @@ public class Order
     public List<Product> Products { get; set; }
 }        
 
-// Re-use mapper from global instance
+// Configure the global template. Mapper-less databases clone this configuration.
 var mapper = BsonMapper.Global;
 
 // "Products" and "Customer" are from other collections (not embedded document)

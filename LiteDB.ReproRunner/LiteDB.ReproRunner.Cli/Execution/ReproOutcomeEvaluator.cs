@@ -67,9 +67,14 @@ internal sealed class ReproOutcomeEvaluator
         }
 
         var exitCode = result.Value.ExitCode;
+        if (!result.Value.ConfigurationValid) return (false, "Configuration handshake validation failed.");
 
         switch (expectation.Kind)
         {
+            case ReproOutcomeKind.Intermittent:
+                if (exitCode != 0 && exitCode != 10)
+                    return (false, $"Expected a completed reproduction (0) or verification (10), observed {exitCode}.");
+                break;
             case ReproOutcomeKind.Reproduce:
                 if (exitCode != 0)
                 {

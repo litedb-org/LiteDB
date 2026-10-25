@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +11,9 @@ namespace LiteDB
 {
     internal class BsonValueResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method) => null;
+        public LinqExpressionBinding ResolveMethod(MethodInfo method) => null;
 
-        public string ResolveMember(MemberInfo member)
+        public LinqExpressionBinding ResolveMember(MemberInfo member)
         {
             switch (member.Name)
             {
@@ -28,29 +28,29 @@ namespace LiteDB
                 case "AsDecimal":
                 case "AsDateTime":
                 case "AsObjectId":
-                case "AsGuid": return "#";
+                case "AsGuid": return c => c.Object();
 
-                case "IsNull": return "IS_NULL(#)";
-                case "IsArray": return "IS_ARRAY(#)";
-                case "IsDocument": return "IS_DOCUMENT(#)";
-                case "IsInt32": return "IS_INT32(#)";
-                case "IsInt64": return "IS_INT64(#)";
-                case "IsDouble": return "IS_DOUBLE(#)";
-                case "IsDecimal": return "IS_DECIMAL(#)";
-                case "IsNumber": return "IS_NUMBER(#)";
-                case "IsBinary": return "IS_BINARY(#)";
-                case "IsBoolean": return "IS_BOOLEAN(#)";
-                case "IsString": return "IS_STRING(#)";
-                case "IsObjectId": return "IS_OBJECTID(#)";
-                case "IsGuid": return "IS_GUID(#)";
-                case "IsDateTime": return "IS_DATETIME(#)";
-                case "IsMinValue": return "IS_MINVALUE(#)";
-                case "IsMaxValue": return "IS_MAXVALUE(#)";
+                case "IsNull": return c => c.Call("IS_NULL", c.Object());
+                case "IsArray": return c => c.Call("IS_ARRAY", c.Object());
+                case "IsDocument": return c => c.Call("IS_DOCUMENT", c.Object());
+                case "IsInt32": return c => c.Call("IS_INT32", c.Object());
+                case "IsInt64": return c => c.Call("IS_INT64", c.Object());
+                case "IsDouble": return c => c.Call("IS_DOUBLE", c.Object());
+                case "IsDecimal": return c => c.Call("IS_DECIMAL", c.Object());
+                case "IsNumber": return c => c.Call("IS_NUMBER", c.Object());
+                case "IsBinary": return c => c.Call("IS_BINARY", c.Object());
+                case "IsBoolean": return c => c.Call("IS_BOOLEAN", c.Object());
+                case "IsString": return c => c.Call("IS_STRING", c.Object());
+                case "IsObjectId": return c => c.Call("IS_OBJECTID", c.Object());
+                case "IsGuid": return c => c.Call("IS_GUID", c.Object());
+                case "IsDateTime": return c => c.Call("IS_DATETIME", c.Object());
+                case "IsMinValue": return c => c.Call("IS_MINVALUE", c.Object());
+                case "IsMaxValue": return c => c.Call("IS_MAXVALUE", c.Object());
             };
 
             return null;
         }
 
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

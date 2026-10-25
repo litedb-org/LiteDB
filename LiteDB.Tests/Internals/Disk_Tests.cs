@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using FluentAssertions;
@@ -163,7 +163,7 @@ namespace LiteDB.Internals
             disk.WriteLogDisk(new[] { replacement });
 
             replacement.Position.Should().Be(0);
-            log.Length.Should().Be(PAGE_SIZE);
+            log.Length.Should().Be(2 * PAGE_SIZE);
         }
 
         [Fact]
@@ -213,7 +213,7 @@ namespace LiteDB.Internals
             }
         }
 
-        [Fact (Skip = "Verificar loop")]
+        [Fact]
         public Task Disk_ExclusiveScheduler_Write() => Task.Factory.StartNew(Disk_Read_Write,
             CancellationToken.None, TaskCreationOptions.DenyChildAttach,
             new ConcurrentExclusiveSchedulerPair().ExclusiveScheduler);

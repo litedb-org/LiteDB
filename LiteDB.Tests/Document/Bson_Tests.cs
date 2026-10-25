@@ -1,5 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+
 using FluentAssertions;
 using Xunit;
 
@@ -114,6 +119,42 @@ namespace LiteDB.Tests.Document
             var doc4 = BsonSerializer.Deserialize(bson, false);
 
             doc4.ToString().Should().Be(src.ToString());
+        }
+
+        [Fact]
+        public void Array_index_writer_preserves_BSON_bytes()
+        {
+            var values = Enumerable.Range(0, 1002).ToArray();
+            var actual = BsonSerializer.Serialize(new BsonDocument
+            {
+                ["array"] = new BsonArray(values.Select(x => new BsonValue(x)))
+            });
+
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+            writer.Write(0);
+            writer.Write((byte)0x04);
+            writer.Write(Encoding.UTF8.GetBytes("array"));
+            writer.Write((byte)0x00);
+            var arrayOffset = stream.Position;
+            writer.Write(0);
+
+            for (var i = 0; i < values.Length; i++)
+            {
+                writer.Write((byte)0x10);
+                writer.Write(Encoding.UTF8.GetBytes(i.ToString(CultureInfo.InvariantCulture)));
+                writer.Write((byte)0x00);
+                writer.Write(values[i]);
+            }
+
+            writer.Write((byte)0x00);
+            var arrayLength = checked((int)(stream.Position - arrayOffset));
+            writer.Write((byte)0x00);
+            var expected = stream.ToArray();
+            Buffer.BlockCopy(BitConverter.GetBytes(arrayLength), 0, expected, (int)arrayOffset, sizeof(int));
+            Buffer.BlockCopy(BitConverter.GetBytes(expected.Length), 0, expected, 0, sizeof(int));
+
+            actual.Should().Equal(expected);
         }
 
         [Fact]

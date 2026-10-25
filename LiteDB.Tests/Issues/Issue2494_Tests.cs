@@ -24,7 +24,7 @@ public class Issue2494_Tests
             Upgrade = true,
         };
 
-        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, connectionString.ToString())) // <= throws as of version 5.0.18
+        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, connectionString.ToStringWithPassword())) // <= throws as of version 5.0.18
         {
             var col = db.GetCollection<PlayerDto>();
             col.FindAll();

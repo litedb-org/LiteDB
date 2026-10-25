@@ -28,18 +28,15 @@ namespace LiteDB.Engine
         public static void CheckName(string name, HeaderPage header)
         {
             if (Encoding.UTF8.GetByteCount(name) > header.GetAvailableCollectionSpace()) throw LiteException.InvalidCollectionName(name, "There is no space in header this collection name");
-            if (!name.IsWord()) throw LiteException.InvalidCollectionName(name, "Use only [a-Z$_]");
+            if (!name.IsWord()) throw LiteException.InvalidCollectionName(name, "Names cannot start with a digit; use letters, digits, underscores or dollar signs (initial dollar signs are reserved)");
             if (name.StartsWith("$")) throw LiteException.InvalidCollectionName(name, "Collection can't starts with `$` (reserved for system collections)");
         }
 
         /// <summary>
         /// Get collection page instance (or create a new one). Returns true if a new collection was created
         /// </summary>
-        public bool Get(string name, bool addIfNotExists, ref CollectionPage collectionPage)
+        public bool Get(string name, uint pageID, bool addIfNotExists, ref CollectionPage collectionPage)
         {
-            // get collection pageID from header
-            var pageID = _header.GetCollectionPageID(name);
-
             if (pageID != uint.MaxValue)
             {
                 collectionPage = _snapshot.GetPage<CollectionPage>(pageID);

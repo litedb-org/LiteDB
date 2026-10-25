@@ -34,7 +34,7 @@ namespace LiteDB.Engine
 
                     transaction.Safepoint();
 
-                    if (this.UpdateDocument(snapshot, collectionPage, doc, indexer, data, vectorService))
+                    if (this.UpdateDocument(snapshot, collectionPage, doc, indexer, data, vectorService, true))
                     {
                         count++;
                     }
@@ -95,7 +95,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Implement internal update document
         /// </summary>
-        private bool UpdateDocument(Snapshot snapshot, CollectionPage col, BsonDocument doc, IndexService indexer, DataService data, VectorIndexService vectorService)
+        private bool UpdateDocument(Snapshot snapshot, CollectionPage col, BsonDocument doc, IndexService indexer, DataService data, VectorIndexService vectorService, bool rejectInvalidLocalTime = false)
         {
             // normalize id before find
             var id = doc["_id"];
@@ -111,7 +111,10 @@ namespace LiteDB.Engine
             
             // if not found document, no updates
             if (pkNode == null) return false;
-            
+
+            // Upsert already checked the document; Update only checks what it is about to write
+            if (rejectInvalidLocalTime) this.RejectInvalidLocalTime(doc);
+
             // update data storage
             data.Update(col, pkNode.DataBlock, doc);
             foreach (var (vectorIndex, metadata) in col.GetVectorIndexes())

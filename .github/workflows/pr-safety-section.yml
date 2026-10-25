@@ -1,0 +1,44 @@
+name: PR safety section
+
+# Checks the PR description's "Safety / regression evidence" section. It runs in
+# its own concurrency group, so editing a description never cancels or replaces
+# a CI run. The body is passed through the environment, never interpolated into
+# the script, and the job has a read-only token.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-safety-section-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  safety-section:
+    name: Safety section
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Queue entries were checked as pull requests
+        if: github.event_name == 'merge_group'
+        run: echo "The description was checked on the pull request before it entered the queue."
+
+      - name: Check out repository
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the description against the implicated contracts
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          python .github/scripts/check_pr_section.py --body "$RUNNER_TEMP/pr-body.md" --base "$BASE_SHA"

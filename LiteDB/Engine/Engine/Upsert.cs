@@ -33,6 +33,8 @@ namespace LiteDB.Engine
 
                     transaction.Safepoint();
 
+                    this.RejectInvalidLocalTime(doc);
+
                     // first try update document (if exists _id), if not found, do insert
                     if (doc["_id"] == BsonValue.Null || this.UpdateDocument(snapshot, collectionPage, doc, indexer, data, vectorService) == false)
                     {

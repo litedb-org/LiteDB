@@ -195,7 +195,7 @@ namespace LiteDB
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
 
-            return $"({left.Source} AND {right.Source})";
+            return Compose(left, right, "AND");
         }
 
         /// <summary>
@@ -223,7 +223,7 @@ namespace LiteDB
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
 
-            return $"({left.Source} OR {right.Source})";
+            return Compose(left, right, "OR");
         }
 
         /// <summary>

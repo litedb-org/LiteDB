@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,19 +12,19 @@ namespace LiteDB
 {
     internal class RegexResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             switch (method.Name)
             {
-                case "Split": return "SPLIT(@0, @1, true)";
-                case "IsMatch": return "IS_MATCH(@0, @1)";
+                case "Split": return c => c.Call("SPLIT", c.Argument(0), c.Argument(1), c.Constant(true));
+                case "IsMatch": return c => c.Call("IS_MATCH", c.Argument(0), c.Argument(1));
                 // missing "Match"
             }
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member) => null;
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveMember(MemberInfo member) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

@@ -46,11 +46,12 @@ namespace LiteDB.Internals
             var buffer = new PageBuffer(new byte[Constants.PAGE_SIZE], 0, 0);
             var header = new HeaderPage(buffer, 0);
             var savepoint = header.Savepoint();
-            header.EnsureVersion(HeaderPage.VECTOR_FILE_VERSION);
+            savepoint[HeaderPage.P_FILE_VERSION] = HeaderPage.FILE_VERSION;
+            header.EnsureVersion(HeaderPage.INDEX_FILE_VERSION);
             header.Restore(savepoint);
-            header.FileVersion.Should().Be(HeaderPage.VECTOR_FILE_VERSION);
-            buffer[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.VECTOR_FILE_VERSION);
-            header.UpdateBuffer()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.VECTOR_FILE_VERSION);
+            header.FileVersion.Should().Be(HeaderPage.INDEX_FILE_VERSION);
+            buffer[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+            header.UpdateBuffer()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         [Fact]

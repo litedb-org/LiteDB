@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -11,14 +11,19 @@ namespace LiteDB.Engine
     /// FileStream disk implementation of disk factory
     /// [ThreadSafe]
     /// </summary>
-    internal class FileStreamFactory : IStreamFactory
+    internal partial class FileStreamFactory : IStreamFactory
     {
         private readonly string _filename;
         private readonly string _password;
         private readonly bool _readonly;
         private readonly bool _hidden;
         private readonly bool _useAesStream;
+        private readonly bool _isLog;
         private readonly Action<string> _setHiddenAttribute;
+        private readonly SharedFileHandles _handles;
+#if DEBUG || TESTING
+        internal Action BeforeReadLength;
+#endif
 
         public FileStreamFactory(
             string filename,
@@ -26,14 +31,18 @@ namespace LiteDB.Engine
             bool readOnly,
             bool hidden,
             bool useAesStream = true,
-            Action<string> setHiddenAttribute = null)
+            Action<string> setHiddenAttribute = null,
+            bool isLog = false,
+            SharedFileHandles handles = null)
         {
             _filename = filename;
             _password = password;
             _readonly = readOnly;
             _hidden = hidden;
             _useAesStream = useAesStream;
+            _isLog = isLog;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
+            _handles = handles;
         }
 
         /// <summary>
@@ -50,17 +59,32 @@ namespace LiteDB.Engine
 
             var fileMode = _readonly ? System.IO.FileMode.Open : System.IO.FileMode.OpenOrCreate;
             var fileAccess = write ? FileAccess.ReadWrite : FileAccess.Read;
+            // Cached shared handles let every shared process open, write and delete the
+            // files; exclusive openers are still refused while a writable handle is open.
+            var cached = _handles != null && (!write || SharedFileHandles.CacheWriters);
             var fileShare = write ? FileShare.Read : FileShare.ReadWrite;
             var fileOptions = sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess;
 
             var isNewFile = write && this.Exists() == false;
 
-            var stream = new FileStream(_filename,
-                fileMode,
-                fileAccess,
-                fileShare,
-                PAGE_SIZE,
-                fileOptions);
+            FileStream stream;
+            try
+            {
+                stream = cached
+                    ? _handles.Open(_filename, fileMode, fileAccess, PAGE_SIZE, fileOptions)
+                    : new FileStream(_filename,
+                        fileMode,
+                        fileAccess,
+                        fileShare,
+                        PAGE_SIZE,
+                        fileOptions);
+            }
+            catch (IOException ex) when (_readonly && !canWrite &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
             if (isNewFile && _hidden)
             {
@@ -75,43 +99,61 @@ namespace LiteDB.Engine
                 }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream);
+            if (_password == null || !_useAesStream) return stream;
+            return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>
-        /// Get file length using FileInfo. Crop file length if not length % PAGE_SIZE
+        /// Get the logical file length without modifying the file.
         /// </summary>
         public long GetLength()
         {
             // if not file do not exists, returns 0
             if (!this.Exists()) return 0;
 
-            // get physical file length from OS
-            var length = new FileInfo(_filename).Length;
-
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
+            long length;
+            try
             {
-                length = length - (length % PAGE_SIZE);
+#if DEBUG || TESTING
+                BeforeReadLength?.Invoke();
+#endif
+                length = new FileInfo(_filename).Length;
+            }
+            catch (IOException ex) when (_readonly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
-                using (var fs = new FileStream(
+            if (_password == null || length == 0)
+            {
+                return length;
+            }
+
+            // A partial encrypted preamble is treated as an interrupted creation.
+            // Any other short, non-empty input must still reach validation.
+            if (length < PAGE_SIZE)
+            {
+                using (var stream = new FileStream(
                     _filename,
                     System.IO.FileMode.Open,
-                    FileAccess.Write,
-                    FileShare.None,
-                    PAGE_SIZE,
+                    FileAccess.Read,
+                    FileShare.ReadWrite,
+                    1,
                     FileOptions.SequentialScan))
                 {
-                    fs.SetLength(length);
-                    fs.FlushToDisk();
+                    if (_isLog)
+                    {
+                        using (var reader = EncryptedLogPreamble.Open(_password, stream)) return reader.Length;
+                    }
+                    return stream.ReadByte() == 1 ? 0 : length;
                 }
             }
 
-            // if encrypted must remove salt first page (only if page contains data)
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
+            // Encrypted files reserve the first physical page for their salt.
+            return length - PAGE_SIZE;
         }
 
         /// <summary>

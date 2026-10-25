@@ -67,7 +67,7 @@ namespace LiteDB.Engine
             if (Volatile.Read(ref _closed) != 0) throw new ObjectDisposedException(nameof(TransactionRegistry));
         }
 
-        public void Remove(TransactionService transaction)
+        public bool Remove(TransactionService transaction)
         {
             for (var i = 0; i < _slots.Length; i++)
             {
@@ -75,17 +75,18 @@ namespace LiteDB.Engine
                     ReferenceEquals(Interlocked.CompareExchange(ref _slots[i], null, transaction), transaction))
                 {
                     Interlocked.Decrement(ref _count);
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
 
-        public TransactionService FindForThread(int threadID)
+        public TransactionService FindForThread(Thread thread)
         {
             for (var i = 0; i < _slots.Length; i++)
             {
                 var transaction = Volatile.Read(ref _slots[i]);
-                if (transaction?.ThreadID == threadID) return transaction;
+                if (transaction?.OwnerThread == thread) return transaction;
             }
 
             return null;

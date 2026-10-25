@@ -13,7 +13,7 @@ namespace LiteDB.Engine
 
         private readonly Snapshot _snapshot;
         private readonly Collation _collation;
-        private readonly Random _random = new Random();
+        private readonly Random _random = CreateLevelRandom();
 
         private DataService _vectorData;
 
@@ -922,6 +922,11 @@ namespace LiteDB.Engine
             if (buffer.Length != expectedDimensions)
             {
                 return false;
+            }
+
+            for (var i = 0; i < buffer.Length; i++)
+            {
+                if (float.IsNaN(buffer[i]) || float.IsInfinity(buffer[i])) return false;
             }
 
             vector = buffer;
