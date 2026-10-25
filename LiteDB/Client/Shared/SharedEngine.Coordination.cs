@@ -45,7 +45,7 @@ namespace LiteDB
             {
                 // Opening is not complete until publication succeeds. Keep failed
                 // engines out of connection state and preserve the original error.
-                try { opened?.Close(checkpoint: false); }
+                try { if (opened != null) this.CloseRetainedCore(opened, checkpoint: false); }
                 catch (Exception) { /* Best effort after a failed open; no checkpoint. */ }
 #if NET8_0_OR_GREATER
                 try { if (recovering) _coordination.StructuralEnd(-1); }

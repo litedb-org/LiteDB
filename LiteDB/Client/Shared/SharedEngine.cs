@@ -69,7 +69,7 @@ namespace LiteDB
                 SharedFileHandles.IsSupportedFor(_settings.Filename))
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
-            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
+            var name = _mutexName = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {
@@ -197,7 +197,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        try { engine.Close(); } finally { this.EndWriterPressure(); }
+                        try { this.CloseRetainedCore(engine); } finally { this.EndWriterPressure(); }
                     }
                 }
             }
@@ -218,12 +218,14 @@ namespace LiteDB
         /// </summary>
         private void OnOwnerExited()
         {
+            // The mutex stays owned until this cleanup returns; its closes reach caller streams.
+            using (this.OwnershipFrame(HolderRetains))
             lock (_useLock)
             {
                 _databaseUsers = 0;
                 var engine = _engine;
                 _engine = null;
-                engine?.Close(checkpoint: false);
+                if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
                 this.CloseMutexSnapshotsLocked();
             }
             _handles?.CloseIdle();
@@ -319,7 +321,7 @@ namespace LiteDB
             // The mutex was free since the owner exited, so another process may have
             // committed or checkpointed. This engine's WAL index and cache can be stale:
             // release it without the close checkpoint; the next open recovers the WAL.
-            orphan?.Close(checkpoint: false);
+            if (orphan != null) this.CloseRetainedCore(orphan, checkpoint: false);
             _handles?.CloseIdle();
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
@@ -439,7 +441,9 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (!disposing || Volatile.Read(ref _disposed) != 0) return;
+            this.ThrowIfTeardownReentry();
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             this.RetireCoordinatedReads();
             // Any thread can end a pin; its holder closes the engine and releases. Read
@@ -462,11 +466,13 @@ namespace LiteDB
             // Calls admitted before Dispose started finish first; later ones are refused.
             this.WaitForAdmittedCalls();
             var closed = false;
+            // The ownership an open engine implies ends only after ReleaseAll below.
+            using (this.OwnershipFrame(() => _owner.IsHeld))
             lock (_useLock)
             {
                 if (_engine != null)
                 {
-                    _engine.Close(final: true);
+                    this.CloseRetainedCore(_engine, final: true);
                     _engine = null;
                     closed = true;
                 }
@@ -485,16 +491,6 @@ namespace LiteDB
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
             this.DisposeCoordination();
-        }
-
-        /// <summary>
-        /// Readers streaming under the mutex end with their ownership, like the
-        /// operation engine: a later read would no longer be ordered with writers.
-        /// </summary>
-        private void CloseMutexSnapshotsLocked()
-        {
-            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
-            _mutexSnapshots.Clear();
         }
     }
 }

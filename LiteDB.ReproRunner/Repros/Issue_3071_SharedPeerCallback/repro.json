@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3071_SharedPeerCallback",
+  "title": "Shared callback waits forever for ownership retained by its own outer operation",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3071"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "shared",
+    "concurrency"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "PROVEN_BLOCK"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  },
+  "state": "green"
+}
