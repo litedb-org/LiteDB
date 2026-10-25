@@ -171,6 +171,8 @@ namespace LiteDB.Tests.Engine
             db.Commit().Should().BeTrue();
             OnThread(db, () => peer.GetCollection("docs").Insert(Row(2003)));
             anchor?.Dispose();
+            // Cold Direct verification requires every Shared handle cache to be closed.
+            peer.Dispose();
             engine.Dispose();
             Verify(encrypted, Enumerable.Range(1, 150).Concat(Enumerable.Range(2000, 4)).ToArray());
         }
