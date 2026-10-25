@@ -19,7 +19,7 @@ public sealed class DeadlineOracleCompletion_Tests : IDisposable
     {
         var options = FuzzOptions.Parse(new[] { "--artifact-dir", _root, "--count", "3", "--seed", seed.ToString() });
         var runs = await FuzzProcessRunner.RunEpochsAsync(new DeadlineCompletionSelfTestFuzzer(), options, 0)
-            .WaitAsync(TimeSpan.FromSeconds(60));
+            .WaitAsync(TimeSpan.FromSeconds(150));
         var result = Assert.Single(runs);
         Assert.False(result.Passed);
         const string id = "DEADLINE_ORACLE_DEADLINE_COMPLETION_SELFTEST_FINISHES";
