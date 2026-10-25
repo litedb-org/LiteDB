@@ -243,7 +243,7 @@ the open only: the stored `CHECKPOINT` pragma is no longer rewritten to 1 by the
 constructor and restored by `Dispose` (a file opened by name afterwards keeps its own
 checkpoint size, also when the stream-based instance was never disposed). `Dispose`
 can be called twice, and disposing with an open explicit transaction rolls it back
-and releases the stream instead of throwing.
+and releases the engine's use of the caller-owned stream without disposing it.
 
 A caller's data or log stream that cannot be written (`LiteDatabase(Stream)` or
 `EngineSettings` streams, e.g. a `FileStream` opened with `FileAccess.Read`) opens as
