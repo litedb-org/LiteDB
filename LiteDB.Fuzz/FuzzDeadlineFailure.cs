@@ -31,7 +31,7 @@ internal static class FuzzDeadlineFailure
         var path = Path.Combine(context.DirectoryPath, FuzzOracleState.DeadlineFailureFile);
         File.WriteAllText(path, Serialize(context, failureId, message, overdue, inFlight, "pending"));
         context.PulseHeartbeat();
-        var stacks = CaptureStacks(context);
+        var stacks = context.SkipStackCapture ? "skipped: minimization trial" : CaptureStacks(context);
         File.WriteAllText(path, Serialize(context, failureId, message, overdue, inFlight, stacks));
         var handler = context.DeadlineFailureHandler;
         if (handler == null) return;

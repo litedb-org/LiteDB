@@ -56,6 +56,9 @@ internal static class FuzzOracles
             var late = elapsed > deadline;
             // The watchdog already recorded an operation it reported as overdue.
             if (!item.Reported) state.WriteOutcome(op, dimension, item.Step, late ? "hang" : outcome, error, elapsed.TotalMilliseconds);
+            // The watchdog records the failure and exits this child. Keep the caller
+            // from starting competing artifact writes or minimization in the meantime.
+            if (item.Reported && context.DeadlineFailureHandler != null) Thread.Sleep(Timeout.Infinite);
             // An operation that finally returned or threw after its deadline still missed it.
             if (late)
                 throw new FuzzFailureException(FuzzDeadlineFailure.FailureId(context.Target, op),
@@ -87,6 +90,7 @@ internal static class FuzzOracles
         if (!item.Reported)
             state.WriteOutcome(op, dimension, item.Step, elapsed > deadline ? "hang" : failure == null ? "ok" : "threw",
                 failure, elapsed.TotalMilliseconds);
+        if (item.Reported && context.DeadlineFailureHandler != null) await Task.Delay(Timeout.Infinite);
         if (elapsed > deadline)
             throw new FuzzFailureException(FuzzDeadlineFailure.FailureId(context.Target, op),
                 $"Operation {op} ({dimension}) took {elapsed.TotalSeconds:F1} s, beyond its {deadline.TotalSeconds:F0} s deadline.");

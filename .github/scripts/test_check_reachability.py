@@ -232,5 +232,24 @@ class ReachabilityTests(unittest.TestCase):
         self.assertIn("No markers.json found", output)
 
 
+class AggregateTests(unittest.TestCase):
+    def test_malformed_counts_cannot_cancel_real_hits_or_crash_the_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            values = [{"hits": {"path:x": 3}, "target": "a"},
+                      {"hits": {"path:x": -3, "bad:string": "4", "bad:bool": True,
+                                "bad:null": None, "bad:float": 1.5, "path:y": 2}, "target": "b"},
+                      {"hits": []}, {"hits": "broken"}, [], None,
+                      {"hits": {"path:x": 1, "path:zero": 0}, "target": "a"}]
+            for index, value in enumerate(values):
+                path = Path(directory) / str(index) / "markers.json"
+                path.parent.mkdir()
+                path.write_text(json.dumps(value))
+            totals, runs = check.aggregate([directory])
+            self.assertEqual(runs, len(values))
+            self.assertEqual(totals, {"path:x": {"hits": 4, "targets": {"a": 4}},
+                                      "path:y": {"hits": 2, "targets": {"b": 2}},
+                                      "path:zero": {"hits": 0, "targets": {"a": 0}}})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,7 +20,8 @@ internal static class Program
     };
 
     // Oracle self-tests that fail by design: selectable by exact name, never by "all".
-    private static readonly IFuzzTarget[] SelfTestTargets = { new SelfTests.DeadlineSelfTestFuzzer() };
+    private static readonly IFuzzTarget[] SelfTestTargets =
+        { new SelfTests.DeadlineSelfTestFuzzer(), new SelfTests.DeadlineCompletionSelfTestFuzzer() };
 
     internal static async Task<int> Main(string[] args)
     {
@@ -65,6 +66,7 @@ internal static class Program
             using var trial = new FuzzContext(selected[0].Name, options.Seed, options.Count, null,
                 options.RunDirectory, options.DurationReplay, options.InputFile, options.HeartbeatFile);
             trial.HangTimeout = options.HangTimeout;
+            trial.SkipStackCapture = true;
             // An overdue operation never returns: report its identity for minimization, then exit.
             trial.DeadlineFailureHandler = error => File.WriteAllTextAsync(options.Ledger, error.FailureId);
             string identity = null;

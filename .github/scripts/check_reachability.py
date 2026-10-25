@@ -335,7 +335,12 @@ def aggregate(directories):
             except ValueError:
                 continue
             runs += 1
-            for name, count in (data.get("hits") or {}).items():
+            hits = data.get("hits") if isinstance(data, dict) else None
+            if not isinstance(hits, dict):
+                continue
+            for name, count in hits.items():
+                if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                    continue
                 item = totals.setdefault(name, {"hits": 0, "targets": {}})
                 item["hits"] += count
                 target = data.get("target", "?")

@@ -62,6 +62,9 @@ internal sealed class FuzzContext : IDisposable
     /// </summary>
     internal Func<FuzzFailureException, Task> DeadlineFailureHandler { get; set; }
 
+    /// <summary>Trial children report identity without repeating their parent's stack capture.</summary>
+    internal bool SkipStackCapture { get; set; }
+
     /// <summary>Invariant oracle state (evidence files, deadline watchdog, ownership monitor); see <see cref="FuzzOracles"/>.</summary>
     /// <summary>Fail the run with a violation an oracle latched outside any oracle call (none: no-op).</summary>
     internal void ThrowLatchedOracleFailures()
@@ -182,7 +185,9 @@ internal sealed class FuzzContext : IDisposable
 
     public void Dispose()
     {
-        lock (_oracleLock) _oracles?.Dispose();
+        FuzzOracleState oracles;
+        lock (_oracleLock) oracles = _oracles;
+        oracles?.Dispose();
         _interesting.Dispose();
         _inputOffsets.Dispose();
         _trace.Dispose();
