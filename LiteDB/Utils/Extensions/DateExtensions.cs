@@ -20,6 +20,16 @@ namespace LiteDB
                 dt.Kind);
         }
 
+        /// <summary>
+        /// Stored UTC ticks as a DateTime; damaged ticks beyond the DateTime range clamp instead of failing the read #2930
+        /// </summary>
+        public static DateTime ToUtcDateTime(this long ticks)
+        {
+            var clamped = ticks < 0 ? 0 : ticks > DateTime.MaxValue.Ticks ? DateTime.MaxValue.Ticks : ticks;
+
+            return new DateTime(clamped, DateTimeKind.Utc);
+        }
+
         public static int MonthDifference(this DateTime startDate, DateTime endDate)
         {
             // https://stackoverflow.com/a/1526116/3286260

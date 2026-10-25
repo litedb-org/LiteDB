@@ -33,6 +33,8 @@ namespace LiteDB.Engine
 
                     transaction.Safepoint();
 
+                    this.RejectInvalidLocalTime(doc);
+
                     this.InsertDocument(snapshot, doc, autoId, indexer, data, vectorService);
 
                     count++;

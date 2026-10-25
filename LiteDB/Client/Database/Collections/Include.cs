@@ -29,7 +29,7 @@ namespace LiteDB
             if (string.IsNullOrEmpty(keySelector)) throw new ArgumentNullException(nameof(keySelector));
 
             // cloning this collection and adding this include
-            var newcol = new LiteCollection<T>(_collection, _autoId, _engine, _mapper);
+            var newcol = new LiteCollection<T>(_collection, _autoId, _context);
 
             newcol._includes.AddRange(_includes);
             newcol._includes.Add(keySelector);

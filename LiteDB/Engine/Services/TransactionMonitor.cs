@@ -14,6 +14,7 @@ namespace LiteDB.Engine
     {
         private readonly TransactionRegistry _transactions = new TransactionRegistry();
         private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
+        private readonly ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -25,6 +26,9 @@ namespace LiteDB.Engine
 
 #if TESTING
         internal Action BeforeTransactionRegistration { get; set; }
+#endif
+#if DEBUG || TESTING
+        internal Action AfterTransactionExit { get; set; }
 #endif
 
         // expose open transactions
@@ -57,31 +61,31 @@ namespace LiteDB.Engine
 #endif
                 this.ThrowIfDisposed();
 
-                var alreadyLock = _transactions.FindForThread(Environment.CurrentManagedThreadId) != null;
-                transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
                 var enteredTransaction = false;
+                var owner = Thread.CurrentThread;
                 try
                 {
+                    // Checkpoint can reset the WAL ID sequence only while holding
+                    // exclusive admission. Take our lease before reserving an ID.
+                    _locker.EnterTransaction();
+                    enteredTransaction = true;
+                    this.ThrowIfDisposed();
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
                     _transactions.Add(transaction);
-                    if (alreadyLock == false)
-                    {
-                        _locker.EnterTransaction();
-                        enteredTransaction = true;
-                    }
 
                     this.ThrowIfDisposed();
                     if (queryOnly == false) _slot.Value = transaction;
                 }
                 catch
                 {
-                    _transactions.Remove(transaction);
+                    if (transaction != null) _transactions.Remove(transaction);
                     try
                     {
-                        transaction.Dispose();
+                        transaction?.Dispose();
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction();
+                        if (enteredTransaction) _locker.ExitTransaction(owner);
                     }
                     throw;
                 }
@@ -98,15 +102,16 @@ namespace LiteDB.Engine
         /// Dispose and remove transaction from monitor
         /// without releasing thread lock
         /// </summary>
-        private void RemoveTransaction(TransactionService transaction)
+        private void RemoveTransaction(TransactionService transaction, out bool removed)
         {
+            removed = false;
             try
             {
                 transaction.Dispose();
             }
             finally
             {
-                _transactions.Remove(transaction);
+                removed = _transactions.Remove(transaction);
             }
         }
 
@@ -115,23 +120,67 @@ namespace LiteDB.Engine
         /// </summary>
         public void ReleaseTransaction(TransactionService transaction)
         {
+            var removed = false;
             try
             {
-                this.RemoveTransaction(transaction);
+                this.RemoveTransaction(transaction, out removed);
             }
             finally
             {
-                // Removal must precede this check, including when disposal fails.
-                if (_transactions.FindForThread(Environment.CurrentManagedThreadId) == null)
+                try
                 {
-                    _locker.ExitTransaction();
+                    // Rebuild may dispose the monitor and disk as soon as the transaction
+                    // lease is released. Finish service cleanup before admitting it.
+                    if (!transaction.QueryOnly)
+                    {
+                        ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                        _slot.Value = null;
+                    }
+                    _disk.Cache.TrimToLimit();
                 }
-                if (!transaction.QueryOnly)
+                finally
                 {
-                    ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-                    _slot.Value = null;
+                    if (removed)
+                    {
+                        _locker.ExitTransaction(transaction.OwnerThread);
+#if DEBUG || TESTING
+                        AfterTransactionExit?.Invoke();
+#endif
+                    }
                 }
-                _disk.Cache.TrimToLimit();
+            }
+        }
+
+        /// <summary>
+        /// Remember that a failed operation rolled back this thread's explicit transaction, so that
+        /// the caller's pending Commit is not mistaken for a completion from a foreign thread.
+        /// </summary>
+        public void MarkExplicitAbort()
+        {
+            // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
+            try
+            {
+                _explicitAborted.Value = true;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        /// <summary>
+        /// Read and clear the mark left by <see cref="MarkExplicitAbort"/> on the current thread.
+        /// </summary>
+        public bool ConsumeExplicitAbort()
+        {
+            try
+            {
+                var aborted = _explicitAborted.Value;
+                if (aborted) _explicitAborted.Value = false;
+                return aborted;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
             }
         }
 
@@ -142,7 +191,7 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
-            return _slot.Value ?? _transactions.FindForThread(Environment.CurrentManagedThreadId);
+            return _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 
         /// <summary>
@@ -166,6 +215,7 @@ namespace LiteDB.Engine
             }
 
             cleanup.Catch(_slot.Dispose);
+            cleanup.Catch(_explicitAborted.Dispose);
             if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 

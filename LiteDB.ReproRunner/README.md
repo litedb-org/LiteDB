@@ -308,3 +308,8 @@ helpers, place them next to the CLI and avoid coupling repros together.
 
 * [Issue 2561 – TransactionMonitor finalizer crash](https://github.com/litedb-org/LiteDB/issues/2561)
 * `LiteDB.ReproRunner.Cli` source for the discovery/validation logic.
+
+`expectedOutcomes.package.kind: "intermittent"` supports a documented intermittent
+historical control. It accepts only completed exit 0/10 observations and applies
+`logContains` normally. It is forbidden for latest: fixed current-source
+regressions must remain strict. Missing runs and harness errors still fail.

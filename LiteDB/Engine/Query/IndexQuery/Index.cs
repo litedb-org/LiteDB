@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -19,6 +19,14 @@ namespace LiteDB.Engine
         /// Get/Set index order
         /// </summary>
         public int Order { get; set; }
+
+        // Set only when the planner matched a scalar IR expression to the stored
+        // index definition. No catalog parsing or persistent format flag is needed.
+        internal bool SingleKeyPerDocument { get; set; }
+
+        // Updates can move a document into a later part of the same secondary
+        // scan, even when its index definition permits only one key at a time.
+        internal bool ForUpdate { get; set; }
 
         internal Index(string name, int order)
         {
@@ -48,9 +56,19 @@ namespace LiteDB.Engine
 
             if (index == null) throw LiteException.IndexNotFound(this.Name);
 
-            // execute query to get all IndexNodes
-            return this.Execute(indexer, index)
-                .DistinctBy(x => x.DataBlock, null);
+            var nodes = this.Execute(indexer, index);
+            // Primary and unique indexes have one key/node per document: index
+            // creation rejects unique multikey expressions. A matched scalar IR
+            // expression proves the same guarantee. IN already deduplicates seek
+            // values; other scans retain their multikey address filtering.
+            return index.Slot == 0 || (!ForUpdate && (index.Unique || SingleKeyPerDocument))
+                ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
+        }
+
+        public IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer, bool forUpdate)
+        {
+            this.ForUpdate = forUpdate;
+            return this.Run(col, indexer);
         }
 
         #endregion

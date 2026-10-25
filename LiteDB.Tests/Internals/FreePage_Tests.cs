@@ -1,4 +1,8 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
@@ -13,6 +17,41 @@ namespace LiteDB.Internals
         // 60% -  75% = 2 (4896 - 6119)
         // 30% -  60% = 3 (2448 - 4895)
         //  0% -  30% = 4 (0000 - 2447)
+
+        [Fact]
+        public void Delete_after_safepoints_links_all_empty_pages()
+        {
+            using var data = new MemoryStream();
+            using var log = new MemoryStream();
+            var settings = new EngineSettings
+            {
+                DataStream = data,
+                LogStream = log,
+                TransactionPageLimit = 4
+            };
+
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
+            {
+                var collection = db.GetCollection("rows");
+                for (var id = 1; id <= 30; id++)
+                    collection.Insert(new BsonDocument { ["_id"] = id, ["payload"] = new byte[12000] });
+
+                collection.DeleteAll().Should().Be(30);
+                db.Checkpoint();
+
+                var bytes = data.ToArray();
+                var header = ReadPage<HeaderPage>(bytes, 0);
+                var empty = new HashSet<uint>();
+                for (uint id = 1; id <= header.LastPageID; id++)
+                    if (ReadPage<BasePage>(bytes, id).PageType == PageType.Empty) empty.Add(id);
+
+                var listed = new HashSet<uint>();
+                for (var id = header.FreeEmptyPageList; id != uint.MaxValue; id = ReadPage<BasePage>(bytes, id).NextPageID)
+                    listed.Add(id).Should().BeTrue("the empty-page list must not contain a cycle");
+
+                listed.Should().BeEquivalentTo(empty);
+            }
+        }
 
         [Fact]
         public void FreeSlot_Insert()
@@ -86,6 +125,12 @@ namespace LiteDB.Internals
                 dataPage2.ColID.Should().Be(colPage.PageID);
                 indexPage.ColID.Should().Be(colPage.PageID);
             }
+        }
+
+        private static T ReadPage<T>(byte[] bytes, uint pageID) where T : BasePage
+        {
+            var buffer = new PageBuffer(bytes, checked((int)pageID * Constants.PAGE_SIZE), 0);
+            return BasePage.ReadPage<T>(buffer);
         }
 
         [Fact]

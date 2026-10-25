@@ -97,6 +97,23 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Tests document field presence, including fields whose value is null.
+        /// Field names follow BSON document lookup semantics, independent of collation.
+        /// </summary>
+        public static BsonValue CONTAINSKEY(BsonValue document, BsonValue key)
+        {
+            if (key.IsNull) throw new ArgumentNullException(nameof(key));
+            if (!key.IsString) throw new NotSupportedException("ContainsKey requires a string key.");
+
+            if (!document.IsDocument && !document.IsNull)
+            {
+                throw new NotSupportedException("ContainsKey requires a dictionary stored as a BSON document.");
+            }
+
+            return document.IsDocument && document.AsDocument.ContainsKey(key.AsString);
+        }
+
+        /// <summary>
         /// Get all KEYS names from a document
         /// </summary>
         public static IEnumerable<BsonValue> KEYS(BsonValue document)

@@ -76,7 +76,9 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact(Skip = "Must fix in CI - works only in Windows local machine")]
+        [Fact(Skip = "Passes only as the first LiteDB use in the process (e.g. run alone locally): Collation.Default snapshots "
+            + "the culture once per process, so after another test created a database this gets 'de-DE/IgnoreCase' "
+            + "(the culture at first use) instead of 'fi/IgnoreCase'.")]
         public void Create_Database_Using_Current_Culture()
         {
             var current = CultureInfo.CurrentCulture;

@@ -14,13 +14,30 @@ namespace LiteDB
     /// </summary>
     internal class ParameterExpressionVisitor : ExpressionVisitor
     {
+        private readonly HashSet<ParameterExpression> _boundParameters = new HashSet<ParameterExpression>();
+
         public bool IsParameter { get; private set; } = false;
 
         protected override Expression VisitParameter(ParameterExpression node)
         {
-            this.IsParameter = true;
+            if (!_boundParameters.Contains(node)) this.IsParameter = true;
 
             return base.VisitParameter(node);
+        }
+
+        protected override Expression VisitLambda<T>(Expression<T> node)
+        {
+            // Parameters owned by this subtree do not depend on an enclosing query row.
+            var added = node.Parameters.Where(parameter => _boundParameters.Add(parameter)).ToArray();
+            try
+            {
+                this.Visit(node.Body);
+                return node;
+            }
+            finally
+            {
+                foreach (var parameter in added) _boundParameters.Remove(parameter);
+            }
         }
 
         public static bool Test(Expression node)

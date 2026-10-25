@@ -15,12 +15,12 @@ namespace LiteDB.Tests.Engine
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
-        public void Ordinary_v8_files_open_without_rebuild(bool readOnly, bool upgrade)
+        public void Checksummed_files_open_without_rebuild(bool readOnly, bool upgrade)
         {
             using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            using (var db = OpenLegacy(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var original = ReadDataFile(file.Filename);
-            original[59].Should().Be(8);
+            original[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly, Upgrade = upgrade }))
             {
                 db.GetCollection("docs").Count().Should().Be(1);
@@ -34,16 +34,16 @@ namespace LiteDB.Tests.Engine
         [InlineData("update")]
         [InlineData("upsert")]
         [InlineData("index")]
-        public void First_vector_write_promotes_only_the_header_before_commit(string operation)
+        public void Vector_writes_preserve_the_checksums_format_before_commit(string operation)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = OpenLegacy(file.Filename);
             var docs = db.GetCollection("docs");
             docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonArray { 1, 0 } });
             docs.EnsureIndex("ordinary", "$.Embedding");
             db.Checkpoint();
             var original = ReadDataFile(file.Filename);
-            original[59].Should().Be(8);
+            original[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             db.CheckpointSize = 0;
             db.BeginTrans();
             var document = new BsonDocument
@@ -56,11 +56,10 @@ namespace LiteDB.Tests.Engine
             else if (operation == "upsert") docs.Upsert(document);
             else docs.Insert(document);
 
-            original[59] = 9;
-            ReadDataFile(file.Filename).Should().Equal(original, "promotion must precede vector commit and preserve every other data byte");
+            ReadDataFile(file.Filename).Should().Equal(original, "the existing checksummed format already supports vector pages");
             db.Rollback();
             db.Checkpoint();
-            ReadDataFile(file.Filename)[59].Should().Be(9, "rollback must not undo the compatibility boundary");
+            ReadDataFile(file.Filename)[59].Should().Be(HeaderPage.INDEX_FILE_VERSION, "rollback must not undo the compatibility boundary");
         }
 
         [Fact]
@@ -68,10 +67,15 @@ namespace LiteDB.Tests.Engine
         {
             using var data = new MemoryStream();
             using var log = new MemoryStream();
-            using var db = new LiteDatabase(data, logStream: log);
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = data,
+                LogStream = log,
+                CompactStorage = CompactStorageMode.Legacy
+            }));
             db.CheckpointSize = 0;
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
-            data.ToArray()[59].Should().Be(8);
+            data.ToArray()[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             db.BeginTrans();
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f }) });
             using var replayData = Copy(data);
@@ -81,10 +85,10 @@ namespace LiteDB.Tests.Engine
             {
                 reopened.GetCollection("docs").Count().Should().Be(1);
                 reopened.Checkpoint();
-                replayData.ToArray()[59].Should().Be(9);
+                replayData.ToArray()[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
                 reopened.GetCollection("ordinary").Insert(new BsonDocument { ["_id"] = 1 });
                 reopened.Checkpoint();
-                replayData.ToArray()[59].Should().Be(9);
+                replayData.ToArray()[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             }
         }
 
@@ -94,26 +98,32 @@ namespace LiteDB.Tests.Engine
         public void Shared_connections_observe_the_promoted_version(string password)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Password = password, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString
+            {
+                Filename = file.Filename,
+                Password = password,
+                Connection = ConnectionType.Shared,
+                CompactStorage = CompactStorageMode.Legacy
+            };
             using var first = new LiteDatabase(connection);
             using var second = new LiteDatabase(connection);
             first.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
-            ReadVersion(file.Filename, password).Should().Be(8);
+            ReadVersion(file.Filename, password).Should().Be(HeaderPage.INDEX_FILE_VERSION);
             second.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f }) });
             first.GetCollection("docs").FindById(2)["vector"].IsVector.Should().BeTrue();
             first.Checkpoint();
-            ReadVersion(file.Filename, password).Should().Be(9);
+            ReadVersion(file.Filename, password).Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         [Fact]
         public async Task Concurrent_ordinary_and_vector_commits_preserve_promotion()
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = OpenLegacy(file.Filename);
             await Task.WhenAll(Task.Run(() => db.GetCollection("ordinary").Insert(new BsonDocument { ["_id"] = 1 })),
                 Task.Run(() => db.GetCollection("vectors").Insert(new BsonDocument { ["_id"] = 1, ["v"] = new BsonVector(new[] { 1f, 0f }) })));
             db.Checkpoint();
-            ReadVersion(file.Filename, null).Should().Be(9);
+            ReadVersion(file.Filename, null).Should().Be(HeaderPage.INDEX_FILE_VERSION);
             db.GetCollection("ordinary").Count().Should().Be(1);
             db.GetCollection("vectors").Count().Should().Be(1);
         }
@@ -125,6 +135,15 @@ namespace LiteDB.Tests.Engine
             using var copy = new MemoryStream();
             stream.CopyTo(copy);
             return copy.ToArray();
+        }
+
+        private static LiteDatabase OpenLegacy(string filename)
+        {
+            return new LiteDatabase(new ConnectionString
+            {
+                Filename = filename,
+                CompactStorage = CompactStorageMode.Legacy
+            });
         }
 
         private static byte ReadVersion(string filename, string password)

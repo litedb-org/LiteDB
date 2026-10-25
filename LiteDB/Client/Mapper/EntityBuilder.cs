@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,7 +32,8 @@ namespace LiteDB
             {
                 _entity.WaitForInitialization();
                 _entity.Members.Remove(p);
-            });
+                _entity.IgnoredMembers.Add(p.MemberName);
+            }, allowIgnored: true);
         }
 
         /// <summary>
@@ -60,7 +61,9 @@ namespace LiteDB
                 // if contains another _id, remove-it
                 var oldId = _entity.Members.FirstOrDefault(x => x.FieldName == "_id");
         
-                if (oldId != null)
+                // Reapplying the same ID must not expose its ordinary field name
+                // to concurrent serialization or invoke the field-name resolver again.
+                if (oldId != null && !ReferenceEquals(oldId, p))
                 {
                     oldId.FieldName = _mapper.ResolveFieldName(oldId.MemberName);
                     oldId.AutoId = false;
@@ -72,13 +75,26 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Define which property is your document id (primary key). Define if this property supports auto-id
+        /// Construct an entity before populating its mapped members from the document.
         /// </summary>
         public EntityBuilder<T> Ctor(Func<BsonDocument, T> createInstance)
         {
             _entity.WaitForInitialization();
             _entity.CreateInstance = v => createInstance(v);
+            _entity.PopulateMembers = true;
 
+            return this;
+        }
+
+        /// <summary>
+        /// Let the factory own materialization. Return its result directly without other
+        /// instantiators or mapped-member population. Use Ctor to restore member population.
+        /// </summary>
+        public EntityBuilder<T> CtorOnly(Func<BsonDocument, T> createInstance)
+        {
+            if (createInstance == null) throw new ArgumentNullException(nameof(createInstance));
+            this.Ctor(createInstance);
+            _entity.PopulateMembers = false;
             return this;
         }
 
@@ -96,7 +112,7 @@ namespace LiteDB
         /// <summary>
         /// Get a property based on a expression. Eg.: 'x => x.UserId' return string "UserId"
         /// </summary>
-        private EntityBuilder<T> GetMember<TK, K>(Expression<Func<TK, K>> member, Action<MemberMapper> action)
+        private EntityBuilder<T> GetMember<TK, K>(Expression<Func<TK, K>> member, Action<MemberMapper> action, bool allowIgnored = false)
         {
             if (member == null) throw new ArgumentNullException(nameof(member));
             _entity.WaitForInitialization();
@@ -105,6 +121,7 @@ namespace LiteDB
 
             if (memb == null)
             {
+                if (allowIgnored && _entity.IgnoredMembers.Contains(member.GetPath())) return this;
                 throw new ArgumentNullException($"Member '{member.GetPath()}' not found in type '{_entity.ForType.Name}' (use IncludeFields in BsonMapper)");
             }
 

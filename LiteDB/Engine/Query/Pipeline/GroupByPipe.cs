@@ -145,6 +145,8 @@ namespace LiteDB.Engine
             if (expression?.Parameters != null)
             {
                 expression.Parameters["key"] = key;
+                if (expression.GroupKeyAliases != null)
+                    foreach (var alias in expression.GroupKeyAliases) expression.Parameters[alias] = key;
             }
         }
 
@@ -177,7 +179,9 @@ namespace LiteDB.Engine
 
                     BsonValue value;
 
-                    if (ReferenceEquals(groupBy.Select, BsonExpression.Root))
+                    // Bound root templates keep their meaning without sharing the
+                    // singleton's mutable parameter document across executions.
+                    if (groupBy.Select.Type == BsonExpressionType.Path && groupBy.Select.Source == "$")
                     {
                         var items = new BsonArray();
 
@@ -203,7 +207,7 @@ namespace LiteDB.Engine
                     }
                     else
                     {
-                        document = new BsonDocument { [defaultName] = value };
+                        document = new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                     }
 
                     if (resultOrderBy != null)

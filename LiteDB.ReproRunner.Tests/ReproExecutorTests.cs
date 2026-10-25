@@ -98,4 +98,44 @@ public sealed class ReproExecutorTests
 
         Assert.Equal(string.Empty, output.ToString());
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Invalid_or_missing_configuration_fails_independently_of_child_exit(bool missing)
+    {
+        var executor = new ReproExecutor(new StringWriter(), new StringWriter());
+        executor.ConfigureExpectedConfiguration(false, "5.0.20", 1);
+        if (!missing)
+        {
+            var invalid = ReproHostMessageEnvelope.CreateConfiguration(true, "5.0.20");
+            executor.TryProcessStructuredLine(JsonSerializer.Serialize(invalid, ReproJsonOptions.Default), 0);
+        }
+        Assert.False(executor.ValidateConfiguration());
+    }
+
+    [Fact]
+    public void Valid_configuration_is_reported_separately()
+    {
+        var executor = new ReproExecutor(new StringWriter(), new StringWriter());
+        executor.ConfigureExpectedConfiguration(false, "5.0.20", 1);
+        var valid = ReproHostMessageEnvelope.CreateConfiguration(false, "5.0.20");
+        executor.TryProcessStructuredLine(JsonSerializer.Serialize(valid, ReproJsonOptions.Default), 0);
+        Assert.True(executor.ValidateConfiguration());
+    }
+
+    [Theory]
+    [InlineData(10, 20, 20)]
+    [InlineData(20, 10, 20)]
+    [InlineData(10, -2, -2)]
+    [InlineData(10, 1, 1)]
+    [InlineData(0, 20, 20)]
+    [InlineData(10, 0, 0)]
+    [InlineData(0, 10, 0)]
+    [InlineData(10, 10, 10)]
+    [InlineData(0, 0, 0)]
+    public void Multiple_instances_prioritize_errors_then_reproductions(int first, int second, int expected)
+    {
+        Assert.Equal(expected, ReproExecutor.AggregateExitCodes(new[] { first, second }));
+    }
+
 }

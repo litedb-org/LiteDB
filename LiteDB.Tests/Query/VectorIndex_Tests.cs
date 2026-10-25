@@ -15,7 +15,7 @@ using Xunit;
 
 namespace LiteDB.Tests.QueryTest
 {
-    public class VectorIndex_Tests
+    public partial class VectorIndex_Tests
     {
         private class VectorDocument
         {
@@ -536,62 +536,6 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Fact]
-        public void VectorIndex_Search_Prunes_Node_Visits()
-        {
-            using var db = new LiteDatabase(":memory:");
-            var collection = db.GetCollection<VectorDocument>("vectors");
-
-            const int nearClusterSize = 64;
-            const int farClusterSize = 64;
-
-            var documents = new List<VectorDocument>();
-
-            for (var i = 0; i < nearClusterSize; i++)
-            {
-                documents.Add(new VectorDocument
-                {
-                    Id = i + 1,
-                    Embedding = new[] { 1f, i / 100f },
-                    Flag = true
-                });
-            }
-
-            for (var i = 0; i < farClusterSize; i++)
-            {
-                documents.Add(new VectorDocument
-                {
-                    Id = i + nearClusterSize + 1,
-                    Embedding = new[] { -1f, 2f + i / 100f },
-                    Flag = false
-                });
-            }
-
-            collection.Insert(documents);
-            collection.Count().Should().Be(documents.Count);
-
-            collection.EnsureIndex(
-                "embedding_idx",
-                BsonExpression.Create("$.Embedding"),
-                new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
-
-            var stats = InspectVectorIndex(
-                db,
-                "vectors",
-                (snapshot, collation, metadata) =>
-                {
-                    var service = new VectorIndexService(snapshot, collation);
-                    var matches = service.Search(metadata, new[] { 1f, 0f }, maxDistance: 0.25, limit: 5).ToList();
-                    var total = CountNodes(snapshot, metadata.Root);
-
-                    return (Visited: service.LastVisitedCount, Total: total, Matches: matches.Select(x => x.Document["Id"].AsInt32).ToArray());
-                });
-
-            stats.Total.Should().BeGreaterThan(stats.Visited);
-            stats.Total.Should().BeGreaterOrEqualTo(nearClusterSize);
-            stats.Matches.Should().OnlyContain(id => id <= nearClusterSize);
-        }
-
-        [Fact]
         public void VectorIndex_PersistsNodes_WhenDocumentsChange()
         {
             using var db = new LiteDatabase(":memory:");
@@ -871,7 +815,7 @@ namespace LiteDB.Tests.QueryTest
             results.Select(x => x.Id).Should().Equal(expected.Select(x => x.Id));
         }
 
-        [Fact(Skip = "Skip for now cause flaky test. Feature is moved in the future so fixing now is not priority for now.")]
+        [Fact]
         public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_PersistedUpdate()
         {
             using var file = new MemoryStream();
@@ -961,7 +905,7 @@ namespace LiteDB.Tests.QueryTest
                         : ReadExternalVector(dataService, node.ExternalVector, metadata.Dimensions);
 
                     using var reader = new BufferReader(dataService.Read(node.DataBlock));
-                    var document = reader.ReadDocument().GetValue();
+                    var document = dataService.ReadDocument(reader, null, false, node.DataBlock).GetValue();
                     var typed = BsonMapper.Global.ToObject<VectorDocument>(document);
 
                     var expected = documents.Single(d => d.Id == typed.Id).Embedding;

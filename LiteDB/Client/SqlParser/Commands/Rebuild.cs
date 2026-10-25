@@ -38,6 +38,11 @@ namespace LiteDB
                     options.Password = json["password"];
                 }
 
+                if (json["removePassword"].IsBoolean)
+                {
+                    options.RemovePassword = json["removePassword"];
+                }
+
                 if (json["collation"].IsString)
                 {
                     options.Collation = new Collation(json["collation"].AsString);

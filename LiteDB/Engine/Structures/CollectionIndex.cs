@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -30,7 +31,18 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get BsonExpression from Expression
         /// </summary>
-        public BsonExpression BsonExpr { get; }
+        public BsonExpression BsonExpr
+        {
+            get
+            {
+                var expression = Volatile.Read(ref _bsonExpr);
+                if (expression != null) return expression;
+                expression = BsonExpression.Create(this.Expression);
+                return Interlocked.CompareExchange(ref _bsonExpr, expression, null) ?? expression;
+            }
+        }
+
+        private BsonExpression _bsonExpr;
 
         /// <summary>
         /// Indicate if this index has distinct values only
@@ -74,7 +86,7 @@ namespace LiteDB.Engine
             this.Unique = unique;
             this.FreeIndexPageList = uint.MaxValue;
 
-            this.BsonExpr = BsonExpression.Create(expr);
+            _bsonExpr = BsonExpression.Create(expr);
         }
 
         public CollectionIndex(BufferReader reader)
@@ -89,7 +101,8 @@ namespace LiteDB.Engine
             this.Reserved = reader.ReadByte(); // 1
             this.FreeIndexPageList = reader.ReadUInt32(); // 4
 
-            this.BsonExpr = BsonExpression.Create(this.Expression);
+            // Ordinary reads plan against the canonical text and use existing index
+            // keys. Parse the expression only when writes or vector evaluation need it.
         }
 
         public void UpdateBuffer(BufferWriter writer)

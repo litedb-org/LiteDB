@@ -190,7 +190,7 @@ namespace LiteDB.Engine
 
             _stream.Position = pageID * V7_PAGE_SIZE; // v7 uses 4k page size
 
-            _stream.Read(_buffer, 0, V7_PAGE_SIZE);
+            _stream.ReadRequired(_buffer, 0, V7_PAGE_SIZE);
 
             // decrypt encrypted page (except header page - header are plain data)
             if (_aes != null && pageID > 0)

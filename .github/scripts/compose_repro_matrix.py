@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -13,11 +14,31 @@ def as_iterable(value):
 
 
 def main():
+    """Compose the requested CI-tier repro matrix and write workflow outputs."""
     workspace = Path(os.getenv("GITHUB_WORKSPACE", Path.cwd()))
     os_matrix_path = workspace / ".github" / "os-matrix.json"
     repros_path = workspace / "repros.json"
+    retired = json.loads((workspace / ".github" / "repro-ci.json").read_text(encoding="utf-8"))
+    include_retired = os.getenv("INCLUDE_REGRESSION_REPROS", "false").lower() == "true"
+    for name, entry in retired.items():
+        if not entry.get("reason") or not entry.get("tests"):
+            raise ValueError(f"Retired repro {name} needs a reason and replacement tests")
+        for reference in entry["tests"]:
+            path, separator, method = reference.partition("#")
+            source = (workspace / path).resolve()
+            if (not separator or not re.fullmatch(r"[A-Za-z_]\w*", method)
+                    or not source.is_relative_to((workspace / "LiteDB.Tests").resolve())
+                    or source.suffix != ".cs" or not source.is_file()):
+                raise ValueError(f"Missing replacement test for {name}: {reference}")
+            declaration = r"(?m)^\s*public\s+(?:async\s+)?[\w.<>]+\s+" + re.escape(method) + r"\s*\("
+            if not re.search(declaration, source.read_text(encoding="utf-8-sig")):
+                raise ValueError(f"Missing replacement test for {name}: {reference}")
 
     os_matrix = json.loads(os_matrix_path.read_text(encoding="utf-8"))
+    tier = os.getenv("CI_TIER", "full").lower()
+    if tier not in {"pr", "full"}:
+        raise ValueError(f"Unsupported CI tier: {tier}")
+
     platform_labels: dict[str, list[str]] = {}
     label_platform: dict[str, str] = {}
 
@@ -31,6 +52,8 @@ def main():
     all_labels = set(label_platform.keys())
 
     payload = json.loads(repros_path.read_text(encoding="utf-8"))
+    if payload.get("invalid"):
+        raise ValueError(f"Invalid repro manifests: {payload['invalid']}")
     repros = payload.get("repros") or []
 
     matrix_entries: list[dict[str, str]] = []
@@ -52,6 +75,10 @@ def main():
     for repro in repros:
         name = repro.get("name") or repro.get("id")
         if not name:
+            continue
+
+        if name in retired and not include_retired:
+            skipped.append(f"{name} (normal tests: {retired[name]['reason']})")
             continue
 
         supports = as_iterable(repro.get("supports"))
@@ -107,6 +134,15 @@ def main():
             unknown_labels.update(unrecognized)
 
         candidate_labels &= all_labels
+
+        # Apply constraints before selecting a representative per platform: a
+        # repro pinned to the second Linux image must not silently disappear.
+        if tier == "pr":
+            candidate_labels = {
+                next(label for label in labels if label in candidate_labels)
+                for labels in platform_labels.values()
+                if any(label in candidate_labels for label in labels)
+            }
 
         if candidate_labels:
             for label in sorted(candidate_labels):

@@ -24,7 +24,7 @@ namespace LiteDB.Tests.Engine
                     docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
                 }
                 db.Checkpoint();
-                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(9);
+                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
             }
         }
 
@@ -34,7 +34,8 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var bytes = File.ReadAllBytes(file.Filename);
-            bytes[HeaderPage.P_FILE_VERSION] = 10;
+            bytes[HeaderPage.P_FILE_VERSION] = HeaderPage.CURRENT_FILE_VERSION + 1;
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () =>
             {
@@ -43,7 +44,7 @@ namespace LiteDB.Tests.Engine
             };
             var error = open.Should().Throw<LiteException>().Which;
             error.ErrorCode.Should().Be(LiteException.UNSUPPORTED_FILE_VERSION);
-            error.Message.Should().Contain("version 10").And.Contain("versions 8 and 9");
+            error.Message.Should().Contain("version " + (HeaderPage.CURRENT_FILE_VERSION + 1));
             File.ReadAllBytes(file.Filename).Should().Equal(bytes);
         }
 
@@ -61,7 +62,7 @@ namespace LiteDB.Tests.Engine
                     db.Rebuild();
                     docs.Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray().Should().ContainSingle();
                 }
-                File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(9);
+                File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
                 using var reopened = new LiteDatabase(file.Filename);
                 reopened.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
                 var query = reopened.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 0f }, 1);

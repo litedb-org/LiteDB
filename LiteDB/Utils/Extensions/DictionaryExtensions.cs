@@ -31,7 +31,10 @@ namespace LiteDB
             return value;
         }
 
-        public static void ParseKeyValue(this IDictionary<string, string> dict, string connectionString)
+        public static void ParseKeyValue(
+            this IDictionary<string, string> dict,
+            string connectionString,
+            ISet<string> quotedValues = null)
         {
             var position = 0;
 
@@ -42,9 +45,18 @@ namespace LiteDB
                 var key = ReadKey();
 
                 EatWhitespace();
-                var value = ReadValue();
+                var value = ReadValue(out var wasQuoted);
 
                 dict[key] = value;
+
+                if (wasQuoted)
+                {
+                    quotedValues?.Add(key);
+                }
+                else
+                {
+                    quotedValues?.Remove(key);
+                }
             }
 
             string ReadKey()
@@ -72,14 +84,20 @@ namespace LiteDB
                 throw new FormatException("Expected '=' after a connection option name.");
             }
 
-            string ReadValue()
+            string ReadValue(out bool wasQuoted)
             {
-                if (position >= connectionString.Length) return string.Empty;
+                if (position >= connectionString.Length)
+                {
+                    wasQuoted = false;
+                    return string.Empty;
+                }
+
                 var sb = new StringBuilder();
                 var quote =
                     connectionString[position] == '"' ? '"' :
                     connectionString[position] == '\'' ? '\'' : ' ';
 
+                wasQuoted = quote != ' ';
                 if (quote != ' ') position++;
 
                 while (position < connectionString.Length)
@@ -94,26 +112,52 @@ namespace LiteDB
                             return sb.ToString().Trim();
                         }
                     }
-                    else if (quote != ' ' && current == quote)
+                    else if (current == quote)
                     {
-                        if (connectionString[position - 1] == '\\')
+                        var backslashCount = 0;
+
+                        for (var i = sb.Length - 1; i >= 0 && sb[i] == '\\'; i--)
                         {
-                            sb.Length--;
+                            backslashCount++;
                         }
-                        else
+
+                        if (backslashCount > 0)
                         {
+                            sb.Length -= backslashCount;
+                            sb.Append('\\', backslashCount / 2);
+                        }
+
+                        if (backslashCount % 2 != 0)
+                        {
+                            sb.Append(current);
                             position++;
-
-                            EatWhitespace();
-
-                            if (position < connectionString.Length && connectionString[position] == ';') position++;
-
-                            return sb.ToString();
+                            continue;
                         }
+
+                        position++;
+
+                        EatWhitespace();
+
+                        if (position < connectionString.Length)
+                        {
+                            if (connectionString[position] != ';')
+                            {
+                                throw new FormatException("Expected ';' after a quoted connection value.");
+                            }
+
+                            position++;
+                        }
+
+                        return sb.ToString();
                     }
 
                     sb.Append(current);
                     position++;
+                }
+
+                if (wasQuoted)
+                {
+                    throw new FormatException("Unterminated quoted connection value.");
                 }
 
                 return sb.ToString().Trim();

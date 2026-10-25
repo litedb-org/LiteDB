@@ -89,7 +89,7 @@ namespace LiteDB
                 var numb = number.AsInt32;
                 var date = value.AsDateTime;
 
-                datePart = datePart == "M" ? "month" : datePart.ToLower();
+                datePart = datePart == "M" ? "month" : datePart.ToLowerInvariant();
 
                 if (datePart == "y" || datePart == "year") return date.AddYears(numb);
                 else if (datePart == "month") return date.AddMonths(numb);
@@ -113,7 +113,7 @@ namespace LiteDB
                 var start = starts.AsDateTime;
                 var end = ends.AsDateTime;
 
-                datePart = datePart == "M" ? "month" : datePart.ToLower();
+                datePart = datePart == "M" ? "month" : datePart.ToLowerInvariant();
 
                 if (datePart == "y" || datePart == "year") return start.YearDifference(end);
                 else if (datePart == "month") return start.MonthDifference(end);
