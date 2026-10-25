@@ -30,5 +30,23 @@
       "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
       "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused"
     ]
+  },
+  "Issue_3071_SharedPeerCallback": {
+    "reason": "Fixed Shared peer-callback self-wait is covered by the Shared peer callback tests on every route, plain and encrypted; the regression proof runs the historical comparison.",
+    "tests": [
+      "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
+      "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
+      "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+      "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
+      "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
+    ]
+  },
+  "SharedSelfTeardownRelease": {
+    "reason": "The dedicated Regression proof workflow verifies the published package and corrected source; the permanent same-connection teardown guards also run in ordinary suites.",
+    "tests": [
+      "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
+      "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
+      "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+    ]
   }
 }

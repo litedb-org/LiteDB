@@ -186,6 +186,15 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>
+        /// True while an operation of <paramref name="thread"/> runs under this pin. The
+        /// holder cannot release before it completes, even when forced.
+        /// </summary>
+        public bool IsOperatingOn(Thread thread)
+        {
+            lock (_sync) return ReferenceEquals(thread, this.Owner) && _operations > 0;
+        }
+
         /// <summary>Wait until the holder closed the engine and released the mutex.</summary>
         public void WaitReleased()
         {

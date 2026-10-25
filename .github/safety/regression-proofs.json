@@ -4,7 +4,10 @@
   "proofs": [
     {
       "repro": "Issue_2586_RollbackTransaction",
-      "knownBad": {"kind": "package", "version": "5.0.20"},
+      "knownBad": {
+        "kind": "package",
+        "version": "5.0.20"
+      },
       "permanentGuard": [
         "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint",
         "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Discard_Writable_Dirty_Pages",
@@ -13,7 +16,10 @@
     },
     {
       "repro": "Issue_2614_DiskServiceDispose",
-      "knownBad": {"kind": "package", "version": "5.0.21"},
+      "knownBad": {
+        "kind": "package",
+        "version": "5.0.21"
+      },
       "permanentGuard": [
         "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
         "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
@@ -21,7 +27,10 @@
     },
     {
       "repro": "Issue_3027_LegacyWalConversion",
-      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
         "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
@@ -30,7 +39,10 @@
     },
     {
       "repro": "Issue_3027_ForeignLegacyWal",
-      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.319"},
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
         "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
@@ -38,6 +50,34 @@
         "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
         "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
         "scripts/test-5021-regression-compatibility.py"
+      ]
+    },
+    {
+      "repro": "Issue_3071_SharedPeerCallback",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Caught_refusal_lets_the_outer_write_complete",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Leased_reader_callback_may_write_through_peer",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
+        "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
+      ]
+    },
+    {
+      "repro": "SharedSelfTeardownRelease",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
       ]
     }
   ]
