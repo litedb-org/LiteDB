@@ -16,7 +16,7 @@ import urllib.request
 import zipfile
 from xml.sax.saxutils import escape
 
-ARCHIVES = ("WalCrash_5_0_21", "ForeignWal_5_0_21", "ConcurrentWalCrash_5_0_21")
+ARCHIVES = ("DropIndex_5_0_21", "WalCrash_5_0_21", "ForeignWal_5_0_21", "ConcurrentWalCrash_5_0_21")
 RAW_BASE_URL = "https://raw.githubusercontent.com/litedb-org/LiteDB-Artifacts/"
 
 

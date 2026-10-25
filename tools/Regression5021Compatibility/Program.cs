@@ -26,6 +26,7 @@ if (hooks != null) return 2;
 
 var failures = new List<string>();
 var copies = 0;
+Run("DropIndex: migrated indexes match scans and remain writable", DroppedIndexes);
 Run("WalCrash: writable open converts and keeps every commit", WalCrashConversion);
 Run("WalCrash: read-only legacy scan reads every commit and changes nothing", WalCrashReadOnly);
 Run("WalCrash: shared open with a live reader lease refuses the conversion", WalCrashSharedLease);
@@ -38,6 +39,62 @@ void Run(string name, Action scenario)
 {
     try { scenario(); Console.WriteLine($"PASS {name}"); }
     catch (Exception ex) { failures.Add(name); Console.WriteLine($"FAIL {name}\n     {ex.GetType().Name}: {ex.Message}"); }
+}
+
+// The released writer leaves stale index-list bytes after DropIndex. All three layouts must
+// migrate once, retain their remaining indexes, accept writes, and survive another open.
+void DroppedIndexes()
+{
+    foreach (var name in new[] { "customers", "items-a", "items-b" })
+    {
+        var data = Put(Fresh(), "DropIndex_5_0_21", name + ".db");
+        var collection = name == "customers" ? "customers" : "items";
+        var count = name == "customers" ? 200 : 50;
+        string[] fields;
+        using (var db = new LiteDatabase(data))
+        {
+            var col = db.GetCollection(collection);
+            Require(col.Count() == count, $"{name}: migration changed the document count");
+            fields = db.GetCollection("$indexes").Find(Query.EQ("collection", collection))
+                .Select(x => x["name"].AsString).Where(x => x != "_id").ToArray();
+            var expected = name == "customers" ? new[] { "Name", "CustomerId" } :
+                name == "items-a" ? new[] { "Status" } : new[] { "Status" };
+            RequireIndexes(db, collection, name, expected.Append("_id").ToArray());
+            IndexesMatchScan(col, fields, name);
+            Write(col, fields, name);
+            IndexesMatchScan(col, fields, name, added: true);
+        }
+        using var reopened = new LiteDatabase(data);
+        var rows = reopened.GetCollection(collection);
+        Require(rows.Count() == count && rows.FindById(2) == null && rows.FindById(1000)[fields[0]] == "updated",
+            $"{name}: acknowledged changes did not survive reopen");
+        IndexesMatchScan(rows, fields, name + " reopened", added: true);
+    }
+}
+
+void Write(ILiteCollection<BsonDocument> col, string[] fields, string stage)
+{
+    var inserted = new BsonDocument { ["_id"] = 1000 };
+    foreach (var field in fields) inserted[field] = field + "-new";
+    Require(col.Insert(inserted) == 1000, $"{stage}: insert failed");
+    inserted[fields[0]] = "updated";
+    Require(col.Update(inserted) && col.Delete(2), $"{stage}: update or delete failed");
+    Require(col.EnsureIndex("added", "$." + fields[0]), $"{stage}: EnsureIndex failed");
+}
+
+void IndexesMatchScan(ILiteCollection<BsonDocument> col, string[] fields, string stage, bool added = false)
+{
+    var all = col.FindAll().ToArray();
+    foreach (var field in fields)
+    {
+        foreach (var key in all.Select(x => x[field]).Distinct())
+        {
+            RequireSame(Ids(col.Find(Query.EQ(field, key))), Ids(all.Where(x => x[field] == key)), stage + ": " + field);
+            var planned = col.Query().Where(Query.EQ(field, key)).GetPlan()["index"]["name"].AsString;
+            Require(planned == field || (added && field == fields[0] && planned == "added"),
+                $"{stage}: {field} = {key} did not use its index (planned {planned})");
+        }
+    }
 }
 
 // crash.db holds {_id: 0..99, value: 0} with index "value"; its WAL alone holds _id 0..19 -> 7 and _id 100 (7).

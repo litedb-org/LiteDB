@@ -178,7 +178,7 @@ The current engine is expected to behave as follows:
 Consumers: `LegacyDroppedIndex_Tests` (and, with the caller-stream changes,
 `LegacyReadOnlyStream_Tests` and `ReadOnlyStorageEngine_Tests`). It is retained because the
 stale tail was once read as vector metadata, which failed every insert after migration. Its
-scenario in `scripts/test-5021-regression-compatibility.py` is added with its pin.
+scenario in `scripts/test-5021-regression-compatibility.py` exercises all three layouts against the production assembly.
 
 ### EncryptedWalCrash_5_0_21.zip (`5873fde3c`)
 
