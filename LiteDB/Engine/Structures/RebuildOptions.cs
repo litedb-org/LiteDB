@@ -23,6 +23,13 @@ namespace LiteDB.Engine
         public string Password { get; set; } = null;
 
         /// <summary>
+        /// Choose the document write policy for the rebuilt file. Null retains
+        /// the engine policy. Auto rebuilds into the compact-capable format.
+        /// Vector data still requires v9.
+        /// </summary>
+        public CompactStorageMode? CompactStorage { get; set; }
+
+        /// <summary>
         /// When set true, rebuild into an unencrypted database. Cannot be combined with <see cref="Password"/>.
         /// </summary>
         public bool RemovePassword { get; set; } = false;

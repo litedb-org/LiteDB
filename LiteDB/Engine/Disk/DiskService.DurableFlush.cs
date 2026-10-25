@@ -15,13 +15,36 @@ namespace LiteDB.Engine
         private const int ERRNO_ENOTSUP_LINUX = 95;
 
         private readonly bool _durableCommits;
+        private readonly SharedDurabilityState _sharedDurability;
         private volatile bool _logFlushDegraded;
+
+        // Set by this engine's first successful log device sync. That sync also makes
+        // blank slots found at open durable, even if an earlier engine cleared them on
+        // storage that could not sync, so reclaimed slots are reused only after it
+        // (see ProveLogSync).
+        private volatile bool _logSyncProven;
+
+        // Set once this engine made the WAL's directory entry durable. Until then a durable
+        // commit is not acknowledged: syncing a new WAL does not persist its name on Unix.
+        private volatile bool _logDirectorySynced;
+
+        // The WAL's directory answered "cannot sync" (#2242): its name is not claimed durable.
+        private volatile bool _logDirectoryUnsyncable;
 
         /// <summary>
         /// False when commits reach the OS cache only: the caller opted out
-        /// (<see cref="EngineSettings.DurableCommits"/>) or the log storage rejected a durable flush.
+        /// (<see cref="EngineSettings.DurableCommits"/>), the log storage rejected a durable
+        /// flush or its directory sync, or the log's syncs cannot report failures.
         /// </summary>
-        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded;
+        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
+            !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false);
+
+        /// <summary>
+        /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
+        /// sync is still attempted, but a failure would go unreported, so it never proves
+        /// durability. Such a log is not used for slot reuse (see <see cref="ProveLogSync"/>).
+        /// </summary>
+        private bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
         /// <summary>
         /// Flush a confirmed WAL batch: to the device, or to the OS cache only when the caller opted out.
@@ -34,19 +57,22 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Opted-out commits leave the log in the OS cache while a checkpoint overwrites data pages in place.
+        /// Opted-out or recovered commits may still reside in the OS cache when checkpoint starts.
         /// Sync the log first, so that a power loss during the checkpoint can still be redone from it.
         /// Caller holds the exclusive database lock.
         /// </summary>
         internal void SyncLogBeforeCheckpoint()
         {
-            if (_durableCommits || _readOnly) return;
+            if (_readOnly) return;
 
             var stream = _writer.Value;
 
             lock (stream)
             {
-                this.FlushLogToDisk(stream);
+                // Sync both the header recovery copy and preceding WAL before
+                // overwriting data. A failed sync stops checkpoint before any data
+                // overwrite; storage that cannot sync at all proceeds degraded (#2242).
+                this.PrepareCheckpointHeader();
             }
         }
 
@@ -64,27 +90,108 @@ namespace LiteDB.Engine
                 return;
             }
 
+            this.SyncLogBarrier(stream);
+            // The WAL may have been created (or recreated after a checkpoint deleted it) by
+            // this or a crashed engine: make its name durable before a commit depends on it.
+            if (!_logDirectorySynced) this.SyncLogDirectory();
+        }
+
+        /// <summary>
+        /// Sync the log at a recovery barrier: checkpoint and header-marker journals, WAL tail
+        /// repair and checksum conversion. A real sync is always attempted, even after commits
+        /// degraded, so storage that recovers regains its power-loss guarantee. Storage that
+        /// answers "cannot sync" (#2242) degrades like commits do: the ordered writes still
+        /// reach the OS cache, which keeps the file consistent after a process crash, but
+        /// power-loss safety is not claimed (the behaviour before #2818). Any other failure
+        /// propagates, so the caller stops before overwriting data.
+        /// </summary>
+        private void SyncLogBarrier(Stream log)
+        {
             try
             {
-                stream.FlushToDisk();
+                log.FlushToDisk();
+                if (!this.LogSyncUnverified) _logSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 // The pages were written successfully; only the sync request was refused.
-                stream.Flush();
-                _logFlushDegraded = true;
-                LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
+                log.Flush();
+                this.MarkLogFlushDegraded(ex);
+            }
+        }
+
+        /// <summary>
+        /// Before this engine first reuses a slot found blank at open, prove that the log can
+        /// sync. The sync also makes clears an earlier engine wrote without one durable. It
+        /// targets the raw log, so it adds no padding between a transaction's frames. Storage
+        /// that answers "cannot sync" (#2242) degrades, and the caller appends instead; that
+        /// engine's commits then skip their own rejected sync, so the probe costs nothing extra.
+        /// Caller holds the log writer lock.
+        /// </summary>
+        private bool ProveLogSync()
+        {
+            if (_logSyncProven) return true;
+            // An unverifiable sync proves nothing, and retrying it per allocation would only cost.
+            if (_logFlushDegraded || this.LogSyncUnverified) return false;
+            var stream = _writer.Value;
+            var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
+            try
+            {
+                raw.FlushToDisk();
+                _logSyncProven = true;
+            }
+            catch (Exception ex) when (IsDurableFlushUnsupported(ex))
+            {
+                raw.Flush();
+                this.MarkLogFlushDegraded(ex);
+            }
+            return _logSyncProven;
+        }
+
+        private void MarkLogFlushDegraded(Exception ex)
+        {
+            if (_sharedDurability != null) _sharedDurability.Degraded = true;
+            if (_logFlushDegraded) return;
+            _logFlushDegraded = true;
+            LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
+        }
+
+        /// <summary>
+        /// Sync the WAL directory entry unless the log storage already refused to sync:
+        /// then no power-loss guarantee is claimed and the directory sync adds nothing.
+        /// A directory that answers "cannot sync" (#2242) is reported through
+        /// <see cref="IsLogFlushDurable"/>; file syncs continue. Any other failure propagates,
+        /// so a commit fails and an overwrite does not start.
+        /// </summary>
+        private void SyncLogDirectory()
+        {
+            // An engine never deletes its WAL while open, and the WAL existed at the sync that
+            // set the flag: its name is already durable.
+            if (_logDirectorySynced || _logFlushDegraded || _logDirectoryUnsyncable) return;
+            try
+            {
+                ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+                _logDirectorySynced = true;
+            }
+            catch (Exception ex) when (IsDurableFlushUnsupported(ex))
+            {
+                _logDirectoryUnsyncable = true;
+                if (_sharedDurability != null) _sharedDurability.Degraded = true;
+                LOG($"log directory rejected a durable sync ({ex.GetType().Name} 0x{ex.HResult:X8}); a new WAL's name is not claimed durable", "DISK");
             }
         }
 
         /// <summary>
         /// True only for answers that mean "this handle cannot be synced", never for a failed sync.
         /// FlushFileBuffers: ERROR_ACCESS_DENIED (on a handle that was just written), ERROR_INVALID_FUNCTION,
-        /// ERROR_NOT_SUPPORTED. fsync: EINVAL, ENOTSUP, EROFS surface as the raw errno on Unix runtimes
-        /// that do not already ignore them.
+        /// ERROR_NOT_SUPPORTED. fsync/F_FULLFSYNC: EINVAL, ENOTSUP/EOPNOTSUPP, EROFS, reported by
+        /// <see cref="NativeFileSync"/> for file handles (released .NET runtimes lose Unix sync errors)
+        /// and as a raw-errno HResult by other Unix streams.
         /// </summary>
         private static bool IsDurableFlushUnsupported(Exception ex)
         {
+            // Unix file handles are synced natively and report the raw errno.
+            if (ex is FileSyncException sync) return sync.IsUnsupported;
             if (ex is UnauthorizedAccessException) return true;
             if (!(ex is IOException)) return false;
 

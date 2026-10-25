@@ -1,8 +1,8 @@
 using System;
 using System.IO;
-using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Internals;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -21,28 +21,11 @@ namespace LiteDB.Tests.Engine
         }
 
         [Theory]
-        [InlineData(null)]
-        [InlineData("password")]
-        public void Promotion_durably_flushes_through_caller_stream_wrappers_before_commit(string password)
-        {
-            using var file = new TempFile();
-            using var stream = new TrackingFileStream(file.Filename);
-            using var engine = new LiteEngine(new EngineSettings { DataStream = stream, Password = password });
-            using var db = new LiteDatabase(engine, disposeOnClose: false);
-            var docs = db.GetCollection("docs");
-            docs.Insert(new BsonDocument { ["_id"] = 1 });
-            db.Checkpoint();
-            db.BeginTrans();
-            var before = stream.DurableFlushes;
-            docs.Insert(new BsonDocument { ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f }) });
-            stream.DurableFlushes.Should().BeGreaterThan(before, "promotion must reach FileStream.Flush(true) before vector commit");
-            db.Rollback();
-        }
-
-        [Theory]
-        [InlineData(null)]
-        [InlineData("password")]
-        public void Failed_durable_flush_aborts_promotion_without_committing_vectors(string password)
+        [InlineData(null, false)]
+        [InlineData("password", false)]
+        [InlineData(null, true)]
+        [InlineData("password", true)]
+        public void Writable_open_durably_publishes_checksums_before_accepting_transactions(string password, bool failFlush)
         {
             using var file = new TempFile();
             using var stream = new TrackingFileStream(file.Filename);
@@ -51,26 +34,28 @@ namespace LiteDB.Tests.Engine
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
-                var docs = db.GetCollection("docs");
-                docs.Insert(new BsonDocument { ["_id"] = 1 });
+                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
                 db.Checkpoint();
-                var writesBeforeFlushFailure = 0;
-                engine.SimulateDiskWriteFail = page =>
-                {
-                    if (!stream.FlushFailed) writesBeforeFlushFailure++;
-                };
-                stream.HeaderOffset = password == null ? 0 : Constants.PAGE_SIZE;
-                stream.FailDurableFlush = true;
-                Action insert = () => docs.Insert(new BsonDocument
-                {
-                    ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f })
-                });
-                insert.Should().Throw<IOException>().WithMessage("Injected durable flush failure");
-                writesBeforeFlushFailure.Should().Be(0, "vector pages must not reach the WAL before promotion is durable");
+            }
+            ChecksumTestFiles.MakeLegacy(stream, log, password);
+            var before = stream.DurableFlushes;
+            stream.HeaderOffset = password == null ? 0 : Constants.PAGE_SIZE;
+            stream.FailDurableFlush = failFlush;
+            if (failFlush)
+            {
+                Action open = () => { using var engine = new LiteEngine(settings); };
+                open.Should().Throw<IOException>().WithMessage("Injected durable flush failure");
+                stream.FlushFailed.Should().BeTrue();
+                using var factory = new StreamFactory(log, password);
+                using var journalStream = factory.GetStream(false, false);
+                HeaderJournal.Read(journalStream).Should().NotBeNull("failed publication retains legacy redo and a header recovery copy");
             }
             using var reopenedEngine = new LiteEngine(settings);
             using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
-            reopened.GetCollection("docs").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
+            if (!failFlush) stream.DurableFlushes.Should().BeGreaterThanOrEqualTo(before + 2);
+            reopened.GetCollection("docs").Count().Should().Be(1);
+            reopened.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f }) });
+            reopened.Checkpoint();
         }
 
         private sealed class TrackingFileStream : FileStream

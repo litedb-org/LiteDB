@@ -13,18 +13,20 @@ namespace LiteDB.Engine
         private readonly Snapshot _snapshot;
         private readonly Query _query;
         private readonly Collation _collation;
+        private readonly bool _indexesOrdered;
         private readonly QueryPlan _queryPlan;
         private readonly List<BsonExpression> _terms = new List<BsonExpression>();
         private bool _vectorOrderConsumed;
         private bool _vectorPrimaryOrderMatched;
 
-        public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation)
+        public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation, bool indexesOrdered = true)
         {
             if (query.Select == null) throw new ArgumentNullException(nameof(query.Select));
 
             _snapshot = snapshot;
             _query = query;
             _collation = collation;
+            _indexesOrdered = indexesOrdered;
 
             _queryPlan = new QueryPlan(snapshot.CollectionName)
             {
@@ -238,7 +240,8 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && IsFieldIndex(_queryPlan.IndexExpression, _queryPlan.Fields.First()))
+            // Legacy-ordered keys may also be stale, so a LegacyIndexScan reads documents.
+            if (_indexesOrdered && !(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && IsFieldIndex(_queryPlan.IndexExpression, _queryPlan.Fields.First()))
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;
@@ -282,7 +285,7 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) &&
+            if (_indexesOrdered && !orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) &&
                 MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
@@ -315,7 +318,7 @@ namespace LiteDB.Engine
             var groupOrderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, no additional ordering is required before grouping
-            if (!(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, expression))
+            if (_indexesOrdered && !(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, expression))
             {
                 // index already provides grouped ordering
             }

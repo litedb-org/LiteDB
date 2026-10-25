@@ -25,6 +25,9 @@ namespace LiteDB.Engine
 
         public int ContainerSize => _containerSize;
 
+        // Containers and their backing file survive query completion until disposal.
+        internal bool HasSpilled => Interlocked.Read(ref _lastContainerPosition) >= 0;
+
         public SortDisk(IStreamFactory factory, int containerSize, EnginePragmas pragmas)
         {
             ENSURE(containerSize % PAGE_SIZE == 0, "size must be PAGE_SIZE multiple");
@@ -83,6 +86,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(long position, BufferSlice buffer)
         {
+#if DEBUG || TESTING
+            EngineState.ObserveSortSpill?.Invoke(position);
+#endif
             var writer = _pool.Writer.Value;
 
             // there is only a single writer instance, must be lock to ensure only 1 single thread are writing

@@ -1,11 +1,26 @@
 <Project>
+  <PropertyGroup Condition="'$(LiteDBPreDev)' == 'true'">
+    <DefineConstants>$(DefineConstants);LITEDB_PREDEV</DefineConstants>
+  </PropertyGroup>
+
   <PropertyGroup>
     <_RootGitDirectory>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '.git'))</_RootGitDirectory>
     <_RootGitHeadPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'HEAD'))</_RootGitHeadPath>
     <_RootGitShallowPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'shallow'))</_RootGitShallowPath>
     <GitVersionEnabled Condition="'$(GitVersionEnabled)' == '' and Exists('$(_RootGitHeadPath)') and !Exists('$(_RootGitShallowPath)')">true</GitVersionEnabled>
     <GitVersionEnabled Condition="'$(GitVersionEnabled)' == ''">false</GitVersionEnabled>
+    <_LiteDBPreDevVersionTarget Condition="'$(GitVersionEnabled)' == 'true'">GetVersion</_LiteDBPreDevVersionTarget>
   </PropertyGroup>
+
+  <Target Name="EnableLiteDBPreDevFromGitVersion"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="$(_LiteDBPreDevVersionTarget)"
+          Condition="'$(GitVersionEnabled)' == 'true' and '$(LiteDBPreDev)' == ''">
+    <PropertyGroup Condition="'$(GitVersion_PreReleaseLabel)' == 'prerelease'">
+      <LiteDBPreDev>true</LiteDBPreDev>
+      <DefineConstants>$(DefineConstants);LITEDB_PREDEV</DefineConstants>
+    </PropertyGroup>
+  </Target>
 
   <PropertyGroup Condition="'$(GitVersionEnabled)' == 'true'">
     <GitVersion_NoFetch Condition="'$(GitVersion_NoFetch)' == ''">true</GitVersion_NoFetch>

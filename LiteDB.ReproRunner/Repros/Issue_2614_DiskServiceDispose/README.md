@@ -25,3 +25,11 @@ The repro succeeds when it observes:
   handle is still holding it open.
 
 Reference: <https://github.com/litedb-org/LiteDB/issues/2614>
+
+## CI coverage
+
+This fixed repro is disabled in automatic CI by `.github/repro-ci.json`.
+The normal test suite covers the regression, including file-backed safety checks
+in `Issue2614_InitializationCleanup_Tests`. The historical package/source comparison remains
+available with the local command above or manual Repro Runner dispatch with
+`include-regressions: true`. See [the coverage policy](../../../docs/reprorunner.md#retiring-fixed-repros).
