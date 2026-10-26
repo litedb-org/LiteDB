@@ -7,6 +7,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -57,7 +58,7 @@ namespace LiteDB.Internals
                 snapshots.Send("verify:1");
                 await snapshots.Expect("verify:1");
                 writer.Checkpoint();
-                if (kill) await snapshots.Kill();
+                if (kill) await snapshots.Kill(sharedFilesRemainOpen: true);
                 else
                 {
                     snapshots.Send("verify:2");
@@ -77,7 +78,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+            if (Directory.Exists(_directory)) WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }
