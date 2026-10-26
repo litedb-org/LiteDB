@@ -8,8 +8,8 @@ establish that database operations have acceptable performance.
 ## Windows timing evidence
 
 Downloaded TRX artifacts from all twelve modern Windows legs of each reference
-run. The first two runs were fully green; the third was not. Only its cleanly
-completed engine/shared-process sessions inform capacity; the failed x86
+run. The first two and fourth runs were fully green; the third was not. Only
+its cleanly completed engine/shared-process sessions inform capacity; the failed x86
 .NET 10 engine session (222.4 s, one AllocationProcess failure) is excluded.
 
 | Run | Slowest clean x86 engine wall span | Slowest clean x86 shared-process wall span |
@@ -17,6 +17,7 @@ completed engine/shared-process sessions inform capacity; the failed x86
 | [40299652691](https://github.com/litedb-org/LiteDB/actions/runs/40299652691), #3129 | 251.1 s | 239.9 s |
 | [40305753724](https://github.com/litedb-org/LiteDB/actions/runs/40305753724), #3061 | 255.1 s | 243.7 s |
 | [40277572225](https://github.com/litedb-org/LiteDB/actions/runs/40277572225), #3059 | 182.3 s | 236.1 s |
+| [40352465353](https://github.com/litedb-org/LiteDB/actions/runs/40352465353), refreshed #3061 | 249.7 s | 239.2 s |
 
 The new filters regroup each TRX result using its TestDefinitions class/method
 name and VSTest's case-insensitive FullyQualifiedName matching. Sum the recorded
@@ -27,7 +28,7 @@ and runner variability still need margin and fresh Windows validation.
 | Slice | Maximum estimated test-duration sum across reference x86 legs |
 | --- | ---: |
 | engine-shared | 120.8 s |
-| engine-allocation | 45.7 s |
+| engine-allocation | 62.9 s |
 | engine (complement) | 93.6 s |
 | shared-mapped-process | 81.4 s |
 | shared-upgrade-process | 82.7 s |
@@ -37,8 +38,21 @@ On the slowest green x86 engine leg (windows-2022 / .NET 9 in 40305753724),
 the engine slices estimate 114.2 / 45.7 / 93.6 seconds, respectively. Every
 engine slice stays below half the session budget in the reference x86 estimates.
 The old shared-process maximum exceeds 70% of the budget, so it is split too.
-The largest other x86 partition in these artifacts is mvcc at 161.1 seconds;
-all other existing partitions are below the 70% threshold.
+In the original three runs, the largest other x86 partition was mvcc at
+161.1 seconds. The refreshed run has one engine-index session at 212.7 seconds
+(70.9% of the budget), on windows-latest x86 / .NET 10. Two existing
+IndexMigrationPowerLoss cases account for 186.3 seconds there; the other five
+x86 engine-index sessions take 22.3–37.5 seconds. This outlier crosses the 70%
+capacity-review threshold and needs fresh Windows observation. Its existing
+partition membership and the 300-second limit are retained.
+
+Run 40352465353 tests the exact tree of `dev` at `6cd2cd362`, including #3058
+and #3061. Its slowest x86 engine leg estimates 100.4 / 62.9 / 84.7 seconds
+for the three engine slices. The allocation maximum above increases from the
+earlier 45.7 seconds; the other five split-slice maxima are unchanged. Across
+all four runs, all six split-slice estimates stay below 121 seconds. Newly added
+regression tests leave the x86 remaining partition at a maximum 94.3 seconds of
+test-duration sum in the refreshed run (95.9 seconds measured wall span).
 
 ## Coverage and accounting
 
@@ -72,3 +86,25 @@ partition change. Those original 12-partition suites report 5,246 rows, or
 5,224 cases after removing repeated guards. Unfiltered discovery alone reports
 only 5,097 rows because some theories expand their data only at execution; use
 the original TRX case counts per method when comparing complete suite totals.
+
+The refreshed baseline is the original 12-partition Linux net8/net10 suites in
+run 40352465353. Their tested merge commit `44366286ddb909fd92170b6ea4df1a7ad614a5f5`
+has tree `e8cccd2df6ee104181ef12a5f391a8f5ce9382f9`, identical to `dev` at
+`6cd2cd362fdd63ca8bd6225fde4b44b48fc11ad0`. Each baseline has 5,406 passed,
+three existing skips, and 5,409 rows: 5,387 cases after subtracting 22 repeated
+guards. The 16-partition equivalent has 30 repeated guards, so its matching
+total is 5,417 rows. This baseline includes the new WAL safety coverage.
+`AllocationWalFailure_Tests` belongs to engine-allocation; all five LegacyWal
+classes, WalWriteFailureWindow, and the other new regression classes belong to
+remaining. Discovery checks every method, including these classes, against all
+16 selectors before execution.
+
+Fresh Linux net8/net10 suites on the refreshed source each complete all 16
+partitions with 5,414 passed, the same three existing skips, and 5,417 rows.
+After removing 30 repeated guards, both match all 5,387 baseline cases, including
+per-method counts, test-case names and outcomes. Both discovery verifiers report
+2,449 entries (2,447 distinct method names), with zero gaps or overlaps. Removing
+or duplicating allocation fails with 11 coverage problems on each target, and
+missing-result controls reject each of the four additional partition names.
+The largest measured local sessions are engine-shared at 185.3 seconds on net8
+and 185.6 seconds on net10; these Linux spans do not predict Windows wall times.
