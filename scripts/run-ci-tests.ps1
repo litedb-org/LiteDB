@@ -57,7 +57,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Test runtime host could not start.' }
 # The final complement includes new namespaces automatically. Every slice also runs
 # the runtime/architecture and hook guards below; no tests are sampled or skipped.
 # Each partition is a conjunction of FullyQualifiedName contains (~) / not-contains (!~)
-# clauses, so the coverage check below can evaluate it exactly as VSTest does.
+# clauses. A clause can contain OR alternatives (|), so the coverage check below
+# can evaluate the filters exactly as VSTest does.
 if ($PartitionSuite) {
     if ($Filter) { throw 'PartitionSuite cannot be combined with Filter.' }
     $groups = [ordered]@{
@@ -65,11 +66,22 @@ if ($PartitionSuite) {
         rebuild = 'FullyQualifiedName~LiteDB.Tests.Engine.Rebuild'
         'engine-compact' = 'FullyQualifiedName~LiteDB.Tests.Engine.Compact'
         'engine-index' = 'FullyQualifiedName~LiteDB.Tests.Engine.Index'
-        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index'
+        # Windows x86 TRX timings: separate shared coordination and allocation work
+        # from the engine complement (docs/ci-partition-capacity.md).
+        'engine-shared' = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName~Shared&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~LiteDB.Tests.Engine.Allocation'
+        # Keep the observed x86 allocation stall below the 180-second capacity
+        # target by isolating WAL failures and the three other heavy classes.
+        'engine-allocation-wal' = 'FullyQualifiedName~LiteDB.Tests.Engine.AllocationWalFailure_Tests'
+        'engine-allocation-stress' = 'FullyQualifiedName~LiteDB.Tests.Engine.AllocationConcurrent_Tests|FullyQualifiedName~LiteDB.Tests.Engine.AllocationPowerLoss_Tests|FullyQualifiedName~LiteDB.Tests.Engine.AllocationOracle_Tests'
+        # This complement intentionally catches future Allocation test classes.
+        'engine-allocation' = 'FullyQualifiedName~LiteDB.Tests.Engine.Allocation&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationWalFailure_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationConcurrent_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationPowerLoss_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationOracle_Tests'
+        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~Shared&FullyQualifiedName!~LiteDB.Tests.Engine.Allocation'
         'query-not-equal' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
-        # Keep process-heavy Shared coverage within the per-session timeout on Windows x86.
-        'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process'
+        # Mapped storage and coordination upgrades dominate shared-process timings.
+        'shared-mapped-process' = 'FullyQualifiedName~LiteDB.Internals.SharedMappedProcess'
+        'shared-upgrade-process' = 'FullyQualifiedName~LiteDB.Internals.SharedCoordinationUpgradeProcess'
+        'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process&FullyQualifiedName!~LiteDB.Internals.SharedMappedProcess&FullyQualifiedName!~LiteDB.Internals.SharedCoordinationUpgradeProcess'
         shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process'
         mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
@@ -133,12 +145,25 @@ if ($VerifyPartitions) {
     $problems = @()
     foreach ($name in $names) {
         $matched = @($partitions.PSObject.Properties | Where-Object {
-            $clauses = $_.Value -split '&'
-            @($clauses | Where-Object {
-                if ($_ -like 'FullyQualifiedName!~*') { $name.Contains($_.Substring(20)) }
-                elseif ($_ -like 'FullyQualifiedName~*') { !$name.Contains($_.Substring(19)) }
-                else { throw "Unsupported partition clause: $_" }
-            }).Count -eq 0
+            $allClausesMatch = $true
+            foreach ($clause in ($_.Value -split '&')) {
+                $clauseMatches = $false
+                foreach ($alternative in ($clause -split '\|')) {
+                    $alternative = $alternative.Trim('() ')
+                    if ($alternative -like 'FullyQualifiedName!~*') {
+                        $clauseMatches = $clauseMatches -or !$name.Contains($alternative.Substring(20), [StringComparison]::OrdinalIgnoreCase)
+                    }
+                    elseif ($alternative -like 'FullyQualifiedName~*') {
+                        $clauseMatches = $clauseMatches -or $name.Contains($alternative.Substring(19), [StringComparison]::OrdinalIgnoreCase)
+                    }
+                    else { throw "Unsupported partition clause: $alternative" }
+                }
+                if (!$clauseMatches) {
+                    $allClausesMatch = $false
+                    break
+                }
+            }
+            $allClausesMatch
         } | ForEach-Object { $_.Name })
         if ($matched.Count -ne 1) { $problems += "$name -> [$($matched -join ', ')]" }
     }

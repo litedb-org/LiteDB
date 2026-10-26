@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "ci-split-engine-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every discovered test method belongs to exactly one complete-suite partition; every session retains the 300-second limit and runtime/architecture and test-hook guards.",
+      "reason": "Split engine shared coordination and allocation families and shared mapped/upgrade process families into separate sessions using Windows TRX timing evidence. No tests, assertions, concurrency or failure injection are removed; the unchanged discovery verifier and per-leg evidence manifest account for every partition."
+    },
+    {
       "id": "3034-evidence-jobs",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -34,6 +44,17 @@
       "disposition": "strengthened",
       "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    },
+    {
+      "id": "ci-framework-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        "docs/ci-partition-capacity.md"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every .NET Framework test remains in the complete xunit.console assembly run and has enough job time to finish and upload its evidence.",
+      "reason": "Retain the unfiltered net462/net481 assembly while raising the Windows Framework job limit from 20 to 35 minutes. Recent net481 evidence took 1,079 seconds and the current run reached 1,215 seconds before cancellation; 35 minutes leaves at least 42.1% headroom at that observed point. No test, filter, assertion or evidence partition is removed."
     },
     {
       "id": "3027-stream-checkpoint-pragma",
