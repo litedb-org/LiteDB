@@ -180,6 +180,7 @@ namespace LiteDB.Engine
             if (flushFailure != null)
             {
 #if DEBUG || TESTING
+                Reachability.FaultPoint("AfterFailedWalWrite");
                 _state.AfterFailedWalWrite?.Invoke();
 #endif
                 _state.CompleteStop(flushFailure, ownsFailure);
