@@ -45,7 +45,7 @@ class ReproMatrixTests(unittest.TestCase):
                 for m in [json.loads(path.read_text())]]
 
     def test_fixed_repros_are_replaced_by_real_test_methods_in_both_tiers(self):
-        active = {"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication"}
+        active = {"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication", "Issue_3099_TimeoutAfterWalRestore"}
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
         retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
         for tier in ("pr", "full"):

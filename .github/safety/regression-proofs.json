@@ -86,6 +86,17 @@
       ]
     },
     {
+      "repro": "Issue_3099_TimeoutAfterWalRestore",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
+      ]
+    },
+    {
       "repro": "Issue_3082_AllocationPublication",
       "knownBad": {
         "kind": "package",

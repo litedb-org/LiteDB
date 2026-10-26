@@ -154,7 +154,8 @@ namespace LiteDB.Engine
                 }
 
                 // initialize locker service
-                _locker = new LockService(_header.Pragmas);
+                // WAL recovery can replace the header; waits must use its current pragmas.
+                _locker = new LockService(() => _header.Pragmas.Timeout);
 
                 // initialize wal-index service
                 _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
