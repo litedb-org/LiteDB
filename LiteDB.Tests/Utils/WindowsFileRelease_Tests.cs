@@ -115,6 +115,7 @@ namespace LiteDB.Tests.Utils
             File.WriteAllText(file.Filename, "crash evidence");
             WindowsFileRelease.WaitForFiles(new[] { file.Filename, file.Filename + ".missing" });
             Assert.Equal("crash evidence", File.ReadAllText(file.Filename));
+            Assert.False(File.Exists(file.Filename + ".missing"));
         }
 
         [Fact]
@@ -131,6 +132,35 @@ namespace LiteDB.Tests.Utils
         {
             var missing = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
             Assert.Throws<DirectoryNotFoundException>(() => WindowsFileRelease.DeleteDirectory(missing));
+        }
+
+        [Fact]
+        public async Task Directory_cleanup_waits_for_a_locked_nested_file()
+        {
+            if (!WindowsFileRelease.IsWindows) return;
+            var root = Path.Combine(Path.GetTempPath(), "litedb-release-" + Guid.NewGuid().ToString("N"));
+            var nested = Directory.CreateDirectory(Path.Combine(root, "readers")).FullName;
+            var path = Path.Combine(nested, "slots.lease");
+            using var held = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            Assert.Throws<IOException>(() => Directory.Delete(root, true));
+            using var started = new ManualResetEventSlim();
+            var cleanup = Task.Run(() =>
+            {
+                started.Set();
+                WindowsFileRelease.DeleteDirectory(root);
+            });
+            try
+            {
+                Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+                Assert.NotSame(cleanup, await Task.WhenAny(cleanup, Task.Delay(100)));
+                Assert.True(File.Exists(path));
+            }
+            finally
+            {
+                held.Dispose();
+                await cleanup;
+            }
+            Assert.False(Directory.Exists(root));
         }
     }
 }

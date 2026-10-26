@@ -273,6 +273,6 @@ namespace LiteDB.Tests.Engine
             if (ids.Length > 3) db.GetCollection("sentinel").FindById(42)["value"].AsInt32.Should().Be(42);
         }
 
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }

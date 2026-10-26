@@ -116,7 +116,8 @@ namespace LiteDB.Internals
             await MvccProcess.Run("seed", replacement, password);
             await MvccProcess.Run("write", replacement, password, "7");
             await MvccProcess.Run("checkpoint", replacement, password);
-            foreach (var file in Directory.GetFiles(_directory, "test*.db")) File.Delete(file);
+            foreach (var file in Directory.GetFiles(_directory, "test*.db"))
+                WindowsFileRelease.Retry(() => File.Delete(file));
             File.Move(replacement, Filename);
             // Replay a coherent saved pair at the same path after every handle is gone.
             File.WriteAllBytes(Filename + "-shared-live", oldLive);

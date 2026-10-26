@@ -64,7 +64,7 @@ namespace LiteDB.Tests
             Filename = Path.Combine(_directory, "test.db");
         }
         public static implicit operator string(MappedTestFile file) => file.Filename;
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

@@ -88,7 +88,7 @@ string StartChildProcess(HarnessOptions options, int waitMilliseconds, string la
     {
         output.AppendLine("[child log]");
         output.Append(File.ReadAllText(logPath));
-        File.Delete(logPath);
+        LiteDB.Tests.WindowsFileRelease.Retry(() => File.Delete(logPath));
     }
     else
     {
