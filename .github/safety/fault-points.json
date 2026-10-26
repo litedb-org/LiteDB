@@ -1599,6 +1599,11 @@
       "protocol": "WAL page writes",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Engine/AllocationPublicationFailure_Tests.cs#Failed_foreign_image_publication_refuses_pending_header_free_and_later_header_commits",
+          "model": "exception",
+          "proves": "First/middle foreign empty-image and final header write failures stop a prepared header-free commit and a later header publication; both pre-cleanup crash bytes and stopped files recover twice with complete payloads, indexes and free-list/page invariants."
+        },
+        {
           "test": "LiteDB.Tests/Engine/CompactStorageFault_Tests.cs#Failure_at_each_wal_page_boundary_never_publishes_partial_documents_or_schemas",
           "model": "exception",
           "proves": "A write failure at each WAL page boundary never publishes partial documents or schemas."

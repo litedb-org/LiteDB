@@ -1,0 +1,16 @@
+{
+  "id": "Issue_3082_AllocationPublication",
+  "title": "Abandoned allocations remain crash consistent",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3082"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green"
+}
