@@ -5,6 +5,7 @@ using System.Threading;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using LiteDB.Vector;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -31,19 +32,6 @@ namespace LiteDB
         // Read-only snapshots streaming under the mutex (no lease could be registered).
         private readonly HashSet<LiteEngine> _mutexSnapshots = new HashSet<LiteEngine>();
         private int _disposed;
-#if DEBUG || TESTING
-        internal Func<LiteEngine> SimulateOpenEngine { get; set; }
-
-        /// <summary>Test hook: runs in OpenDatabase between the engine check and counting the user.</summary>
-        internal Action BeforeCountingUser { get; set; }
-
-        internal int EngineOpens { get; private set; }
-
-        internal int SnapshotOpens { get; private set; }
-
-        internal SharedMutexOwner MutexOwner => _owner;
-        internal SharedFileHandles FileHandles => _handles;
-#endif
 
         public SharedEngine(EngineSettings settings)
         {
@@ -277,6 +265,7 @@ namespace LiteDB
             {
                 // Rolling back nothing is safe and must not replace the error a catch block is handling.
                 if (!_transactionRunning || !commit) return false;
+                Reachability.Sometimes("refusal:shared-commit-foreign-thread");
                 throw ForeignTransactionCompletion();
             }
 
@@ -323,6 +312,7 @@ namespace LiteDB
             // release it without the close checkpoint; the next open recovers the WAL.
             if (orphan != null) this.CloseRetainedCore(orphan, checkpoint: false);
             _handles?.CloseIdle();
+            Reachability.Sometimes("refusal:shared-abandoned-transaction");
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
 
@@ -359,7 +349,10 @@ namespace LiteDB
                 try
                 {
                     if (_readers.OldestVersion().HasValue)
+                    {
+                        Reachability.Sometimes("refusal:shared-rebuild-with-open-readers");
                         throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                    }
                     _handles?.CloseIdle();
                     return _engine.Rebuild(options);
                 }
@@ -450,6 +443,7 @@ namespace LiteDB
             // under the lock that orders a starting pin's publication with this Dispose.
             SharedMutexPin pin;
             lock (_useLock) pin = _pin;
+            this.MarkDisposeOverlaps(pin);
             if (pin != null)
             {
                 pin.RequestRelease(force: true);

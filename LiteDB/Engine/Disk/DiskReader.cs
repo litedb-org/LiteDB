@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -61,6 +62,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             try
             {
+                Reachability.FaultPoint("SimulateDiskReadFail");
                 _state.SimulateDiskReadFail?.Invoke(page);
             }
             catch

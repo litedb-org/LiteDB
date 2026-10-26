@@ -95,7 +95,7 @@ public sealed class FuzzReliability_Tests
 
         await new OracleSelfTestFuzzer().RunAsync(context);
 
-        Assert.Equal(8, context.Metrics["controlledMutationsKilled"]);
+        Assert.Equal(12, context.Metrics["controlledMutationsKilled"]);
     }
 
     [Fact]

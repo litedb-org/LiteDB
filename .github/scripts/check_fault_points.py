@@ -106,9 +106,10 @@ def _testing_delegates(text):
 
 
 def _forwards(text, position):
-    """True for the declaration of a hook method or the call forwarding its parameter."""
+    """True for the declaration of a hook method or the call forwarding its parameter
+    (within a few lines of the declaration, which may also count its reachability marker)."""
     start = position
-    for _ in range(4):
+    for _ in range(6):
         start = text.rfind("\n", 0, max(start - 1, 0)) + 1
         if start <= 0:
             break

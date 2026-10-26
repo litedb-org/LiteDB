@@ -1,13 +1,18 @@
 using System;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        private static LiteException CollationMismatch() => new LiteException(0,
-            "Database index ordering/collation differs from this comparer or runtime. Export records in the " +
-            "original compatible environment and import here. For culture-only changes, an Ordinal rebuild " +
-            "in the original environment can also prepare the file.");
+        private static LiteException CollationMismatch()
+        {
+            Reachability.Sometimes("refusal:collation-mismatch");
+            return new LiteException(0,
+                "Database index ordering/collation differs from this comparer or runtime. Export records in the " +
+                "original compatible environment and import here. For culture-only changes, an Ordinal rebuild " +
+                "in the original environment can also prepare the file.");
+        }
 
         private void ValidateCollationStamp(HeaderPage header = null)
         {

@@ -1,4 +1,5 @@
 using System;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -39,6 +40,7 @@ namespace LiteDB.Engine
                 if (date.Kind != DateTimeKind.Utc && date != DateTime.MinValue && date != DateTime.MaxValue &&
                     zone.IsInvalidTime(DateTime.SpecifyKind(date, DateTimeKind.Unspecified)))
                 {
+                    Reachability.Sometimes("refusal:reject-invalid-local-time");
                     throw new ArgumentException("Invalid local time cannot be stored as a UTC DateTime. Supply a valid local time or an explicit UTC value.", nameof(value));
                 }
             }

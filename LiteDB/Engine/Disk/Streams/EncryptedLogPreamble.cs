@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -22,10 +23,17 @@ namespace LiteDB.Engine
                 var bytes = new byte[(int)stream.Length];
                 stream.Position = 0;
                 stream.ReadRequired(bytes, 0, bytes.Length);
-                if (bytes.Length != 0 && bytes[0] != 1) throw LiteException.InvalidDatabase();
+                if (bytes.Length != 0 && bytes[0] != 1)
+                {
+                    Reachability.Sometimes("refusal:encrypted-wal-foreign-preamble");
+                    throw LiteException.InvalidDatabase();
+                }
                 for (var i = SaltEnd; i < bytes.Length; i++)
                     if ((i < AesPreamble.CHECK_START || i >= CheckEnd) && bytes[i] != 0)
+                    {
+                        Reachability.Sometimes("refusal:encrypted-wal-foreign-preamble");
                         throw LiteException.InvalidDatabase();
+                    }
 
                 // No ciphertext payload exists below the hidden-page boundary.
                 // Retain every existing salt byte and generate only its suffix.
@@ -47,7 +55,11 @@ namespace LiteDB.Engine
                 // A torn append leaves an expected ciphertext prefix, possibly
                 // followed by zero extension. Foreign ciphertext fails closed.
                 for (var i = AesPreamble.CHECK_START + checkPrefix; i < Math.Min(CheckEnd, bytes.Length); i++)
-                    if (bytes[i] != 0) throw LiteException.InvalidPassword();
+                    if (bytes[i] != 0)
+                    {
+                        Reachability.Sometimes("refusal:encrypted-wal-foreign-preamble");
+                        throw LiteException.InvalidPassword();
+                    }
 
                 if (!stream.CanWrite)
                 {
