@@ -26,30 +26,14 @@
       ]
     },
     {
-      "repro": "Issue_3027_LegacyWalConversion",
+      "repro": "Issue_3027_SharedMutexNameLength",
       "knownBad": {
         "kind": "package",
         "version": "6.0.0-prerelease.319"
       },
       "permanentGuard": [
-        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
-        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
-        "scripts/test-5021-regression-compatibility.py"
-      ]
-    },
-    {
-      "repro": "Issue_3027_ForeignLegacyWal",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.319"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
-        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
-        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
-        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
-        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
-        "scripts/test-5021-regression-compatibility.py"
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
       ]
     },
     {
@@ -81,6 +65,31 @@
       ]
     },
     {
+      "repro": "Issue_3092_ReadSnapshotReusedPage",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      ]
+    },
+    {
+      "repro": "Issue_3094_SharedRetryWriterRelease",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_after_duplicate_key_releases_writer_ownership",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Repeated_retries_return_each_obsolete_hold_exactly_once",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_preserves_old_ownership_until_retry_or_rollback",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_retains_same_connection_recursion_and_peer_callback_guard",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Child_process_can_write_after_retry_commit"
+      ]
+    },
+    {
       "repro": "Issue_3027_LegacyDroppedIndex",
       "knownBad": {
         "kind": "package",
@@ -93,24 +102,54 @@
       ]
     },
     {
-      "repro": "Issue_3027_SharedMutexNameLength",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.319"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
-      ]
-    },
-    {
-      "repro": "Issue_3092_ReadSnapshotReusedPage",
+      "repro": "Issue_3099_TimeoutAfterWalRestore",
       "knownBad": {
         "kind": "package",
         "version": "6.0.0-prerelease.322"
       },
       "permanentGuard": [
-        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
+      ]
+    },
+    {
+      "repro": "Issue_3082_AllocationPublication",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/AllocationPublication_Tests.cs#Abandoned_allocations_leave_a_complete_reusable_page_graph",
+        "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph",
+        "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph",
+        "LiteDB.Tests/Engine/AllocationConcurrent_Tests.cs#Multiple_owners_commit_rollback_and_checkpoint_out_of_allocation_order"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyWalConversion",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
+        "scripts/test-5021-regression-compatibility.py"
+      ]
+    },
+    {
+      "repro": "Issue_3027_ForeignLegacyWal",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
+        "scripts/test-5021-regression-compatibility.py"
       ]
     }
   ]

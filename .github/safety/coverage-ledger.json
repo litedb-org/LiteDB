@@ -36,6 +36,27 @@
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
     },
     {
+      "id": "safety-m1-reachability-gate",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every smoke leg still runs its targets with unchanged seeds, counts, timeouts and artifact uploads.",
+      "reason": "Adds an upload of each smoke leg's markers.json files (warn when none) and a 10-minute Reachability gate job that judges them after all legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m1-oracle-smoke",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
+      "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
+    },
+    {
       "id": "3027-migration-recovery-harness",
       "kind": "harness-changed",
       "subjects": [
@@ -73,16 +94,6 @@
       ]
     },
     {
-      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
-      "kind": "fixture-changed",
-      "subjects": [
-        "LiteDB.Tests/Resources/artifacts.json"
-      ],
-      "disposition": "strengthened",
-      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
-      "reason": "Current dev has the S01 empty manifest at revision 88b857f6fde39742cac2ad5399c9372bf54a9b3c. Retain the six S05/S06 fixture entries and their unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no existing fixture bytes or expectations are removed or repinned."
-    },
-    {
       "id": "3060-preserve-vector-fixture-inventory",
       "kind": "fixture-changed",
       "subjects": [
@@ -101,6 +112,26 @@
       "disposition": "strengthened",
       "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
       "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
+    },
+    {
+      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
+      "reason": "Current dev contains the two reviewed S05 fixtures from squash-merged #3060. Add the four S06 WAL fixtures while retaining all six entries and unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no fixture bytes or expectations are removed or repinned."
+    },
+    {
+      "id": "3058-production-compatibility-and-harness-guards",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
+      "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
     }
   ]
 }

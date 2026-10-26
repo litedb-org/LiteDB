@@ -24,14 +24,26 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $temporary = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 if (!$RuntimeDirectory) {
     $RuntimeDirectory = Join-Path $temporary "litedb-runtime-$RuntimeMajor-$Architecture"
+    # Explicit versions bypass aka.ms, which can point at an unavailable release.
+    $metadataUrl = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$RuntimeMajor.0/releases.json"
+    try {
+        $metadata = Invoke-RestMethod -Uri $metadataUrl -ErrorAction Stop
+    } catch {
+        throw "Could not fetch .NET $RuntimeMajor runtime release metadata from ${metadataUrl}: $($_.Exception.Message)"
+    }
+    $runtimeVersion = $metadata.'latest-runtime'
+    if ($runtimeVersion -notmatch "^$RuntimeMajor\.0\.\d+$") {
+        throw "Invalid latest-runtime '$runtimeVersion' in .NET $RuntimeMajor release metadata from $metadataUrl."
+    }
+    Write-Host "Installing .NET runtime $runtimeVersion ($Architecture)."
     if ($IsWindows) {
         $installer = Join-Path $temporary 'litedb-dotnet-install.ps1'
         Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
-        & $installer -Runtime dotnet -Channel "$RuntimeMajor.0" -Architecture $Architecture -InstallDir $RuntimeDirectory -NoPath
+        & $installer -Runtime dotnet -Version $runtimeVersion -Architecture $Architecture -InstallDir $RuntimeDirectory -NoPath
     } else {
         $installer = Join-Path $temporary 'litedb-dotnet-install.sh'
         Invoke-WebRequest 'https://dot.net/v1/dotnet-install.sh' -OutFile $installer
-        & bash $installer --runtime dotnet --channel "$RuntimeMajor.0" --architecture $Architecture --install-dir $RuntimeDirectory --no-path
+        & bash $installer --runtime dotnet --version $runtimeVersion --architecture $Architecture --install-dir $RuntimeDirectory --no-path
         if ($LASTEXITCODE -ne 0) { throw 'Runtime installation failed.' }
     }
 }

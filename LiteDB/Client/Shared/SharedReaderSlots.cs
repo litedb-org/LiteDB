@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Shared
 {
@@ -232,6 +233,9 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 _disposeRequested = true;
+#if DEBUG || TESTING
+                if (_inUse > 0) Reachability.Sometimes("maintenance:shared-dispose-with-leased-reader");
+#endif
                 this.CloseIfDone();
             }
         }

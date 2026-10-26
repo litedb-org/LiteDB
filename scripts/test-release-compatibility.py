@@ -10,6 +10,8 @@ import tempfile
 import urllib.request
 import zipfile
 
+from release_compatibility import source_sha256
+
 root = pathlib.Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--artifacts", type=pathlib.Path, help="Local compatibility/released directory (otherwise use pinned GitHub files)")
@@ -24,11 +26,6 @@ def read(name):
         return (args.artifacts / name).read_bytes()
     with urllib.request.urlopen(base + name, timeout=60) as response:
         return response.read()
-
-
-def source_sha256(path):
-    # The generator hashed LF checkouts; Windows runners may check out CRLF.
-    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 manifest = json.loads(read("manifest.json"))

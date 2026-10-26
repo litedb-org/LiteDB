@@ -71,6 +71,22 @@ model is complete. New persistent I/O (`FlushToDisk`, `SetLength`, renames and
 deletes) is flagged for review, and `unhookedTransitions` records known
 boundaries that have no hook, such as #3011.
 
+Changes to the safety machinery itself (oracles, markers, registries, corpus
+expectations, test settings, scripts and workflows) implicate the
+`safety-machinery` contract, so the PR section must name its evidence like any
+other risky change.
+
+[`markers.json`](../../.github/safety/markers.json) registers every reachability
+marker (TESTING-only `Reachability.Sometimes`): maintenance interleavings,
+documented refusals, situations of fuzz targets and `api:` markers. Fault-point
+markers are derived from `fault-points.json`, so every hook site also counts its
+marker. The Safety policy job runs `check_reachability.py`: an unregistered,
+non-literal or stale marker fails, and so does a public member added or changed
+on the `ILite*` interfaces (or a new public type) without a registered `api:`
+marker. The Fuzz workflow's Reachability gate then fails a PR whose smoke campaign
+never hit a marker its diff declares, unless the entry is `advisory` with a reason.
+A marker hit count is reachability evidence, not proof that an assertion ran there.
+
 ## Coverage accounting
 
 Coverage may change, but never silently. The Safety policy job compares the
@@ -114,7 +130,10 @@ test detects the bug that actually occurred. Pin the strongest state available:
 1. a published NuGet package containing the bug (`package`);
 2. a commit that existed on `dev` (`dev-commit`);
 3. only when the defect was introduced and fixed before reaching `dev`, a commit
-   of the originating PR (`pr-commit`).
+   of the originating PR (`pr-commit`). A PR of another repository (a fork) also
+   names it: `"repository": "owner/name"`. Without that field the PR number
+   means this repository's PR, so a fork commit fails provenance with a message
+   that names the field.
 
 Record the proof in
 [`regression-proofs.json`](../../.github/safety/regression-proofs.json). It
@@ -129,7 +148,9 @@ the fix adds hooks the old code lacks.
 The **Regression proof** workflow runs this lifecycle:
 
 - **Pull request.** For each proof the PR adds or changes, it verifies that the
-  package exists on nuget.org or that the commit is on `dev` or in the PR. Commit
+  package exists on nuget.org or that the commit is on `dev` or in the PR (its
+  `refs/pull/<pr>/head`, fetched fresh from `origin` or from the public
+  `repository`; a failed fetch is an error, never a stale local ref). Commit
   states are packed into a local feed. Then the known-bad state **must fail** and
   the candidate **must pass**. The repro's own configuration output proves which
   LiteDB each run loaded.
@@ -155,7 +176,8 @@ python .github/scripts/regression_proof.py new --id Issue_1234_ShortName --issue
 ```
 
 It pins the newest published package by default (`--known-bad` accepts
-`package:<version>`, `dev-commit:<sha>` or `pr-commit:<sha>@<pr>`), and its
+`package:<version>`, `dev-commit:<sha>`, `pr-commit:<sha>@<pr>` or, for a fork's
+PR, `pr-commit:<sha>@<owner>/<name>#<pr>`), and its
 `Program.cs` throws until the reproduction is written, so an unfinished repro
 fails the proof. Do not add new repros to `LiteDB.sln`: a repro pinned to a
 packed commit cannot restore in the ordinary build.
@@ -177,8 +199,50 @@ check's name changes with the counts; never make it a required check.
 
 To reproduce a commit state locally, run
 `python .github/scripts/regression_proof.py pack-known-bad --commit <sha> --feed
-<dir>`, set `RestoreAdditionalProjectSources=<dir>`, then run the repro with
+<dir>` (add `--pr <n> [--repository owner/name]` to fetch a PR commit the clone
+lacks), set `RestoreAdditionalProjectSources=<dir>`, then run the repro with
 ReproRunner.
+
+## Net proofs
+
+A regression proof shows that a *fix* is covered by a black-box repro. A **net
+proof** shows that a general *safety net* (an oracle, the wait-for graph, a fuzz
+target, a lint) detects a defect it was not written for: the net fires with its
+expected assertion at the known-bad commit and stays quiet at the fix. Entries
+live in [`net-proofs.json`](../../.github/safety/net-proofs.json) and use the
+same `knownBad` provenance (`dev-commit`, or `pr-commit` with `repository`;
+packages cannot be overlaid). `level` says whether a net not written for the bug
+fired (`generic`) or a bug-specific test was turned into an attributable yell
+(`reproduction`); never present one as the other. `independence` records
+`tuned-after-fix: <why>` when the net was changed after reading the fix.
+
+`net_proof.py run --id <id>` checks out both commits as worktrees, applies the
+net's overlay (cherry-picked commits, patches, and adapter directories from
+[`tools/net-proofs/adapters/`](../../tools/net-proofs/README.md) that compile only
+against the historical trees), builds, and runs the command under a hard
+wall-clock limit. Its result is `proven` or one of `not-fired`, `fired-at-fix`,
+`fired-differently`, `not-reproduced`, `harness-error`, `not-applicable`; only
+`proven` passes.
+
+**Capabilities.** The ledger's capability table declares a probe (a file, or a
+regular expression over files) per capability, such as `handle-api`, which only
+the fork's JKamsker/LiteDB#133 tree has. Each tree is probed before and after its overlay. When a
+capability the net `requires` is missing, the proof is **not applicable** with
+the missing names: it is reported and fails the run, and it never counts as
+passing. `net_proof.py capabilities --rev <rev>` lists what a revision has.
+
+**Evidence classes** set the re-run rule:
+
+| Class | Nets | Rule |
+| --- | --- | --- |
+| 1 | Controlled schedules, abstract models | The firing must replay with the same assertion (`replays`, default 1), else `not-reproduced` |
+| 2 | Native threads, multiple processes | `runs` (default 3) per side; one matching firing proves, the fire rate is recorded, and any firing at the fix is kept as a finding |
+| 3 | Performance | `runs` (default 5) alternating between the sides; a side fires when its share of failing runs reaches `tolerance.fireFraction` (the command applies the measured tolerance); `tolerance.metric` records the values |
+
+A non-reproduction is classified (schedule-dependent, environment-dependent, or
+harness nondeterminism) before any conclusion. CI validates the ledger offline
+in the Safety policy job. Proofs run only from the manual **Net proofs**
+workflow, never on every PR.
 
 ## CI evidence
 
@@ -220,11 +284,16 @@ fresh green Safety evidence run on that merge ref, then merge. The scheduled ful
 CI run is the post-merge backstop.
 
 Repository settings are unchanged for now: no check is required and there is no
-merge queue, so a check that fails to start cannot block every merge. When the
-checks have run reliably for a while, require **build-and-test / Safety
-evidence** first; it runs on every PR. Never require path-filtered workflows
-(Regression proof, Fuzz, index migration): a required check that does not run
-stays pending and blocks the PR.
+merge queue, so a check that fails to start cannot block every merge. The merge
+gate is **build-and-test / Safety evidence**: it runs on every PR (and accepts
+`merge_group`), and it requires every declared job, including the always-run
+**Oracle smoke** job (oracle self-tests and the oracle-wired fuzz targets at a
+small count), so the candidate tree carries oracle evidence even when the
+path-filtered Fuzz workflow does not run. A maintainer enables it in the
+repository settings: branch protection (or a ruleset) for `dev`, "Require status
+checks to pass", add `build-and-test / Safety evidence`. Never require
+path-filtered workflows (Regression proof, Fuzz, index migration): a required check
+that does not run stays pending and blocks the PR.
 
 ## Findings, gates and audits
 

@@ -334,11 +334,41 @@ namespace LiteDB
                 throw new NotSupportedException("Captured unary expressions containing unsupported server runtime combinations are not supported.");
             if (node.NodeType == ExpressionType.Not)
             {
+                if (node.Operand.Type != typeof(bool) && node.Operand.Type != typeof(bool?)) return TranslateComplement(node);
+
                 var operand = Translate(node.Operand);
                 return node.Operand.NodeType == ExpressionType.MemberAccess ?
                     Group(Binary("=", operand, Constant(false, _parameters), _context, _parameters)) :
                     Binary("=", Group(operand), Constant(false, _parameters), _context, _parameters);
             }
+            if (node.NodeType == ExpressionType.NegateChecked)
+                throw Unsupported(node, "checked(-x) (LiteDB evaluates arithmetic unchecked; use unchecked(-x), negate outside the query or filter in memory)");
+            if (node.NodeType == ExpressionType.Negate)
+            {
+                // char and enum members are stored as strings, and subtracting from one yields null
+                var negated = node.Operand;
+
+                while (negated is UnaryExpression cast &&
+                    (cast.NodeType == ExpressionType.Convert || cast.NodeType == ExpressionType.ConvertChecked))
+                {
+                    negated = cast.Operand;
+                }
+
+                if (!IsNegateSupported(node.Operand.Type) || !IsNegateSupported(negated.Type))
+                    throw Unsupported(node, $"-{TypeName(negated.Type)} (supported for numeric members; negate outside the query or filter in memory)");
+
+                // Only discard casts that preserve every possible value. In particular,
+                // -(int)longValue must not become subtraction of the original Int64.
+                for (var operand = node.Operand; operand is UnaryExpression cast &&
+                    (cast.NodeType == ExpressionType.Convert || cast.NodeType == ExpressionType.ConvertChecked); operand = cast.Operand)
+                {
+                    if (!LinqNumericConversions.IsWidening(negated.Type, cast.Type))
+                        throw Unsupported(node, "negation through a narrowing or checked conversion (negate outside the query or filter in memory)");
+                }
+
+                return Subtract(Zero(node.Operand.Type), node.Operand);
+            }
+            if (node.NodeType == ExpressionType.OnesComplement) return TranslateComplement(node);
             if (node.NodeType == ExpressionType.ArrayLength)
                 return Call("LENGTH", new[] { Translate(node.Operand) }, _context, _parameters);
             if (node.NodeType == ExpressionType.Convert &&
@@ -348,6 +378,71 @@ namespace LiteDB
                 return Call(node.Type == typeof(int) ? "INT32" : "INT64", new[] { Translate(node.Operand) }, _context, _parameters);
             }
             return Translate(node.Operand);
+        }
+
+        private BsonExpression TranslateComplement(UnaryExpression node)
+        {
+            // the complement is rewritten as -1 - x, which only holds when the result is a
+            // signed type wide enough to keep it: an unsigned result wraps instead
+            if (!IsComplementSupported(node.Type))
+                throw Unsupported(node, $"~{TypeName(node.Type)} (supported for signed integers; cast the value or filter in memory)");
+
+            var operand = node.Operand;
+            var conversions = new List<Type>();
+
+            while (operand is UnaryExpression conversion &&
+                (conversion.NodeType == ExpressionType.Convert || conversion.NodeType == ExpressionType.ConvertChecked))
+            {
+                conversions.Add(conversion.Type);
+                operand = conversion.Operand;
+            }
+
+            if (operand.Type.GetTypeInfo().IsEnum || operand.Type == typeof(char))
+                throw Unsupported(node, $"~{TypeName(operand.Type)} (supported for signed integers; cast the value or filter in memory)");
+
+            // translating the operand drops its conversions, which only preserves the original
+            // semantics while every one of them can still represent the value being complemented
+            foreach (var target in conversions)
+            {
+                if (!LinqNumericConversions.IsWidening(operand.Type, target))
+                    throw Unsupported(node, $"~({target.Name}){operand.Type.Name} (the cast cannot be applied before the complement; filter in memory)");
+            }
+
+            return Subtract(node.Operand.Type == typeof(long) ? new BsonValue(-1L) : new BsonValue(-1), node.Operand);
+        }
+
+        private static bool IsComplementSupported(Type type) =>
+            !type.GetTypeInfo().IsEnum &&
+            (type == typeof(int) || type == typeof(long) || type == typeof(short) || type == typeof(sbyte));
+
+        private static bool IsNegateSupported(Type type)
+        {
+            type = Nullable.GetUnderlyingType(type) ?? type;
+
+            return !type.GetTypeInfo().IsEnum &&
+                (type == typeof(int) || type == typeof(long) || type == typeof(short) || type == typeof(sbyte) ||
+                 type == typeof(byte) || type == typeof(ushort) || type == typeof(uint) ||
+                 type == typeof(double) || type == typeof(float) || type == typeof(decimal));
+        }
+
+        private static string TypeName(Type type)
+        {
+            var underlying = Nullable.GetUnderlyingType(type);
+            return underlying == null ? type.Name : underlying.Name + "?";
+        }
+
+        // the left operand is bound as a parameter: an inline Int64 constant would render to the
+        // same source as an Int32 one, and expressions are compiled and cached by source
+        private BsonExpression Subtract(BsonValue left, Expression right) =>
+            Group(Binary("-", Bind(left), Translate(right), _context, _parameters));
+
+        private static BsonValue Zero(Type type)
+        {
+            type = Nullable.GetUnderlyingType(type) ?? type;
+
+            return type == typeof(double) || type == typeof(float) ? new BsonValue(0d) :
+                type == typeof(long) || type == typeof(ulong) ? new BsonValue(0L) :
+                new BsonValue(0);
         }
 
         private BsonExpression AsPredicate(Expression node, bool predicate)

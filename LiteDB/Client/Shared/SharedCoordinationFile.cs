@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Shared
 {
@@ -73,6 +74,7 @@ namespace LiteDB.Client.Shared
         internal static void Observe(string path, string stage)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint(stage);
             CreationStage?.Invoke(path, stage);
 #endif
         }

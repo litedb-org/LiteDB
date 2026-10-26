@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -69,6 +70,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex) when (ex is InvalidDataException || ex is LiteException || ex is IOException || ex is ArgumentException || ex is InvalidOperationException || ex is InvalidCastException || ex is NullReferenceException || ex is IndexOutOfRangeException)
             {
+                Reachability.Sometimes("refusal:compact-document-corrupt");
                 throw new LiteException(LiteException.CORRUPT_DOCUMENT, ex, "Corrupt compact document in collection '{0}', schema {1}, address {2}: {3}", collection, decoder?.SchemaId ?? 0, address, ex.Message);
             }
             finally { decoder?.Dispose(); }
