@@ -361,8 +361,8 @@ namespace LiteDB.Engine
             // lock header instance to get new page
             lock (_header)
             {
-                // there is need for _header.Savepoint() because changes here will incremental and will be persist later
-                // if any problem occurs here, rollback will catch this changes
+                // Reserve privately. Header publication supplies empty recovery images
+                // for other owners while excluding them from live allocation.
 
                 if (this.TryAllocateFreePage(out pageID, out buffer) == false)
                 {
@@ -389,7 +389,7 @@ namespace LiteDB.Engine
                 }
 
                 // retain a list of created pages to, in a rollback situation, back pages to empty list
-                _transPages.NewPages.Add(pageID);
+                _header.Allocations.Reserve(_transPages, pageID);
             }
 
             var page = BasePage.CreatePage<T>(buffer, pageID);

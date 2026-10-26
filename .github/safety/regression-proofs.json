@@ -95,6 +95,19 @@
         "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
         "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
       ]
+    },
+    {
+      "repro": "Issue_3082_AllocationPublication",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/AllocationPublication_Tests.cs#Abandoned_allocations_leave_a_complete_reusable_page_graph",
+        "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph",
+        "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph",
+        "LiteDB.Tests/Engine/AllocationConcurrent_Tests.cs#Multiple_owners_commit_rollback_and_checkpoint_out_of_allocation_order"
+      ]
     }
   ]
 }
