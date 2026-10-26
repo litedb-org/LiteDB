@@ -45,13 +45,19 @@ class ReproMatrixTests(unittest.TestCase):
                 for m in [json.loads(path.read_text())]]
 
     def test_fixed_repros_are_replaced_by_real_test_methods_in_both_tiers(self):
-        for tier, count in [("pr", 2), ("full", 3)]:
+        active = {"Issue_2561_TransactionMonitor", "Issue_3099_TimeoutAfterWalRestore"}
+        platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
+        retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        for tier in ("pr", "full"):
             with self.subTest(tier=tier):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
-                self.assertEqual(count, len(entries))
-                self.assertEqual({"Issue_2561_TransactionMonitor"}, {e["repro"] for e in entries})
+                expected = {(repro, platform, label) for repro in active
+                            for platform, labels in platforms.items()
+                            for label in (labels[:1] if tier == "pr" else labels)}
+                self.assertEqual(expected, {(e["repro"], e["platform"], e["os"]) for e in entries})
+                self.assertEqual(len(expected), len(entries))
                 # Every retired repro is reported as skipped, none silently dropped.
-                retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
+                self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
                 self.assertEqual(len(retired), len(skipped))
 
     def test_manual_override_keeps_historical_reproductions_available(self):

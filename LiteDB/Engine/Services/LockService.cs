@@ -16,7 +16,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal class LockService : IDisposable
     {
-        private readonly EnginePragmas _pragmas;
+        private readonly Func<TimeSpan> _getTimeout;
 
         private readonly TransactionGate _transaction = new TransactionGate();
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
@@ -28,8 +28,13 @@ namespace LiteDB.Engine
 #endif
 
         internal LockService(EnginePragmas pragmas)
+            : this(() => pragmas.Timeout)
         {
-            _pragmas = pragmas;
+        }
+
+        internal LockService(Func<TimeSpan> getTimeout)
+        {
+            _getTimeout = getTimeout;
         }
 
         /// <summary>
@@ -55,8 +60,9 @@ namespace LiteDB.Engine
 
             try
             {
-                if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false)
-                    throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+                var timeout = _getTimeout();
+                if (_transaction.TryEnterReadLock(timeout) == false)
+                    throw LiteException.LockTimeout("transaction", timeout);
             }
             catch (ObjectDisposedException)
             {
@@ -86,7 +92,8 @@ namespace LiteDB.Engine
             // get collection lock from dictionary (or create new if it does not exist)
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            if (collection.TryEnter(_pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            var timeout = _getTimeout();
+            if (collection.TryEnter(timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
         }
 
         /// <summary>
@@ -115,7 +122,8 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             if (_transaction.CurrentReadCount > 0) Reachability.Sometimes("maintenance:rebuild-waits-for-active-transactions");
 #endif
-            if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
+            var timeout = _getTimeout();
+            if (_transaction.TryEnterWriteLock(timeout) == false) throw LiteException.LockTimeout("exclusive", timeout);
 
 #if DEBUG || TESTING
             AfterExclusiveAdmission?.Invoke();

@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3099_TimeoutAfterWalRestore",
+  "title": "Lock waits ignore TIMEOUT after WAL header restore",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3099"
+  ],
+  "failingSince": "6.0.0-prerelease.322",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "PROVEN_STALE_TIMEOUT"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}
