@@ -69,11 +69,52 @@
       "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
     ]
   },
+  "Issue_3027_DumpInTransaction": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); $dump and $page_list inside an explicit transaction that safepointed its pages are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#System_collection_inside_an_explicit_transaction_does_not_break_the_next_commit",
+      "LiteDB.Tests/Regressions/DumpPinnedWalSlot_Tests.cs#Pinned_slots_of_a_file_database_survive_commit_retirement_and_recovery"
+    ]
+  },
+  "Issue_3027_TornWalAppend": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); torn WAL appends and slot rewrites that stop the engine are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Failed_truncation_of_a_torn_append_stops_the_engine",
+      "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Truncated_torn_append_is_rewritten_by_the_next_commit",
+      "LiteDB.Tests/Regressions/TornWalAppend_Tests.cs#Buffering_log_stream_that_tears_a_frame_loses_no_acknowledged_commit",
+      "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Failed_in_place_rewrite_stops_the_engine_and_keeps_every_acknowledged_commit",
+      "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost"
+    ]
+  },
+  "Issue_3027_FailedSafepointWrite": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); a transaction whose safepoint write failed only rolls back in the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
+      "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
+    ]
+  },
   "Issue_3059_ReadOnlyStorageNoLog": {
     "reason": "The Regression proof workflow compares the historical package; ordinary tests cover refusal before acknowledgement and retained caller-log commits on reopen.",
     "tests": [
       "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_without_a_log_refuses_writes_before_acknowledgement",
       "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_with_a_caller_file_log_retains_commits_on_reopen"
+    ]
+  },
+  "Issue_3027_LegacyWalConversion": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); the legacy WAL kept through a blocked shared conversion is covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
+      "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal"
+    ]
+  },
+  "Issue_3027_ForeignLegacyWal": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); legacy WAL pages that are not this database's pages are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+      "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+      "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+      "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+      "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused"
     ]
   }
 }

@@ -99,6 +99,27 @@ file; insufficient budgets leave legacy files unchanged. Computed-index pages ar
 `index migration limit size` connection option raises the budget atomically with
 a successful migration and allows retrying previously interrupted v11 migrations.
 
+## Legacy WAL conversion (5.x files)
+
+Conversion first drains a legacy WAL completely. While another shared connection may still
+read it (a reader's lease, or a reader registry that cannot be inspected) the open is refused
+with `LOCK_TIMEOUT` before any document is validated, changing neither file; an unreadable
+registry keeps refusing until it can be read, and the file converts once the reader is gone.
+Before, the conversion checkpointed only what the readers allowed and then emptied the WAL
+anyway, losing the transactions 5.0.21 had committed there.
+
+Legacy WAL pages carry no checksum, so their replay is validated. A committed legacy WAL page
+that is not a page of its type (an unknown type, or page 0 that is not the header) or that
+names a page beyond both files and every page a committed header counts, and a committed
+header of another database (another creation time), fail the open with `INVALID_DATABASE`,
+changing neither file (5.0.21 wrote it over the header, that far into the data file, or
+replayed the other database into it). Committed pages that concurrent 5.x writers allocated
+above the data file's last page stay valid, and a torn tail after the last commit is ignored
+as before. The creation time identifies the database that was created, not each copy of it: a
+log left beside a fresh copy of the same seed file still passes, as in 5.0.21 (#3043 tracks
+the ambiguous ownership cases). A 5.x data file found beside its conversion's WAL (whose
+converted header never reached the device) fails to open instead of being replayed.
+
 ## Breaking change: exact numeric comparison
 
 Mixed numeric types (`Int32`, `Int64`, `Double`, `Decimal`) now compare by their
@@ -235,6 +256,47 @@ and never falls back to a filename. Use `new ConnectionString { Filename = path 
 for arbitrary paths. See [the parsing compatibility notes](connection-string-parsing.md)
 for explicit syntax and integration requirements.
 
+## WAL write and transaction failure containment
+
+A WAL write that may have left a torn frame stops the engine before the WAL writer is
+released, whatever the exception type: a failed overwrite of a transaction's own slot, an
+append whose truncation failed (the original write failure is reported, not the cleanup's),
+an append while a header journal is outstanding (its cleanup never truncates the journal),
+and a checkpoint or file format promotion that fails while it holds the WAL writer. 5.0.21
+rolled back and continued after a non-I/O failure; a later commit could then land behind the
+torn frame and be lost at recovery. A commit already waiting for the writer now finds the
+engine stopped.
+
+A caller stream other than a `MemoryStream` may hold frames after their write returned (a
+`BufferedStream`, a `FileStream` with a large buffer) and write them during its next write,
+seek, length query, or flush. If a failure occurs while the stream may still hold a frame
+from the batch and the batch's final flush has not succeeded, the engine stops permanently. A reader's
+access (a seek) first flushes what the stream holds for the writer, under the lock the
+wrappers share; any failure there fails the read as a write failure of that file and is
+handed to the writer, whose batch fails. Before, the reader's seek tore a frame the writer
+never heard of. The engine still flushes a caller stream once per WAL batch and per sync, not
+per page. A caller stream must not replay a write that failed at another position.
+
+A successfully truncated unconfirmed append does not by itself make the WAL unusable;
+the original failure still propagates. I/O failures handled by commit or rollback still
+stop the engine under the normal operation-level policy.
+
+The stop is terminal. A failure that reaches the commit or rollback path is recorded (file,
+operation, error, time, whether the log file was kept) before the stop; a torn WAL append,
+checkpoint or promotion failure stops the engine without a record in this change (recording
+for those paths arrives with the durability protocol change). After the stop the engine
+performs no further write or sync on its handles, no close-time checkpoint runs, and every later call, reads included,
+throws `IOException("Engine closed after an I/O failure ...")` carrying the original failure
+as its inner exception. Dispose and reopen the database: recovery shows exactly the commits
+acknowledged before the failure.
+
+A transaction whose safepoint failed to write its pages can only roll back: later reads and
+writes in it throw "can only be rolled back", and `Commit` rolls it back and throws. A
+`$dump` or `$page_list` read inside an explicit transaction that pins one of the
+transaction's own WAL slots no longer fails the next safepoint or commit (which used to stop
+the engine and mark the data file invalid): the new version is appended and the pinned slot
+stays readable.
+
 ## Caller streams: stored settings and non-writable streams
 
 `new LiteDatabase(stream)` without a log stream keeps its WAL in memory, so every
@@ -268,8 +330,8 @@ A collection from which a released 5.x engine (5.0.21) dropped an index stays wr
 the writable open migrates it. 5.0.21 left the tail of the dropped index entries after the
 collection page's index list, and this version read those bytes as vector metadata: every
 insert then failed with "request page must be less or equals lastest page in data file", after
-the file had been converted, so 5.0.21 could not open it any more either. A page's vector
-section is now read only when the page lists a vector index, and kept only when it decodes and
+the file had been converted, so 5.0.21 could not open it anymore either. The engine now reads
+a page's vector section only when the page lists a vector index, and keeps it only when it decodes and
 names exactly those indexes. A vector index whose section a release without vector support
 (5.0.21) displaced when it rewrote the index list has no metadata: read-only opens work, a
 writable open reports it as damage (`INVALID_DATAFILE_STATE`), and the rebuild drops only that

@@ -341,6 +341,24 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// Remove an idle version before overwriting a transaction's own WAL slot. False when a
+        /// reader still holds or loads that version: the caller must keep the slot and append.
+        /// </summary>
+        internal bool TryInvalidate(long position, FileOrigin origin)
+        {
+            lock (_sync)
+            {
+                this.ThrowIfDisposedLocked();
+                if (_index.TryGetValue(this.GetReadableKey(position, origin), out var page))
+                {
+                    if (page.State != FrameState.Readable || page.ShareCounter != 0) return false;
+                    this.EvictLocked(page);
+                }
+                return true;
+            }
+        }
+
         public int Clear() => this.Invalidate();
 
         public void TrimToLimit()

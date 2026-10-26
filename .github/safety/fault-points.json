@@ -1591,6 +1591,45 @@
           "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-rebase-before-anchor-flush",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-rebase-before-rewrite",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-batch-flush",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
     }
   ],
   "injectors": [
@@ -1694,9 +1733,26 @@
           "proves": "Volumes without POSIX delete semantics open files per operation."
         }
       ]
+    },
+    {
+      "name": "AfterFailedWalWrite",
+      "protocol": "WAL write failure teardown",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
+          "model": "interleaving",
+          "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "interleaving",
+          "proves": "Queued writer finishes with terminal refusal before failure teardown; later attempts preserve the exact WAL bytes."
+        }
+      ]
     }
   ],
   "observers": {
+    "AtCrashPoint": "Per-engine delivery of the process-crash family's named points (CrashPoint also calls SimulateProcessCrash); each name is registered under hooks with its own evidence, so this delegate adds no boundary of its own.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
