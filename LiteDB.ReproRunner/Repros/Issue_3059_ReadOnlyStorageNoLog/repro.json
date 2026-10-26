@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3059_ReadOnlyStorageNoLog",
+  "title": "Non-writable caller data without a log acknowledges commits that disappear on close",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the acknowledged commit disappeared"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the write was refused before acknowledgement"
+    }
+  }
+}

@@ -36,6 +36,16 @@
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
     },
     {
+      "id": "3027-stream-checkpoint-pragma",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.IssueCheckpointFlush_Tests.StreamConstructorRestoresCheckpointSizeAfterDisposal"
+      ],
+      "disposition": "strengthened",
+      "invariant": "LiteDatabase(Stream) checkpoints each commit into the caller's stream and leaves the persisted checkpoint pragma as it was.",
+      "reason": "The stream constructor no longer persists CHECKPOINT=1 at all (a 5.0.21 regression fixed in this PR), so the test asserts the pragma never changes, that a commit reaches the stream, and that it is still 1000 after disposal."
+    },
+    {
       "id": "safety-m1-reachability-gate",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -94,6 +104,16 @@
       ]
     },
     {
+      "id": "3059-caller-stream-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy caller-stream regressions use authenticated damaged-document and dropped-index fixture bytes without changing the release corpus.",
+      "reason": "Unions the S07 fixture inventory with the S01 empty manifest now on dev. Adds two archives pinned to e059a85e1cbd641e4a682882a70b1c84906d393f and their unchanged SHA-256 hashes; no existing fixture entry is removed or repinned, and the release corpus has its separate manifest."
+    },
+    {
       "id": "3060-preserve-vector-fixture-inventory",
       "kind": "fixture-changed",
       "subjects": [
@@ -112,6 +132,17 @@
       "disposition": "strengthened",
       "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
       "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
+    },
+    {
+      "id": "3059-refuse-volatile-only-writes",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Explicit transactions that only read must commit or roll back without modifying caller data, including a partial page tail; write APIs must not acknowledge volatile-only changes.",
+      "reason": "Changes the existing no-match DeleteMany assertion from successful no-op to IOException when no caller log is supplied, matching the intentional refusal of all write operations before acknowledgement. Retains indexed reads, byte preservation, commit and rollback assertions and executes them for both partial-tail cases; adds eight loss/refusal regressions and two caller-file-log retention controls. No test is removed or skipped.",
+      "decision": "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
     }
   ]
 }

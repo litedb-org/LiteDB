@@ -34,8 +34,8 @@ namespace LiteDB.Engine
 
         private EngineState _state;
 
-        // immutable settings
-        private readonly EngineSettings _settings;
+        // The caller's settings, or the engine's own copy once it opened read-only on its own.
+        private EngineSettings _settings;
 
         /// <summary>
         /// All system read-only collections for get metadata database information
@@ -74,7 +74,27 @@ namespace LiteDB.Engine
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-            this.Open();
+            // A caller's stream that cannot be written is never repaired, migrated or checkpointed.
+            if (!settings.ReadOnly && !settings.ReadOnlyStorage &&
+                (settings.DataStream?.CanWrite == false || settings.LogStream?.CanWrite == false))
+            {
+                _settings = settings.Clone();
+                _settings.ReadOnlyStorage = true;
+            }
+
+            try
+            {
+                this.Open();
+            }
+            catch (ReadOnlyOpenRequiredException)
+            {
+                // Opening storage that cannot be written would have changed it; nothing was written.
+                // Keep retry flags on an engine-owned copy, including explicit ReadOnlyStorage settings.
+                if (ReferenceEquals(_settings, settings)) _settings = settings.Clone();
+                _settings.ReadOnly = true;
+                _settings.LegacyIndexScan = true;
+                this.Open();
+            }
         }
 
         #endregion
@@ -116,7 +136,8 @@ namespace LiteDB.Engine
 
                 // if database is set to invalid state, need rebuild
                 this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                // A rebuild replaces files: a caller's stream is opened as it is.
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild && _settings.DataStream == null)
                 {
                     // Announce replacement before checking the external leases: a
                     // later admission must not pass a scan that permitted rebuilding.
@@ -187,7 +208,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
-                LOG(ex.Message, "ERROR");
+                if (!(ex is ReadOnlyOpenRequiredException)) LOG(ex.Message, "ERROR");
 
                 this.Close(ex);
                 throw;
@@ -220,7 +241,7 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
+            if (checkpoint && !_settings.ReadOnly && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
@@ -238,6 +259,11 @@ namespace LiteDB.Engine
             return tc.Exceptions;
         }
 
+        /// <summary>WAL size (in pages) that triggers a checkpoint; 0 disables automatic checkpoints.</summary>
+        // Storage that cannot be written is never checkpointed: writes require a caller-supplied log.
+        // Neither is a read-only engine (its read transactions complete through CommitAndReleaseTransaction).
+        private int CheckpointPages => _settings.ReadOnlyStorage || _settings.ReadOnly ? 0 : _settings.CheckpointEachCommit ? 1 : _header.Pragmas.Checkpoint;
+
         /// <summary>
         /// Every close checkpoints unless a shared connection set a threshold: its short-lived
         /// engines leave a smaller WAL to the next operation, whose replay costs less than the
@@ -247,7 +273,7 @@ namespace LiteDB.Engine
         {
             var threshold = _settings.CloseCheckpointPages;
             if (threshold <= 0) return true;
-            var pages = Math.Min(threshold, _header.Pragmas.Checkpoint);
+            var pages = Math.Min(threshold, this.CheckpointPages);
             return _disk.GetFileLength(FileOrigin.Log) >= (long)pages * PAGE_SIZE;
         }
 
@@ -270,7 +296,9 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
-            if (tc.InvalidDatafileState)
+            // Read-only opens and storage that cannot be written cannot take the mark:
+            // marking would journal the header into a caller's writable log.
+            if (tc.InvalidDatafileState && !_settings.ReadOnlyStorage && !_settings.ReadOnly)
             {
                 Reachability.Sometimes("maintenance:invalid-datafile-state-close");
                 // Keep the data writer alive until the recovery marker is durable.
@@ -311,6 +339,10 @@ namespace LiteDB.Engine
         public int Checkpoint()
         {
             _state.Validate();
+            // Fail before a checkpoint journals the header into a caller's log it cannot finish.
+            if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
+                throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
+            if (_settings.ReadOnlyStorage) return 0;
             try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
             catch (Exception ex)
             {

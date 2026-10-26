@@ -19,7 +19,6 @@ namespace LiteDB
         private readonly ILiteEngine _engine;
         private readonly LiteDatabaseContext _context;
         private readonly bool _disposeOnClose;
-        private readonly int? _checkpointOverride;
 
         /// <summary>
         /// Get the BsonMapper used by this database instance and all objects it creates.
@@ -67,37 +66,21 @@ namespace LiteDB
 #if LITEDB_PREDEV
             LiteDBPragmas.EnsurePreDevRiskAcknowledged();
 #endif
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+
             var settings = new EngineSettings
             {
-                DataStream = stream ?? throw new ArgumentNullException(nameof(stream)),
-                LogStream = logStream
+                DataStream = stream,
+                LogStream = logStream,
+                // Without a log stream the WAL lives only in memory: checkpoint every commit into the
+                // caller's stream, without persisting a different CHECKPOINT pragma into it.
+                CheckpointEachCommit = logStream == null && stream.CanWrite && stream is not MemoryStream
             };
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
             _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
-
-            if (logStream == null && stream is not MemoryStream)
-            {
-                if (!stream.CanWrite)
-                {
-                    // Read-only streams cannot participate in eager checkpointing because the process
-                    // writes pages back to the underlying data stream immediately.
-                }
-                else
-                {
-                    // Without a dedicated log stream the WAL lives purely in memory; force
-                    // checkpointing to ensure commits reach the underlying data stream.
-                    var originalCheckpointSize = _engine.Pragma(Pragmas.CHECKPOINT);
-
-                    if (originalCheckpointSize != 1)
-                    {
-                        _engine.Pragma(Pragmas.CHECKPOINT, 1);
-                        _checkpointOverride = originalCheckpointSize;
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -415,11 +398,6 @@ namespace LiteDB
         {
             if (disposing && _disposeOnClose)
             {
-                if (_checkpointOverride.HasValue)
-                {
-                    _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
-                }
-
                 _engine.Dispose();
             }
         }
