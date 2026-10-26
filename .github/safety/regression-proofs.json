@@ -120,6 +120,17 @@
         "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_without_a_log_refuses_writes_before_acknowledgement",
         "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_with_a_caller_file_log_retains_commits_on_reopen"
       ]
+    },
+    {
+      "repro": "Issue_3099_TimeoutAfterWalRestore",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
+      ]
     }
   ]
 }
