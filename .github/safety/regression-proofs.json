@@ -99,6 +99,17 @@
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
       ]
+    },
+    {
+      "repro": "Issue_3099_TimeoutAfterWalRestore",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
+      ]
     }
   ]
 }

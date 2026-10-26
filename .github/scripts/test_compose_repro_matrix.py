@@ -51,12 +51,12 @@ class ReproMatrixTests(unittest.TestCase):
         for tier in ("pr", "full"):
             with self.subTest(tier=tier):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
-                expected = {(repro["name"], label) for repro in active
+                expected = {(repro["name"], platform, label) for repro in active
                             for platform, labels in platforms.items()
                             if "any" in repro["supports"] or platform in repro["supports"]
                             for label in (labels[:1] if tier == "pr" else labels)}
                 self.assertEqual(len(expected), len(entries))
-                self.assertEqual(expected, {(entry["repro"], entry["os"]) for entry in entries})
+                self.assertEqual(expected, {(entry["repro"], entry["platform"], entry["os"]) for entry in entries})
                 # Every retired repro is reported as skipped, none silently dropped.
                 self.assertEqual(len(retired), len(skipped))
                 self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
