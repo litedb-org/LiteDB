@@ -61,7 +61,7 @@ internal sealed class SharedWorkerProcessDump
             if (!process.WaitForExit(Math.Max(1, _timeoutMilliseconds * 7 / 10)))
             {
                 report.AppendLine("Dump process timed out; requesting graceful ProcDump cancellation.");
-                Cancel(process, current.Id, elapsed, report);
+                Cancel(process, current.Id, dump, elapsed, report);
             }
             if (process.HasExited) report.AppendLine($"Dump exit code: {process.ExitCode}");
             else report.AppendLine("Dump process did not exit within the diagnostic process-wait budget.");
@@ -87,7 +87,7 @@ internal sealed class SharedWorkerProcessDump
         return report.ToString();
     }
 
-    private void Cancel(Process process, int targetPid, Stopwatch elapsed, StringBuilder report)
+    private void Cancel(Process process, int targetPid, string dump, Stopwatch elapsed, StringBuilder report)
     {
         var cleanupSlice = Math.Max(1, _timeoutMilliseconds / 10);
         try
@@ -95,15 +95,15 @@ internal sealed class SharedWorkerProcessDump
             // ProcDump's cancellation event resumes a capture target safely; do
             // not kill the testhost or treat evidence failure as a product crash.
             using var cancel = _start(StartInfo("-cancel " + targetPid, redirect: false));
-            if (cancel != null && !cancel.WaitForExit(Remaining(elapsed, cleanupSlice))) cancel.Kill();
+            if (cancel != null && !cancel.WaitForExit(Remaining(elapsed, cleanupSlice)))
+                ChildProcessTermination.Kill(cancel, Array.Empty<string>(), Remaining(elapsed, cleanupSlice));
         }
         catch (Exception ex) { report.AppendLine($"Graceful dump cancellation failed: {ex.GetType().Name}: {ex.Message}"); }
         try
         {
             if (!process.WaitForExit(Remaining(elapsed, cleanupSlice)))
             {
-                process.Kill();
-                process.WaitForExit(Remaining(elapsed, cleanupSlice));
+                ChildProcessTermination.Kill(process, new[] { dump }, Remaining(elapsed, cleanupSlice));
             }
         }
         catch (Exception ex) { report.AppendLine($"Dump process cleanup failed: {ex.GetType().Name}: {ex.Message}"); }

@@ -60,7 +60,7 @@ namespace LiteDB.Tests
 
             if (disposing)
             {
-                File.Delete(this.Filename);
+                WindowsFileRelease.Retry(() => File.Delete(this.Filename));
                 return;
             }
 

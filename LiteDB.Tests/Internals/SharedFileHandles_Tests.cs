@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -246,9 +247,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            try { Directory.Delete(_directory, true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }
