@@ -33,6 +33,7 @@ namespace LiteDB
                 this.CoordinationStage?.Invoke("opening");
 #endif
                 opened = this.CreateEngine(recoveredAbandonedOwner);
+                SharedOwnershipEvents.Core(this, opened, SharedOwnershipEvents.Opened);
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER
                 this.CoordinationStage?.Invoke("opened");
 #endif

@@ -300,6 +300,7 @@ namespace LiteDB.Engine
             // marking would journal the header into a caller's writable log.
             if (tc.InvalidDatafileState && !_settings.ReadOnlyStorage && !_settings.ReadOnly)
             {
+                Reachability.Sometimes("maintenance:invalid-datafile-state-close");
                 // Keep the data writer alive until the recovery marker is durable.
                 tc.Catch(() => _disk?.MarkAsInvalidState());
             }

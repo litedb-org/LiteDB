@@ -1,0 +1,826 @@
+{
+  "schemaVersion": 1,
+  "description": "Reachability markers (Reachability.Sometimes in LiteDB/ and LiteDB.Fuzz/). Every literal marker is registered here; fault-point markers are derived from fault-points.json. A marker is declared for a diff when its entry is new or changed, its paths change, or (fault points) its hook is added. check_reachability.py fails a PR whose smoke campaign never hits a declared marker unless its gate is advisory. targets lists fuzz targets (observed or intended) and xUnit tests (path#Method) that reach it; xUnit runs do not record markers yet.",
+  "kinds": {
+    "fault-point": "the site of a registered fault hook executed (derived)",
+    "maintenance": "close, rebuild, fatal error or checkpoint overlapping other work",
+    "refusal": "a documented refusal path rejected a request",
+    "api": "a public API member was driven (required for API members added or changed by a diff)",
+    "situation": "the situation a fuzz target exists to reach"
+  },
+  "faultPointGates": {
+    "before-candidate-republish": {
+      "gate": "advisory",
+      "reason": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not."
+    },
+    "before-source-retraction": {
+      "gate": "advisory",
+      "reason": "Rebuild rollback branch reached only when the original WAL cannot be restored; xUnit fault-combination tests reach it, the smoke campaign does not."
+    },
+    "SimulatePosixDelete": {
+      "gate": "advisory",
+      "reason": "Evaluated only when Shared mode caches file handles (Windows); the Linux smoke legs never reach it."
+    }
+  },
+  "markers": [
+    {
+      "name": "maintenance:checkpoint-during-active-readers",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/WalIndexService.Checkpoint.cs"
+      ],
+      "targets": [
+        "chaos",
+        "cursor-handoff",
+        "pressure",
+        "storage",
+        "LiteDB.Tests/Internals/MvccCheckpoint_Tests.cs#Backfill_PreservesUntouchedPagesAndOffsets_UntilReaderCloses"
+      ],
+      "doc": "docs/mvcc-checkpoint.md",
+      "reason": "A checkpoint proceeds while readers keep it from reclaiming the WAL: open transactions outlived its wait, pinned snapshots or Shared leases are live."
+    },
+    {
+      "name": "maintenance:checkpoint-reclaims-under-live-readers",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/WalIndexService.Checkpoint.cs"
+      ],
+      "targets": [
+        "cursor-handoff",
+        "pressure",
+        "storage",
+        "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#ObsoleteFramesBecomeReusable_WhileFloorFramesRemainUnchanged"
+      ],
+      "reason": "A checkpoint reclaims obsolete WAL frames while live readers pin older versions."
+    },
+    {
+      "name": "maintenance:close-during-active-transaction",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/TransactionMonitor.cs"
+      ],
+      "targets": [
+        "compact-power-loss",
+        "power-loss",
+        "rebuild",
+        "sort",
+        "storage",
+        "wal",
+        "LiteDB.Tests/Internals/TransactionCleanupBoundary_Tests.cs#MonitorDispose_WithOneDamagedTransaction_CleansAllOtherTransactions"
+      ],
+      "reason": "An engine (Direct, or a Shared core) closes while a transaction is still registered in its monitor; detected per transaction in TransactionMonitor.Dispose."
+    },
+    {
+      "name": "maintenance:close-during-foreign-transaction",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/TransactionMonitor.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/TransactionCleanup_Tests.cs#AbandonedTransaction_OnExitedThread_IsCleanedByExplicitEngineClose"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An engine closes while a transaction owned by another thread is still registered: close requested during another thread's active operation."
+    },
+    {
+      "name": "maintenance:commit-cut-off-by-stopped-engine",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Engine/Transaction.cs"
+      ],
+      "targets": [
+        "compact-power-loss",
+        "power-loss",
+        "wal",
+        "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Failed_commit_sync_is_reported_to_the_writer"
+      ],
+      "reason": "A completing commit failed after the engine had already been stopped by a fatal error or close on another path."
+    },
+    {
+      "name": "maintenance:fatal-during-commit",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Engine/Transaction.cs"
+      ],
+      "targets": [
+        "compact-power-loss",
+        "power-loss",
+        "wal",
+        "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Failed_commit_sync_is_reported_to_the_writer"
+      ],
+      "reason": "Commit (or releasing its transaction) threw while completing; the engine is stopped with that error as fatal (Transaction.CommitAndReleaseTransaction)."
+    },
+    {
+      "name": "maintenance:invalid-datafile-state-close",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/LiteEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/RecoveryMarker_Tests.cs#InvalidState_PersistsMarkerBeforeClosingDataWriter"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "The engine closes because of an INVALID_DATAFILE_STATE error and persists the recovery marker (LiteEngine.Close(Exception))."
+    },
+    {
+      "name": "maintenance:operation-refused-by-close",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/LockService.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Issues/Issue2965_Tests.cs#Operation_queued_behind_rebuild_fails_cleanly_and_can_be_retried"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An operation queued for transaction admission finds the admission gate disposed by Close or Rebuild and is refused with EngineDisposed."
+    },
+    {
+      "name": "maintenance:rebuild-waits-for-active-transactions",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/LockService.cs"
+      ],
+      "targets": [
+        "conflict",
+        "LiteDB.Tests/Issues/Issue2965_Tests.cs#Rebuild_waits_for_an_active_reader"
+      ],
+      "reason": "Rebuild requests exclusive access while transactions hold admission, so it waits for active operations (LockService.EnterExclusive, used only by Rebuild)."
+    },
+    {
+      "name": "maintenance:shared-dispose-during-active-call",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page"
+      ],
+      "doc": "docs/shared-mode-safety.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared Dispose finds another thread's admitted call still running and drains it (SharedEngine.WaitForAdmittedCalls)."
+    },
+    {
+      "name": "maintenance:shared-dispose-during-pin",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Testing.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Dispose_on_another_thread_ends_the_pin_without_throwing"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared Dispose ends a pin (a holder thread keeping the mutex for a thread iterating a leased reader)."
+    },
+    {
+      "name": "maintenance:shared-dispose-during-transaction",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Testing.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "reason": "Shared Dispose closes the connection's core while a legacy explicit transaction is still open."
+    },
+    {
+      "name": "maintenance:shared-dispose-ends-foreign-ownership",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedMutexOwner.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs#Dispose_on_another_thread_with_an_open_unleased_reader_releases_the_mutex"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared Dispose ends a mutex ownership held by another thread of the connection (an open reader, transaction or running scoped operation)."
+    },
+    {
+      "name": "maintenance:shared-dispose-with-leased-reader",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedReaderSlots.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedReadPath_Tests.cs#A_registry_disposed_under_a_live_reader_keeps_its_lease_until_the_reader_ends"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "The Shared reader registry is disposed while leased snapshot readers are still in use; their leases outlive the connection."
+    },
+    {
+      "name": "maintenance:shared-dispose-with-mutex-waiters",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Testing.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+      ],
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared Dispose starts while threads of the same connection wait for the writer mutex."
+    },
+    {
+      "name": "refusal:checkpoint-redo-damaged",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/CheckpointWalBinding_Tests.cs#WalDamageAfterDataCopyStarts_CannotExposeAPartialTransaction"
+      ],
+      "doc": "docs/header-publication.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Damage to the sealed checkpoint redo after data copying began fails the open without changing either source."
+    },
+    {
+      "name": "refusal:checkpoint-wal-verification-failed",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Services/WalIndexService.Validation.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/ChecksumCheckpointValidation_Tests.cs#CorruptCommittedWal_IsRejectedBeforeCheckpointChangesAnyData"
+      ],
+      "doc": "docs/header-publication.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A checksummed checkpoint verifies the complete WAL first; a duplicate confirmation, invalid tail or confirmation mismatch stops it."
+    },
+    {
+      "name": "refusal:checksum-coverage-marker-invalid",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/DataChecksumPolicy.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/LazyChecksumMarker_Tests.cs#CoverageMetadataFailsClosedEvenWithAValidHeaderCrc"
+      ],
+      "doc": "docs/rules/compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An unknown checksum coverage marker or legacy boundary in the header fails closed."
+    },
+    {
+      "name": "refusal:collation-mismatch",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/CollationValidation.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Issues/Issue2812CollationStamp_Tests.cs#Changed_sort_stamp_rejects_open_without_changing_data"
+      ],
+      "doc": "docs/collation-runtime-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A database whose index ordering/collation stamp differs from this runtime is rejected before trailing-page repair or any query/write."
+    },
+    {
+      "name": "refusal:compact-document-corrupt",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Storage/DocumentStorageCodec.cs"
+      ],
+      "targets": [
+        "compact-codec",
+        "LiteDB.Tests/Engine/CompactCodec_Tests.cs#Corrupt_schema_references_flags_counts_and_truncation_fail_with_context"
+      ],
+      "doc": "docs/compact-document-storage.md",
+      "reason": "A compact document that fails to decode throws CORRUPT_DOCUMENT with its collection, schema and address."
+    },
+    {
+      "name": "refusal:coordinator-outcome-unknown",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
+      ],
+      "targets": [],
+      "doc": "docs/experimental-coordinator.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "reason": "Experimental coordinator: a write whose reply was lost fails with \"outcome is unknown\" instead of being retried unsafely."
+    },
+    {
+      "name": "refusal:coordinator-transaction-aborted",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/Coordinator_Tests.cs#A_crashed_coordinator_is_replaced_and_acknowledged_writes_survive"
+      ],
+      "doc": "docs/experimental-coordinator.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Experimental coordinator: an explicit transaction open when its coordinator exited fails as aborted."
+    },
+    {
+      "name": "refusal:data-page-checksum-mismatch",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/DataChecksumPolicy.cs",
+        "LiteDB/Engine/Disk/PageChecksum.cs"
+      ],
+      "targets": [
+        "malformed-file",
+        "rebuild",
+        "LiteDB.Tests/Internals/PageChecksum_Tests.cs#CorruptDataPagesAreRejectedBeforeDeserialization"
+      ],
+      "doc": "docs/page-and-wal-checksums.md",
+      "reason": "A data page with a wrong format marker, CRC or page id raises CHECKSUM_MISMATCH before deserialization."
+    },
+    {
+      "name": "refusal:encrypted-wal-foreign-preamble",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/Streams/EncryptedLogPreamble.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/EncryptedWalCreation_Tests.cs#WrongPasswordAndForeignPreambles_FailWithoutChangingEitherSource"
+      ],
+      "doc": "docs/storage-stack-safety.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An encrypted WAL whose preamble is foreign or belongs to another password is refused, never reinitialized."
+    },
+    {
+      "name": "refusal:explicit-commit-foreign-thread",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/TransactionCompletionGuard.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Issues/Issue2822CompletionGuard_Tests.cs#Foreign_completion_neither_commits_nor_rolls_back_the_owner"
+      ],
+      "doc": "docs/explicit-transactions.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Direct engine: Commit on a thread without a transaction while another thread holds an explicit one throws instead of committing it."
+    },
+    {
+      "name": "refusal:index-migration-duplicate-key",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/IndexMigrationStaleKeys_Tests.cs#Unique_keys_that_collide_only_after_regeneration_reject_migration_without_changes"
+      ],
+      "doc": "docs/collation-runtime-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Unique keys that collide only after index regeneration reject the migration before promotion."
+    },
+    {
+      "name": "refusal:index-migration-invalid-key",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration.cs",
+        "LiteDB/Engine/Engine/IndexMigrationStaleKeys.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/IndexMigrationPreflight_Tests.cs#Invalid_regenerated_keys_are_rejected_before_promotion"
+      ],
+      "doc": "docs/storage-stack-safety.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Regenerated index keys that are invalid (min/max or too long) reject the migration before publication."
+    },
+    {
+      "name": "refusal:index-migration-limit-size",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigrationCapacity.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/IndexMigrationCapacity_Tests.cs#Tight_limit_rejects_before_promotion_and_explicit_limit_recovers_pending_files"
+      ],
+      "doc": "docs/collation-runtime-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An index migration that would exceed LIMIT_SIZE rejects the open without writing migration changes."
+    },
+    {
+      "name": "refusal:legacy-tail-after-publication",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "targets": [],
+      "doc": "docs/header-publication.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "reason": "A legacy WAL tail found after v10 header publication is rejected."
+    },
+    {
+      "name": "refusal:legacy-tail-unrecognized",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.LegacyTail.cs",
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/InterruptedConversionLegacyTail_Tests.cs#LegacyCommitsAfterATornConversionRecord_AreRefusedWithoutChangingFiles"
+      ],
+      "doc": "docs/header-publication.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A WAL tail longer than one torn conversion write, or not recognized, fails with PageChecksumException."
+    },
+    {
+      "name": "refusal:mapper-root-not-document",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Mapper/BsonMapper.Serialize.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Mapper/Mapper_Tests.cs#ToDocument_RejectsNonDocumentRootsWithTypeContext"
+      ],
+      "doc": "docs/mapper-error-diagnostics.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "ToDocument throws MAPPING_ERROR when a root entity serializes as an array, scalar or null."
+    },
+    {
+      "name": "refusal:reader-upgrade-to-exclusive",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Services/TransactionGate.cs"
+      ],
+      "targets": [
+        "transaction-gate"
+      ],
+      "doc": "docs/issue-2991-reader-ownership.md",
+      "reason": "A thread that holds a reader lease cannot upgrade to exclusive mode (LockRecursionException)."
+    },
+    {
+      "name": "refusal:readonly-open-needs-index-migration",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/LegacyIndexScan_Tests.cs#Read_only_legacy_open_fails_without_the_switch_and_names_it"
+      ],
+      "doc": "docs/collation-runtime-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A read-only open of a database whose indexes need migration fails with instructions to open it writable once."
+    },
+    {
+      "name": "refusal:rebuild-incomplete-marker",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Services/RebuildRecovery.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase"
+      ],
+      "doc": "docs/rebuild-recovery.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "While a rebuild recovery marker exists, every open (including read-only) throws REBUILD_INCOMPLETE."
+    },
+    {
+      "name": "refusal:reject-invalid-local-time",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Engine/InvalidLocalTime.cs"
+      ],
+      "targets": [
+        "api-boundary",
+        "LiteDB.Tests/Issues/Issue2357InvalidTime_Tests.cs#On_rejects_a_gap_time_at_top_level_nested_and_as_id"
+      ],
+      "doc": "docs/connection-string-parsing.md",
+      "reason": "With invalid-local-time rejection enabled, storing a local time inside a DST gap throws ArgumentException."
+    },
+    {
+      "name": "refusal:retirement-sequence-not-reached",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/WalRecovery.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/MvccRetirementCorruption_Tests.cs#DamagedOrCrcValidMalformedProofs_FailClosedWithoutChangingSources"
+      ],
+      "doc": "docs/mvcc-retirement-format.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Recovery that cannot reach the header root's minimum retirement sequence fails instead of losing an older commit."
+    },
+    {
+      "name": "refusal:shared-abandoned-transaction",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs#Transaction_owner_that_exits_lets_other_connections_write_and_is_reported"
+      ],
+      "doc": "docs/explicit-transactions.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "The next operation after an explicit transaction owner thread exited rejects the abandoned transaction."
+    },
+    {
+      "name": "refusal:shared-call-after-dispose",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+      ],
+      "doc": "docs/shared-teardown-callbacks.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A Shared call that reaches admission after Dispose started is refused with ObjectDisposedException."
+    },
+    {
+      "name": "refusal:shared-commit-foreign-thread",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Pinned_transaction_rejects_completion_from_another_thread"
+      ],
+      "doc": "docs/explicit-transactions.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared: completing an explicit transaction from a thread other than its owner throws while the owner is alive."
+    },
+    {
+      "name": "refusal:shared-file-locking-disabled",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationPolicy.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedCoordinationPolicy_Tests.cs#Unix_file_locking_switch_refuses_participation_before_creating_files"
+      ],
+      "doc": "docs/shared-mapped-operations.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared readers refuse to run when .NET file locking is disabled on Unix."
+    },
+    {
+      "name": "refusal:shared-peer-waits-for-own-ownership",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused"
+      ],
+      "doc": "docs/shared-mode-safety.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A second connection to the same database that would wait for ownership its caller already retains on this thread is refused."
+    },
+    {
+      "name": "refusal:shared-rebuild-with-open-readers",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/MvccSharedLifecycle_Tests.cs#RebuildRejectsLiveReadersAndSucceedsAfterTheyClose"
+      ],
+      "doc": "docs/shared-mode-safety.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Shared Rebuild refuses while shared readers are open."
+    },
+    {
+      "name": "refusal:shared-teardown-reentry",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership"
+      ],
+      "doc": "docs/shared-teardown-callbacks.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A public call or Dispose that reenters a Shared connection from inside its executing core teardown is refused."
+    },
+    {
+      "name": "refusal:shared-teardown-reentry-after-dispose",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership"
+      ],
+      "doc": "docs/shared-teardown-callbacks.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "Reentry from a teardown callback of an already-disposed Shared connection keeps the ObjectDisposedException refusal."
+    },
+    {
+      "name": "refusal:unsupported-file-version",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Utils/LiteException.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/Issue2881_VectorFormat_Tests.cs#Unknown_file_version_reports_a_dedicated_error_without_changing_the_file"
+      ],
+      "doc": "docs/page-and-wal-checksums.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "An unknown (future) file format version is rejected with UNSUPPORTED_FILE_VERSION."
+    },
+    {
+      "name": "refusal:vector-near-mismatch",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Query/Issue2881_VectorComposition_Tests.cs#Unsupported_api_combinations_fail_before_changing_the_query"
+      ],
+      "doc": "docs/vector-query-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "WhereNear and TopKNear on different vector expressions or targets throw InvalidOperationException."
+    },
+    {
+      "name": "refusal:vector-score-aggregate",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Query/VectorSearchResult_Tests.cs#WithScore_ValidatesQueryAndArguments"
+      ],
+      "doc": "docs/vector-search-scores.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "WithScore on grouped or aggregate results is rejected: they have no single document score."
+    },
+    {
+      "name": "refusal:vector-score-without-search",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Query/VectorSearchResult_Tests.cs#WithScore_ValidatesQueryAndArguments"
+      ],
+      "doc": "docs/vector-search-scores.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "WithScore without WhereNear or TopKNear is rejected."
+    },
+    {
+      "name": "refusal:vector-wherenear-repeated",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Query/Issue2881_VectorComposition_Tests.cs#Unsupported_api_combinations_fail_before_changing_the_query"
+      ],
+      "doc": "docs/vector-query-compatibility.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "reason": "A second WhereNear on one query throws InvalidOperationException."
+    },
+    {
+      "name": "refusal:wal-append-during-header-publication",
+      "kind": "refusal",
+      "paths": [
+        "LiteDB/Engine/Disk/Streams/ChecksummedWalStream.cs"
+      ],
+      "targets": [],
+      "doc": "docs/header-publication.md",
+      "gate": "advisory",
+      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "reason": "Appending transaction pages while a header publication footer is active is forbidden."
+    },
+    {
+      "name": "situation:chaos-explicit-rollback",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "An explicit transaction with three upserts is rolled back; its effects must stay invisible to the model check and the next reopen."
+    },
+    {
+      "name": "situation:chaos-long-reader-overlaps-writer",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "A reader pinned before a concurrent writer committed finishes on its original snapshot."
+    },
+    {
+      "name": "situation:chaos-reopen-with-acknowledged-rows",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ChaosFuzzer.cs"
+      ],
+      "targets": [
+        "chaos"
+      ],
+      "reason": "The database is closed and reopened while acknowledged rows exist, so ClosedClean and Durable judge a non-empty state."
+    },
+    {
+      "name": "situation:concurrent-checkpoint-under-cursor",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs"
+      ],
+      "targets": [
+        "concurrent"
+      ],
+      "reason": "A checkpoint on another thread overlaps a long cursor and completes once the cursor drains."
+    },
+    {
+      "name": "situation:concurrent-same-document-commits",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs"
+      ],
+      "targets": [
+        "concurrent"
+      ],
+      "reason": "Four threads each commit an explicit transaction on the same document in one round."
+    },
+    {
+      "name": "situation:conflict-rebuild-races-acknowledged-writer",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConflictFuzzer.cs"
+      ],
+      "targets": [
+        "conflict"
+      ],
+      "reason": "A rebuild races a writer released by the same barrier and the writer is acknowledged, so the reopen must show its row."
+    },
+    {
+      "name": "situation:conflict-same-id-uploads",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/ConflictFuzzer.cs"
+      ],
+      "targets": [
+        "conflict"
+      ],
+      "reason": "Two uploads to the same file id race a schema change and an update; the stored file must be one complete payload."
+    },
+    {
+      "name": "situation:cursor-handoff-checkpoint-overlaps-last-cursor",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs"
+      ],
+      "targets": [
+        "cursor-handoff"
+      ],
+      "reason": "A checkpoint is held at its index-lock stage while the last pinned cursor is drained or disposed on a foreign thread."
+    },
+    {
+      "name": "situation:cursor-handoff-foreign-disposal-keeps-transaction",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs"
+      ],
+      "targets": [
+        "cursor-handoff"
+      ],
+      "reason": "A thread with its own explicit transaction drains or disposes a cursor opened by a retired thread and still rolls back its own transaction."
+    },
+    {
+      "name": "situation:integrity-mutant-rejected",
+      "kind": "situation",
+      "paths": [
+        "LiteDB.Fuzz/Targets/IntegrityFuzzer.cs"
+      ],
+      "targets": [
+        "integrity"
+      ],
+      "reason": "The raw integrity oracle rejected a deliberately corrupted copy of a valid database."
+    }
+  ]
+}
