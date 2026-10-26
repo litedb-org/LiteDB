@@ -76,10 +76,16 @@ namespace LiteDB
         private void AddMutexWaiter()
         {
             lock (_waitersLock) _mutexWaiters++;
+#if DEBUG || TESTING
+            LiteDB.Utils.WaitGraph.Acquired(_graphMutexWaiters, site: "SharedEngine.AddMutexWaiter");
+#endif
         }
 
         private void RemoveMutexWaiter()
         {
+#if DEBUG || TESTING
+            LiteDB.Utils.WaitGraph.Released(_graphMutexWaiters);
+#endif
             lock (_waitersLock)
             {
                 if (--_mutexWaiters == 0) Monitor.PulseAll(_waitersLock);
@@ -91,6 +97,9 @@ namespace LiteDB
         {
             lock (_waitersLock)
             {
+#if DEBUG || TESTING
+                using (LiteDB.Utils.WaitGraph.Wait(_graphMutexWaiters, LiteDB.Utils.WaitBound.Unbounded, "SharedEngine.WaitForMutexWaiters", this))
+#endif
                 while (_mutexWaiters > 0) Monitor.Wait(_waitersLock);
             }
         }

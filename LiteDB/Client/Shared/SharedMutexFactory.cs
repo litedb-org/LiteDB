@@ -13,6 +13,16 @@ namespace LiteDB
 
         public static Mutex Create(string name)
         {
+#if DEBUG || TESTING
+            // Every Mutex instance of one name is the same process-wide wait-for graph resource.
+            var mutex = CreateCore(name);
+            LiteDB.Utils.WaitGraph.Bind(mutex, LiteDB.Utils.WaitGraph.Named("named-mutex", name, LiteDB.Utils.WaitPrimitive.NamedMutex));
+            return mutex;
+        }
+
+        private static Mutex CreateCore(string name)
+        {
+#endif
             var fullName = MutexPrefix + name + MutexSuffix;
 
             if (!IsWindows())

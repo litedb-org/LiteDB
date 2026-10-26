@@ -426,6 +426,9 @@ namespace LiteDB
 
         public void Dispose()
         {
+#if DEBUG || TESTING
+            using (LiteDB.Utils.WaitGraph.Executing(this))
+#endif
             Dispose(true);
             GC.SuppressFinalize(this);
         }
@@ -464,6 +467,9 @@ namespace LiteDB
             this.WaitForAdmittedCalls();
             var closed = false;
             // The ownership an open engine implies ends only after ReleaseAll below.
+#if DEBUG || TESTING
+            using (LiteDB.Utils.WaitGraph.Executing(this, claimsAll: true))
+#endif
             using (this.OwnershipFrame(() => _owner.IsHeld))
             lock (_useLock)
             {

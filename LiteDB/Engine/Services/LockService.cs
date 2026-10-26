@@ -91,6 +91,9 @@ namespace LiteDB.Engine
 
             // get collection lock from dictionary (or create new if it does not exist)
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
+#if DEBUG || TESTING
+            if (collection.Graph.Label == null) collection.Graph.Label = collectionName;
+#endif
 
             var timeout = _getTimeout();
             if (collection.TryEnter(timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
