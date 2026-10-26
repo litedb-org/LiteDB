@@ -274,6 +274,7 @@ namespace LiteDB
                     var generation = _owner.Generation;
                     var locked = snapshot;
                     lock (_useLock) _mutexSnapshots.Add(locked);
+                    SharedOwnershipEvents.Core(this, locked, SharedOwnershipEvents.Opened);
                     snapshot = null;
                     reader = null;
                     release = false;

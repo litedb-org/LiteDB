@@ -16,7 +16,10 @@ dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
 ```
 
 Every run writes `run.json`, `summary.md`, `trace.jsonl`, `input.bin`,
-`input-offsets.jsonl`, and `replay.json`.
+`input-offsets.jsonl`, `replay.json` and `markers.json`; targets that apply the
+invariant oracles also write `outcomes.jsonl`, `connection-clean.jsonl`,
+`quiescent.jsonl` and `faults.jsonl` (see
+[Invariant oracles](#invariant-oracles) and [Reachability markers](#reachability-markers)).
 
 Successful duration-bound epochs are compacted as soon as their isolated process
 exits, not at campaign end: their novelty and coverage are merged into the retained
@@ -88,6 +91,67 @@ beside that run, and retains a seed only when it adds a previously unseen engine
 range. `coverage-signatures.txt` and `coverage-corpus.jsonl` persist that feedback;
 using the same artifact root automatically replays the retained coverage corpus.
 
+## Invariant oracles
+
+`FuzzOracles` (probe logic in `LiteDB.Tests/Safety`, shared with xUnit) adds
+invariants every target should apply after its operations and closes. Each violation
+is a `FuzzFailureException` with a stable id, so replay, minimization and finding
+classification work as for any other failure. None of them consumes fuzz randomness
+or writes `trace.jsonl`, so pinned corpus hashes do not change.
+
+| Oracle | Invariant | Failure id |
+| --- | --- | --- |
+| `context.Deadline(op, call, dimension, declared)` | the call, run inline on the caller's thread, completes or throws within the deadline its scenario declares (default for lock-bound operations: max(3 x TIMEOUT, 15 s); bulk, rebuild and callback operations declare their own; always kept 5 s below `--hang-timeout`). No other activity refreshes it. A harness bound, not an API guarantee | `DEADLINE_<TARGET>_<OP>` |
+| `context.ConnectionClean(connection)` | after each dispose: what that connection owned (cores, pins, mutex ownership, admitted calls, its owner thread) is released; leased readers may carry their lease | `CONNECTION_CLEAN_<TARGET>_<KIND>` |
+| `context.Quiescent(path)` | only at scenario end, after every participant stopped: no `LiteDB *` thread after the owner thread's idle limit plus two polls, no handle to the file or its companions, the Shared mutex and turnstile free, no live reader lease, no `-tmp` scratch | `QUIESCENT_<TARGET>_<KIND>` |
+| `context.ScratchLive(path, point)` | while a reader whose sort spilled is live, its scratch file exists | `SCRATCH_LIVE_<TARGET>` |
+| `context.Ownership(db, point)` | a Shared core that requires writer exclusion and is active or still tearing down keeps the writer mutex; releasing the mutex implies that core's teardown completed (also latched at every release once `context.Oracles.WatchOwnership()` runs) | `OWNERSHIP_<TARGET>_<KIND>` |
+| `context.Durable(ledger, reopened, point)` | acknowledged effects survive close and cold reopen; known-aborted effects stay absent | `DURABLE_<TARGET>_<KIND>` |
+| `context.FaultReached(fault, injected, required)` | an injected fault the scenario requires actually fired | `FAULT_NOT_REACHED_<TARGET>_<FAULT>` |
+| `context.FaultDisposed(op, injected, declared, thrown, ...)` | the call disposed of a fired fault as its path declares: propagated, returned as a failure list, recorded as a cleanup error, retried, suppressed preserving the primary error, or discarded (upstream `Dispose` discards) | `FAULT_DISPOSED_<TARGET>_<OP>_<OBSERVED>` |
+
+`Deadline` writes one `outcomes.jsonl` line per call (`op`, `dimension`, `outcome`
+`ok|threw|refused|hang`, exception type, LiteDB error code, elapsed ms; `refused`
+means a documented refusal marker fired on that thread). An operation that never
+returns makes a watchdog write `deadline-failure.json` (every in-flight operation on
+every thread and, when the repository's `dotnet-dump` tool is restored, managed
+stacks), record the run through the ordinary failure path and exit the child with
+code 3; minimization accepts only the same `DEADLINE_*` id. `ConnectionClean`,
+`Quiescent` and the fault oracles write `connection-clean.jsonl`, `quiescent.jsonl`
+and `faults.jsonl`. Thread names and open handles are read from `/proc` on Linux;
+Windows checks handles with an exclusive open, and checks a platform cannot perform
+are listed under `gaps`. Injected faults use one of two models: *fail inside* (the
+action runs, then throws) or *skip* (the throw replaces the action). A target that
+cannot apply an oracle (for example Ownership in a Direct-mode target) says why in a
+remark. `oracle-selftest` and `LiteDB.Fuzz.Tests` feed each oracle a deliberately
+broken state; the `oracle-deadline-selftest` target (selectable only by name) stalls
+one actor while another keeps progressing.
+
+## Reachability markers
+
+A marker is a TESTING-only `Reachability.Sometimes("<family>:<name>")` that counts how
+often a situation occurred: `fault-point` (derived for every registered fault hook
+site), `maintenance` (close, rebuild, fatal error or checkpoint overlapping other
+work), `refusal` (a documented refusal path), `api` (a public member driven by a
+target) and `situation` (what a target exists to reach). Each run writes the counts to
+`markers.json`, and [`.github/safety/markers.json`](../.github/safety/markers.json)
+registers every marker with the files whose change declares it, the targets or tests
+that reach it, and its gate.
+
+```bash
+python .github/scripts/check_reachability.py                       # registry vs code
+python .github/scripts/check_reachability.py --base origin/dev \
+  --runs artifacts_temp/fuzz --output artifacts_temp/reachability.json
+```
+
+The second form lists every marker with its hit count and the never-hit ones, and
+fails when a marker declared by the diff (a changed registry entry or path, an added
+fault point, or an added/changed public API member, which needs an `api:` marker) was
+never hit. The Fuzz workflow runs it on all smoke legs' `markers.json` files; the
+always-run Oracle smoke job of the build-and-test workflow runs the oracle self-tests
+and the wired targets at a small count, so the required Safety evidence check sees
+oracle evidence even when the path-filtered Fuzz workflow does not run.
+
 ## Targets
 
 | Target | Oracle / invariant |
@@ -132,7 +196,7 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `storage-failure` | throwing user streams, typed IDs, open-reader overwrite, and random seeks |
 | `pressure` | observed cache eviction under tiny auto-checkpoints and pinned readers |
 | `malformed-file` | grammar-aware header/page/WAL corruption and truncation contracts |
-| `oracle-selftest` | controlled bad states that every core invariant family must reject |
+| `oracle-selftest` | controlled bad states that every core invariant family and the quiescence, durability and fault-disposition oracles must reject |
 | `compact-crash` | torn v11/v12 promotion, schema/document WAL commits and checkpoints, full payload/index recovery |
 | `compact-codec` | generated schemas/values/projections plus structural compact-payload mutations |
 | `compact-storage` | Auto/Legacy promotion, mixed CRUD, transactions, reopen, rebuild, encryption, and raw integrity |

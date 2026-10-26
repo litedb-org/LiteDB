@@ -263,15 +263,10 @@ namespace LiteDB.Engine
                     // invoke all header callbacks (new/drop collections)
                     _transPages.OnCommit(_header);
 
-                    // clone header page
-                    var buffer = _header.UpdateBuffer();
-                    var clone = _disk.NewPage();
-
-                    // mem copy from current header to new header clone
-                    Buffer.BlockCopy(buffer.Array, buffer.Offset, clone.Array, clone.Offset, clone.Count);
-
-                    // persist header in log file
-                    yield return clone;
+                    foreach (var page in _header.Allocations.CommitHeader(_header, _transPages, this.TransactionID, _disk))
+                    {
+                        yield return page;
+                    }
                 }
             };
 
@@ -354,6 +349,7 @@ namespace LiteDB.Engine
                 _disk.TestCrashPoint("wal-after-index-confirmation");
 #endif
             }
+            _header.Allocations.Complete(_transPages);
         }
 
         /// <summary>

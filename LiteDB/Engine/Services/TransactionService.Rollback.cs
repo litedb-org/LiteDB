@@ -90,13 +90,10 @@ namespace LiteDB.Engine
                     _header.FreeEmptyPageList = _transPages.NewPages[0];
                     _header.IsConfirmed = true;
 
-                    // clone header buffer
-                    var buf = _header.UpdateBuffer();
-                    var clone = _disk.NewPage();
-
-                    Buffer.BlockCopy(buf.Array, buf.Offset, clone.Array, clone.Offset, clone.Count);
-
-                    yield return clone;
+                    foreach (var page in _header.Allocations.CommitHeader(_header, _transPages, transactionPages.TransactionID, _disk))
+                    {
+                        yield return page;
+                    }
                 };
 
                 // create a header save point before any change
@@ -120,6 +117,7 @@ namespace LiteDB.Engine
 
                 // now confirm this transaction to wal
                 _walIndex.ConfirmTransaction(transactionPages.TransactionID, pagePositions.Values);
+                _header.Allocations.Complete(_transPages);
             }
         }
     }

@@ -26,6 +26,105 @@
       ]
     },
     {
+      "repro": "Issue_3027_SharedMutexNameLength",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+      ]
+    },
+    {
+      "repro": "Issue_3071_SharedPeerCallback",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Caught_refusal_lets_the_outer_write_complete",
+        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Leased_reader_callback_may_write_through_peer",
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
+        "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
+      ]
+    },
+    {
+      "repro": "SharedSelfTeardownRelease",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+      ]
+    },
+    {
+      "repro": "Issue_3092_ReadSnapshotReusedPage",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      ]
+    },
+    {
+      "repro": "Issue_3094_SharedRetryWriterRelease",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_after_duplicate_key_releases_writer_ownership",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Repeated_retries_return_each_obsolete_hold_exactly_once",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_preserves_old_ownership_until_retry_or_rollback",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_retains_same_connection_recursion_and_peer_callback_guard",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Child_process_can_write_after_retry_commit"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyDroppedIndex",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+      ]
+    },
+    {
+      "repro": "Issue_3099_TimeoutAfterWalRestore",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.322"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Contended_locks_use_the_current_timeout",
+        "LiteDB.Tests/Engine/TimeoutAfterWalRestore_Tests.cs#Setter_and_checkpoint_reopen_keep_using_the_live_pragmas"
+      ]
+    },
+    {
+      "repro": "Issue_3082_AllocationPublication",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/AllocationPublication_Tests.cs#Abandoned_allocations_leave_a_complete_reusable_page_graph",
+        "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph",
+        "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph",
+        "LiteDB.Tests/Engine/AllocationConcurrent_Tests.cs#Multiple_owners_commit_rollback_and_checkpoint_out_of_allocation_order"
+      ]
+    },
+    {
       "repro": "Issue_3027_DumpInTransaction",
       "knownBad": {
         "kind": "package",
@@ -59,55 +158,6 @@
       "permanentGuard": [
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
-      ]
-    },
-    {
-      "repro": "Issue_3071_SharedPeerCallback",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.319"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
-        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Caught_refusal_lets_the_outer_write_complete",
-        "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
-        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
-        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Leased_reader_callback_may_write_through_peer",
-        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Idle_pin_ends_for_a_later_peer_write_on_its_thread",
-        "LiteDB.Tests/Engine/SharedPeerCloseCallback_Tests.cs#Peer_write_from_stream_callback_during_close_is_refused"
-      ]
-    },
-    {
-      "repro": "SharedSelfTeardownRelease",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.319"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
-        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
-        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
-      ]
-    },
-    {
-      "repro": "Issue_3027_SharedMutexNameLength",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.319"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
-      ]
-    },
-    {
-      "repro": "Issue_3092_ReadSnapshotReusedPage",
-      "knownBad": {
-        "kind": "package",
-        "version": "6.0.0-prerelease.322"
-      },
-      "permanentGuard": [
-        "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
       ]
     }
   ]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -83,7 +84,11 @@ namespace LiteDB.Engine
             lock (_sync)
             {
                 ThrowIfDisposed();
-                if (_readers.ContainsKey(thread)) throw new LockRecursionException("Cannot enter exclusive mode inside a transaction.");
+                if (_readers.ContainsKey(thread))
+                {
+                    Reachability.Sometimes("refusal:reader-upgrade-to-exclusive");
+                    throw new LockRecursionException("Cannot enter exclusive mode inside a transaction.");
+                }
                 _waitingWriters++;
                 try
                 {

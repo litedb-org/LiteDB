@@ -36,6 +36,27 @@
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
     },
     {
+      "id": "safety-m1-reachability-gate",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every smoke leg still runs its targets with unchanged seeds, counts, timeouts and artifact uploads.",
+      "reason": "Adds an upload of each smoke leg's markers.json files (warn when none) and a 10-minute Reachability gate job that judges them after all legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m1-oracle-smoke",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
+      "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
+    },
+    {
       "id": "3027-migration-recovery-harness",
       "kind": "harness-changed",
       "subjects": [
@@ -71,6 +92,26 @@
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_rejects_a_file_whose_chunks_overrun_the_declared_length",
         "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected"
       ]
+    },
+    {
+      "id": "3060-preserve-vector-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released dropped-index and prerelease vector fixtures remain pinned and hash-verified alongside the S01 corpus scaffold.",
+      "reason": "S01 has an empty fixture map at revision 88b857f6; preserve the two S05 entries and their unchanged hashes at e059a85e1cbd641e4a682882a70b1c84906d393f. No fixture is removed or repinned."
+    },
+    {
+      "id": "3060-preserve-corpus-producer",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-release-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
+      "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
     }
   ]
 }

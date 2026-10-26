@@ -116,6 +116,7 @@ that normal tests cover the relevant behavior and failure paths.
 | `Issue_2561_TransactionMonitor` | Full tier | Still marked `red`: verifies a known-bug reproduction, not a passing fixed-bug guard. |
 | `Issue_3027_DumpInTransaction` | Disabled | Regression proof of PR #3027 against `6.0.0-prerelease.319`, run by the Regression proof workflow; `DumpPinnedWalSlot_Tests` is the permanent guard. |
 | `Issue_3027_TornWalAppend`, `Issue_3027_FailedSafepointWrite` | Disabled | Regression proofs of PR #3027's WAL write failure containment against `6.0.0-prerelease.319`; `TornWalAppend_Tests`, `TornSlotRewrite_Tests` and `FailedSafepointWrite_Tests` are the permanent guard. `Issue_3027_TornWalAppend` accepts the terminal engine stop as the fixed behavior. |
+| `Issue_3027_LegacyDroppedIndex` | Disabled | Regression proof of PR #3027 against `6.0.0-prerelease.319`: a collection whose index 5.0.21 dropped was not writable after migration. `LegacyDroppedIndex_Tests` is the permanent guard; its fixture comes from LiteDB-Artifacts. |
 
 The disk replacement tests exercise constructor cleanup through deterministic I/O
 fault injection on real files, without changing the test process's resource limits.

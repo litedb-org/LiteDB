@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -22,6 +23,7 @@ namespace LiteDB.Engine
                 candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
                 candidate.OwnerThread != Thread.CurrentThread))
             {
+                Reachability.Sometimes("refusal:explicit-commit-foreign-thread");
                 throw new LiteException(0, "No transaction belongs to this thread, but an explicit transaction is open on another thread. " +
                     "BeginTrans, writes, Commit and Rollback must run synchronously on the same thread; do not await inside the transaction.");
             }
