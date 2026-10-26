@@ -78,15 +78,15 @@ namespace LiteDB.Tests.Engine
                     log.Torn.Should().BeTrue();
                     log.TruncationFailed.Should().BeTrue("the torn frame must remain in the WAL");
                     var writes = log.Writes;
-                    var dataAtFailure = File.ReadAllBytes(file.Filename);
-                    var logAtFailure = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
+                    var dataAtFailure = ReadPhysical(file.Filename);
+                    var logAtFailure = ReadPhysical(FileHelper.GetLogFile(file.Filename));
                     File.WriteAllBytes(crash.Filename, dataAtFailure);
                     File.WriteAllBytes(FileHelper.GetLogFile(crash.Filename), logAtFailure);
                     Action later = () => db.UserVersion = 3082;
                     later.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure.*");
                     log.Writes.Should().Be(writes, "later publication must stop before writing");
-                    File.ReadAllBytes(file.Filename).Should().Equal(dataAtFailure);
-                    File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(logAtFailure);
+                    ReadPhysical(file.Filename).Should().Equal(dataAtFailure);
+                    ReadPhysical(FileHelper.GetLogFile(file.Filename)).Should().Equal(logAtFailure);
                 }
                 finally
                 {
@@ -153,7 +153,7 @@ namespace LiteDB.Tests.Engine
                     foreignWrites.Should().BeGreaterThan(0,
                         "automatic rollback must publish other active owners' reservations too");
                     engine.SimulateDiskWriteFail = null;
-                    db.Commit().Should().BeFalse("the failed transaction has rolled back");
+                    engine.GetMonitor().GetThreadTransaction().Should().BeNull("the failed transaction has rolled back");
                     // Publish now performs a successful later commit with the foreign owner still idle.
                 });
             }
@@ -166,6 +166,14 @@ namespace LiteDB.Tests.Engine
                 AllocationFileGraph.Verify(file.Filename, password);
             }
             AllocationReachability.Verify(file.Filename, password);
+        }
+
+        private static byte[] ReadPhysical(string filename)
+        {
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var bytes = new MemoryStream();
+            stream.CopyTo(bytes);
+            return bytes.ToArray();
         }
 
         private sealed class TornLog : FileStream
