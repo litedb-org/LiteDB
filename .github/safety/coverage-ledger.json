@@ -143,6 +143,26 @@
       "invariant": "Explicit transactions that only read must commit or roll back without modifying caller data, including a partial page tail; write APIs must not acknowledge volatile-only changes.",
       "reason": "Changes the existing no-match DeleteMany assertion from successful no-op to IOException when no caller log is supplied, matching the intentional refusal of all write operations before acknowledgement. Retains indexed reads, byte preservation, commit and rollback assertions and executes them for both partial-tail cases; adds eight loss/refusal regressions and two caller-file-log retention controls. No test is removed or skipped.",
       "decision": "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
+    },
+    {
+      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
+      "reason": "Current dev contains the two reviewed S05 fixtures from squash-merged #3060. Add the four S06 WAL fixtures while retaining all six entries and unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no fixture bytes or expectations are removed or repinned."
+    },
+    {
+      "id": "3058-production-compatibility-and-harness-guards",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
+      "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
     }
   ]
 }

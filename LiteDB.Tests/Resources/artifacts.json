@@ -12,6 +12,22 @@
     "Vectors_6_0_0_prerelease_114.zip": {
       "path": "compatibility/fixtures/Vectors_6_0_0_prerelease_114.zip",
       "sha256": "419ac1e867e8af98354f826137fa4dd7ee31df81ff5017b71f15600db745ffa1"
+    },
+    "ConcurrentWalCrash_5_0_21.zip": {
+      "path": "compatibility/fixtures/ConcurrentWalCrash_5_0_21.zip",
+      "sha256": "d47ec8e861374618066f9467bcc5979ad38ff9ea782ee8d81279f3e95c4cd131"
+    },
+    "EncryptedWalCrash_5_0_21.zip": {
+      "path": "compatibility/fixtures/EncryptedWalCrash_5_0_21.zip",
+      "sha256": "bdc7ce05c9098a98bc6b1e7b2fcf001bfa5da8d2961f2ec71170871a851bae92"
+    },
+    "ForeignWal_5_0_21.zip": {
+      "path": "compatibility/fixtures/ForeignWal_5_0_21.zip",
+      "sha256": "5fccf47b7fba0b1ab3d1682fc698de1657f72f77ec6d08240c7442232876cdfc"
+    },
+    "WalCrash_5_0_21.zip": {
+      "path": "compatibility/fixtures/WalCrash_5_0_21.zip",
+      "sha256": "3ecc257b66fd94112f39f3b275d7e182c18ecb2e5ebeaa3361fafa682243679a"
     }
   }
 }

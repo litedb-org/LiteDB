@@ -122,7 +122,8 @@
       },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
-        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable",
+        "scripts/test-5021-regression-compatibility.py"
       ]
     },
     {
@@ -158,6 +159,35 @@
         "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph",
         "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph",
         "LiteDB.Tests/Engine/AllocationConcurrent_Tests.cs#Multiple_owners_commit_rollback_and_checkpoint_out_of_allocation_order"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyWalConversion",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
+        "scripts/test-5021-regression-compatibility.py",
+        "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Non_writable_legacy_pair_preserves_commits_and_refuses_new_writes"
+      ]
+    },
+    {
+      "repro": "Issue_3027_ForeignLegacyWal",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
+        "scripts/test-5021-regression-compatibility.py",
+        "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
     }
   ]

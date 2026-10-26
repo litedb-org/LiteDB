@@ -1,0 +1,33 @@
+{
+  "id": "Issue_3027_ForeignLegacyWal",
+  "title": "The 5.0.21 log of another database beside a 5.0.21 data file is replayed into it, replacing its collections",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "legacy-5.0.21",
+    "wal",
+    "rlimit",
+    "platform:linux"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the open replayed the 5.0.21 log of another database into this data file (40960 to 14196736 bytes, log deleted): collections [big,fresh], 0 documents"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the open beside the 5.0.21 log of another database failed with INVALID_DATABASE and changed neither file; beside its own WAL the data file opened with every commit (101 documents, 21 with value 7)"
+    }
+  }
+}

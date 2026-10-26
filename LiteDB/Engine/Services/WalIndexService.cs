@@ -229,6 +229,12 @@ namespace LiteDB.Engine
             var recovery = new WalRecovery();
             var pages = _disk.ReadFull(FileOrigin.Log);
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
+            var legacyLimit = _disk.ChecksumsEnabled ? uint.MaxValue : this.LegacyPageLimit(header);
+            // Legacy transactions holding a page that is not a page of this format, by transaction ID.
+            var legacyInvalid = _disk.ChecksumsEnabled ? null : new Dictionary<uint, uint>();
+            // A 5.x header keeps the creation time it was created with: a committed header with
+            // another one is another database's.
+            var legacyCreation = legacyInvalid == null ? 0L : header.Buffer.ReadInt64(HeaderPage.P_CREATION_TIME);
             foreach (var buffer in pages)
             {
                 var current = buffer.Position;
@@ -245,6 +251,7 @@ namespace LiteDB.Engine
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
                 _disk.RecordLogTransactionID(transactionID);
+                if (legacyInvalid != null && !IsLegacyPage(buffer, pageID)) legacyInvalid[transactionID] = pageID;
 
                 var position = new PagePosition(pageID, current);
 
@@ -258,6 +265,20 @@ namespace LiteDB.Engine
                     // Their witnesses still confirm the surviving frames at the same
                     // stable physical version as before reclamation.
                     var version = checked((int)(current / PAGE_SIZE + 1));
+                    if (legacyInvalid != null)
+                    {
+                        if (legacyInvalid.TryGetValue(transactionID, out var invalid)) throw LegacyPageInvalid(invalid);
+                        // A 5.x commit that allocated pages confirms with its header, whose LastPageID
+                        // counts every ID handed out so far, also to transactions still open whose
+                        // pages never reached the WAL (concurrent writers).
+                        if (pageID == 0)
+                        {
+                            if (buffer.ReadInt64(HeaderPage.P_CREATION_TIME) != legacyCreation) throw LegacyForeignLog();
+                            legacyLimit = Math.Max(legacyLimit, buffer.ReadUInt32(HeaderPage.P_LAST_PAGE_ID));
+                        }
+                        foreach (var entry in list)
+                            if (entry.PageID > legacyLimit) throw LegacyPageOutOfRange(entry.PageID, legacyLimit);
+                    }
                     _confirmTransactions.Add(transactionID);
                     _currentReadVersion = version;
                     if (!buffer.WalFrame.Retired) _confirmationPositions[version] = current;
@@ -294,6 +315,43 @@ namespace LiteDB.Engine
             }
         }
 
+
+        /// <summary>
+        /// Legacy WAL pages carry no checksum: a torn or foreign page can name any page ID, and the
+        /// drain would write it that far into the data file. A committed page is an existing page,
+        /// one a transaction in this WAL allocated (each of which the WAL holds), or one below the
+        /// LastPageID of a committed header in the WAL (raised while reading it).
+        /// </summary>
+        private uint LegacyPageLimit(HeaderPage header)
+        {
+            var dataPages = _disk.GetFileLength(FileOrigin.Data) / PAGE_SIZE;
+            var logPages = _disk.GetFileLength(FileOrigin.Log) / PAGE_SIZE;
+            return (uint)Math.Min(uint.MaxValue, Math.Max(header.LastPageID, dataPages - 1) + logPages);
+        }
+
+        /// <summary>Page 0 is the header and only the header: any other combination, or an unknown type, is not a page.</summary>
+        private static bool IsLegacyPage(PageBuffer buffer, uint pageID)
+        {
+            var type = buffer.ReadByte(BasePage.P_PAGE_TYPE);
+            return type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
+        }
+
+        private static LiteException LegacyPageInvalid(uint pageID) => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file commits a page (ID {0}) that is not a valid page of its type, so " +
+            "the log is damaged or belongs to another data file. Replaying it would overwrite the data file with it. " +
+            "Nothing was changed; move the log file aside to open the database without its uncheckpointed transactions.", pageID);
+
+        private static LiteException LegacyForeignLog() => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file commits the header of another database (created at another " +
+            "time), so the log belongs to another data file. Replaying it would overwrite the data file with that " +
+            "database's pages. Nothing was changed; move the log file aside to open the database without its " +
+            "uncheckpointed transactions.");
+
+        private static LiteException LegacyPageOutOfRange(uint pageID, uint limit) => new LiteException(LiteException.INVALID_DATABASE,
+            "Cannot open this database: its log file holds a committed page (ID {0}) beyond any page the data and log " +
+            "files can hold (up to {1}), so the log is damaged or belongs to another data file. Replaying it would write " +
+            "that page far past the end of the data file. Nothing was changed; move the log file aside to open the " +
+            "database without its uncheckpointed transactions.", pageID, limit);
 
         private static void CopyConfirmedHeader(ref HeaderPage header, PageBuffer buffer)
         {
