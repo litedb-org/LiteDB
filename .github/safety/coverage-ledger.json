@@ -159,17 +159,6 @@
       ]
     },
     {
-      "id": "3061-legacy-wal-stop-interactions",
-      "kind": "test-added",
-      "subjects": [
-        "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs",
-        "LiteDB.Tests/Regressions/LegacyWalTornTail_Tests.cs"
-      ],
-      "disposition": "strengthened",
-      "invariant": "Legacy WAL rebase and checksum conversion retain acknowledged data and stop before any later WAL acknowledgement when a legacy rewrite or drain flush fails.",
-      "reason": "Adds interaction coverage at the S06/S08 boundary: a failed legacy rebase flush stops the writer and rejects a follow-up append while read-only recovery retains the data file, and a failed conversion-drain WAL flush leaves the header legacy and allows a repeat conversion to recover all WAL-only commits. Both cases use real stream-backed files and existing CheckpointStage fault injection; no new fault point or test is removed."
-    },
-    {
       "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
       "kind": "fixture-changed",
       "subjects": [

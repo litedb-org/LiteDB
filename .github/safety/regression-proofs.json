@@ -122,7 +122,8 @@
       },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
-        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable",
+        "scripts/test-5021-regression-compatibility.py"
       ]
     },
     {
