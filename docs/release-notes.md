@@ -272,6 +272,33 @@ transaction's own WAL slots no longer fails the next safepoint or commit (which 
 the engine and mark the data file invalid): the new version is appended and the pinned slot
 stays readable.
 
+## Caller streams: stored settings and non-writable streams
+
+`new LiteDatabase(stream)` without a log stream keeps its WAL in memory, so every
+commit is checkpointed into the caller's stream. This is now an engine setting of
+the open only: the stored `CHECKPOINT` pragma is no longer rewritten to 1 by the
+constructor and restored by `Dispose` (a file opened by name afterwards keeps its own
+checkpoint size, also when the stream-based instance was never disposed). `Dispose`
+can be called twice, and disposing with an open explicit transaction rolls it back
+and releases the engine's use of the caller-owned stream without disposing it.
+
+A caller's data or log stream that cannot be written (`LiteDatabase(Stream)` or
+`EngineSettings` streams, e.g. a `FileStream` opened with `FileAccess.Read`) opens as
+before while opening changes nothing. When opening would have to change a stream
+(recovery, header-journal repair, trimming a partial page, index migration or
+checksum conversion, e.g. any 5.0.21 file) it opens read-only with `legacy index
+scan` instead, as 5.0.21 read such streams: explicit transactions still work, write
+operations are rejected. Such storage is never checkpointed, promoted to compact
+storage, marked for rebuild or rebuilt (`Checkpoint()` and `Rebuild()` return 0, as
+in 5.x; a checkpoint of a non-empty caller log throws `NotSupportedException`), and
+the caller's `EngineSettings` instance is not modified. A non-writable data stream
+without a caller-supplied log stream rejects writes with `IOException` before they
+are acknowledged, including when opening needs no changes. Explicit transactions
+that only read remain available. For writable sessions over non-writable data,
+supply a writable log stream and retain it alongside the data: commits stay in that
+log and reopening requires both streams. Durability promises for other
+custom streams are unchanged (#3044).
+
 ## Legacy collection pages and vector metadata
 
 A collection from which a released 5.x engine (5.0.21) dropped an index stays writable after

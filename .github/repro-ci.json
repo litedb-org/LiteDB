@@ -14,17 +14,21 @@
       "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
     ]
   },
-  "Issue_3027_SharedMutexNameLength": {
-    "reason": "Regression proof of #3051 slice S02 (Regression proof workflow); shared-mode mutex names beyond the Unix limit are covered by the normal test suite.",
+  "Issue_3027_StreamDatabaseDispose": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); the stored CHECKPOINT pragma and Dispose of stream-based databases are covered by the normal test suite.",
     "tests": [
-      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
-      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Second_dispose_does_not_throw",
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Dispose_with_an_open_transaction_rolls_back_and_releases_the_file",
+      "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Opening_through_a_stream_does_not_persistently_change_the_checkpoint_pragma"
     ]
   },
-  "Issue_3092_ReadSnapshotReusedPage": {
-    "reason": "Fixed read-snapshot page reuse is covered by the reused-page tests, plain and encrypted; the regression proof runs the historical comparison.",
+  "Issue_3027_LegacyReadOnlyStream": {
+    "reason": "Regression proof of PR #3027 (Regression proof workflow); 5.0.21 files on non-writable streams are covered by the normal test suite.",
     "tests": [
-      "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_can_be_queried",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_accepts_transactions_and_rejects_writes",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Crash_images_over_non_writable_streams_open_without_any_change",
+      "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_current_database_keeps_transactions_that_change_nothing"
     ]
   },
   "Issue_3071_SharedPeerCallback": {
@@ -43,6 +47,19 @@
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+    ]
+  },
+  "Issue_3027_SharedMutexNameLength": {
+    "reason": "Regression proof of #3051 slice S02 (Regression proof workflow); shared-mode mutex names beyond the Unix limit are covered by the normal test suite.",
+    "tests": [
+      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+      "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+    ]
+  },
+  "Issue_3092_ReadSnapshotReusedPage": {
+    "reason": "Fixed read-snapshot page reuse is covered by the reused-page tests, plain and encrypted; the regression proof runs the historical comparison.",
+    "tests": [
+      "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page"
     ]
   },
   "Issue_3027_LegacyDroppedIndex": {
@@ -74,6 +91,13 @@
     "tests": [
       "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
       "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
+    ]
+  },
+  "Issue_3059_ReadOnlyStorageNoLog": {
+    "reason": "The Regression proof workflow compares the historical package; ordinary tests cover refusal before acknowledgement and retained caller-log commits on reopen.",
+    "tests": [
+      "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_without_a_log_refuses_writes_before_acknowledgement",
+      "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_with_a_caller_file_log_retains_commits_on_reopen"
     ]
   }
 }
