@@ -218,6 +218,7 @@ namespace LiteDB.Engine
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
             var overwrite = false;
+            var prepared = false;
             // A buffering stream may still hold (and tear) a frame this batch wrote before this one.
             var earlierHeld = uncertain;
             PageBuffer readable = null;
@@ -225,6 +226,10 @@ namespace LiteDB.Engine
             try
             {
                 ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
+                // Length, allocation's sync probe and seek can themselves perform I/O.
+                // Keep any failure terminal until all preparation has returned, even if a
+                // caller stream reports it with a non-I/O exception.
+                uncertain = true;
                 previousStreamLength = stream.Length;
                 var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
@@ -256,6 +261,8 @@ namespace LiteDB.Engine
                 this.RecordLogTransactionID(page.ReadUInt32(BasePage.P_TRANSACTION_ID));
                 page.Origin = FileOrigin.Log;
                 stream.Position = page.Position;
+                prepared = true;
+                uncertain = earlierHeld;
 
 #if DEBUG || TESTING
                 Reachability.FaultPoint("SimulateDiskWriteFail");
@@ -299,7 +306,7 @@ namespace LiteDB.Engine
                             _logFactory.TrimCapacity(stream);
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
                             // nor an earlier frame of this batch that a buffering stream still held.
-                            if (!overwrite && !earlierHeld) uncertain = false;
+                            if (prepared && !overwrite && !earlierHeld) uncertain = false;
                         }
                         catch (Exception cleanup)
                         {

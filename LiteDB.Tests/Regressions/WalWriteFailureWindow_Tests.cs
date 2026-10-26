@@ -22,10 +22,13 @@ namespace LiteDB.Tests.Regressions
         [InlineData("batch-flush", true)]
         [InlineData("batch-flush", false)]
         [InlineData("length", true)]
+        [InlineData("length", false)]
         [InlineData("sync-probe", true)]
+        [InlineData("sync-probe", false)]
         [InlineData("padding", true)]
         [InlineData("padding", false)]
         [InlineData("seek", true)]
+        [InlineData("seek", false)]
         [InlineData("confirmation-hook", false)]
         [InlineData("confirmation-callback", false)]
         public void Failure_publishes_stop_before_a_queued_writer_can_confirm(string boundary, bool ioFailure)
