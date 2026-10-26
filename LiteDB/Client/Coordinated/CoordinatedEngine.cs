@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using LiteDB.Client.Coordinated;
 using LiteDB.Vector;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -152,6 +153,7 @@ namespace LiteDB.Engine
                 if (_transaction.Value != 0 && _transaction.Value != generation)
                 {
                     _transaction.Value = 0;
+                    Reachability.Sometimes("refusal:coordinator-transaction-aborted");
                     throw new LiteException(0, "The coordinator exited; this thread's explicit transaction was aborted.");
                 }
                 if (host != null) return host.Run(local);
@@ -162,9 +164,11 @@ namespace LiteDB.Engine
                     if (_transaction.Value != 0)
                     {
                         _transaction.Value = 0;
+                        Reachability.Sometimes("refusal:coordinator-transaction-aborted");
                         throw new LiteException(0, "The coordinator exited; this thread's explicit transaction was aborted.");
                     }
                     if (retrySafe) continue;
+                    Reachability.Sometimes("refusal:coordinator-outcome-unknown");
                     throw new LiteException(0, "The coordinator exited during this operation; its outcome is unknown.");
                 }
             }

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using LiteDB.Utils;
 
 namespace LiteDB
 {
@@ -41,6 +42,7 @@ namespace LiteDB
         internal static void FlushToDisk(FileStream stream)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
             if (simulate != null)
             {
@@ -105,6 +107,7 @@ namespace LiteDB
         internal static void SyncDirectory(string directory)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint("SimulateDirectoryErrno");
             var simulate = SimulateDirectoryErrno;
             if (simulate != null)
             {

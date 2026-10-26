@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -127,6 +128,9 @@ namespace LiteDB.Engine
                 // starts with a full WAL validation.
                 if (reclaim) _backoff.Reset();
                 else if (!wait) return 0;
+#if DEBUG || TESTING
+                if (!reclaim) Reachability.Sometimes("maintenance:checkpoint-during-active-readers");
+#endif
                 this.ValidateCheckpoint();
 
                 var pages = new List<PagePosition>();
@@ -153,6 +157,7 @@ namespace LiteDB.Engine
 
                 if (obsolete.Count > 0)
                 {
+                    Reachability.Sometimes("maintenance:checkpoint-reclaims-under-live-readers");
                     _disk.ReclaimLogPages(obsolete);
                 }
 

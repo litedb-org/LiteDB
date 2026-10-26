@@ -224,6 +224,7 @@ namespace LiteDB.Client.Shared
             Exception error = null;
             try { _close(this, abandoned); }
             catch (Exception ex) { error = ex; }
+            SharedOwnershipEvents.Release(_mutex);
             try { _mutex.ReleaseMutex(); }
             catch (Exception ex) { error = error ?? ex; }
             _error = error;
