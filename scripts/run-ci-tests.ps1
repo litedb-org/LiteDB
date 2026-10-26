@@ -151,10 +151,10 @@ if ($VerifyPartitions) {
                 foreach ($alternative in ($clause -split '\|')) {
                     $alternative = $alternative.Trim('() ')
                     if ($alternative -like 'FullyQualifiedName!~*') {
-                        $clauseMatches = $clauseMatches -or !$name.Contains($alternative.Substring(20))
+                        $clauseMatches = $clauseMatches -or !$name.Contains($alternative.Substring(20), [StringComparison]::OrdinalIgnoreCase)
                     }
                     elseif ($alternative -like 'FullyQualifiedName~*') {
-                        $clauseMatches = $clauseMatches -or $name.Contains($alternative.Substring(19))
+                        $clauseMatches = $clauseMatches -or $name.Contains($alternative.Substring(19), [StringComparison]::OrdinalIgnoreCase)
                     }
                     else { throw "Unsupported partition clause: $alternative" }
                 }
