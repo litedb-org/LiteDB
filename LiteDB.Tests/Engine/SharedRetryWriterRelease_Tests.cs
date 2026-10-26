@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Safety;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -54,6 +55,7 @@ namespace LiteDB.Tests.Engine
         public void Repeated_retries_return_each_obsolete_hold_exactly_once(bool encrypted, bool pinned)
         {
             Seed(encrypted);
+            using var protection = new OwnershipMonitor();
             using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
@@ -67,6 +69,10 @@ namespace LiteDB.Tests.Engine
                 duplicate.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(110);
                 db.BeginTrans().Should().BeTrue();
                 Ownership(engine, pinned).Should().Be(1, "the aborted transaction's ownership is replaced, never accumulated");
+                // Returning a logical hold must not release the native mutex around the live core.
+                protection.LiveCores(engine).Should().BeGreaterThan(0);
+                protection.Evaluate(engine).Should().BeNull();
+                protection.TakeAll().Should().BeEmpty();
             }
             db.GetCollection("docs").Insert(Row(2000));
             db.Commit().Should().BeTrue();
@@ -80,6 +86,8 @@ namespace LiteDB.Tests.Engine
             });
             anchor?.Dispose();
             engine.Dispose();
+            protection.LiveCores(engine).Should().Be(0);
+            protection.TakeAll().Should().BeEmpty("native writer protection ends only after core teardown");
             Verify(encrypted, Enumerable.Range(1, 150).Concat(new[] { 2000, 2001 }).ToArray());
         }
 
