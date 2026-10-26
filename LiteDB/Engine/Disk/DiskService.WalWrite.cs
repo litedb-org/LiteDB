@@ -104,8 +104,13 @@ namespace LiteDB.Engine
                                     // Old frames may already be durable from a safepoint.
                                     // Make their new-ID tail anchor equally durable first.
                                     this.FlushLogToDisk(stream);
+                                    // RewriteLogTransactionIDs overwrites earlier WAL slots in place.
+                                    // Keep the batch uncertain until every overwrite has returned so a
+                                    // torn legacy transaction ID stops the engine before rollback appends.
+                                    uncertain = true;
                                     this.RewriteLogTransactionIDs(stream, previousPositions,
                                         transactionState.TransactionID, ref reusePublished);
+                                    if (!_logMayBuffer) uncertain = false;
                                 }
 
                                 first = false;
@@ -180,8 +185,17 @@ namespace LiteDB.Engine
             if (flushFailure != null)
             {
 #if DEBUG || TESTING
-                Reachability.FaultPoint("AfterFailedWalWrite");
-                _state.AfterFailedWalWrite?.Invoke();
+                try
+                {
+                    Reachability.FaultPoint("AfterFailedWalWrite");
+                    _state.AfterFailedWalWrite?.Invoke();
+                }
+                catch (Exception hookFailure)
+                {
+                    // Test observers/hooks are diagnostic only. They must never replace the
+                    // storage failure or skip the stop completion that releases transactions.
+                    LOG($"after-failed-WAL-write hook failed: {hookFailure.Message}", "ERROR");
+                }
 #endif
                 _state.CompleteStop(flushFailure, ownsFailure);
                 throw flushFailure;

@@ -67,6 +67,25 @@ namespace LiteDB.Tests.Regressions
         }
 
 #if DEBUG || TESTING
+        [Fact]
+        public void After_failed_wal_write_hook_cannot_replace_failure_or_skip_stop_completion()
+        {
+            using var data = new MemoryStream();
+            using var log = new FailingLogStream(() => throw new IOException("injected partial overwrite"));
+            var settings = new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 2 };
+
+            using var engine = new LiteEngine(settings);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            PrepareSafepointedTransaction(engine, db);
+            engine.SimulateAfterFailedWalWrite = () => throw new InvalidOperationException("diagnostic hook failed");
+            log.Armed = true;
+
+            Action failed = () => db.GetCollection("a").Update(new BsonDocument { ["_id"] = 1, ["value"] = 3 });
+            failed.Should().Throw<IOException>().WithMessage("injected partial overwrite");
+
+            AssertStopped(() => db.GetCollection("b").Insert(new BsonDocument { ["_id"] = 2 }));
+        }
+
         /// <summary>
         /// The IOException case: a commit that starts right after the failed rewrite released the WAL
         /// writer, before the engine's teardown, finds the engine stopped and throws the original
