@@ -12,7 +12,7 @@ namespace LiteDB.Engine
     internal partial class DiskService
     {
         // A caller log stream other than a MemoryStream may hold frames after their write returned
-        // (a BufferedStream) and write them on at a later write, seek, length query or flush, where it
+        // (a BufferedStream) and write them during a later write, seek, length query or flush, where it
         // can tear one; a reader's access hands such a failure to the writer (HeldWrites). LiteDB's
         // own files never hold a frame back: their buffer is smaller than one.
         private readonly bool _logMayBuffer;
@@ -103,11 +103,13 @@ namespace LiteDB.Engine
                                 {
                                     // Old frames may already be durable from a safepoint.
                                     // Make their new-ID tail anchor equally durable first.
+                                    uncertain = true;
+                                    this.CrashPoint("wal-rebase-before-anchor-flush");
                                     this.FlushLogToDisk(stream);
                                     // RewriteLogTransactionIDs overwrites earlier WAL slots in place.
                                     // Keep the batch uncertain until every overwrite has returned so a
                                     // torn legacy transaction ID stops the engine before rollback appends.
-                                    uncertain = true;
+                                    this.CrashPoint("wal-rebase-before-rewrite");
                                     this.RewriteLogTransactionIDs(stream, previousPositions,
                                         transactionState.TransactionID, ref reusePublished);
                                     if (!_logMayBuffer) uncertain = false;
@@ -134,8 +136,10 @@ namespace LiteDB.Engine
                         }
                     }
                 }
-                catch (Exception ex) when (uncertain)
+                catch (Exception ex) when (uncertain || hasConfirmation || ex is IOException)
                 {
+                    // An I/O error is terminal even between writes; publish it under this lock.
+                    // A confirmation can already be durable even if publication/iteration failed.
                     // A failed write can leave a torn frame: in the middle of the WAL (an overwrite of
                     // an existing slot), at its end when the truncation that removes a failed append
                     // failed too or had to keep a header journal, or anywhere in this batch when the
@@ -171,11 +175,13 @@ namespace LiteDB.Engine
                 {
                     try
                     {
+                        this.CrashPoint("wal-before-batch-flush");
                         stream.Flush();
                     }
-                    catch (Exception ex) when (uncertain)
+                    catch (Exception ex)
                     {
-                        // A buffering stream writes this batch's frames on now and can tear one.
+                        // Flush includes checksum padding/truncation, even for non-buffering files.
+                        // A failure leaves durability uncertain; stop under the writer lock.
                         flushFailure = ex as IOException ?? new IOException("WAL write flush failed.", ex);
                         ownsFailure = _state.BeginStop(flushFailure);
                     }
@@ -263,9 +269,9 @@ namespace LiteDB.Engine
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
-                if (!_logMayBuffer) uncertain = false;
-                this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
+                if (!_logMayBuffer) uncertain = isConfirmed;
                 hasConfirmation |= isConfirmed;
+                this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
 
                 // Publish only after the bytes are written to the stream.
                 // The callback can make the position visible to readers.

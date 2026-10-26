@@ -123,6 +123,8 @@ namespace LiteDB.Engine
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
+                // Admission may have passed before a failing WAL writer published its stop.
+                _disk.RequireNoWriteFailure();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;

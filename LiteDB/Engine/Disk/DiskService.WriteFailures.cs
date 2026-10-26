@@ -38,6 +38,10 @@ namespace LiteDB.Engine
         }
 
         /// <summary>See <see cref="EngineState.RequireNoWriteFailure"/>.</summary>
-        internal void RequireNoWriteFailure() => _state.RequireNoWriteFailure();
+        internal void RequireNoWriteFailure()
+        {
+            _state.ThrowIfStopped();
+            _state.RequireNoWriteFailure();
+        }
     }
 }

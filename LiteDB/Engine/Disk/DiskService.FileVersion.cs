@@ -42,6 +42,7 @@ namespace LiteDB.Engine
             var ownsFailure = false;
             lock (writer)
             {
+                _state.ThrowIfStopped();
                 var stream = _dataPool.Writer.Value;
                 lock (stream)
                 {
@@ -74,8 +75,10 @@ namespace LiteDB.Engine
                         _checksums.JournalBytes = 0;
                         FileVersion = version;
                     }
-                    catch (Exception ex) when (_checksums.JournalBytes != 0 && !checkpointStops)
+                    catch (Exception ex) when (!checkpointStops)
                     {
+                        // Journal writes can fail before JournalBytes is recorded. Even then no
+                        // later writer may append behind the partial footer.
                         // The journal is the only recovery copy of a header this write may have torn.
                         // Whatever the exception type, stop before releasing the writer: a rollback or
                         // another write must not append to (or truncate) the WAL behind it. The next

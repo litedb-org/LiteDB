@@ -247,9 +247,9 @@ torn frame and be lost at recovery. A commit already waiting for the writer now 
 engine stopped.
 
 A caller stream other than a `MemoryStream` may hold frames after their write returned (a
-`BufferedStream`, a `FileStream` with a large buffer) and write them on at its next write,
-seek, length query or flush, where a failure can tear one: a failure while it may still hold
-a frame of the batch stops the engine, until the batch's final flush succeeded. A reader's
+`BufferedStream`, a `FileStream` with a large buffer) and write them during its next write,
+seek, length query, or flush. If a failure occurs while the stream may still hold a frame
+from the batch and the batch's final flush has not succeeded, the engine stops permanently. A reader's
 access (a seek) first flushes what the stream holds for the writer, under the lock the
 wrappers share; any failure there fails the read as a write failure of that file and is
 handed to the writer, whose batch fails. Before, the reader's seek tore a frame the writer

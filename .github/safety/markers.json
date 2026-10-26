@@ -20,6 +20,18 @@
     "SimulatePosixDelete": {
       "gate": "advisory",
       "reason": "Evaluated only when Shared mode caches file handles (Windows); the Linux smoke legs never reach it."
+    },
+    "wal-rebase-before-anchor-flush": {
+      "gate": "advisory",
+      "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
+    },
+    "wal-rebase-before-rewrite": {
+      "gate": "advisory",
+      "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
+    },
+    "wal-before-batch-flush": {
+      "gate": "advisory",
+      "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
     }
   },
   "markers": [
