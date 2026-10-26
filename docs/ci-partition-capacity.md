@@ -54,6 +54,78 @@ all four runs, all six split-slice estimates stay below 121 seconds. Newly added
 regression tests leave the x86 remaining partition at a maximum 94.3 seconds of
 test-duration sum in the refreshed run (95.9 seconds measured wall span).
 
+## Measured allocation capacity blocker (round 2)
+
+Run [40367004916](https://github.com/litedb-org/LiteDB/actions/runs/40367004916)
+tested head `7f46f15835bdd6fe4dcf204b29319dcdd29d4e45` through merge candidate
+`f8b6017e3a51bbb5566e9e13200fa9a2abb9ddaa`. The new allocation session on
+[windows-latest x86 / .NET 8](https://github.com/litedb-org/LiteDB/actions/runs/40367004916/job/121729629845)
+passed 104/104 results but took **277.291 seconds**, leaving only **7.57%**
+headroom. This fails the requested minimum **40% headroom** (at most 180 seconds
+per session). The earlier regrouped estimates do not establish adequate capacity.
+
+Ranked individual results from artifact `test-results-test-windows-3` against the
+retained original `test-results-test-windows-0` TRX from
+[x64 / .NET 8 attempt 1](https://github.com/litedb-org/LiteDB/actions/runs/40367004916/job/121729629610):
+
+| Class | Cases | x86 duration sum (s) | x64 duration sum (s) |
+| --- | ---: | ---: | ---: |
+| AllocationWalFailure | 26 | 97.469 | 3.204 |
+| AllocationConcurrent | 4 | 53.839 | 0.771 |
+| AllocationPowerLoss | 6 | 47.277 | 4.651 |
+| AllocationOracle | 4 | 44.769 | 0.418 |
+| AllocationPublication | 38 | 22.068 | 8.108 |
+| AllocationProcess | 12 | 8.098 | 5.276 |
+| AllocationFailure + AllocationPublicationFailure | 12 | 1.986 | 1.409 |
+
+The two guards contribute another 0.007 / 0.003 seconds. Total test-duration
+sums are 275.512 / 23.839 seconds; session wall spans are 277.291 / 25.441
+seconds. The x64 job failed an unrelated engine-shared case, but this allocation
+session completed cleanly. Its replacement artifact from attempt 2 instead
+records 63.605 seconds wall time and 61.829 seconds of test durations; these
+attempts must not be confused. All other five x86 allocation sessions in this
+run take 26.063, 27.475, 32.950, 33.081 and 25.646 seconds.
+
+The largest individual x86 cases are encrypted power-loss/tail (25.677 seconds),
+plain and encrypted failed-safepoint rollback (24.125 / 18.042 seconds), and
+plain power-loss/hole (16.466 seconds). All four oracle cases take 9.162–13.930
+seconds, versus 0.094–0.117 seconds on the original x64 leg. All four concurrency
+cases take 13.054–13.800 seconds, versus 0.165–0.225 seconds. Across the **17
+cases exceeding three seconds**, the excess over x64 is **229.947 seconds**:
+17 × 13.526 seconds on average. They account for **91.37%** of the total
+251.673-second per-test excess. These 17 cases do not start child processes.
+
+The timing sequence matters: 19 torn-WAL cases first complete below two seconds
+each; the last five take 6.901–11.443 seconds. The next two safepoint, four
+oracle, four concurrency and first two power-loss cases are slow. The remaining
+four power-loss cases return to 0.479–2.436 seconds. The contiguous slow interval
+is approximately 17:26:41–17:30:35 UTC. This establishes a transient slowdown
+across several non-process test paths, but does **not** identify the blocked
+operation or justify attributing it to runner variance, disk latency, GC or x86.
+
+The two proposed process-helper explanations do not account for the excess:
+
+- `AllocationProcess` takes 8.098 seconds for all 12 cases, only 2.822 seconds
+  above x64. Each case, including child start, barrier, kill, release wait and
+  repeated recovery, finishes in 0.567–1.122 seconds on the affected x86 leg.
+- `WindowsFileRelease.WaitForFiles` does not identify handle owners. Its caller,
+  `MvccProcess.ReleaseFiles`, excludes shared files when a parent/peer remains
+  open. AllocationProcess kills its child before the parent opens recovery.
+  `WaitForFiles` throws the first sharing violation at its deadline; it does not
+  silently continue after five seconds. A permanent parent-held lock would fail
+  the test. The slow non-process cases never call this helper. Their TempFile
+  disposal uses `Retry`, which also throws at its deadline for a persistent lock.
+
+The retained x86 worker-diagnostics artifact is an intentional dump smoke test
+at 17:42:53 UTC, after this interval, and supplies no stack evidence for it.
+Root cause remains unresolved. Capture timed file open/write/flush calls,
+sharing retries, runtime pauses and thread waits on the affected Windows leg,
+keeping the original system-temp volume and existing assertions. A green rerun
+or an estimated redistribution alone would not establish a root-cause fix.
+No helper or partition changes are justified by this diagnosis yet; merging
+remains blocked until the cause is addressed and fresh measured sessions meet
+the capacity gate. The 300-second policy remains unchanged.
+
 ## Coverage and accounting
 
 The existing rebuild, compact, and index engine slices retain their membership.
