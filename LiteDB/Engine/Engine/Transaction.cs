@@ -161,7 +161,6 @@ namespace LiteDB.Engine
             if (state.Stopped || state.WriteFailure != null) return;
 
             var checkpointPages = this.CheckpointPages;
-            var checkpointPages = this.CheckpointPages;
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
             if (checkpointPages > 0 &&
