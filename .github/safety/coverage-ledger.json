@@ -46,6 +46,17 @@
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
     },
     {
+      "id": "ci-framework-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        "docs/ci-partition-capacity.md"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every .NET Framework test remains in the complete xunit.console assembly run and has enough job time to finish and upload its evidence.",
+      "reason": "Retain the unfiltered net462/net481 assembly while raising the Windows Framework job limit from 20 to 35 minutes. Recent net481 evidence took 1,079 seconds and the current run reached 1,215 seconds before cancellation; 35 minutes leaves at least 42.1% headroom at that observed point. No test, filter, assertion or evidence partition is removed."
+    },
+    {
       "id": "3027-stream-checkpoint-pragma",
       "kind": "test-removed",
       "subjects": [

@@ -473,7 +473,10 @@ jobs:
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
     runs-on: windows-2022
-    timeout-minutes: 20
+    # The Framework runner still executes the complete assembly in one xunit
+    # console session. Keep its full coverage while allowing the measured
+    # Windows net481 duration and 40% capacity headroom (see the capacity doc).
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
