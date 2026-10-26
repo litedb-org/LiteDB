@@ -195,6 +195,35 @@
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#Transaction_whose_query_safepoint_failed_to_write_only_rolls_back",
         "LiteDB.Tests/Regressions/FailedSafepointWrite_Tests.cs#File_backed_transaction_whose_safepoint_write_was_refused_only_rolls_back"
       ]
+    },
+    {
+      "repro": "Issue_3027_LegacyWalConversion",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Blocked_conversion_changes_nothing_and_recovers_once_unblocked",
+        "LiteDB.Tests/Regressions/LegacyWalSharedMigration_Tests.cs#Shared_connection_with_an_unreadable_reader_registry_keeps_the_5_0_21_wal",
+        "scripts/test-5021-regression-compatibility.py",
+        "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Non_writable_legacy_pair_preserves_commits_and_refuses_new_writes"
+      ]
+    },
+    {
+      "repro": "Issue_3027_ForeignLegacyWal",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Log_of_another_database_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Header_of_another_database_does_not_raise_the_bound",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_beyond_both_files_fails_the_open",
+        "LiteDB.Tests/Regressions/LegacyWalPageBound_Tests.cs#Committed_legacy_page_that_is_not_a_page_fails_the_open",
+        "LiteDB.Tests/Regressions/ConvertedWalBesideLegacyHeader_Tests.cs#Legacy_header_beside_a_converted_wal_is_refused",
+        "scripts/test-5021-regression-compatibility.py",
+        "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
+      ]
     }
   ]
 }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -122,7 +123,7 @@ namespace LiteDB.Internals
             using (var checkpointer = new MvccProcess("crash-checkpoint", Filename, password, "data-page"))
             {
                 await checkpointer.Expect("ready");
-                await checkpointer.Kill();
+                await checkpointer.Kill(sharedFilesRemainOpen: true);
             }
             await MvccProcess.Run("checkpoint", Filename, password);
             await MvccProcess.Run("write", Filename, password, "2");
@@ -158,7 +159,7 @@ namespace LiteDB.Internals
             docs.Should().OnlyContain(doc => doc["value"].AsInt32 == value);
         }
 
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

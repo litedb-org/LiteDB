@@ -7,6 +7,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -73,7 +74,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+            if (Directory.Exists(_directory)) WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

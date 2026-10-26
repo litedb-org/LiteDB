@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -68,14 +69,14 @@ namespace LiteDB.Internals
             using (var checkpointer = new MvccProcess("crash-checkpoint", Filename, password, stage))
             {
                 await checkpointer.Expect("ready");
-                await checkpointer.Kill();
+                await checkpointer.Kill(sharedFilesRemainOpen: true);
             }
             await MvccProcess.Run("checkpoint", Filename, password);
             await MvccProcess.Run("write-cold", Filename, password, "21");
             using (var writer = new MvccProcess("uncommitted-cold", Filename, password))
             {
                 await writer.Expect("ready");
-                await writer.Kill();
+                await writer.Kill(sharedFilesRemainOpen: true);
             }
             await AssertLatest(password, 20);
             await MvccProcess.Run("read-cold", Filename, password, "21");
@@ -93,7 +94,7 @@ namespace LiteDB.Internals
             await reader.Finish();
         }
 
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

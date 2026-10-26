@@ -64,6 +64,50 @@ namespace LiteDB.Tests.Regressions
                 "recovery must retain the confirmed data file and ignore the unconfirmed torn transaction");
         }
 
+        [Fact]
+        public void Failed_flush_during_legacy_rebase_stops_before_followup_wal()
+        {
+            using var data = SeedLegacyData();
+            using var log = new FailingLegacyLog();
+            var settings = new EngineSettings { DataStream = data, LogStream = log };
+            var state = new EngineState(null, settings);
+            byte[] crashData;
+            byte[] crashLog;
+            using (var disk = new DiskService(settings, state, new[] { 2 }))
+            {
+                var old = new TransactionPages { TransactionID = 5 };
+                var positions = new Dictionary<uint, PagePosition>();
+                disk.WriteLogDisk(Pages(disk, 1, 5, confirmed: false), (id, position) =>
+                {
+                    positions[id] = new PagePosition(id, position);
+                }, old.DirtyPages);
+
+                var current = new TransactionPages { TransactionID = 1 };
+                current.DirtyPages[1] = positions[1];
+                log.FailFlush = true;
+                Action failed = () => disk.WriteLogDisk(Pages(disk, 1, 1, confirmed: true), null, current, () => 6);
+                failed.Should().Throw<IOException>().WithMessage("*flush*");
+                state.Stopped.Should().BeTrue("a failed flush after the legacy anchor leaves the WAL uncertain");
+
+                crashData = data.ToArray();
+                crashLog = log.ToArray();
+                var length = log.Length;
+                Action followup = () => disk.WriteLogDisk(Pages(disk, 2, 7, confirmed: false));
+                followup.Should().Throw<IOException>();
+                log.Length.Should().Be(length, "a stopped engine cannot append behind a failed rebase flush");
+            }
+
+            using var recoveredData = Copy(crashData);
+            using var recoveredLog = Copy(crashLog);
+            using var recovered = new LiteEngine(new EngineSettings
+            {
+                DataStream = recoveredData, LogStream = recoveredLog, ReadOnly = true, LegacyIndexScan = true
+            });
+            using var db = new LiteDatabase(recovered, disposeOnClose: false);
+            db.GetCollection("docs").FindById(1)["value"].AsInt32.Should().Be(7,
+                "recovery must retain the data file while ignoring the unconfirmed rebase anchor");
+        }
+
         private static MemoryStream SeedLegacyData()
         {
             var data = new MemoryStream();
@@ -99,6 +143,7 @@ namespace LiteDB.Tests.Regressions
         private sealed class FailingLegacyLog : MemoryStream
         {
             internal bool Armed;
+            internal bool FailFlush;
             internal int Overwrites;
             private int _writes;
 
@@ -115,6 +160,12 @@ namespace LiteDB.Tests.Regressions
                     throw new IOException("injected legacy ID rewrite");
                 }
                 base.Write(buffer, offset, count);
+            }
+
+            public override void Flush()
+            {
+                if (FailFlush) throw new IOException("injected legacy rebase flush failure");
+                base.Flush();
             }
         }
     }

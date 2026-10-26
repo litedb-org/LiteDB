@@ -157,6 +157,37 @@
         "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
         "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit"
       ]
+    },
+    {
+      "id": "3061-legacy-wal-stop-interactions",
+      "kind": "test-added",
+      "subjects": [
+        "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs",
+        "LiteDB.Tests/Regressions/LegacyWalTornTail_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL rebase and checksum conversion retain acknowledged data and stop before any later WAL acknowledgement when a legacy rewrite or drain flush fails.",
+      "reason": "Adds interaction coverage at the S06/S08 boundary: a failed legacy rebase flush stops the writer and rejects a follow-up append while read-only recovery retains the data file, and a failed conversion-drain WAL flush leaves the header legacy and allows a repeat conversion to recover all WAL-only commits. Both cases use real stream-backed files and existing CheckpointStage fault injection; no new fault point or test is removed."
+    },
+    {
+      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
+      "reason": "Current dev contains the two reviewed S05 fixtures from squash-merged #3060. Add the four S06 WAL fixtures while retaining all six entries and unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no fixture bytes or expectations are removed or repinned."
+    },
+    {
+      "id": "3058-production-compatibility-and-harness-guards",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
+      "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
     }
   ]
 }

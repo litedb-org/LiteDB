@@ -78,7 +78,7 @@ string StartChildProcess(HarnessOptions options, int waitMilliseconds, string la
 
     if (!process.WaitForExit(10000))
     {
-        process.Kill(entireProcessTree: true);
+        LiteDB.Tests.ChildProcessTermination.Kill(process, new[] { logPath }, 5000, entireProcessTree: true);
         throw new TimeoutException("Child process exceeded wait timeout.");
     }
 
@@ -88,7 +88,7 @@ string StartChildProcess(HarnessOptions options, int waitMilliseconds, string la
     {
         output.AppendLine("[child log]");
         output.Append(File.ReadAllText(logPath));
-        File.Delete(logPath);
+        LiteDB.Tests.WindowsFileRelease.Retry(() => File.Delete(logPath));
     }
     else
     {
