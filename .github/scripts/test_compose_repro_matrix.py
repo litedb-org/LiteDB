@@ -45,20 +45,24 @@ class ReproMatrixTests(unittest.TestCase):
                 for m in [json.loads(path.read_text())]]
 
     def test_fixed_repros_are_replaced_by_real_test_methods_in_both_tiers(self):
-        active = {"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication", "Issue_3099_TimeoutAfterWalRestore"}
-        platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
         retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
+        active = [repro for repro in self.inventory() if repro["name"] not in retired]
+        self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication",
+                          "Issue_3094_SharedRetryWriterRelease", "Issue_3099_TimeoutAfterWalRestore"},
+                         {repro["name"] for repro in active})
         for tier in ("pr", "full"):
             with self.subTest(tier=tier):
                 entries, skipped, _ = self.compose(self.inventory(), tier)
-                expected = {(repro, platform, label) for repro in active
+                expected = {(repro["name"], platform, label) for repro in active
                             for platform, labels in platforms.items()
+                            if "any" in repro["supports"] or platform in repro["supports"]
                             for label in (labels[:1] if tier == "pr" else labels)}
-                self.assertEqual(expected, {(e["repro"], e["platform"], e["os"]) for e in entries})
                 self.assertEqual(len(expected), len(entries))
+                self.assertEqual(expected, {(entry["repro"], entry["platform"], entry["os"]) for entry in entries})
                 # Every retired repro is reported as skipped, none silently dropped.
-                self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
                 self.assertEqual(len(retired), len(skipped))
+                self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
 
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)

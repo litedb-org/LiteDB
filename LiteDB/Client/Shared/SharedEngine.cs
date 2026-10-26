@@ -232,6 +232,9 @@ namespace LiteDB
                 var started = _engine.BeginTrans();
                 if (started)
                 {
+                    // A new inner transaction proves the old one aborted. Return its hold
+                    // while this call still protects the engine and the new transaction.
+                    if (_transactionRunning) CloseDatabase(_transactionUse, hold: true);
                     _transactionThreadId = Environment.CurrentManagedThreadId;
                     _transactionRunning = true;
                     // A pinned transaction keeps the pin until it completes.
