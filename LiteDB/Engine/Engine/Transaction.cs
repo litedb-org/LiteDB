@@ -18,7 +18,10 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
+            // Storage opened read-only because it cannot be written accepts explicit transactions,
+            // as released versions did; writes are still rejected.
+            if (_settings.ReadOnly && !_settings.ReadOnlyStorage)
+                throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -90,6 +93,11 @@ namespace LiteDB.Engine
 
             if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
 
+            // Without a caller log, changes would only reach the engine-owned volatile WAL:
+            // non-writable storage cannot checkpoint it before the engine releases it.
+            if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
+                throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
+
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
@@ -134,9 +142,11 @@ namespace LiteDB.Engine
                 throw;
             }
 
+            var checkpointPages = this.CheckpointPages;
+
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+            if (checkpointPages > 0 &&
+                _disk.GetFileLength(FileOrigin.Log) >= (checkpointPages * PAGE_SIZE))
             {
                 _walIndex.TryAutoCheckpoint();
             }

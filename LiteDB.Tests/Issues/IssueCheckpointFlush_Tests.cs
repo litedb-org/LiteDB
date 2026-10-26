@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void StreamConstructorRestoresCheckpointSizeAfterDisposal()
+        public void StreamConstructorNeverChangesThePersistedCheckpointSize()
         {
             using var tempFile = new TempFile();
 
@@ -69,7 +69,12 @@ namespace LiteDB.Tests.Issues
             using (var stream = new FileStream(tempFile.Filename, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
             using (var streamDb = new LiteDatabase(stream))
             {
-                streamDb.CheckpointSize.Should().Be(1);
+                // Each commit is checkpointed into the stream without rewriting the pragma.
+                streamDb.GetCollection<Entity>("entities").Insert(new Entity { Id = 7, Value = "streamed" });
+                streamDb.CheckpointSize.Should().Be(1000);
+                using var concurrent = new FileStream(tempFile.Filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var observer = new LiteDatabase(concurrent);
+                observer.GetCollection<Entity>("entities").FindById(7).Should().NotBeNull("the commit reached the caller's stream");
             }
 
             using (var reopened = new LiteDatabase(tempFile.Filename))

@@ -26,14 +26,28 @@
       ]
     },
     {
-      "repro": "Issue_3027_SharedMutexNameLength",
+      "repro": "Issue_3027_StreamDatabaseDispose",
       "knownBad": {
         "kind": "package",
         "version": "6.0.0-prerelease.319"
       },
       "permanentGuard": [
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
-        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Second_dispose_does_not_throw",
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Dispose_with_an_open_transaction_rolls_back_and_releases_the_file",
+        "LiteDB.Tests/Regressions/StreamDatabaseDispose_Tests.cs#Opening_through_a_stream_does_not_persistently_change_the_checkpoint_pragma"
+      ]
+    },
+    {
+      "repro": "Issue_3027_LegacyReadOnlyStream",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_can_be_queried",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_5_0_21_database_accepts_transactions_and_rejects_writes",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Crash_images_over_non_writable_streams_open_without_any_change",
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs#Read_only_stream_of_a_current_database_keeps_transactions_that_change_nothing"
       ]
     },
     {
@@ -62,6 +76,17 @@
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
         "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+      ]
+    },
+    {
+      "repro": "Issue_3027_SharedMutexNameLength",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Shared_connection_opens_a_database_in_a_directory_with_a_non_ascii_name",
+        "LiteDB.Tests/Regressions/SharedMutexNameLength_Tests.cs#Unix_names_are_hashed_only_beyond_the_runtime_limit"
       ]
     },
     {
@@ -98,6 +123,17 @@
       "permanentGuard": [
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
         "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
+      ]
+    },
+    {
+      "repro": "Issue_3059_ReadOnlyStorageNoLog",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_without_a_log_refuses_writes_before_acknowledgement",
+        "LiteDB.Tests/Regressions/ReadOnlyStorageNoLog_Tests.cs#Non_writable_data_with_a_caller_file_log_retains_commits_on_reopen"
       ]
     },
     {
