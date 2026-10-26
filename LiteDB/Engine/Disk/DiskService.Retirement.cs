@@ -17,7 +17,7 @@ namespace LiteDB.Engine
             if (!ChecksumsEnabled || positions.Count == 0) return null;
             // Old readers must reject the representation before any witnesses
             // enter the WAL. This header-only promotion uses the existing journal.
-            PromoteFileFormat(HeaderPage.MVCC_FILE_VERSION);
+            PromoteFileFormat(HeaderPage.MVCC_FILE_VERSION, checkpointStops: true);
             var wanted = new HashSet<long>(positions);
             var witnesses = new List<WalRetirement.Witness>();
             foreach (var page in ReadFull(FileOrigin.Log))

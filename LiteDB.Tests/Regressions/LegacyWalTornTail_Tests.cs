@@ -81,6 +81,35 @@ namespace LiteDB.Tests.Regressions
             Check(db).Should().Be((101, 21));
         }
 
+        [Fact]
+        public void Wal_flush_failure_during_legacy_drain_keeps_the_conversion_recoverable()
+        {
+            using var data = new MemoryStream(Entry("WalCrash_5_0_21.zip", "crash.db"));
+            using var log = new FlushFailingStream(Entry("WalCrash_5_0_21.zip", "crash-log.db"));
+            var settings = new EngineSettings { DataStream = data, LogStream = log };
+            settings.CheckpointStage = stage =>
+            {
+                if (stage == "before-commit-lock") log.FailFlush = true;
+            };
+
+            Action open = () => new LiteEngine(settings).Dispose();
+            open.Should().Throw<IOException>();
+            log.FailFlush = false;
+
+            // The failed drain must not publish the checksummed header. Reopening the retained
+            // legacy pair still replays every acknowledged WAL-only document and can retry conversion.
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().BeLessThan(HeaderPage.CHECKSUM_FILE_VERSION);
+            using var recoveredData = ChecksumTestFiles.Copy(data.ToArray());
+            using var recoveredLog = ChecksumTestFiles.Copy(log.ToArray());
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = recoveredData, LogStream = recoveredLog
+            })))
+            {
+                Check(db).Should().Be((101, 21));
+            }
+        }
+
         [Theory]
         [InlineData(100)]
         [InlineData(16)]
@@ -143,6 +172,23 @@ namespace LiteDB.Tests.Regressions
 
             public override void Write(byte[] buffer, int offset, int count) =>
                 throw new IOException("There is not enough space on the disk.");
+        }
+
+        private sealed class FlushFailingStream : MemoryStream
+        {
+            internal FlushFailingStream(byte[] bytes)
+            {
+                base.Write(bytes, 0, bytes.Length);
+                Position = 0;
+            }
+
+            internal bool FailFlush;
+
+            public override void Flush()
+            {
+                if (FailFlush) throw new IOException("injected legacy drain WAL flush failure");
+                base.Flush();
+            }
         }
     }
 }

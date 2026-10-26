@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_TornWalAppend",
+  "title": "Commits acknowledged behind a torn WAL frame are lost at recovery",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "torn-write",
+    "recovery"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: commits acknowledged behind a torn WAL frame were lost at recovery (torn append whose truncation failed: acknowledged [1-20, 200, 201], recovered [1-20]; frame a BufferedStream log tore later: acknowledged [1-20, 200, 201], recovered [1-20])"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: after a torn WAL frame (its truncation failed, or a BufferedStream log tore it later) the engine stopped and refused every later operation with the original failure"
+    }
+  }
+}

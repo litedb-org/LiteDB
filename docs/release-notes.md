@@ -256,6 +256,47 @@ and never falls back to a filename. Use `new ConnectionString { Filename = path 
 for arbitrary paths. See [the parsing compatibility notes](connection-string-parsing.md)
 for explicit syntax and integration requirements.
 
+## WAL write and transaction failure containment
+
+A WAL write that may have left a torn frame stops the engine before the WAL writer is
+released, whatever the exception type: a failed overwrite of a transaction's own slot, an
+append whose truncation failed (the original write failure is reported, not the cleanup's),
+an append while a header journal is outstanding (its cleanup never truncates the journal),
+and a checkpoint or file format promotion that fails while it holds the WAL writer. 5.0.21
+rolled back and continued after a non-I/O failure; a later commit could then land behind the
+torn frame and be lost at recovery. A commit already waiting for the writer now finds the
+engine stopped.
+
+A caller stream other than a `MemoryStream` may hold frames after their write returned (a
+`BufferedStream`, a `FileStream` with a large buffer) and write them during its next write,
+seek, length query, or flush. If a failure occurs while the stream may still hold a frame
+from the batch and the batch's final flush has not succeeded, the engine stops permanently. A reader's
+access (a seek) first flushes what the stream holds for the writer, under the lock the
+wrappers share; any failure there fails the read as a write failure of that file and is
+handed to the writer, whose batch fails. Before, the reader's seek tore a frame the writer
+never heard of. The engine still flushes a caller stream once per WAL batch and per sync, not
+per page. A caller stream must not replay a write that failed at another position.
+
+A successfully truncated unconfirmed append does not by itself make the WAL unusable;
+the original failure still propagates. I/O failures handled by commit or rollback still
+stop the engine under the normal operation-level policy.
+
+The stop is terminal. A failure that reaches the commit or rollback path is recorded (file,
+operation, error, time, whether the log file was kept) before the stop; a torn WAL append,
+checkpoint or promotion failure stops the engine without a record in this change (recording
+for those paths arrives with the durability protocol change). After the stop the engine
+performs no further write or sync on its handles, no close-time checkpoint runs, and every later call, reads included,
+throws `IOException("Engine closed after an I/O failure ...")` carrying the original failure
+as its inner exception. Dispose and reopen the database: recovery shows exactly the commits
+acknowledged before the failure.
+
+A transaction whose safepoint failed to write its pages can only roll back: later reads and
+writes in it throw "can only be rolled back", and `Commit` rolls it back and throws. A
+`$dump` or `$page_list` read inside an explicit transaction that pins one of the
+transaction's own WAL slots no longer fails the next safepoint or commit (which used to stop
+the engine and mark the data file invalid): the new version is appended and the pinned slot
+stays readable.
+
 ## Caller streams: stored settings and non-writable streams
 
 `new LiteDatabase(stream)` without a log stream keeps its WAL in memory, so every

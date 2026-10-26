@@ -145,6 +145,20 @@
       "decision": "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
     },
     {
+      "id": "3061-triage2-seek-cleanup",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests.Regressions.WalWriteFailureWindow_Tests.Failure_publishes_stop_before_a_queued_writer_can_confirm"
+      ],
+      "disposition": "replaced",
+      "invariant": "A queued writer must be refused when a failed seek leaves the WAL uncertain; a safely removed unconfirmed append may permit continued use, as documented in the PR summary and WAL failure-containment release notes.",
+      "reason": "The review-round-2 seek/IOException row incorrectly required terminal stop even after successful append truncation. Replace it with both exception types plus observed failed truncation, retaining every terminal-stop and queued-writer assertion. The expanded safe-seek control covers both original exception types, a queued acknowledged writer, a subsequent commit and two file-backed recovery opens. Existing Disk_Tests retain publication/reservation/length assertions and gain explicit non-stopped and zero-ownership checks.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit"
+      ]
+    },
+    {
       "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
       "kind": "fixture-changed",
       "subjects": [

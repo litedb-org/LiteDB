@@ -202,7 +202,7 @@ namespace LiteDB.Internals
                 Action commit = () => test.Database.Commit();
                 commit.Should().Throw<IOException>().WithMessage("injected confirmation failure");
                 test.Log.Length.Should().Be(length);
-                cache.WritablePages.Should().Be(0, "failed completion closes the engine and releases every frame");
+                cache.WritablePages.Should().Be(0, "failed completion stops the engine, whose teardown releases every frame");
                 cache.PinnedPages.Should().Be(0);
                 cache.LostFrames.Should().Be(0);
                 AssertValues(test.Recover("docs", checkpoint: false), 0);

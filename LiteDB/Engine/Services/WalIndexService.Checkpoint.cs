@@ -93,17 +93,21 @@ namespace LiteDB.Engine
         /// </summary>
         private int TryCheckpoint(bool rationed, bool drain = false)
         {
-            try { return TryCheckpointCore(rationed, drain); }
+            var stopBegun = false;
+            var stopOwned = false;
+            try { return TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned); }
             catch (Exception error)
             {
-                _disk.StopAfterCheckpointFailure(error);
+                _disk.StopAfterCheckpointFailure(error, stopBegun, stopOwned);
                 throw;
             }
         }
 
-        private int TryCheckpointCore(bool rationed, bool drain)
+        private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+            // No checkpoint writes or syncs through handles a recorded failure stopped.
+            _disk.RequireNoWriteFailure();
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
@@ -141,6 +145,8 @@ namespace LiteDB.Engine
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
+                // Admission may have passed before a failing WAL writer published its stop.
+                _disk.RequireNoWriteFailure();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
@@ -211,6 +217,12 @@ namespace LiteDB.Engine
                     _backfillVersion = 0;
                 }
                 return pages.Count;
+            }
+            catch (Exception error) when (writerEntered)
+            {
+                // Stop before the WAL writer is released (see DiskService.BeginCheckpointStop).
+                stopBegun = _disk.BeginCheckpointStop(error, out stopOwned);
+                throw;
             }
             finally
             {
