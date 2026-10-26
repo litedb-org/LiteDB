@@ -245,10 +245,6 @@ namespace LiteDB.Engine
             // retried on the handle that failed.
             if (checkpoint && !_settings.ReadOnly && !_state.Stopped && _state.WriteFailure == null &&
                 _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
-||||||| base
-            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
-=======
-            if (checkpoint && !_settings.ReadOnly && _header != null && this.CheckpointPages > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
