@@ -50,6 +50,7 @@ namespace LiteDB.Tests.Regressions
                 failureLength = log.Length;
                 queued = new Thread(() =>
                 {
+                    state.Validate();
                     attempted.Set();
                     try
                     {
@@ -62,12 +63,13 @@ namespace LiteDB.Tests.Regressions
                 attempted.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             };
             var teardownWindow = false;
+            var finishedBeforeTeardown = false;
             state.AfterFailedWalWrite = () =>
             {
                 teardownWindow = true;
                 failureLength = log.Length;
                 state.Stopped.Should().BeTrue("stop must precede writer release and teardown");
-                queued.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                finishedBeforeTeardown = queued.Join(TimeSpan.FromSeconds(10));
             };
             Action fail = () =>
             {
@@ -109,7 +111,8 @@ namespace LiteDB.Tests.Regressions
             hits.Should().Be(1, "the actual I/O fault must run (markers: {0})", string.Join(",", reached));
             failure.Should().BeOfType<IOException>();
             state.Stopped.Should().BeTrue();
-            teardownWindow.Should().BeTrue("the queued writer must finish before stop completion");
+            teardownWindow.Should().BeTrue();
+            finishedBeforeTeardown.Should().BeTrue("the queued writer must finish before stop completion");
             acknowledged.Should().BeFalse();
             queuedFailure.Should().BeOfType<IOException>().Which.Message.Should().StartWith("Engine closed");
             log.Length.Should().Be(failureLength, "no writer may append behind the failed batch");
@@ -140,6 +143,7 @@ namespace LiteDB.Tests.Regressions
                 hits++;
                 writer = new Thread(() =>
                 {
+                    state.Validate();
                     attempted.Set();
                     try { disk.WriteLogDisk(Pages(disk, data, 9, true)); }
                     catch (Exception ex) { refused = ex; }
@@ -180,6 +184,7 @@ namespace LiteDB.Tests.Regressions
             Exception refused = null;
             var worker = new Thread(() =>
             {
+                state.Validate();
                 attempted.Set();
                 try
                 {
