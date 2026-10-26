@@ -28,7 +28,6 @@ namespace LiteDB.Tests.Regressions
         [InlineData("padding", true)]
         [InlineData("padding", false)]
         [InlineData("seek", true)]
-        [InlineData("seek", false)]
         [InlineData("confirmation-hook", false)]
         [InlineData("confirmation-callback", false)]
         public void Failure_publishes_stop_before_a_queued_writer_can_confirm(string boundary, bool ioFailure)
@@ -124,6 +123,26 @@ namespace LiteDB.Tests.Regressions
             later.Should().Throw<IOException>();
             log.ToArray().Should().Equal(image);
             AssertFileRecovery(data.ToArray(), image);
+        }
+
+        [Fact]
+        public void Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit()
+        {
+            using var data = Seed(false);
+            using var log = new FaultLog();
+            var settings = new EngineSettings { DataStream = data, LogStream = log };
+            var state = new EngineState(null, settings);
+            using var disk = new DiskService(settings, state, new[] { 2 });
+            disk.WriteLogDisk(Pages(disk, data, 1, false));
+            var hits = 0;
+            log.Arm("seek", () => { hits++; throw new InvalidOperationException("refused seek"); });
+            Action append = () => disk.WriteLogDisk(TwoPages(disk, data, log));
+            append.Should().Throw<InvalidOperationException>().WithMessage("refused seek");
+            hits.Should().Be(1);
+            state.Stopped.Should().BeFalse("the physical seek failed before writing and tail cleanup succeeded");
+            log.Disarm();
+            disk.WriteLogDisk(Pages(disk, data, 9, true)).Should().Be(1);
+            AssertFileRecovery(data.ToArray(), log.ToArray());
         }
 
         [Theory]
