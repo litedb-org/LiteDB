@@ -256,6 +256,10 @@ handed to the writer, whose batch fails. Before, the reader's seek tore a frame 
 never heard of. The engine still flushes a caller stream once per WAL batch and per sync, not
 per page. A caller stream must not replay a write that failed at another position.
 
+A successfully truncated unconfirmed append does not by itself make the WAL unusable;
+the original failure still propagates. I/O failures handled by commit or rollback still
+stop the engine under the normal operation-level policy.
+
 The stop is terminal. A failure that reaches the commit or rollback path is recorded (file,
 operation, error, time, whether the log file was kept) before the stop; a torn WAL append,
 checkpoint or promotion failure stops the engine without a record in this change (recording

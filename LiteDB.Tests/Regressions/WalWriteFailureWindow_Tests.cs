@@ -27,7 +27,8 @@ namespace LiteDB.Tests.Regressions
         [InlineData("sync-probe", false)]
         [InlineData("padding", true)]
         [InlineData("padding", false)]
-        [InlineData("seek", true)]
+        [InlineData("seek-cleanup", true)]
+        [InlineData("seek-cleanup", false)]
         [InlineData("confirmation-hook", false)]
         [InlineData("confirmation-callback", false)]
         public void Failure_publishes_stop_before_a_queued_writer_can_confirm(string boundary, bool ioFailure)
@@ -95,14 +96,15 @@ namespace LiteDB.Tests.Regressions
             // These stream faults exercise the actual I/O operations rather than throwing before
             // them. MemoryStream subclasses deliberately take the non-buffering admission path.
             if (boundary == "sync-probe") disk.RegisterFreeLogPosition(0);
-            log.Arm(boundary, () => { hits++; fail(); });
+            log.FailTruncation = boundary == "seek-cleanup";
+            log.Arm(boundary == "seek-cleanup" ? "seek" : boundary, () => { hits++; fail(); });
             Action<uint, long> written = boundary == "confirmation-callback"
                 ? (Action<uint, long>)((id, position) => { hits++; fail(); }) : null;
             Exception failure = null;
             try
             {
                 if (legacy) disk.WriteLogDisk(Pages(disk, data, 1, true), written, transaction, () => 6);
-                else if (boundary == "length" || boundary == "seek")
+                else if (boundary == "length" || boundary == "seek-cleanup")
                     disk.WriteLogDisk(TwoPages(disk, data, log), written);
                 else disk.WriteLogDisk(Pages(disk, data, 6, boundary.StartsWith("confirmation-")), written);
             }
@@ -111,6 +113,7 @@ namespace LiteDB.Tests.Regressions
             queued.Should().NotBeNull("the fault must be reached");
             queued.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
             hits.Should().Be(1, "the actual I/O fault must run (markers: {0})", string.Join(",", reached));
+            if (boundary == "seek-cleanup") log.TruncationFailed.Should().BeTrue();
             failure.Should().BeOfType<IOException>();
             state.Stopped.Should().BeTrue();
             teardownWindow.Should().BeTrue();
@@ -125,8 +128,10 @@ namespace LiteDB.Tests.Regressions
             AssertFileRecovery(data.ToArray(), image);
         }
 
-        [Fact]
-        public void Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit(bool ioFailure)
         {
             using var data = Seed(false);
             using var log = new FaultLog();
@@ -135,9 +140,35 @@ namespace LiteDB.Tests.Regressions
             using var disk = new DiskService(settings, state, new[] { 2 });
             disk.WriteLogDisk(Pages(disk, data, 1, false));
             var hits = 0;
-            log.Arm("seek", () => { hits++; throw new InvalidOperationException("refused seek"); });
+            using var attempted = new ManualResetEventSlim();
+            Thread queued = null;
+            Exception queuedFailure = null;
+            var acknowledged = false;
+            log.Arm("seek", () =>
+            {
+                hits++;
+                queued = new Thread(() =>
+                {
+                    state.Validate();
+                    attempted.Set();
+                    try
+                    {
+                        disk.WriteLogDisk(Pages(disk, data, 8, true));
+                        acknowledged = true;
+                    }
+                    catch (Exception ex) { queuedFailure = ex; }
+                }) { IsBackground = true };
+                queued.Start();
+                attempted.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                throw ioFailure ? new IOException("refused seek") : new InvalidOperationException("refused seek");
+            });
             Action append = () => disk.WriteLogDisk(TwoPages(disk, data, log));
-            append.Should().Throw<InvalidOperationException>().WithMessage("refused seek");
+            if (ioFailure) append.Should().Throw<IOException>().WithMessage("refused seek");
+            else append.Should().Throw<InvalidOperationException>().WithMessage("refused seek");
+            queued.Should().NotBeNull();
+            queued.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            queuedFailure.Should().BeNull();
+            acknowledged.Should().BeTrue("the queued writer may proceed after consistent append cleanup");
             hits.Should().Be(1);
             state.Stopped.Should().BeFalse("the physical seek failed before writing and tail cleanup succeeded");
             log.Disarm();
@@ -291,6 +322,7 @@ namespace LiteDB.Tests.Regressions
             private Action _fail;
             private int _writes;
             internal bool SecondPage;
+            internal bool FailTruncation, TruncationFailed;
             internal void Arm(string boundary, Action fail) { _boundary = boundary; _fail = fail; _writes = 0; }
             internal void Disarm() => _boundary = null;
             private void Fail()
@@ -328,6 +360,11 @@ namespace LiteDB.Tests.Regressions
             }
             public override void SetLength(long value)
             {
+                if (FailTruncation)
+                {
+                    TruncationFailed = true;
+                    throw new IOException("injected truncation failure");
+                }
                 if (_boundary == "padding") Fail();
                 base.SetLength(value);
             }

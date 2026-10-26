@@ -41,6 +41,7 @@ namespace LiteDB.Engine
             var count = 0;
             var hasConfirmation = false;
             var reusePublished = false;
+            Exception removedAppendFailure = null;
             var stream = _writer.Value;
             Exception flushFailure = null;
             var ownsFailure = false;
@@ -97,7 +98,8 @@ namespace LiteDB.Engine
 
                                 this.WriteLogPage(stream, page, written, transactionPages,
                                     ref transactionAnchored, first && rebase,
-                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
+                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain,
+                                    ref removedAppendFailure);
 
                                 if (first && rebase)
                                 {
@@ -122,8 +124,8 @@ namespace LiteDB.Engine
                             if (delayedConfirmation != null)
                             {
                                 this.WriteLogPage(stream, delayedConfirmation, written,
-                                    transactionPages, ref transactionAnchored, false,
-                                    ref count, ref hasConfirmation, ref reusePublished, ref uncertain);
+                                    transactionPages, ref transactionAnchored, false, ref count,
+                                    ref hasConfirmation, ref reusePublished, ref uncertain, ref removedAppendFailure);
                                 delayedConfirmation = null;
                             }
                         }
@@ -136,9 +138,12 @@ namespace LiteDB.Engine
                         }
                     }
                 }
-                catch (Exception ex) when (uncertain || hasConfirmation || ex is IOException)
+                catch (Exception ex) when (uncertain || hasConfirmation ||
+                    (ex is IOException && !ReferenceEquals(ex, removedAppendFailure)))
                 {
-                    // An I/O error is terminal even between writes; publish it under this lock.
+                    // I/O errors between writes are terminal, but successful append cleanup can
+                    // establish consistency. Exempt only that exact failure: iterator disposal
+                    // can throw another I/O error while unwinding the safely removed append.
                     // A confirmation can already be durable even if publication/iteration failed.
                     // A failed write can leave a torn frame: in the middle of the WAL (an overwrite of
                     // an existing slot), at its end when the truncation that removes a failed append
@@ -213,7 +218,7 @@ namespace LiteDB.Engine
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
             bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
-            ref bool uncertain)
+            ref bool uncertain, ref Exception removedAppendFailure)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
@@ -306,7 +311,11 @@ namespace LiteDB.Engine
                             _logFactory.TrimCapacity(stream);
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
                             // nor an earlier frame of this batch that a buffering stream still held.
-                            if (prepared && !overwrite && !earlierHeld) uncertain = false;
+                            if (prepared && !overwrite && !earlierHeld)
+                            {
+                                uncertain = false;
+                                removedAppendFailure = failure;
+                            }
                         }
                         catch (Exception cleanup)
                         {
