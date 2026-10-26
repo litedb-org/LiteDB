@@ -8,5 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../LiteDB.Tests/Engine/AllocationWorkload.cs" Link="AllocationWorkload.cs" />
+  </ItemGroup>
 </Project>
 
