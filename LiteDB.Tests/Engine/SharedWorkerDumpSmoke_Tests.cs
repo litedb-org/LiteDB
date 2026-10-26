@@ -131,6 +131,6 @@ public class SharedWorkerDumpSmoke_Tests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+        if (Directory.Exists(_directory)) WindowsFileRelease.DeleteDirectory(_directory);
     }
 }

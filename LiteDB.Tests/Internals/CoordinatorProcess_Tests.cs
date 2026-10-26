@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -58,7 +59,7 @@ namespace LiteDB.Internals
             {
                 lines = new List<string>();
                 while (lines.Count(x => x.StartsWith("ack:")) < 100) lines.Add(await writer.ReadLine(TimeSpan.FromSeconds(30)));
-                await host.Kill();
+                await host.Kill(sharedFilesRemainOpen: true);
                 host.Dispose();
                 lines.AddRange(await ReadToDone(writer));
                 await writer.Finish();
@@ -91,9 +92,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            try { Directory.Delete(_directory, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

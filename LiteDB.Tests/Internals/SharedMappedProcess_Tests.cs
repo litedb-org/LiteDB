@@ -107,7 +107,7 @@ namespace LiteDB.Internals
                 // Preserve the pre-recovery durable files before opening any successor.
                 foreach (var path in Directory.GetFiles(_directory, "*.db"))
                     File.Copy(path, path + ".before-recovery");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             await MvccProcess.Run("write", Filename, password, "7");
             await MvccProcess.Run("checkpoint", Filename, password);
@@ -139,7 +139,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            if (_passed) Directory.Delete(_directory, true);
+            if (_passed) WindowsFileRelease.DeleteDirectory(_directory);
             else Console.Error.WriteLine("Preserved failed mapped-process database: " + _directory);
         }
     }
