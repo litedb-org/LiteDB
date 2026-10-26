@@ -72,8 +72,8 @@ namespace LiteDB.Tests.Regressions
                     log.CanRead.Should().BeTrue();
                     settings.ReadOnly.Should().BeFalse("fallback flags belong to the engine's settings copy");
                 }
-                File.ReadAllBytes(dataFile.Filename).Should().Equal(originalData);
-                File.ReadAllBytes(logFile.Filename).Should().Equal(originalLog);
+                TempFile.ReadAllBytesShared(dataFile.Filename).Should().Equal(originalData);
+                TempFile.ReadAllBytesShared(logFile.Filename).Should().Equal(originalLog);
             }
 
             // Retry the exact retained files writable, then reopen twice: the WAL-only commits
@@ -115,7 +115,7 @@ namespace LiteDB.Tests.Regressions
             using (var entry = zip.GetEntry("foreign-log.db").Open())
             using (var output = File.Create(logFile.Filename)) entry.CopyTo(output);
             File.WriteAllBytes(dataFile.Filename, dataBytes);
-            var logBytes = File.ReadAllBytes(logFile.Filename);
+            var logBytes = TempFile.ReadAllBytesShared(logFile.Filename);
 
             for (var attempt = 0; attempt < 2; attempt++)
             {
@@ -126,8 +126,8 @@ namespace LiteDB.Tests.Regressions
                     .WithMessage("*commits the header of another database*");
                 data.CanRead.Should().BeTrue();
                 log.CanRead.Should().BeTrue();
-                File.ReadAllBytes(dataFile.Filename).Should().Equal(dataBytes);
-                File.ReadAllBytes(logFile.Filename).Should().Equal(logBytes);
+                TempFile.ReadAllBytesShared(dataFile.Filename).Should().Equal(dataBytes);
+                TempFile.ReadAllBytesShared(logFile.Filename).Should().Equal(logBytes);
             }
         }
 
