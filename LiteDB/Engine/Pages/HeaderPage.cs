@@ -61,6 +61,8 @@ namespace LiteDB.Engine
         /// </summary>
         public uint FreeEmptyPageList { get; set; }
 
+        internal PageAllocationService Allocations { get; } = new PageAllocationService();
+
         /// <summary>
         /// Last created page - Used when there is no free page inside file [4 bytes]
         /// </summary>
