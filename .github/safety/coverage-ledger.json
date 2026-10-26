@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "ci-split-engine-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every discovered test method belongs to exactly one complete-suite partition; every session retains the 300-second limit and runtime/architecture and test-hook guards.",
+      "reason": "Split engine shared coordination and allocation families and shared mapped/upgrade process families into separate sessions using Windows TRX timing evidence. No tests, assertions, concurrency or failure injection are removed; the unchanged discovery verifier and per-leg evidence manifest account for every partition."
+    },
+    {
       "id": "3034-evidence-jobs",
       "kind": "ci-test-config-changed",
       "subjects": [

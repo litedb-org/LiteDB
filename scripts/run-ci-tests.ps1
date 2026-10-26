@@ -65,11 +65,17 @@ if ($PartitionSuite) {
         rebuild = 'FullyQualifiedName~LiteDB.Tests.Engine.Rebuild'
         'engine-compact' = 'FullyQualifiedName~LiteDB.Tests.Engine.Compact'
         'engine-index' = 'FullyQualifiedName~LiteDB.Tests.Engine.Index'
-        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index'
+        # Windows x86 TRX timings: separate shared coordination and allocation work
+        # from the engine complement (docs/ci-partition-capacity.md).
+        'engine-shared' = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName~Shared&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~LiteDB.Tests.Engine.Allocation'
+        'engine-allocation' = 'FullyQualifiedName~LiteDB.Tests.Engine.Allocation'
+        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~Shared&FullyQualifiedName!~LiteDB.Tests.Engine.Allocation'
         'query-not-equal' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
-        # Keep process-heavy Shared coverage within the per-session timeout on Windows x86.
-        'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process'
+        # Mapped storage and coordination upgrades dominate shared-process timings.
+        'shared-mapped-process' = 'FullyQualifiedName~LiteDB.Internals.SharedMappedProcess'
+        'shared-upgrade-process' = 'FullyQualifiedName~LiteDB.Internals.SharedCoordinationUpgradeProcess'
+        'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process&FullyQualifiedName!~LiteDB.Internals.SharedMappedProcess&FullyQualifiedName!~LiteDB.Internals.SharedCoordinationUpgradeProcess'
         shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process'
         mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
