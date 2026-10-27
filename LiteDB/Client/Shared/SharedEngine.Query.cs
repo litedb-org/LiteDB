@@ -148,7 +148,8 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                }, ownsResources: true);
+                }, ownsResources: true, leaseFiles: (_readers as SharedReaderRegistry)?.LeaseFiles);
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 return result;
@@ -301,7 +302,8 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                }, ownsResources: true);
+                }, ownsResources: true, leaseFiles: (_readers as SharedReaderRegistry)?.LeaseFiles);
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 reader = null;

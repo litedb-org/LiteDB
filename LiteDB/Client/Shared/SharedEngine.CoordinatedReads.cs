@@ -195,6 +195,10 @@ namespace LiteDB
         /// <summary>Install only a snapshot opened and leased under the database mutex.</summary>
         private IBsonDataReader TryInstallCoordinated(string collection, Query query, LiteEngine engine)
         {
+            // A process-published cache must never own caller streams or a
+            // ReadTransform target. Such callers already bypass cached admission;
+            // keep their one-pass cursor private to the escaping result too.
+            if (!this.CanScope) return null;
             // A single read between writes cannot amortize retaining a snapshot.
             // Start caching only after two consecutive read-only opens.
             SharedCoordinationStatus status;
@@ -279,7 +283,10 @@ namespace LiteDB
                     Interlocked.Increment(ref MeasuredStreamingReaders);
 #endif
                 }
-                return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local), ownsResources: true);
+                var result = new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local),
+                    ownsResources: true, leaseFiles: (_readers as SharedReaderRegistry)?.LeaseFiles);
+                GC.SuppressFinalize(snapshot.Lease);
+                return result;
             }
             catch
             {

@@ -331,7 +331,7 @@ namespace LiteDB.Client.Shared
         {
             if (_holder != null && _holder.IsAlive) return;
             _holder = new Thread(this.Run) { IsBackground = true, Name = "LiteDB shared mutex owner" };
-            _holder.Start();
+            SharedBackground.Start(_holder);
         }
 
         /// <summary>

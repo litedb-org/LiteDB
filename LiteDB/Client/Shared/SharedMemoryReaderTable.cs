@@ -21,6 +21,8 @@ namespace LiteDB.Client.Shared
         private readonly NativeAdmission _admission;
         internal NativeAdmission Admission => _admission;
         internal readonly EngineSettings Settings;
+        internal WeakReference<Func<string, BsonValue, BsonValue>> ReadTransform;
+        internal bool HasReadTransform;
         internal readonly SharedSnapshotCache ReadCache = new SharedSnapshotCache();
         internal readonly SharedMemoryReadAdmission Reads;
         internal Action ClosedCallback;
@@ -45,6 +47,10 @@ namespace LiteDB.Client.Shared
             if (settings.Upgrade || settings.AutoRebuild)
                 throw new NotSupportedException("ABI-2 file-replacing upgrade/auto-rebuild requires slice 9 qualification.");
             var captured = settings.Clone();
+            // Preserve delegate identity for admission without publishing its
+            // request graph. Each facade/private cursor keeps its own transform.
+            var transform = captured.ReadTransform;
+            captured.ReadTransform = null;
             captured.SharedMode = true;
             // Retain only immutable opening choices, never facade callbacks/resources.
             captured.SharedReaderVersions = null;
@@ -74,7 +80,11 @@ namespace LiteDB.Client.Shared
                         if (!held) throw new IOException("Protected Shared storage validation timed out.");
                         var coreSettings = captured.Clone();
                         coreSettings.SharedAdmission = admission;
-                        table = new SharedMemoryReaderTable(current, admission, captured);
+                        table = new SharedMemoryReaderTable(current, admission, captured)
+                        {
+                            HasReadTransform = transform != null,
+                            ReadTransform = transform == null ? null : new WeakReference<Func<string, BsonValue, BsonValue>>(transform)
+                        };
                         captured.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.SharedReaderVersions = table.LiveVersions;

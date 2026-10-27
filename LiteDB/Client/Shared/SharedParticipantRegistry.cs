@@ -39,7 +39,7 @@ namespace LiteDB.Client.Shared
                         if (!table.TryRetain()) { Retire(identity, entry); continue; }
                         try
                         {
-                            RequireCompatible(table.Settings, settings);
+                            RequireCompatible(table, settings);
                             return new SharedMemoryReaders(table);
                         }
                         catch { table.Release(); throw; }
@@ -66,11 +66,18 @@ namespace LiteDB.Client.Shared
             ((ICollection<KeyValuePair<string, Entry>>)Entries).Remove(new KeyValuePair<string, Entry>(identity, entry));
         }
 
-        private static void RequireCompatible(EngineSettings captured, EngineSettings requested)
+        private static void RequireCompatible(SharedMemoryReaderTable table, EngineSettings requested)
         {
+            var captured = table.Settings;
             try
             {
-                DirectHostSettings.RequireCompatible(captured, requested, captured.Collation.ToString());
+                Func<string, BsonValue, BsonValue> transform = null;
+                if (table.HasReadTransform && !table.ReadTransform.TryGetTarget(out transform) ||
+                    !ReferenceEquals(transform, requested.ReadTransform))
+                    throw new InvalidOperationException("Shared read transforms differ.");
+                var opening = requested.Clone();
+                opening.ReadTransform = null;
+                DirectHostSettings.RequireCompatible(captured, opening, captured.Collation.ToString());
                 if (captured.SharedMutexNameStrategy != requested.SharedMutexNameStrategy ||
                     !ReferenceEquals(captured.SharedReaderFiles, requested.SharedReaderFiles))
                     throw new InvalidOperationException("Shared opening settings differ.");

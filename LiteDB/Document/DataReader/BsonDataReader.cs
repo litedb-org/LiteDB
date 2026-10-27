@@ -73,6 +73,8 @@ namespace LiteDB
             }
         }
 
+        internal MemoryCache SharedPageCache => _state?.Disk?.Cache;
+
         /// <summary>
         /// Return if has any value in result
         /// </summary>
