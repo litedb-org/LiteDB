@@ -82,7 +82,13 @@ namespace LiteDB.Engine
                         BeforeCheckpointWorkerStart?.Invoke();
 #endif
                         _thread = new Thread(this.Run) { IsBackground = true, Name = "LiteDB checkpoint" };
-                        _thread.Start();
+                        // An ambient request can contain AsyncLocal facade roots.
+                        // The process-owned worker must retain only core services.
+                        if (ExecutionContext.IsFlowSuppressed()) _thread.Start();
+                        else
+                        {
+                            using (ExecutionContext.SuppressFlow()) _thread.Start();
+                        }
                     }
                     catch (Exception error)
                     {

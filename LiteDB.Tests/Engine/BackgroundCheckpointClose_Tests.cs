@@ -44,6 +44,29 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void WorkerStartDoesNotInheritAmbientFacadeReferences()
+        {
+            using var scenario = new DirectCheckpointScenario();
+            using var passed = new ManualResetEventSlim();
+            var ambient = new AsyncLocal<LiteEngine>();
+            ambient.Value = scenario.Engine;
+            LiteEngine observed = scenario.Engine;
+            scenario.Worker.BeforeCheckpointWorkerPass = () => observed = ambient.Value;
+            scenario.Worker.AfterCheckpointWorkerPass = passed.Set;
+            try
+            {
+                scenario.Worker.Request(scenario.Worker.Incarnation);
+                AutomaticCheckpointWorker_Tests.Wait(passed);
+                observed.Should().BeNull("an idle process-owned thread must not retain the request's facade through ExecutionContext");
+                ambient.Value.Should().BeSameAs(scenario.Engine);
+            }
+            finally { ambient.Value = null; }
+            scenario.Engine.Dispose();
+            scenario.Worker.HasExited.Should().BeTrue();
+            scenario.VerifyRecovery();
+        }
+
+        [Fact]
         public async Task FinalCloseDrainsAnAppendAlreadyInsideWalWriterWithCp0()
         {
             using var scenario = new DirectCheckpointScenario(0);
