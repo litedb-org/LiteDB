@@ -42,8 +42,9 @@ namespace LiteDB.Tests.Engine
             using var entered = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             using var released = new ManualResetEventSlim();
+            using var timedOut = new ManualResetEventSlim();
             var disposalThread = 0;
-            var reader = new BlockingReader(entered, resume);
+            var reader = new BlockingReader(entered, resume, timedOut);
             var resources = new WeakReference(reader);
             var weak = Abandon(reader, () =>
             {
@@ -62,6 +63,7 @@ namespace LiteDB.Tests.Engine
             }
             finally { resume.Set(); }
             released.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            timedOut.IsSet.Should().BeFalse("a cleanup safety timeout must fail the test instead of silently unblocking disposal");
             disposalThread.Should().NotBe(0);
             Reachability.Snapshot()["maintenance:shared-abandoned-reader-cleanup"].Should().BeGreaterThan(0);
         }
@@ -86,14 +88,23 @@ namespace LiteDB.Tests.Engine
         {
             private readonly ManualResetEventSlim _entered;
             private readonly ManualResetEventSlim _resume;
-            internal BlockingReader(ManualResetEventSlim entered, ManualResetEventSlim resume)
-            { _entered = entered; _resume = resume; }
+            private readonly ManualResetEventSlim _timedOut;
+            internal BlockingReader(ManualResetEventSlim entered, ManualResetEventSlim resume, ManualResetEventSlim timedOut)
+            { _entered = entered; _resume = resume; _timedOut = timedOut; }
             public BsonValue this[string field] => BsonValue.Null;
             public string Collection => "docs";
             public BsonValue Current => BsonValue.Null;
             public bool HasValues => false;
             public bool Read() => false;
-            public void Dispose() { _entered.Set(); _resume.Wait(TimeSpan.FromSeconds(10)); }
+            public void Dispose()
+            {
+                _entered.Set();
+                if (!_resume.Wait(TimeSpan.FromSeconds(60)))
+                {
+                    _timedOut.Set();
+                    throw new TimeoutException("The test did not resume blocked disposal.");
+                }
+            }
         }
 
         private sealed class ThrowingReader : IBsonDataReader
