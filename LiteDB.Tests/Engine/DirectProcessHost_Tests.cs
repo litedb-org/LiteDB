@@ -167,6 +167,51 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public async Task Abandoned_finalizer_release_does_not_block_the_finalizer_thread()
+        {
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            DirectProcessHost.BeforeFinalClose = file =>
+            {
+                if (file != DatabaseFileIdentity.CanonicalPath(Filename)) return;
+                entered.Set();
+                if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException();
+            };
+            try
+            {
+                var abandoned = AbandonFacade(Filename);
+                GC.Collect();
+                entered.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                // The finalizer only publishes cleanup. A close callback may wait on
+                // the host gate, but it must not hold up finalizer progress.
+                var collect = Task.Run(GC.WaitForPendingFinalizers);
+                collect.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
+                abandoned.IsAlive.Should().BeFalse();
+
+                var opening = Task.Run(Open);
+                await Task.Delay(50);
+                opening.IsCompleted.Should().BeFalse();
+                release.Set();
+                using var peer = await opening;
+                Assert.NotNull(peer.GetCollection("docs").FindById(1));
+            }
+            finally
+            {
+                release.Set();
+                DirectFacadeLifetime.Drain();
+                DirectProcessHost.BeforeFinalClose = null;
+            }
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static WeakReference AbandonFacade(string filename)
+        {
+            var db = new LiteDatabase(filename);
+            db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            return new WeakReference(db);
+        }
+
+        [Fact]
         public void Caller_streams_and_memory_keep_independent_engines()
         {
             using var a = new LiteDatabase(":memory:");
