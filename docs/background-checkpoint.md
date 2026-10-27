@@ -32,6 +32,14 @@ because callback failures can originate under storage locks. Explicit non-final
 and final disposal surface the retained cause; repeated disposal is resource
 idempotent and retains the error. Finalizer/reaper cleanup cannot throw.
 
+Installed transactions also serialize commit/rollback completion and foreign
+cleanup with a per-transaction lease. WAL/group drain alone ends before snapshot
+teardown and monitor release finish; close must join that completion before
+retiring its snapshots or stream reader. The gate precedes header/group/storage
+locks; close waits only after releasing its WAL/group drain locks. Default-off
+transactions allocate no gate. Deterministic grouped and callback-fallback
+schedules cover the pre-existing snapshot-disposed race found during integration.
+
 Stop and the installed path's acknowledgement check share a terminal gate: a
 completed writer delayed before acknowledgement cannot succeed after stop wins.
 No commit durability barrier or persistent checkpoint ordering has changed.

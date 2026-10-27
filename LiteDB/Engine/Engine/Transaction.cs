@@ -140,6 +140,7 @@ namespace LiteDB.Engine
 
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
+            using var completion = transaction.EnterCompletion();
             var state = _state;
             try
             {
@@ -185,6 +186,7 @@ namespace LiteDB.Engine
 
         private void RollbackAndReleaseTransaction(TransactionService transaction)
         {
+            using var completion = transaction.EnterCompletion();
             try
             {
                 transaction.Rollback();

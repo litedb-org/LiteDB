@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Rollback()
         {
+            using var completion = new TransactionCompletionLease(_completionSync);
             ENSURE(_state == TransactionState.Active, "transaction must be active to rollback (current state: {0})", _state);
 
             LOG($"rollback transaction ({_transPages.TransactionSize} pages with {_transPages.NewPages.Count} returns)", "TRANSACTION");

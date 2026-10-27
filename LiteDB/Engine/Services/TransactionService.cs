@@ -12,6 +12,9 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class TransactionService : IDisposable
     {
+        private readonly object _completionSync;
+        internal TransactionCompletionLease EnterCompletion() => new TransactionCompletionLease(_completionSync);
+
         // instances from Engine
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -95,6 +98,7 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _monitor = monitor;
+            _completionSync = disk.AutomaticCheckpoint == null ? null : new object();
 
             this.QueryOnly = queryOnly;
             this.MaxTransactionSize = maxTransactionSize;
@@ -331,6 +335,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Commit()
         {
+            using var completion = new TransactionCompletionLease(_completionSync);
             ENSURE(_state == TransactionState.Active, "transaction must be active to commit (current state: {0})", _state);
 
             LOG($"commit transaction ({_transPages.TransactionSize} pages)", "TRANSACTION");
@@ -359,6 +364,9 @@ namespace LiteDB.Engine
         internal void ReleaseCommitSnapshots()
         {
             foreach (var snapshot in this.Snapshots) snapshot.Dispose();
+#if DEBUG || TESTING
+            if (_completionSync != null) _disk.TestCrashPoint("transaction-after-snapshot-disposal");
+#endif
             _snapshots.Clear();
             _cursorSnapshots.Clear();
         }
@@ -394,6 +402,10 @@ namespace LiteDB.Engine
         // Protected implementation of Dispose pattern.
         protected virtual void Dispose(bool dispose)
         {
+#if DEBUG || TESTING
+            if (_completionSync != null) _disk.TestCrashPoint("transaction-before-completion-cleanup");
+#endif
+            using var completion = new TransactionCompletionLease(_completionSync);
             // All resources are managed. The monitor retains registered
             // transactions and releases them during explicit engine cleanup.
             if (!dispose || _state == TransactionState.Disposed)

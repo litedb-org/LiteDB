@@ -12,6 +12,32 @@
   },
   "hooks": [
     {
+      "family": "process-crash",
+      "name": "transaction-before-completion-cleanup",
+      "protocol": "opted-in Direct transaction completion/close ownership",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointCompletion_Tests.cs#FinalCloseJoinsSnapshotCompletionAfterWalWriterExit",
+          "model": "interleaving",
+          "proves": "A grouped or callback-fallback writer is held after snapshot disposal and before map cleanup; final close reaches transaction cleanup after WAL drain but cannot retire services until completion exits. Close succeeds, acknowledgement is refused and repeated indexed recovery plus raw allocation reachability preserves whole outcomes."
+        }
+      ],
+      "gap": "Default-off path, deterministic xUnit scheduling only. These observers do not establish active-worker process-death or modeled-power-loss coverage."
+    },
+    {
+      "family": "process-crash",
+      "name": "transaction-after-snapshot-disposal",
+      "protocol": "opted-in Direct transaction completion/close ownership",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointCompletion_Tests.cs#FinalCloseJoinsSnapshotCompletionAfterWalWriterExit",
+          "model": "interleaving",
+          "proves": "A grouped or callback-fallback writer is held after snapshot disposal and before map cleanup; final close reaches transaction cleanup after WAL drain but cannot retire services until completion exits. Close succeeds, acknowledgement is refused and repeated indexed recovery plus raw allocation reachability preserves whole outcomes."
+        }
+      ],
+      "gap": "Default-off path, deterministic xUnit scheduling only. These observers do not establish active-worker process-death or modeled-power-loss coverage."
+    },
+    {
       "family": "checkpoint-stage",
       "name": "after-reclaim",
       "protocol": "checkpoint reclamation",

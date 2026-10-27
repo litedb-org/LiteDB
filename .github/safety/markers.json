@@ -9,6 +9,8 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "transaction-before-completion-cleanup": {"gate": "advisory", "reason": "Deterministic BackgroundCheckpointCompletion_Tests force close versus transaction completion on the default-off Direct lifetime. Generic smoke fuzz does not activate this path; xUnit does not record marker counts."},
+    "transaction-after-snapshot-disposal": {"gate": "advisory", "reason": "Deterministic BackgroundCheckpointCompletion_Tests force close versus transaction completion on the default-off Direct lifetime. Generic smoke fuzz does not activate this path; xUnit does not record marker counts."},
     "BeforeCheckpointPermitRegistration": {
       "gate": "advisory",
       "reason": "Only deterministic xUnit fixtures install unactivated admission and force provisional permit transfer races; generic smoke fuzz does not activate it yet."
