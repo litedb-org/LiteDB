@@ -172,8 +172,12 @@ class BenchmarkGateTests(unittest.TestCase):
     def test_runner_comparison_uses_separate_binaries_and_revision_metadata(self):
         scenario = "single_insert_5k_tx"
         calls = []
+        real_check_output = RUNNER.subprocess.check_output
+        real_run = RUNNER.subprocess.run
 
         def child(command, **kwargs):
+            if command[:1] != ["dotnet"] or len(command) != 5:
+                return real_run(command, **kwargs)
             config, number, destination = command[-3:]
             env = kwargs["env"]
             calls.append((command[1], config, env["BENCHMARK_CANDIDATE_SHA"]))
@@ -184,12 +188,17 @@ class BenchmarkGateTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, stdout="synthetic child")
 
         destination = self.output / "runner"
+        def check_output(command, *args, **kwargs):
+            if command == ["dotnet", "--info"]:
+                return "synthetic dotnet info"
+            return real_check_output(command, *args, **kwargs)
+
         with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux",
                                      "BENCHMARK_BASELINE_SHA": "c" * 40,
                                      "BENCHMARK_HARNESS_SHA": "f" * 40,
                                      "BENCHMARK_SCENARIOS": scenario}), \
                 patch.object(sys, "argv", ["run.py", "net8.0", str(destination)]), \
-                patch.object(RUNNER.subprocess, "check_output", return_value="synthetic dotnet info"), \
+                patch.object(RUNNER.subprocess, "check_output", side_effect=check_output), \
                 patch.object(RUNNER.subprocess, "run", side_effect=child), redirect_stdout(io.StringIO()):
             RUNNER.main()
         self.assertEqual(30, len(calls))
