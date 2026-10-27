@@ -48,6 +48,11 @@ namespace LiteDB.Tests.Engine
             SharedMemoryAuthority.IsPlatformQualified.Should().Be(qualified);
             OneFileTestPlatform.Reason.Should().Be(qualified ? null :
                 "ABI-2 mapped Shared is refused on this OS/architecture; native backend tests remain enabled.");
+            var futexReason = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                ? OneFileTestPlatform.Reason
+                : "This test exercises the Linux futex ABI; native wake backend tests remain enabled.";
+            new LinuxFutexFactAttribute().Skip.Should().Be(futexReason);
+            new LinuxFutexTheoryAttribute().Skip.Should().Be(futexReason);
             if (qualified) root = SharedMappedDirectory.Root;
 #endif
             var directory = Path.Combine(root, "litedb-one-file-qualification-" + Guid.NewGuid().ToString("N"));

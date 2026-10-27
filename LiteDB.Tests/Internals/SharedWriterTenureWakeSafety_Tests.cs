@@ -14,7 +14,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedWriterTenureWakeSafety_Tests
     {
-        [LinuxX64Theory]
+        [LinuxFutexTheory]
         [InlineData("sampled")] [InlineData("rechecked")] [InlineData("syscall")] [InlineData("returned")]
         public void Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach(string cut)
         {
@@ -42,13 +42,16 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 2);
         }
 
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall()
         {
             using var files = new SharedOneFilePublicationFixture();
             using var engine = new SharedEngine(files.Settings);
             var table = engine.MappedReaderTable;
             var map = table.Authority.Map;
+            // Independently check the kernel's architecture-specific syscall number,
+            // exact mapped address and shared FUTEX_WAIT operation.
+            var futex = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "98" : "202";
             var tid = 0;
             map.WaitObserved = (stage, _) => { if (stage == "syscall") Volatile.Write(ref tid, gettid()); };
             engine.Update("docs", new[] { Row(1, 1) });
@@ -59,8 +62,8 @@ namespace LiteDB.Internals
                 if (nativeThread == 0) return false;
                 var call = File.ReadAllText("/proc/self/task/" + nativeThread + "/syscall");
                 var fields = call.Split(' ');
-                return fields.Length > 2 && fields[0] == "202" && fields[1] == "0x" + map.WakeAddress.ToInt64().ToString("x") && fields[2] == "0x0";
-            }, TimeSpan.FromSeconds(5)).Should().BeTrue("the holder is observed in Linux x64 futex(202), not merely about to call it");
+                return fields.Length > 2 && fields[0] == futex && fields[1] == "0x" + map.WakeAddress.ToInt64().ToString("x") && fields[2] == "0x0";
+            }, TimeSpan.FromSeconds(5)).Should().BeTrue("the holder is observed inside Linux futex({0})", futex);
             engine.Dispose();
             table.Closed.Should().BeTrue();
             pin.RequestRelease(true); pin.WaitReleased();
@@ -68,7 +71,7 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 1);
         }
 
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -106,7 +109,7 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
         }
 
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void Unexpected_wait_error_drains_a_live_operation_before_releasing_storage()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -135,7 +138,7 @@ namespace LiteDB.Internals
             cold.GetCollection("admitted").FindAll().Should().BeEquivalentTo(new[] { Row(1000, 1) });
         }
 
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word()
         {
             using var files = new SharedOneFilePublicationFixture();

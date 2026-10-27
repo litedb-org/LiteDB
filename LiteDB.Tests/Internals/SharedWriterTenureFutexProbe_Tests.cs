@@ -12,7 +12,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedWriterTenureFutexProbe_Tests
     {
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void A_wake_before_wait_prevents_sleeping_on_the_old_word()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -29,7 +29,7 @@ namespace LiteDB.Internals
             prompt.Should().BeTrue("FUTEX_WAIT must observe the published word and return EAGAIN, without using its 900 ms timeout");
         }
 
-        [LinuxX64Fact]
+        [LinuxFutexFact]
         public void A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime()
         {
             using var files = new SharedOneFilePublicationFixture();

@@ -26,6 +26,22 @@
   ],
   "dispositions": [
     {
+      "id": "p3n-arm64-futex-review-coverage",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+        "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+        "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every enabled Linux mapped Shared backend executes all futex race cuts, blocked-holder disposal, pressure/error handling, low-word wrap and stale-pin mapping lifetime assertions.",
+      "reason": "Replace the obsolete x64-only gate with the production qualification predicate on Linux, enabling the unchanged safety cases on ARM64. The kernel probe independently expects aarch64 futex syscall 98 or x64 syscall 202 while preserving the exact mapped address and shared FUTEX_WAIT operation checks. The integration seam asserts both attribute gates match platform qualification. No test, assertion, fault cut or timeout is removed."
+    },
+    {
       "id": "p3j-remove-experimental-same-thread-wait-option",
       "kind": "test-removed",
       "subjects": [
