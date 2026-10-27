@@ -26,6 +26,17 @@
   ],
   "dispositions": [
     {
+      "id": "p3fx2-shared-retry-proof-guard-rename",
+      "kind": "proof-guard-removed",
+      "subjects": ["Issue_3094_SharedRetryWriterRelease"],
+      "disposition": "relocated",
+      "invariant": "Transaction retry must release obsolete Shared writer ownership, preserve active transaction guards, and allow other threads and processes to progress after completion.",
+      "reason": "Repair the stale permanentGuard reference left by d4713d40bf382baf87c3f18498e85feb5bc33fb7. P3-FX F2 renamed and strengthened the failed-registration test to require immediate release after implicit abort, rather than retain an already-ended transaction's hold. The existing p3fx-aborted-retry-releases-legacy-ownership disposition records that behavior correction; retry, rollback, peer progress and cold data/index/sentinel assertions remain. No test or known-bad proof pin changes here.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership"
+      ]
+    },
+    {
       "id": "p3fx-fork-ci-newcomer-acquisition-evidence",
       "kind": "ci-test-config-changed",
       "subjects": [".github/workflows/benchmark-gate.yml"],

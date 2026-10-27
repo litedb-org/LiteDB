@@ -108,7 +108,7 @@
       "permanentGuard": [
         "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_after_duplicate_key_releases_writer_ownership",
         "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Repeated_retries_return_each_obsolete_hold_exactly_once",
-        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_preserves_old_ownership_until_retry_or_rollback",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership",
         "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
         "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_retains_same_connection_recursion_and_peer_callback_guard",
         "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Child_process_can_write_after_retry_commit"
