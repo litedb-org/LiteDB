@@ -45,6 +45,14 @@ namespace LiteDB.Engine
         internal Action Safepoint => _safepoint;
         internal int Epoch => _epoch;
 
+        internal void ThrowIfDamagedVectorMetadata()
+        {
+            if (_header.Pragmas.IndexesOrdered)
+            {
+                _collectionPage?.ThrowIfDamagedVectorMetadata();
+            }
+        }
+
         /// <summary>Maximum chain traversal count for this snapshot's engine.</summary>
         internal uint MaxItemsCount => _disk.MAX_ITEMS_COUNT;
 
@@ -90,6 +98,15 @@ namespace LiteDB.Engine
                 }
                 srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);
                 if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
+
+                // A current file must never acknowledge a write while a declared vector
+                // index has no trustworthy metric metadata. Legacy files are allowed to
+                // reach their migration/rebuild path, where the damaged index is handled
+                // separately instead of silently maintaining it as an ordinary index.
+                if (_mode == LockMode.Write && _header.Pragmas.IndexesOrdered)
+                {
+                    _collectionPage?.ThrowIfDamagedVectorMetadata();
+                }
             }
             catch
             {

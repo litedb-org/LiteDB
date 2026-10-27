@@ -28,6 +28,7 @@ namespace LiteDB.Engine
         /// </summary>
         private readonly Dictionary<string, CollectionIndex> _indexes = new Dictionary<string, CollectionIndex>();
         private readonly Dictionary<string, VectorIndexMetadata> _vectorIndexes = new Dictionary<string, VectorIndexMetadata>();
+        private string _damagedVectorMetadataIndex;
 
         public CollectionPage(PageBuffer buffer, uint pageID)
             : base(buffer, pageID, PageType.Collection)
@@ -90,23 +91,67 @@ namespace LiteDB.Engine
         private void ReadVectorSection(BufferReader r)
         {
             var section = new Dictionary<string, VectorIndexMetadata>(StringComparer.Ordinal);
+            var vectorIndexes = _indexes.Values.Where(x => x.IndexType == 1).ToArray();
             try
             {
                 var count = r.ReadByte();
                 for (var i = 0; i < count; i++)
                 {
                     var name = r.ReadCString();
-                    if (section.ContainsKey(name)) return;
+                    if (section.ContainsKey(name))
+                    {
+                        this.MarkDamagedVectorMetadata(vectorIndexes);
+                        return;
+                    }
                     section.Add(name, new VectorIndexMetadata(r));
                 }
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException))
             {
+                this.MarkDamagedVectorMetadata(vectorIndexes);
                 return;
             }
-            var names = _indexes.Values.Where(x => x.IndexType == 1).Select(x => x.Name);
-            if (!section.Keys.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(names.OrderBy(x => x, StringComparer.Ordinal))) return;
+
+            var names = vectorIndexes.Select(x => x.Name);
+            if (!section.Keys.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(names.OrderBy(x => x, StringComparer.Ordinal)))
+            {
+                this.MarkDamagedVectorMetadata(vectorIndexes.FirstOrDefault(x => !section.ContainsKey(x.Name)) ?? vectorIndexes[0]);
+                return;
+            }
+
+            foreach (var index in vectorIndexes)
+            {
+                var metadata = section[index.Name];
+                if (metadata.Slot != index.Slot || metadata.Dimensions == 0 ||
+                    !Enum.IsDefined(typeof(VectorDistanceMetric), metadata.Metric))
+                {
+                    this.MarkDamagedVectorMetadata(index);
+                    return;
+                }
+            }
+
             foreach (var pair in section) _vectorIndexes[pair.Key] = pair.Value;
+        }
+
+        private void MarkDamagedVectorMetadata(IEnumerable<CollectionIndex> indexes)
+        {
+            _damagedVectorMetadataIndex = indexes.FirstOrDefault()?.Name ?? "unknown";
+        }
+
+        private void MarkDamagedVectorMetadata(CollectionIndex index)
+        {
+            _damagedVectorMetadataIndex = index?.Name ?? "unknown";
+        }
+
+        internal bool HasDamagedVectorMetadata => _damagedVectorMetadataIndex != null;
+
+        internal void ThrowIfDamagedVectorMetadata()
+        {
+            if (!this.HasDamagedVectorMetadata) return;
+
+            throw LiteException.InvalidVectorMetadata(
+                $"Vector index '{_damagedVectorMetadataIndex}' has no usable metadata. " +
+                "Rebuild the database or drop and recreate the index before querying or writing.");
         }
 
         public override PageBuffer UpdateBuffer()

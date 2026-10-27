@@ -85,6 +85,10 @@ namespace LiteDB
         internal string[] MappingPath { get; set; }
         internal string MappingSource { get; set; }
 
+        // Some detected metadata damage must refuse the operation while preserving
+        // the original file for an explicit rebuild or index recreation.
+        internal bool PreserveStorageOnRefusal { get; set; }
+
         public LiteException(int code, string message)
             : base(message)
         {
@@ -415,6 +419,11 @@ namespace LiteDB
         internal static LiteException InvalidDatafileState(string message)
         {
             return new LiteException(INVALID_DATAFILE_STATE, message);
+        }
+
+        internal static LiteException InvalidVectorMetadata(string message)
+        {
+            return new LiteException(INVALID_DATAFILE_STATE, message) { PreserveStorageOnRefusal = true };
         }
 
         #endregion

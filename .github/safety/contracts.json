@@ -149,6 +149,7 @@
         {"script": "scripts/test-parent-format-compatibility.py", "model": "corrupt-input", "proves": "Pinned actual v10/v11 predecessors reject newer fixtures without changing the data file or WAL."},
         {"script": "scripts/test-mvcc-compatibility.py", "model": "corrupt-input", "proves": "The pinned actual v12 predecessor rejects v13 retained-WAL fixtures without changing either file."},
         {"script": "scripts/test-prerelease-compatibility.py", "proves": "Files written by the newest published prereleases and the latest stable package (plain/encrypted, clean/dirty WAL) are read or migrated with complete payloads and index results and stay writable, or are refused with both files byte-identical; each writer reports the package it loaded."},
+        {"test": "LiteDB.Tests/Regressions/VectorMetadataDamage_Tests.cs#Current_file_refuses_damaged_vector_queries_and_writes_without_mutation", "model": "corrupt-input", "proves": "A CRC-valid logical damage to current vector metadata is refused for plain and encrypted vector queries and writes, with actionable recovery guidance and byte-preserved data/WAL; healthy vectors and the legacy dropped-index guard remain covered."},
         {"fuzz": "compatibility", "model": "exception", "proves": "Plain/encrypted v4/v7 fixtures are upgraded with every publication phase interrupted and resumed, then extended with indexes, FileStorage, dirty WAL and read-only opens."}
       ],
       "gaps": [
@@ -179,6 +180,7 @@
       ],
       "evidence": [
         {"test": "LiteDB.Tests/Query/RangeUnionOptimization_Tests.cs#Merged_ranges_match_unindexed_results_in_both_directions", "proves": "Merged index ranges return exactly the unindexed results in both directions."},
+        {"test": "LiteDB.Tests/Regressions/VectorMetadataDamage_Tests.cs#Current_file_refuses_damaged_vector_queries_and_writes_without_mutation", "model": "corrupt-input", "proves": "A damaged declared vector metric cannot be replaced by cosine fallback or bypassed during acknowledged writes; the refusal preserves query meaning and index maintenance safety."},
         {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
         {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},
         {"fuzz": "sql-dml", "proves": "Generated SQL statements are executed differentially against a full state model."},

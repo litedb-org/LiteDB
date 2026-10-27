@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3060_DamagedVectorMetadata",
+  "title": "CRC-valid damaged vector metadata must not change the declared distance metric",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3060"
+  ],
+  "failingSince": "0.0.0-knownbad.b3c440623190",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "vector",
+    "metadata",
+    "corrupt-input"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: damaged metadata changed the vector metric"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: damaged metadata refused without changing the files"
+    }
+  }
+}

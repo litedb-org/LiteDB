@@ -25,6 +25,8 @@ namespace LiteDB.Engine
                 // same conflicts the writable path reports
                 if (current.Expression != expression || (vector != null && current.IndexType != 1)) throw LiteException.IndexAlreadyExist(name);
 
+                if (vector != null) snapshot.ThrowIfDamagedVectorMetadata();
+
                 var metadata = vector == null ? null : snapshot.CollectionPage.GetVectorIndexMetadata(name);
 
                 if (metadata != null && (metadata.Dimensions != vector.Dimensions || metadata.Metric != vector.Metric))

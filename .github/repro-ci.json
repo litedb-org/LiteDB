@@ -69,6 +69,14 @@
       "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Other_5_0_21_drop_layouts_stay_writable"
     ]
   },
+  "Issue_3060_DamagedVectorMetadata": {
+    "reason": "CRC-valid damaged vector metadata must refuse current-file vector queries and writes while retaining 5.0.21 legacy tolerance.",
+    "tests": [
+      "LiteDB.Tests/Regressions/VectorMetadataDamage_Tests.cs#Current_file_refuses_damaged_vector_queries_and_writes_without_mutation",
+      "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+      "LiteDB.Tests/Regressions/PrereleaseVectorFile_Tests.cs#Prerelease_vector_indexes_stay_usable_after_the_writable_open"
+    ]
+  },
   "Issue_3027_DumpInTransaction": {
     "reason": "Regression proof of PR #3027 (Regression proof workflow); $dump and $page_list inside an explicit transaction that safepointed its pages are covered by the normal test suite.",
     "tests": [
