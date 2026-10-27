@@ -97,6 +97,17 @@ namespace LiteDB.Engine
             if (owner != null) _owner = owner;
         }
 
+        // Header writes must apply the same facade rule before their separate
+        // restriction against changing a pragma inside the owner's transaction.
+        internal void EnsureWriteAllowed()
+        {
+            this.ThrowIfDisposed();
+            var transaction = _slot.Value;
+            if (transaction != null && transaction.State != TransactionState.Disposed &&
+                !ReferenceEquals(transaction.FacadeOwner, _owner))
+                throw LiteException.SameThreadTransaction();
+        }
+
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
