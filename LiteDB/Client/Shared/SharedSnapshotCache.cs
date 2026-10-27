@@ -22,7 +22,7 @@ namespace LiteDB.Client.Shared
         {
             if (Idle != null) return;
             var weak = new WeakReference<SharedSnapshotCache>(this);
-            Idle = new Timer(state =>
+            Idle = SharedBackground.CreateTimer(state =>
             {
                 if (((WeakReference<SharedSnapshotCache>)state).TryGetTarget(out var cache)) cache.Expire();
             }, weak, IdleLimit, Timeout.InfiniteTimeSpan);

@@ -108,7 +108,7 @@ namespace LiteDB.Client.Shared
         {
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
-            holder.Start();
+            SharedBackground.Start(holder);
             pin._acquired.Wait();
             if (pin._error != null)
             {

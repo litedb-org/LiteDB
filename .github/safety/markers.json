@@ -13,6 +13,7 @@
       "gate": "advisory",
       "reason": "Focused writer-tenure tests hit both request cuts with exceptions and process death/suspension. Default-mode fuzz does not enable the Linux x64 mapped opt-in; mapped whole-path qualification remains a later step."
     },
+    "DispatchOverride": {"gate": "advisory", "reason": "TESTING-only per-owner dispatch seam: SharedReaderCleanupDispatch_Tests.Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease forces false/OutOfMemoryException and asserts fault-point:DispatchOverride; False_after_queueing_and_retry_callbacks_dispose_each_owner_once covers delayed duplicates. PR fuzz smoke does not install the seam or deterministically abandon/finalize Shared results."},
     "OwnershipStage": {
       "gate": "advisory",
       "reason": "Focused SharedOneFile terminal, teardown callback and writable fallback tests force these exception boundaries. Generic default-mode fuzz does not install this instance hook; whole-path mapped fuzz remains a later-slice qualification gate."
