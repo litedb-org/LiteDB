@@ -72,7 +72,9 @@ namespace LiteDB.Client.Shared
                     // for a read-only Direct engine. Windows LockFileEx needs read access.
                     try
                     {
-                        file = new DatabaseFileLock(settings.Filename, shared && settings.ReadOnly, false, settings.Filename);
+                        // Explicit upgrade can replace v7 before the read-only
+                        // connection opens; its admission must support exclusive OFD.
+                        file = new DatabaseFileLock(settings.Filename, shared && settings.ReadOnly && !settings.Upgrade, false, settings.Filename);
                     }
                     catch (FileNotFoundException) when (!settings.ReadOnly && create)
                     {

@@ -18,30 +18,33 @@ namespace LiteDB.Engine
         /// </summary>
         private void TryUpgrade()
         {
-            var filename = _settings.Filename;
-
             // Only v7 requires a rebuild. Ordinary v8 files remain compatible.
             // An explicit upgrade runs before the requested read-only connection is opened.
-            if (!File.Exists(filename)) return;
+            if (!RequiresUpgrade(_settings)) return;
+
+            using var structural = new StructuralScope(_settings.CoordinationSignals);
+            this.Recovery(_settings.Collation);
+        }
+
+        internal static bool RequiresUpgrade(EngineSettings settings)
+        {
+            if (!File.Exists(settings.Filename)) return false;
 
             const int bufferSize = 1024;
             var buffer = _bufferPool.Rent(bufferSize);
             try
             {
-                using (var stream = _settings.CreateDataFactory(false).GetStream(false, true))
+                using (var stream = settings.CreateDataFactory(false).GetStream(false, true))
                 {
-                    if (stream.Read(buffer, 0, bufferSize) < bufferSize) return;
+                    if (stream.Read(buffer, 0, bufferSize) < bufferSize) return false;
                 }
 
-                if (!FileReaderV7.IsVersion(buffer)) return;
+                return FileReaderV7.IsVersion(buffer);
             }
             finally
             {
                 _bufferPool.Return(buffer, true);
             }
-            // run rebuild process
-            using var structural = new StructuralScope(_settings.CoordinationSignals);
-            this.Recovery(_settings.Collation);
         }
 
         /// <summary>

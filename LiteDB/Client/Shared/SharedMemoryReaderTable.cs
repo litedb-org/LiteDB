@@ -106,6 +106,15 @@ namespace LiteDB.Client.Shared
                         coreSettings.SharedReaderVersions = table.LiveVersions;
                         coreSettings.AutoRebuildAllowed = () => true;
                         coreSettings.SharedMaintenance = () => table.Maintain(coreSettings);
+                        // Upgrade=true authorizes a writable v7 maintenance open
+                        // before the requested read-only facade, as in Direct.
+                        // Probe under main; a no-op upgrade must retain read-only
+                        // storage semantics for modern databases.
+                        if (coreSettings.Upgrade && LiteEngine.RequiresUpgrade(coreSettings))
+                        {
+                            coreSettings.ReadOnly = false;
+                            coreSettings.ReadOnlyStorage = false;
+                        }
                         var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;
                         LiteEngine core = null;
                         var publish = false;
