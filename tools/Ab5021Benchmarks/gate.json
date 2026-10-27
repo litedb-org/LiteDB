@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "rounds": 6,
+  "operatingSystems": ["Linux", "Windows", "macOS"],
+  "frameworks": ["net8.0", "net10.0"],
+  "maxSpreadPercent": 20.0,
+  "spreadDefinition": "100 * (max / min - 1), checked independently for A and B",
+  "baseline": "v5",
+  "candidate": "dev-os-cache",
+  "reportOnlyConfigs": ["dev-default"],
+  "scenarios": {
+    "single_insert_5k_tx": {"operations": 5000, "maxRatio": 1.10},
+    "bulk_insert_100k": {"operations": 100000, "maxRatio": 1.10},
+    "full_scan_3x100k": {"operations": 300000, "maxRatio": 1.10},
+    "update_10k_one_tx": {"operations": 10000, "maxRatio": 1.10},
+    "delete_10k_one_tx": {"operations": 10000, "maxRatio": 1.10},
+    "indexed_point_10k": {"operations": 10000, "maxRatio": 1.05},
+    "checkpoint_100k": {"operations": 100000, "maxRatio": null},
+    "open_close_20x": {"operations": 20, "maxRatio": null}
+  },
+  "scalingScenarios": {
+    "durable_insert_5k_1_writers": {"operations": 5000},
+    "durable_insert_5k_4_writers": {"operations": 5000},
+    "durable_insert_5k_8_writers": {"operations": 5000}
+  }
+}
