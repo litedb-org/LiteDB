@@ -1701,6 +1701,22 @@
   ],
   "injectors": [
     {
+      "name": "DispatchOverride",
+      "protocol": "abandoned Shared reader cleanup dispatch",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease",
+          "model": "exception",
+          "proves": "False and OutOfMemoryException submission failures retain cursor pins, lease and root until timer retry releases them; checkpoint/reopen preserves data and indexes."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#False_after_queueing_and_retry_callbacks_dispose_each_owner_once",
+          "model": "exception",
+          "proves": "False after queueing plus retry and a delayed duplicate callback preserves exactly-once disposal and root freeing with reader/release exceptions."
+        }
+      ]
+    },
+    {
       "name": "OwnershipStage",
       "protocol": "Shared terminal completion, core-close and snapshot-open boundaries",
       "evidence": [
