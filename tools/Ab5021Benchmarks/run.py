@@ -13,7 +13,12 @@ import time
 
 ROOT = Path(__file__).resolve().parent
 CONFIGS = ["v5", "dev-default", "dev-os-cache"]
-ROUNDS = 6
+GATE_CONFIG = json.loads((ROOT / "gate.json").read_text())
+ROUNDS = GATE_CONFIG["rounds"]
+
+
+def rounds_for_os(operating_system):
+    return GATE_CONFIG.get("roundsByOS", {}).get(operating_system, ROUNDS)
 
 
 def execution_order(round_number):
@@ -21,6 +26,7 @@ def execution_order(round_number):
 
 
 def summarize(output):
+    rounds = rounds_for_os(os.environ.get("RUNNER_OS"))
     raw = []
     for path in sorted(output.glob("round-*.json")):
         result = json.loads(path.read_text())
@@ -34,8 +40,8 @@ def summarize(output):
     for scenario in dict.fromkeys(row["scenario"] for row in raw):
         for config in (["dev-default"] if scenario.startswith("durable_insert_") else CONFIGS):
             values = [row["milliseconds"] for row in raw if row["scenario"] == scenario and row["config"] == config]
-            if len(values) != ROUNDS:
-                raise RuntimeError(f"Expected six rounds: {scenario} {config}: {values}")
+            if len(values) != rounds:
+                raise RuntimeError(f"Expected {rounds} rounds: {scenario} {config}: {values}")
             scaling = scenario.startswith("durable_insert_")
             baseline = [row["milliseconds"] for row in raw if row["scenario"] == scenario and row["config"] == "v5"]
             one_writer = [row["milliseconds"] for row in raw if row["scenario"] == "durable_insert_5k_1_writers"
@@ -52,7 +58,7 @@ def summarize(output):
         writer.writerows(summary)
     title = f"{os.environ.get('RUNNER_OS')} / {sys.argv[1]}"
     lines = [f"## LiteDB 5.0.21 vs candidate {os.environ.get('BENCHMARK_CANDIDATE_SHA')} — {title}", "",
-             "Milliseconds; six rounds per configuration. B/A = dev / v5 (lower is faster).",
+             f"Milliseconds; {rounds} rounds per configuration. B/A = dev / v5 (lower is faster).",
              "Direct, unencrypted local temp files; ordinal invariant collation; CHECKPOINT=1000 except explicit checkpoint=0 setup.",
              "TieredCompilation=0; identical shared source; Release / TestingEnabled=false.",
              "dev-os-cache uses DurableCommits=false; checkpoint/file-creation durability still differs from v5.", "",
@@ -101,12 +107,15 @@ def main():
                     order=[], started=time.time())
     (output / "environment.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     start = time.monotonic()
-    for round_number in range(1, ROUNDS + 1):
+    rounds = rounds_for_os(os.environ["RUNNER_OS"])
+    budget = 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
+    for round_number in range(1, rounds + 1):
         # Filtered to either A/B pair, this gives A,B,B,A,A,B,B,A,...
         order = execution_order(round_number)
         for config in order:
-            if time.monotonic() - start > 2100:
-                raise TimeoutError("35 minute measurement budget exceeded")
+            remaining = budget - (time.monotonic() - start)
+            if remaining <= 0:
+                raise TimeoutError("Measurement budget exceeded")
             project = "V5" if config == "v5" else "V6"
             dll = ROOT / project / "bin" / "Release" / framework / f"{project}.dll"
             result_path = output / f"round-{round_number}-{config}.json"
@@ -114,7 +123,7 @@ def main():
             print(f"Round {round_number}: {config} ({framework})", flush=True)
             try:
                 child = subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT, timeout=360)
+                                       stderr=subprocess.STDOUT, timeout=min(360, remaining))
             except subprocess.TimeoutExpired as error:
                 partial = error.stdout or b""
                 if isinstance(partial, bytes):
