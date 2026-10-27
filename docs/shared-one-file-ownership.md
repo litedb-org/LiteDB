@@ -18,6 +18,17 @@ before native admission. A closing participant cannot be replaced until its
 actual teardown completes. Neither registry holds a global publication gate
 while waiting for final teardown of one file.
 
+The mapped identity key cannot currently change while a participant is live:
+explicit rebuild and file-replacing upgrade/auto-rebuild are refused before
+replacement. Enabling those operations requires stable admission-entry registry
+keys and a participant maintenance gate before any replacement can be published.
+Legacy Shared has no retained core registry: main serializes rebuild with peer
+operations, and idle peers reopen the current files rather than reusing a stale
+core. Native admission retains the same entry across replacement for those peers.
+`SharedOneFileRekey_Tests` checks all four legacy native rekey stages, repeated
+plain/encrypted rebuilds, live peer visibility and cold indexed payloads; it also
+checks every mapped replacement refusal without data/WAL mutation.
+
 The participant-local transaction lease, named main mutex and native WRITE byte
 have nested lifetimes. Main orders every writable core, including recovery and
 teardown. WRITE protects the entire writable core tenure, not just its explicit

@@ -119,7 +119,7 @@ namespace LiteDB.Engine
                 _walIndex.ConfirmTransaction(transactionPages.TransactionID, pagePositions.Values);
                 if (transactionPages.CommitTicket != 0)
                 {
-                    _disk.CommitGroup?.EnsureDurable(transactionPages.CommitTicket);
+                    _disk.CompleteCommitTicket(transactionPages.CommitTicket);
                     _disk.PublishDurableCommit(_walIndex.CurrentReadVersion);
                 }
                 _header.Allocations.Complete(_transPages);

@@ -226,5 +226,26 @@
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
     }
+  ],
+  "inheritedParentEntries": [
+    {
+      "source": "9df69fae9ce2f998a505d00d89fc3cbdcf0ac08c",
+      "reason": "P3-FX renamed and strengthened the implicit-abort guard; the active proof retains the executable name. Preserve the Phase 2 parent entry verbatim for structural merge accounting.",
+      "entry": {
+        "repro": "Issue_3094_SharedRetryWriterRelease",
+        "knownBad": {
+          "kind": "package",
+          "version": "6.0.0-prerelease.322"
+        },
+        "permanentGuard": [
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_after_duplicate_key_releases_writer_ownership",
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Repeated_retries_return_each_obsolete_hold_exactly_once",
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_preserves_old_ownership_until_retry_or_rollback",
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Retry_retains_same_connection_recursion_and_peer_callback_guard",
+          "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Child_process_can_write_after_retry_commit"
+        ]
+      }
+    }
   ]
 }

@@ -123,7 +123,7 @@ namespace LiteDB.Engine
                 {
                     // Constraint errors can also reveal a pending predecessor.
                     // Establish that dependency before returning the original error.
-                    if (transaction.Pages.CommitTicket != 0) _disk.CommitGroup?.EnsureDurable(transaction.Pages.CommitTicket);
+                    _disk.CompleteCommitTicket(transaction.Pages.CommitTicket);
                     this.RollbackAndReleaseTransaction(transaction);
 
                     if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();

@@ -15,9 +15,11 @@ namespace LiteDB.Client.Direct
         // entry. A strong registry root is required while an abandoned facade's
         // finalizer is pending; a weak target could disappear while its streams remain
         // open and let Attach construct a second core for the same physical file.
-        private static readonly Dictionary<string, DirectProcessHost> Hosts =
-            new Dictionary<string, DirectProcessHost>();
-        private static readonly HashSet<string> Opening = new HashSet<string>();
+        // Native admission retains this entry across inode replacement. Keying by
+        // its changing physical identity would hide the live host during rebuild.
+        private static readonly Dictionary<NativeAdmission.Entry, DirectProcessHost> Hosts =
+            new Dictionary<NativeAdmission.Entry, DirectProcessHost>();
+        private static readonly HashSet<NativeAdmission.Entry> Opening = new HashSet<NativeAdmission.Entry>();
         private static readonly object Gate = new object();
         private readonly object _lifecycle = new object();
         private Thread _closingThread;
@@ -26,16 +28,15 @@ namespace LiteDB.Client.Direct
         internal readonly LiteEngine Engine;
         private int _references;
         private bool _closed, _maintaining;
-        private string _identity;
+        private readonly NativeAdmission.Entry _registryKey;
 
         private DirectProcessHost(EngineSettings settings, NativeAdmission admission)
         {
             Settings = settings;
             _admission = admission;
-            _identity = admission.Identity;
+            _registryKey = admission.RegistryKey;
             Settings.BypassDirectHost = true;
             Engine = new LiteEngine(Settings);
-            _identity = admission.Identity;
         }
 
         internal static DirectProcessHost Attach(EngineSettings settings)
@@ -52,7 +53,7 @@ namespace LiteDB.Client.Direct
                     var admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
                     try
                     {
-                        if (Hosts.TryGetValue(admission.Identity, out var host))
+                        if (Hosts.TryGetValue(admission.RegistryKey, out var host))
                         {
                             if (host._closed)
                             {
@@ -64,7 +65,11 @@ namespace LiteDB.Client.Direct
                             }
                             else
                             {
-                                if (host._maintaining) throw new InvalidOperationException("The Direct host is performing maintenance. Retry when it finishes.");
+                                if (host._maintaining)
+                                {
+                                    Utils.Reachability.Sometimes("refusal:direct-attach-during-maintenance");
+                                    throw new InvalidOperationException("The Direct host is performing maintenance. Retry when it finishes.");
+                                }
                                 host.Engine.ValidateHost();
                                 DirectHostSettings.RequireCompatible(host.Settings, settings, host.Engine.Pragma(Pragmas.COLLATION).AsString);
                                 host._references++;
@@ -73,13 +78,13 @@ namespace LiteDB.Client.Direct
                         }
                         else
                         {
-                            var identity = admission.Identity;
-                            if (!Opening.Add(identity)) throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
+                            var key = admission.RegistryKey;
+                            if (!Opening.Add(key)) throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
                             try { host = new DirectProcessHost(settings, admission); }
-                            finally { Opening.Remove(identity); }
+                            finally { Opening.Remove(key); }
                             admission = null;
                             host._references = 1;
-                            Hosts[host._identity] = host;
+                            Hosts[host._registryKey] = host;
                             return host;
                         }
                     }
@@ -138,7 +143,7 @@ namespace LiteDB.Client.Direct
                             finally
                             {
                                 _admission = null;
-                                Hosts.Remove(_identity);
+                                Hosts.Remove(_registryKey);
                             }
                         }
                     }
@@ -158,19 +163,19 @@ namespace LiteDB.Client.Direct
                     if (_maintaining) throw new InvalidOperationException("Recursive Direct maintenance is unsupported.");
                     _maintaining = true;
                 }
-                try { return action(); }
+                try
+                {
+                    var result = action();
+#if DEBUG || TESTING
+                    BeforeMaintenanceRelease?.Invoke(Settings.Filename);
+#endif
+                    return result;
+                }
                 finally
                 {
                     lock (Gate)
                     {
                         _maintaining = false;
-                        var next = _admission.Identity;
-                        if (next != _identity)
-                        {
-                            Hosts.Remove(_identity);
-                            Hosts[next] = this;
-                            _identity = next;
-                        }
                     }
                 }
             }
@@ -178,6 +183,7 @@ namespace LiteDB.Client.Direct
 
 #if DEBUG || TESTING
         internal static Action<string> BeforeFinalClose;
+        internal static Action<string> BeforeMaintenanceRelease;
 #endif
     }
 }

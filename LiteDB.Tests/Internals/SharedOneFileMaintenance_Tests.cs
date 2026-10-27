@@ -29,10 +29,12 @@ namespace LiteDB.Internals
                 var table = engine.MappedReaderTable;
                 var original = table.Authority.Header.Authority;
                 var identity = table.Admission.Identity;
+                var registryKey = table.Admission.RegistryKey;
                 db.Rebuild();
                 replacement = table.Authority.Header.Authority;
                 replacement.Should().NotBe(original);
                 table.Admission.Identity.Should().NotBe(identity);
+                table.Admission.RegistryKey.Should().BeSameAs(registryKey);
                 table.Authority.Header.MatchesIdentity(table.Admission.Identity).Should().BeTrue();
                 Verify(db, 11);
                 db.Checkpoint();
