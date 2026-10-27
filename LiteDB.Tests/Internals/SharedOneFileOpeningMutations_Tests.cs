@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -53,6 +54,7 @@ namespace LiteDB.Internals
                 tail.Write(new byte[17], 0, 17);
             }
             var structures = 0;
+            SharedMemoryReaderTable table = null;
             SharedMemoryReaderTable.PublicationStage = stage =>
             {
                 if (stage != "structural-begin") return;
@@ -64,6 +66,7 @@ namespace LiteDB.Internals
             try
             {
                 using var engine = new SharedEngine(files.Settings);
+                table = engine.MappedReaderTable;
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 if (image == "new")
                 {
@@ -79,6 +82,10 @@ namespace LiteDB.Internals
                 Quiet(engine.MappedReaderTable);
             }
             finally { SharedMemoryReaderTable.PublicationStage = null; }
+            // Quiet acquires main after the holder releases it, before that
+            // holder necessarily returns its independent participant reference.
+            // Switching to Direct requires the final native admission to be gone.
+            SpinWait.SpinUntil(() => table.Closed, TimeSpan.FromSeconds(5)).Should().BeTrue();
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 using var cold = new LiteDatabase(new ConnectionString { Filename = files.Filename, Password = password });
