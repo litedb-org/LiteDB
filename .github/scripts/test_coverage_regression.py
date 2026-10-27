@@ -98,6 +98,19 @@ class CoverageRegressionTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("fault-evidence-removed: injector:SimulateDiskWriteFail", output)
 
+    def test_reclassifying_a_historical_hook_without_family_still_needs_a_disposition(self):
+        registry = ".github/safety/fault-points.json"
+        evidence = [{"test": f"{TESTS}#Keeps", "model": "exception", "proves": "p"}]
+        base = {registry: json.dumps({"hooks": [{"name": "OldMarker", "evidence": evidence}]})}
+        corrected = {registry: json.dumps({"hooks": [], "injectors": [{"name": "RealDelegate", "evidence": evidence}]})}
+        code, output = self.run_check(base, corrected)
+        self.assertEqual(code, 1, output)
+        self.assertIn("fault-evidence-removed: unclassified:OldMarker", output)
+        self.assertIn("has no disposition added in this change", output)
+        entry = disposition("register-real-delegate", "fault-evidence-removed", ["unclassified:OldMarker"])
+        code, output = self.run_check(base, {**corrected, LEDGER: ledger([entry])})
+        self.assertEqual(code, 0, output)
+
     def test_shrinking_a_regression_proof_guard_is_a_finding(self):
         proofs = ".github/safety/regression-proofs.json"
         guard = [f"{TESTS}#Keeps", f"{TESTS}#Removed"]
