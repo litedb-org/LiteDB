@@ -84,17 +84,23 @@ namespace LiteDB.Internals
             var identity = table.Authority.Header.Authority;
             var offset = stage == "version-reset" ? SharedMemoryLayout.ResetEpoch : SharedMemoryLayout.ReuseEpoch;
             var epoch = table.Authority.Map.Load(offset);
+            // A real WAL reset now requires sole DMS. Reuse still races a live
+            // participant; reset is interrupted offline and reuses its authority.
+            if (stage == "version-reset") engine.Dispose();
             using (var child = new MvccProcess("one-file-mutation-cut", files.Filename, null, stage))
             {
                 await child.Expect("ready");
                 await child.Kill();
             }
+            using var recovered = stage == "version-reset" ? new SharedEngine(files.Settings) : null;
+            using var recoveredDb = recovered == null ? null : new LiteDatabase(recovered, disposeOnClose: false);
+            if (recovered != null) table = recovered.MappedReaderTable;
             table.Authority.Map.Load(offset).Should().BeGreaterThan(epoch);
             table.Authority.Header.Authority.Should().Be(identity);
             for (var repeat = 0; repeat < 2; repeat++)
             {
-                SharedOneFilePublicationFixture.Verify(db, expected);
-                db.Checkpoint();
+                SharedOneFilePublicationFixture.Verify(recoveredDb ?? db, expected);
+                (recoveredDb ?? db).Checkpoint();
                 SharedOneFilePublicationFixture.Quiet(table);
             }
         }

@@ -189,3 +189,72 @@ or power-loss qualification is claimed by compiling those targets.
 Native reference semantics: [Linux futex](https://man7.org/linux/man-pages/man2/futex.2.html)
 uses an aligned shared 32-bit word; [Windows WaitOnAddress](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress)
 wakes only within one process. Native execution remains a qualification requirement.
+
+## Phase 3-C maintenance and final close
+
+Mapped replacement takes main and WRITE as ordinary writer tenure does, then a
+canonical-path admission mutex and bootstrap. Bootstrap is tried without waiting:
+attach can already be requesting main. Under bootstrap, an atomic DMS conversion
+must establish that this process is the only participant, including not-yet-Ready
+attachers. More than one local facade or any retained reader generation also
+refuses. Admission remains exclusive through replacement and rekey; a peer must
+close before retrying. `SharedOneFile` remains opt-in, default false.
+
+Ordinary `Checkpoint()` keeps its existing partial backfill behavior with peers.
+Only the engine's existing WAL truncation branch tries bootstrap and exclusive
+DMS; contention retains the WAL and its incarnation while still allowing partial
+backfill and safe obsolete-frame reclamation. The truncation lease remains held
+through structural publication. An outer exclusive bootstrap, maintenance or
+final-close scope is borrowed without downgrading it. Legacy WAL format conversion
+holds this lease across drain and reinitialization, even for an initially empty
+WAL. No public option is added.
+
+The existing rebuild installation/rollback protocol retains the original data/WAL
+pair and completed candidate. ABI-2 extends its guard with a checksummed immutable
+record of the exact paths and file identities. A pending record is flushed and
+renamed to the guard; its directory is synced before any installation rename.
+Each rename is followed by a directory sync. A death before guard publication
+cannot have changed the original pair. An offline protected mapped opener can
+recover a valid guard by restoring the identified original pair, syncing each
+rename, validating identities again, then removing the guard last. Recovery can
+itself be interrupted at every move. Unknown, partial, damaged or inconsistent
+records remain guarded with `REBUILD_INCOMPLETE`; they are never guessed empty.
+Direct/legacy opens retain the existing conservative guard refusal. See
+[rebuild recovery](rebuild-recovery.md).
+
+After replacement, native data admission follows the live inode. While DMS is
+still exclusive and the structural fence remains odd, both mapped envelopes are
+invalidated and rewritten with a fresh authority UUID and the live identity,
+retaining dimensions. The process block follows the new UUID, and the recovered
+read version resets its publication epoch before readers can return. Canonical
+path registry keys remain stable through the replacement; native admission still
+validates physical identity and refuses alias namespaces. The participant's
+password/collation settings follow a completed replacement, including rollback
+which leaves the replacement live. Upgrade and AutoRebuild enter this same
+maintenance scope only when actually replacing a file.
+
+The last reference includes facades, reader generations, queued writer requests
+and native holders. At zero references, the cache closes, bootstrap excludes new
+attachers and an exclusive DMS conversion determines whether this is also the
+last process. Only then may final close acquire main and WRITE, independently
+recover/sync a healthy core, and checkpoint according to the persisted CHECKPOINT
+rules (zero still disables automatic close checkpoints). A stopped/uncertain
+fence is left for the next ordinary opener rather than published by disposal.
+A live remote reader retains DMS and its exact WAL floor; writer disposal cannot
+retire that mapping or truncate away its view. The remote last participant later
+performs the final checkpoint.
+
+Healthy final close disables admission and clears Ready while preserving valid
+envelopes and dimensions for P2-G reuse. It releases WRITE after storage close,
+then main, then its slot, mapping and DMS. The next first opener still validates
+actual DB/WAL independently before publishing Ready. A kill at any close edge
+leaves either a fenced recovery or a reusable retired mapping; neither admits
+unvalidated storage. Managed I/O/flush failures preserve recovery evidence.
+
+`SharedOneFileMaintenance*` and `SharedOneFileFinalClose*` cover sole/peer admission,
+rekey, indexed payload preservation, encrypted files, installation and repeated
+recovery death cuts, directory-sync errors, guard damage and warm remote readers.
+The fault model is Linux x64 process death with surviving OS cache, injected I/O
+failure and corrupt metadata. Directory barriers rely on qualified local
+filesystem rename/fsync semantics; this is not device-reset or whole-path
+modeled-power-loss qualification.

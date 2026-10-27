@@ -26,6 +26,33 @@ namespace LiteDB.Client.Shared
         internal Action ClosedCallback;
         private int _references = 1;
         private bool _closing;
+        private int _facades;
+        private int _maintenanceDepth;
+        internal void AttachFacade()
+        {
+            lock (_gate)
+            {
+                if (_maintenanceDepth != 0) throw new InvalidOperationException("Shared maintenance requires the only participant; retry after maintenance completes.");
+                _facades++;
+            }
+        }
+        internal void DetachFacade()
+        {
+            lock (_gate) _facades--;
+            Release();
+        }
+        internal IDisposable Maintain(EngineSettings settings) => new SharedMemoryMaintenance(this, settings);
+        public IDisposable TryEnterTruncate() => SharedMemoryTruncate.TryEnter(Authority, Settings.Filename);
+        internal void BeginMaintenance()
+        {
+            lock (_gate)
+            {
+                if (_facades > 1 || _versions.Count != 0)
+                    throw new InvalidOperationException("Shared maintenance requires the only participant. Close all other facades and readers first.");
+                _maintenanceDepth++;
+            }
+        }
+        internal bool EndMaintenance() { lock (_gate) return --_maintenanceDepth == 0; }
         private readonly SharedMemoryWriter _writer;
         internal bool Closed { get { lock (_gate) return _references == 0; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
@@ -42,13 +69,12 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryReaderTable Open(EngineSettings settings)
         {
-            if (settings.Upgrade || settings.AutoRebuild)
-                throw new NotSupportedException("ABI-2 file-replacing upgrade/auto-rebuild requires slice 9 qualification.");
             var captured = settings.Clone();
             captured.SharedMode = true;
             // Retain only immutable opening choices, never facade callbacks/resources.
             captured.SharedReaderVersions = null;
             captured.AutoRebuildAllowed = null;
+            captured.SharedMaintenance = null;
             captured.SharedAdmission = null;
             captured.SharedFileHandles = null;
             captured.CoordinationSignals = null;
@@ -78,7 +104,8 @@ namespace LiteDB.Client.Shared
                         captured.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.SharedReaderVersions = table.LiveVersions;
-                        coreSettings.AutoRebuildAllowed = () => false;
+                        coreSettings.AutoRebuildAllowed = () => true;
+                        coreSettings.SharedMaintenance = () => table.Maintain(coreSettings);
                         var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;
                         LiteEngine core = null;
                         var publish = false;
@@ -137,7 +164,11 @@ namespace LiteDB.Client.Shared
             // the reverse order. Zero references means no facade or result remains.
             try
             {
-                try { ReadCache.Dispose(); }
+                try
+                {
+                    ReadCache.Dispose();
+                    SharedMemoryFinalClose.Run(this);
+                }
                 finally
                 {
                     try { Authority.Dispose(); }
@@ -200,6 +231,7 @@ namespace LiteDB.Client.Shared
         internal void ExitWriter(bool publish) => _writer.Exit(publish);
         internal void BeginOpenRecovery() => _writer.BeginOpenRecovery();
         internal void Opened(int version) => _writer.Opened(version);
+        internal void Replaced(int version) => _writer.Replaced(version);
         internal void PublishDurableCommit(int version) => _writer.Committed(version);
         public void ValidateWrite() => _writer.ValidateWrite();
         public void FenceUncertain() => _writer.FenceUncertain();

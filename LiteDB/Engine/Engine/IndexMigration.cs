@@ -30,6 +30,14 @@ namespace LiteDB.Engine
                     "it with full scans instead of its indexes.");
             }
 
+            // Hold sole DMS across the complete legacy-WAL conversion, including
+            // an initially empty WAL. A successful drain alone cannot protect the
+            // subsequent Clear/EnableChecksums from a newly attaching process.
+            using var conversion = !_disk.ChecksumsEnabled && _settings.CoordinationSignals is IWriteAdmissionSignals mapped
+                ? mapped.TryEnterTruncate() : null;
+            if (!_disk.ChecksumsEnabled && _settings.CoordinationSignals is IWriteAdmissionSignals && conversion == null)
+                throw ConversionBlocked();
+
             // A drain that cannot run refuses the conversion below, after every document and unique
             // key was validated; in shared mode each operation retries while a lease lasts. Refuse
             // before validating when it is already known that the drain cannot run.
@@ -201,7 +209,7 @@ namespace LiteDB.Engine
 
         private static LiteException ConversionBlocked() => new LiteException(LiteException.LOCK_TIMEOUT,
             "Cannot convert this legacy database while another connection may still read its log " +
-            "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
+            "file (a shared reader holds a snapshot, another mapped process is attached, or the reader registry cannot be inspected). " +
             "Close the other connections, or make the registry readable, and open it again.");
 
         private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index, IndexMigrationCapacity capacity)

@@ -76,6 +76,18 @@
     "AdmissionStage": {
       "gate": "advisory",
       "reason": "Linux x64 opt-in warm admission has forced xUnit interleavings; existing default-mode fuzz smoke does not enable ABI 2. Whole-path mapped fuzz/platform qualification remains slice 10."
+    },
+    "MaintenanceStage": {
+      "gate": "advisory",
+      "reason": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path."
+    },
+    "MappedRebuildStage": {
+      "gate": "advisory",
+      "reason": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path."
+    },
+    "FinalCloseStage": {
+      "gate": "advisory",
+      "reason": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path."
     }
   },
   "markers": [

@@ -544,6 +544,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -574,6 +582,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -604,6 +620,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -639,6 +663,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -669,6 +701,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -699,6 +739,14 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+          "model": "process-death",
+          "proves": "Plain/encrypted actual final checkpoints die twice at this boundary; repeated mapped and Direct reopens retain full documents, indexes and unrelated sentinel data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
         }
       ]
     },
@@ -1823,6 +1871,11 @@
           "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
           "model": "capability",
           "proves": "Unsupported directory sync degrades durability visibly and keeps committing."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Each_failed_directory_sync_preserves_a_recoverable_pair",
+          "model": "exception",
+          "proves": "Every forward guard/rename/removal directory barrier fails with EIO; rollback or protected recovery preserves the exact committed pair."
         }
       ]
     },
@@ -2039,6 +2092,59 @@
           "proves": "A forced unexpected native wait errno drains the real active operation before releasing main and WRITE; cold indexed data survives."
         }
       ]
+    },
+    {
+      "name": "MaintenanceStage",
+      "protocol": "Mapped Shared sole-participant maintenance and rekey",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats",
+          "model": "process-death",
+          "proves": "Real child death at each listed boundary, repeated recovery, complete payload/index/unrelated-data validation and fault-marker reachability.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
+        }
+      ],
+      "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
+    },
+    {
+      "name": "MappedRebuildStage",
+      "protocol": "Mapped Shared rebuild guard publication and repeatable original-pair recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
+          "model": "process-death",
+          "proves": "Real child death at each listed boundary, repeated recovery, complete payload/index/unrelated-data validation and fault-marker reachability.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats",
+          "model": "process-death",
+          "proves": "The pending journal creation/flush/publication boundaries are killed twice per plain/encrypted case; repeated full indexed reopens preserve committed data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
+        }
+      ],
+      "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
+    },
+    {
+      "name": "FinalCloseStage",
+      "protocol": "Mapped Shared final checkpoint, retirement and native release",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority",
+          "model": "process-death",
+          "proves": "Real child death at each listed boundary, repeated recovery, complete payload/index/unrelated-data validation and fault-marker reachability.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileMaintenanceHarness.cs"
+          ]
+        }
+      ],
+      "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
     }
   ],
   "observers": {

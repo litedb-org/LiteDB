@@ -62,3 +62,17 @@ Regression coverage includes the repeated-failure cases from #2979, an exhaustiv
 installation/rollback matrix, marker creation and cleanup failures, reads and
 writes through reused shared connections, fresh opens, encryption and collation
 changes, and original-pair/replacement recoverability.
+
+### Mapped Shared maintenance
+
+Opt-in `SharedOneFile` maintenance uses the same backup/candidate installation
+and bounded rollback, with a checksummed binary recovery guard containing exact
+file identities. It first flushes a pending record and durably publishes the
+guard, then syncs installation renames. Before marker removal, an offline mapped
+opener holding bootstrap, exclusive DMS, main and WRITE can repeatedly restore
+the identified original data/WAL pair. It removes the guard only after that pair
+is established. A pending record alone means no installation rename was admitted.
+Unknown/damaged/partial records still refuse; Direct and legacy Shared never
+automatically interpret this extension. Preserve guarded files for inspection.
+See [mapped ownership](shared-one-file-ownership.md#phase-3-c-maintenance-and-final-close)
+for rekey and final-close ordering and the tested fault-model limits.

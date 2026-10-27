@@ -52,9 +52,11 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture(password, legacy);
             using (var engine = new SharedEngine(files.Settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
-            using (var remote = new MvccProcess("one-file-warm-writer", files.Filename, password))
+            // Independent writer facade shares the sole process DMS participant.
+            // A second process must retain the WAL, covered by the test below.
+            using (var writer = new SharedEngine(files.Settings))
+            using (var writerDb = new LiteDatabase(writer, disposeOnClose: false))
             {
-                remote.Expect("ready").GetAwaiter().GetResult();
                 engine.Update("docs", new[] { Row(1, 0) });
                 long? repeatedVersion = null;
                 for (var value = 1; value <= 4; value++)
@@ -69,7 +71,45 @@ namespace LiteDB.Internals
                     if (value > 2) cached.Status.Version.Should().Be(repeatedVersion.Value,
                         "full WAL reset/reuse must actually collide with the previous cached read version");
                     repeatedVersion = cached.Status.Version;
-                    remote.Send("reset " + value); remote.Expect("reset-done").GetAwaiter().GetResult();
+                    writerDb.GetCollection("docs").Update(Row(1, value));
+                    writerDb.Checkpoint();
+                    new System.IO.FileInfo(files.Log).Length.Should().Be(password == null ? 0 : Constants.PAGE_SIZE);
+                    Verify(db, value);
+                    engine.Update("docs", new[] { Row(1, value) }).Should().Be(1);
+                    engine.MappedReaderTable.ReadCache.Snapshot.Should().NotBeSameAs(cached);
+                }
+            }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var cold = new LiteDatabase(new LiteDB.Engine.LiteEngine(files.Settings)); Verify(cold, 4);
+            }
+        }
+
+        [OneFileTheory]
+        [InlineData(null, false)] [InlineData(null, true)]
+        [InlineData("secret", false)] [InlineData("secret", true)]
+        public void Repeated_remote_partial_checkpoint_preserves_the_WAL_and_invalidates_stale_cache(string password, bool legacy)
+        {
+            using var files = new SharedOneFilePublicationFixture(password, legacy);
+            using (var engine = new SharedEngine(files.Settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            using (var remote = new MvccProcess("one-file-warm-writer", files.Filename, password))
+            {
+                remote.Expect("ready").GetAwaiter().GetResult();
+                engine.Update("docs", new[] { Row(1, 0) });
+                long previousVersion = -1;
+                for (var value = 1; value <= 4; value++)
+                {
+                    engine.CoordinatedIdleLimit = TimeSpan.FromMinutes(1);
+                    System.Threading.SpinWait.SpinUntil(() =>
+                    {
+                        db.GetCollection("docs").FindById(1).As<object>().Should().BeEquivalentTo(Row(1, value - 1));
+                        return engine.HasCachedSnapshot;
+                    }, TimeSpan.FromSeconds(5)).Should().BeTrue("a stable pre-reset cache must actually be installed");
+                    var cached = engine.MappedReaderTable.ReadCache.Snapshot;
+                    cached.Status.Version.Should().BeGreaterThan(previousVersion);
+                    previousVersion = cached.Status.Version;
+                    remote.Send("backfill " + value); remote.Expect("backfill-done").GetAwaiter().GetResult();
                     Verify(db, value);
                     engine.Update("docs", new[] { Row(1, value) }).Should().Be(1);
                     engine.MappedReaderTable.ReadCache.Snapshot.Should().NotBeSameAs(cached);

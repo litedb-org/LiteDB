@@ -391,6 +391,7 @@ namespace LiteDB
                 // settings delegates, admission object or cached stream owner.
                 settings.SharedReaderVersions = mapped.Table.LiveVersions;
                 settings.AutoRebuildAllowed = () => false;
+                settings.SharedMaintenance = null;
                 settings.SharedAdmission = mapped.Table.Admission;
                 settings.SharedFileHandles = null;
             }

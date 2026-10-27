@@ -24,7 +24,9 @@ namespace LiteDB.Client.Shared
         internal static SharedMemoryReaders Attach(EngineSettings settings)
         {
             using var admission = NativeAdmission.Open(settings, true);
-            var identity = admission.Identity;
+            // Native admission validates physical identity and rejects hard-link/namespace
+            // aliases. The canonical path stays stable across an exclusive replacement.
+            var identity = settings.Filename;
             while (true)
             {
                 var entry = Entries.GetOrAdd(identity, _ => new Entry());

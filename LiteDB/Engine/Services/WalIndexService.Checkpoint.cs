@@ -125,6 +125,7 @@ namespace LiteDB.Engine
             var commitEntered = false;
             var writerEntered = false;
             var structural = false;
+            IDisposable truncate = null;
             object commitLock = null;
             try
             {
@@ -154,6 +155,14 @@ namespace LiteDB.Engine
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
+                if (reclaim && _signals is IWriteAdmissionSignals mapped)
+                {
+                    // No live snapshots is enough for backfill, but an idle process
+                    // still owns its mapping and WAL incarnation. DMS conversion also
+                    // excludes attach until the new incarnation has been published.
+                    truncate = mapped.TryEnterTruncate();
+                    reclaim = truncate != null;
+                }
                 if (drain && !reclaim) return 0;
                 // A drain (legacy conversion) runs before the open trims partial pages. Trim them
                 // now, before this checkpoint appends its header journal at the physical WAL end:
@@ -235,7 +244,8 @@ namespace LiteDB.Engine
                 if (indexEntered) _indexLock.ExitWriteLock();
                 if (commitEntered) System.Threading.Monitor.Exit(commitLock);
                 if (mustExit) _locker.ExitExclusive();
-                if (structural) _signals.StructuralEnd(_currentReadVersion);
+                try { if (structural) _signals.StructuralEnd(_currentReadVersion); }
+                finally { truncate?.Dispose(); }
             }
         }
     }

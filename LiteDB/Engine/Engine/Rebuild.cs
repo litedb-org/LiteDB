@@ -45,7 +45,9 @@ namespace LiteDB.Engine
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
             _locker.EnterExclusive();
 
-            this.Close();
+            var closeErrors = this.Close();
+            if (_settings.SharedOneFile && (this.StorageUncertain || closeErrors.Count != 0))
+                throw new AggregateException("Mapped rebuild refused after an unsuccessful storage close.", closeErrors);
 
             // run build service
             var rebuilder = new RebuildService(_settings);

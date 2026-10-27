@@ -198,6 +198,26 @@ namespace LiteDB.Client.Shared
             return true;
         }
 
+        internal void Rekey(EngineSettings settings, string identity)
+        {
+            // Sole DMS + bootstrap + main + WRITE remain held throughout. Preserve
+            // dimensions and counters; invalidating both envelopes makes death at
+            // either envelope store an offline reset, never a live mixed authority.
+            var dimensions = settings.Clone();
+            dimensions.SharedMemorySize = Header.Size;
+            dimensions.SharedProcessCapacity = Header.Processes;
+            dimensions.SharedGenerationCapacity = Header.Generations;
+            var next = SharedMemoryEnvelope.Create(dimensions, identity);
+            Map.Zero(0, 2 * SharedMemoryLayout.Page);
+            SharedMemoryMaintenance.Stage("rekey-invalidated");
+            Header = next;
+            Map.Write(0, Header.Bytes);
+            SharedMemoryMaintenance.Stage("rekey-envelope-a");
+            Map.Write(SharedMemoryLayout.Page, Header.Bytes);
+            SharedMemoryMaintenance.Stage("rekey-envelope-b");
+            if (Slot >= 0) Map.Write(Block + 32, Header.Authority.ToByteArray());
+        }
+
         private void Claim()
         {
             for (var slot = 0; slot < Header.Processes; slot++)
@@ -222,12 +242,14 @@ namespace LiteDB.Client.Shared
             {
                 Stage("before-close");
                 if (Map != null && Slot >= 0) Map.Store(Block, 0);
+                SharedMemoryFinalClose.Stage("slot-cleared");
             }
             finally
             {
                 try { Map?.Dispose(); }
                 finally { try { _file?.Dispose(); } finally { Locks.Dispose(); } }
             }
+            SharedMemoryFinalClose.Stage("dms-released");
             Stage("closed");
         }
 

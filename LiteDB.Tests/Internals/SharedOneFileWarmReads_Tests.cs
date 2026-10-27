@@ -178,10 +178,14 @@ namespace LiteDB.Internals
                 if (stage != "cached-status") return;
                 engine.CoordinationStage = null;
                 reached++;
+                // Truncation requires sole DMS. Supersede the cached frame instead:
+                // partial checkpoint can retire it before this reader publishes.
+                writer.Send("commit2");
+                writer.Expect("committed").GetAwaiter().GetResult();
                 writer.Send("checkpoint");
                 writer.Expect("checkpointed").GetAwaiter().GetResult();
             };
-            Action read = () => db.GetCollection("docs").FindById(1).As<object>().Should().BeEquivalentTo(Row(1, 1));
+            Action read = () => db.GetCollection("docs").FindById(1).As<object>().Should().BeEquivalentTo(Row(1, 2));
             if (skipRecheck) read.Should().Throw<Exception>("the negative control reads a reclaimed WAL position");
             else read.Should().NotThrow();
             reached.Should().Be(1);

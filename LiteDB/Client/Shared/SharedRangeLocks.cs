@@ -33,9 +33,15 @@ namespace LiteDB.Client.Shared
             catch { this.Dispose(); throw; }
         }
 
-        internal bool TryExclusiveDms() => _owner.TryLock(SharedMemoryLayout.Dms, true);
-        internal void ShareDms() => _owner.Lock(SharedMemoryLayout.Dms, false);
-        internal void DowngradeDms() => _owner.Downgrade(SharedMemoryLayout.Dms);
+        internal bool ExclusiveDms { get; private set; }
+        internal bool TryExclusiveDms()
+        {
+            if (!_owner.TryLock(SharedMemoryLayout.Dms, true)) return false;
+            ExclusiveDms = true;
+            return true;
+        }
+        internal void ShareDms() { _owner.Lock(SharedMemoryLayout.Dms, false); ExclusiveDms = false; }
+        internal void DowngradeDms() { _owner.Downgrade(SharedMemoryLayout.Dms); ExclusiveDms = false; }
         internal bool TryClaim(int slot) => _owner.TryLock(Slot(slot), true);
         internal void ReleaseSlot(int slot) => _owner.Unlock(Slot(slot));
         internal bool IsLive(int slot) => _probe.Conflicts(Slot(slot));

@@ -66,6 +66,7 @@ namespace LiteDB.Engine
 
         public long Rebuild(RebuildOptions options, Collation currentCollation = null)
         {
+            using var maintenance = _settings.SharedMaintenance?.Invoke();
             var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
             var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
@@ -180,7 +181,7 @@ namespace LiteDB.Engine
             // on being able to write a marker after filesystem operations fail.
             try
             {
-                RebuildRecovery.Begin(_settings.Filename, backupFilename, backupLogFilename, tempFilename);
+                RebuildRecovery.Begin(_settings, backupFilename, backupLogFilename, tempFilename);
             }
             catch (Exception markerException)
             {
@@ -201,6 +202,7 @@ namespace LiteDB.Engine
                 {
                     File.Move(logFile, backupLogFilename);
                     movedLog = true;
+                    MappedRebuildRecovery.Sync(_settings);
                 }
 #if DEBUG || TESTING
                 Reachability.FaultPoint("after-log-backup");
@@ -212,6 +214,7 @@ namespace LiteDB.Engine
                 // rename source filename to backup name
                 FileHelper.Exec(5, () => File.Move(_settings.Filename, backupFilename));
                 movedSource = true;
+                MappedRebuildRecovery.Sync(_settings);
 #if DEBUG || TESTING
                 Reachability.FaultPoint("after-source-backup");
                 SimulateInstallFailure?.Invoke("after-source-backup");
@@ -222,14 +225,20 @@ namespace LiteDB.Engine
                 // rename temp file into filename
                 File.Move(tempFilename, _settings.Filename);
                 candidateIsLive = true;
+                MappedRebuildRecovery.Sync(_settings);
 #if DEBUG || TESTING
                 Reachability.FaultPoint("after-temp-install");
                 SimulateInstallFailure?.Invoke("after-temp-install");
 #endif
-                RebuildRecovery.Complete(_settings.Filename);
+                RebuildRecovery.Complete(_settings.Filename, _settings.SharedOneFile);
             }
             catch (Exception installException)
             {
+                if (_settings.SharedOneFile && installException.Data[MappedRebuildRecovery.RemovedMarkerKey] is bool removed && removed)
+                {
+                    installException.Data[LiveStateDataKey] = LiveStateReplacement;
+                    throw;
+                }
                 var rollbackErrors = new List<Exception>();
                 var sourceIsLive = !movedSource;
                 var logIsLive = !movedLog;
@@ -248,6 +257,7 @@ namespace LiteDB.Engine
                     {
                         File.Move(_settings.Filename, tempFilename);
                         candidateIsLive = false;
+                        MappedRebuildRecovery.Sync(_settings);
                     }
                 }, rollbackErrors);
 
@@ -261,6 +271,7 @@ namespace LiteDB.Engine
                     {
                         File.Move(backupFilename, _settings.Filename);
                         sourceIsLive = true;
+                        MappedRebuildRecovery.Sync(_settings);
                     }
                 }, rollbackErrors);
 
@@ -277,6 +288,7 @@ namespace LiteDB.Engine
                     {
                         File.Move(backupLogFilename, logFile);
                         logIsLive = true;
+                        MappedRebuildRecovery.Sync(_settings);
                     }
                 }, rollbackErrors);
 
@@ -294,6 +306,7 @@ namespace LiteDB.Engine
                         {
                             File.Move(_settings.Filename, backupFilename);
                             sourceIsLive = false;
+                            MappedRebuildRecovery.Sync(_settings);
                         }
                     }, rollbackErrors);
                 }
@@ -310,6 +323,7 @@ namespace LiteDB.Engine
 #endif
                         File.Move(tempFilename, _settings.Filename);
                         candidateIsLive = true;
+                        MappedRebuildRecovery.Sync(_settings);
                     }
                 }, rollbackErrors);
 
@@ -342,7 +356,7 @@ namespace LiteDB.Engine
                 // An incomplete rollback keeps the recovery marker: neither stale source
                 // data nor a missing file may be opened as a database.
                 if (liveState != LiveStateIncomplete)
-                    TryRollback(() => RebuildRecovery.Complete(_settings.Filename), rollbackErrors);
+                    TryRollback(() => RebuildRecovery.Complete(_settings.Filename, _settings.SharedOneFile), rollbackErrors);
 
                 if (rollbackErrors.Count > 0)
                     installException.Data[RollbackErrorsDataKey] = new AggregateException(rollbackErrors);

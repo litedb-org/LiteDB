@@ -109,10 +109,16 @@ namespace LiteDB.Internals
             await writer.Expect("committed");
             writer.Send("checkpoint");
             await writer.Expect("checkpointed");
+            new FileInfo(files.Log).Length.Should().BeGreaterThan(0, "this process still holds DMS after its reader was collected");
+            Verify(db, 1);
+            engine.Dispose();
+            writer.Send("checkpoint");
+            await writer.Expect("checkpointed");
             (File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0).Should().Be(0);
             writer.Send("exit");
             await writer.Finish();
-            Verify(db, 1);
+            using var cold = new LiteDatabase(new LiteDB.Engine.LiteEngine(files.Settings));
+            Verify(cold, 1);
         }
 
         [OneFileTheory]

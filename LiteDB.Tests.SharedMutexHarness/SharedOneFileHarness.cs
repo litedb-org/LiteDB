@@ -5,6 +5,7 @@ internal static class SharedOneFileHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (SharedOneFileMaintenanceHarness.TryRun(mode, filename, args)) return true;
         if (SharedWriterTenureHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileProductionReuseHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileWarmHarness.TryRun(mode, filename, args)) return true;

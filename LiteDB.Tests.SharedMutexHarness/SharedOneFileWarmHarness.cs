@@ -113,15 +113,15 @@ internal static class SharedOneFileWarmHarness
                     db.GetCollection("docs").EnsureIndex("value");
                     Console.WriteLine("metadata-done");
                 }
-                else if (command.StartsWith("reset ", StringComparison.Ordinal))
+                else if (command.StartsWith("backfill ", StringComparison.Ordinal))
                 {
-                    var value = int.Parse(command.Substring(6));
+                    var value = int.Parse(command.Substring(9));
                     db.GetCollection("docs").Update(new BsonDocument
                         { ["_id"] = 1, ["value"] = value, ["payload"] = new string('x', 1024) });
                     db.Checkpoint();
-                    if (new FileInfo(FileHelper.GetLogFile(filename)).Length != (args[3] == "-" ? 0 : Constants.PAGE_SIZE))
-                        throw new Exception("Full WAL reset did not occur");
-                    Console.WriteLine("reset-done");
+                    if (new FileInfo(FileHelper.GetLogFile(filename)).Length <= (args[3] == "-" ? 0 : Constants.PAGE_SIZE))
+                        throw new Exception("Peer checkpoint truncated the WAL");
+                    Console.WriteLine("backfill-done");
                 }
                 else if (command == "checkpoint") { db.Checkpoint(); Console.WriteLine("checkpointed"); }
                 else throw new Exception("Unknown warm command: " + command);

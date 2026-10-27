@@ -304,6 +304,10 @@ namespace LiteDB
         /// </summary>
         private void CheckpointOnDispose()
         {
+            // Mapped final checkpoint belongs to the last table reference under
+            // exclusive DMS. A facade's cleanup must not reopen and bless a core
+            // whose holder just failed its close and left an uncertain fence.
+            if (_settings.SharedOneFile) return;
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
             if (!this.TryEnterForDispose(out var abandoned)) return;
             try
