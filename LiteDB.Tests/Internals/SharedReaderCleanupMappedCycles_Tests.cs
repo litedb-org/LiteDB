@@ -110,7 +110,7 @@ namespace LiteDB.Internals
         public void Collected_transform_identity_cannot_be_replaced_while_participant_is_retained()
         {
             using var files = new SharedOneFilePublicationFixture();
-            var table = RetainParticipantWithoutCallback(files.Settings, out var weak);
+            var table = RetainParticipantWithoutCallback(files, out var weak);
             try
             {
                 SpinWait.SpinUntil(() =>
@@ -131,8 +131,11 @@ namespace LiteDB.Internals
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static SharedMemoryReaderTable RetainParticipantWithoutCallback(EngineSettings settings, out WeakReference weak)
+        private static SharedMemoryReaderTable RetainParticipantWithoutCallback(SharedOneFilePublicationFixture files, out WeakReference weak)
         {
+            // Create settings inside this non-inlined frame: mutating an argument
+            // would let a caller's JIT temporary retain the delegate under test.
+            var settings = files.Settings;
             settings.ReadTransform = new Request().Transform;
             weak = new WeakReference(settings.ReadTransform);
             using var engine = new SharedEngine(settings);
