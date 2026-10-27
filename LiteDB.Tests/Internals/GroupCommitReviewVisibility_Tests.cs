@@ -35,6 +35,16 @@ namespace LiteDB.Tests.Internals
             using ILiteEngine engine = mode == "shared" ? new SharedEngine(settings) : new LiteEngine(settings);
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.BeginTrans();
+            if (engine is SharedEngine)
+            {
+                // Exercise legacy Shared before coordination signals exist.
+                // Its durability state must still exclude Direct group commit.
+                var sharedSettings = (EngineSettings)typeof(SharedEngine)
+                    .GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                sharedSettings.SharedMode.Should().BeTrue();
+                sharedSettings.CoordinationSignals.Should().BeNull();
+                sharedSettings.SharedDurability.Should().NotBeNull();
+            }
             var direct = engine as LiteEngine ?? (LiteEngine)typeof(SharedEngine)
                 .GetField("_engine", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
             var disk = (DiskService)typeof(LiteEngine).GetField("_disk", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(direct);
@@ -48,6 +58,7 @@ namespace LiteDB.Tests.Internals
         public async Task Dependent_writes_include_filestorage_and_system_indexes_obey_the_synced_prefix(bool failSecond)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, TransactionPageLimit = 1 });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -83,13 +94,13 @@ namespace LiteDB.Tests.Internals
                 else
                 {
                     syncedData = TempFile.ReadAllBytesShared(file.Filename);
-                    syncedLog = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+                    syncedLog = TempFile.ReadAllBytesShared(logPath);
                     nextGate.Set();
                     releaseNext.Wait(TimeSpan.FromSeconds(15)).Should().BeTrue();
                 }
             };
             NativeFileSync.SimulateErrno = path =>
-                path == FileHelper.GetLogFile(file.Filename) && failSecond && Volatile.Read(ref barriers) == 2 ? 5 : 0;
+                path == logPath && failSecond && Volatile.Read(ref barriers) == 2 ? 5 : 0;
 
             Task<Exception> Start(int value) => Task.Factory.StartNew(() =>
             {

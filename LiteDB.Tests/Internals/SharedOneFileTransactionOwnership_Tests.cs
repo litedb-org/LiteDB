@@ -29,7 +29,7 @@ namespace LiteDB.Internals
             owner.BeginTrans().Should().BeTrue();
             owner.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             Action peerBegin = () => peer.BeginTrans();
-            peerBegin.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+            peerBegin.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
             owner.Commit().Should().BeTrue();
             peer.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2 });
             peer.GetCollection("docs").Count().Should().Be(2);

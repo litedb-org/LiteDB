@@ -54,7 +54,9 @@ namespace LiteDB.Client.Shared
         }
         internal bool EndMaintenance() { lock (_gate) return --_maintenanceDepth == 0; }
         private readonly SharedMemoryWriter _writer;
-        internal bool Closed { get { lock (_gate) return _references == 0; } }
+        // Zero references starts final close, which can still checkpoint and open
+        // files. Completion observers must wait for its storage/native teardown.
+        internal bool Closed { get { lock (_gate) return _references == 0 && !_closing; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
 
         private SharedMemoryReaderTable(SharedMemoryAuthority authority, NativeAdmission admission, EngineSettings settings)

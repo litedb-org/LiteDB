@@ -76,9 +76,9 @@ namespace LiteDB.Internals
             second.Dispose();
             using (var cold = new LiteDatabase(file.Filename))
                 cold.GetCollection("docs").FindAll().Should().BeEquivalentTo(new[] { new BsonDocument { ["_id"] = 1 } });
-            foreignFailure.Should().BeOfType<InvalidOperationException>(
+            foreignFailure.Should().BeOfType<LiteException>(
                 "the new explicit transaction must publish its owner even when Begin started before old-owner cleanup")
-                .Which.Message.Should().Contain("connection");
+                .Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
         }
 
         private static T Field<T>(object value, string name) =>

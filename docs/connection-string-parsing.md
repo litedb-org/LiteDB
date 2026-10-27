@@ -104,6 +104,22 @@ streams cannot be synced and ignore it. `$database.durableLogFlush` reports
 `false` while commits are not synced, either because of this setting or because
 the storage rejected the sync request (some network shares).
 
+## Same-thread transaction writes
+
+The owner decision for Phase 3 removes the experimental same-thread wait opt-in.
+`WaitForSameThreadTransaction` is no longer a `ConnectionString` or
+`EngineSettings` property, and `wait for same thread transaction` is no longer a
+recognized connection-string setting. The former round-trip and opt-in timeout
+tests described a superseded contract; retaining that setting would contradict
+the unconditional refusal rule. Cooperative waiting is deferred to Phase 4's
+thread-independent transaction handles.
+
+A write through another facade while a legacy explicit transaction is open on the
+current thread fails immediately with `LiteException.SAME_THREAD_TRANSACTION`.
+Phase 4 will introduce thread-independent transaction handles for coordinated
+cross-thread completion. Reads keep their existing semantics; legacy transactions
+still must be completed on the thread that began them.
+
 ## Reading files that await index migration read-only
 
 Writable opens migrate v8/v9/v10 indexes to the v11 ordering (see

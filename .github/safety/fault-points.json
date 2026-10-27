@@ -1267,6 +1267,11 @@
       "protocol": "WAL append",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
+        {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
           "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
@@ -1291,6 +1296,11 @@
       "name": "wal-page-before-write",
       "protocol": "WAL append",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
         {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
@@ -2149,6 +2159,11 @@
       "name": "FinalCloseStage",
       "protocol": "Mapped Shared final checkpoint, retirement and native release",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs#Closed_requires_completed_final_storage_and_native_release",
+          "model": "interleaving",
+          "proves": "Pauses final teardown before storage close and during native release; completion stays false until cleanup returns, followed by full plain/encrypted indexed and unrelated-data cold verification."
+        },
         {
           "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority",
           "model": "process-death",

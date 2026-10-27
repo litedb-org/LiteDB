@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using LiteDB.Engine;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Direct
 {
@@ -8,22 +9,62 @@ namespace LiteDB.Client.Direct
     // their previous lifetime. No operation touches this object.
     internal sealed class DirectFacadeLifetime : IDisposable
     {
+        private static DirectFacadeLifetime _pending;
+        private static readonly Timer Reaper = CreateReaper();
+        private static readonly WaitCallback DrainCallback = _ => Drain();
+        private DirectFacadeLifetime _next;
         private DirectProcessHost _host;
         internal TransactionMonitor Owner;
         internal DirectFacadeLifetime(DirectProcessHost host, TransactionMonitor owner)
         { _host = host; Owner = owner; }
 
+        private static Timer CreateReaper()
+        {
+            // The reaper must not retain an ambient request that could root a facade or
+            // its database. Finalizer cleanup is published without taking a monitor.
+            if (ExecutionContext.IsFlowSuppressed()) return new Timer(_ => Drain(), null, 20, 20);
+            using (ExecutionContext.SuppressFlow()) return new Timer(_ => Drain(), null, 20, 20);
+        }
+
+        internal static void Drain()
+        {
+            var pending = Interlocked.Exchange(ref _pending, null);
+            while (pending != null)
+            {
+                var next = pending._next;
+                try { pending.ReleaseCore(); }
+                catch { /* Abandoned cleanup cannot escape the reaper. */ }
+                pending = next;
+            }
+        }
+
         public void Dispose()
         {
-            var host = Interlocked.Exchange(ref _host, null);
-            if (host != null) host.Release(Owner);
-            GC.SuppressFinalize(this);
+            try { this.ReleaseCore(); }
+            finally { GC.SuppressFinalize(this); }
         }
 
         ~DirectFacadeLifetime()
         {
-            try { this.Dispose(); }
-            catch { /* Existing stream/native finalizers finish failed cleanup. */ }
+            // Never acquire the host gate or run storage cleanup on the finalizer thread.
+            // The lifetime object roots the host until the normal-thread reaper drains it.
+            Reachability.Sometimes("maintenance:direct-finalizer-release-queued");
+            DirectFacadeLifetime head;
+            do
+            {
+                head = Volatile.Read(ref _pending);
+                _next = head;
+            }
+            while (Interlocked.CompareExchange(ref _pending, this, head) != head);
+            GC.KeepAlive(Reaper);
+            try { ThreadPool.UnsafeQueueUserWorkItem(DrainCallback, null); }
+            catch { /* The timer remains as a bounded fallback when scheduling is unavailable. */ }
+        }
+
+        private void ReleaseCore()
+        {
+            var host = Interlocked.Exchange(ref _host, null);
+            if (host != null) host.Release(Owner);
         }
     }
 }

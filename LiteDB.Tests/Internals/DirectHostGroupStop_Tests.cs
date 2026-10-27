@@ -23,6 +23,7 @@ namespace LiteDB.Tests.Internals
         public async Task Uncertain_writer_poisoning_reaches_pending_tickets_on_every_facade(bool syncStarted, bool ioFailure)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             Seed(file.Filename);
             using (var leaderEngine = new LiteEngine(file.Filename))
             using (var leaderDb = new LiteDatabase(leaderEngine, disposeOnClose: false))
@@ -48,7 +49,7 @@ namespace LiteDB.Tests.Internals
                 };
                 NativeFileSync.SimulateErrno = path =>
                 {
-                    if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                    if (path != logPath) return 0;
                     Interlocked.Increment(ref syncs);
                     if (syncStarted) { captured.Set(); Wait(release); }
                     return 0;

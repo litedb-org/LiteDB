@@ -11,8 +11,12 @@ namespace LiteDB.Client.Direct
     // storage fields, with a transaction-monitor owner view fixed at construction.
     internal sealed class DirectProcessHost
     {
-        private static readonly Dictionary<string, WeakReference<DirectProcessHost>> Hosts =
-            new Dictionary<string, WeakReference<DirectProcessHost>>();
+        // A published host owns the storage core until its final release removes the
+        // entry. A strong registry root is required while an abandoned facade's
+        // finalizer is pending; a weak target could disappear while its streams remain
+        // open and let Attach construct a second core for the same physical file.
+        private static readonly Dictionary<string, DirectProcessHost> Hosts =
+            new Dictionary<string, DirectProcessHost>();
         private static readonly HashSet<string> Opening = new HashSet<string>();
         private static readonly object Gate = new object();
         private NativeAdmission _admission;
@@ -43,7 +47,7 @@ namespace LiteDB.Client.Direct
                 var admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
                 try
                 {
-                    if (Hosts.TryGetValue(admission.Identity, out var weak) && weak.TryGetTarget(out var host))
+                    if (Hosts.TryGetValue(admission.Identity, out var host))
                     {
                         if (host._closed) throw new InvalidOperationException("The Direct host is closing. Retry after Dispose returns.");
                         if (host._maintaining) throw new InvalidOperationException("The Direct host is performing maintenance. Retry when it finishes.");
@@ -58,7 +62,7 @@ namespace LiteDB.Client.Direct
                     finally { Opening.Remove(identity); }
                     admission = null;
                     host._references = 1;
-                    Hosts[host._identity] = new WeakReference<DirectProcessHost>(host);
+                    Hosts[host._identity] = host;
                     return host;
                 }
                 finally { admission?.Dispose(); }
@@ -115,7 +119,7 @@ namespace LiteDB.Client.Direct
                     if (next != _identity)
                     {
                         Hosts.Remove(_identity);
-                        Hosts[next] = new WeakReference<DirectProcessHost>(this);
+                        Hosts[next] = this;
                         _identity = next;
                     }
                 }

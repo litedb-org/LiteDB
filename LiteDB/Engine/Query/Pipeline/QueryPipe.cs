@@ -31,6 +31,7 @@ namespace LiteDB.Engine
             var nodeSource = nodes;
             var borrowed = false;
             var datafile = _lookup as DatafileLookup;
+            var fullDocumentFilter = datafile != null && FullDocumentScanStrategy.CanUse(query);
 
             // When the index already determines membership and ordering, skip
             // nodes before loading document payloads. Other plans must paginate
@@ -44,7 +45,7 @@ namespace LiteDB.Engine
 
             // Includes before filtering mutate documents, so only plans without
             // them can move residual predicates ahead of materialization.
-            if (datafile != null && query.BorrowedFilter != null)
+            if (!fullDocumentFilter && datafile != null && query.BorrowedFilter != null)
             {
                 nodeSource = this.FilterBorrowed(nodeSource, datafile,
                     query.BorrowedFilter, query.Filters);
@@ -104,7 +105,9 @@ namespace LiteDB.Engine
                     if (query.Limit < int.MaxValue) nodeSource = nodeSource.Take(query.Limit);
                 }
 
-                source = this.LoadDocument(nodeSource);
+                source = fullDocumentFilter
+                    ? this.FilterFullDocuments(nodeSource, datafile, query.BorrowedFilter, query.Filters)
+                    : this.LoadDocument(nodeSource);
 
                 // do includes in result before filter
                 foreach (var path in query.IncludeBefore)
@@ -113,7 +116,7 @@ namespace LiteDB.Engine
                 }
 
                 // filter results according expressions
-                foreach (var expr in borrowed ? Enumerable.Empty<BsonExpression>() : query.Filters)
+                foreach (var expr in borrowed || fullDocumentFilter ? Enumerable.Empty<BsonExpression>() : query.Filters)
                 {
                     source = this.Filter(source, expr);
                 }

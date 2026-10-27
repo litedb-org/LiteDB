@@ -14,6 +14,7 @@ namespace LiteDB
 
         private bool BeginTransCore()
         {
+            this.ThrowIfForeignLocalTransaction(writing: true);
             this.ThrowIfCallerRetainsOwnership();
             // A pending admission belongs to this call, not to the old native
             // ownership. Dead-owner cleanup must never release the successor's lease.
@@ -37,6 +38,9 @@ namespace LiteDB
                 var started = _engine.BeginTrans();
                 if (started)
                 {
+                    ReleaseTransactionLease();
+                    _transactionLease = SharedTransactionOwnership.Enter(
+                        _mutexName, this, Thread.CurrentThread);
                     // A new inner transaction proves the old one aborted. Return its hold
                     // while this call still protects the engine and the new transaction.
                     if (_transactionRunning) CloseDatabase(_transactionUse, hold: true);
@@ -77,7 +81,7 @@ namespace LiteDB
 
         private bool CompleteTransaction(bool commit)
         {
-            this.ThrowIfForeignLocalTransaction();
+            this.ThrowIfForeignLocalTransaction(writing: true);
             // Hold one extra mutex recursion (or pinned operation) throughout
             // completion. A foreign thread must not reach cleanup, even while
             // BeginTrans is publishing.
@@ -154,12 +158,17 @@ namespace LiteDB
         private static LiteException ForeignTransactionCompletion() =>
             new LiteException(0, "Complete the explicit transaction on the same thread that called BeginTrans; do not await inside it.");
 
-        private void ThrowIfForeignLocalTransaction()
+        private void ThrowIfForeignLocalTransaction(bool writing = false)
         {
+            if (writing)
+                SharedTransactionOwnership.EnsureWriteAllowed(_mutexName, this, Thread.CurrentThread);
             if (_localTransactions?.IsHeldByOther(this, Thread.CurrentThread) == true)
+            {
+                if (writing) throw LiteException.SameThreadTransaction();
                 throw new InvalidOperationException(
                     "Another connection (mapped Shared facade) owns the writable transaction on this thread. " +
                     "Complete it before using this facade on the same thread.");
+            }
         }
 
         /// <summary>
@@ -172,6 +181,7 @@ namespace LiteDB
         {
             var use = _transactionUse;
             var local = Interlocked.Exchange(ref _localTransaction, null);
+            var shared = Interlocked.Exchange(ref _transactionLease, null);
             var running = _transactionRunning;
             _transactionUse = null;
             _transactionRunning = false;
@@ -180,7 +190,16 @@ namespace LiteDB
             {
                 if (releaseHold && running) this.CloseDatabase(use, hold: true);
             }
-            finally { local?.Dispose(); }
+            finally
+            {
+                local?.Dispose();
+                shared?.Dispose();
+            }
+        }
+
+        private void ReleaseTransactionLease()
+        {
+            Interlocked.Exchange(ref _transactionLease, null)?.Dispose();
         }
 
         // Operations can implicitly abort or Stop the core. Reconcile before the
