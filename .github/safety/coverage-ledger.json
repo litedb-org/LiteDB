@@ -26,6 +26,39 @@
   ],
   "dispositions": [
     {
+      "id": "p1-padding-noop-truncate-checksum-crash-4058733",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:4058733:111"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-checksum-crash-3163459",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:3163459:201"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-compact-crash-2937",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "compact-crash:2937:64"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; compact interruption exposes only whole original/new transactions with stable membership through checkpoint.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
       "id": "p1-padding-compatibility-script",
       "kind": "harness-changed",
       "subjects": [
