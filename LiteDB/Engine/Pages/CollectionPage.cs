@@ -145,13 +145,13 @@ namespace LiteDB.Engine
 
         internal bool HasDamagedVectorMetadata => _damagedVectorMetadataIndex != null;
 
-        internal void ThrowIfDamagedVectorMetadata()
+        internal void ThrowIfDamagedVectorMetadata(string collectionName)
         {
             if (!this.HasDamagedVectorMetadata) return;
 
             throw LiteException.InvalidVectorMetadata(
-                $"Vector index '{_damagedVectorMetadataIndex}' has no usable metadata. " +
-                "Rebuild the database or drop and recreate the index before querying or writing.");
+                $"Vector index '{_damagedVectorMetadataIndex}' in collection '{collectionName}' has no usable metadata. " +
+                "Rebuild the database before querying or writing.");
         }
 
         public override PageBuffer UpdateBuffer()

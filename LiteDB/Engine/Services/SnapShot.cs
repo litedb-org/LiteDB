@@ -49,7 +49,7 @@ namespace LiteDB.Engine
         {
             if (_header.Pragmas.IndexesOrdered)
             {
-                _collectionPage?.ThrowIfDamagedVectorMetadata();
+                _collectionPage?.ThrowIfDamagedVectorMetadata(_collectionName);
             }
         }
 
@@ -105,7 +105,7 @@ namespace LiteDB.Engine
                 // separately instead of silently maintaining it as an ordinary index.
                 if (_mode == LockMode.Write && _header.Pragmas.IndexesOrdered)
                 {
-                    _collectionPage?.ThrowIfDamagedVectorMetadata();
+                    _collectionPage?.ThrowIfDamagedVectorMetadata(_collectionName);
                 }
             }
             catch

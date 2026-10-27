@@ -73,6 +73,9 @@
     "reason": "CRC-valid damaged vector metadata must refuse current-file vector queries and writes while retaining 5.0.21 legacy tolerance.",
     "tests": [
       "LiteDB.Tests/Regressions/VectorMetadataDamage_Tests.cs#Current_file_refuses_damaged_vector_queries_and_writes_without_mutation",
+      "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Damaged_metadata_cannot_admit_queries_or_writes",
+      "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Healthy_indexes_keep_their_metric_and_maintain_writes",
+      "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Legacy_corrupt_metadata_still_allows_read_only_document_inspection",
       "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
       "LiteDB.Tests/Regressions/PrereleaseVectorFile_Tests.cs#Prerelease_vector_indexes_stay_usable_after_the_writable_open"
     ]

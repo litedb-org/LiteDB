@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Regressions
                     .Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray();
                 var queryError = query.Should().Throw<LiteException>().Which;
                 queryError.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
-                queryError.Message.Should().Contain("Rebuild").And.Contain("recreate");
+                queryError.Message.Should().Contain("Rebuild").And.Contain("docs").And.Contain("embedding");
             }
 
             File.ReadAllBytes(file.Filename).Should().Equal(beforeData);
@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Regressions
                 });
                 var writeError = write.Should().Throw<LiteException>().Which;
                 writeError.ErrorCode.Should().Be(LiteException.INVALID_DATAFILE_STATE);
-                writeError.Message.Should().Contain("Rebuild").And.Contain("recreate");
+                writeError.Message.Should().Contain("Rebuild").And.Contain("docs").And.Contain("embedding");
             }
 
             File.ReadAllBytes(file.Filename).Should().Equal(beforeData);

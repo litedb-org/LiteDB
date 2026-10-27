@@ -41,7 +41,7 @@ internal static class Program
         finally
         {
             try { File.Delete(path); } catch (IOException) { }
-            try { File.Delete(path + "-log"); } catch (IOException) { }
+            try { File.Delete(Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path) + "-log" + Path.GetExtension(path))); } catch (IOException) { }
         }
     }
 
@@ -58,37 +58,63 @@ internal static class Program
             db.Checkpoint();
         }
 
-        var before = File.ReadAllBytes(path);
+        var beforeLength = new FileInfo(path).Length;
         CorruptVectorMetadata(path);
         var damaged = File.ReadAllBytes(path);
+        Require(damaged.LongLength == beforeLength, "the corruption image changed the file length");
 
-        using (var db = new LiteDatabase(path))
+        var logPath = Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path) + "-log" + Path.GetExtension(path));
+        var damagedLog = ReadBytes(logPath);
+        var wrongMetric = false;
+        var admittedWrite = false;
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            try
+            using (var db = new LiteDatabase(path))
             {
-                var row = db.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray().Single()["_id"].AsInt32;
-                if (row == 1)
+                try
                 {
-                    host.SendLog("CRC-valid damaged metadata changed Euclidean nearest-neighbour evaluation to cosine");
-                    return (Reproduced, "REPRODUCED: damaged metadata changed the vector metric");
+                    var row = db.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray().Single()["_id"].AsInt32;
+                    Require(row == 1, "damaged metadata neither refused nor reproduced the cosine wrong row");
+                    wrongMetric = true;
+                    host.SendLog($"Attempt {attempt}: Euclidean expected row 2; damaged metadata returned cosine row 1");
                 }
+                catch (LiteException error) { RequireRefusal(error); }
             }
-            catch (LiteException) { }
-        }
-
-        using (var db = new LiteDatabase(path))
-        {
-            try
+            if (!wrongMetric && !admittedWrite)
             {
-                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 3, ["Embedding"] = new BsonVector(new[] { 1f, 2f }) });
-                return (Reproduced, "REPRODUCED: damaged metadata allowed a write without vector maintenance");
+                Require(File.ReadAllBytes(path).SequenceEqual(damaged), "query refusal changed the damaged data file");
+                Require(ReadBytes(logPath).SequenceEqual(damagedLog), "query refusal changed the recovery WAL");
             }
-            catch (LiteException error) when (error.Message.Contains("Rebuild") || error.Message.Contains("recreate")) { }
+            using (var db = new LiteDatabase(path))
+            {
+                try
+                {
+                    db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 3 + attempt, ["Embedding"] = new BsonVector(new[] { 100f, 0f }) });
+                    admittedWrite = true;
+                    host.SendLog($"Attempt {attempt}: insert acknowledged despite damaged vector metadata");
+                }
+                catch (LiteException error) { RequireRefusal(error); }
+            }
+            if (!wrongMetric && !admittedWrite)
+            {
+                Require(File.ReadAllBytes(path).SequenceEqual(damaged), "refusal changed the damaged data file");
+                Require(ReadBytes(logPath).SequenceEqual(damagedLog), "refusal changed the recovery WAL");
+            }
         }
-
-        Require(File.ReadAllBytes(path).SequenceEqual(damaged), "refusal changed the damaged data file");
-        Require(before.Length == damaged.Length, "the corruption image changed the file length");
+        if (wrongMetric && admittedWrite)
+            return (Reproduced, "REPRODUCED: damaged metadata changed the vector metric and acknowledged writes");
+        Require(!wrongMetric && !admittedWrite, "only one unsafe path reproduced");
         return (Fixed, "FIXED: damaged metadata refused without changing the files");
+    }
+
+    private static byte[] ReadBytes(string path) => File.Exists(path) ? File.ReadAllBytes(path) : Array.Empty<byte>();
+
+    private static void RequireRefusal(LiteException error)
+    {
+        Require(error.ErrorCode == LiteException.INVALID_DATAFILE_STATE &&
+            error.Message.Contains("docs") && error.Message.Contains("embedding") &&
+            error.Message.Contains("Rebuild"),
+            "refusal must identify the collection/index and the rebuild remedy: " + error);
     }
 
     private static void CorruptVectorMetadata(string path)
