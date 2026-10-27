@@ -18,6 +18,10 @@ namespace LiteDB.Engine
         /// batch so physical recovery order never moves backwards.
         /// </summary>
         public uint TransactionID { get; set; }
+        internal bool DeferCommitSync { get; set; }
+        // Covers both observed write snapshots and this transaction's confirmation.
+        // Zero is valid only before any grouped append has been observed.
+        internal long CommitTicket { get; set; }
 
         /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE

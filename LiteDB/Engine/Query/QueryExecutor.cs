@@ -90,6 +90,11 @@ namespace LiteDB.Engine
             {
                 var snapshot = transaction.CreateSnapshot(_query.ForUpdate ? LockMode.Write : LockMode.Read, _collection, false);
 
+                // Standalone FOR UPDATE queries release rather than commit their
+                // transaction. Cover its pending view before exposing any result.
+                if (_query.ForUpdate && transaction.QueryOnly)
+                    _disk.CommitGroup?.EnsureDurable(transaction.Pages.CommitTicket);
+
                 // no collection, no documents
                 if (snapshot.CollectionPage == null && _source == null)
                 {

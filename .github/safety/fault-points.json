@@ -1064,6 +1064,11 @@
       "protocol": "WAL commit publication",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommit_Tests.cs#Concurrent_commits_share_barriers_and_preserve_durable_visibility",
+          "model": "interleaving",
+          "proves": "All followers reach pending index insertion while the leader's sync is held; no premature acknowledgement or reader visibility, including checkpoint and failed-sync interleavings."
+        },
+        {
           "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
           "model": "process-death",
           "proves": "A worker crashing after index confirmation releases the native mutex."
@@ -1142,6 +1147,11 @@
       "name": "wal-confirmation-after-write",
       "protocol": "WAL append",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+          "model": "exception",
+          "proves": "The follower confirmation fails with I/O/non-I/O while a leader is captured or syncing; leader and zero-frame waiter fail before teardown, with no acknowledgement or later sync/write, and file recovery repeats."
+        },
         {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
@@ -1624,6 +1634,11 @@
       "protocol": "WAL batch consistency",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Failed_leader_buffer_flush_publishes_stop_under_the_writer_monitor",
+          "model": "exception",
+          "proves": "The grouped leader throws I/O/non-I/O at its managed flush boundary; queued writer admission sees terminal state, no device sync runs, and repeated recovery verifies complete payloads and indexes."
+        },
+        {
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
@@ -1738,6 +1753,11 @@
       "name": "AfterFailedWalWrite",
       "protocol": "WAL write failure teardown",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+          "model": "exception",
+          "proves": "The follower confirmation fails with I/O/non-I/O while a leader is captured or syncing; leader and zero-frame waiter fail before teardown, with no acknowledgement or later sync/write, and file recovery repeats."
+        },
         {
           "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
           "model": "interleaving",

@@ -43,6 +43,8 @@ namespace LiteDB.Engine
             var reusePublished = false;
             Exception removedAppendFailure = null;
             var stream = _writer.Value;
+            var group = CommitGroup;
+            long commitTicket = 0;
             Exception flushFailure = null;
             var ownsFailure = false;
 
@@ -50,6 +52,7 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                var previousVersion = checked((int)(_checksums.LastConfirmedPosition / PAGE_SIZE + 1));
                 var uncertain = false;
                 try
                 {
@@ -155,9 +158,16 @@ namespace LiteDB.Engine
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
 
-                // A confirmation makes this WAL batch recoverable. Make all preceding
-                // pages durable before WAL-index confirmation or acknowledging commit.
-                if (flushFailure == null && hasConfirmation)
+                // Grouped writers publish pending versions, but readers and acknowledgements
+                // wait for a barrier covering every preceding frame. Preserve the torn-write
+                // stop above: a failed batch must never issue a ticket or enter a barrier.
+                if (flushFailure == null && hasConfirmation && group != null)
+                {
+                    commitTicket = group.Append(previousVersion,
+                        checked((int)(_checksums.LastConfirmedPosition / PAGE_SIZE + 1)));
+                    if (transactionState != null) transactionState.CommitTicket = commitTicket;
+                }
+                else if (flushFailure == null && hasConfirmation)
                 {
                     try
                     {
@@ -211,6 +221,9 @@ namespace LiteDB.Engine
                 _state.CompleteStop(flushFailure, ownsFailure);
                 throw flushFailure;
             }
+
+            if (commitTicket != 0 && !(transactionState?.DeferCommitSync ?? false))
+                group.EnsureDurable(commitTicket);
 
             return count;
         }

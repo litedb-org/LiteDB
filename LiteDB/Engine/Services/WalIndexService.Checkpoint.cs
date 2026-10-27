@@ -18,12 +18,13 @@ namespace LiteDB.Engine
         internal int BackfillVersion => _backfillVersion;
 #endif
 
-        internal int PinSnapshot()
+        internal int PinSnapshot(TransactionPages write = null)
         {
             _indexLock.EnterWriteLock();
             try
             {
-                var version = _currentReadVersion;
+                var version = write != null ? _currentReadVersion : Math.Min(_currentReadVersion, _disk.CommitReadVersionLimit);
+                if (write != null) _disk.CaptureCommitDependency(write);
 #if DEBUG || TESTING
                 SnapshotCaptured?.Invoke();
 #endif
@@ -50,7 +51,10 @@ namespace LiteDB.Engine
         /// </summary>
         private int[] LiveVersions(int[] shared)
         {
-            return _snapshots.Keys.Concat(shared).Distinct().OrderBy(version => version).ToArray();
+            var limit = _disk.CommitReadVersionLimit;
+            return _snapshots.Keys.Concat(shared).Concat(limit == int.MaxValue ? Array.Empty<int>() : new[] { limit })
+                .Concat(_disk.PendingCommitVersions)
+                .Distinct().OrderBy(version => version).ToArray();
         }
 
         public int Checkpoint() => this.TryCheckpoint(rationed: false);
