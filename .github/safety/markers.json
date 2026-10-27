@@ -61,6 +61,10 @@
       "gate": "advisory",
       "reason": "Only the deterministic GroupCommitCheckpointOrdering_Tests install the unactivated Direct barrier; no smoke fuzz target activates it yet."
     },
+    "wal-before-group-wait": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated Direct lifetime/interlock and force zero-frame group admission. Generic smoke fuzz does not enable this path and xUnit does not record marker counts."
+    },
     "wal-before-checkpoint-barrier": {
       "gate": "advisory",
       "reason": "Only the deterministic GroupCommitCheckpointOrdering_Tests install the unactivated Direct barrier; no smoke fuzz target activates it yet."

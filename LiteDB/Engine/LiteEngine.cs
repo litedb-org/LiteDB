@@ -268,9 +268,11 @@ namespace LiteDB.Engine
 
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
+            var lifetime = _state.CheckpointLifetime;
+            if (lifetime != null && !lifetime.IsCleanupOwner) return lifetime.Close(checkpoint: checkpoint, final: final);
             if (_state.Disposed) return new List<Exception>();
 
-            _state.Disposed = true;
+            if (lifetime == null) _state.Disposed = true;
 
             var tc = new TryCatch();
 
@@ -328,9 +330,11 @@ namespace LiteDB.Engine
         internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
             if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
+            var lifetime = _state.CheckpointLifetime;
+            if (lifetime != null && !lifetime.IsCleanupOwner) return lifetime.Close(ex);
             if (_state.Disposed) return new List<Exception>();
 
-            _state.Disposed = true;
+            if (lifetime == null) _state.Disposed = true;
 
             var tc = new TryCatch(ex);
 
@@ -382,6 +386,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            if (_state.CheckpointLifetime != null) _state.Validate();
             if (_host != null)
             {
                 _monitor.ValidateOwner();
@@ -410,7 +415,11 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
-            if (_host == null) this.Close();
+            if (_host == null)
+            {
+                var errors = this.Close();
+                if (_state.CheckpointLifetime != null && errors.Count > 0) throw errors[0];
+            }
             else _lifetime?.Dispose();
         }
     }

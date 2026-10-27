@@ -16,6 +16,18 @@ namespace LiteDB.Engine
     internal class EngineState
     {
         public volatile bool Disposed = false;
+        internal volatile bool Closing;
+        internal DirectCheckpointLifetime CheckpointLifetime { get; set; }
+        internal Exception TerminalCause
+        {
+            get
+            {
+                var failure = Volatile.Read(ref _exception);
+                return failure is IOException || (failure is LiteException lite && lite.ErrorCode == LiteException.ENGINE_DISPOSED)
+                    ? failure.InnerException ?? failure : failure;
+            }
+        }
+        private readonly object _terminalGate = new object();
         private Exception _exception;
         private WriteFailure _writeFailure;
 
@@ -70,7 +82,7 @@ namespace LiteDB.Engine
         public void Validate()
         {
             this.ThrowIfStopped();
-            if (this.Disposed) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
+            if (this.Disposed || this.Closing) throw Volatile.Read(ref _exception) ?? LiteException.EngineDisposed();
         }
 
         /// <summary>
@@ -144,9 +156,13 @@ namespace LiteDB.Engine
         /// </summary>
         internal void RecordWriteFailure(WriteFailure failure)
         {
-            if (this.Stopped) return;
+            if (this.Stopped || this.IsCloseRefusal(failure.Cause)) return;
             Interlocked.CompareExchange(ref _writeFailure, failure, null);
         }
+
+        internal bool IsCloseRefusal(Exception error) => this.Closing && !this.Stopped &&
+            ((error is LiteException lite && lite.ErrorCode == LiteException.ENGINE_DISPOSED) ||
+             (error is IOException && error.InnerException is LiteException inner && inner.ErrorCode == LiteException.ENGINE_DISPOSED));
 
         /// <summary>
         /// Make the engine immediately unusable without running cleanup that can
@@ -154,14 +170,22 @@ namespace LiteDB.Engine
         /// </summary>
         internal bool BeginStop(Exception ex)
         {
-            // A completion that failed because the engine was already closed is not a new fatal cause.
-            if (this.Disposed) return false;
-
-            // A later completion/cleanup race must not replace the causal failure.
-            var ownsFailure = Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) == null;
+            bool ownsFailure;
+            lock (_terminalGate)
+            {
+                if (this.IsCloseRefusal(ex) || this.Disposed) return false;
+                // Ordered with Candidate C's acknowledgement boundary. A caller
+                // delayed after this boundary may observe an earlier success.
+                ownsFailure = Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) == null;
+            }
             this.Disk?.WriteAdmission?.Close(Volatile.Read(ref _exception));
             if (ownsFailure) this.Disk?.AutomaticCheckpoint?.Stop(ex);
             return ownsFailure;
+        }
+
+        internal void ValidateCheckpointAcknowledgement()
+        {
+            lock (_terminalGate) this.Validate();
         }
 
         /// <summary>
@@ -170,6 +194,11 @@ namespace LiteDB.Engine
         internal void CompleteStop(Exception ex, bool ownsFailure)
         {
             if (!ownsFailure) return;
+            if (this.CheckpointLifetime != null)
+            {
+                this.CheckpointLifetime.CompleteStop(ex);
+                return;
+            }
             try { _engine?.Close(ex, this); }
             finally { this.Disposed = true; }
         }

@@ -42,6 +42,15 @@ namespace LiteDB.Engine
             }
         }
 
+        internal void DrainCommitGroup()
+        {
+            Volatile.Read(ref _commitGroup)?.Drain();
+            // A batch can already be writing before it becomes a group leader.
+            // Closing prevents the next batch's Validate from passing. Wait for
+            // this one before transaction cleanup can recycle its page frames.
+            lock (WalWriterLock) { }
+        }
+
         // Caller owns the writer monitor: exposing SafeFileHandle flushes buffers.
         internal Microsoft.Win32.SafeHandles.SafeFileHandle CaptureCommitHandle(out string path)
         {

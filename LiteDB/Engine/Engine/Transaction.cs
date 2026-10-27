@@ -161,7 +161,11 @@ namespace LiteDB.Engine
 
             // After another thread's failure stopped the engine, or recorded a failure whose stop is
             // still in progress, nothing more may be written or synced on its handles.
-            if (state.Stopped || state.WriteFailure != null) return;
+            if (state.Stopped || state.WriteFailure != null)
+            {
+                if (state.CheckpointLifetime != null) state.ValidateCheckpointAcknowledgement();
+                return;
+            }
 
             var checkpointPages = this.CheckpointPages;
 
@@ -174,6 +178,7 @@ namespace LiteDB.Engine
             {
                 _walIndex.TryAutoCheckpoint();
             }
+            if (state.CheckpointLifetime != null) state.ValidateCheckpointAcknowledgement();
         }
 
         private void RollbackAndReleaseTransaction(TransactionService transaction)

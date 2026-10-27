@@ -70,6 +70,9 @@ namespace LiteDB.Engine
         {
             Exception failure = null;
             var ownsFailure = false;
+#if DEBUG || TESTING
+            if (_disk.CheckpointBarrier != null) _disk.TestCrashPoint("wal-before-group-wait");
+#endif
             lock (_sync)
             {
 #if DEBUG || TESTING
@@ -134,7 +137,11 @@ namespace LiteDB.Engine
                     if (failure == null)
                     {
                         failure = AsWriteFailure(error);
-                        lock (_disk.WalWriterLock) ownsFailure = BeginStop(failure);
+                        // A deliberate close refuses a pending ticket, without
+                        // inventing a new storage fault. Actual sync errors, even
+                        // after Closing, must still publish their original cause.
+                        if (!(_state.Closing && error is LiteException closed && closed.ErrorCode == LiteException.ENGINE_DISPOSED))
+                            lock (_disk.WalWriterLock) ownsFailure = BeginStop(failure);
                     }
                 }
             }
@@ -144,6 +151,10 @@ namespace LiteDB.Engine
                 throw failure;
             }
         }
+
+        // Called only after admission closes, outside storage/coordinator locks.
+        // Later queued leaders validate stop/close before capturing any handle.
+        internal void Drain() { lock (_sync) { } }
 
         private static IOException AsWriteFailure(Exception error) =>
             error as IOException ?? new IOException("WAL durable flush failed.", error);

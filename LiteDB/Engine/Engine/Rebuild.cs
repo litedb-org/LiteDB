@@ -38,6 +38,12 @@ namespace LiteDB.Engine
 
             var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
+            // Quiesce automatic work before transaction/storage exclusion. The
+            // lease belongs to the old incarnation and cannot resume a replacement.
+            var background = _state.CheckpointLifetime;
+            using var pause = background?.Worker.Pause();
+            if (background != null) _state.Validate();
+
             // Rebuild replaces the database files and all engine services. Wait for
             // existing transactions to finish and prevent a new one from being
             // admitted between that wait and Close(). Close disposes the old lock,
@@ -45,7 +51,8 @@ namespace LiteDB.Engine
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
             _locker.EnterExclusive();
 
-            this.Close();
+            var closeErrors = this.Close();
+            if (background != null && closeErrors.Count > 0) throw closeErrors[0];
 
             // run build service
             var rebuilder = new RebuildService(_settings);
@@ -74,6 +81,7 @@ namespace LiteDB.Engine
 
             // re-open engine
             this.Open();
+            if (background != null) this.BindDirectCheckpointLifetime();
 
             _state.Disposed = false;
 

@@ -14,6 +14,8 @@ namespace LiteDB.Client.Direct
         private static readonly WaitCallback DrainCallback = _ => Drain();
         private DirectFacadeLifetime _next;
         private DirectProcessHost _host;
+        private readonly object _releaseSync = new object();
+        private Exception _releaseError;
         internal TransactionMonitor Owner;
         internal DirectFacadeLifetime(DirectProcessHost host, TransactionMonitor owner)
         { _host = host; Owner = owner; }
@@ -41,7 +43,7 @@ namespace LiteDB.Client.Direct
         public void Dispose()
         {
             try { this.ReleaseCore(); }
-            finally { GC.SuppressFinalize(this); }
+            finally { if (Volatile.Read(ref _host) == null) GC.SuppressFinalize(this); }
         }
 
         ~DirectFacadeLifetime()
@@ -63,8 +65,20 @@ namespace LiteDB.Client.Direct
 
         private void ReleaseCore()
         {
-            var host = Interlocked.Exchange(ref _host, null);
-            if (host != null) host.Release(Owner);
+            lock (_releaseSync)
+            {
+                var host = _host;
+                if (host != null)
+                {
+                    // Refuse a storage-lock self-wait before relinquishing the
+                    // facade reference; a later non-reentrant close may retry.
+                    host.ValidateRelease();
+                    _host = null;
+                    try { host.Release(Owner); }
+                    catch (Exception error) { _releaseError = error; }
+                }
+                if (_releaseError != null) throw _releaseError;
+            }
         }
     }
 }

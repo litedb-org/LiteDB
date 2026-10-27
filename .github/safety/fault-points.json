@@ -1671,6 +1671,19 @@
     },
     {
       "family": "process-crash",
+      "name": "wal-before-group-wait",
+      "protocol": "Direct background lifetime/group admission (unactivated)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointGroupLifetime_Tests.cs#FinalCloseWaitsForCapturedGroupSyncAndRetainsRealLateErrors",
+          "model": "interleaving",
+          "proves": "A zero-frame follower demonstrably reaches group admission before final close. Close waits for the captured native sync, refuses both pending acknowledgements and retains real late sync failures, including CP0; repeated file recovery preserves complete acknowledged rows, indexes and unrelated data."
+        }
+      ],
+      "gap": "Enabled only with the fixture-installed checkpoint interlock. No process-death or modeled-power-loss campaign is claimed for this new lifetime path."
+    },
+    {
+      "family": "process-crash",
       "name": "wal-before-checkpoint-barrier",
       "protocol": "Direct checkpoint/group-sync exclusion (unactivated)",
       "evidence": [

@@ -6,50 +6,66 @@ writers. This is an accepted behavior contract, not a claim of implementation,
 safety qualification or measured performance. The barrier-reduction redesign is
 separate: [litedb-org/LiteDB#3134](https://github.com/litedb-org/LiteDB/issues/3134).
 
-Implementation is staged. The checkpoint/group-sync interlock is currently
-**unactivated**; deterministic tests install it before concurrent operations.
-Production keeps synchronous automatic checkpoint and the existing close paths.
-The writer-admission and worker components are also unactivated prerequisites;
-only deterministic xUnit fixtures install their nullable disk bindings. Core
-lifetime integration remains to be built.
-Do not enable the interlock in production before final-close group-I/O draining
-is integrated: the current close contract can interrupt a pending group without
-waiting for its native sync to return.
+Implementation is staged and **default OFF**. Production open still leaves all
+three disk bindings null and keeps synchronous automatic checkpoint. Only the
+TESTING/DEBUG `InstallDirectCheckpointLifetime` fixture entry point installs the
+core owner, admission, worker and checkpoint/group interlock. `BypassDirectHost`
+alone does not grant that authority.
 
 ## Current implementation boundary
 
-Slices 1–4 provide the accepted contract, nullable checkpoint/group interlock,
-`CheckpointWriteAdmission` and `AutomaticCheckpointCoordinator`. No production
-open installs these components or starts a thread. The nullable bindings are the
-internal OFF switch; `BypassDirectHost` does not change them.
+Slices 1–5 provide the accepted contract, checkpoint/group interlock, bounded
+writer admission, coalescing worker and composed `DirectCheckpointLifetime`.
+The core owns the lifetime through the shared EngineState; facade disposal owns
+only its transaction-monitor view and its host reference. Closing admission is
+separate from Disposed so late worker/native-sync failures remain observable.
 
-Writer intent reaches explicit/automatic transactions, FOR UPDATE, internal
-rebuild/migration writers and first-write snapshot upgrades. CP0 writers retain
-permit identities while unthrottled, so re-enabling can grandfather more than 64
-without inventing a new count. WAL reservation, failed-append restoration,
-retirement metadata and successful truncation publish logical tail under the
-existing writer serialization. Successful header commits recompute pragma state;
-repeated commits at the same N preserve hysteresis. Admission timeout does not
-consume input or acquire a transaction ID/lease.
+For an installed lifetime, final close cancels starts, drains captured/native
+group I/O, then joins worker I/O before disposing transactions and services and
+performing the enabled close checkpoint. It releases the group leader lock before
+joining the worker. One cleanup owner retains the first causal error and attaches
+secondary cleanup errors. Worker-owned terminal cleanup never self-joins;
+external close waits for cleanup **and thread exit** before releasing native
+admission. Non-worker terminal cleanup is queued after immediate stop publication
+because callback failures can originate under storage locks. Explicit non-final
+and final disposal surface the retained cause; repeated disposal is resource
+idempotent and retains the error. Finalizer/reaper cleanup cannot throw.
 
-The worker owns only core services and one lazy thread. State-only tail and
-last-version-unpin notifications cannot start I/O on their caller. `Request`
-starts the thread outside storage locks; post-transaction automatic request
-routing and recovered-tail publication belong to activation in slice 6. Request
-consumption at pass start preserves a pending request racing completion; stale
-service-incarnation requests are ignored. Component pause/close joins and the
-explicit WAL executor join are tested independently of host shutdown. Terminal
-publication wakes admission and worker waiters without joining under storage
-locks.
+Stop and the installed path's acknowledgement check share a terminal gate: a
+completed writer delayed before acknowledgement cannot succeed after stop wins.
+No commit durability barrier or persistent checkpoint ordering has changed.
 
-Next is slice 5: Direct core/facade ownership, registry admission outside slow
-joins, single-owner terminal cleanup, group-I/O drain, and explicit disposal error
-surfacing. Public host checkpoint/disposal and replacement must acquire these
-leases in the correct order before enabling the feature. In particular, do not
-bind the barrier or worker in production while final close still interrupts a
-paused group sync by disposing its handles. Component tests do not qualify that
-host interaction. Later process-death, modeled-power-loss, compatibility and
-performance slices remain required before activation/acceptance.
+Host release and maintenance publish admission under the registry gate and do
+slow work under a per-host lifecycle gate outside it. Closing/maintaining entries
+and native authority remain until cleanup/replacement finishes. An installed
+closing host refuses attachment (and preserves a terminal cause); unrelated files
+can open while it drains. The default synchronous path retains its existing
+same-file wait-and-reopen behavior, reentrant-open refusal and pending-group close
+expectations. Existing lifetime tests remain unchanged. Thus the paused-group
+interaction is resolved for the installed owner without prematurely changing the
+production close contract.
+
+Writer intent, permit identities across CP0, logical-tail publication and reader
+backoff remain as described below. State-only tail/unpin notifications cannot
+start I/O on their caller. Public explicit checkpoint preserves the single-facade
+restriction and joins a running pass before returning its own attempt's count.
+A storage-lock reentrant close is refused before dropping the facade reference,
+so an ordinary later close can retry.
+
+Maintenance prerequisites from slice 6 are also present: rebuild pauses/joins
+before transaction exclusion, aborts replacement on a failed worker join or close
+checkpoint, and binds a fresh lifetime only after successful synchronous Open.
+Old requests cannot start work on the replacement incarnation. A committed CP0
+while a pass is started lets that pass finish and suppresses later close work.
+
+**Next: the remaining slice 6 integration.** Production eligibility and internal
+opt-in plumbing, automatic post-transaction Request routing and recovered-tail
+startup publication are not wired. No production open starts a worker; automatic
+checkpoint remains synchronous even in the manually installed fixtures. Do not
+enable production bindings before that integration and its eligibility/open/
+pragma matrix. Full process-death, modeled-power-loss, compatibility, borrowed
+page-lifetime and performance qualification also remain later required slices.
+The current exception/forced-interleaving tests do not establish those models.
 
 ## Accepted observable behavior
 

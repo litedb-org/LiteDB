@@ -61,6 +61,9 @@ namespace LiteDB.Engine
             }
         }
 
+        internal bool HasExited { get { lock (_sync) return _exited; } }
+        internal bool IsWorkerThread => ReferenceEquals(Thread.CurrentThread, Volatile.Read(ref _thread));
+
         internal long RequestEpoch { get { lock (_sync) return _epoch; } }
 
         internal void Request(long incarnation)
@@ -256,17 +259,21 @@ namespace LiteDB.Engine
             Monitor.PulseAll(_sync);
         }
 
-        public void Dispose()
+        internal void BeginClose()
         {
-            Thread thread;
             lock (_sync)
             {
                 _closing = true;
                 _pending = false;
-                thread = _thread;
-                if (thread == null) _exited = true;
+                if (_thread == null) _exited = true;
                 Monitor.PulseAll(_sync);
             }
+        }
+
+        public void Dispose()
+        {
+            this.BeginClose();
+            var thread = Volatile.Read(ref _thread);
             if (thread != Thread.CurrentThread) thread?.Join();
             lock (_sync) { if (_failure != null) throw _failure; }
         }

@@ -7,6 +7,32 @@ namespace LiteDB.Engine
         internal void ValidateHost() => _state.Validate();
         internal void StopHost(Exception error) => _state.Stop(error);
 
+        internal void ValidateBackgroundCheckpointRelease()
+        {
+            if (_state.CheckpointLifetime != null) _walIndex.ValidateCheckpointJoin();
+        }
+
+        internal bool OwnsBackgroundCheckpoint => _state.CheckpointLifetime != null;
+
+        internal void ThrowBackgroundCheckpointFailure() => _state.CheckpointLifetime?.ThrowIfFailed();
+
+#if DEBUG || TESTING
+        // Slice 5 test installation. No production open binds these services yet.
+        internal AutomaticCheckpointCoordinator InstallDirectCheckpointLifetime()
+        {
+            if (_host == null) throw new InvalidOperationException("Only a process-owned Direct core may own the coordinator.");
+            return _host.Engine.BindDirectCheckpointLifetime();
+        }
+#endif
+
+        private AutomaticCheckpointCoordinator BindDirectCheckpointLifetime()
+        {
+            _state.Validate();
+            if (_state.CheckpointLifetime == null)
+                _ = new DirectCheckpointLifetime(this, _state, _disk, _walIndex, _header.Pragmas.Checkpoint);
+            return _state.CheckpointLifetime.Worker;
+        }
+
         private void CopyHostServices()
         {
             var core = _host.Engine;
