@@ -79,7 +79,7 @@ namespace LiteDB.Client.Shared
                     result._file.SetLength(result.Header.Size);
                     Allocate(result._file, result.Header.Size);
                     Stage("allocated");
-                    result.Map = CreateMap(result._file, result.Header.Size);
+                    result.Map = CreateMap(result._file, result.Header.Size, result.Header.Authority);
                     Stage("mapped");
                     result.Map.Zero(0, result.Header.Size);
                     result.Map.Store(SharedMemoryLayout.CommittedVersion, -1);
@@ -106,7 +106,7 @@ namespace LiteDB.Client.Shared
                 else
                 {
                     result.Header = old ?? throw new IOException("Live Shared authority has no valid envelopes.");
-                    result.Map = CreateMap(result._file, result.Header.Size);
+                    result.Map = CreateMap(result._file, result.Header.Size, result.Header.Authority);
                     // A writer can die after making the publication sequence odd.
                     // The mapping remains attachable so a successor can take the
                     // named mutex + WRITE tenure, validate DB/WAL, and repair it.
@@ -254,15 +254,20 @@ namespace LiteDB.Client.Shared
         }
 
         internal static bool IsPlatformQualified => BitConverter.IsLittleEndian &&
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+            ((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.X86)) ||
+             (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+             (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)));
 
         private static void RequirePlatform(string path)
         {
-            // Initial qualification is Linux x64 only. Backends for other systems
-            // compile, but do not silently claim mapped-atomic/platform qualification.
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared prototype currently requires Linux x64 qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires a qualified Windows x64/x86, macOS x64/arm64, or Linux x64/arm64 runtime.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }
@@ -281,7 +286,7 @@ namespace LiteDB.Client.Shared
 #endif
             if (error != 0) throw new IOException("Shared allocation failed (native error " + error + ").");
         }
-        private static SharedMemoryMap CreateMap(FileStream file, long size)
+        private static SharedMemoryMap CreateMap(FileStream file, long size, Guid authority)
         {
 #if DEBUG || TESTING
             if (MapFile != null)
@@ -290,7 +295,7 @@ namespace LiteDB.Client.Shared
                 return MapFile(file, size);
             }
 #endif
-            return new SharedMemoryMap(file, size);
+            return new SharedMemoryMap(file, size, authority);
         }
         [DllImport("libc", SetLastError = true)] private static extern int posix_fallocate(Microsoft.Win32.SafeHandles.SafeFileHandle file, long offset, long length);
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]

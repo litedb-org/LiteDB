@@ -78,10 +78,11 @@ DMS boundaries; `ReplacementReplay` and `LiveDimensions` cover stale same-path
 metadata and live mapping lifetime. See the corresponding SharedOneFile test
 classes and the `shared-one-file` contract registry for executable evidence.
 
-This opt-in remains qualified only for Linux x64 on modern runtimes. These are
-exception, thread/process death, corrupt-input and forced-interleaving models.
-They do not establish Windows/macOS or ARM/x86 mapped execution, Framework mapped
-execution, device power loss or whole-path mapped power-loss fuzz qualification.
+This opt-in is qualified on modern runtimes for Windows x64/x86, macOS x64/arm64,
+and Linux x64/arm64. These are exception, thread/process death, corrupt-input
+and forced-interleaving models. .NET Framework mapped execution remains refused;
+these tests do not establish device power loss or whole-path mapped power-loss
+fuzz qualification.
 Ownership tests must observe the actual native tenure: an ordinary commit or
 rollback can leave a healthy mapped core retained. Require and await a real
 handoff before asserting WRITE is free or injecting a delayed Stop for a retired
@@ -163,7 +164,7 @@ admission and unwinds the request's mapping reference even if an older remote
 request renews continuously. Native main waits already admitted before disposal
 retain the existing drain policy; no cancellation of an OS mutex wait is claimed.
 
-Linux x64 uses shared `FUTEX_WAIT`/`FUTEX_WAKE` on the low aligned 32 bits of
+Linux uses shared `FUTEX_WAIT`/`FUTEX_WAKE` on the low aligned 32 bits of
 control+1024. Request publication increments the mapped wake sequence before
 waking the holder. The holder samples the word, rechecks pressure and waits on
 that sampled value, so publication racing wait cannot lose the wake. A 20 ms
@@ -173,18 +174,14 @@ forced drain wakes the same futex. No holder probes the turnstile while alone.
 The full mapping stays pinned through native holder release and request lease disposal;
 both edges retain their own participant reference, independently of facade disposal.
 
-Windows qualification must implement an auto-reset named kernel event scoped by
-the validated authority UUID and mutex namespace, with matching access control.
-`SetEvent` after sequence publication and `WaitForSingleObject` between predicate
-rechecks provide the same retained wake semantics; `WaitOnAddress` is not a
-cross-process substitute. macOS qualification must use an authority-scoped POSIX
-named semaphore (`sem_open`/`sem_post`/`sem_wait`), coalescing posts with a
-shared pending bit and unlinking only at protected offline retirement. A holder-local
-timer posts the same semaphore at the bounded liveness deadline (20 ms alone,
-1 ms under pressure); do not assume Darwin provides POSIX `sem_timedwait`. Both need
-crash/recreation/name/permission and lost-wake tests before enabling them. This
-slice still refuses mapped mode outside Linux x64; no Windows/macOS/ARM execution
-or power-loss qualification is claimed by compiling those targets.
+Windows uses an auto-reset named kernel event scoped by the validated authority
+UUID. `SetEvent` after sequence publication and `WaitForSingleObject` between
+predicate rechecks provide the same retained wake semantics; `WaitOnAddress` is
+not a cross-process substitute. macOS uses an authority-scoped POSIX named
+semaphore (`sem_open`/`sem_post`/`sem_wait`) with a bounded monotonic timer;
+Darwin's inconsistent `sem_timedwait` availability is not assumed. Both signals
+are recreated by authority UUID and never rely on unlinking while participants
+are live. .NET Framework continues to refuse mapped mode.
 
 Native reference semantics: [Linux futex](https://man7.org/linux/man-pages/man2/futex.2.html)
 uses an aligned shared 32-bit word; [Windows WaitOnAddress](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress)
