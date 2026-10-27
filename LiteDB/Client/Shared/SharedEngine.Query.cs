@@ -143,7 +143,7 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true);
                 snapshot = null;
                 lease = null;
                 return result;
@@ -296,7 +296,7 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true);
                 snapshot = null;
                 lease = null;
                 reader = null;

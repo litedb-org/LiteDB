@@ -36,6 +36,19 @@
   },
   "markers": [
     {
+      "name": "maintenance:shared-abandoned-reader-cleanup",
+      "kind": "maintenance",
+      "paths": ["LiteDB/Client/Shared/SharedReaderCleanup.cs", "LiteDB/Client/Shared/SharedDataReader.cs"],
+      "targets": [
+        "LiteDB.Tests/Engine/SharedAbandonedReader_Tests.cs#Collected_stream_releases_pages_and_lease_before_reopen",
+        "LiteDB.Tests/Engine/SharedReaderCleanup_Tests.cs#Blocked_abandoned_cleanup_does_not_block_finalizers_and_keeps_resources_rooted"
+      ],
+      "doc": "docs/rules/storage-ownership.md#buffers-and-cleanup",
+      "gate": "advisory",
+      "reason": "Detached abandoned-reader disposal runs away from the finalizer while retaining page ownership.",
+      "gateReason": "Forced GC xUnit tests reach detached cleanup and assert resource lifetime; fuzz smoke does not deterministically abandon and collect a Shared result. The marker executes on the reaper, never the finalizer."
+    },
+    {
       "name": "maintenance:checkpoint-during-active-readers",
       "kind": "maintenance",
       "paths": [
