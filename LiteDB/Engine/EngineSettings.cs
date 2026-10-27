@@ -57,6 +57,10 @@ namespace LiteDB.Engine
 
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
+        // Grouped WAL commits call this only after the covering durable barrier.
+        // It is deliberately an action rather than another publication interface so
+        // existing signal implementations retain their append/structural contract.
+        internal Action<int> DurableCommitPublication { get; set; }
         internal object TransactionOwner { get; set; }
         internal bool BypassDirectHost { get; set; }
         internal bool SharedMode { get; set; }

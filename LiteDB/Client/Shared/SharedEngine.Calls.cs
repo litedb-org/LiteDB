@@ -153,10 +153,44 @@ namespace LiteDB
             using (SharedCallFrames.Enter(_mutexName, this, HolderRetains, teardown: true))
             {
                 SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closing);
-                var errors = core.Close(checkpoint: checkpoint, final: final);
-                SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
-                return errors;
+                try
+                {
+                    var errors = core.Close(checkpoint: checkpoint, final: final);
+                    SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
+                    this.ExitMappedWriter(errors == null || errors.Count == 0);
+                    return errors;
+                }
+                catch
+                {
+                    // Leave an odd mapped fence for the next protected opener. A
+                    // partial close must never make its state look committed.
+                    this.ExitMappedWriter(false);
+                    throw;
+                }
             }
+        }
+
+        private void EnterMappedWriter()
+        {
+#if NET8_0_OR_GREATER
+            if (!_settings.SharedOneFile || _mappedWriterHeld) return;
+            if (!(_readers is SharedMemoryReaders mapped))
+                throw new InvalidOperationException("SharedOneFile has no mapped participant.");
+            mapped.Table.EnterWriter();
+            _mappedWriterHeld = true;
+#endif
+        }
+
+        private void ExitMappedWriter(bool publish)
+        {
+#if NET8_0_OR_GREATER
+            if (!_mappedWriterHeld) return;
+            try
+            {
+                if (_readers is SharedMemoryReaders mapped) mapped.Table.ExitWriter(publish);
+            }
+            finally { _mappedWriterHeld = false; }
+#endif
         }
 
         private void EndAdmissions(int depth)

@@ -16,6 +16,8 @@ namespace LiteDB
             {
                 settings.CheckpointBackoff = mapped.Table.Settings.CheckpointBackoff;
                 settings.SharedDurability = mapped.Table.Settings.SharedDurability;
+                settings.CoordinationSignals = mapped.Table;
+                settings.DurableCommitPublication = mapped.Table.PublishDurableCommit;
             }
 #endif
         }

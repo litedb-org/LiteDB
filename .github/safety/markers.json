@@ -44,6 +44,10 @@
     "wal-before-batch-flush": {
       "gate": "advisory",
       "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
+    },
+    "SharedWriterPublication": {
+      "gate": "advisory",
+      "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFilePublication_Tests; hosted Windows/macOS host-admission coverage is deferred to P1-F."
     }
   },
   "markers": [

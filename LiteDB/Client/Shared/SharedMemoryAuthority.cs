@@ -96,8 +96,11 @@ namespace LiteDB.Client.Shared
                 {
                     result.Header = old ?? throw new IOException("Live Shared authority has no valid envelopes.");
                     result.Map = CreateMap(result._file, result.Header.Size);
+                    // A writer can die after making the publication sequence odd.
+                    // The mapping remains attachable so a successor can take the
+                    // named mutex + WRITE tenure, validate DB/WAL, and repair it.
                     if (result.Map.Load(SharedMemoryLayout.Control) != 1 ||
-                        result.Map.Load(SharedMemoryLayout.Control + 8) != 2)
+                        result.Map.Load(SharedMemoryLayout.Control + 8) == 0)
                         throw new IOException("Live Shared authority is not Ready.");
                 }
                 result.Claim();

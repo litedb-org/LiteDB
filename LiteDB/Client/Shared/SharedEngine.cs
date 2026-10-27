@@ -30,6 +30,10 @@ namespace LiteDB
         private int _transactionThreadId;
         private int _databaseUsers;
         private SharedMutexPin _transactionUse;
+        // ABI-2 mapped WRITE tenure is held while this connection's writable core
+        // exists.  The local named mutex still orders facades; the mapped byte orders
+        // processes and provides a kernel-visible dead-man switch.
+        private bool _mappedWriterHeld;
         // Read-only snapshots streaming under the mutex (no lease could be registered).
         private readonly HashSet<LiteEngine> _mutexSnapshots = new HashSet<LiteEngine>();
         private int _disposed;
@@ -117,8 +121,9 @@ namespace LiteDB
             try
             {
                 RejectAbandonedTransaction();
+                if (writing) this.EnterMappedWriter();
             }
-            catch { this.EndWriterPressure(); _owner.Exit(); throw; }
+            catch { this.ExitMappedWriter(false); this.EndWriterPressure(); _owner.Exit(); throw; }
 
             // Check, open and count under one lock. A reader disposed on another thread
             // closes the engine in CloseDatabase once the count reaches zero; between a
@@ -126,7 +131,7 @@ namespace LiteDB
             lock (_useLock)
             {
                 try { this.AdmitLocked(); }
-                catch { this.EndWriterPressure(); _owner.Exit(); throw; }
+                catch { this.ExitMappedWriter(false); this.EndWriterPressure(); _owner.Exit(); throw; }
                 // Don't create a new engine while a transaction is running.
                 if (!_transactionRunning && _engine == null)
                 {
@@ -136,6 +141,7 @@ namespace LiteDB
                     }
                     catch
                     {
+                        this.ExitMappedWriter(false);
                         this.EndWriterPressure(); _owner.Exit();
                         throw;
                     }

@@ -1645,6 +1645,18 @@
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "name": "SharedWriterPublication",
+      "protocol": "ABI-2 mapped writer publication and recovery fences",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
+          "model": "process-death",
+          "proves": "A process killed at each mapped writer publication fence is recoverable; acknowledged payloads and indexes remain complete and the next writer can repeat recovery."
+        }
+      ],
+      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
     }
   ],
   "injectors": [

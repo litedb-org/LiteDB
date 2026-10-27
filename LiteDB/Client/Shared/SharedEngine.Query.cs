@@ -68,8 +68,12 @@ namespace LiteDB
                     // migration, format promotion, auto-rebuild): proceed as before.
                     lock (_useLock)
                     {
-                        try { this.OpenEngine(recoveredAbandonedOwner); }
-                        catch { _owner.Exit(); throw; }
+                        try
+                        {
+                            this.EnterMappedWriter();
+                            this.OpenEngine(recoveredAbandonedOwner, writing: true);
+                        }
+                        catch { this.ExitMappedWriter(false); _owner.Exit(); throw; }
                         _databaseUsers++;
                     }
                 }

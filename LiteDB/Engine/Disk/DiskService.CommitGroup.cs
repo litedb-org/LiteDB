@@ -21,7 +21,7 @@ namespace LiteDB.Engine
             get
             {
 #if NET8_0_OR_GREATER
-                if (_durableCommits && ChecksumsEnabled && _sharedDurability == null && _signals == null && !_logFlushDegraded &&
+                if (_durableCommits && ChecksumsEnabled && (_signals == null || _durableCommitPublication != null) && !_logFlushDegraded &&
                     !LogSyncUnverified && ((ChecksummedWalFactory)_logFactory).IsFile &&
                     ((ChecksummedWalStream)_writer.Value).RawStream.GetType() == typeof(FileStream))
                 {

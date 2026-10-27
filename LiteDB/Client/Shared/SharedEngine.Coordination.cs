@@ -16,6 +16,7 @@ namespace LiteDB
         {
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
+            if (writing) this.EnterMappedWriter();
             this.EnsureCoordination(allowCreate: !final, writing: true);
             // A fresh connection can attach only under ownership. Announce before
             // replay/open so cached peers yield during this writer's expensive work.
@@ -23,6 +24,9 @@ namespace LiteDB
             // A valid open only reconstructs local state. Actual recovery/migration
             // mutations announce their own structural regions before touching storage.
             var recovering = _coordination?.BeginOpenRecovery() ?? false;
+            var mapped = _settings.SharedOneFile && _settings.CoordinationSignals is SharedMemoryReaderTable
+                ? (SharedMemoryReaderTable)_settings.CoordinationSignals : null;
+            if (mapped != null && writing) mapped.BeginOpenRecovery();
 #else
             SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
 #endif
@@ -38,7 +42,8 @@ namespace LiteDB
                 this.CoordinationStage?.Invoke("opened");
 #endif
 #if NET8_0_OR_GREATER
-                _coordination?.Opened(opened.ReadVersion, endStructural: recovering);
+                if (_coordination != null) _coordination.Opened(opened.ReadVersion, endStructural: recovering);
+                else if (mapped != null && writing) mapped.Opened(opened.ReadVersion);
 #endif
                 _engine = opened;
             }
@@ -51,6 +56,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
                 try { if (recovering) _coordination.StructuralEnd(-1); }
                 catch (Exception) { /* A damaged authority remains untrusted. */ }
+                if (opened == null && writing) this.ExitMappedWriter(false);
 #endif
                 throw;
             }

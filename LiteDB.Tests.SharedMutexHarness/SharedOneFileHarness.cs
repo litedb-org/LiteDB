@@ -38,6 +38,25 @@ internal static class SharedOneFileHarness
             Console.WriteLine("done");
             return true;
         }
+        if (mode == "one-file-publication-hold")
+        {
+            SharedMemoryReaderTable.PublicationStage = stage =>
+            {
+                if (stage != args[4]) return;
+                Console.WriteLine("ready");
+                Console.ReadLine();
+            };
+            try
+            {
+                using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings
+                { Filename = filename, SharedOneFile = true, Password = args[3] == "-" ? null : args[3] });
+                using var db = new LiteDatabase(engine, disposeOnClose: false);
+                db.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["value"] = 1, ["payload"] = new string('x', 1024) });
+            }
+            finally { SharedMemoryReaderTable.PublicationStage = null; }
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "one-file-bootstrap-cut")
         {
             var settings = new LiteDB.Engine.EngineSettings { Filename = filename, SharedMode = true };

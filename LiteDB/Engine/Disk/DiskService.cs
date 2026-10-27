@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         private readonly bool _readOnly;
         private readonly bool _readOnlyStorage;
         private readonly ICoordinationSignals _signals;
+        private readonly Action<int> _durableCommitPublication;
         internal bool CompactStorage { get; }
 
         private IStreamFactory _dataFactory;
@@ -53,6 +54,7 @@ namespace LiteDB.Engine
             _sharedDurability = settings.SharedDurability;
             _logMayBuffer = settings.LogStream != null && !(settings.LogStream is MemoryStream);
             _signals = settings.CoordinationSignals;
+            _durableCommitPublication = settings.DurableCommitPublication;
 
             try
             {
@@ -122,6 +124,11 @@ namespace LiteDB.Engine
                 throw;
             }
         }
+
+        // A grouped confirmation is intentionally withheld from mapped readers until
+        // its ticket has crossed the device barrier.  The callback is a no-op for
+        // engines without a mapped participant.
+        internal void PublishDurableCommit(int version) => _durableCommitPublication?.Invoke(version);
 
         /// <summary>
         /// Get memory cache instance
