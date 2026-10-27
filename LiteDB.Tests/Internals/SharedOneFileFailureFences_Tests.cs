@@ -87,6 +87,12 @@ namespace LiteDB.Internals
                 if (unsupported) hits.Should().BeGreaterThan(0);
                 table.Authority.Map.Load(SharedMemoryLayout.CommittedVersion).Should().Be(before);
                 Fenced(table);
+                var retained = engine.Pin;
+                retained.Should().NotBeNull("a successful cache-only commit may retain its writable core");
+                ((Action)files.WriteIsFree).Should().Throw<IOException>("the retained core still excludes native WRITE");
+                retained.RequestRelease(force: false);
+                retained.WaitReleased();
+                Fenced(table); // handoff must not turn an unproven sync into a durable publication
                 files.WriteIsFree();
             }
             finally { NativeFileSync.SimulateErrno = null; }

@@ -26,6 +26,55 @@
   ],
   "dispositions": [
     {
+      "id": "p3b-multigeneration-slow-and-warm",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Three simultaneously accepted reader generations retain exact indexed payloads and unrelated data through checkpoint; the protected slow path remains explicitly exercised.",
+      "reason": "Replace the obsolete slice-4 assertion that warm reads do not exist with two executed theory cases. An identity ReadTransform keeps the original zero-warm-hit slow path; the default case preserves all exact generation/index/sentinel/file assertions and additionally proves real warm hits with the final generation. Adds one discovered case; neither case is skipped.",
+      "decision": "docs/shared-one-file-ownership.md"
+    },
+    {
+      "id": "p3b-retained-tenure-test-boundaries",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnershipFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7OwnerReuseReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7Review_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Real ownership handoff, retired-core generation isolation, late-read disposal, retry hold balance, unchanged degraded-sync fences and the single authority-file contract remain exercised.",
+      "reason": "Mapped Phase 3 uses pins without anchor readers and retains cores after commit/rollback. Capture the actual pin after Begin; demand and await native release before asserting it is free or a core is retired; use the mapped holder teardown cut for dead-owner cleanup; probe WRITE exclusion before the degraded-sync handoff; resolve the WAL filename with FileHelper. Preserve all exact cold data, authority, fence and foreign-callback assertions and add actual-generation/retirement controls."
+    },
+    {
+      "id": "p3b-close-cut-harness-synchronization",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs",
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Writer-end death tests must reach and pause the actual mapped close publication before the child returns a completion marker or exits. Existing cold and snapshot recovery oracles are unchanged.",
+      "reason": "Capture the retained pin under an explicit transaction and demand its actual release at writer-end. Ordinary auto-commit now returns before retained close, so the old harness could print committed or exit before the death cut. Added metadata/WAL-reset/close-cut commands preserve existing modes; encrypted logical WAL-zero validation accounts for its physical encryption header."
+    },
+    {
+      "id": "p3b-r1-concurrent-fifo-oracle",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureReview_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A releasing holder must not borrow an outstanding local request ticket or barge past the older remote requester; all twelve real handoffs and exact cold state remain checked.",
+      "reason": "The original R1 synchronous loop required unfair reacquisitions to complete before releasing the paused older requests, which deadlocks a correct FIFO fix. The unchanged review commits were merged first. The loop now runs on a separate actual Thread, proves it queues without admission, releases both older callers, asserts every reacquisition ticket exceeds the remote ticket, and joins all workers before retaining the original twelve-handoff and cold exact oracles."
+    },
+    {
       "id": "p3a-fork-only-writer-tenure-measurements",
       "kind": "ci-test-config-changed",
       "subjects": [".github/workflows/benchmark-gate.yml"],

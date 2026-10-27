@@ -37,7 +37,7 @@ namespace LiteDB
         private IBsonDataReader TryQueryRetained(string collection, Query query)
         {
             var retained = _pin;
-            if (retained == null || !retained.TryEnter()) return null;
+            if (retained == null || !this.TryEnterPin(retained)) return null;
             var transferred = false;
             try
             {
@@ -65,7 +65,7 @@ namespace LiteDB
             {
                 var table = (_readers as SharedMemoryReaders)?.Table;
                 if (table == null) throw new ObjectDisposedException(nameof(SharedEngine));
-                using (table.RequestWriter())
+                using (table.RequestWriter(this.IsDisposed))
                 {
                     if (System.Threading.Volatile.Read(ref _disposed) != 0)
                         throw new ObjectDisposedException(nameof(SharedEngine));
@@ -78,10 +78,15 @@ namespace LiteDB
                 return SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
         }
 
+        private bool IsDisposed() => System.Threading.Volatile.Read(ref _disposed) != 0;
+
         private IDisposable RequestMappedTurn()
         {
 #if NET8_0_OR_GREATER
-            return (_readers as SharedMemoryReaders)?.Table.RequestWriter();
+            if (!(_readers is SharedMemoryReaders mapped)) return null;
+            var table = mapped.Table;
+            if (table == null) throw new ObjectDisposedException(nameof(SharedEngine));
+            return table.RequestWriter(this.IsDisposed);
 #else
             return null;
 #endif

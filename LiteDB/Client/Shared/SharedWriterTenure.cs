@@ -48,6 +48,7 @@ namespace LiteDB.Client.Shared
         internal void Wait()
         {
             var observed = _authority.Map.Load(SharedMemoryLayout.WriterWake);
+            _authority.Map.ObserveWait("sampled", 0);
             // Recheck pressure after reading the word: a request between the last
             // predicate and this read must not be lost by sleeping on its new value.
             int timeout;
@@ -56,6 +57,7 @@ namespace LiteDB.Client.Shared
                 ShouldEnd();
                 timeout = _pressureAt < 0 ? 20 : MillisecondBudget;
             }
+            _authority.Map.ObserveWait("rechecked", timeout);
             _authority.Map.WaitWake(observed, timeout);
         }
         internal void Wake() => _authority.Map.Wake();

@@ -82,6 +82,13 @@ This opt-in remains qualified only for Linux x64 on modern runtimes. These are
 exception, thread/process death, corrupt-input and forced-interleaving models.
 They do not establish Windows/macOS or ARM/x86 mapped execution, Framework mapped
 execution, device power loss or whole-path mapped power-loss fuzz qualification.
+Ownership tests must observe the actual native tenure: an ordinary commit or
+rollback can leave a healthy mapped core retained. Require and await a real
+handoff before asserting WRITE is free or injecting a delayed Stop for a retired
+core. Reader-generation oracles cover both transformed protected reads and the
+default warm-cache path; enabling warm admission does not relax exact snapshot,
+index or unrelated-data assertions.
+
 Transaction handles and supported cross-thread completion are Phase 4 work;
 legacy explicit transactions still complete on their creating Thread.
 
@@ -107,17 +114,54 @@ their odd fence remains until independent protected recovery. Durable group
 publication, structural/reuse fencing and reader admission rechecks are unchanged.
 
 Request records use reserved ABI-2 process-block bytes 80 (ticket) and 88 (expiry),
-with a shared sequence at control+1032. Each participant publishes its oldest
-pending ticket before waiting for main, including constructor validation and cold
-readers. One renewal timer per requesting process extends a 100 ms lease every
-25 ms. Nested/local waiters share the record; only the last release clears it.
-A requester waits behind older unexpired process tickets before entering the
-existing native turnstile. The releasing writer must also publish a fresh ticket,
-so it cannot repeatedly barge ahead of a live waiting process. Expired, dead,
-not-Ready and out-of-range expiry records cannot reserve a turn. An alive process
-whose renewal is suspended can lose its position and retry; liveness assumes
-scheduled renewal and bounded transactions/retained results. Requests authorize
-no storage access. Abandonment still requires actual native WRITE acquisition.
+with a shared sequence at control+1032. Each participant serializes local native
+acquisitions with a FIFO request queue. A ticket belongs to one process request,
+never to the number of local callers. Its transitions are:
+
+1. **Queued:** the call owns a local queue node and a participant reference, but
+   publishes no ticket and cannot enter native acquisition.
+2. **Published:** the head allocates a fresh global ticket, publishes its 100 ms
+   expiry, then wakes holders. One timer renews this request every 25 ms. Younger
+   local calls cannot borrow its ticket or pass its native admission.
+3. **Admitted:** after observing no older unexpired Ready process request, the
+   head enters the native turnstile/main wait. The advisory record stays alive
+   until that native acquisition returns; only main plus real WRITE permit storage.
+4. **Retired:** successful acquisition, refusal, exception or cancellation removes
+   this node and clears its record, independently of outstanding local callers.
+   The next head publishes its own fresh ticket. A releasing holder queues a new
+   request; it cannot reuse a waiting caller's priority.
+5. **Expired/re-entered:** renewal or a resumed waiting call finding its expiry
+   passed allocates a fresh ticket. It cannot resurrect its former priority ahead
+   of already published successors. Renewal failures withdraw the record and
+   report through the waiting caller, rather than escaping a timer callback.
+
+Expiry validation loads the peer expiry before sampling the current upper bound;
+normal renewal after the caller's earlier clock sample cannot invalidate an older
+request. Expired, dead, not-Ready and genuinely out-of-range records reserve no
+turn. Liveness assumes scheduled requesting threads and renewal, and bounded
+transactions/retained results. A stalled head cannot authorize younger local
+writers. Native turnstile scheduling after advisory admission is still OS owned.
+Abandonment always requires actual native WRITE acquisition.
+
+A callback already operating the current core's transaction joins nested
+BeginTrans before reserving a new local transaction lease. A pending reservation
+may itself be waiting for that callback to release main; waiting behind it would
+form a cycle. Sibling facade callbacks still refuse before waiting, and a false
+Begin join owns no new explicit lease or completion responsibility.
+
+Every new pinned operation (including nested writes, Begin and retained-core
+queries) passes the facade admission under its disposal lock. The pin operation
+is taken first to protect that check from teardown and is returned on refusal.
+An already admitted call may finish after its callback invokes Dispose; that
+permission does not admit another call. Reused write pins also validate the live
+mapped authority before touching the core, matching ordinary writable opens.
+Disposed mapped participants refuse before native acquisition rather than following
+a cleared table reference. Explicit rollback after disposal retains
+its existing harmless no-transaction behavior. New pin publication admits under
+the same lock. While waiting for local/request priority, facade disposal cancels
+admission and unwinds the request's mapping reference even if an older remote
+request renews continuously. Native main waits already admitted before disposal
+retain the existing drain policy; no cancellation of an OS mutex wait is claimed.
 
 Linux x64 uses shared `FUTEX_WAIT`/`FUTEX_WAKE` on the low aligned 32 bits of
 control+1024. Request publication increments the mapped wake sequence before

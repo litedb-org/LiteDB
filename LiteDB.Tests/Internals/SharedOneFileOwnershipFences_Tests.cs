@@ -24,6 +24,10 @@ namespace LiteDB.Internals
             var previous = State(Core(engine));
             var tenure = engine.MappedReaderTable.WriterTenure;
             db.Rollback().Should().BeTrue();
+            var retired = engine.Pin;
+            retired.Should().NotBeNull();
+            retired.RequestRelease(false); retired.WaitReleased();
+            previous.Disposed.Should().BeTrue("the delayed Stop must belong to a genuinely retired core");
             using var old = engine.Query("docs", new Query());
             old.Read().Should().BeTrue();
             db.BeginTrans().Should().BeTrue();

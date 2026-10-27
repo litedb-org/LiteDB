@@ -18,7 +18,12 @@ namespace LiteDB
             // A pending admission belongs to this call, not to the old native
             // ownership. Dead-owner cleanup must never release the successor's lease.
             SharedLocalTransactionOwner.Lease pending = null;
-            if (_localTransactions != null &&
+            // A callback already executing the current core's transaction joins
+            // it before reserving local ownership. A queued lease may itself be
+            // waiting for this operation to release main.
+            var joining = (_pin?.IsOperatingOn(Thread.CurrentThread) == true || _owner.IsOwnedByCurrentThread) &&
+                _engine?.HasActiveTransaction == true;
+            if (_localTransactions != null && !joining &&
                 !ReferenceEquals(_localTransaction?.Thread, Thread.CurrentThread))
                 pending = _localTransactions.Enter(this);
 

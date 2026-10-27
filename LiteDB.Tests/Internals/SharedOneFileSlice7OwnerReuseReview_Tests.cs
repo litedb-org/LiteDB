@@ -24,8 +24,9 @@ namespace LiteDB.Internals
             using var peer = new LiteDatabase(second, disposeOnClose: false);
             using var cleanupEntered = new ManualResetEventSlim();
             using var releaseCleanup = new ManualResetEventSlim();
-            first.MutexOwner.BeforeOwnerExitedCleanup = () =>
+            first.OwnershipStage = stage =>
             {
+                if (stage != "before-tenure-close") return;
                 cleanupEntered.Set();
                 releaseCleanup.Wait(TimeSpan.FromSeconds(10));
             };
@@ -68,7 +69,7 @@ namespace LiteDB.Internals
             {
                 releaseCleanup.Set();
                 if (successorStarted) successor.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                first.MutexOwner.BeforeOwnerExitedCleanup = null;
+                first.OwnershipStage = null;
             }
             successorFailure.Should().BeNull();
             first.Dispose();

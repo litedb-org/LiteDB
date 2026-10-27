@@ -81,11 +81,14 @@ namespace LiteDB
         private T WriteDatabase<T>(Func<T> write, bool scoped = false) => this.Call(() =>
         {
             var pin = _pin;
-            var use = pin != null && pin.TryEnter() ? pin
+            var use = this.TryEnterPin(pin) ? pin
                 : this.CanPin() ? this.StartPin()
                 : this.OpenDatabase(scoped && this.CanScope, writing: true);
             try
             {
+                // Reused pins still validate the live authority before every
+                // write, just like OpenDatabase's ordinary ownership path.
+                if (_mappedWriterHeld) this.EnterMappedWriter();
                 this.StartWriterPressure();
                 return write();
             }
@@ -95,6 +98,19 @@ namespace LiteDB
                 finally { this.CloseDatabase(use); }
             }
         });
+
+        // Every use of an existing pin is a new facade admission. Taking the
+        // operation first keeps close from racing this check; refusal returns it.
+        private bool TryEnterPin(SharedMutexPin pin)
+        {
+            if (pin == null || !pin.TryEnter()) return false;
+            try
+            {
+                lock (_useLock) this.AdmitLocked();
+                return true;
+            }
+            catch { this.CloseDatabase(pin); throw; }
+        }
 
         /// <summary>
         /// A thread iterating a leased reader pins; an ending pin of its own is
@@ -146,7 +162,7 @@ namespace LiteDB
                 {
                     // Dispose reads the pin under this lock after marking itself disposed:
                     // it either sees this pin and ends it, or this start is refused.
-                    if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+                    this.AdmitLocked();
                     _pin = pin;
                 }
                 return pin;
@@ -170,6 +186,7 @@ namespace LiteDB
             using (this.OwnershipFrame(HolderRetains))
             try
             {
+                this.AtOwnershipStage("before-tenure-close");
                 lock (_useLock)
                 {
                     // ReadTransform may run in a retained result after Query has

@@ -26,6 +26,10 @@ namespace LiteDB.Internals
             var oldLocal = Field<SharedLocalTransactionOwner.Lease>(engine, "_localTransaction");
             engine.Update("docs", new[] { Row(1, 9) });
             engine.Rollback().Should().BeTrue();
+            var retired = engine.Pin;
+            retired.Should().NotBeNull();
+            retired.RequestRelease(false); retired.WaitReleased();
+            oldState.Disposed.Should().BeTrue("a stale Stop must target a retired core, not the core the successor reuses");
             Exception failure = null;
             var successor = new Thread(() => failure = Record.Exception(() =>
             {
@@ -138,7 +142,10 @@ namespace LiteDB.Internals
                 if (started) successor.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 anchor?.Dispose();
             }
-            ownerFailure.Should().BeNull(); peerFailure.Should().BeNull(); files.WriteIsFree();
+            ownerFailure.Should().BeNull(); peerFailure.Should().BeNull();
+            var successorPin = peer.Pin;
+            if (successorPin != null) { successorPin.RequestRelease(false); successorPin.WaitReleased(); }
+            files.WriteIsFree();
             first.Dispose(); peer.Dispose();
             for (var repeat = 0; repeat < 2; repeat++) { using var cold = new LiteDatabase(files.Filename); Verify(cold, 1); }
         }
@@ -154,8 +161,8 @@ namespace LiteDB.Internals
             engine.PinIdleLimit = engine.PinHoldLimit = TimeSpan.FromMinutes(10);
             using var anchor = pinned ? engine.Query("docs", new Query()) : null;
             if (anchor != null) { anchor.Read().Should().BeTrue(); engine.Update("docs", new[] { Row(1, 0) }); }
-            var pin = engine.Pin;
             engine.BeginTrans().Should().BeTrue(); engine.Update("docs", new[] { Row(1, 1) });
+            var pin = engine.Pin;
             var hits = 0;
             Exception callbackFailure = null;
             engine.OwnershipStage = stage =>

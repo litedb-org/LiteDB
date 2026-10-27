@@ -55,6 +55,7 @@ internal static class SharedOneFileHarness
             using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.BeginTrans();
+            var pin = engine.Pin;
             SharedMemoryReaderTable.PublicationStage = stage =>
             {
                 if (stage != args[4]) return;
@@ -65,6 +66,7 @@ internal static class SharedOneFileHarness
             {
                 db.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["value"] = 1, ["payload"] = new string('x', 1024) });
                 db.Commit();
+                if (args[4] == "writer-end") { pin!.RequestRelease(false); pin.WaitReleased(); }
             }
             finally { SharedMemoryReaderTable.PublicationStage = null; }
             return true;

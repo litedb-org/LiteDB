@@ -209,6 +209,7 @@ namespace LiteDB.Internals
         }
 
         [OneFileTheory]
+        [InlineData("request-sampled")]
         [InlineData("request-published")] [InlineData("request-admitted")]
         public void Request_fault_releases_its_record_and_does_not_poison_the_next_writer(string cut)
         {

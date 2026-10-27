@@ -55,10 +55,16 @@ internal static class SharedOneFileOwnershipHarness
                 if (command == "retry-failed")
                 {
                     TransactionMonitor? monitor = null;
-                    engine.BeforeCountingUser = () =>
+                    void Arm(LiteEngine core)
                     {
-                        monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
+                        monitor = Field<TransactionMonitor>(core, "_monitor");
                         monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    }
+                    var retained = Field<LiteEngine>(engine, "_engine");
+                    if (retained != null) Arm(retained);
+                    SharedOwnershipEvents.CoreStage = (facade, core, stage) =>
+                    {
+                        if (ReferenceEquals(facade, engine) && stage == SharedOwnershipEvents.Opened) Arm(core);
                     };
                     try
                     {
@@ -67,7 +73,7 @@ internal static class SharedOneFileOwnershipHarness
                     }
                     finally
                     {
-                        engine.BeforeCountingUser = null;
+                        SharedOwnershipEvents.CoreStage = null;
                         if (monitor != null) monitor.BeforeTransactionRegistration = null;
                     }
                     if (!LiteDB.Utils.Reachability.Snapshot().ContainsKey("fault-point:BeforeTransactionRegistration"))

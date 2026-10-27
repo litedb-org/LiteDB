@@ -171,10 +171,10 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        internal IDisposable RequestWriter()
+        internal IDisposable RequestWriter(Func<bool> cancelled = null)
         {
             if (!TryRetain()) throw new ObjectDisposedException(nameof(SharedMemoryReaderTable));
-            try { return new WriterRequest(this, Authority.Requests.Enter()); }
+            try { return new WriterRequest(this, Authority.Requests.Enter(cancelled)); }
             catch { Release(); throw; }
         }
         private sealed class WriterRequest : IDisposable

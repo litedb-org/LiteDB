@@ -47,6 +47,9 @@ namespace LiteDB.Internals
                 waiter.Start();
                 long first = 0, reacquired = 0;
                 var admissionHits = 0;
+                Exception reacquireFailure = null;
+                Thread reacquirer = null;
+                long remoteTicket = 0;
                 try
                 {
                     requested.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
@@ -54,28 +57,45 @@ namespace LiteDB.Internals
                     using var remote = new MvccProcess("one-file-tenure-request", files.Filename, null);
                     remote.Expect("requested").GetAwaiter().GetResult();
                     var remoteBlock = FindRemoteBlock(authority);
-                    authority.Map.Load(remoteBlock + SharedMemoryLayout.TenureRequest).Should().BeGreaterThan(first);
-                    SharedWriterRequests.RequestStage = stage =>
+                    remoteTicket = authority.Map.Load(remoteBlock + SharedMemoryLayout.TenureRequest);
+                    remoteTicket.Should().BeGreaterThan(first);
+                    reacquirer = new Thread(() =>
                     {
-                        if (stage != "request-admitted") return;
-                        admissionHits++;
-                        reacquired = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
-                    };
-                    // Each forced handoff really closes the core and releases WRITE/main.
-                    // A continuously outstanding local request must not preserve the
-                    // releasing holder's priority over the remote process forever.
-                    for (var n = 0; n < 12; n++)
-                    {
-                        var pin = holder.Pin;
-                        if (pin != null) { pin.RequestRelease(false); pin.WaitReleased(); }
-                        holder.Update("docs", new[] { Row(1, n + 2) }).Should().Be(1);
-                    }
-                    remote.Send("go");
-                    // Unblock the older local call before joining the remote's admission.
+                        SharedWriterRequests.RequestStage = stage =>
+                        {
+                            if (stage != "request-admitted") return;
+                            admissionHits++;
+                            reacquired = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                            reacquired.Should().BeGreaterThan(remoteTicket,
+                                "each reacquisition owns a new process request after the older local request retires");
+                        };
+                        try
+                        {
+                            reacquireFailure = Record.Exception(() =>
+                            {
+                                for (var n = 0; n < 12; n++)
+                                {
+                                    var pin = holder.Pin;
+                                    if (pin != null) { pin.RequestRelease(false); pin.WaitReleased(); }
+                                    holder.Update("docs", new[] { Row(1, n + 2) }).Should().Be(1);
+                                }
+                            });
+                        }
+                        finally { SharedWriterRequests.RequestStage = null; }
+                    }) { IsBackground = true };
+                    reacquirer.Start();
+                    SpinWait.SpinUntil(() => authority.Requests.WaitingCount == 2, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    Volatile.Read(ref admissionHits).Should().Be(0,
+                        "a new local call cannot borrow the paused local request's priority");
+                    // The original serial loop assumed barging could complete while
+                    // the remote was paused. Run it concurrently so correct FIFO can
+                    // wait, then release both older requests and prove real progress.
                     resume.Set();
+                    remote.Send("go");
                     waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     remote.Expect("waiting-main").GetAwaiter().GetResult();
                     remote.Expect("ready").GetAwaiter().GetResult();
+                    reacquirer.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
                     remote.Send("close"); remote.Expect("done").GetAwaiter().GetResult();
                     remote.Finish().GetAwaiter().GetResult();
                 }
@@ -84,7 +104,9 @@ namespace LiteDB.Internals
                     SharedWriterRequests.RequestStage = null;
                     resume.Set();
                     waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    reacquirer?.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
                 }
+                reacquireFailure.Should().BeNull();
                 localFailure.Should().BeNull();
                 admissionHits.Should().Be(12);
                 reacquired.Should().BeGreaterThan(first,

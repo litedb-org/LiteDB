@@ -58,12 +58,33 @@ namespace LiteDB.Client.Shared
         internal void WaitWake(long observed, int milliseconds)
         {
             var timeout = new Timespec { Seconds = 0, Nanoseconds = milliseconds * 1000000L };
+            ObserveWait("syscall", milliseconds);
             var result = syscall(202, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 0,
                 unchecked((int)observed), (IntPtr)(&timeout));
-            if (result >= 0) return;
-            var error = Marshal.GetLastPInvokeError();
-            if (error != 11 && error != 4 && error != 110)
+            var error = result >= 0 ? 0 : Marshal.GetLastPInvokeError();
+#if DEBUG || TESTING
+            var simulate = SimulateWaitError;
+            if (simulate != null)
+            {
+                LiteDB.Utils.Reachability.FaultPoint("SimulateWaitError");
+                error = simulate(error);
+            }
+#endif
+            ObserveWait("returned", error);
+            if (error != 0 && error != 11 && error != 4 && error != 110)
                 throw new IOException("Shared writer futex wait failed: " + error);
+        }
+#if DEBUG || TESTING
+        internal IntPtr WakeAddress => (IntPtr)(_pointer + SharedMemoryLayout.WriterWake);
+        internal Action<string, int> WaitObserved;
+        internal Func<int, int> SimulateWaitError;
+#endif
+        [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
+        internal void ObserveWait(string stage, int value)
+        {
+#if DEBUG || TESTING
+            WaitObserved?.Invoke(stage, value);
+#endif
         }
         [StructLayout(LayoutKind.Sequential)]
         private struct Timespec { internal long Seconds, Nanoseconds; }

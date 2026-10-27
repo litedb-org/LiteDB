@@ -1695,6 +1695,11 @@
       "protocol": "Shared terminal completion, core-close and snapshot-open boundaries",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileSlice7OwnerReuseReview_Tests.cs#Begin_queued_behind_dead_owner_cleanup_publishes_a_new_local_owner",
+          "model": "interleaving",
+          "proves": "The mapped holder pauses before its facade lifetime lock; a successor reserves its actual local lease and waits at native main before dead-owner cleanup resumes, without the old cleanup erasing the new lease."
+        },
+        {
           "test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state",
           "model": "exception",
           "proves": "Commit/rollback/core-close/Dispose cuts release local and native ownership for both ordinary and pinned holders, followed by immediate peer admission and two cold indexed payload checks."
@@ -2005,9 +2010,35 @@
           "via": [
             "LiteDB.Tests.SharedMutexHarness/SharedWriterTenureHarness.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureReview_Tests.cs#Reacquiring_holder_takes_a_fresh_ticket_even_with_an_outstanding_local_waiter",
+          "model": "interleaving",
+          "proves": "A queued local request cannot lend its priority; twelve real handoffs use fresh tickets behind a remote request."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Renewal_after_a_preempted_clock_sample_preserves_end_to_end_remote_priority",
+          "model": "interleaving",
+          "proves": "A real remote renewal after the sampled clock preserves priority until native admission and both callers make progress."
         }
       ],
       "gap": "Linux x64 only; no Windows/macOS or device reset qualification."
+    },
+    {
+      "name": "SimulateWaitError",
+      "protocol": "Mapped Shared native futex result handling",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder",
+          "model": "interleaving",
+          "proves": "EINTR and repeated shared wakes preserve the retained holder; actual 20/1 ms arguments follow pressure."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+          "model": "exception",
+          "proves": "A forced unexpected native wait errno drains the real active operation before releasing main and WRITE; cold indexed data survives."
+        }
+      ]
     }
   ],
   "observers": {
@@ -2028,7 +2059,8 @@
     "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
     "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
-    "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled."
+    "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled.",
+    "WaitObserved": "Observes the mapped holder sample, pressure recheck, native wait and return to force wake interleavings and inspect the actual timeout/error; no persistent mutation."
   },
   "unhookedTransitions": [
     {

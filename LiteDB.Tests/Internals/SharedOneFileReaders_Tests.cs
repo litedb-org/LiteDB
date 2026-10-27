@@ -87,8 +87,9 @@ namespace LiteDB.Internals
             table.LiveVersions().Should().BeEmpty();
         }
 
-        [OneFileFact]
-        public void Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint()
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
+        public void Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint(bool warm)
         {
             using (var seed = new LiteDatabase(Filename))
             {
@@ -96,7 +97,9 @@ namespace LiteDB.Internals
                 seed.GetCollection("docs").EnsureIndex("group");
                 seed.GetCollection("unrelated").Insert(new BsonDocument { ["_id"] = 9, ["value"] = "untouched" });
             }
-            using var engine = new SharedEngine(Settings());
+            var settings = Settings();
+            if (!warm) settings.ReadTransform = (_, value) => value;
+            using var engine = new SharedEngine(settings);
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
             var readers = new List<IBsonDataReader>();
@@ -127,9 +130,16 @@ namespace LiteDB.Internals
             }
             finally { foreach (var reader in readers) reader.Dispose(); }
             db.Checkpoint();
+            var logName = Path.GetFileName(FileHelper.GetLogFile(Filename));
             Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName)
-                .Should().OnlyContain(name => name == "test.db" || name == "test.db-log" || name == "test.db-shm");
-            engine.CoordinatedReadHits.Should().Be(0, "warm mapped admission belongs to slice 6");
+                .Should().OnlyContain(name => name == "test.db" || name == logName || name == "test.db-shm");
+            if (warm)
+            {
+                var before = engine.CoordinatedReadHits;
+                for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1)["generation"].AsInt32.Should().Be(3);
+                engine.CoordinatedReadHits.Should().BeGreaterThan(before, "the same exact generations must also survive enabled warm admission");
+            }
+            else engine.CoordinatedReadHits.Should().Be(0, "transformed queries preserve the protected slow reader path");
         }
 
         [OneFileFact]

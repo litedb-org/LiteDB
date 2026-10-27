@@ -121,7 +121,7 @@ namespace LiteDB
             var pin = _pin;
             if (pin != null)
             {
-                if (pin.TryEnter()) return pin;
+                if (this.TryEnterPin(pin)) return pin;
                 // Another thread needs the mutex: end the pin at its next idle moment.
                 if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
             }

@@ -152,8 +152,14 @@ namespace LiteDB.Internals
                 Field<ManualResetEventSlim>(pin, "_released").Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 pin.WaitReleased(); // actual native cleanup has completed
                 completed = peerThread.Join(TimeSpan.FromSeconds(1));
-                // The awakened peer may legitimately hold WRITE until its commit.
-                // Probe after joining it, rather than race the handoff being tested.
+                // The awakened peer may retain WRITE after its successful commit.
+                // Demand its real idle boundary before independently probing release.
+                if (completed)
+                {
+                    var successor = second.Pin;
+                    successor.Should().NotBeSameAs(pin);
+                    if (successor != null) { successor.RequestRelease(false); successor.WaitReleased(); }
+                }
                 using (var probe = new SharedRangeLocks(file.Filename + "-shm"))
                 {
                     probe.EnterWrite();
