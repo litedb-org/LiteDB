@@ -128,6 +128,39 @@ namespace LiteDB.Tests.Engine
             scenario.VerifyRecovery();
         }
 
+        [Fact]
+        public async Task OwnerCleanupFailureCannotReplaceAnAlreadyPublishedTerminalCause()
+        {
+            using var scenario = new DirectCheckpointScenario();
+            var peer = new LiteEngine(scenario.File.Filename);
+            using var database = new LiteDatabase(peer, disposeOnClose: false);
+            using var active = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            var owner = Start(() =>
+            {
+                database.BeginTrans();
+                database.GetCollection("rows").Delete(99).Should().BeFalse();
+                active.Set();
+                AutomaticCheckpointWorker_Tests.Wait(release);
+                database.Rollback();
+            });
+            try
+            {
+                AutomaticCheckpointWorker_Tests.Wait(active);
+                var cause = new IOException("published failure before terminal cleanup");
+                scenario.State.BeginStop(cause).Should().BeTrue();
+                // Force another actor's owner-thread refusal in the interval
+                // between terminal publication and the first actor's cleanup.
+                Record.Exception(peer.Dispose).Should().BeSameAs(cause);
+                cause.Data["LiteDB.DirectOwnerCleanupError"].Should().BeOfType<InvalidOperationException>();
+                Record.Exception(scenario.Engine.Dispose).Should().BeSameAs(cause);
+            }
+            finally { release.Set(); }
+            await Completes(owner);
+            owner.Result.Should().BeOfType<IOException>();
+            scenario.VerifyRecovery();
+        }
+
         internal static Task<Exception> Start(Action action) => Task.Factory.StartNew(() => Record.Exception(action),
             CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         internal static async Task Completes(Task task)

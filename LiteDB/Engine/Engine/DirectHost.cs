@@ -14,7 +14,7 @@ namespace LiteDB.Engine
 
         internal bool OwnsBackgroundCheckpoint => _state.CheckpointLifetime != null;
 
-        internal void ThrowBackgroundCheckpointFailure() => _state.CheckpointLifetime?.ThrowIfFailed();
+        internal void ThrowBackgroundCheckpointFailure(Exception cleanup = null) => _state.CheckpointLifetime?.ThrowIfFailed(cleanup);
 
 #if DEBUG || TESTING
         // Slice 5 test installation. No production open binds these services yet.

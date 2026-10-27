@@ -114,7 +114,12 @@ namespace LiteDB.Client.Direct
                         if (final) owner?.CloseOwner();
                         else owner?.DisposeOwner();
                     }
-                    catch (Exception error) { Engine.StopHost(error); throw; }
+                    catch (Exception error)
+                    {
+                        Engine.StopHost(error);
+                        Engine.ThrowBackgroundCheckpointFailure(error);
+                        throw;
+                    }
                     finally
                     {
                         if (final)

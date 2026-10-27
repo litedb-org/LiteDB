@@ -108,14 +108,19 @@ namespace LiteDB.Engine
             return errors;
         }
 
-        internal void ThrowIfFailed()
+        internal void ThrowIfFailed(Exception cleanup = null)
         {
             var cause = _state.TerminalCause;
             lock (_sync)
             {
                 if (_complete && _errors.Count > 0) cause = _errors[0];
             }
-            if (cause != null) throw cause;
+            if (cause != null)
+            {
+                if (cleanup != null && !ReferenceEquals(cause, cleanup))
+                    cause.Data["LiteDB.DirectOwnerCleanupError"] = cleanup;
+                throw cause;
+            }
         }
     }
 }
