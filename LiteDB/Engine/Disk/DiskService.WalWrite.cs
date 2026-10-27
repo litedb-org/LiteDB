@@ -52,6 +52,13 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                // Track plain-file extents for internal cache-only transactions.
+                // Wrappers and arbitrary producers keep their per-frame I/O probes.
+                // The first query stays inside WriteLogPage's uncertain preparation;
+                // every batch re-reads after padding, checkpoint or header journaling.
+                var trackLength = !_durableCommits && transactionState != null && !_logMayBuffer && ChecksumsEnabled &&
+                    stream is ChecksummedWalStream wal && wal.RawStream.GetType() == typeof(FileStream);
+                long? batchLength = null;
                 var previousVersion = checked((int)(_checksums.LastConfirmedPosition / PAGE_SIZE + 1));
                 var uncertain = false;
                 try
@@ -102,7 +109,7 @@ namespace LiteDB.Engine
                                 this.WriteLogPage(stream, page, written, transactionPages,
                                     ref transactionAnchored, first && rebase,
                                     ref count, ref hasConfirmation, ref reusePublished, ref uncertain,
-                                    ref removedAppendFailure);
+                                    ref removedAppendFailure, trackLength, ref batchLength);
 
                                 if (first && rebase)
                                 {
@@ -128,7 +135,8 @@ namespace LiteDB.Engine
                             {
                                 this.WriteLogPage(stream, delayedConfirmation, written,
                                     transactionPages, ref transactionAnchored, false, ref count,
-                                    ref hasConfirmation, ref reusePublished, ref uncertain, ref removedAppendFailure);
+                                    ref hasConfirmation, ref reusePublished, ref uncertain,
+                                    ref removedAppendFailure, trackLength, ref batchLength);
                                 delayedConfirmation = null;
                             }
                         }
@@ -231,7 +239,7 @@ namespace LiteDB.Engine
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
             bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
-            ref bool uncertain, ref Exception removedAppendFailure)
+            ref bool uncertain, ref Exception removedAppendFailure, bool trackLength, ref long? batchLength)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
@@ -248,7 +256,7 @@ namespace LiteDB.Engine
                 // Keep any failure terminal until all preparation has returned, even if a
                 // caller stream reports it with a non-I/O exception.
                 uncertain = true;
-                previousStreamLength = stream.Length;
+                previousStreamLength = batchLength ?? stream.Length;
                 var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
 
@@ -304,6 +312,7 @@ namespace LiteDB.Engine
                 {
                     stream.Write(page.Array, page.Offset, PAGE_SIZE);
                 }
+                if (trackLength) batchLength = Math.Max(previousStreamLength.Value, page.Position + PAGE_SIZE);
                 if (!_logMayBuffer) uncertain = isConfirmed;
                 hasConfirmation |= isConfirmed;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");

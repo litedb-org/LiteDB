@@ -21,12 +21,12 @@ namespace LiteDB.Internals
         internal int Start;
         internal string LogName => FileHelper.GetLogFile(File.Filename);
 
-        internal WalCombinedWriteScenario(bool durable)
+        internal WalCombinedWriteScenario(bool durable, int transactionPageLimit = 1)
         {
             Engine = new LiteEngine(new EngineSettings
             {
                 Filename = File.Filename, DurableCommits = durable,
-                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
+                CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = transactionPageLimit
             });
             State = (EngineState)typeof(LiteEngine).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(Engine);
             Database = new LiteDatabase(Engine, disposeOnClose: false);
