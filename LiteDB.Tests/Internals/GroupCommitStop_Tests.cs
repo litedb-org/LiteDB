@@ -117,6 +117,8 @@ namespace LiteDB.Tests.Internals
                 state.AfterFailedWalWrite = null;
                 engine.SimulateDiskWriteFail = null;
             }
+            // A stopped process host refuses reattachment until its last facade closes.
+            engine.Dispose();
             VerifyRecovery(file.Filename);
         }
 
@@ -176,6 +178,8 @@ namespace LiteDB.Tests.Internals
                 state.AtCrashPoint = null;
                 NativeFileSync.SimulateErrno = null;
             }
+            // A stopped process host refuses reattachment until its last facade closes.
+            engine.Dispose();
             VerifyRecovery(file.Filename);
         }
 
