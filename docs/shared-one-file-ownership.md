@@ -41,6 +41,16 @@ The transaction transition is:
    cannot skip terminal lease release or the remaining facade resource releases.
    Reentry from an executing teardown callback refuses before changing state.
 
+Retained streaming results extend call admission through every `Read`, including
+transforms executed after `Query` returned. A pinned holder waits for these reads
+before closing its core, independently of transaction/result holds that a forced
+dispose can invalidate. Dispose invoked inside an ordinary admitted callback
+defers cleanup to that thread's outermost call exit. A pinned callback transfers
+cleanup to its holder. In both cases the callback and underlying read return
+before teardown starts. Stale results fail their native generation/pin check and
+cannot enter a successor core. Holder teardown waits only for retained reads;
+unrelated facade calls may already be waiting for that holder to release main.
+
 Dead-owner handoff can overlap a new reserved call. Cleanup only sees the old
 published lease; it cannot erase a successor's pending reservation. The local
 generation and native holder generation independently reject stale result/lease
@@ -61,7 +71,7 @@ later protected open. A timed-out retry owns no WRITE and can be retried after
 actual release. A live holder releasing during the window is indistinguishable
 from delayed kernel close; this is an exclusivity policy, not liveness proof.
 
-`SharedOneFileSlice7*`, `TerminalTransitions`, `OwnerGeneration`, `ReadOwnership`
+`SharedOneFileSlice7*`, `TerminalTransitions`, `DeferredRead`, `OwnerGeneration`, `ReadOwnership`
 and `RetryHandoff` tests discriminate these transitions. `ProductionReuse` kills
 real SharedEngine constructors/closures twice at publication, Ready, WRITE and
 DMS boundaries; `ReplacementReplay` and `LiveDimensions` cover stale same-path

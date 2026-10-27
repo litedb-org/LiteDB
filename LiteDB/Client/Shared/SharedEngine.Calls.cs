@@ -78,6 +78,12 @@ namespace LiteDB
             {
                 frame.Dispose();
                 this.EndAdmissions(depth);
+                if (depth == 0 && ReferenceEquals(Volatile.Read(ref _disposeAfterCall), Thread.CurrentThread))
+                {
+                    Volatile.Write(ref _disposeAfterCall, null);
+                    this.WaitForAdmittedCalls();
+                    this.DisposeOwnedResources();
+                }
             }
         }
 
@@ -114,7 +120,8 @@ namespace LiteDB
             Func<bool> retains = use != null
                 ? () => ReferenceEquals(_pin, use)
                 : (Func<bool>)(() => _owner.Generation == generation);
-            return new SharedDataReader(reader, dispose, _mutexName, this, retains);
+            return new SharedDataReader(reader, dispose, _mutexName, this, retains,
+                () => this.ReadRetained(reader, use, generation));
         }
 
         /// <summary>

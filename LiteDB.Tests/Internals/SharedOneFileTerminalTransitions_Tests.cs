@@ -143,7 +143,8 @@ namespace LiteDB.Internals
                 {
                     armed = true;
                     using var result = engine.Query("docs", new Query());
-                    result.Read().Should().BeTrue();
+                    Action afterDispose = () => result.Read();
+                    afterDispose.Should().Throw<ObjectDisposedException>();
                 }
                 else
                 {

@@ -279,6 +279,7 @@
         "LiteDB/Client/Shared/SharedRangeLocks.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#Later_streamed_transform_disposal_waits_until_its_Read_returns", "proves": "Ordinary and pinned disposal from a later retained ReadTransform defers core close until the callback returns, retains WRITE teardown authority with or without a sibling, then admits a peer and preserves repeated cold indexed state."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff", "proves": "Production reuse, publication, WRITE and DMS death cuts execute twice and recover complete indexed committed and unrelated data."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileLiveDimensions_Tests.cs#Remote_live_stream_or_writer_is_never_resized_while_a_real_facade_attaches", "proves": "Larger and smaller real remote requests retain the declared live stream/writer mapping without truncation."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileReplacementReplay_Tests.cs#Retained_same_path_authority_never_overrides_replacement_DB_and_WAL", "proves": "Plain/encrypted physical replacement, in-place DB/WAL restores and controlled identity collision always validate real storage despite old authority UUIDs."},

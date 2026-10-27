@@ -358,7 +358,7 @@ namespace LiteDB
             if (pin != null)
             {
                 pin.RequestRelease(force: true);
-                if (!pin.CanWaitFrom(Thread.CurrentThread))
+                if (!pin.CanWaitFrom(Thread.CurrentThread) || this.AdmittedDepth() != 0)
                 {
                     // The pin's holder still closes its engine; its streams close on return.
                     this.DeferNativeRelease();
@@ -373,6 +373,13 @@ namespace LiteDB
                 }
             }
 
+            if (this.AdmittedDepth() != 0)
+            {
+                // Dispose from an ordinary operation or retained Read cannot close
+                // the core under its own callback. The outer call drains it.
+                Volatile.Write(ref _disposeAfterCall, Thread.CurrentThread);
+                return;
+            }
             // Calls admitted before Dispose started finish first; later ones are refused.
             this.WaitForAdmittedCalls();
             this.DisposeOwnedResources();

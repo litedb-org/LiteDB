@@ -167,7 +167,30 @@ namespace LiteDB
         /// </summary>
         private void ClosePin(SharedMutexPin pin, bool abandoned)
         {
-            using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
+            using (this.OwnershipFrame(HolderRetains))
+            try
+            {
+                lock (_useLock)
+                {
+                    // ReadTransform may run in a retained result after Query has
+                    // returned. Its admission must drain before forced/owner-exit
+                    // close, just like operations counted inside the pin itself.
+                    while (_retainedReads != 0) Monitor.Wait(_useLock);
+                    this.ClosePinEngine(pin, abandoned);
+                }
+            }
+            finally
+            {
+                if (Volatile.Read(ref _disposed) != 0 && _releaseNativeAfterPin)
+                {
+                    try { _readers.Dispose(); }
+                    finally
+                    {
+                        try { this.DisposeCoordination(); }
+                        finally { _admission?.Dispose(); }
+                    }
+                }
+            }
         }
 
         private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
@@ -192,15 +215,6 @@ namespace LiteDB
             finally
             {
                 if (abandoned) this.EndTransaction(releaseHold: false);
-                if (Volatile.Read(ref _disposed) != 0 && _releaseNativeAfterPin)
-                {
-                    try { _readers.Dispose(); }
-                    finally
-                    {
-                        try { this.DisposeCoordination(); }
-                        finally { _admission?.Dispose(); }
-                    }
-                }
             }
         }
 

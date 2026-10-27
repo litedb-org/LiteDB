@@ -12,6 +12,7 @@ namespace LiteDB
     {
         private readonly IBsonDataReader _reader;
         private readonly Action _dispose;
+        private readonly Func<bool> _read;
         // Set when the reader streams under its connection's native ownership.
         private readonly string _namespace;
         private readonly object _connection;
@@ -37,9 +38,10 @@ namespace LiteDB
         /// the disposal, runs in a frame of that connection, so a callback it invokes cannot wait
         /// for the ownership through another connection.
         /// </summary>
-        internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains)
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains, Func<bool> read = null)
             : this(reader, dispose)
         {
+            _read = read;
             _namespace = ns;
             _connection = connection;
             _retains = retains;
@@ -57,7 +59,7 @@ namespace LiteDB
         public bool Read()
         {
             if (_retains == null) return _reader.Read();
-            using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _reader.Read();
+            using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _read != null ? _read() : _reader.Read();
         }
 
         public void Dispose()
