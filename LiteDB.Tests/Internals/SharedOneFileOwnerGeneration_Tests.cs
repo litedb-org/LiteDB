@@ -88,6 +88,61 @@ namespace LiteDB.Internals
             for (var repeat = 0; repeat < 2; repeat++) { using var cold = new LiteDatabase(files.Filename); Verify(cold, 1); }
         }
 
+        [OneFileFact]
+        public void Awakened_peer_legitimately_owns_WRITE_after_dead_pinned_holder_releases()
+        {
+            using var files = new SharedOneFilePublicationFixture();
+            using var first = new SharedEngine(files.Settings);
+            using var peer = new SharedEngine(files.Settings);
+            using var owned = new ManualResetEventSlim();
+            using var exit = new ManualResetEventSlim();
+            using var acquired = new ManualResetEventSlim();
+            using var commit = new ManualResetEventSlim();
+            IBsonDataReader anchor = null;
+            SharedMutexPin pin = null;
+            Exception ownerFailure = null, peerFailure = null;
+            var owner = new Thread(() => ownerFailure = Record.Exception(() =>
+            {
+                first.PinIdleLimit = first.PinHoldLimit = TimeSpan.FromMinutes(10);
+                anchor = first.Query("docs", new Query()); anchor.Read().Should().BeTrue();
+                first.Update("docs", new[] { Row(1, 0) }); pin = first.Pin;
+                pin.Should().NotBeNull();
+                first.BeginTrans().Should().BeTrue(); first.Update("docs", new[] { Row(1, 99) });
+                owned.Set(); exit.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            })) { IsBackground = true };
+            var successor = new Thread(() => peerFailure = Record.Exception(() =>
+            {
+                peer.BeginTrans().Should().BeTrue(); acquired.Set();
+                commit.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                peer.Update("docs", new[] { Row(1, 1) }); peer.Commit().Should().BeTrue();
+            })) { IsBackground = true };
+            var started = false;
+            owner.Start();
+            try
+            {
+                owned.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue(); successor.Start(); started = true;
+                SpinWait.SpinUntil(() => (successor.ThreadState & ThreadState.WaitSleepJoin) != 0,
+                    TimeSpan.FromSeconds(5)).Should().BeTrue();
+                Field<int>(peer, "_mutexWaiters").Should().Be(0);
+                exit.Set(); owner.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                pin.WaitReleased();
+                acquired.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                using var probe = new SharedRangeLocks(files.Filename + "-shm");
+                Action whilePeerOwns = () => probe.EnterWrite();
+                whilePeerOwns.Should().Throw<System.IO.IOException>().WithMessage("*WRITE ownership mismatch*");
+            }
+            finally
+            {
+                exit.Set(); commit.Set();
+                owner.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                if (started) successor.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                anchor?.Dispose();
+            }
+            ownerFailure.Should().BeNull(); peerFailure.Should().BeNull(); files.WriteIsFree();
+            first.Dispose(); peer.Dispose();
+            for (var repeat = 0; repeat < 2; repeat++) { using var cold = new LiteDatabase(files.Filename); Verify(cold, 1); }
+        }
+
         [OneFileTheory]
         [InlineData(false, false)] [InlineData(false, true)]
         [InlineData(true, false)] [InlineData(true, true)]

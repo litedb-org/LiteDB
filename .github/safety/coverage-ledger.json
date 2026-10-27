@@ -35,8 +35,8 @@
         "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs"
       ],
       "disposition": "strengthened",
-      "invariant": "Implicit abort immediately returns transaction ownership; retry registration faults must target the actual retry core and reader cleanup must use actual Thread identity. All five adversarial scenarios and all assertions remain.",
-      "reason": "R1 previously dereferenced the facade current core after abort, which the required immediate native teardown now closes/clears. Capture that exact core before the duplicate and assert its abort afterwards. Retry injection now targets a retained pin core or the newly opened ordinary core. Lifetime reflection follows Dictionary<Thread,int>. No test is removed, skipped or weakened."
+      "invariant": "Implicit abort immediately returns transaction ownership; retry registration faults must target the actual retry core and reader cleanup must use actual Thread identity. All five adversarial scenarios and all assertions remain. R3 probes WRITE after joining the awakened peer, since probing earlier races legitimate successor ownership.",
+      "reason": "R1 previously dereferenced the facade current core after abort, which the required immediate native teardown now closes/clears. Capture that exact core before the duplicate and assert its abort afterwards. A deterministic sibling holds the awakened peer in its transaction and proves the old unconditional free-WRITE oracle is invalid; the retained R3 scenario now joins the peer before its raw probe. Retry injection now targets a retained pin core or the newly opened ordinary core. Lifetime reflection follows Dictionary<Thread,int>. No test is removed, skipped or weakened."
     },
     {
       "id": "p2i-fork-only-open-close-measurement",

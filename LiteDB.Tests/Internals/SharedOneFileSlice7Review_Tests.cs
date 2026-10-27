@@ -151,12 +151,14 @@ namespace LiteDB.Internals
                 ownerFailure.Should().BeNull();
                 Field<ManualResetEventSlim>(pin, "_released").Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 pin.WaitReleased(); // actual native cleanup has completed
+                completed = peerThread.Join(TimeSpan.FromSeconds(1));
+                // The awakened peer may legitimately hold WRITE until its commit.
+                // Probe after joining it, rather than race the handoff being tested.
                 using (var probe = new SharedRangeLocks(file.Filename + "-shm"))
                 {
                     probe.EnterWrite();
                     probe.ExitWrite();
                 }
-                completed = peerThread.Join(TimeSpan.FromSeconds(1));
             }
             finally
             {
