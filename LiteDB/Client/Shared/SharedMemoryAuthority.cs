@@ -253,11 +253,12 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
-        // Linux x64 qualification resumes after separating the process-death
-        // matrices that exhausted the shared session's cumulative time budget.
-        // Other backends remain refused until their own full qualification.
+        // Linux x64 resumes after the process-death matrices were split from the
+        // shared session. Linux ARM64 uses the same mapped ABI and native futex
+        // path; the other backends remain refused until their own qualification.
         internal static bool IsPlatformQualified => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+            (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+             RuntimeInformation.ProcessArchitecture == Architecture.Arm64);
 
         private static void RequirePlatform(string path)
         {
