@@ -143,6 +143,7 @@ internal sealed class Workload
 
     private LiteDatabase Open(string path)
     {
+        if (!_record) Console.WriteLine($"{_config} warmup opening {Path.GetFileName(path)}");
         var connection = new ConnectionString
         {
             Filename = path, Connection = ConnectionType.Direct,
@@ -168,10 +169,15 @@ internal sealed class Workload
 
     private void Measure(string scenario, int operations, string path, Action action)
     {
+        if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
         var watch = Stopwatch.StartNew();
         action();
         watch.Stop();
-        if (!_record) return;
+        if (!_record)
+        {
+            Console.WriteLine($"{_config} warmup finished {scenario}");
+            return;
+        }
         var totalBytes = Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length);
         Samples.Add(new Sample(scenario, watch.Elapsed.TotalMilliseconds, operations, new FileInfo(path).Length, totalBytes));
         Console.WriteLine($"{_config} {scenario}: {watch.Elapsed.TotalMilliseconds:F3} ms");

@@ -8,13 +8,15 @@ namespace LiteDB.Client.Shared
     /// <summary>
     /// Handle-owned locks outside the database address space. OFD locks deliberately
     /// do not use POSIX process locks (closing ANY descriptor would release those),
-    /// or flock (used independently by the runtime for FileStream sharing).
+    /// or flock (used by the runtime for FileStream sharing). Darwin's OFD and
+    /// flock locks interact, so its byte ranges live on a separate persistent inode.
     /// </summary>
     internal sealed class DatabaseFileLock : IDisposable
     {
         internal const long Admission = long.MaxValue - 4096;
         internal const long Family = Admission + 1;
         private readonly SafeFileHandle _handle;
+        private readonly SafeFileHandle _lockHandle;
         internal string Identity { get; }
         internal string Path { get; }
         internal bool ReadOnly { get; }
@@ -28,6 +30,7 @@ namespace LiteDB.Client.Shared
                 Identity = DatabaseFileIdentity.Read(_handle);
                 Path = canonicalPath ?? DatabaseFileIdentity.CanonicalPath(filename);
                 if (qualify) DatabaseVolumePolicy.IsNative(_handle, Path, allowFallback: false);
+                _lockHandle = Darwin ? DatabaseLockFile.Open(Path, Identity, readOnly) : _handle;
             }
             catch { _handle.Dispose(); throw; }
         }
@@ -94,13 +97,13 @@ namespace LiteDB.Client.Shared
                 if (Darwin)
                 {
                     var value = new DarwinFlock { Start = offset, Length = length, Type = type };
-                    result = DatabaseUnixNative.Api.LockDarwin(_handle, query ? 92 : 90, ref value);
+                    result = DatabaseUnixNative.Api.LockDarwin(_lockHandle, query ? 92 : 90, ref value);
                     actual = value.Type;
                 }
                 else
                 {
                     var value = new LinuxFlock { Start = offset, Length = length, Type = type };
-                    result = DatabaseUnixNative.Api.LockLinux(_handle, query ? 36 : 37, ref value);
+                    result = DatabaseUnixNative.Api.LockLinux(_lockHandle, query ? 36 : 37, ref value);
                     actual = value.Type;
                 }
             } while (result < 0 && Marshal.GetLastWin32Error() == 4); // EINTR
@@ -118,6 +121,7 @@ namespace LiteDB.Client.Shared
 
         public void Dispose()
         {
+            if (_lockHandle != _handle) _lockHandle?.Dispose();
             _handle.Dispose();
         }
 

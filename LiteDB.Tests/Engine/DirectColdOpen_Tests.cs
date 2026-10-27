@@ -83,6 +83,37 @@ namespace LiteDB.Tests.Engine
             two.Execute("select $ from $database").Single().IsDocument.Should().BeTrue();
         }
 
+#if !NETFRAMEWORK
+        [Fact]
+        public async Task Parent_symlink_and_canonical_creation_share_the_path_bootstrap()
+        {
+            var alias = _directory + "-alias";
+            Directory.CreateSymbolicLink(alias, _directory);
+            try
+            {
+                using var started = new ManualResetEventSlim();
+                Task open;
+                using (NativeAdmission.EnterPath(Path.Combine(alias, "test.db")))
+                {
+                    open = Task.Run(() =>
+                    {
+                        started.Set();
+                        using var db = new LiteDatabase(Filename);
+                        db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "committed" });
+                    });
+                    started.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                    Thread.Sleep(150);
+                    open.IsCompleted.Should().BeFalse();
+                    Directory.GetFiles(_directory).Should().BeEmpty();
+                }
+                await open;
+                using var reopened = new LiteDatabase(Path.Combine(alias, "test.db"));
+                reopened.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("committed");
+            }
+            finally { Directory.Delete(alias); }
+        }
+#endif
+
         public void Dispose() => Directory.Delete(_directory, true);
     }
 }

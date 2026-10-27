@@ -131,7 +131,8 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        internal static IDisposable EnterPath(string filename) => new PathMutex(filename);
+        internal static IDisposable EnterPath(string filename) =>
+            new PathMutex(DatabaseFileIdentity.CanonicalPath(filename));
 
         private sealed class PathMutex : IDisposable
         {
