@@ -69,6 +69,7 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Regressions/ConvertedWalUnconfirmed_Tests.cs#Later_nonlegacy_unconfirmed_page_refuses_before_cleanup_and_preserves_both_files", "model": "corrupt-input", "proves": "Plain/encrypted legacy data with later A5, FF or unknown typed pages, complete or partial, refuses twice in writable/read-only mode without changing either file; covers unconfirmed, confirmed-then-unconfirmed and apparently blank marked slots."},
         {"test": "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Later_nonlegacy_committed_page_is_not_admitted_to_legacy_replay", "model": "corrupt-input", "proves": "A genuine legacy WAL with a later committed A5 or FF page refuses twice before migration/checkpoint changes either file."},
         {"test": "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Damaged_modern_wal_beside_legacy_data_refuses_twice_without_mutation", "model": "corrupt-input", "proves": "Plain/encrypted legacy v8/v9 data beside seven damaged or intact modern WAL states refuses twice in writable and read-only modes with both files byte-identical; deliberate mismatches, not an ordinary synced-crash claim."},
         {"test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract", "model": "exception", "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state (#2978)."},

@@ -76,12 +76,25 @@ namespace LiteDB.Engine
                 var prefix = new byte[BasePage.P_PAGE_FORMAT + 1];
                 log.Position = 0;
                 log.ReadRequired(prefix, 0, prefix.Length);
-                if (prefix[BasePage.P_PAGE_FORMAT] != PageChecksum.Legacy)
-                    throw new LiteException(LiteException.INVALID_DATABASE, "Cannot open this database: its log file holds WAL frames of a converted database " +
-                        "or an unsupported page format while its data file still has the legacy (v5) header. " +
-                        "The first log page has non-legacy format 0x{0:X2} at plaintext offset {1}. " +
-                        "Replaying it would corrupt the data file. Neither file was changed; preserve both files for recovery.",
-                        prefix[BasePage.P_PAGE_FORMAT], BasePage.P_PAGE_FORMAT);
+                EnsureLegacyWalPageFormat(new BufferSlice(prefix, 0, prefix.Length), 0);
+                // ReadFull sees only complete legacy slots. Inspect an identifiable page
+                // prefix in the partial tail before migration/checkpoint can trim it.
+                var tail = length - length % PAGE_SIZE;
+                if (tail != 0 && length - tail > BasePage.P_PAGE_FORMAT)
+                {
+                    log.Position = tail;
+                    log.ReadRequired(prefix, 0, prefix.Length);
+                    var page = new BufferSlice(prefix, 0, prefix.Length);
+                    var type = page.ReadByte(BasePage.P_PAGE_TYPE);
+                    var id = page.ReadUInt32(BasePage.P_PAGE_ID);
+                    // Arbitrary garbage tails have no page header; retain legacy torn-tail
+                    // recovery. A known format marker or a typed page is evidence to preserve.
+                    if (prefix[BasePage.P_PAGE_FORMAT] == PageChecksum.Checksummed ||
+                        prefix[BasePage.P_PAGE_FORMAT] == 0xFF ||
+                        (page.ReadInt64(0) == 0 && page.ReadInt64(8) == 0) ||
+                        (type <= (byte)PageType.Schema && (id == 0) == (type == (byte)PageType.Header)))
+                        EnsureLegacyWalPageFormat(page, tail);
+                }
                 if (length < WalChecksum.FrameSize) return;
                 var frame = new byte[WalChecksum.FrameSize];
                 log.Position = 0;
@@ -93,6 +106,18 @@ namespace LiteDB.Engine
                         "Move the log file aside to open the database as it was before the conversion.");
             }
             finally { _logPool.Return(reader); }
+        }
+
+        internal static void EnsureLegacyWalPageFormat(BufferSlice page, long position)
+        {
+            var format = page.ReadByte(BasePage.P_PAGE_FORMAT);
+            if (format == PageChecksum.Legacy) return;
+            throw new LiteException(LiteException.INVALID_DATABASE,
+                "Cannot open this database: its log file holds WAL frames of a converted database " +
+                "or an unsupported page format while its data file still has the legacy (v5) header. " +
+                "The log page has non-legacy format 0x{0:X2} at plaintext offset {1}. " +
+                "Replaying or clearing the log would lose recovery evidence. " +
+                "Neither file was changed; preserve both files for recovery.", format, position + BasePage.P_PAGE_FORMAT);
         }
     }
 }

@@ -77,8 +77,10 @@ legacy header beside checksummed WAL frames fails the open without changing eith
 Classify the first plaintext WAL page as soon as its header through byte 31 exists:
 a missing/partial checksum trailer or damaged CRC must not bypass the format gate.
 Use logical length so an incomplete encrypted preamble remains recoverable. Require
-marker 00 on every page admitted to legacy replay, including later committed pages.
-Refuse ambiguous non-legacy markers before replay, tail trimming or checkpoint and
+marker 00 on every page observed by legacy recovery, including later unconfirmed
+pages and marked slots whose first 16 bytes look blank. Inspect identifiable partial
+page headers before trimming; arbitrary non-page garbage tails retain legacy torn-tail recovery.
+Refuse ambiguous non-legacy markers before bookkeeping, replay, tail trimming or checkpoint and
 preserve both files on repeated opens. A legacy/modern mismatch is corrupt-input
 coverage (for example, a data-only restore plus a truncated WAL); it is not evidence
 that an ordinary crash on sync-honoring storage can produce that pair. See

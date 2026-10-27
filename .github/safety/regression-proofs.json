@@ -239,7 +239,8 @@
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#First_page_header_alone_identifies_a_nonlegacy_wal",
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Incomplete_encrypted_preamble_does_not_hide_legacy_data",
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Matching_modern_header_still_opens_with_a_truncated_first_frame",
-        "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Later_nonlegacy_committed_page_is_not_admitted_to_legacy_replay"
+        "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Later_nonlegacy_committed_page_is_not_admitted_to_legacy_replay",
+        "LiteDB.Tests/Regressions/ConvertedWalUnconfirmed_Tests.cs#Later_nonlegacy_unconfirmed_page_refuses_before_cleanup_and_preserves_both_files"
       ]
     }
   ]

@@ -230,15 +230,23 @@ namespace LiteDB.Engine
             var pages = _disk.ReadFull(FileOrigin.Log);
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
             var legacyLimit = _disk.ChecksumsEnabled ? uint.MaxValue : this.LegacyPageLimit(header);
-            // Legacy transactions holding a page that is not a page of this format, by transaction ID.
-            var legacyInvalid = _disk.ChecksumsEnabled ? null : new Dictionary<uint, uint>();
+            var legacy = !_disk.ChecksumsEnabled;
             // A 5.x header keeps the creation time it was created with: a committed header with
             // another one is another database's.
-            var legacyCreation = legacyInvalid == null ? 0L : header.Buffer.ReadInt64(HeaderPage.P_CREATION_TIME);
+            var legacyCreation = legacy ? header.Buffer.ReadInt64(HeaderPage.P_CREATION_TIME) : 0L;
             foreach (var buffer in pages)
             {
                 var current = buffer.Position;
-                if(buffer.IsBlank())
+                var blank = buffer.IsBlank();
+                // A blank-slot test sees only the first 16 bytes, before the format marker.
+                // Check abandoned and apparently blank marked pages before any bookkeeping.
+                if (legacy && (!blank || buffer.ReadByte(BasePage.P_PAGE_FORMAT) != PageChecksum.Legacy))
+                {
+                    if (!IsLegacyPage(buffer, buffer.ReadUInt32(BasePage.P_PAGE_ID)))
+                        throw LegacyPageInvalid(buffer.ReadUInt32(BasePage.P_PAGE_ID));
+                    DiskService.EnsureLegacyWalPageFormat(buffer, current);
+                }
+                if (blank)
                 {
                     // Durably cleared slots can be reused by later unconfirmed frames.
                     _disk.RegisterFreeLogPosition(current);
@@ -251,7 +259,6 @@ namespace LiteDB.Engine
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
                 _disk.RecordLogTransactionID(transactionID);
-                if (legacyInvalid != null && !IsLegacyPage(buffer, pageID)) legacyInvalid[transactionID] = pageID;
 
                 var position = new PagePosition(pageID, current);
 
@@ -265,9 +272,8 @@ namespace LiteDB.Engine
                     // Their witnesses still confirm the surviving frames at the same
                     // stable physical version as before reclamation.
                     var version = checked((int)(current / PAGE_SIZE + 1));
-                    if (legacyInvalid != null)
+                    if (legacy)
                     {
-                        if (legacyInvalid.TryGetValue(transactionID, out var invalid)) throw LegacyPageInvalid(invalid);
                         // A 5.x commit that allocated pages confirms with its header, whose LastPageID
                         // counts every ID handed out so far, also to transactions still open whose
                         // pages never reached the WAL (concurrent writers).
@@ -333,8 +339,7 @@ namespace LiteDB.Engine
         private static bool IsLegacyPage(PageBuffer buffer, uint pageID)
         {
             var type = buffer.ReadByte(BasePage.P_PAGE_TYPE);
-            return buffer.ReadByte(BasePage.P_PAGE_FORMAT) == PageChecksum.Legacy &&
-                type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
+            return type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
         }
 
         private static LiteException LegacyPageInvalid(uint pageID) => new LiteException(LiteException.INVALID_DATABASE,
