@@ -78,6 +78,13 @@ namespace LiteDB.Engine
         public int TransactionPageLimit => _transactionPageLimit;
         public TransactionService[] GetTransactionsSnapshot() => _transactions.Snapshot().ToArray();
 
+        internal bool HasActiveTransaction(object owner)
+        {
+            return _transactions.Snapshot().Any(transaction =>
+                ReferenceEquals(transaction.FacadeOwner, owner) &&
+                transaction.State == TransactionState.Active);
+        }
+
         public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit, object owner = null)
         {
             if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));

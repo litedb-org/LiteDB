@@ -17,6 +17,7 @@ namespace LiteDB.Client.Shared
         private readonly Dictionary<int, Generation> _versions = new Dictionary<int, Generation>();
         private readonly Stack<int> _free = new Stack<int>();
         internal readonly SharedMemoryAuthority Authority;
+        internal readonly SharedLocalTransactionOwner LocalTransactions = new SharedLocalTransactionOwner();
         private readonly NativeAdmission _admission;
         internal NativeAdmission Admission => _admission;
         internal readonly EngineSettings Settings;
@@ -73,6 +74,8 @@ namespace LiteDB.Client.Shared
                         var coreSettings = captured.Clone();
                         coreSettings.SharedAdmission = admission;
                         table = new SharedMemoryReaderTable(current, admission, captured);
+                        captured.TransactionOwner = table.LocalTransactions.Token;
+                        coreSettings.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.SharedReaderVersions = table.LiveVersions;
                         coreSettings.AutoRebuildAllowed = () => false;
                         var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;

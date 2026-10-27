@@ -26,6 +26,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             if (readers is SharedMemoryReaders mapped)
             {
+                settings.TransactionOwner = mapped.Table.LocalTransactions.Token;
                 settings.CheckpointBackoff = mapped.Table.Settings.CheckpointBackoff;
                 settings.SharedDurability = mapped.Table.Settings.SharedDurability;
                 settings.CoordinationSignals = mapped.Table;

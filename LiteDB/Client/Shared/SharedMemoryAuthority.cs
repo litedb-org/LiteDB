@@ -26,6 +26,8 @@ namespace LiteDB.Client.Shared
         [ThreadStatic] internal static Action<string> BootstrapStage;
         [ThreadStatic] internal static Func<FileStream, long, int> AllocateFile;
         [ThreadStatic] internal static Func<FileStream, long, SharedMemoryMap> MapFile;
+        internal static int BootstrapReuseCount;
+        internal static int BootstrapResetCount;
 #endif
 
         private SharedMemoryAuthority(string path) { Locks = new SharedRangeLocks(path); }
@@ -58,8 +60,14 @@ namespace LiteDB.Client.Shared
                 if (first) result.Locks.EnterWrite();
                 else result.Locks.ShareDms();
                 var old = result.ReadExisting(settings.Filename, identity, first, settings.SharedMutexNameStrategy);
-                if (first)
+                var requested = SharedMemoryEnvelope.Create(settings, identity);
+                var reuse = old != null && first && result.CanReuse(old, requested, identity, settings.Filename,
+                    settings.SharedMutexNameStrategy);
+                if (first && !reuse)
                 {
+#if DEBUG || TESTING
+                    Interlocked.Increment(ref BootstrapResetCount);
+#endif
                     result.Header = SharedMemoryEnvelope.Create(settings, identity);
                     // Invalidate both old envelopes before changing length. A killed
                     // resizer must not leave old valid length declarations behind.
@@ -99,9 +107,28 @@ namespace LiteDB.Client.Shared
                     // A writer can die after making the publication sequence odd.
                     // The mapping remains attachable so a successor can take the
                     // named mutex + WRITE tenure, validate DB/WAL, and repair it.
-                    if (result.Map.Load(SharedMemoryLayout.Control) != 1 ||
-                        result.Map.Load(SharedMemoryLayout.Control + 8) == 0)
+                    if (!reuse && (result.Map.Load(SharedMemoryLayout.Control) != 1 ||
+                        result.Map.Load(SharedMemoryLayout.Control + 8) == 0))
                         throw new IOException("Live Shared authority is not Ready.");
+                }
+                if (first && reuse)
+                {
+#if DEBUG || TESTING
+                    Interlocked.Increment(ref BootstrapReuseCount);
+#endif
+                    // Keep a deterministic interruption point before reuse validation;
+                    // it performs no envelope write and leaves the authority retryable.
+                    Stage("envelope-b");
+                    Stage("before-storage");
+                    validateStorage(result);
+                    Stage("after-storage");
+                    result.Map.Store(SharedMemoryLayout.Control + 8, 2);
+                    Stage("before-ready");
+                    result.Map.Store(SharedMemoryLayout.Control, 1);
+                    Stage("ready");
+                    result.Locks.DowngradeDms();
+                    Stage("downgraded");
+                    result.Locks.ExitWrite();
                 }
                 result.Claim();
                 Stage("claimed");
@@ -132,6 +159,7 @@ namespace LiteDB.Client.Shared
                 return null;
             }
             SharedMemoryEnvelope valid = null;
+            var missing = false;
             foreach (var offset in new[] { 0, SharedMemoryLayout.Page })
             {
                 if (bytes.Length < offset + SharedMemoryLayout.EnvelopeBytes)
@@ -140,14 +168,28 @@ namespace LiteDB.Client.Shared
                 if (SharedMemoryEnvelope.IsZero(candidate))
                 {
                     if (!first) throw new IOException("Live Shared envelope is incomplete.");
+                    missing = true;
                     continue;
                 }
-                var decoded = SharedMemoryEnvelope.Decode(candidate, path, identity, quiescent: first, strategy: strategy);
-                if (!first && valid != null && !valid.Bytes.SequenceEqual(decoded.Bytes)) throw new IOException("Shared envelopes disagree.");
+                var decoded = SharedMemoryEnvelope.DecodeForReuse(candidate, path, quiescent: first, strategy: strategy);
+                if (!decoded.MatchesIdentity(identity) && !first)
+                    throw new IOException("Shared coordination database identity/namespace mismatch.");
+                if (valid != null && !valid.Bytes.SequenceEqual(decoded.Bytes)) throw new IOException("Shared envelopes disagree.");
                 valid = decoded;
             }
+            if (missing) return null;
             if (valid != null && length != valid.Size) throw new IOException("Shared map length disagrees with envelope.");
             return valid;
+        }
+
+        private bool CanReuse(SharedMemoryEnvelope existing, SharedMemoryEnvelope requested, string identity,
+            string path, SharedMutexNameStrategy strategy)
+        {
+            if (!existing.HasValidChecksum() || !existing.MatchesIdentity(identity) || !existing.MatchesNamespace(path, strategy)) return false;
+            if (existing.Size != requested.Size || existing.Processes != requested.Processes ||
+                existing.Generations != requested.Generations || existing.Stride != requested.Stride)
+                return false;
+            return true;
         }
 
         private void Claim()
