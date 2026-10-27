@@ -119,7 +119,7 @@ public partial class BsonMapper
             {
                 AutoId = autoId == null ? !hasRegisteredId : autoId.AutoId,
                 FieldName = name,
-                HasExplicitFieldName = autoId != null || field?.Name != null,
+                HasExplicitFieldName = autoId != null || (memberInfo == id && hasRegisteredId) || field?.Name != null,
                 ReflectedMember = memberInfo,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
