@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "p1-same-job-benchmark-comparison-budget",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Benchmark verdicts require complete measurement sets, unchanged owner thresholds and independently verified candidate identities; partial or subset measurements cannot pass the Phase 1 gate.",
+      "reason": "Optional baseline_ref adds same-job v5/before/after evidence with a 23-minute measurement budget and 29-minute job limit. Default jobs retain their existing rounds, timeouts, workloads and verdicts. Incomplete comparisons fail evidence validation; explicit scenario subsets are report-only. Synthetic comparison tests verify shared-v5 identity, separate before/after binaries, rotating order, bounds and subset verdict refusal. No product tests or safety assertions are removed."
+    },
+    {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
       "subjects": [".github/workflows/benchmark-gate.yml"],

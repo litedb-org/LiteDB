@@ -25,6 +25,15 @@ def execution_order(round_number):
     return CONFIGS if round_number % 2 else list(reversed(CONFIGS))
 
 
+def comparison_order(round_number):
+    variants = ["v5", "before", "after"]
+    offset = (round_number - 1) % len(variants)
+    variants = variants[offset:] + variants[:offset]
+    configs = CONFIGS[1:] if round_number % 2 else list(reversed(CONFIGS[1:]))
+    return [(variant, config) for variant in variants
+            for config in (["v5"] if variant == "v5" else configs)]
+
+
 def summarize(output):
     rounds = rounds_for_os(os.environ.get("RUNNER_OS"))
     raw = []
@@ -94,6 +103,11 @@ def main():
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("Measurements are restricted to GitHub Actions; do not run locally")
     framework, destination = sys.argv[1:]
+    comparison = bool(os.environ.get("BENCHMARK_BASELINE_SHA"))
+    scenarios = os.environ.get("BENCHMARK_SCENARIOS", "")
+    if scenarios and (not comparison or len(set(scenarios.split(","))) != len(scenarios.split(","))
+                      or not set(scenarios.split(",")) <= set(GATE_CONFIG["scenarios"])):
+        raise ValueError("Scenario subsets require comparison mode and known, distinct scenarios")
     output = Path(destination).resolve()
     output.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, DOTNET_TieredCompilation="0", DOTNET_CLI_TELEMETRY_OPTOUT="1")
@@ -105,39 +119,60 @@ def main():
                     sourceHashes={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in ROOT.glob("*.cs")},
                     dotnetInfo=subprocess.check_output(["dotnet", "--info"], text=True),
                     order=[], started=time.time())
+    if comparison:
+        metadata.update(baselineCommit=os.environ["BENCHMARK_BASELINE_SHA"], comparisonScenarios=scenarios)
     (output / "environment.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     start = time.monotonic()
     rounds = rounds_for_os(os.environ["RUNNER_OS"])
-    budget = 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
+    budget = 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
     for round_number in range(1, rounds + 1):
         # Filtered to either A/B pair, this gives A,B,B,A,A,B,B,A,...
-        order = execution_order(round_number)
-        for config in order:
+        order = comparison_order(round_number) if comparison else [("after", c) for c in execution_order(round_number)]
+        for variant, config in order:
             remaining = budget - (time.monotonic() - start)
             if remaining <= 0:
                 raise TimeoutError("Measurement budget exceeded")
             project = "V5" if config == "v5" else "V6"
             dll = ROOT / project / "bin" / "Release" / framework / f"{project}.dll"
-            result_path = output / f"round-{round_number}-{config}.json"
+            if variant == "before":
+                dll = ROOT / "V6Before" / f"{project}.dll"
+            child_env = dict(env)
+            if variant == "before":
+                child_env["BENCHMARK_CANDIDATE_SHA"] = env["BENCHMARK_BASELINE_SHA"]
+            child_output = output / "before" if variant == "before" else output
+            child_output.mkdir(parents=True, exist_ok=True)
+            result_path = child_output / f"round-{round_number}-{config}.json"
             command = ["dotnet", str(dll), config, str(round_number), str(result_path)]
-            print(f"Round {round_number}: {config} ({framework})", flush=True)
+            label = f"{variant}/{config}" if comparison else config
+            print(f"Round {round_number}: {label} ({framework})", flush=True)
+            identity = dict(round=round_number, config=config)
+            if comparison:
+                identity["variant"] = variant
             try:
-                child = subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE,
+                child = subprocess.run(command, env=child_env, text=True, stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT, timeout=min(360, remaining))
             except subprocess.TimeoutExpired as error:
                 partial = error.stdout or b""
                 if isinstance(partial, bytes):
                     partial = partial.decode(errors="replace")
-                (output / f"round-{round_number}-{config}.log").write_text(partial, encoding="utf-8")
-                metadata["order"].append(dict(round=round_number, config=config, error="child timeout"))
+                (child_output / f"round-{round_number}-{config}.log").write_text(partial, encoding="utf-8")
+                metadata["order"].append(dict(identity, error="child timeout"))
                 (output / "environment.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
                 raise
-            (output / f"round-{round_number}-{config}.log").write_text(child.stdout, encoding="utf-8")
+            (child_output / f"round-{round_number}-{config}.log").write_text(child.stdout, encoding="utf-8")
             print(child.stdout, flush=True)
-            metadata["order"].append(dict(round=round_number, config=config, exitCode=child.returncode))
+            metadata["order"].append(dict(identity, exitCode=child.returncode))
             (output / "environment.json").write_text(json.dumps(metadata, indent=2))
             child.check_returncode()
-    summarize(output)
+            if comparison and variant == "v5":
+                # v5 is measured once per round and shared by the two vs-v5 evaluations.
+                shared = json.loads(result_path.read_text())
+                shared["candidateCommit"] = env["BENCHMARK_BASELINE_SHA"]
+                before_output = output / "before"
+                before_output.mkdir(exist_ok=True)
+                (before_output / result_path.name).write_text(json.dumps(shared, indent=2))
+    if not comparison:
+        summarize(output)
 
 
 if __name__ == "__main__":
