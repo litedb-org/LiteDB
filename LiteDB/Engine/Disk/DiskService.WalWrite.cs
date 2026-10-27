@@ -293,7 +293,17 @@ namespace LiteDB.Engine
                 // can still tear it after the write returned, until the batch's final flush.
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
-                stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                var checksummed = stream as ChecksummedWalStream;
+                var coalesce = isConfirmed && !overwrite && !_logMayBuffer &&
+                    checksummed != null && checksummed.RawStream.GetType() == typeof(FileStream);
+                if (coalesce)
+                {
+                    checksummed.WriteFinalPadded(page.Array, page.Offset);
+                }
+                else
+                {
+                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                }
                 if (!_logMayBuffer) uncertain = isConfirmed;
                 hasConfirmation |= isConfirmed;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
