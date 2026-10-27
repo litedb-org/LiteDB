@@ -116,7 +116,7 @@ namespace LiteDB.Engine
             this.BeginTrans();
             try
             {
-                var transaction = _monitor.GetTransaction(true, false, out _);
+                var transaction = _monitor.GetTransaction(true, false, out _, write: true);
                 transaction.Pages.IndexMigrationLimitSize = _settings.IndexMigrationLimitSize;
                 foreach (var collection in _header.GetCollections())
                 {

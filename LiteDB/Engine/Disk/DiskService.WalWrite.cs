@@ -341,6 +341,7 @@ namespace LiteDB.Engine
                             this.PublishWalReuse(ref reusePublished);
                             stream.SetLength(previousStreamLength.Value);
                             _logFactory.TrimCapacity(stream);
+                            this.PublishCheckpointTail();
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
                             // nor an earlier frame of this batch that a buffering stream still held.
                             if (prepared && !overwrite && !earlierHeld)

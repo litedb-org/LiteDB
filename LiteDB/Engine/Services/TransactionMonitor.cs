@@ -38,12 +38,14 @@ namespace LiteDB.Engine
         internal void CloseOwner()
         {
             Interlocked.Exchange(ref _disposed, 1);
+            _disk.WriteAdmission?.Wake();
             _explicitAborted.Dispose();
         }
 
         internal void DisposeOwner()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _disk.WriteAdmission?.Wake();
             foreach (var transaction in _transactions.Snapshot())
             {
                 if (!ReferenceEquals(transaction.FacadeOwner, _owner)) continue;
@@ -68,6 +70,7 @@ namespace LiteDB.Engine
 
 #if TESTING
         internal Action BeforeTransactionRegistration { get; set; }
+        internal Action BeforeCheckpointPermitRegistration;
 #endif
 #if DEBUG || TESTING
         internal Action AfterTransactionExit { get; set; }
@@ -89,7 +92,7 @@ namespace LiteDB.Engine
             _transactionPageLimit = transactionPageLimit;
         }
 
-        public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
+        public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew, bool write = false)
         {
             this.ThrowIfDisposed();
             var transaction = _slot.Value;
@@ -103,16 +106,21 @@ namespace LiteDB.Engine
 #endif
                 this.ThrowIfDisposed();
 
+                CheckpointWriteAdmission.Permit permit = null;
                 var enteredTransaction = false;
                 var owner = Thread.CurrentThread;
                 try
                 {
+                    if (write) permit = this.AcquireWritePermit();
                     // Checkpoint can reset the WAL ID sequence only while holding
                     // exclusive admission. Take our lease before reserving an ID.
                     _locker.EnterTransaction();
                     enteredTransaction = true;
                     this.ThrowIfDisposed();
+                    if (_disk.WriteAdmission != null) _disk.ValidateWriteAdmission();
                     transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    transaction.WritePermit = permit;
+                    permit = null;
                     _transactions.Add(transaction);
 
                     this.ThrowIfDisposed();
@@ -128,6 +136,7 @@ namespace LiteDB.Engine
                     finally
                     {
                         if (enteredTransaction) _locker.ExitTransaction(owner);
+                        permit?.Dispose();
                     }
                     throw;
                 }
@@ -140,14 +149,40 @@ namespace LiteDB.Engine
                     if (transaction.State == TransactionState.Disposed)
                     {
                         _slot.Value = null;
-                        return this.GetTransaction(create, queryOnly, out isNew);
+                        return this.GetTransaction(create, queryOnly, out isNew, write);
                     }
                     if (create) throw new InvalidOperationException("Another Direct facade owns this thread's transaction. Complete it before using this facade on the same thread.");
                     return null;
                 }
             }
 
+            if (write) transaction?.EnsureWriteAdmission();
             return transaction;
+        }
+
+        internal CheckpointWriteAdmission.Permit AcquireWritePermit(bool upgrade = false)
+        {
+            var admission = _disk.WriteAdmission;
+            if (admission == null) return null;
+            this.ThrowIfDisposed();
+            _disk.ValidateWriteAdmission();
+            var permit = admission.Acquire(_header.Pragmas.Timeout,
+                !upgrade && !_locker.IsInTransaction, () =>
+                {
+                    _disk.ValidateWriteAdmission();
+                    this.ThrowIfDisposed();
+                });
+            try
+            {
+#if TESTING
+                Reachability.FaultPoint("BeforeCheckpointPermitRegistration");
+                BeforeCheckpointPermitRegistration?.Invoke();
+#endif
+                _disk.ValidateWriteAdmission();
+                this.ThrowIfDisposed();
+                return permit;
+            }
+            catch { permit.Dispose(); throw; }
         }
 
         /// <summary>
@@ -260,6 +295,7 @@ namespace LiteDB.Engine
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _disk.WriteAdmission?.Wake();
             var cleanup = new LiteDB.Utils.TryCatch();
             foreach (var transaction in _transactions.Close())
             {

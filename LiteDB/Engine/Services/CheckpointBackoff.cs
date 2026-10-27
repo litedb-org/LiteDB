@@ -50,6 +50,19 @@ namespace LiteDB.Engine
             }
         }
 
+        internal int RemainingMilliseconds
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    var remaining = _retryAt - Timestamp();
+                    return remaining <= 0 ? 0 : (int)Math.Max(1,
+                        Math.Ceiling(remaining * 1000.0 / Stopwatch.Frequency));
+                }
+            }
+        }
+
         public void Reset()
         {
             lock (_sync)

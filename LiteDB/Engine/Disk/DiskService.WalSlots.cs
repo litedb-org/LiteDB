@@ -101,7 +101,7 @@ namespace LiteDB.Engine
                     }
                 }
             }
-            return Interlocked.Add(ref _logLength, PAGE_SIZE);
+            return this.AppendLogPosition();
         }
 
         internal void ReclaimLogPages(IReadOnlyCollection<long> positions)

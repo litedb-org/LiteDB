@@ -94,7 +94,7 @@ namespace LiteDB.Engine
         internal void RebuildContent(IFileReader reader)
         {
             // begin transaction and get TransactionID
-            var transaction = _monitor.GetTransaction(true, false, out _);
+            var transaction = _monitor.GetTransaction(true, false, out _, write: true);
 
             try
             {

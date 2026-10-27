@@ -158,7 +158,10 @@ namespace LiteDB.Engine
             if (this.Disposed) return false;
 
             // A later completion/cleanup race must not replace the causal failure.
-            return Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) == null;
+            var ownsFailure = Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) == null;
+            this.Disk?.WriteAdmission?.Close(Volatile.Read(ref _exception));
+            if (ownsFailure) this.Disk?.AutomaticCheckpoint?.Stop(ex);
+            return ownsFailure;
         }
 
         /// <summary>

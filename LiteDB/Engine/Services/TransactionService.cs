@@ -51,6 +51,29 @@ namespace LiteDB.Engine
         /// </summary>
         internal Exception WriteFailure { get; private set; }
 
+        internal CheckpointWriteAdmission.Permit WritePermit;
+
+        internal void EnsureWriteAdmission()
+        {
+            if (_disk.WriteAdmission == null) return;
+            if (_ownerThread != Thread.CurrentThread)
+                throw new InvalidOperationException("A transaction must be used on its owning thread.");
+            if (Volatile.Read(ref WritePermit) != null) return;
+            var permit = _monitor.AcquireWritePermit(upgrade: true);
+            if (Interlocked.CompareExchange(ref WritePermit, permit, null) != null) permit?.Dispose();
+            try
+            {
+                _monitor.ValidateOwner();
+                _disk.ValidateWriteAdmission();
+                ENSURE(_state == TransactionState.Active, "transaction must be active to reserve writer admission");
+            }
+            catch
+            {
+                Interlocked.Exchange(ref WritePermit, null)?.Dispose();
+                throw;
+            }
+        }
+
         // get/set
         public int MaxTransactionSize { get; set; }
 
@@ -91,6 +114,8 @@ namespace LiteDB.Engine
             // Its snapshots still name pages the failed write handed to the disk writer: a point read
             // (no safepoint) could return another page's document. Only Rollback may use it now.
             if (this.WriteFailure != null) throw WriteFailed(this.WriteFailure);
+
+            if (mode == LockMode.Write) this.EnsureWriteAdmission();
 
             Snapshot create() => new Snapshot(mode, collection, _header, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
@@ -354,6 +379,7 @@ namespace LiteDB.Engine
 #endif
             }
             _header.Allocations.Complete(_transPages);
+            _disk.ConfigureCheckpointAdmission(_header.Pragmas.Checkpoint);
         }
 
         /// <summary>
@@ -375,6 +401,15 @@ namespace LiteDB.Engine
                 return;
             }
 
+            try { this.DisposeResources(); }
+            finally
+            {
+                Interlocked.Exchange(ref WritePermit, null)?.Dispose();
+            }
+        }
+
+        private void DisposeResources()
+        {
             List<Exception> errors = null;
             // One damaged lease must not stop the remaining pages and reader
             // from being released during error-close.

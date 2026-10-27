@@ -37,12 +37,20 @@ namespace LiteDB.Engine
 
         internal void UnpinSnapshot(int version)
         {
+            var released = false;
             _indexLock.EnterWriteLock();
             try
             {
-                if (--_snapshots[version] == 0) _snapshots.Remove(version);
+                if (--_snapshots[version] == 0)
+                {
+                    _snapshots.Remove(version);
+                    // Younger writers/readers do not unblock the oldest pinned
+                    // generation and must not reset reader backoff on every commit.
+                    released = _snapshots.Count == 0 || version < _snapshots.Keys.Min();
+                }
             }
             finally { _indexLock.ExitWriteLock(); }
+            if (released) _disk.AutomaticCheckpoint?.ReadersChanged();
         }
 
         /// <summary>
@@ -57,7 +65,19 @@ namespace LiteDB.Engine
                 .Distinct().OrderBy(version => version).ToArray();
         }
 
-        public int Checkpoint() => this.TryCheckpoint(rationed: false);
+        internal void ValidateCheckpointJoin()
+        {
+            if (_indexLock.IsReadLockHeld || _indexLock.IsWriteLockHeld ||
+                System.Threading.Monitor.IsEntered(_getCommitLock()) ||
+                System.Threading.Monitor.IsEntered(_disk.WalWriterLock))
+                throw new InvalidOperationException("Checkpoint cannot join its worker while holding storage locks.");
+        }
+
+        public int Checkpoint()
+        {
+            using var pause = _disk.AutomaticCheckpoint?.Pause();
+            return this.TryCheckpoint(rationed: false);
+        }
 
         /// <summary>
         /// Backfill every frame and empty the WAL, or change nothing and return false: when a

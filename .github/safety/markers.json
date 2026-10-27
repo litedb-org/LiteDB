@@ -9,6 +9,30 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "BeforeCheckpointPermitRegistration": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install unactivated admission and force provisional permit transfer races; generic smoke fuzz does not activate it yet."
+    },
+    "BeforeCheckpointWriterWait": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated writer admission/worker. Generic smoke fuzz does not activate these components; host lifetime and process-death/power-loss qualification remain later ordered slices."
+    },
+    "BeforeCheckpointWorkerStart": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated writer admission/worker. Generic smoke fuzz does not activate these components; host lifetime and process-death/power-loss qualification remain later ordered slices."
+    },
+    "BeforeCheckpointWorkerPass": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated writer admission/worker. Generic smoke fuzz does not activate these components; host lifetime and process-death/power-loss qualification remain later ordered slices."
+    },
+    "AfterCheckpointWorkerPass": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated writer admission/worker. Generic smoke fuzz does not activate these components; host lifetime and process-death/power-loss qualification remain later ordered slices."
+    },
+    "BeforeCheckpointWorkerPauseWait": {
+      "gate": "advisory",
+      "reason": "Only deterministic xUnit fixtures install the unactivated writer admission/worker. Generic smoke fuzz does not activate these components; host lifetime and process-death/power-loss qualification remain later ordered slices."
+    },
     "before-candidate-republish": {
       "gate": "advisory",
       "reason": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not."

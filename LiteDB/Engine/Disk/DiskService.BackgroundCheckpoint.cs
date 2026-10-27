@@ -1,0 +1,36 @@
+using System.Threading;
+using static LiteDB.Constants;
+
+namespace LiteDB.Engine
+{
+    internal partial class DiskService
+    {
+        // Internal installation switch: null in every production path. The future
+        // Direct core owner installs these before publishing its facades.
+        internal CheckpointWriteAdmission WriteAdmission { get; set; }
+        internal AutomaticCheckpointCoordinator AutomaticCheckpoint { get; set; }
+
+        internal void ValidateWriteAdmission() => _state.Validate();
+
+        private long AppendLogPosition()
+        {
+            var position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+            this.PublishCheckpointTail();
+            return position;
+        }
+
+        internal void PublishCheckpointTail()
+        {
+            var bytes = this.GetFileLength(FileOrigin.Log);
+            WriteAdmission?.PublishTail(bytes);
+            AutomaticCheckpoint?.PublishTail(bytes);
+        }
+
+        internal void ConfigureCheckpointAdmission(int checkpoint)
+        {
+            var bytes = this.GetFileLength(FileOrigin.Log);
+            WriteAdmission?.Configure(checkpoint, bytes);
+            AutomaticCheckpoint?.Configure(checkpoint, bytes);
+        }
+    }
+}

@@ -42,7 +42,7 @@ namespace LiteDB.Engine
                 var bytes = new byte[WalChecksum.FrameSize];
                 var page = new BufferSlice(bytes, 0, PAGE_SIZE);
                 var metadata = new BufferSlice(bytes, PAGE_SIZE, WalChecksum.MetadataSize);
-                var position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+                var position = this.AppendLogPosition();
                 page[BasePage.P_PAGE_FORMAT] = PageChecksum.Checksummed;
                 page.Write(WalRetirement.Magic, 32);
                 page.Write(result.Root, 36);

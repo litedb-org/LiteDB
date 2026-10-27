@@ -9,10 +9,47 @@ separate: [litedb-org/LiteDB#3134](https://github.com/litedb-org/LiteDB/issues/3
 Implementation is staged. The checkpoint/group-sync interlock is currently
 **unactivated**; deterministic tests install it before concurrent operations.
 Production keeps synchronous automatic checkpoint and the existing close paths.
-Writer admission, the worker and its lifecycle integration remain to be built.
+The writer-admission and worker components are also unactivated prerequisites;
+only deterministic xUnit fixtures install their nullable disk bindings. Core
+lifetime integration remains to be built.
 Do not enable the interlock in production before final-close group-I/O draining
 is integrated: the current close contract can interrupt a pending group without
 waiting for its native sync to return.
+
+## Current implementation boundary
+
+Slices 1–4 provide the accepted contract, nullable checkpoint/group interlock,
+`CheckpointWriteAdmission` and `AutomaticCheckpointCoordinator`. No production
+open installs these components or starts a thread. The nullable bindings are the
+internal OFF switch; `BypassDirectHost` does not change them.
+
+Writer intent reaches explicit/automatic transactions, FOR UPDATE, internal
+rebuild/migration writers and first-write snapshot upgrades. CP0 writers retain
+permit identities while unthrottled, so re-enabling can grandfather more than 64
+without inventing a new count. WAL reservation, failed-append restoration,
+retirement metadata and successful truncation publish logical tail under the
+existing writer serialization. Successful header commits recompute pragma state;
+repeated commits at the same N preserve hysteresis. Admission timeout does not
+consume input or acquire a transaction ID/lease.
+
+The worker owns only core services and one lazy thread. State-only tail and
+last-version-unpin notifications cannot start I/O on their caller. `Request`
+starts the thread outside storage locks; post-transaction automatic request
+routing and recovered-tail publication belong to activation in slice 6. Request
+consumption at pass start preserves a pending request racing completion; stale
+service-incarnation requests are ignored. Component pause/close joins and the
+explicit WAL executor join are tested independently of host shutdown. Terminal
+publication wakes admission and worker waiters without joining under storage
+locks.
+
+Next is slice 5: Direct core/facade ownership, registry admission outside slow
+joins, single-owner terminal cleanup, group-I/O drain, and explicit disposal error
+surfacing. Public host checkpoint/disposal and replacement must acquire these
+leases in the correct order before enabling the feature. In particular, do not
+bind the barrier or worker in production while final close still interrupts a
+paused group sync by disposing its handles. Component tests do not qualify that
+host interaction. Later process-death, modeled-power-loss, compatibility and
+performance slices remain required before activation/acceptance.
 
 ## Accepted observable behavior
 

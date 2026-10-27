@@ -371,6 +371,7 @@ namespace LiteDB.Engine
             if (origin == FileOrigin.Log)
             {
                 _logFactory.TrimCapacity(stream.Value);
+                this.PublishCheckpointTail();
             }
         }
 

@@ -1685,6 +1685,78 @@
   ],
   "injectors": [
     {
+      "name": "BeforeCheckpointPermitRegistration",
+      "protocol": "checkpoint writer permit ownership transfer",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointAdmissionBoundary_Tests.cs#ReadUpgradeDisposeRaceReturnsUnregisteredPermit",
+          "model": "interleaving",
+          "proves": "Disposal after a read upgrade provisionally acquires admission but before permit publication releases the transaction and the provisional permit without mutation or leaked capacity."
+        }
+      ],
+      "gap": "Only deterministic xUnit fixtures install unactivated writer admission. No smoke fuzz activation, host lifecycle or process-death qualification is claimed."
+    },
+    {
+      "name": "BeforeCheckpointWriterWait",
+      "protocol": "checkpoint writer admission",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/CheckpointWriteAdmission_Tests.cs#WaiterRemainsBlockedAboveLowWaterThenResumes",
+          "model": "interleaving",
+          "proves": "A blocked fresh writer remains refused above low water, resumes at N, and returns its permit."
+        }
+      ],
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+    },
+    {
+      "name": "BeforeCheckpointWorkerStart",
+      "protocol": "background checkpoint thread start",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorkerFailure_Tests.cs#WorkerFailureIsTerminalForAllFacadesAndAttachment",
+          "model": "exception",
+          "proves": "Thread start failure latches the first cause, refuses all facades and new attachment, and preserves complete acknowledged data through three reopens."
+        }
+      ],
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+    },
+    {
+      "name": "BeforeCheckpointWorkerPass",
+      "protocol": "background checkpoint scheduling",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorker_Tests.cs#LazyWorkerCoalescesRequestsAndRetainsRequestRacingCompletion",
+          "model": "interleaving",
+          "proves": "One lazy thread coalesces one hundred requests during a paused pass and executes exactly one successor pass."
+        }
+      ],
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+    },
+    {
+      "name": "AfterCheckpointWorkerPass",
+      "protocol": "background checkpoint completion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorkerFailure_Tests.cs#WorkerFailureIsTerminalForAllFacadesAndAttachment",
+          "model": "exception",
+          "proves": "Failure after a completed persistent pass remains terminal; racing requests cannot replace the original error or resume work, and file recovery preserves acknowledged data."
+        }
+      ],
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+    },
+    {
+      "name": "BeforeCheckpointWorkerPauseWait",
+      "protocol": "background checkpoint maintenance join",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorker_Tests.cs#ExplicitExecutorCheckpointJoinsPassAndReturnsItsOwnCount",
+          "model": "interleaving",
+          "proves": "Explicit executor checkpoint demonstrably waits for the running worker, then performs its own attempt and returns zero after worker reclamation."
+        }
+      ],
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+    },
+    {
       "name": "SimulateDiskWriteFail",
       "protocol": "WAL page writes",
       "evidence": [

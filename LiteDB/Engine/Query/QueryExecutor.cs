@@ -70,7 +70,7 @@ namespace LiteDB.Engine
         internal BsonDataReader ExecuteQuery(bool executionPlan)
         {
             // get current transaction (if contains a explicit transaction) or a query-only transaction
-            var transaction = _monitor.GetTransaction(true, true, out var isNew);
+            var transaction = _monitor.GetTransaction(true, true, out var isNew, write: _query.ForUpdate);
 
             transaction.OpenCursors.Add(_cursor);
 
