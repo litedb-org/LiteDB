@@ -252,6 +252,16 @@
         "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
         "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot"
       ]
+    },
+    {
+      "id": "p2f-deferred-cleanup-and-drained-wal-oracle",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileWarmReview_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Collected cold and warm streams release all generation ownership; remote checkpoints drain the WAL completely and preserve committed data.",
+      "reason": "The parent authorized correcting the original oracle: an absent WAL after successful checkpoint is length zero; a present nonempty WAL still fails. Both original zero-length assertions, all other assertions and the second checkpoint/manual-cleanup sequence remain. Added bounded asynchronous waits (10 seconds with diagnostic failure) for the original deferred-cleanup conditions, without relaxing them. Retained the corrected lifetime sibling because its one-checkpoint sequence is not byte-for-byte identical. No test is removed or skipped."
     }
   ]
 }

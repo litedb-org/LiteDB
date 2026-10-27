@@ -19,7 +19,7 @@ namespace LiteDB.Internals
         [OneFileTheory]
         [InlineData(false)]
         [InlineData(true)]
-        public void Collected_warm_stream_releases_its_generation_and_allows_cache_expiry(bool disposeFacade)
+        public async Task Collected_warm_stream_releases_its_generation_and_allows_cache_expiry(bool disposeFacade)
         {
             using var files = new SharedOneFilePublicationFixture();
             using var engine = new SharedEngine(files.Settings);
@@ -37,10 +37,16 @@ namespace LiteDB.Internals
             try
             {
                 abandoned.IsAlive.Should().BeFalse("the escaping reader itself must have been collected");
+                await AwaitCleanup(() =>
+                {
+                    lock (cache.Gate) return snapshot.Readers == 0;
+                }, "the collected warm stream must release its snapshot reader count");
                 if (disposeFacade) engine.Dispose();
                 snapshot.LastUse = Environment.TickCount64 - 1000;
                 cache.IdleLimit = TimeSpan.Zero;
                 cache.Expire();
+                await AwaitCleanup(() => !table.HasReaders && (!disposeFacade || table.Closed),
+                    "the collected warm stream must release its generation and final facade");
                 using (new AssertionScope())
                 {
                     table.HasReaders.Should().BeFalse("a finalized result must not permanently pin a process generation");
@@ -80,11 +86,13 @@ namespace LiteDB.Internals
             try
             {
                 abandoned.IsAlive.Should().BeFalse();
+                await AwaitCleanup(() => !engine.MappedReaderTable.HasReaders,
+                    "the collected warm stream must release its generation before the remote commit");
                 writer.Send("commit");
                 await writer.Expect("committed");
                 writer.Send("checkpoint");
                 await writer.Expect("checkpointed");
-                var retained = new FileInfo(files.Log).Length;
+                var retained = File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0;
                 lock (cache.Gate)
                 {
                     snapshot.Readers = 0;
@@ -95,7 +103,7 @@ namespace LiteDB.Internals
                 }
                 writer.Send("checkpoint");
                 await writer.Expect("checkpointed");
-                new FileInfo(files.Log).Length.Should().Be(0,
+                (File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0).Should().Be(0,
                     "releasing the abandoned generation must let the same remote writer drain");
                 retained.Should().Be(0,
                     "the only streamed reader was collected before the remote commit and checkpoint");
@@ -116,7 +124,7 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
-        public void Collected_cold_stream_releases_its_generation_without_a_cache_root()
+        public async Task Collected_cold_stream_releases_its_generation_without_a_cache_root()
         {
             using var files = new SharedOneFilePublicationFixture();
             using var engine = new SharedEngine(files.Settings);
@@ -129,8 +137,12 @@ namespace LiteDB.Internals
                 engine.HasCachedSnapshot.Should().BeFalse();
                 for (var pass = 0; pass < 3; pass++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
                 abandoned.IsAlive.Should().BeFalse();
+                await AwaitCleanup(() => !table.HasReaders,
+                    "the collected cold stream must release its generation");
                 table.HasReaders.Should().BeFalse();
                 engine.Dispose();
+                await AwaitCleanup(() => table.Closed,
+                    "deferred cold cleanup must release the final table reference");
                 table.Closed.Should().BeTrue();
                 finalizedInUse.Should().Be(0, "the cold control must also release its pinned page buffers");
             }
@@ -160,6 +172,16 @@ namespace LiteDB.Internals
             SharedOneFilePublicationFixture.Verify(peerDb, 0);
             peer.Dispose();
             table.Closed.Should().BeTrue();
+        }
+
+        private static async Task AwaitCleanup(Func<bool> condition, string because)
+        {
+            var deadline = Environment.TickCount64 + 10_000;
+            while (!condition() && Environment.TickCount64 < deadline)
+            {
+                await Task.Delay(10);
+            }
+            condition().Should().BeTrue("deferred cleanup must finish within 10 seconds: {0}", because);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
