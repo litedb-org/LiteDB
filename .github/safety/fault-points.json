@@ -2160,6 +2160,11 @@
       "protocol": "Mapped Shared final checkpoint, retirement and native release",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs#Closed_requires_completed_final_storage_and_native_release",
+          "model": "interleaving",
+          "proves": "Pauses final teardown before storage close and during native release; completion stays false until cleanup returns, followed by full plain/encrypted indexed and unrelated-data cold verification."
+        },
+        {
           "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority",
           "model": "process-death",
           "proves": "Real child death at each listed boundary, repeated recovery, complete payload/index/unrelated-data validation and fault-marker reachability.",
