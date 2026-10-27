@@ -253,19 +253,17 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
-        // Qualification is intentionally limited to the one backend with hosted
-        // CI evidence. Darwin currently reaches an unavailable libc symbol,
-        // Windows reaches the Unix allocator/wake imports, and Linux ARM64 has
-        // an unresolved shared-partition wake timeout. Keep mapped Shared
-        // refused on those platforms until each complete suite passes there.
-        internal static bool IsPlatformQualified => BitConverter.IsLittleEndian &&
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        // No mapped backend has a complete passing hosted qualification run:
+        // Darwin reaches an unavailable libc symbol, Windows reaches the Unix
+        // allocator/wake imports, and both Linux architectures have a shared
+        // partition timeout. Keep mapped Shared refused until a full matrix
+        // passes on a platform again.
+        internal static bool IsPlatformQualified => false;
 
         private static void RequirePlatform(string path)
         {
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared currently requires a qualified Linux x64 runtime.");
+                throw new PlatformNotSupportedException("ABI-2 Shared is disabled pending complete hosted platform qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }

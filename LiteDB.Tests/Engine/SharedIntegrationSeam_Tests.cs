@@ -75,7 +75,7 @@ namespace LiteDB.Tests.Engine
                         Action open = () => { using var engine = new SharedEngine(settings); };
                         open.Should().Throw<PlatformNotSupportedException>().WithMessage(
 #if NET8_0_OR_GREATER
-                            "ABI-2 Shared currently requires a qualified Linux x64 runtime.");
+                            "ABI-2 Shared is disabled pending complete hosted platform qualification.");
 #else
                             "SharedOneFile requires .NET 8 or later.");
 #endif
