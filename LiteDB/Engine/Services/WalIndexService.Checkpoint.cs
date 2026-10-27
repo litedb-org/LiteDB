@@ -125,6 +125,8 @@ namespace LiteDB.Engine
             var commitEntered = false;
             var writerEntered = false;
             var structural = false;
+            var barrier = default(CheckpointBarrier.Lease);
+            var barrierEntered = false;
             object commitLock = null;
             try
             {
@@ -145,6 +147,16 @@ namespace LiteDB.Engine
                 if (shared == null) return 0;
                 _disk.CheckpointStage("before-commit-lock");
                 System.Threading.Monitor.Enter(commitLock, ref commitEntered);
+                if (_disk.CheckpointBarrier != null)
+                {
+                    _disk.CheckpointStage("before-barrier-lock");
+                    barrier = _disk.CheckpointBarrier.Enter();
+                    barrierEntered = true;
+                    _disk.RequireNoWriteFailure();
+#if DEBUG || TESTING
+                    Reachability.Sometimes("maintenance:checkpoint-group-barrier");
+#endif
+                }
                 _disk.CheckpointStage("before-index-lock");
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
@@ -223,9 +235,10 @@ namespace LiteDB.Engine
                 }
                 return pages.Count;
             }
-            catch (Exception error) when (writerEntered)
+            catch (Exception error) when (writerEntered || barrierEntered)
             {
-                // Stop before the WAL writer is released (see DiskService.BeginCheckpointStop).
+                // Publish before releasing either exclusion: a queued leader must
+                // not sync a handle after checkpoint failed, even before writer entry.
                 stopBegun = _disk.BeginCheckpointStop(error, out stopOwned);
                 throw;
             }
@@ -233,6 +246,7 @@ namespace LiteDB.Engine
             {
                 if (writerEntered) System.Threading.Monitor.Exit(_disk.WalWriterLock);
                 if (indexEntered) _indexLock.ExitWriteLock();
+                barrier.Dispose();
                 if (commitEntered) System.Threading.Monitor.Exit(commitLock);
                 if (mustExit) _locker.ExitExclusive();
                 if (structural) _signals.StructuralEnd(_currentReadVersion);

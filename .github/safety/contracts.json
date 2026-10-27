@@ -13,6 +13,7 @@
       "id": "durable-ack",
       "title": "Acknowledged durable transactions survive within the stated fault model",
       "docs": [
+        "docs/background-checkpoint.md",
         "docs/rules/data-safety.md#the-engine-must-not-corrupt-its-own-database",
         "docs/storage-stack-safety.md#fault-model-and-operational-limits"
       ],
@@ -31,6 +32,8 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure", "model": "exception", "proves": "With the unactivated Direct interlock installed explicitly, a captured native group sync excludes checkpoint; leader failure prevents checkpoint I/O and acknowledgement by a zero-frame follower. Repeated file reopen checks complete payloads, indexes and unrelated data."},
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Pending_group_waits_for_checkpoint_and_preserves_terminal_failure", "model": "exception", "proves": "A pending leader cannot sync under checkpoint exclusion. The pass retains its generation; failures before writer entry or during backfill stop both participants, all facades and new attachment before a subsequent group sync. Repeated recovery preserves acknowledged predecessor data and whole optional transactions."},
         {"test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit", "model": "exception", "proves": "Short and completed second-frame append failures preserve the first successful frame using the updated batch extent; repeated file-backed recovery retains exact acknowledged payloads, indexes and unrelated data."},
         {"test": "LiteDB.Tests/Internals/WalCommitBytes_Tests.cs#Writer_MatchesPhase1BytesAcrossTransactionsRolloverReuseAndTruncation", "proves": "Plain/encrypted and checksummed/legacy writers match the frozen 256cfd0b9 WAL bytes across all 128 padding alignments, single/multiple frames, unconfirmed overwrite and truncation; enlarged buffers read exactly one frame and leave borrowed pages unchanged."},
         {"test": "LiteDB.Tests/Internals/WalCommitBytes_Tests.cs#FileBatch_MixesAppendAndReuseWithAPinnedPage_AndRecoversCommitOrRollback", "proves": "Engine-owned file batches mix real unconfirmed overwrites with a pinned-page append, preserve leased bytes and recover exact commit/rollback documents, indexes and unrelated data; writing after checkpoint re-reads the reset generation's extent."},
@@ -70,6 +73,7 @@
       "id": "recovery-generation",
       "title": "Recovery never combines incompatible data and WAL generations",
       "docs": [
+        "docs/background-checkpoint.md",
         "docs/rules/storage-ownership.md#wal-rebuild-and-filestorage",
         "docs/rebuild-recovery.md",
         "docs/storage-stack-safety.md#v10-checksums-wal-proofs-and-header-publication"
@@ -85,6 +89,8 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure", "model": "exception", "proves": "With the unactivated Direct interlock installed explicitly, a captured native group sync excludes checkpoint; leader failure prevents checkpoint I/O and acknowledgement by a zero-frame follower. Repeated file reopen checks complete payloads, indexes and unrelated data."},
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Pending_group_waits_for_checkpoint_and_preserves_terminal_failure", "model": "exception", "proves": "A pending leader cannot sync under checkpoint exclusion. The pass retains its generation; failures before writer entry or during backfill stop both participants, all facades and new attachment before a subsequent group sync. Repeated recovery preserves acknowledged predecessor data and whole optional transactions."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#New_database_open_write_rollback_and_read_only_reopen_preserve_payloads_and_indexes", "proves": "New plain/encrypted Direct/Shared databases preserve committed complete payloads and secondary-index results, exclude the rolled-back row, preserve an unrelated row, and leave data bytes unchanged through read-only reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "Final host close leaves recoverable complete outcome-unknown follower rows while preserving the acknowledged prefix and secondary indexes over two reopen/checkpoint cycles."},
         {"test": "LiteDB.Tests/Internals/DirectColdReplacementProcess_Tests.cs#Cold_process_opens_cannot_create_or_modify_files_during_replacement", "model": "exception", "proves": "At three forced replacement boundaries, repeated child Direct/Shared admission refuses with identical file names and bytes; the owner and two indexed cold reopens preserve the committed row."},
@@ -122,6 +128,8 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure", "model": "exception", "proves": "With the unactivated Direct interlock installed explicitly, a captured native group sync excludes checkpoint; leader failure prevents checkpoint I/O and acknowledgement by a zero-frame follower. Repeated file reopen checks complete payloads, indexes and unrelated data."},
+        {"test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Pending_group_waits_for_checkpoint_and_preserves_terminal_failure", "model": "exception", "proves": "A pending leader cannot sync under checkpoint exclusion. The pass retains its generation; failures before writer entry or during backfill stop both participants, all facades and new attachment before a subsequent group sync. Repeated recovery preserves acknowledged predecessor data and whole optional transactions."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Native_admission_coexists_with_managed_streams_without_losing_exclusion", "proves": "Direct and Shared native admission coexist with real managed read/write streams, remain held after unrelated stream closes, and release only with their last admission reference."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Shared_processes_can_attach_while_native_admission_still_excludes_Direct", "proves": "A child reaches a real indexed Shared write, a concurrent Shared peer reads and writes successfully, Direct remains refused, and the committed child/peer rows survive cold indexed reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Facades_share_covered_acknowledgements_and_terminal_barrier_failures", "model": "exception", "proves": "Every Direct facade reads only the durable group prefix through document scans and secondary indexes while followers from separate facades are pending."},

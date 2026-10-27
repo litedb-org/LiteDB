@@ -40,6 +40,13 @@ Read [explicit transactions](../explicit-transactions.md),
 
 ## WAL, rebuild, and FileStorage
 
+- Background Direct checkpoint must obey the accepted
+  [worker/admission and executor contract](../background-checkpoint.md). Keep
+  the feature unactivated until lifetime, admission and failure evidence is in
+  place. The checkpoint/group-sync barrier never acquires header/index locks
+  on the group path; checkpoint acquires it after header and before index/writer.
+  Never join a worker under those locks or the static host registry gate.
+
 - Treat the data file and its WAL as one recoverable state. A restore that makes
   old data live while stranding its acknowledged WAL-only commits is incomplete.
   Exercise failures in both restore orders and repeated recovery attempts.

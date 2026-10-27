@@ -1655,6 +1655,32 @@
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "before-barrier-lock",
+      "protocol": "Direct checkpoint/group-sync exclusion (unactivated)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure",
+          "model": "interleaving",
+          "proves": "A paused group sync excludes checkpoint; its failure prevents checkpoint I/O and both tasks finish."
+        }
+      ],
+      "gap": "Validation-only interlock; no worker, process-death or modeled-power-loss coverage is claimed."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-checkpoint-barrier",
+      "protocol": "Direct checkpoint/group-sync exclusion (unactivated)",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Pending_group_waits_for_checkpoint_and_preserves_terminal_failure",
+          "model": "interleaving",
+          "proves": "A checkpoint excludes a pending leader, retains its generation and publishes failure before permitting a new group sync."
+        }
+      ],
+      "gap": "Validation-only interlock; no worker, process-death or modeled-power-loss coverage is claimed."
     }
   ],
   "injectors": [

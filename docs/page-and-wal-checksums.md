@@ -320,3 +320,12 @@ independent of encrypted blank-page normalization and read chunk sizes. Old
 unaligned journal footers remain readable. The format boundary still rejects
 old engines; padding prevents their preliminary length check from truncating
 acknowledged frames or a sealed recovery footer before that rejection.
+
+## Background scheduling
+
+The accepted [Direct background-checkpoint contract](background-checkpoint.md)
+changes maintenance scheduling only after staged activation. It preserves this
+document's WAL validation, redo/journal, data-sync and salt-before-reclamation
+order. Group commit's covering barrier cannot replace either checkpoint WAL
+barrier. The prerequisite interlock is currently unactivated; production
+automatic checkpoint remains synchronous and Shared paths are unchanged.

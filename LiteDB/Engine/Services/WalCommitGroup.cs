@@ -72,6 +72,10 @@ namespace LiteDB.Engine
             var ownsFailure = false;
             lock (_sync)
             {
+#if DEBUG || TESTING
+                if (_disk.CheckpointBarrier != null) _disk.TestCrashPoint("wal-before-checkpoint-barrier");
+#endif
+                using var barrier = _disk.CheckpointBarrier?.Enter() ?? default;
                 try
                 {
                     _state.Validate();

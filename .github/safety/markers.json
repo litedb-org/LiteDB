@@ -32,6 +32,14 @@
     "wal-before-batch-flush": {
       "gate": "advisory",
       "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
+    },
+    "before-barrier-lock": {
+      "gate": "advisory",
+      "reason": "Only the deterministic GroupCommitCheckpointOrdering_Tests install the unactivated Direct barrier; no smoke fuzz target activates it yet."
+    },
+    "wal-before-checkpoint-barrier": {
+      "gate": "advisory",
+      "reason": "Only the deterministic GroupCommitCheckpointOrdering_Tests install the unactivated Direct barrier; no smoke fuzz target activates it yet."
     }
   },
   "markers": [
@@ -846,6 +854,21 @@
         "integrity"
       ],
       "reason": "The raw integrity oracle rejected a deliberately corrupted copy of a valid database."
+    },
+    {
+      "name": "maintenance:checkpoint-group-barrier",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Engine/Services/WalIndexService.Checkpoint.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure",
+        "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Pending_group_waits_for_checkpoint_and_preserves_terminal_failure"
+      ],
+      "doc": "docs/background-checkpoint.md",
+      "reason": "Checkpoint owns the validation-only interlock that excludes native group sync and durable-prefix publication.",
+      "gate": "advisory",
+      "gateReason": "Only xUnit installs the unactivated interlock; smoke fuzz targets do not enable it and xUnit does not record marker counts."
     }
   ]
 }

@@ -7,6 +7,10 @@ namespace LiteDB.Engine
     internal partial class DiskService
     {
         private WalCommitGroup _commitGroup;
+        // Unactivated prerequisite for the Direct core's background coordinator.
+        // Set before concurrent operations, only by the eventual core owner (or
+        // deterministic tests). Shared/standalone engines leave this null.
+        internal CheckpointBarrier CheckpointBarrier { get; set; }
         internal int CommitReadVersionLimit => Volatile.Read(ref _commitGroup)?.ReadVersionLimit ?? int.MaxValue;
         internal IEnumerable<int> PendingCommitVersions => Volatile.Read(ref _commitGroup)?.PendingVersions ?? System.Linq.Enumerable.Empty<int>();
 
