@@ -39,7 +39,7 @@
       ],
       "disposition": "strengthened",
       "invariant": "Every enabled Linux mapped Shared backend executes all futex race cuts, blocked-holder disposal, pressure/error handling, low-word wrap and stale-pin mapping lifetime assertions.",
-      "reason": "Replace the obsolete x64-only gate with the production qualification predicate on Linux, enabling the unchanged safety cases on ARM64. The kernel probe independently expects aarch64 futex syscall 98 or x64 syscall 202 while preserving the exact mapped address and shared FUTEX_WAIT operation checks. The integration seam asserts both attribute gates match platform qualification. No test, assertion, fault cut or timeout is removed."
+      "reason": "Replace the obsolete x64-only gate with the production qualification predicate on Linux, making the unchanged safety cases eligible whenever ARM64 is qualified. The kernel probe independently expects aarch64 futex syscall 98 or x64 syscall 202 while preserving the exact mapped address and shared FUTEX_WAIT operation checks. ARM64 remains refused until complete hosted execution evidence is available; the integration seam asserts repeated refusal without storage mutation on unqualified targets and checks both attribute gates. No test, assertion, fault cut or timeout is removed."
     },
     {
       "id": "p3j-remove-experimental-same-thread-wait-option",
