@@ -1,5 +1,23 @@
 # Mapped Shared ownership transitions
 
+Mapped and legacy Shared use the same native data admission as Direct; see
+[Direct native admission](direct-process-host.md#native-admission), including the
+restricted Darwin read-only fallback. Both Shared modes publish shared admission
+before checking the Unix read-only Direct marker at admission + 2. Only then do
+they claim their family byte (+ 1 legacy, + 3 mapped) and probe the opposite
+family. This permits compatible Shared peers while excluding Direct and mixed
+Shared families. The mapped family must never occupy the read-only marker byte.
+Stop all participants before changing experimental protocol versions; no live
+upgrade or coordination-file migration is implied by this merge.
+
+The Direct host registry and its per-host lifecycle gate own Direct facade
+cleanup, maintenance and final storage close. Mapped Shared keeps its separate
+per-identity participant gate; internal cores bypass Direct host attachment.
+Final participant release closes retained results/cache and mapping/slot/DMS
+before native admission. A closing participant cannot be replaced until its
+actual teardown completes. Neither registry holds a global publication gate
+while waiting for final teardown of one file.
+
 The participant-local transaction lease, named main mutex and native WRITE byte
 have nested lifetimes. Main orders every writable core, including recovery and
 teardown. WRITE protects the entire writable core tenure, not just its explicit

@@ -49,12 +49,13 @@ internal static class DirectHostHarness
             Console.WriteLine("done");
             return true;
         }
-        var shared = mode == "direct-host-shared-refused";
+        var shared = mode == "direct-host-shared-refused" || mode == "direct-host-readonly-shared-refused";
         var refused = mode.EndsWith("refused", StringComparison.Ordinal);
         try
         {
             using var database = new LiteDatabase(new ConnectionString { Filename = filename, Password = password,
-                Connection = shared ? ConnectionType.Shared : ConnectionType.Direct });
+                Connection = shared ? ConnectionType.Shared : ConnectionType.Direct,
+                ReadOnly = mode.Contains("readonly", StringComparison.Ordinal) });
             database.GetCollection("docs").FindAll().ToArray();
             if (refused) throw new InvalidOperationException("Conflicting open unexpectedly succeeded");
         }

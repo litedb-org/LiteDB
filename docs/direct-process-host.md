@@ -7,10 +7,17 @@ thread-independent transaction handles.
 One physical file has one live storage engine per loaded LiteDB assembly.
 Opening a compatible file-backed `LiteDatabase` or `LiteEngine` attaches an
 engine facade: it references the same storage services and has a fixed owner
-view of the transaction monitor. The registry uses physical identity, weak
-references, canonical data/WAL paths and a facade reference count. Open,
-last-close and maintenance serialize at a cold-path registry gate. Last close
-uses the existing engine disposal path before releasing native admission.
+view of the transaction monitor. The registry strongly retains each published
+host by physical identity until final release, with canonical data/WAL paths
+and a facade reference count. This keeps pending facade finalizers from
+allowing a second core while the old streams remain open. Finalizers enqueue
+release to a normal-thread reaper; they never wait for storage teardown.
+A cold-path registry gate publishes closing/maintenance and reference changes.
+Per-host serialization runs owner cleanup, final close and maintenance outside
+that gate, so one file's slow teardown does not block unrelated files. Same-file
+openers wait for final close outside the registry gate; recursive opening from
+that closing thread refuses. The entry and native admission survive until
+engine disposal finishes. New-host construction still uses the registry gate.
 Custom data/log/temp streams, memory/temp databases and the experimental
 coordinator's internally owned engines retain their previous path.
 
@@ -87,16 +94,38 @@ Deleting an unlocked file would race an opener retaining its old inode and
 allow two independent locks. Last close and process death release ownership by
 closing the descriptor; the empty file may remain and is reused on reopen.
 Only offline maintenance with no database participants may remove these files.
-Database directories must permit creation of this lock directory/file, including a first
-read-only open. Admission does not support external removal/replacement of its
+Writable admission requires access to this lock directory/file. Read-only Direct
+opens the data descriptor and sibling lock descriptor read-only. If permissions
+or a read-only filesystem prevent opening/creating the sibling lock, macOS can
+fall back to a shared OFD lock on the read-only data inode **only when the data
+file has no Unix write permission bits (0222)**. A writable data file still
+refuses admission when its sibling lock cannot be obtained. The fallback keeps
+process-local Direct/Shared exclusion and data-inode advisory locking; it does
+not share the sibling inode's cross-process exclusion domain. Its writer fence
+is the data file's OS permissions, which must remain non-writable to every
+potential writer for the full open lifetime. Changing permissions, privileged
+writers, and participants that can bypass that fence are outside this fallback's
+guarantee. It creates no lock directory/file in a read-only directory.
+Admission does not support external removal/replacement of its
 lock directory or files while participants are live. Rebuild candidates live in the same
 directory: retaining original and candidate locks across publication preserves
 exclusion as the physical identity changes, without moving either lock file.
 
-Admission locks one byte at `long.MaxValue - 4096`, beyond all database pages,
-exclusive for Direct (including read-only Direct), shared for Shared. It never
-locks page data or the whole file. Unix Direct needs writable native descriptors
-even when its engine is read-only. Hard links are refused because WAL/recovery
+Admission uses reserved bytes starting at `long.MaxValue - 4096`, beyond all
+database pages. Writable Direct takes an exclusive admission lock; Shared takes
+a shared lock. Windows read-only Direct also takes an exclusive LockFileEx lock
+using GENERIC_READ only. Unix read-only Direct first takes a shared read-only
+Direct marker at admission + 2, then a shared admission lock, then probes for
+other admissions through its own descriptor (OFD_GETLK ignores its own locks).
+Both legacy and mapped Shared publish admission before probing the marker,
+then claim their family byte (admission + 1 for legacy, + 3 for mapped) before
+checking the opposite family. Neither family claim overlaps the read-only marker.
+A racing incompatible
+pair therefore cannot both succeed. Distinct read-only Direct processes also
+refuse one another; compatible local facades reuse their host's admission.
+Linux OFD read locks work with O_RDONLY and never require database write access.
+The normal sibling protocol applies on Darwin except for the restricted
+permission-fenced fallback above. Admission never locks page data. Hard links are refused because WAL/recovery
 names are path-based. Symlinks canonicalize, and a file alias with its own WAL is
 refused. File-only bind mounts and unqualified/network volumes are refused.
 
@@ -122,8 +151,9 @@ facade; new attachment is refused until owners release and a fresh engine opens.
 Read-only metadata getters can still read the live host after their facade is
 disposed; transaction operations and maintenance reject that disposed owner.
 
-The experimental coordinator continues its existing admission protocol; it is
-not converted into the Direct pool. Old LiteDB binaries do not participate in
+The experimental coordinator shares this native admission layer, but retains its
+own participant registry, mapping and result leases outside the Direct pool.
+Its internal cores bypass Direct host attachment. Old LiteDB binaries do not participate in
 this native protocol. Unix advisory locks do not exclude arbitrary applications
 that ignore them. Windows/macOS runtime execution and device/power-cut testing
 must be supplied separately from the Linux process tests.
@@ -155,6 +185,14 @@ benchmark's silent warmup timeout does not identify its blocked operation;
 warmup progress diagnostics now precede opens and workload stages. Until hosted
 Windows evidence distinguishes the failure, it is an unresolved liveness issue,
 not evidence that admission's already nonblocking LockFileEx needs different flags.
+`DirectHostReadOnlyAdmission_Tests` covers plain/encrypted mode-0444 files,
+mode-0555 directories with no preexisting Darwin sibling, Windows ReadOnly
+attributes, exact indexed payloads/rollback/sentinel data through repeated
+byte-preserving opens, and both directions of cross-process mode exclusion.
+`DirectProcessHostLifecycle_Tests` pauses final close while an unrelated database
+opens and commits, retains same-file native exclusion, injects a close-checkpoint
+failure, and checks both files through repeated recovery. Existing same-file
+wait/reopen and finalizer tests remain unchanged.
 `DirectHostAllocation_Tests` interleaves facade-owned allocations with a peer
 header commit, checking commit/rollback, full payloads and indexes through two
 reopens and further allocations.

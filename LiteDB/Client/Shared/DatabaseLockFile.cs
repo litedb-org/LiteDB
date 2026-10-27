@@ -30,7 +30,13 @@ namespace LiteDB.Client.Shared
             var handle = new SafeFileHandle((IntPtr)descriptor, true);
             try
             {
-                if (handle.IsInvalid) throw DatabaseFileLock.Error("Opening database admission lock file");
+                if (handle.IsInvalid)
+                {
+                    var code = Marshal.GetLastWin32Error();
+                    var error = DatabaseFileLock.Error("Opening database admission lock file");
+                    if (code == 13 || code == 30 || code == 1) error.Data["AdmissionPermissionFailure"] = true;
+                    throw error;
+                }
                 var stat = new byte[256];
                 if (DatabaseUnixNative.Stat(handle, stat) != 0) throw DatabaseFileLock.Error("Admission lock file fstat");
                 var modeOffset = darwin ? 4 : LinuxStatModeOffset();
@@ -40,6 +46,18 @@ namespace LiteDB.Client.Shared
                 return handle;
             }
             catch { handle.Dispose(); throw; }
+        }
+
+        internal static bool IsPermissionFailure(Exception error) =>
+            error is UnauthorizedAccessException ||
+            (error is IOException && ((error.Data["AdmissionPermissionFailure"] is bool denied && denied) ||
+                (error.HResult & 0xffff) == 30));
+
+        internal static bool IsImmutable(SafeFileHandle handle)
+        {
+            var stat = new byte[256];
+            if (DatabaseUnixNative.Stat(handle, stat) != 0) throw DatabaseFileLock.Error("Read-only admission fstat");
+            return (BitConverter.ToUInt16(stat, 4) & 0x92) == 0; // Darwin mode: no 0222 write bits.
         }
 
         private static int LinuxOpenFlags()
