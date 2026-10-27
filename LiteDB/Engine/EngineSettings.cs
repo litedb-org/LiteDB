@@ -20,6 +20,8 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
+        // Physical fault devices beneath an otherwise ordinary Direct host.
+        internal Func<FileOrigin, bool, IStreamFactory> TestStreamFactory;
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
@@ -203,6 +205,13 @@ namespace LiteDB.Engine
         /// </summary>
         internal IStreamFactory CreateDataFactory(bool useAesStream = true)
         {
+#if DEBUG || TESTING
+            if (TestStreamFactory != null)
+            {
+                LiteDB.Utils.Reachability.FaultPoint("TestStreamFactory");
+                return TestStreamFactory(FileOrigin.Data, useAesStream);
+            }
+#endif
             if (this.DataStream != null)
             {
                 return new StreamFactory(this.DataStream, useAesStream ? this.Password : null, false);
@@ -238,6 +247,13 @@ namespace LiteDB.Engine
         /// </summary>
         internal IStreamFactory CreateLogFactory()
         {
+#if DEBUG || TESTING
+            if (TestStreamFactory != null)
+            {
+                LiteDB.Utils.Reachability.FaultPoint("TestStreamFactory");
+                return TestStreamFactory(FileOrigin.Log, true);
+            }
+#endif
             if (this.LogStream != null)
             {
                 return new StreamFactory(this.LogStream, this.Password, false, isLog: true);

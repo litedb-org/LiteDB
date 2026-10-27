@@ -19,6 +19,7 @@ namespace LiteDB.Tests.Engine
         internal bool FirstEventOnly;
         internal readonly HashSet<string> Events = new HashSet<string>();
         internal int PhysicalBoundaries;
+        internal int[] TearPrefixes = new[] { 15 };
         private readonly HashSet<string> _images = new HashSet<string>();
 
         internal IndexMigrationCrashDevice(byte[] data, byte[] log)
@@ -34,20 +35,23 @@ namespace LiteDB.Tests.Engine
             var name = Stage + ":" + source.Name + "." + operation;
             var first = Events.Add(name);
             if (FirstEventOnly && !first) return;
-            var data = (byte[])Data.Durable.Clone();
-            var log = (byte[])Log.Durable.Clone();
-            if (write != null)
+            foreach (var requested in write == null ? new[] { 0 } : TearPrefixes)
             {
-                var bytes = source == Data ? data : log;
-                var prefix = Math.Min(15, count);
-                var end = checked((int)source.Position + prefix);
-                if (bytes.Length < end) Array.Resize(ref bytes, end);
-                Buffer.BlockCopy(write, offset, bytes, (int)source.Position, prefix);
-                if (source == Data) data = bytes; else log = bytes;
+                var data = (byte[])Data.Durable.Clone();
+                var log = (byte[])Log.Durable.Clone();
+                var prefix = Math.Min(requested, count);
+                if (write != null && prefix > 0)
+                {
+                    var bytes = source == Data ? data : log;
+                    var end = checked((int)source.Position + prefix);
+                    if (bytes.Length < end) Array.Resize(ref bytes, end);
+                    Buffer.BlockCopy(write, offset, bytes, (int)source.Position, prefix);
+                    if (source == Data) data = bytes; else log = bytes;
+                }
+                using var sha = SHA256.Create();
+                var signature = Convert.ToBase64String(sha.ComputeHash(data)) + ":" + Convert.ToBase64String(sha.ComputeHash(log));
+                if (_images.Add(signature)) Images.Add(new Image { Data = data, Log = log, Event = name, Prefix = prefix });
             }
-            using var sha = SHA256.Create();
-            var signature = Convert.ToBase64String(sha.ComputeHash(data)) + ":" + Convert.ToBase64String(sha.ComputeHash(log));
-            if (_images.Add(signature)) Images.Add(new Image { Data = data, Log = log, Event = name });
         }
 
         internal sealed class Image
@@ -55,6 +59,7 @@ namespace LiteDB.Tests.Engine
             internal byte[] Data;
             internal byte[] Log;
             internal string Event;
+            internal int Prefix;
         }
 
         internal sealed class DeviceStream : MemoryStream, IDurableStream

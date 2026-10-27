@@ -30,9 +30,12 @@ namespace LiteDB.Engine
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
+            this.CheckpointStage("checkpoint-before-journal-write");
             HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier, verifiedBody);
+            this.CheckpointStage("checkpoint-after-journal-write");
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
+            this.CheckpointStage("checkpoint-after-journal-flush");
             SyncLogDirectory();
         }
 
@@ -104,6 +107,7 @@ namespace LiteDB.Engine
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
+                this.CrashPoint("promotion-recovery-before-journal-retire");
                 writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
                 SyncLogBarrier(writer);
                 _checksums.JournalBytes = 0;

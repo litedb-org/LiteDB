@@ -46,9 +46,18 @@
           "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
           "model": "exception",
           "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ],
-      "gap": "Only the checkpoint exception model is claimed; process death and modeled power loss after reclamation are not."
+      "gap": "Slice 8 adds active-worker process death after reclamation. No physical-device or namespace-loss qualification is implied."
     },
     {
       "family": "checkpoint-stage",
@@ -72,6 +81,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -89,6 +107,15 @@
           "fuzz": "cursor-handoff",
           "model": "interleaving",
           "proves": "Cursor handoffs overlap checkpoint admission."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -114,6 +141,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRootedCheckpointScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -126,6 +162,15 @@
           "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
           "model": "process-death",
           "proves": "Stream images copied at the stage (after the data flush, before any slot is cleared) recover every committed row with a fresh engine, plain and encrypted."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -160,6 +205,15 @@
           "test": "LiteDB.Tests/Internals/MvccSharedProcess_Tests.cs#KillingPartialCheckpointerDoesNotInvalidateAnotherProcessesReader",
           "model": "process-death",
           "proves": "Killing a partial checkpointer does not invalidate another process's reader."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -183,6 +237,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -205,6 +268,15 @@
           "proves": "Generated retirement histories cut at scenario phases.",
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
           ]
         }
       ]
@@ -242,6 +314,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -272,6 +353,15 @@
           "proves": "Generated retirement histories cut at scenario phases.",
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
           ]
         }
       ]
@@ -304,6 +394,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -332,6 +431,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -355,6 +463,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -377,6 +494,15 @@
           "proves": "Generated retirement histories cut at scenario phases.",
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
           ]
         }
       ]
@@ -403,6 +529,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -428,6 +563,15 @@
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
           ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -452,6 +596,15 @@
           "proves": "Every MvccRetirementScenario phase is cut; acknowledged payloads and indexes survive.",
           "via": [
             "LiteDB.Tests/Internals/MvccRetirementScenario.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
           ]
         }
       ]
@@ -575,6 +728,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -605,6 +767,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -635,6 +806,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -670,6 +850,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -700,6 +889,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -730,6 +928,15 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ]
     },
@@ -1696,9 +1903,18 @@
           "test": "LiteDB.Tests/Internals/GroupCommitCheckpointOrdering_Tests.cs#Checkpoint_waits_for_captured_group_sync_and_observes_its_failure",
           "model": "interleaving",
           "proves": "A paused group sync excludes checkpoint; its failure prevents checkpoint I/O and both tasks finish."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ],
-      "gap": "Validation-only interlock; no worker, process-death or modeled-power-loss coverage is claimed."
+      "gap": "Default-off interlock; slice 8 adds active-worker process-death cases. General device/namespace qualification is not implied."
     },
     {
       "family": "process-crash",
@@ -1725,6 +1941,183 @@
         }
       ],
       "gap": "Validation-only interlock; no worker, process-death or modeled-power-loss coverage is claimed."
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-before-validation",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-validation",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-before-wal-sync",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-journal-sync",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-before-salt-write",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-salt-write",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-salt-sync",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "promotion-recovery-before-journal-retire",
+      "protocol": "checkpoint journal recovery",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#RecoveryCanBeKilledTwiceAfterWorkerDeath",
+          "model": "process-death",
+          "proves": "After killing an active worker, kill recovery after header sync and before journal retirement, then verify three exact indexed reopen/checkpoint cycles."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointPowerLoss_Tests.cs#WorkerPowerCutOrFailedSyncStopsAndRepeatedRepairRecovers",
+          "model": "modeled-power-loss",
+          "proves": "Lose all unsynced writes twice during recovery of a sector-torn background data write, at header-sync and journal-retirement boundaries."
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-before-journal-write",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-journal-write",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "checkpoint-stage",
+      "name": "checkpoint-after-journal-flush",
+      "protocol": "background checkpoint persistence",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Runtime/architecture-matched child installs the Direct worker, acknowledges exact indexed rows, reaches this stage and is killed without disposal. Three read-only/writable recovery cycles preserve bytes, rows, indexes, sentinel and allocation reachability.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
+        }
+      ]
     }
   ],
   "injectors": [
@@ -1748,9 +2141,18 @@
           "test": "LiteDB.Tests/Engine/CheckpointWriteAdmission_Tests.cs#WaiterRemainsBlockedAboveLowWaterThenResumes",
           "model": "interleaving",
           "proves": "A blocked fresh writer remains refused above low water, resumes at N, and returns its permit."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KillWithQueuedWorkWaitingWriterOrFinalDrain",
+          "model": "process-death",
+          "proves": "Child proves a fresh writer is held at high water while the worker is active, then is killed; the acknowledged predecessor and sentinel survive and the waiting update is absent.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ],
-      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices. Slice 8 adds active-worker process-death cases; remaining models and general device/namespace qualification are not implied."
     },
     {
       "name": "BeforeCheckpointWorkerStart",
@@ -1782,9 +2184,18 @@
           "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorker_Tests.cs#LazyWorkerCoalescesRequestsAndRetainsRequestRacingCompletion",
           "model": "interleaving",
           "proves": "One lazy thread coalesces one hundred requests during a paused pass and executes exactly one successor pass."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ],
-      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices. Slice 8 adds active-worker process-death cases; remaining models and general device/namespace qualification are not implied."
     },
     {
       "name": "AfterCheckpointWorkerPass",
@@ -1794,9 +2205,18 @@
           "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorkerFailure_Tests.cs#WorkerFailureIsTerminalForAllFacadesAndAttachment",
           "model": "exception",
           "proves": "Failure after a completed persistent pass remains terminal; racing requests cannot replace the original error or resume work, and file recovery preserves acknowledged data."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointProcess_Tests.cs#KilledWorkerPreservesAcknowledgedTransactions",
+          "model": "process-death",
+          "proves": "Active Direct worker killed at the reached full or reader-pinned partial checkpoint boundary; independently acknowledged generations, all payloads/indexes/sentinel and allocation graphs survive three cold cycles.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointFaultMatrix.cs",
+            "LiteDB.Tests.SharedMutexHarness/BackgroundCheckpointHarness.cs"
+          ]
         }
       ],
-      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices. Slice 8 adds active-worker process-death cases; remaining models and general device/namespace qualification are not implied."
     },
     {
       "name": "BeforeCheckpointWorkerPauseWait",
@@ -1929,6 +2349,20 @@
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "interleaving",
           "proves": "Queued writer finishes with terminal refusal before failure teardown; later attempts preserve the exact WAL bytes."
+        }
+      ]
+    },
+    {
+      "name": "TestStreamFactory",
+      "protocol": "Direct worker modeled physical durability device",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/BackgroundCheckpointPowerLoss_Tests.cs#EveryPhysicalWorkerBoundaryLosesUnsyncedBytesAndTearsSectors",
+          "model": "modeled-power-loss",
+          "proves": "Eligible filename Direct host installs the same fixture worker over the existing physical durability device beneath encryption; each write, sync and truncation yields lost-unsynced and 512/4096-byte torn images. Durable acknowledgements and the permitted whole cache-only predecessor survive indexed, byte-preserving read-only and allocation-verified repeated recovery.",
+          "via": [
+            "LiteDB.Tests/Internals/BackgroundCheckpointPowerScenario.cs"
+          ]
         }
       ]
     }

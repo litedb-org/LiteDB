@@ -9,6 +9,7 @@
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../LiteDB.Tests/Engine/BackgroundCheckpointWorkload.cs" Link="BackgroundCheckpointWorkload.cs" />
     <Compile Include="../LiteDB.Tests/Engine/AllocationWorkload.cs" Link="AllocationWorkload.cs" />
     <Compile Include="../LiteDB.Tests/Utils/ChildProcessTermination.cs" Link="ChildProcessTermination.cs" />
     <Compile Include="../LiteDB.Tests/Utils/WindowsFileRelease.cs" Link="WindowsFileRelease.cs" />
