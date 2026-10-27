@@ -95,7 +95,7 @@ namespace LiteDB
             }
             finally
             {
-                try { this.ReconcileMappedTransaction(); }
+                try { this.ReconcileTransaction(); }
                 finally { this.CloseDatabase(use); }
             }
         });

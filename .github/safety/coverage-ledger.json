@@ -26,6 +26,20 @@
   ],
   "dispositions": [
     {
+      "id": "p3fx-aborted-retry-releases-legacy-ownership",
+      "kind": "test-removed",
+      "subjects": ["LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"],
+      "disposition": "replaced",
+      "invariant": "A failed retry Begin must not create an extra native hold, discard a still-active transaction, or prevent another thread from making progress after completion.",
+      "reason": "Renamed and strengthened the existing encrypted/plain, pinned/unpinned retry test for the corrected implicit-abort lifetime. It now requires zero obsolete transaction holds immediately after abort and after failed registration, installs the same registration fault on the reopened core, and retains successful retry, rollback, foreign-thread progress and exact cold data/index/sentinel checks. The old expectation of one hold after an already-ended inner transaction is the confirmed stale-ownership defect, not a supported active-transaction invariant.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Failed_input_returns_transaction_ownership_before_any_outer_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Stopped_query_releases_transaction_at_initial_or_streamed_read"
+      ]
+    },
+    {
       "id": "p3j-remove-experimental-same-thread-wait-option",
       "kind": "test-removed",
       "subjects": [

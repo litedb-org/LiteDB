@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Client.Shared;
 using LiteDB.Tests.Safety;
 using Xunit;
 
@@ -93,7 +94,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [MemberData(nameof(Routes))]
-        public void Failed_retry_preserves_old_ownership_until_retry_or_rollback(bool encrypted, bool pinned)
+        public void Failed_retry_after_implicit_abort_leaves_no_transaction_ownership(bool encrypted, bool pinned)
         {
             Seed(encrypted);
             using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
@@ -102,15 +103,31 @@ namespace LiteDB.Tests.Engine
             db.BeginTrans().Should().BeTrue();
             Action duplicate = () => db.GetCollection("docs").Insert(Row(1));
             duplicate.Should().Throw<LiteException>();
-            var monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
-            monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+            Ownership(engine, pinned).Should().Be(0, "implicit abort returns the obsolete transaction hold immediately");
+            var monitors = new List<TransactionMonitor>();
+            void FailRegistration(LiteEngine core)
+            {
+                var monitor = Field<TransactionMonitor>(core, "_monitor");
+                monitors.Add(monitor);
+                monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+            }
+            var retained = Field<LiteEngine>(engine, "_engine");
+            if (retained != null) FailRegistration(retained);
+            SharedOwnershipEvents.CoreStage = (facade, core, stage) =>
+            {
+                if (ReferenceEquals(facade, engine) && stage == SharedOwnershipEvents.Opened) FailRegistration(core);
+            };
             try
             {
                 Action retry = () => db.BeginTrans();
                 retry.Should().Throw<IOException>().WithMessage("retry begin failure");
-                Ownership(engine, pinned).Should().Be(1, "failed Begin owes no new completion");
+                Ownership(engine, pinned).Should().Be(0, "failed Begin owes no new completion and cannot restore an aborted hold");
             }
-            finally { monitor.BeforeTransactionRegistration = null; }
+            finally
+            {
+                SharedOwnershipEvents.CoreStage = null;
+                foreach (var monitor in monitors) monitor.BeforeTransactionRegistration = null;
+            }
             db.BeginTrans().Should().BeTrue();
             Ownership(engine, pinned).Should().Be(1);
             duplicate.Should().Throw<LiteException>();

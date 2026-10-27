@@ -185,7 +185,8 @@ namespace LiteDB
             }
             catch
             {
-                this.CloseDatabase(use);
+                try { this.ReconcileTransaction(); }
+                finally { this.CloseDatabase(use); }
                 throw;
             }
         }

@@ -204,7 +204,7 @@ namespace LiteDB
         /// Dequeue stack and dispose database on empty stack. A pinned use ends an
         /// operation, or with <paramref name="hold"/> a reader or transaction.
         /// </summary>
-        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1)
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1, bool waitForStopped = true)
         {
             if (use != null)
             {
@@ -214,7 +214,7 @@ namespace LiteDB
                 if (stopped) use.RequestRelease(force: true);
                 // The pin keeps the engine; its holder closes it.
                 use.Exit(hold);
-                if (stopped && use.CanWaitFrom(Thread.CurrentThread)) use.WaitReleased();
+                if (stopped && waitForStopped && use.CanWaitFrom(Thread.CurrentThread)) use.WaitReleased();
                 return;
             }
 

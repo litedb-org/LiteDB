@@ -25,7 +25,11 @@ The transaction transition is:
    fence or leaves an uncertain fence, and releases WRITE in either case. Native
    main remains held through that teardown and only then admits a successor.
    Operations reconcile an inner implicit abort or Stop before returning their
-   extra native use. The former core may already be closed when the call fails.
+   extra native use, including legacy Shared's same-thread refusal lease and
+   native transaction hold. Initial and streamed query failures reconcile too.
+   The former core may already be closed when the call fails. Legacy owner-exit
+   diagnostic markers remain until the next opener, while their refusal lease
+   is released during owner-exit cleanup.
 5. **Abandon.** Ordinary owner-exit and pin-holder cleanup close their core while
    native main is still owned. Both run the same terminal transition in `finally`.
    They have already drained the native use count, so they do not return an
