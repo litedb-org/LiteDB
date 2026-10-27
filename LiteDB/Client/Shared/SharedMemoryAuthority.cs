@@ -275,9 +275,9 @@ namespace LiteDB.Client.Shared
                 Reachability.FaultPoint("AllocateFile");
                 error = AllocateFile(file, length);
             }
-            else error = posix_fallocate(file.SafeFileHandle, 0, length);
+            else error = SharedPlatformAllocation.Allocate(file, length);
 #else
-            error = posix_fallocate(file.SafeFileHandle, 0, length);
+            error = SharedPlatformAllocation.Allocate(file, length);
 #endif
             if (error != 0) throw new IOException("Shared allocation failed (native error " + error + ").");
         }
@@ -292,7 +292,6 @@ namespace LiteDB.Client.Shared
 #endif
             return new SharedMemoryMap(file, size, authority);
         }
-        [DllImport("libc", SetLastError = true)] private static extern int posix_fallocate(Microsoft.Win32.SafeHandles.SafeFileHandle file, long offset, long length);
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
         private static void Stage(string stage)
         {
