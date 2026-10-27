@@ -25,7 +25,8 @@ namespace LiteDB.Client.Shared
             // O_CREAT, O_CLOEXEC, O_NOFOLLOW, O_NONBLOCK; never truncate or unlink.
             // Unlinking even after unlock would let a racing opener lock an old
             // inode while a new opener creates and locks a different one.
-            var flags = (readOnly ? 0 : 2) | (darwin ? 0x1000304 : 0xa0840);
+            var noFollow = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? 0x8000 : 0x20000;
+            var flags = (readOnly ? 0 : 2) | (darwin ? 0x1000304 : 0x80840 | noFollow);
             var descriptor = DatabaseUnixNative.Api.Open(filename, flags, 0x1b6);
             var handle = new SafeFileHandle((IntPtr)descriptor, true);
             try
