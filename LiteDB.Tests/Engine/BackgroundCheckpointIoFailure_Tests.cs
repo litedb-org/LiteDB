@@ -29,6 +29,12 @@ namespace LiteDB.Tests.Engine
             string password, bool fallback, string mode)
         {
             var scenario = new BackgroundCheckpointIntegrationScenario(password, durable: true);
+            byte[] failedData = null, failedLog = null;
+            void Capture()
+            {
+                failedData = TempFile.ReadAllBytesShared(scenario.File.Filename);
+                failedLog = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(scenario.File.Filename));
+            }
             try
             {
                 var worker = scenario.Engine.InstallDirectCheckpointLifetime();
@@ -56,6 +62,7 @@ namespace LiteDB.Tests.Engine
                     if (state.Stopped) Interlocked.Increment(ref postStopIo);
                     if (!worker.IsWorkerThread || mode != "data-write") return;
                     Interlocked.Increment(ref faults);
+                    Capture();
                     injected = WriteFailure.InFile(new IOException("ENOSPC during background data write"), FileOrigin.Data);
                     throw injected;
                 };
@@ -67,6 +74,7 @@ namespace LiteDB.Tests.Engine
                     if (!worker.IsWorkerThread || mode == "data-write" || path != target) return 0;
                     if (Interlocked.Increment(ref targetSyncs) < (mode == "journal-sync" || mode == "salt-sync" ? 2 : 1)) return 0;
                     Interlocked.Increment(ref faults);
+                    Capture();
                     return mode == "log-sync" || mode == "journal-sync" ? 28 : 5;
                 };
                 Task<Exception> writer = null, successor = null;
@@ -129,9 +137,15 @@ namespace LiteDB.Tests.Engine
                     Record.Exception(scenario.Engine.Dispose);
                     NativeFileSync.SimulateErrno = null;
                 }
+                failedData.Should().NotBeNull();
+                failedLog.Should().NotBeNull();
+                using var image = new TempFile();
+                File.WriteAllBytes(image.Filename, failedData);
+                File.WriteAllBytes(FileHelper.GetLogFile(image.Filename), failedLog);
+                foreach (var filename in new[] { scenario.File.Filename, image.Filename })
                 for (var open = 0; open < 3; open++)
                 {
-                    using (var db = new LiteDatabase(new ConnectionString { Filename = scenario.File.Filename, Password = password }))
+                    using (var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = password }))
                     {
                         db.UserVersion.Should().Be(7);
                         var expected = Enumerable.Range(0, 4).Select(BackgroundCheckpointScenario.Row).ToArray();
@@ -142,8 +156,18 @@ namespace LiteDB.Tests.Engine
                         db.GetCollection("sentinel").FindById(1)["payload"].AsString.Should().Be("untouched");
                         db.Checkpoint();
                     }
-                    AllocationReachability.Verify(scenario.File.Filename, password);
+                    AllocationReachability.Verify(filename, password);
                 }
+            }
+            catch
+            {
+                // Keep the pre-cleanup evidence if either live or copied recovery fails.
+                var path = Path.Combine("artifacts_temp", "p1-bg5", "io-failure-" + mode + "-" +
+                    (password == null ? "plain" : "encrypted") + "-" + fallback + ".db");
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                if (failedData != null) File.WriteAllBytes(path, failedData);
+                if (failedLog != null) File.WriteAllBytes(FileHelper.GetLogFile(path), failedLog);
+                throw;
             }
             finally { Record.Exception(scenario.Dispose); }
         }
