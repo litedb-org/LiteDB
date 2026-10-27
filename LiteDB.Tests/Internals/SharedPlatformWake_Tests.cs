@@ -45,6 +45,9 @@ namespace LiteDB.Internals
                     first.Should().NotBeNull();
                     peer.Should().NotBeNull();
                     VerifyWake(first, peer);
+                    first.Dispose();
+                    first.Dispose();
+                    VerifyWake(peer, peer);
                 }
                 finally { SharedWakeSignal.Retire(authority); }
             }

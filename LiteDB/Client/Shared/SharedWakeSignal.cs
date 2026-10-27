@@ -14,6 +14,7 @@ namespace LiteDB.Client.Shared
         private readonly EventWaitHandle _windows;
         private readonly IntPtr _darwin;
         private readonly bool _isDarwin;
+        private int _disposed;
 #if DEBUG || TESTING
         internal Action<string> NativeWakeStage;
 #endif
@@ -120,6 +121,7 @@ namespace LiteDB.Client.Shared
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _windows?.Dispose();
             if (_isDarwin && _darwin != IntPtr.Zero && _darwin != new IntPtr(-1)) sem_close(_darwin);
         }
