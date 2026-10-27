@@ -366,6 +366,9 @@ namespace LiteDB
                         throw Unsupported(node, "negation through a narrowing or checked conversion (negate outside the query or filter in memory)");
                 }
 
+                var type = Nullable.GetUnderlyingType(node.Operand.Type) ?? node.Operand.Type;
+                if (type == typeof(float) || type == typeof(double))
+                    return Call("DOUBLE_NEGATE", new[] { Translate(node.Operand) }, _context, _parameters);
                 return Subtract(Zero(node.Operand.Type), node.Operand);
             }
             if (node.NodeType == ExpressionType.OnesComplement) return TranslateComplement(node);
