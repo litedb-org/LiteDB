@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3124_LinqLiftedNulls",
+  "title": "LINQ lifted nullable comparisons include null rows",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3124"
+  ],
+  "failingSince": "5.0.21",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: wrong query rows."
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: query rows match CLR."
+    }
+  }
+}

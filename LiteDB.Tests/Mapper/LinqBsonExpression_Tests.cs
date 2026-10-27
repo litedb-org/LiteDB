@@ -294,10 +294,10 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Latitude + 200, "(Latitude + @p0)", 200);
             TestExpr<User>(x => x.Latitude.Value + 200, "(Latitude + @p0)", 200);
 
-            TestPredicate<User>(x => x.Latitude > 0, "(Latitude > @p0)", 0);
+            TestPredicate<User>(x => x.Latitude > 0, "(((Latitude != null) AND (@p0 != null)) AND (Latitude > @p0))", 0);
 
-            TestPredicate<User>(x => x.Latitude != null && x.Latitude > 0, "((Latitude != @p0) AND (Latitude > @p1))", BsonValue.Null, 0);
-            TestPredicate<User>(x => x.Latitude.HasValue && x.Latitude > 0, "((((IS_NULL(Latitude) = false)) = true) AND (Latitude > @p0))", 0);
+            TestPredicate<User>(x => x.Latitude != null && x.Latitude > 0, "((Latitude != @p0) AND (((Latitude != null) AND (@p1 != null)) AND (Latitude > @p1)))", BsonValue.Null, 0);
+            TestPredicate<User>(x => x.Latitude.HasValue && x.Latitude > 0, "((((IS_NULL(Latitude) = false)) = true) AND (((Latitude != null) AND (@p0 != null)) AND (Latitude > @p0)))", 0);
         }
 
         [Fact]

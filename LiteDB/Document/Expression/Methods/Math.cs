@@ -11,6 +11,12 @@ namespace LiteDB
     internal partial class BsonExpressionMethods
     {
         /// <summary>
+        /// Negate a floating-point value, preserving IEEE signed zero and NaN.
+        /// </summary>
+        public static BsonValue DOUBLE_NEGATE(BsonValue value) =>
+            value.IsNumber ? new BsonValue(-value.AsDouble) : BsonValue.Null;
+
+        /// <summary>
         /// Apply absolute value (ABS) method in all number values
         /// </summary>
         public static BsonValue ABS(BsonValue value)

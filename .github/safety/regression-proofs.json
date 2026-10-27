@@ -225,6 +225,23 @@
         "scripts/test-5021-regression-compatibility.py",
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
+    },
+    {
+      "repro": "Issue_3124_LinqSignedZero",
+      "knownBad": {"kind": "package", "version": "6.0.0-prerelease.355"},
+      "permanentGuard": [
+        "LiteDB.Tests/Mapper/LinqNumericSemantics_Tests.cs#Signed_zero_queries_match_CLR_after_BSON_roundtrip"
+      ]
+    },
+    {
+      "repro": "Issue_3124_LinqLiftedNulls",
+      "knownBad": {
+        "kind": "package",
+        "version": "5.0.21"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Mapper/LinqLiftedComparison_Tests.cs#Lifted_comparisons_match_CLR_for_scan_index_and_direct_execution"
+      ]
     }
   ]
 }
