@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         private readonly bool _readOnly;
         private readonly bool _readOnlyStorage;
         private readonly ICoordinationSignals _signals;
+        private readonly bool _sharedMode;
         private readonly Action<int> _durableCommitPublication;
         internal bool CompactStorage { get; }
 
@@ -54,6 +55,7 @@ namespace LiteDB.Engine
             _sharedDurability = settings.SharedDurability;
             _logMayBuffer = settings.LogStream != null && !(settings.LogStream is MemoryStream);
             _signals = settings.CoordinationSignals;
+            _sharedMode = settings.SharedMode;
             _durableCommitPublication = settings.DurableCommitPublication;
 
             try

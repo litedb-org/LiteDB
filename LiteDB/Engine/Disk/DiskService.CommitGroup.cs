@@ -21,7 +21,10 @@ namespace LiteDB.Engine
             get
             {
 #if NET8_0_OR_GREATER
-                if (_durableCommits && ChecksumsEnabled && (_signals == null || _durableCommitPublication != null) && !_logFlushDegraded &&
+                // Legacy Shared may not have created its coordination page yet.
+                // Its null signals do not grant Direct group-commit eligibility.
+                if (_durableCommits && ChecksumsEnabled &&
+                    ((!_sharedMode && _signals == null) || _durableCommitPublication != null) && !_logFlushDegraded &&
                     !LogSyncUnverified && ((ChecksummedWalFactory)_logFactory).IsFile &&
                     ((ChecksummedWalStream)_writer.Value).RawStream.GetType() == typeof(FileStream))
                 {
