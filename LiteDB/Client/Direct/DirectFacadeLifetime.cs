@@ -48,7 +48,6 @@ namespace LiteDB.Client.Direct
         {
             // Never acquire the host gate or run storage cleanup on the finalizer thread.
             // The lifetime object roots the host until the normal-thread reaper drains it.
-            Reachability.FaultPoint("direct-finalizer-release-queued");
             Reachability.Sometimes("maintenance:direct-finalizer-release-queued");
             DirectFacadeLifetime head;
             do
