@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,52 @@ namespace LiteDB.Internals
 {
     public class WalCombinedFailure_Tests
     {
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit(bool partialWrite)
+        {
+            using var source = new WalCombinedWriteScenario(false, transactionPageLimit: 1000);
+            var writer = source.Writer;
+            var pages = 0;
+            var start = 0L;
+            byte[] prefix = null;
+            source.Data = LiteDB.Tests.TempFile.ReadAllBytesShared(source.File.Filename);
+            source.State.AtCrashPoint = phase =>
+            {
+                if (phase == "wal-page-before-write" && ++pages == 2)
+                {
+                    start = writer.Position / PAGE_SIZE * WalChecksum.FrameSize;
+                    prefix = LiteDB.Tests.TempFile.ReadAllBytesShared(source.LogName).Take(checked((int)start)).ToArray();
+                    prefix.Length.Should().Be((int)start, "the first frame must have reached the file");
+                    if (partialWrite)
+                    {
+                        // Model a reported short append at the second physical frame.
+                        writer.RawStream.Position = start;
+                        writer.RawStream.Write(new byte[127], 0, 127);
+                        throw new IOException("second frame append failed");
+                    }
+                }
+                if (phase == "wal-page-after-write" && pages == 2 && !partialWrite)
+                    throw new IOException("second frame append failed");
+            };
+            try
+            {
+                Action update = () => source.Database.GetCollection("docs").Update(WalCombinedWriteScenario.Documents(2));
+                update.Should().Throw<IOException>().WithMessage("second frame append failed");
+                pages.Should().Be(2, "the fault must follow a successful frame in the same batch");
+                prefix.Should().NotBeNull();
+                var bytes = LiteDB.Tests.TempFile.ReadAllBytesShared(source.LogName);
+                bytes.Take(prefix.Length).Should().Equal(prefix, "cleanup must use the updated batch length");
+                bytes.Length.Should().Be((int)WalPadding.AlignedLength(start));
+                source.State.Stopped.Should().BeTrue();
+                source.AssertRecovered(bytes, 1);
+                source.State.Disk.Cache.WritablePages.Should().Be(0);
+                source.State.Disk.Cache.PinnedPages.Should().Be(0);
+            }
+            finally { source.State.AtCrashPoint = null; }
+        }
+
         [Theory]
         [InlineData(-1)]
         [InlineData(0)]

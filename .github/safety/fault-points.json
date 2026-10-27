@@ -1203,6 +1203,11 @@
       "protocol": "WAL append",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
+        {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
           "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
@@ -1227,6 +1232,11 @@
       "name": "wal-page-before-write",
       "protocol": "WAL append",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
         {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
