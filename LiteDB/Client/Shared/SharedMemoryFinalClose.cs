@@ -71,6 +71,7 @@ namespace LiteDB.Client.Shared
                 Stage("disabled");
                 authority.Map.Store(SharedMemoryLayout.Control, 0);
                 Stage("retired");
+                SharedWakeSignal.Retire(authority.Header.Authority);
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is LiteException)
             {

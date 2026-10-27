@@ -12,13 +12,15 @@ namespace LiteDB.Client.Shared
     {
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
+        private readonly SharedWakeSignal _wake;
         private byte* _pointer;
         private bool _acquired;
         internal readonly long Size;
 
-        internal SharedMemoryMap(FileStream file, long size)
+        internal SharedMemoryMap(FileStream file, long size, Guid authority = default(Guid))
         {
             Size = size;
+            if (authority != Guid.Empty) _wake = SharedWakeSignal.Open(authority);
             _map = MemoryMappedFile.CreateFromFile(file, null, size, MemoryMappedFileAccess.ReadWrite,
                 HandleInheritability.None, leaveOpen: true);
             try
@@ -47,19 +49,35 @@ namespace LiteDB.Client.Shared
         internal long Increment(long offset)
         { this.Require(offset, 8); return Interlocked.Increment(ref *(long*)(_pointer + offset)); }
 
-        // Linux x64 FUTEX_WAIT/FUTEX_WAKE (shared, never FUTEX_PRIVATE_FLAG).
         // The mapping remains pinned until every holder/request lease drains.
         internal void Wake()
         {
             Increment(SharedMemoryLayout.WriterWake);
-            var result = syscall(202, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 1, int.MaxValue, IntPtr.Zero);
+            if (_wake != null)
+            {
+                _wake.Wake();
+                return;
+            }
+            var result = syscall(FutexSyscall, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 1, int.MaxValue, IntPtr.Zero);
             if (result < 0) throw new IOException("Shared writer futex wake failed: " + Marshal.GetLastPInvokeError());
         }
         internal void WaitWake(long observed, int milliseconds)
         {
+            if (_wake != null)
+            {
+                if (Load(SharedMemoryLayout.WriterWake) != observed)
+                {
+                    ObserveWait("returned", 0);
+                    return;
+                }
+                ObserveWait("syscall", milliseconds);
+                _wake.Wait(milliseconds);
+                ObserveWait("returned", 0);
+                return;
+            }
             var timeout = new Timespec { Seconds = 0, Nanoseconds = milliseconds * 1000000L };
             ObserveWait("syscall", milliseconds);
-            var result = syscall(202, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 0,
+            var result = syscall(FutexSyscall, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 0,
                 unchecked((int)observed), (IntPtr)(&timeout));
             var error = result >= 0 ? 0 : Marshal.GetLastPInvokeError();
 #if DEBUG || TESTING
@@ -88,6 +106,7 @@ namespace LiteDB.Client.Shared
         }
         [StructLayout(LayoutKind.Sequential)]
         private struct Timespec { internal long Seconds, Nanoseconds; }
+        private static long FutexSyscall => RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? 98 : 202;
         [DllImport("libc", SetLastError = true)]
         private static extern long syscall(long number, IntPtr address, int operation, int value, IntPtr timeout);
         internal bool Matches(long offset, byte[] expected)
@@ -118,6 +137,7 @@ namespace LiteDB.Client.Shared
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }
             _view?.Dispose();
             _map?.Dispose();
+            _wake?.Dispose();
         }
     }
 }

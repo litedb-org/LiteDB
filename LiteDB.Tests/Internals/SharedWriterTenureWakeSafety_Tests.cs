@@ -14,7 +14,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedWriterTenureWakeSafety_Tests
     {
-        [OneFileTheory]
+        [LinuxX64Theory]
         [InlineData("sampled")] [InlineData("rechecked")] [InlineData("syscall")] [InlineData("returned")]
         public void Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach(string cut)
         {
@@ -42,7 +42,7 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 2);
         }
 
-        [OneFileFact]
+        [LinuxX64Fact]
         public void Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -68,7 +68,7 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 1);
         }
 
-        [OneFileFact]
+        [LinuxX64Fact]
         public void Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -106,7 +106,7 @@ namespace LiteDB.Internals
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
         }
 
-        [OneFileFact]
+        [LinuxX64Fact]
         public void Unexpected_wait_error_drains_a_live_operation_before_releasing_storage()
         {
             using var files = new SharedOneFilePublicationFixture();
@@ -135,7 +135,7 @@ namespace LiteDB.Internals
             cold.GetCollection("admitted").FindAll().Should().BeEquivalentTo(new[] { Row(1000, 1) });
         }
 
-        [OneFileFact]
+        [LinuxX64Fact]
         public void Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word()
         {
             using var files = new SharedOneFilePublicationFixture();
