@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Issues
             engine.SimulateOpenEngine = () =>
             {
                 if (attempts++ == 0) throw SharingViolation();
-                return new LiteEngine(settings);
+                return new LiteEngine(new EngineSettings { Filename = settings.Filename, SharedMode = true });
             };
 
             engine.Pragma(Pragmas.USER_VERSION).AsInt32.Should().Be(0);

@@ -6,18 +6,18 @@ namespace LiteDB.Engine
     internal partial class DiskService
     {
         // The header ValidateExistingData read, recovered and validated; nothing can write
-        // the header before LiteEngine.Open reads it (same engine, still opening).
-        private byte[] _openingHeader;
+        // the header before LiteEngine.Open takes it (same engine, still opening).
+        private HeaderPage _openingHeader;
 
         /// <summary>
-        /// The opening header already read and validated by this disk service, once;
-        /// null afterwards (and for new files), when callers read it with ReadFull.
+        /// The opening header already read, parsed and validated by this disk service;
+        /// null after transfer (and for new files). No bytes survive a cold reopen.
         /// </summary>
-        internal PageBuffer TakeOpeningHeader()
+        internal HeaderPage TakeOpeningHeader()
         {
-            var bytes = _openingHeader;
+            var header = _openingHeader;
             _openingHeader = null;
-            return bytes == null ? null : new PageBuffer(bytes, 0, 0) { Position = 0, Origin = FileOrigin.Data, ShareCounter = 0 };
+            return header;
         }
 
         private HeaderPage ValidateExistingData()
@@ -41,11 +41,13 @@ namespace LiteDB.Engine
 
                 // Validate identity and the complete header before permitting any repair.
                 this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
-                _openingHeader = (byte[])bytes.Clone();
-                var header = new HeaderPage(new PageBuffer(bytes, 0, 0));
+                // Read-only journal recovery retains an immutable redo image for
+                // disk reads. WAL replay may mutate the engine header in place.
+                var opening = ReferenceEquals(bytes, _recoveredHeader) ? (byte[])bytes.Clone() : bytes;
+                _openingHeader = new HeaderPage(new PageBuffer(opening, 0, 0) { Position = 0, Origin = FileOrigin.Data, ShareCounter = 0 });
                 // Only a valid legacy header can meet the WAL of its own conversion.
                 if (!ChecksumsEnabled) this.RejectConvertedWal();
-                return header;
+                return _openingHeader;
             }
             finally
             {

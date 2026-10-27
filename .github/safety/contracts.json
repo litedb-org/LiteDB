@@ -17,6 +17,7 @@
         "docs/storage-stack-safety.md#fault-model-and-operational-limits"
       ],
       "paths": [
+        "LiteDB/Client/Direct/**",
         "LiteDB/Engine/Disk/**",
         "LiteDB/Engine/Pages/**",
         "LiteDB/Engine/Services/Transaction*.cs",
@@ -30,6 +31,9 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/DirectHostAllocation_Tests.cs#Peer_header_commit_preserves_foreign_allocations_through_owner_completion_and_reopen", "proves": "Plain/encrypted facade-owned transactions interleave foreign allocations with a peer header commit; owner commit or rollback, two reopens and subsequent allocations preserve complete payloads, indexed results and unrelated data."},
+        {"test": "LiteDB.Tests/Internals/DirectHostProcess_Tests.cs#Process_kill_releases_native_lock_and_recovers_only_acknowledged_data", "model": "process-death", "proves": "Plain/encrypted killed Direct owners release native admission; two cold reopens retain acknowledged payloads and indexed results and exclude the uncommitted row, with runtime file locking enabled and disabled."},
+        {"test": "LiteDB.Tests/Engine/DirectHostSafety_Tests.cs#Fatal_storage_failure_stops_all_facades_and_refuses_attach_until_last_release", "model": "exception", "proves": "A failed WAL write stops attached facades and fresh attachment until final release, then cold recovery retains the earlier committed row and excludes both failed writes."},
         {"test": "LiteDB.Tests/Engine/AllocationWalFailure_Tests.cs#Torn_allocation_publication_stops_before_another_commit_and_recovers_the_complete_graph", "model": "exception", "proves": "Plain/encrypted commit and rollback header publication tear a foreign empty image or confirming header and fail truncation; I/O and non-I/O faults stop later writes and both retained and disposed file images recover complete acknowledged payloads, indexes and page graphs twice."},
         {"test": "LiteDB.Tests/Engine/AllocationWalFailure_Tests.cs#Failed_safepoint_rollback_publishes_foreign_reservations_before_later_commits", "model": "exception", "proves": "A refused safepoint makes the transaction rollback-only; automatic rollback publishes foreign reservations, and subsequent commits and repeated reopen retain complete payloads, indexes and the free-page graph."},
         {"test": "LiteDB.Tests/Regressions/CallerStreamAllocation_Tests.cs#Caller_file_log_recovers_interleaved_allocations_without_changing_read_only_data", "model": "exception", "proves": "Plain/encrypted non-writable caller data with a retained file WAL publishes foreign reservations, preserves committed payloads/indexes through owner commit/rollback/abandonment and two unchanged read-only reopens, and materializes a complete page/free-list graph through repeated writable recovery."},
@@ -69,6 +73,8 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/DirectColdReplacementProcess_Tests.cs#Cold_process_opens_cannot_create_or_modify_files_during_replacement", "model": "exception", "proves": "At three forced replacement boundaries, repeated child Direct/Shared admission refuses with identical file names and bytes; the owner and two indexed cold reopens preserve the committed row."},
+        {"test": "LiteDB.Tests/Internals/DirectHostProcess_Tests.cs#Rebuild_transfers_exclusion_to_the_replacement_inode", "proves": "Direct/Shared child opens remain excluded after inode replacement; local compatible attachment reads the row and cold child admission succeeds only after final disposal."},
         {"test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract", "model": "exception", "proves": "Every reachable combination of install faults ends in the original pair, the complete replacement, or a guarded incomplete state (#2978)."},
         {"test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point", "model": "exception", "proves": "Escape guard: the hit list of a successful rebuild equals the registered install faults, so a new fault point cannot be left out of the matrix."},
         {"test": "LiteDB.Tests/Issues/Issue2967_Tests.cs#Failed_password_rebuild_restores_the_original_data_and_wal_pair", "model": "exception", "proves": "A failed password rebuild restores the original data file together with its own WAL."},
@@ -88,6 +94,7 @@
         "docs/storage-stack-safety.md#v13-snapshot-checkpointing-and-retirement"
       ],
       "paths": [
+        "LiteDB/Client/Direct/**",
         "LiteDB/Engine/Services/Snap*.cs",
         "LiteDB/Engine/Services/WalIndexService*.cs",
         "LiteDB/Engine/Services/Transaction*.cs",
@@ -101,6 +108,8 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs#Foreign_facade_never_joins_or_completes_an_explicit_transaction", "proves": "Same-thread foreign facade work is refused, foreign Commit/Rollback cannot complete the owner transaction, rollback removes its row and a subsequent owner commit remains readable."},
+        {"test": "LiteDB.Tests/Internals/DirectHostProcess_Tests.cs#Shared_reader_keeps_native_exclusion_after_its_facade_disposes", "proves": "An admitted Shared reader returns all 256 rows after facade disposal and excludes child Direct admission until the reader closes."},
         {"test": "LiteDB.Tests/Internals/MvccReclamationRace_Tests.cs#AResolvedButUnreadWalOffsetCannotBeReclaimed", "model": "exception", "proves": "A WAL offset a reader resolved but has not read yet is never reclaimed under a concurrent checkpoint."},
         {"test": "LiteDB.Tests/Internals/MvccCursorModel_Tests.cs#LongLivedCursorsAcrossCheckpoints_MatchModel", "proves": "Long-lived cursors across partial checkpoints return exactly what an independent model predicts."},
         {"test": "LiteDB.Tests/Engine/SharedReaderModel_Tests.cs#InterleavedSharedInstances_ReadersMatchModel", "proves": "Held readers of interleaved Shared instances match an independent model."},
