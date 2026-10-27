@@ -47,6 +47,16 @@ namespace LiteDB.Client.Shared
             settings.Filename = canonical;
         }
 
+        internal static void NormalizeSharedNamespace(EngineSettings settings)
+        {
+            if (settings.Filename == ":memory:" || settings.Filename == ":temp:") return;
+            settings.Filename = System.IO.Path.GetFullPath(settings.Filename);
+            // Caller FileStreams use the same mutex namespace as physical-file peers,
+            // including parents reached through a symlink (Darwin /var, for example).
+            if (settings.DataStream is FileStream || settings.LogStream is FileStream)
+                settings.Filename = DatabaseFileIdentity.CanonicalPath(settings.Filename);
+        }
+
         internal static NativeAdmission Open(EngineSettings settings, bool shared, bool normalized = false, bool create = true)
         {
             if (!normalized) Normalize(settings);

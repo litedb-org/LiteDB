@@ -45,8 +45,7 @@ namespace LiteDB
             _settings.SharedMode = true;
             if (NativeAdmission.IsFile(_settings)) NativeAdmission.Normalize(_settings);
             // Bind reopens, mutex and snapshot registry to one construction-time path.
-            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
-                _settings.Filename = Path.GetFullPath(_settings.Filename);
+            NativeAdmission.NormalizeSharedNamespace(_settings);
             _settings.SharedDurability = new SharedDurabilityState();
             _readers = _settings.SharedOneFile ? null : CreateReaderRegistry(_settings);
             // A rebuild would replace the files under live snapshot readers. Scan the
