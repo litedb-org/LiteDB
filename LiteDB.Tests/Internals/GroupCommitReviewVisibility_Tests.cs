@@ -48,6 +48,7 @@ namespace LiteDB.Tests.Internals
         public async Task Dependent_writes_include_filestorage_and_system_indexes_obey_the_synced_prefix(bool failSecond)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, TransactionPageLimit = 1 });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -83,13 +84,13 @@ namespace LiteDB.Tests.Internals
                 else
                 {
                     syncedData = TempFile.ReadAllBytesShared(file.Filename);
-                    syncedLog = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+                    syncedLog = TempFile.ReadAllBytesShared(logPath);
                     nextGate.Set();
                     releaseNext.Wait(TimeSpan.FromSeconds(15)).Should().BeTrue();
                 }
             };
             NativeFileSync.SimulateErrno = path =>
-                path == FileHelper.GetLogFile(file.Filename) && failSecond && Volatile.Read(ref barriers) == 2 ? 5 : 0;
+                path == logPath && failSecond && Volatile.Read(ref barriers) == 2 ? 5 : 0;
 
             Task<Exception> Start(int value) => Task.Factory.StartNew(() =>
             {

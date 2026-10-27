@@ -19,6 +19,7 @@ namespace LiteDB.Tests.Internals
         public async Task Ensuring_a_pending_index_must_not_acknowledge_without_syncing_its_dependency()
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -26,7 +27,7 @@ namespace LiteDB.Tests.Internals
             rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
             db.Checkpoint();
             var data = TempFile.ReadAllBytesShared(file.Filename);
-            var log = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+            var log = TempFile.ReadAllBytesShared(logPath);
             var group = Disk(engine).CommitGroup;
             var sync = typeof(WalCommitGroup).GetField("_sync", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(group);
             using var appended = new ManualResetEventSlim();
@@ -37,7 +38,7 @@ namespace LiteDB.Tests.Internals
             var syncs = 0;
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 Interlocked.Increment(ref syncs);
                 return 5;
             };
@@ -99,6 +100,7 @@ namespace LiteDB.Tests.Internals
         public async Task Noop_delete_and_explicit_commit_must_cover_the_pending_version_they_observed(bool explicitTransaction)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -106,7 +108,7 @@ namespace LiteDB.Tests.Internals
             rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
             db.Checkpoint();
             var data = TempFile.ReadAllBytesShared(file.Filename);
-            var log = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+            var log = TempFile.ReadAllBytesShared(logPath);
             var group = Disk(engine).CommitGroup;
             var sync = typeof(WalCommitGroup).GetField("_sync", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(group);
             using var appended = new ManualResetEventSlim();
@@ -117,7 +119,7 @@ namespace LiteDB.Tests.Internals
             var syncs = 0;
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 Interlocked.Increment(ref syncs);
                 return 5;
             };

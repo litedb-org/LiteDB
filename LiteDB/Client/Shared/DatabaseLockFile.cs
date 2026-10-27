@@ -25,7 +25,7 @@ namespace LiteDB.Client.Shared
             // O_CREAT, O_CLOEXEC, O_NOFOLLOW, O_NONBLOCK; never truncate or unlink.
             // Unlinking even after unlock would let a racing opener lock an old
             // inode while a new opener creates and locks a different one.
-            var flags = (readOnly ? 0 : 2) | (darwin ? 0x1000304 : 0xa0840);
+            var flags = (readOnly ? 0 : 2) | (darwin ? 0x1000304 : LinuxOpenFlags());
             var descriptor = DatabaseUnixNative.Api.Open(filename, flags, 0x1b6);
             var handle = new SafeFileHandle((IntPtr)descriptor, true);
             try
@@ -33,7 +33,7 @@ namespace LiteDB.Client.Shared
                 if (handle.IsInvalid) throw DatabaseFileLock.Error("Opening database admission lock file");
                 var stat = new byte[256];
                 if (DatabaseUnixNative.Stat(handle, stat) != 0) throw DatabaseFileLock.Error("Admission lock file fstat");
-                var modeOffset = darwin ? 4 : RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? 16 : 24;
+                var modeOffset = darwin ? 4 : LinuxStatModeOffset();
                 if ((BitConverter.ToUInt16(stat, modeOffset) & 0xf000) != 0x8000)
                     throw new IOException("Database admission lock file must be a regular file.");
                 DatabaseFileIdentity.Read(handle); // Reject hard-linked lock files too.
@@ -41,5 +41,27 @@ namespace LiteDB.Client.Shared
             }
             catch { handle.Dispose(); throw; }
         }
+
+        private static int LinuxOpenFlags()
+        {
+            // Linux keeps O_CLOEXEC and O_NONBLOCK stable, but O_NOFOLLOW is
+            // 0x20000 on x86 and 0x8000 on the asm-generic ABIs (arm64/arm).
+            // Using the x86 value on arm silently follows a lock-file symlink.
+            switch (RuntimeInformation.ProcessArchitecture)
+            {
+                case Architecture.X64:
+                case Architecture.X86:
+                    return 0xa0840;
+                case Architecture.Arm64:
+                case Architecture.Arm:
+                    return 0x88840;
+                default:
+                    throw new PlatformNotSupportedException("Unsupported Linux process architecture for database admission.");
+            }
+        }
+
+        private static int LinuxStatModeOffset() =>
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ||
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm ? 16 : 24;
     }
 }
