@@ -26,7 +26,8 @@ namespace LiteDB.Engine
         internal void SyncDirectory() { if (_inner is FileStreamFactory file) file.SyncDirectory(); }
         /// <summary>The WAL is a file (not a caller stream), so its syncs go through <see cref="NativeFileSync"/>.</summary>
         internal bool IsFile => _inner is FileStreamFactory;
-        internal long PhysicalContentLength => _inner.GetLength();
+        internal long GetPhysicalLength(bool encrypted) => _inner is FileStreamFactory file
+            ? file.PhysicalLength : _inner.GetLength() + (encrypted && _inner.Exists() ? PAGE_SIZE : 0);
         public void Dispose() => _inner.Dispose();
     }
 }

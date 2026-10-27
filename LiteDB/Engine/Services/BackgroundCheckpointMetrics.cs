@@ -11,11 +11,10 @@ namespace LiteDB.Engine
         private long _peakPhysical, _peakLogical, _requests, _passes, _activeTicks;
         private readonly long _preamble;
 
-        internal BackgroundCheckpointMetrics(long physicalBytes, bool encrypted, bool exists)
+        internal BackgroundCheckpointMetrics(long physicalBytes, bool encrypted)
         {
             _preamble = encrypted ? Constants.PAGE_SIZE : 0;
-            this.ObservePhysical(physicalBytes);
-            if (exists) Maximum(ref _peakPhysical, _preamble);
+            _peakPhysical = physicalBytes;
         }
 
         internal long PeakPhysicalBytes => Interlocked.Read(ref _peakPhysical);

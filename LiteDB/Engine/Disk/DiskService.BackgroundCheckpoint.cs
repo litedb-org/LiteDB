@@ -15,7 +15,7 @@ namespace LiteDB.Engine
         internal void InstallCheckpointMetrics()
         {
             _checksums.Metrics = new BackgroundCheckpointMetrics(
-                ((ChecksummedWalFactory)_logFactory).PhysicalContentLength, _encryptedWal, _logFactory.Exists());
+                ((ChecksummedWalFactory)_logFactory).GetPhysicalLength(_encryptedWal), _encryptedWal);
             _checksums.Metrics.ObserveLogical(this.GetFileLength(FileOrigin.Log));
         }
 

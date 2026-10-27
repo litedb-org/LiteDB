@@ -49,6 +49,7 @@ namespace LiteDB.Engine
         /// Get data filename
         /// </summary>
         public string Name => Path.GetFileName(_filename);
+        internal long PhysicalLength => this.Exists() ? new FileInfo(_filename).Length : 0;
 
         /// <summary>
         /// Create new data file FileStream instance based on filename

@@ -12,6 +12,28 @@ namespace LiteDB.Tests.Engine
     public class BackgroundCheckpointCompatibility_Tests
     {
         [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void ExistingEmptyWalDoesNotFabricateAPreamblePeak(string password)
+        {
+            using var file = new TempFile();
+            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password }))
+                BackgroundCheckpointIntegrationScenario.Seed(db, 2);
+            var log = Path.ChangeExtension(file.Filename, null) + "-log.db";
+            File.WriteAllBytes(log, Array.Empty<byte>());
+            using (var engine = new LiteEngine(new EngineSettings
+            {
+                Filename = file.Filename, Password = password, BackgroundCheckpoint = true
+            }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                Info(db)["peakPhysicalWalBytes"].AsInt64.Should().Be(new FileInfo(log).Length);
+                BackgroundCheckpointIntegrationScenario.Verify(db, 0);
+            }
+            BackgroundCheckpointIntegrationScenario.VerifyRecovery(file.Filename, password, 0);
+        }
+
+        [Theory]
         [InlineData(null, false)]
         [InlineData(null, true)]
         [InlineData("secret", false)]
