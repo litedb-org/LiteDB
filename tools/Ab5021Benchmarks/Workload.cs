@@ -64,6 +64,7 @@ internal sealed class Workload
                     foreach (var doc in col.Find(Query.GTE("Value", 0))) sum += doc.Id;
             });
             Require(sum == 3L * _count * (_count + 1) / 2, "scan checksum");
+            ReadControls(db, col, path);
             var updates = _documents.Take(_count / 10).Select(d => new Document
             {
                 Id = d.Id, Key = d.Key, Value = d.Value + 1000, Payload = d.Payload
@@ -99,6 +100,37 @@ internal sealed class Workload
         if (_config == "dev-default")
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
 #endif
+    }
+
+    private void ReadControls(LiteDatabase db, ILiteCollection<Document> col, string path)
+    {
+        long selective = 0;
+        Measure("selective_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++)
+                foreach (var doc in col.Find(Query.GTE("Value", 990))) selective += doc.Id;
+        });
+        Require(selective == 3 * _documents.Where(d => d.Value >= 990).Sum(d => (long)d.Id), "selective checksum");
+
+        long count = 0;
+        Measure("count_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++) count += col.Count(Query.GTE("Value", 0));
+        });
+        Require(count == 3L * _count, "count checksum");
+
+        long total = 0;
+        Measure("aggregate_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                using var result = db.Execute("SELECT { total: SUM(*.Value) } FROM documents WHERE Value >= 0");
+                Require(result.Read(), "aggregate row");
+                total += result.Current["total"].AsInt64;
+                Require(!result.Read(), "aggregate single row");
+            }
+        });
+        Require(total == 3 * _documents.Sum(d => (long)d.Value), "aggregate checksum");
     }
 
     private void SmallTransactions()

@@ -65,6 +65,14 @@ including collection-name enumeration and disposal. Explicit checkpoint uses
 100k documents in uncheckpointed WAL (CHECKPOINT=0 on both versions for this
 scenario only); it measures page copying/log retirement, not physical WAL shrink.
 
+After the full scan, three report-only read controls each traverse 3×100k rows:
+a selective full-document scan (`Value >= 990`, approximately 1% survive), an
+all-match residual count (`Value >= 0`), and SQL `SUM(*.Value)` with that residual.
+Each checks its count or checksum against the generated input. These controls
+detect scan-strategy tradeoffs without changing any existing gate threshold.
+Use this same harness revision for both pinned before/after candidate SHAs;
+the additional reads also warm the database before update/delete measurements.
+
 Rebuild remains excluded equally from both libraries: 5.0.21 threw
 **`Detected loop in FindAll({0})`** when recreating the secondary index of the
 90k-document replacement, on all six OS/runtime jobs in

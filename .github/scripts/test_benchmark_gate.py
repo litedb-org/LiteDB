@@ -84,6 +84,13 @@ class BenchmarkGateTests(unittest.TestCase):
         self.times("dev-os-cache", "indexed_point_10k", [105.001] * 6)
         self.assertEqual("fail", self.row(self.evaluate(), "indexed_point_10k")["verdict"])
 
+    def test_scan_controls_are_present_and_report_only(self):
+        for scenario in ("selective_scan_3x100k", "count_scan_3x100k", "aggregate_scan_3x100k"):
+            self.assertEqual({"operations": 300000, "maxRatio": None}, CONFIG["scenarios"][scenario])
+            self.times("dev-os-cache", scenario, [400] * 6)
+        report = self.evaluate()
+        self.assertEqual("pass", report["verdict"])
+
     def test_stable_small_transaction_regression_fails(self):
         self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
         report = self.evaluate()
@@ -216,7 +223,7 @@ class BenchmarkGateTests(unittest.TestCase):
                 patch.object(sys, "argv", ["run.py", "net8.0"]), redirect_stdout(io.StringIO()):
             RUNNER.summarize(self.output)
         summary = json.loads((self.output / "summary.json").read_text())
-        self.assertEqual(27, len(summary))
+        self.assertEqual(36, len(summary))
         for row in summary:
             self.assertEqual(100, row["medianMs"])
             self.assertEqual(100, row["minMs"])
