@@ -68,6 +68,30 @@ namespace LiteDB.Tests.Engine
             Reachability.Snapshot()["maintenance:shared-abandoned-reader-cleanup"].Should().BeGreaterThan(0);
         }
 
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void Abandoned_cleanup_contains_each_owners_disposal_exceptions(bool readerFails, bool callbackFails)
+        {
+            var reader = new ThrowingReader(readerFails);
+            var calls = 0;
+            var cleanup = new SharedReaderCleanup(reader, () =>
+            {
+                Interlocked.Increment(ref calls);
+                if (callbackFails) throw new InvalidOperationException("release failed");
+            });
+            cleanup.Abandon();
+            SharedReaderCleanup.Drain();
+            var root = typeof(SharedReaderCleanup).GetField("_root", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            SpinWait.SpinUntil(() => !((GCHandle)root.GetValue(cleanup)).IsAllocated, TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the worker must free each handle even if disposal throws");
+            cleanup.Dispose();
+            reader.Disposals.Should().Be(1);
+            Volatile.Read(ref calls).Should().Be(1);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static WeakReference Abandon(IBsonDataReader reader, Action release)
         {

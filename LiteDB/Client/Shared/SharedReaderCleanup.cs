@@ -60,14 +60,23 @@ namespace LiteDB.Client.Shared
             while (pending != null)
             {
                 var next = pending._next;
-                try
-                {
-                    Reachability.Sometimes("maintenance:shared-abandoned-reader-cleanup");
-                    pending.Dispose();
-                }
-                catch (Exception) { /* Abandoned cleanup cannot escape the reaper. */ }
+                pending._next = null;
+                // A release can block on a connection gate or file I/O. Dispatch
+                // every owner independently so it cannot strand the rest of this
+                // batch. Do not flow a draining caller's ambient context either.
+                ThreadPool.UnsafeQueueUserWorkItem(Reap, pending);
                 pending = next;
             }
+        }
+
+        private static void Reap(object state)
+        {
+            try
+            {
+                Reachability.Sometimes("maintenance:shared-abandoned-reader-cleanup");
+                ((SharedReaderCleanup)state).Dispose();
+            }
+            catch (Exception) { /* Abandoned cleanup cannot escape the worker. */ }
         }
 
         public void Dispose()
