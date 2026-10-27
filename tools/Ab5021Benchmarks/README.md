@@ -140,7 +140,9 @@ Its default commit cannot serve as a durable A/B baseline.
 
 ## Gate and noise policy
 
-[`gate.json`](gate.json) records the owner-approved Phase 1 limits. For
+The owner approved the Phase 1 priorities (small transactions with DurableCommits=false and the CPU-bound bulk/scan/update/delete gap); the numeric tolerances and report-only rules are the orchestrator's interim choices.
+[`gate.json`](gate.json) records those interim limits; passing them does not establish
+the final v5-or-faster acceptance goal. For
 `dev-os-cache`, median candidate / median 5.0.21 must be ≤1.10 for single-document
 auto-commit, bulk insert, scan, update and delete; indexed point lookup must be
 ≤1.05. Default durability, open/close and checkpoint are report-only; checkpoint
