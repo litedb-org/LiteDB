@@ -18,7 +18,12 @@ namespace VectorCompatibility.Legacy
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
-                if (args[0] == "padding")
+                if (args[0] == "background")
+                {
+                    foreach (var stage in new[] { "queued", "checkpoint-after-journal-flush", "checkpoint-after-salt-sync", "retirement-journal-retired" })
+                        Refuse(Path.Combine(args[1], "background-" + stage + "-" + suffix), password);
+                }
+                else if (args[0] == "padding")
                 {
                     foreach (var count in new[] { 1, 127, 128, 129 })
                         Refuse(Path.Combine(args[1], "padding-" + count + "-" + suffix), password);

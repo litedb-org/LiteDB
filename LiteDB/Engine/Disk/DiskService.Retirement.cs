@@ -60,6 +60,7 @@ namespace LiteDB.Engine
                 raw.Position = position / PAGE_SIZE * WalChecksum.FrameSize;
                 CheckpointStage("retirement-before-record-write");
                 raw.Write(bytes, 0, bytes.Length);
+                _checksums.Metrics?.ObservePhysical(position / PAGE_SIZE * WalChecksum.FrameSize + bytes.Length);
                 CheckpointStage("retirement-after-record-write");
                 result.Root = position + PAGE_SIZE;
                 result.RootCrc = WalRetirement.Crc(bytes);

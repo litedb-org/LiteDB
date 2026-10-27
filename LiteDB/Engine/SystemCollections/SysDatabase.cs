@@ -38,6 +38,7 @@ namespace LiteDB.Engine
                 ["legacyLastPageID"] = (long)_disk.LegacyLastPageID,
                 ["recoveryDiscardedWalBytes"] = RecoveryReport?.DiscardedBytes ?? 0,
                 ["recoveryInvalidWalTail"] = RecoveryReport?.InvalidTail ?? false,
+                ["backgroundCheckpoint"] = this.BackgroundCheckpointDiagnostics(),
 
                 ["currentReadVersion"] = _walIndex.CurrentReadVersion,
                 ["lastTransactionID"] = _walIndex.LastTransactionID,

@@ -24,6 +24,7 @@ namespace LiteDB.Engine
             _engine = engine;
             _state = state;
             _disk = disk;
+            disk.InstallCheckpointMetrics();
             Worker = new AutomaticCheckpointCoordinator(disk, wal, state, checkpoint);
             disk.CheckpointBarrier = new CheckpointBarrier();
             disk.WriteAdmission = new CheckpointWriteAdmission(checkpoint, disk.GetFileLength(FileOrigin.Log));

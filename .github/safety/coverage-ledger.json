@@ -26,6 +26,18 @@
   ],
   "dispositions": [
     {
+      "id": "p1-bg7-additive-worker-compatibility",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-vector-compatibility.py",
+        "tools/VectorCompatibility/Current/Program.cs",
+        "tools/VectorCompatibility/Legacy/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Preserve all existing released-file refusal, conversion, interrupted migration, padding and reclaimed-WAL compatibility cases.",
+      "reason": "Adds worker-stage offline images and genuine pre-worker v6 clean/large dirty inputs to the existing hosted campaign, retaining every previous invocation, refusal mode and byte comparison."
+    },
+    {
       "id": "p1-padding-noop-truncate-checksum-crash-4058733",
       "kind": "corpus-repinned",
       "subjects": [
@@ -91,7 +103,9 @@
     {
       "id": "p1-same-job-benchmark-comparison-budget",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Benchmark verdicts require complete measurement sets, unchanged owner thresholds and independently verified candidate identities; partial or subset measurements cannot pass the Phase 1 gate.",
       "reason": "Optional baseline_ref adds same-job v5/before/after evidence with a 23-minute measurement budget and 29-minute job limit. Default jobs retain their existing rounds, timeouts, workloads and verdicts. Incomplete comparisons fail evidence validation; explicit scenario subsets are report-only. Synthetic comparison tests verify shared-v5 identity, separate before/after binaries, rotating order, bounds and subset verdict refusal. No product tests or safety assertions are removed."
@@ -99,10 +113,12 @@
     {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
-      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6–7 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
+      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6\u20137 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
     },
     {
       "id": "ci-split-engine-capacity",

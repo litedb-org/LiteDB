@@ -64,6 +64,7 @@ namespace LiteDB.Engine
             if (!_checksum.Enabled)
             {
                 _stream.Write(buffer, offset, count);
+                _checksum.Metrics?.ObservePhysical(_stream.Position);
                 return;
             }
             CheckPage(count);
@@ -73,6 +74,7 @@ namespace LiteDB.Engine
             _stream.Position = physical;
             _allocation.Reserve(_stream, physical + WalChecksum.FrameSize);
             _stream.Write(_frame, 0, WalChecksum.FrameSize);
+            _checksum.Metrics?.ObservePhysical(physical + WalChecksum.FrameSize);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
         }
@@ -109,6 +111,7 @@ namespace LiteDB.Engine
             _stream.Position = physical;
             _allocation.Reserve(_stream, aligned);
             _stream.Write(_frame, 0, count);
+            _checksum.Metrics?.ObservePhysical(aligned);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
         }
@@ -139,6 +142,7 @@ namespace LiteDB.Engine
             if (_checksum.Enabled && value % PAGE_SIZE != 0) throw new ArgumentException("WAL length must be page aligned.");
             var length = _checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value;
             _stream.SetLength(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
+            _checksum.Metrics?.ObservePhysical(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
             _allocation.Reset();
             // CryptoStream can forward an empty final write on dispose. Do not
             // let a borrowed stream position re-extend a truncated memory WAL.
@@ -151,7 +155,11 @@ namespace LiteDB.Engine
         private void Pad()
         {
             if (_checksum.Enabled && _checksum.JournalBytes == 0)
-                WalPadding.Pad(_stream, Length / PAGE_SIZE * WalChecksum.FrameSize);
+            {
+                var bytes = Length / PAGE_SIZE * WalChecksum.FrameSize;
+                WalPadding.Pad(_stream, bytes);
+                _checksum.Metrics?.ObservePhysical(WalPadding.AlignedLength(bytes));
+            }
         }
 
         public override void Flush() { Pad(); _stream.Flush(); }

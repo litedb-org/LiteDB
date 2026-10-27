@@ -17,6 +17,7 @@ namespace LiteDB.Engine
         internal WalRetirement Retirement { get; set; } = new WalRetirement();
         internal bool Enabled => Salt != null;
         internal long JournalBytes { get; set; }
+        internal BackgroundCheckpointMetrics Metrics { get; set; }
         internal long LegacyConfirmationPosition { get; set; } = -1;
         internal long LastConfirmedPosition { get; private set; } = -PAGE_SIZE;
         internal long Sequence { get; set; }

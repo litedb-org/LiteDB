@@ -268,3 +268,38 @@ controls. Keep CP0 controls, durable/group scaling, bulk/query regressions and
 <=1.05x point lookups. Use same-job interleaved pinned binaries and repeated noisy
 macOS runs. A foreground-only pass establishes latency relocation; it cannot
 establish the end-to-end gate. This document contains no Candidate C measurement.
+
+## Compatibility and read-only diagnostics (slice 9)
+
+`$database.backgroundCheckpoint` adds scalar observations: `enabled`, `state`,
+`logicalBacklogPages`, `peakLogicalPages`, `peakPhysicalWalBytes`,
+`admissionClosed`, `writers`, `admissionWaitCount`, `admissionWaitMilliseconds`,
+`requestCount`, `passCount`, `activeMilliseconds` and `lastFailure` (at most 512
+characters). Disabled/fallback engines report Disabled, zero activity and null
+peaks. Snapshots of separate fields may describe adjacent instants. They neither
+request nor join work nor invoke worker hooks. Ordinary query reader disposal
+still sends its existing state-only unpin notification. After terminal stop,
+normal query admission fails with the retained cause; diagnostics do not bypass
+that guard.
+
+Eligible lifetimes initialize peak accounting from existing WAL EOF once. Known
+successful frame, combined-padding, journal, retirement and SetLength extents
+update bounded atomic maxima without new per-frame length syscalls or allocation.
+Physical bytes include encryption's preamble, padding and the temporary header
+journal, and exclude KEEP_SIZE filesystem reservations; logical peaks retain page
+units. Maxima last for one service incarnation, survive WAL salt resets, and reset
+on replacement. Failed/partial I/O can have an unknown physical extent and stops
+the engine: these counters do not certify the size of a failed write. Querying
+peaks is observational; their overhead is included in candidate measurements.
+
+The existing hosted vector-compatibility campaign now uses actual NuGet 5.0.21
+read/write/rebuild/upgrade refusals on offline aligned queued, journal-flushed,
+completed salt-publication/footer and reader-pinned partial-retirement copies,
+plain and encrypted. Both sources must remain byte-identical. Current-engine
+read-only and writable recovery repeats three times, checking exact indexed
+payloads and an unrelated sentinel. A separate producer compiled against pinned
+pre-worker Phase 1 `197b6b7f832488cfd812d374398fb7f85095c06d` creates clean and
+600-transaction dirty-WAL inputs. These reopen without rebuild/backups. Torn or
+in-progress writes retain the existing crash-recovery contract; aligned stable
+copies do not establish released-reader preservation for arbitrary torn tails.
+Production remains OFF pending integrated hosted safety and measurement evidence.

@@ -26,12 +26,14 @@ namespace LiteDB.Engine
             if (ChecksumsEnabled)
             {
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
+                _checksums.Metrics?.ObservePhysical(log.Position);
                 // A persisted footer must never depend on padding that existed
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
             this.CheckpointStage("checkpoint-before-journal-write");
             HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier, verifiedBody);
+            _checksums.Metrics?.ObservePhysical(log.Position);
             this.CheckpointStage("checkpoint-after-journal-write");
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);

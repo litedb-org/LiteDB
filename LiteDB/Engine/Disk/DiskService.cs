@@ -53,6 +53,7 @@ namespace LiteDB.Engine
             _sharedDurability = settings.SharedDurability;
             _logMayBuffer = settings.LogStream != null && !(settings.LogStream is MemoryStream);
             _signals = settings.CoordinationSignals;
+            _encryptedWal = settings.Password != null;
 
             try
             {

@@ -65,6 +65,10 @@ namespace LiteDB.Engine
         internal bool IsWorkerThread => ReferenceEquals(Thread.CurrentThread, Volatile.Read(ref _thread));
 
         internal long RequestEpoch { get { lock (_sync) return _epoch; } }
+        internal string LastFailure
+        {
+            get { lock (_sync) { var message = _failure?.Message; return message?.Length > 512 ? message.Substring(0, 512) : message; } }
+        }
 
         internal void Request(long incarnation)
         {
@@ -147,6 +151,7 @@ namespace LiteDB.Engine
 
         private void Queue()
         {
+            _disk.CheckpointMetrics?.Request();
             _epoch++;
             _pending = true;
             Monitor.PulseAll(_sync);
@@ -206,7 +211,9 @@ namespace LiteDB.Engine
                     Reachability.FaultPoint("BeforeCheckpointWorkerPass");
                     BeforeCheckpointWorkerPass?.Invoke();
 #endif
-                    _wal.TryAutoCheckpoint();
+                    var started = System.Diagnostics.Stopwatch.GetTimestamp();
+                    try { _wal.TryAutoCheckpoint(); }
+                    finally { _disk.CheckpointMetrics?.Pass(started); }
 #if DEBUG || TESTING
                     Reachability.FaultPoint("AfterCheckpointWorkerPass");
                     AfterCheckpointWorkerPass?.Invoke();

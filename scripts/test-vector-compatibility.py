@@ -3,6 +3,7 @@
 import pathlib
 import subprocess
 import tempfile
+import shutil
 
 root = pathlib.Path(__file__).resolve().parent.parent
 projects = root / "tools" / "VectorCompatibility"
@@ -16,6 +17,25 @@ def run(engine, *arguments):
 
 
 with tempfile.TemporaryDirectory(prefix="litedb-vector-compatibility-") as directory:
+    run("Current", "background-create", directory)
+    run("Legacy", "background", directory)
+    run("Current", "background-verify", directory)
+    # Genuine pre-worker production writer, pinned before the feature existed.
+    revision = "197b6b7f832488cfd812d374398fb7f85095c06d"
+    older = pathlib.Path(directory) / "pre-worker"
+    subprocess.run(["git", "fetch", "--no-tags", "origin", revision], cwd=root, check=True, timeout=120)
+    subprocess.run(["git", "worktree", "add", "--detach", str(older), revision], cwd=root, check=True, timeout=120)
+    try:
+        probe = pathlib.Path(directory) / "input-probe"
+        shutil.copytree(root / "tools/BackgroundCheckpointInput", probe, ignore=shutil.ignore_patterns("bin", "obj"))
+        subprocess.run([
+            "dotnet", "run", "--project", str(probe / "Input.csproj"), "-c", "Release",
+            "-p:TestingEnabled=false", "-p:GitVersionEnabled=false", "-p:TargetFrameworks=net8.0",
+            "-p:CandidateProject=" + str(older / "LiteDB/LiteDB.csproj"), "--", directory,
+        ], cwd=root, check=True, timeout=300)
+        run("Current", "background-before-verify", directory)
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", str(older)], cwd=root, check=True, timeout=120)
     run("Current", "padding-create", directory)
     run("Legacy", "padding", directory)
     run("Current", "padding-verify", directory)

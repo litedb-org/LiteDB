@@ -17,6 +17,7 @@ namespace LiteDB.Engine
         private int _writers;
         private bool _pressure, _closed;
         private Exception _failure;
+        private long _waitCount, _waitTicks;
 
         internal CheckpointWriteAdmission(int checkpoint, long logicalBytes)
         {
@@ -25,6 +26,8 @@ namespace LiteDB.Engine
 
         internal int Writers { get { lock (_sync) return _writers; } }
         internal bool UnderPressure { get { lock (_sync) return _pressure; } }
+        internal long WaitCount { get { lock (_sync) return _waitCount; } }
+        internal double WaitMilliseconds { get { lock (_sync) return _waitTicks * 1000.0 / Stopwatch.Frequency; } }
 
 #if DEBUG || TESTING
         internal Action BeforeCheckpointWriterWait;
@@ -33,6 +36,7 @@ namespace LiteDB.Engine
         internal Permit Acquire(TimeSpan timeout, bool canWait, Action validate)
         {
             var started = Stopwatch.GetTimestamp();
+            var waited = false;
             lock (_sync)
             {
                 while (true)
@@ -59,7 +63,10 @@ namespace LiteDB.Engine
                     LiteDB.Utils.Reachability.FaultPoint("BeforeCheckpointWriterWait");
                     BeforeCheckpointWriterWait?.Invoke();
 #endif
-                    Monitor.Wait(_sync, (int)Math.Min(Math.Ceiling(remaining), 100));
+                    if (!waited) { waited = true; _waitCount++; }
+                    var beforeWait = Stopwatch.GetTimestamp();
+                    try { Monitor.Wait(_sync, (int)Math.Min(Math.Ceiling(remaining), 100)); }
+                    finally { _waitTicks += Stopwatch.GetTimestamp() - beforeWait; }
                 }
             }
         }

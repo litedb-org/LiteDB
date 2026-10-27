@@ -10,6 +10,11 @@ namespace VectorCompatibility.Current
     {
         private static void Main(string[] args)
         {
+            if (args[0].StartsWith("background-", StringComparison.Ordinal))
+            {
+                BackgroundCheckpointCompatibility.Run(args[0], args[1]);
+                return;
+            }
             if (args[0] == "padding-create" || args[0] == "padding-verify")
             {
                 WalPaddingCompatibility.Run(args[1], args[0] == "padding-create");
