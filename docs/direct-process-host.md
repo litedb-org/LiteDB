@@ -8,7 +8,7 @@ One physical file has one live storage engine per loaded LiteDB assembly.
 Opening a compatible file-backed `LiteDatabase` or `LiteEngine` attaches an
 engine facade: it references the same storage services and has a fixed owner
 view of the transaction monitor. The registry strongly retains each published
-host by physical identity until final release, with canonical data/WAL paths
+host by its native admission entry until final release, with canonical data/WAL paths
 and a facade reference count. This keeps pending facade finalizers from
 allowing a second core while the old streams remain open. Finalizers enqueue
 release to a normal-thread reaper; they never wait for storage teardown.
@@ -18,6 +18,12 @@ that gate, so one file's slow teardown does not block unrelated files. Same-file
 openers wait for final close outside the registry gate; recursive opening from
 that closing thread refuses. The entry and native admission survive until
 engine disposal finishes. New-host construction still uses the registry gate.
+The native entry is stable while rebuild replaces its locked physical file.
+Attach therefore still finds the maintaining host after the replacement inode
+is published; there is no separate host identity rekey. Native admission keeps
+the physical identity and canonical path checks, rejects hard links and binds
+symlink aliases to the same entry. Other threads serialize through the native
+gate across its identity swap; all attaches refuse until host maintenance ends.
 Custom data/log/temp streams, memory/temp databases and the experimental
 coordinator's internally owned engines retain their previous path.
 
@@ -192,6 +198,14 @@ byte-preserving opens, and both directions of cross-process mode exclusion.
 opens and commits, retains same-file native exclusion, injects a close-checkpoint
 failure, and checks both files through repeated recovery. Existing same-file
 wait/reopen and finalizer tests remain unchanged.
+`DirectProcessHostRekey_Tests` retains a maintenance lease across a completed
+core rebuild (a deterministic regression that fails on `45b85dc2e`), attempts
+attachment at every native rekey step, and forces second-thread attachment
+after the rebuilding facade refreshes its services but before maintenance
+releases. Plain/encrypted and canonical/alias cases repeat rebuild, test
+completion-exception cleanup, and preserve both writers' acknowledged payloads,
+secondary-index results and unrelated data through two cold reopens. Unix uses
+a file symlink; Windows and Framework use an equivalent dotted path spelling.
 `DirectHostAllocation_Tests` interleaves facade-owned allocations with a peer
 header commit, checking commit/rollback, full payloads and indexes through two
 reopens and further allocations.

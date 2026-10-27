@@ -1098,6 +1098,11 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "Reproduces unsupported sync with follower confirmation paused before its completion lookup; scans and both indexes show every acknowledged row through later writes, checkpoint and repeated reopen."
         }
       ]
     },
@@ -1668,6 +1673,11 @@
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Failed_completion_after_downgrade_stops_all_facades_without_acknowledging_the_follower",
+          "model": "exception",
+          "proves": "A pending dependency still propagates managed flush failure after downgrade, stops all facades and refuses follower acknowledgement; repeated recovery preserves the earlier acknowledged rows."
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
@@ -1697,6 +1707,25 @@
         }
       ],
       "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-ticket-completion",
+      "protocol": "WAL group completion",
+      "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions", "model": "exception", "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."},
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "A follower paused before ticket lookup completes after unsupported sync downgrades the leader; all facades immediately see acknowledged payloads and indexes, with no remaining read or checkpoint pins."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Zero_frame_results_errors_and_queries_complete_dependencies_after_downgrade",
+          "model": "exception",
+          "proves": "A paused follower releases collection locks before downgrade; zero-frame commits, automatic/explicit constraint errors and standalone FOR UPDATE complete its dependency before returning, flush no new frames and recover exact indexed payloads twice."
+        }
+      ],
+      "gap": "Deterministic exception/interleaving and saved OS-cache image evidence; no device reset or power-loss guarantee on storage that rejects sync."
     }
   ],
   "injectors": [
@@ -1828,6 +1857,11 @@
           "test": "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
           "model": "exception",
           "proves": "Failed initialization releases the file handle and allows a retry."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "EINVAL and EROFS downgrade while a confirmed follower is paused; zero-error controls retain device durability and every acknowledged row is immediately visible on every facade."
         }
       ]
     },
@@ -2033,6 +2067,8 @@
     "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
     "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
+    "BeforeMaintenanceRelease": "Observes successful Direct maintenance after facade services refresh and before releasing its per-host lease, outside the registry/native gates. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release forces a second-thread attach refusal and exception cleanup; no persistent transition is added.",
+    "ReplacementStage": "Observes each in-memory native identity rekey step under NativeAdmission.Gate; no persistent transition is added. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release attempts reentrant attachment before rekey, after old identity removal, after replacement assignment and after publication. Other-thread admission cannot interleave within this gate.",
     "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled."
   },
   "unhookedTransitions": [
