@@ -152,10 +152,18 @@ versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside th
 vector compatibility script. See `docs/compact-document-storage.md` for layout,
 bounds, BSON rebuild options, and benchmark results.
 
-Modern header-journal recovery also validates the original primary before selecting a
-replacement header. A surviving modern format identity or exact nonzero journal salt
-permits torn-header recovery; a legacy primary with no such binding must refuse before
-repair or WAL truncation. See [modern journal pair tests](../../LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs).
+Modern header-journal recovery validates the original primary before selecting a
+replacement header. Identifiable v8/v9 primaries and checksum-valid primaries with a
+different immutable creation identity refuse before repair or WAL truncation. A tear
+can erase both modern identity and salt; then recovery requires the validated backup
+and footer, a nonzero journal generation, verified WAL frame generations, checksums
+and transaction witnesses, and the bound physical WAL prefix. See
+[modern journal pair tests](../../LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs),
+[generation refusal tests](../../LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs) and
+[repeated torn repair tests](../../LiteDB.Tests/Engine/PromotionJournalAuthority_Tests.cs).
+This assumes ordered per-file torn writes with the durable journal retained. CRCs
+and generation salts do not authenticate arbitrary substituted files whose primary
+identity was also independently destroyed.
 
 ## Migration and failure questions
 

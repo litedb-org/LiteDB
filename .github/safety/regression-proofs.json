@@ -259,6 +259,19 @@
         "LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs#Modern_journal_beside_legacy_primary_refuses_before_repair_or_truncation",
         "LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs#Matching_modern_journal_recovers_committed_rows_and_modern_collection_twice"
       ]
+    },
+    {
+      "repro": "Issue_3137_TornPromotionJournal",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "5d3cc5c248b9fa40f6793783b70a9780ebedc773",
+        "reason": "R3 introduced this regression only in PR 3137; untouched dev b3c440623 recovers both original fuzz seeds.",
+        "pr": 3137
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Engine/PromotionJournalAuthority_Tests.cs#Durable_journal_recovers_erased_identity_after_two_torn_repairs",
+        "fuzz:compact-power-loss"
+      ]
     }
   ]
 }

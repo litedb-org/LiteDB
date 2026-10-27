@@ -113,7 +113,7 @@ namespace LiteDB.Tests.Regressions
             Filename = filename, Password = password, ReadOnly = readOnly, LegacyIndexScan = readOnly
         });
 
-        private static void Capture(string filename, string password, out byte[] legacy, out byte[] modern, out byte[] wal)
+        internal static void Capture(string filename, string password, out byte[] legacy, out byte[] modern, out byte[] wal)
         {
             legacy = ConvertedWalFiles.Entry("LegacyWal_5_0_21.zip", password == null ? "plain.db" : "encrypted.db");
             File.WriteAllBytes(filename, legacy);
