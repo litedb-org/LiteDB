@@ -253,12 +253,11 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
-        // No mapped backend has a complete passing hosted qualification run:
-        // Darwin reaches an unavailable libc symbol, Windows reaches the Unix
-        // allocator/wake imports, and both Linux architectures have a shared
-        // partition timeout. Keep mapped Shared refused until a full matrix
-        // passes on a platform again.
-        internal static bool IsPlatformQualified => false;
+        // Linux x64 qualification resumes after separating the process-death
+        // matrices that exhausted the shared session's cumulative time budget.
+        // Other backends remain refused until their own full qualification.
+        internal static bool IsPlatformQualified => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+            RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
         private static void RequirePlatform(string path)
         {
