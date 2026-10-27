@@ -9,6 +9,10 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "wal-before-ticket-completion": {
+      "gate": "advisory",
+      "reason": "GroupCommitUnsupported_Tests forces unsupported grouped sync and pauses tickets at completion; fuzz smoke does not force this capability downgrade and xUnit marker counts are not collected."
+    },
     "before-candidate-republish": {
       "gate": "advisory",
       "reason": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not."

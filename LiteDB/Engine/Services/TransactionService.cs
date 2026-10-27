@@ -327,7 +327,7 @@ namespace LiteDB.Engine
             }
 
             this.ReleaseCommitSnapshots();
-            if (_transPages.CommitTicket != 0) _disk.CommitGroup?.EnsureDurable(_transPages.CommitTicket);
+            _disk.CompleteCommitTicket(_transPages.CommitTicket);
             _state = TransactionState.Committed;
         }
 
