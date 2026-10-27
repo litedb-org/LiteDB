@@ -268,8 +268,8 @@ namespace LiteDB
                         rightExpression = Expression.Constant(Evaluate(rightExpression));
                 }
             }
-            return Group(Binary(Operator(node.NodeType), AsPredicate(leftExpression, logical),
-                AsPredicate(rightExpression, logical), _context, _parameters));
+            return LinqComparisonTranslator.Translate(node, Operator(node.NodeType), AsPredicate(leftExpression, logical),
+                AsPredicate(rightExpression, logical), _context, _parameters);
         }
 
         private bool TryTranslateEnumEquals(MethodCallExpression node, out BsonExpression result)

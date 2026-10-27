@@ -20,6 +20,24 @@ indexes compatible. The `ANY =` to `IN` optimizer rewrite also composes nodes
 directly. SQL, string predicates, and persisted index definitions retain their
 textual parser entry points.
 
+## LINQ numeric and nullable comparisons
+
+Floating-point unary minus preserves signed zero, infinities and NaN, including
+nested negation and nullable float/double operands. A reciprocal can distinguish
+`-0.0` from `+0.0`. Numeric comparisons still use BSON's total ordering: NaN equals
+NaN and sorts below finite numbers, rather than following CLR IEEE comparison
+operators. This negation fix does not change that comparison contract.
+
+LINQ lifted `<`, `<=`, `>` and `>=` return false when either operand is null.
+**Behavior change from 5.0.21:** nullable comparisons such as `x.N < 5` used to
+include null rows because BSON null sorts below numbers; LINQ now excludes them,
+matching C# lifted comparisons. Nullable `==` and `!=` retain their existing null
+semantics (two nulls equal, exactly one null unequal). Explicit expression-tree
+comparisons with `liftToNull: true` return null instead. Plain member comparisons
+retain index-planning terms; computed operands are evaluated once before applying
+the null rule. Raw BSON expressions, SQL and persisted expression text keep their
+existing total-order null comparisons.
+
 ## Reusing a compiled expression
 
 `BsonExpression.Bind(BsonDocument)` creates an independently bound expression
