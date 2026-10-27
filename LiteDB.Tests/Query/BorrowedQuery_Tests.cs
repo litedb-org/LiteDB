@@ -290,5 +290,29 @@ namespace LiteDB.Tests.QueryTest
 
         private static LiteDatabase CreateLegacyDatabase() =>
             DatabaseFactory.Create(connectionString: "Filename=:memory:;Compact Storage=Legacy");
+
+        [Theory]
+        [InlineData("count", 0)]
+        [InlineData("projection", 0)]
+        [InlineData("aggregate", 72)]
+        [InlineData("sort", 5)]
+        public void All_matching_prefix_keeps_borrowed_execution_for_reduced_materialization(string shape, int materialized)
+        {
+            using var db = CreateLegacyDatabase();
+            var rows = db.GetCollection("rows");
+            rows.InsertBulk(FullDocumentScan_Tests.Documents());
+            BorrowedQueryDiagnostics.Reset();
+            switch (shape)
+            {
+                case "count": rows.Count("Score >= 0").Should().Be(72); break;
+                case "projection": rows.Query().Where("Score >= 0").Select("{ score: Score }").ToArray().Should().HaveCount(72); break;
+                case "aggregate": rows.Query().Where("Score >= 0").Select("{ total: SUM(*.Score) }")
+                    .Single()["total"].AsInt32.Should().Be(72 * 73 / 2); break;
+                case "sort": rows.Query().Where("Score >= 0").OrderBy("Score", Query.Descending).Limit(5)
+                    .ToArray().Select(d => d["Score"].AsInt32).Should().Equal(72, 71, 70, 69, 68); break;
+            }
+            BorrowedQueryDiagnostics.BorrowedPredicateExecutions.Should().Be(72);
+            BorrowedQueryDiagnostics.DocumentsMaterialized.Should().Be(materialized);
+        }
     }
 }
