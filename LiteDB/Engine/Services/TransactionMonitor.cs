@@ -97,6 +97,17 @@ namespace LiteDB.Engine
             if (owner != null) _owner = owner;
         }
 
+        // Header writes and host maintenance must check the foreign facade rule
+        // before applying their own transaction or multiple-facade restrictions.
+        internal void EnsureWriteAllowed()
+        {
+            this.ThrowIfDisposed();
+            var transaction = _slot.Value;
+            if (transaction != null && transaction.State != TransactionState.Disposed &&
+                !ReferenceEquals(transaction.FacadeOwner, _owner))
+                throw LiteException.SameThreadTransaction();
+        }
+
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();

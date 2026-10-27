@@ -67,7 +67,7 @@ namespace LiteDB
             {
                 if (opened)
                 {
-                    try { this.ReconcileMappedTransaction(); }
+                    try { this.ReconcileTransaction(); }
                     finally { CloseDatabase(use); }
                 }
                 throw;
@@ -177,7 +177,7 @@ namespace LiteDB
         /// each resource before clearing it; stale result cleanup cannot release a
         /// successor's generation. Abandon/dispose already drain native holds.
         /// </summary>
-        private void EndTransaction(bool releaseHold)
+        private void EndTransaction(bool releaseHold, bool waitForStopped = true)
         {
             var use = _transactionUse;
             var local = Interlocked.Exchange(ref _localTransaction, null);
@@ -188,7 +188,7 @@ namespace LiteDB
             _transactionThread = null;
             try
             {
-                if (releaseHold && running) this.CloseDatabase(use, hold: true);
+                if (releaseHold && running) this.CloseDatabase(use, hold: true, waitForStopped: waitForStopped);
             }
             finally
             {
@@ -204,11 +204,11 @@ namespace LiteDB
 
         // Operations can implicitly abort or Stop the core. Reconcile before the
         // operation returns, while its extra native use still protects teardown.
-        private void ReconcileMappedTransaction()
+        private void ReconcileTransaction(bool waitForStopped = true)
         {
-            if (_localTransactions == null || !_transactionRunning || _engine == null ||
+            if (!_transactionRunning || _engine == null ||
                 (!_engine.StorageUncertain && _engine.HasActiveTransaction)) return;
-            this.EndTransaction(releaseHold: true);
+            this.EndTransaction(releaseHold: true, waitForStopped: waitForStopped);
         }
 
         #endregion

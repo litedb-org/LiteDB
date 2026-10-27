@@ -15,13 +15,17 @@ namespace LiteDB.Client.Shared
     {
         internal const long Admission = long.MaxValue - 4096;
         internal const long Family = Admission + 1;
+        internal const long ReadOnlyDirect = Admission + 2;
+        // Keep legacy family and Phase 1 read-only marker offsets stable.
+        // The mapped family must not publish a read-only Direct marker.
+        internal const long MappedFamily = Admission + 3;
         private readonly SafeFileHandle _handle;
         private readonly SafeFileHandle _lockHandle;
         internal string Identity { get; }
         internal string Path { get; }
         internal bool ReadOnly { get; }
 
-        internal DatabaseFileLock(string filename, bool readOnly, bool create, string canonicalPath = null, bool qualify = true)
+        internal DatabaseFileLock(string filename, bool readOnly, bool create, string canonicalPath = null, bool qualify = true, bool readOnlyFallback = false)
         {
             _handle = DatabaseFileIdentity.Open(filename, readOnly, create);
             ReadOnly = readOnly;
@@ -30,9 +34,36 @@ namespace LiteDB.Client.Shared
                 Identity = DatabaseFileIdentity.Read(_handle);
                 Path = canonicalPath ?? DatabaseFileIdentity.CanonicalPath(filename);
                 if (qualify) DatabaseVolumePolicy.IsNative(_handle, Path, allowFallback: false);
-                _lockHandle = Darwin ? DatabaseLockFile.Open(Path, Identity, readOnly) : _handle;
+                try { _lockHandle = Darwin ? DatabaseLockFile.Open(Path, Identity, readOnly) : _handle; }
+                catch (Exception error) when (Darwin && readOnlyFallback &&
+                    DatabaseLockFile.IsPermissionFailure(error) && DatabaseLockFile.IsImmutable(_handle))
+                {
+                    // With no writable data mode bits, stable OS permissions fence
+                    // writers. The data-inode read lock preserves read-only access
+                    // without creating state in an unwritable database directory.
+                    _lockHandle = _handle;
+                }
             }
             catch { _handle.Dispose(); throw; }
+        }
+
+        internal void Admit(bool shared)
+        {
+            if (!DatabaseFileIdentity.Windows && ReadOnly && !shared)
+            {
+                // Publish the marker before probing other shared admissions. A
+                // racing Shared opener publishes Admission before probing the marker:
+                // at least one refuses, and neither can publish an incompatible core.
+                this.Lock(ReadOnlyDirect, exclusive: false);
+                this.Lock(Admission, exclusive: false);
+                if (this.Conflicts(Admission)) throw new IOException("Another native admission is active.");
+            }
+            else
+            {
+                this.Lock(Admission, exclusive: !shared);
+                if (shared && !DatabaseFileIdentity.Windows && this.Conflicts(ReadOnlyDirect))
+                    throw new IOException("A read-only Direct admission is active.");
+            }
         }
 
         internal void Lock(long offset, bool exclusive)

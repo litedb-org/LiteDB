@@ -6,7 +6,11 @@ requires all old executables stopped: unmodified old clients cannot be fenced by
 a protocol they do not implement. No database-format change or rebuild is needed.
 
 Both modes use NativeAdmission and DatabaseFileLock.Admission on the actual data
-file: Direct exclusive, Shared shared, for the full physical participant lifetime.
+file: writable Direct exclusive, Shared shared, for the full physical participant
+lifetime. Unix read-only Direct uses the marker/admission handshake described in
+[native admission](direct-process-host.md#native-admission); both Shared families
+publish admission before checking that marker, using disjoint family bytes as
+specified in [ownership transitions](shared-one-file-ownership.md).
 The path, physical identity, sidecar namespace and native-volume policies are the
 Direct base's policies. Arbitrary streams, memory and temp are not pooled.
 

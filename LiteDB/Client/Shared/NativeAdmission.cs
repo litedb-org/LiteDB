@@ -25,6 +25,11 @@ namespace LiteDB.Client.Shared
 
         private NativeAdmission(Entry entry) { _entry = entry; }
         internal string Identity => _entry.File.Identity;
+        internal Entry RegistryKey => _entry;
+
+#if DEBUG || TESTING
+        internal static Action<string, string> ReplacementStage;
+#endif
 
         internal static bool IsFile(EngineSettings settings) => settings.DataStream == null &&
             settings.LogStream == null && settings.TempStream == null &&
@@ -68,13 +73,15 @@ namespace LiteDB.Client.Shared
                 DatabaseFileLock file = null;
                 try
                 {
-                    // Unix exclusive OFD admission requires a writable descriptor, even
-                    // for a read-only Direct engine. Windows LockFileEx needs read access.
+                    // Read-only Direct uses a read descriptor and a two-range
+                    // handshake on Unix; Windows can lock exclusively with GENERIC_READ.
                     try
                     {
-                        // Explicit upgrade can replace v7 before the read-only
-                        // connection opens; its admission must support exclusive OFD.
-                        file = new DatabaseFileLock(settings.Filename, shared && settings.ReadOnly && !settings.Upgrade, false, settings.Filename);
+                        // Explicit Shared upgrade needs exclusive OFD admission;
+                        // ordinary read-only opens retain a read descriptor.
+                        file = new DatabaseFileLock(settings.Filename,
+                            settings.ReadOnly && (!shared || !settings.Upgrade), false, settings.Filename,
+                            readOnlyFallback: !shared && settings.ReadOnly);
                     }
                     catch (FileNotFoundException) when (!settings.ReadOnly && create)
                     {
@@ -91,14 +98,14 @@ namespace LiteDB.Client.Shared
                         entry.References++;
                         return reference;
                     }
-                    file.Lock(DatabaseFileLock.Admission, exclusive: !shared);
+                    file.Admit(shared);
                     RebuildRecovery.EnsureAvailable(settings);
                     if (shared)
                     {
                         DatabasePathLock.Claim(file, settings.Filename);
                         ClaimFamily(file, settings.SharedOneFile);
                     }
-                    using (var probe = new DatabaseFileLock(settings.Filename, true, false, settings.Filename, qualify: false))
+                    using (var probe = new DatabaseFileLock(settings.Filename, true, false, settings.Filename, qualify: false, readOnlyFallback: !shared && settings.ReadOnly))
                         if (probe.Identity != file.Identity || !probe.Conflicts(DatabaseFileLock.Admission))
                             throw new IOException("Filesystem did not enforce native database admission.");
                     entry = new Entry { File = file, Path = settings.Filename, Shared = shared, OneFile = settings.SharedOneFile, References = 1 };
@@ -117,8 +124,8 @@ namespace LiteDB.Client.Shared
         private static void ClaimFamily(DatabaseFileLock file, bool oneFile)
         {
             // Claim before probing: unlike concurrent claimants cannot both pass.
-            file.Lock(DatabaseFileLock.Family + (oneFile ? 1 : 0), false);
-            if (file.Conflicts(DatabaseFileLock.Family + (oneFile ? 0 : 1)))
+            file.Lock(oneFile ? DatabaseFileLock.MappedFamily : DatabaseFileLock.Family, false);
+            if (file.Conflicts(oneFile ? DatabaseFileLock.Family : DatabaseFileLock.MappedFamily))
                 throw new IOException("Incompatible Shared coordination ABI family; stop all participants before switching.");
         }
 
@@ -240,10 +247,22 @@ namespace LiteDB.Client.Shared
                             using var live = new DatabaseFileLock(_entry.Path, true, false);
                             if (live.Identity == _replacement.Identity)
                             {
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "before-rekey");
+#endif
                                 Entries.Remove(_entry.File.Identity);
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "old-identity-removed");
+#endif
                                 _entry.File.Dispose();
                                 _entry.File = _replacement;
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "replacement-assigned");
+#endif
                                 Entries.Add(_replacement.Identity, _entry);
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "replacement-published");
+#endif
                                 if (_entry.Shared)
                                 {
                                     DatabasePathLock.Claim(_replacement, _entry.Path);

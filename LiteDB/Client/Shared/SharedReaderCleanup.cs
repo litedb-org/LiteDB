@@ -1,13 +1,13 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Shared
 {
-    // The handle roots the resource graph, never the escaping SharedDataReader.
-    // In particular, inner reader/page finalizers must not run before disposal.
-    // Only engine-created readers use this owner: their callbacks cannot capture
-    // the escaping wrapper. Public caller-supplied callbacks have no such contract.
+    // Only callback-free page/lease state is rooted. The wrapper owns the cursor
+    // graph until its finalizer publishes this record; user callbacks in that
+    // graph may point back to the wrapper without making it a permanent GC root.
     internal sealed class SharedReaderCleanup : IDisposable
     {
         private static SharedReaderCleanup _pending;
@@ -20,6 +20,9 @@ namespace LiteDB.Client.Shared
         private readonly Func<bool> _retains;
         private GCHandle _root;
         private int _disposed;
+#if TESTING
+        internal Func<WaitCallback, object, bool> DispatchOverride;
+#endif
 
         private static Timer CreateReaper()
         {
@@ -30,14 +33,14 @@ namespace LiteDB.Client.Shared
         }
 
         internal SharedReaderCleanup(IBsonDataReader reader, Action release,
-            string ns = null, object connection = null, Func<bool> retains = null)
+            string ns = null, object connection = null, Func<bool> retains = null, System.IO.FileStream[] leaseFiles = null)
         {
             _reader = reader;
             _release = release;
             _namespace = ns;
             _connection = connection;
             _retains = retains;
-            _root = GCHandle.Alloc(this);
+            _root = GCHandle.Alloc(new object[] { SharedReaderResources.Preserve(reader), leaseFiles });
             GC.KeepAlive(Reaper);
         }
 
@@ -63,9 +66,29 @@ namespace LiteDB.Client.Shared
                 // A release can block on a connection gate or file I/O. Dispatch
                 // every owner independently so it cannot strand the rest of this
                 // batch. Do not flow a draining caller's ambient context either.
-                ThreadPool.UnsafeQueueUserWorkItem(Reap, pending);
+                if (!TryDispatch(pending))
+                {
+                    // Keep the resource root and retry on the existing periodic timer.
+                    // Framework can return false after queueing; Dispose's atomic
+                    // guard makes a later duplicate callback harmless.
+                    pending.Abandon();
+                }
                 pending = next;
             }
+        }
+
+        private static bool TryDispatch(SharedReaderCleanup owner)
+        {
+            try
+            {
+#if TESTING
+                Reachability.FaultPoint("DispatchOverride");
+                var dispatch = owner.DispatchOverride;
+                if (dispatch != null) return dispatch(Reap, owner);
+#endif
+                return ThreadPool.UnsafeQueueUserWorkItem(Reap, owner);
+            }
+            catch (Exception) { return false; }
         }
 
         private static void Reap(object state)

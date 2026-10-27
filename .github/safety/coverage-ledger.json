@@ -42,6 +42,40 @@
       "reason": "Replace the obsolete x64-only gate with the production qualification predicate on Linux, making the unchanged safety cases eligible whenever ARM64 is qualified. The kernel probe independently expects aarch64 futex syscall 98 or x64 syscall 202 while preserving the exact mapped address and shared FUTEX_WAIT operation checks. ARM64 remains refused until complete hosted execution evidence is available; the integration seam asserts repeated refusal without storage mutation on unqualified targets and checks both attribute gates. No test, assertion, fault cut or timeout is removed."
     },
     {
+      "id": "p3fx2-shared-retry-proof-guard-rename",
+      "kind": "proof-guard-removed",
+      "subjects": ["Issue_3094_SharedRetryWriterRelease"],
+      "disposition": "relocated",
+      "invariant": "Transaction retry must release obsolete Shared writer ownership, preserve active transaction guards, and allow other threads and processes to progress after completion.",
+      "reason": "Repair the stale permanentGuard reference left by d4713d40bf382baf87c3f18498e85feb5bc33fb7. P3-FX F2 renamed and strengthened the failed-registration test to require immediate release after implicit abort, rather than retain an already-ended transaction's hold. The existing p3fx-aborted-retry-releases-legacy-ownership disposition records that behavior correction; retry, rollback, peer progress and cold data/index/sentinel assertions remain. No test or known-bad proof pin changes here.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership"
+      ]
+    },
+    {
+      "id": "p3fx-fork-ci-newcomer-acquisition-evidence",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Production performance evidence is CI-only, uses isolated before/after libraries, keeps durability modes and runtimes separate and verifies the resulting database independently; the ordinary benchmark gate remains exhaustive.",
+      "reason": "Add a separately selected, fork-only Linux x64 job with a finite 20-minute job/15-minute process budget and error on missing evidence. Existing comparison, preattached tenure and open/close jobs remain available. The new input excludes the unrelated comparison job only when explicitly requested. Identical candidate timing programs measure fresh process attachments against df6b16f80 and the fixed candidate, with positive CHECKPOINT, real writer admission, raw p50/p99 samples and cold row/index/sentinel checks. Fake-worker unit tests validate ordering without running measurements locally.",
+      "coveredBy": [".github/scripts/test_shared_newcomer.py"]
+    },
+    {
+      "id": "p3fx-aborted-retry-releases-legacy-ownership",
+      "kind": "test-removed",
+      "subjects": ["LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"],
+      "disposition": "replaced",
+      "invariant": "A failed retry Begin must not create an extra native hold, discard a still-active transaction, or prevent another thread from making progress after completion.",
+      "reason": "Renamed and strengthened the existing encrypted/plain, pinned/unpinned retry test for the corrected implicit-abort lifetime. It now requires zero obsolete transaction holds immediately after abort and after failed registration, installs the same registration fault on the reopened core, and retains successful retry, rollback, foreign-thread progress and exact cold data/index/sentinel checks. The old expectation of one hold after an already-ended inner transaction is the confirmed stale-ownership defect, not a supported active-transaction invariant.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Failed_input_returns_transaction_ownership_before_any_outer_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Stopped_query_releases_transaction_at_initial_or_streamed_read"
+      ]
+    },
+    {
       "id": "p3j-remove-experimental-same-thread-wait-option",
       "kind": "test-removed",
       "subjects": [

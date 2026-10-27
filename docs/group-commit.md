@@ -1,8 +1,9 @@
 # Commit grouping
 
 Plain file-backed Direct engines on .NET 8 and later group durable commits.
-Encrypted, caller-stream, Shared and netstandard engines retain serialized
-commit flushes. `DurableCommits=false` retains OS-cache acknowledgement.
+Encrypted, caller-stream, legacy Shared and netstandard engines retain serialized
+commit flushes. The opt-in mapped Shared prototype also groups plain-file commits
+while holding its native main/WRITE tenure. `DurableCommits=false` retains OS-cache acknowledgement.
 No file format, recovery rule or public setting changes.
 
 The header monitor orders transaction append and WAL-index insertion. Once its
@@ -63,6 +64,28 @@ cannot publish durability after another writer stopped the engine. The first
 group failure records its causal WAL write diagnostic before stopping.
 Reopening retains the existing unknown-outcome
 contract for an interrupted or failed commit.
+
+After unsupported device sync disables new grouped appends, completion still
+uses the existing group for every issued ticket, including zero-frame results,
+recoverable errors and standalone `FOR UPDATE`. Each uncovered ticket flushes
+the writer to the OS cache and attempts the device barrier before retiring the
+covered pending versions and reader/checkpoint caps. Unsupported sync is still
+reported as `durableLogFlush=false`: visibility and process-crash recovery are
+required, but power-loss durability is not claimed. A later real I/O failure
+remains fatal even after downgrade.
+`GroupCommitUnsupported_Tests` forces both confirmation and completion pauses
+across that transition, checks three facades against exact live document/index
+results, and reopens saved OS-cache images before graceful cleanup. It also
+covers zero-frame dependents and fatal flush/device failures after downgrade.
+
+Mapped publication follows completion through that same existing group, including
+rollback's returned-page confirmation. It clamps to the covered read-version limit;
+it cannot publish a later append while only an earlier ticket is covered. Unsupported
+sync completes OS-cache tickets but retains the mapped recovery fence and does not
+advertise a new durable version. A fresh protected open must establish its own sync
+before enabling mapped reads again. `SharedOneFileGroupDowngrade_Tests` forces a
+follower across downgrade, zero-frame/error/query dependencies and failed follow-up
+flushes; the durable-prefix tests retain the separate successful-sync prefix oracle.
 
 A partial checkpoint retains both the current reader limit and **every pending
 commit version** as possible future reader versions. A barrier may expose an

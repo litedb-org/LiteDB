@@ -3,6 +3,11 @@ name: Phase 1 benchmark gate
 on:
   workflow_dispatch:
     inputs:
+      shared_newcomer_only:
+        description: 'Only run fork-only Linux x64 newcomer attach-to-writer-acquire p50/p99'
+        required: false
+        type: boolean
+        default: false
       shared_tenure_only:
         description: 'Only run the fork-only Phase 3-A mapped writer tenure comparison'
         required: false
@@ -41,7 +46,7 @@ permissions:
 jobs:
   compare:
     if: >-
-      inputs.shared_tenure_only != true && inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
+      inputs.shared_newcomer_only != true && inputs.shared_tenure_only != true && inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
@@ -277,6 +282,69 @@ jobs:
         if: always()
         with:
           name: mapped-writer-tenure-${{ matrix.framework }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  mapped-newcomer:
+    if: github.repository == 'JKamsker/LiteDB' && github.event_name == 'workflow_dispatch' && inputs.shared_newcomer_only == true
+    name: Mapped newcomer (${{ matrix.framework }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.baseline_ref || 'df6b16f80850d6f7ca072c2a685bf8bb2abd907a' }}
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate newcomer orchestration without measurements
+        run: python3 -m unittest discover -s candidate/.github/scripts -p test_shared_newcomer.py
+      - name: Build isolated production libraries and identical candidate harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          mkdir -p evidence
+          git -C baseline rev-parse HEAD > evidence/base.txt
+          git -C candidate rev-parse HEAD > evidence/head.txt
+          printf '%s\n' '${{ github.sha }}' > evidence/workflow.txt
+          dotnet --info > evidence/runtime.txt
+          for variant in baseline candidate; do
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
+            library="$GITHUB_WORKSPACE/$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
+            dotnet build candidate/tools/SharedWriterTenureMeasurements -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -p:TestingEnabled=false -o "runner-$variant"
+            sha256sum "runner-$variant/SharedWriterTenureMeasurements.dll" "runner-$variant/LiteDB.dll" > "evidence/$variant-binaries.txt"
+          done
+      - name: Five paired fresh-attachment p50 and p99 rounds with positive checkpoint settings
+        env:
+          DOTNET_TieredCompilation: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 15m python3 candidate/tools/SharedWriterTenureMeasurements/newcomer.py runner-baseline runner-candidate scratch evidence | tee evidence/report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mapped-newcomer-${{ matrix.framework }}
           path: evidence/
           if-no-files-found: error
           retention-days: 30

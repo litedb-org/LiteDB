@@ -1,5 +1,34 @@
 # Mapped Shared ownership transitions
 
+Mapped and legacy Shared use the same native data admission as Direct; see
+[Direct native admission](direct-process-host.md#native-admission), including the
+restricted Darwin read-only fallback. Both Shared modes publish shared admission
+before checking the Unix read-only Direct marker at admission + 2. Only then do
+they claim their family byte (+ 1 legacy, + 3 mapped) and probe the opposite
+family. This permits compatible Shared peers while excluding Direct and mixed
+Shared families. The mapped family must never occupy the read-only marker byte.
+Stop all participants before changing experimental protocol versions; no live
+upgrade or coordination-file migration is implied by this merge.
+
+The Direct host registry and its per-host lifecycle gate own Direct facade
+cleanup, maintenance and final storage close. Mapped Shared keeps its separate
+per-identity participant gate; internal cores bypass Direct host attachment.
+Final participant release closes retained results/cache and mapping/slot/DMS
+before native admission. A closing participant cannot be replaced until its
+actual teardown completes. Neither registry holds a global publication gate
+while waiting for final teardown of one file.
+
+The mapped identity key cannot currently change while a participant is live:
+explicit rebuild and file-replacing upgrade/auto-rebuild are refused before
+replacement. Enabling those operations requires stable admission-entry registry
+keys and a participant maintenance gate before any replacement can be published.
+Legacy Shared has no retained core registry: main serializes rebuild with peer
+operations, and idle peers reopen the current files rather than reusing a stale
+core. Native admission retains the same entry across replacement for those peers.
+`SharedOneFileRekey_Tests` checks all four legacy native rekey stages, repeated
+plain/encrypted rebuilds, live peer visibility and cold indexed payloads; it also
+checks every mapped replacement refusal without data/WAL mutation.
+
 The participant-local transaction lease, named main mutex and native WRITE byte
 have nested lifetimes. Main orders every writable core, including recovery and
 teardown. WRITE protects the entire writable core tenure, not just its explicit
@@ -25,7 +54,11 @@ The transaction transition is:
    fence or leaves an uncertain fence, and releases WRITE in either case. Native
    main remains held through that teardown and only then admits a successor.
    Operations reconcile an inner implicit abort or Stop before returning their
-   extra native use. The former core may already be closed when the call fails.
+   extra native use, including legacy Shared's same-thread refusal lease and
+   native transaction hold. Initial and streamed query failures reconcile too.
+   The former core may already be closed when the call fails. Legacy owner-exit
+   diagnostic markers remain until the next opener, while their refusal lease
+   is released during owner-exit cleanup.
 5. **Abandon.** Ordinary owner-exit and pin-holder cleanup close their core while
    native main is still owned. Both run the same terminal transition in `finally`.
    They have already drained the native use count, so they do not return an
@@ -110,7 +143,11 @@ contains the internal budgets. An attached live process also enables the budget,
 even without a writer request. A budget never interrupts a transaction or a
 stream still retaining the writable core. New top-level calls stop entering at
 exhaustion; the holder closes under main, ends WRITE exactly once, then releases
-main. Stopped cores request forced drain before returning the failing operation;
+main. Mapped tenure close does not checkpoint, including a newcomer wake: the
+committed WAL remains authoritative. Storage teardown and healthy/uncertain fence
+publication still precede WRITE/main release. Recovery replays the WAL under the
+successor's ownership; per-commit checkpoints and the exclusive-DMS final-reference
+checkpoint remain unchanged. Stopped cores request forced drain before returning the failing operation;
 their odd fence remains until independent protected recovery. Durable group
 publication, structural/reuse fencing and reader admission rechecks are unchanged.
 

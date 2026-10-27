@@ -15,25 +15,28 @@ namespace LiteDB.Client.Direct
         // entry. A strong registry root is required while an abandoned facade's
         // finalizer is pending; a weak target could disappear while its streams remain
         // open and let Attach construct a second core for the same physical file.
-        private static readonly Dictionary<string, DirectProcessHost> Hosts =
-            new Dictionary<string, DirectProcessHost>();
-        private static readonly HashSet<string> Opening = new HashSet<string>();
+        // Native admission retains this entry across inode replacement. Keying by
+        // its changing physical identity would hide the live host during rebuild.
+        private static readonly Dictionary<NativeAdmission.Entry, DirectProcessHost> Hosts =
+            new Dictionary<NativeAdmission.Entry, DirectProcessHost>();
+        private static readonly HashSet<NativeAdmission.Entry> Opening = new HashSet<NativeAdmission.Entry>();
         private static readonly object Gate = new object();
+        private readonly object _lifecycle = new object();
+        private Thread _closingThread;
         private NativeAdmission _admission;
         internal readonly EngineSettings Settings;
         internal readonly LiteEngine Engine;
         private int _references;
         private bool _closed, _maintaining;
-        private string _identity;
+        private readonly NativeAdmission.Entry _registryKey;
 
         private DirectProcessHost(EngineSettings settings, NativeAdmission admission)
         {
             Settings = settings;
             _admission = admission;
-            _identity = admission.Identity;
+            _registryKey = admission.RegistryKey;
             Settings.BypassDirectHost = true;
             Engine = new LiteEngine(Settings);
-            _identity = admission.Identity;
         }
 
         internal static DirectProcessHost Attach(EngineSettings settings)
@@ -42,61 +45,106 @@ namespace LiteDB.Client.Direct
             // Existing files are fenced by native admission. Only creation needs
             // the path mutex, acquired BEFORE local gates (replacement uses that order).
             using var path = File.Exists(settings.Filename) ? null : NativeAdmission.EnterPath(settings.Filename);
-            lock (Gate)
+            while (true)
             {
-                var admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
-                try
+                DirectProcessHost waiting = null;
+                lock (Gate)
                 {
-                    if (Hosts.TryGetValue(admission.Identity, out var host))
+                    var admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
+                    try
                     {
-                        if (host._closed) throw new InvalidOperationException("The Direct host is closing. Retry after Dispose returns.");
-                        if (host._maintaining) throw new InvalidOperationException("The Direct host is performing maintenance. Retry when it finishes.");
-                        host.Engine.ValidateHost();
-                        DirectHostSettings.RequireCompatible(host.Settings, settings, host.Engine.Pragma(Pragmas.COLLATION).AsString);
-                        host._references++;
-                        return host;
+                        if (Hosts.TryGetValue(admission.RegistryKey, out var host))
+                        {
+                            if (host._closed)
+                            {
+                                if (host._closingThread == Thread.CurrentThread)
+                                    throw new InvalidOperationException("The Direct host is closing. Retry after Dispose returns.");
+                                // Preserve the existing synchronous-close attachment
+                                // contract, waiting on this host outside the static gate.
+                                waiting = host;
+                            }
+                            else
+                            {
+                                if (host._maintaining)
+                                {
+                                    Utils.Reachability.Sometimes("refusal:direct-attach-during-maintenance");
+                                    throw new InvalidOperationException("The Direct host is performing maintenance. Retry when it finishes.");
+                                }
+                                host.Engine.ValidateHost();
+                                DirectHostSettings.RequireCompatible(host.Settings, settings, host.Engine.Pragma(Pragmas.COLLATION).AsString);
+                                host._references++;
+                                return host;
+                            }
+                        }
+                        else
+                        {
+                            var key = admission.RegistryKey;
+                            if (!Opening.Add(key)) throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
+                            try { host = new DirectProcessHost(settings, admission); }
+                            finally { Opening.Remove(key); }
+                            admission = null;
+                            host._references = 1;
+                            Hosts[host._registryKey] = host;
+                            return host;
+                        }
                     }
-                    var identity = admission.Identity;
-                    if (!Opening.Add(identity)) throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
-                    try { host = new DirectProcessHost(settings, admission); }
-                    finally { Opening.Remove(identity); }
-                    admission = null;
-                    host._references = 1;
-                    Hosts[host._identity] = host;
-                    return host;
+                    finally { admission?.Dispose(); }
                 }
-                finally { admission?.Dispose(); }
+                lock (waiting._lifecycle) { }
             }
         }
 
         internal void Release(TransactionMonitor owner)
         {
-            lock (Gate)
+            lock (_lifecycle)
             {
-                if (_closed) return;
-                try
+                bool final;
+                lock (Gate)
                 {
-                    if (_references > 1) owner?.DisposeOwner();
-                    else owner?.CloseOwner();
-                }
-                catch (Exception error) { Engine.StopHost(error); throw; }
-                finally
-                {
-                    if (--_references == 0)
+                    if (_closed) return;
+                    final = _references == 1;
+                    if (final)
                     {
                         _closed = true;
-                        try
+                        _closingThread = Thread.CurrentThread;
+                    }
+                }
+                try
+                {
+                    try
+                    {
+                        if (final) owner?.CloseOwner();
+                        else owner?.DisposeOwner();
+                    }
+                    catch (Exception error)
+                    {
+                        Engine.StopHost(error);
+                        throw;
+                    }
+                    finally
+                    {
+                        if (final)
                         {
 #if DEBUG || TESTING
                             BeforeFinalClose?.Invoke(Settings.Filename);
 #endif
                             Engine.Dispose();
                         }
-                        finally
+                    }
+                }
+                finally
+                {
+                    lock (Gate)
+                    {
+                        --_references;
+                        if (final)
                         {
-                            Hosts.Remove(_identity);
-                            _admission.Dispose();
-                            _admission = null;
+                            try { _admission.Dispose(); }
+                            finally
+                            {
+                                _admission = null;
+                                Hosts.Remove(_registryKey);
+                            }
                         }
                     }
                 }
@@ -106,21 +154,28 @@ namespace LiteDB.Client.Direct
         internal T Maintain<T>(Func<T> action)
         {
             using var path = NativeAdmission.EnterPath(Settings.Filename);
-            lock (Gate)
+            lock (_lifecycle)
             {
-                if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));
-                if (_references != 1) throw new InvalidOperationException("Close other Direct facades before checkpointing or replacing database files.");
-                _maintaining = true;
-                try { return action(); }
+                lock (Gate)
+                {
+                    if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));
+                    if (_references != 1) throw new InvalidOperationException("Close other Direct facades before checkpointing or replacing database files.");
+                    if (_maintaining) throw new InvalidOperationException("Recursive Direct maintenance is unsupported.");
+                    _maintaining = true;
+                }
+                try
+                {
+                    var result = action();
+#if DEBUG || TESTING
+                    BeforeMaintenanceRelease?.Invoke(Settings.Filename);
+#endif
+                    return result;
+                }
                 finally
                 {
-                    _maintaining = false;
-                    var next = _admission.Identity;
-                    if (next != _identity)
+                    lock (Gate)
                     {
-                        Hosts.Remove(_identity);
-                        Hosts[next] = this;
-                        _identity = next;
+                        _maintaining = false;
                     }
                 }
             }
@@ -128,6 +183,7 @@ namespace LiteDB.Client.Direct
 
 #if DEBUG || TESTING
         internal static Action<string> BeforeFinalClose;
+        internal static Action<string> BeforeMaintenanceRelease;
 #endif
     }
 }

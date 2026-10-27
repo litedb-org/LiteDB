@@ -95,7 +95,7 @@ namespace LiteDB
             }
             finally
             {
-                try { this.ReconcileMappedTransaction(); }
+                try { this.ReconcileTransaction(); }
                 finally { this.CloseDatabase(use); }
             }
         });
@@ -233,7 +233,10 @@ namespace LiteDB
                     try
                     {
                         try { this.AtOwnershipStage("tenure-handoff"); }
-                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned); }
+                        // Mapped handoff leaves committed WAL authoritative. Close storage
+                        // and publish its fence before WRITE/main release; final-reference
+                        // cleanup retains the separately protected checkpoint.
+                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned && !this.UsesMappedTenure); }
                     }
                     finally
                     {
@@ -246,7 +249,15 @@ namespace LiteDB
             }
             finally
             {
-                if (abandoned && _localTransactions != null) this.EndTransaction(releaseHold: false);
+                if (abandoned)
+                {
+                    // A forced end of a live owner's pin is terminal in either
+                    // Shared mode. Only a dead legacy owner retains its diagnostic
+                    // marker; its foreign-facade refusal lease still ends here.
+                    if (_localTransactions != null || _transactionThread?.IsAlive != false)
+                        this.EndTransaction(releaseHold: false);
+                    else this.ReleaseTransactionLease();
+                }
             }
         }
 

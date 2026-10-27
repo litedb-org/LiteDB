@@ -386,7 +386,7 @@ namespace LiteDB.Engine
         {
             if (_host != null)
             {
-                _monitor.ValidateOwner();
+                _monitor.EnsureWriteAllowed();
                 return _host.Maintain(() => _host.Engine.Checkpoint());
             }
             _state.Validate();

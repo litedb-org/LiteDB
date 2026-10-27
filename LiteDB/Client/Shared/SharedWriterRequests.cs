@@ -36,7 +36,7 @@ namespace LiteDB.Client.Shared
                     }
                     RefuseCancelled(cancelled);
                     Publish();
-                    _renewal = new Timer(Renew, null, 25, 25);
+                    _renewal = SharedBackground.CreateTimer(Renew, null, TimeSpan.FromMilliseconds(25), TimeSpan.FromMilliseconds(25));
                 }
                 _authority.Map.Wake();
                 Stage("request-published");

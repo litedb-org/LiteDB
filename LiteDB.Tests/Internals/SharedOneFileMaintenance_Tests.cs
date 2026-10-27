@@ -29,6 +29,7 @@ namespace LiteDB.Internals
                 var table = engine.MappedReaderTable;
                 var original = table.Authority.Header.Authority;
                 var identity = table.Admission.Identity;
+                var registryKey = table.Admission.RegistryKey;
                 var namespaceCuts = 0;
                 SharedMemoryMaintenance.MaintenanceStage = stage =>
                 {
@@ -46,6 +47,7 @@ namespace LiteDB.Internals
                 SharedPlatformWake_Tests.AssertNativeNameExists(original, false);
                 SharedPlatformWake_Tests.AssertNativeNameExists(replacement, true);
                 table.Admission.Identity.Should().NotBe(identity);
+                table.Admission.RegistryKey.Should().BeSameAs(registryKey);
                 table.Authority.Header.MatchesIdentity(table.Admission.Identity).Should().BeTrue();
                 Verify(db, 11);
                 db.Checkpoint();
