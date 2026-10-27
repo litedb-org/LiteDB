@@ -1082,6 +1082,11 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "Reproduces unsupported sync with follower confirmation paused before its completion lookup; scans and both indexes show every acknowledged row through later writes, checkpoint and repeated reopen."
         }
       ]
     },
@@ -1652,9 +1657,32 @@
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Failed_completion_after_downgrade_stops_all_facades_without_acknowledging_the_follower",
+          "model": "exception",
+          "proves": "A pending dependency still propagates managed flush failure after downgrade, stops all facades and refuses follower acknowledgement; repeated recovery preserves the earlier acknowledged rows."
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-ticket-completion",
+      "protocol": "WAL group completion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "A follower paused before ticket lookup completes after unsupported sync downgrades the leader; all facades immediately see acknowledged payloads and indexes, with no remaining read or checkpoint pins."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Zero_frame_results_errors_and_queries_complete_dependencies_after_downgrade",
+          "model": "exception",
+          "proves": "A paused follower releases collection locks before downgrade; zero-frame commits, automatic/explicit constraint errors and standalone FOR UPDATE complete its dependency before returning, flush no new frames and recover exact indexed payloads twice."
+        }
+      ],
+      "gap": "Deterministic exception/interleaving and saved OS-cache image evidence; no device reset or power-loss guarantee on storage that rejects sync."
     }
   ],
   "injectors": [
@@ -1729,6 +1757,11 @@
           "test": "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
           "model": "exception",
           "proves": "Failed initialization releases the file handle and allows a retry."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "EINVAL and EROFS downgrade while a confirmed follower is paused; zero-error controls retain device durability and every acknowledged row is immediately visible on every facade."
         }
       ]
     },

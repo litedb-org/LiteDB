@@ -16,6 +16,19 @@ namespace LiteDB.Engine
         internal void CaptureCommitDependency(TransactionPages pages) =>
             Volatile.Read(ref _commitGroup)?.CaptureDependency(pages);
 
+        // Eligibility can disappear while an issued ticket is still pending.
+        // Complete through the existing group even after unsupported device sync
+        // downgrades new commits to OS-cache flushes. EnsureDurable still flushes
+        // the writer before retiring the ticket and its reader/checkpoint pins.
+        internal void CompleteCommitTicket(long ticket)
+        {
+            if (ticket == 0) return;
+#if DEBUG || TESTING
+            this.TestCrashPoint("wal-before-ticket-completion");
+#endif
+            Volatile.Read(ref _commitGroup)?.EnsureDurable(ticket);
+        }
+
         internal WalCommitGroup CommitGroup
         {
             get

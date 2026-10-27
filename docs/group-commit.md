@@ -64,6 +64,19 @@ group failure records its causal WAL write diagnostic before stopping.
 Reopening retains the existing unknown-outcome
 contract for an interrupted or failed commit.
 
+After unsupported device sync disables new grouped appends, completion still
+uses the existing group for every issued ticket, including zero-frame results,
+recoverable errors and standalone `FOR UPDATE`. Each uncovered ticket flushes
+the writer to the OS cache and attempts the device barrier before retiring the
+covered pending versions and reader/checkpoint caps. Unsupported sync is still
+reported as `durableLogFlush=false`: visibility and process-crash recovery are
+required, but power-loss durability is not claimed. A later real I/O failure
+remains fatal even after downgrade.
+`GroupCommitUnsupported_Tests` forces both confirmation and completion pauses
+across that transition, checks three facades against exact live document/index
+results, and reopens saved OS-cache images before graceful cleanup. It also
+covers zero-frame dependents and fatal flush/device failures after downgrade.
+
 A partial checkpoint retains both the current reader limit and **every pending
 commit version** as possible future reader versions. A barrier may expose an
 intermediate prefix while later versions remain pending; retaining only the old
