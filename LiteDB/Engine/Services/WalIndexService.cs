@@ -217,7 +217,11 @@ namespace LiteDB.Engine
             // publication is deferred until TransactionService has waited for the
             // covering durable ticket.  Non-grouped writes have already crossed
             // their synchronous flush in WriteLogDisk.
-            if (_disk.CommitGroup == null) _signals?.Committed(visible);
+            if (_disk.CommitGroup == null)
+            {
+                if (_signals is IWriteAdmissionSignals) _disk.PublishDurableCommit(visible);
+                else _signals?.Committed(visible);
+            }
         }
 
         /// <summary>

@@ -42,6 +42,7 @@ namespace LiteDB.Engine
             var hasConfirmation = false;
             var reusePublished = false;
             Exception removedAppendFailure = null;
+            (_signals as IWriteAdmissionSignals)?.ValidateWrite();
             var stream = _writer.Value;
             var group = CommitGroup;
             long commitTicket = 0;
@@ -288,6 +289,7 @@ namespace LiteDB.Engine
 #endif
 
                 this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
+                (_signals as IWriteAdmissionSignals)?.ValidateWrite();
                 this.PreserveFileVersion(page);
                 // From here a failure can leave part of the frame on the stream. A buffering stream
                 // can still tear it after the write returned, until the batch's final flush.
@@ -320,8 +322,10 @@ namespace LiteDB.Engine
                         try
                         {
                             this.PublishWalReuse(ref reusePublished);
+                            this.CrashPoint("wal-before-failed-append-truncate");
                             stream.SetLength(previousStreamLength.Value);
                             _logFactory.TrimCapacity(stream);
+                            this.CrashPoint("wal-after-failed-append-truncate");
                             // The truncation removes a torn append, not a torn overwrite of an earlier slot
                             // nor an earlier frame of this batch that a buffering stream still held.
                             if (prepared && !overwrite && !earlierHeld)

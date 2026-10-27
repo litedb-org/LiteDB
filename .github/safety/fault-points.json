@@ -1647,16 +1647,30 @@
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
     },
     {
-      "name": "SharedWriterPublication",
-      "protocol": "ABI-2 mapped writer publication and recovery fences",
+      "family": "process-crash",
+      "name": "wal-before-failed-append-truncate",
+      "protocol": "Removal of a failed WAL append under mapped reuse publication",
       "evidence": [
         {
-          "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
-          "model": "process-death",
-          "proves": "A process killed at each mapped writer publication fence is recoverable; acknowledged payloads and indexes remain complete and the next writer can repeat recovery."
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+          "model": "exception",
+          "proves": "Injected append failure reaches truncation after reuse invalidation; failed cleanup remains fenced, native WRITE releases and two protected recoveries preserve exact committed data."
         }
       ],
-      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+      "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-after-failed-append-truncate",
+      "protocol": "Removal of a failed WAL append under mapped reuse publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+          "model": "exception",
+          "proves": "Injected append failure reaches truncation after reuse invalidation; failed cleanup remains fenced, native WRITE releases and two protected recoveries preserve exact committed data."
+        }
+      ],
+      "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
     }
   ],
   "injectors": [
@@ -1820,6 +1834,44 @@
           "proves": "Modeled ENOSPC and map failure repeat twice, preserve DB bytes and release all partial locks before validated retry."
         }
       ]
+    },
+    {
+      "name": "PublicationStage",
+      "protocol": "ABI-2 mapped writer publication and recovery fences",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
+          "model": "process-death",
+          "proves": "A process killed at each mapped writer publication fence is recoverable; acknowledged payloads and indexes remain complete and the next writer can repeat recovery.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+          "model": "process-death",
+          "proves": "Retained DMS and an actual accepted snapshot survive two successor deaths at each internal writer/open/structural cut; exact generations, payloads and indexes survive protected recovery twice.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileDurablePrefix_Tests.cs#Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+          "model": "interleaving",
+          "proves": "Two separately captured group barriers with a pending later append publish only the prefix covered by the completed barrier."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs#Terminal_stop_cannot_publish_or_clear_fences_and_releases_WRITE",
+          "model": "exception",
+          "proves": "Stopped cores cannot publish commits, clear recovery fencing or retain native WRITE after any tested grouped barrier failure."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Interrupted_writer_acquisition_unwinds_native_and_thread_ownership",
+          "model": "exception",
+          "proves": "Each injected partial acquisition releases WRITE and local ownership before an independently threaded protected recovery succeeds."
+        }
+      ],
+      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
     }
   ],
   "observers": {

@@ -61,6 +61,8 @@ namespace LiteDB.Engine
         // It is deliberately an action rather than another publication interface so
         // existing signal implementations retain their append/structural contract.
         internal Action<int> DurableCommitPublication { get; set; }
+        // Captured by each EngineState so delayed stop cleanup cannot fence a successor.
+        internal long SharedWriterTenure { get; set; }
         internal object TransactionOwner { get; set; }
         internal bool BypassDirectHost { get; set; }
         internal bool SharedMode { get; set; }

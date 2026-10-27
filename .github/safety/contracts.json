@@ -56,7 +56,16 @@
         {"test": "LiteDB.Tests/Internals/CheckpointDurability_Tests.cs#FailedCheckpointSync_PreservesAtomicDataAndStopsWrites", "model": "exception", "proves": "A failed checkpoint sync performs zero data writes and stops later writes instead of acknowledging them."},
         {"test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership", "model": "exception", "proves": "Device failures at the Shared commit barrier recover whole transactions and release writer ownership."},
         {"fuzz": "shared", "model": "process-death", "proves": "Child processes die at the reached hook; the parent requires the matching durable intent marker and verifies the recovered state."},
-        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."}
+        {"fuzz": "recovery", "model": "exception", "proves": "Dirty-WAL recovery is interrupted again by transient and persistent read/write failures, then all acknowledged documents are compared and raw integrity is checked."},
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileDurablePrefix_Tests.cs#Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+          "proves": "Two separately captured group tickets cannot publish beyond their covering sync while a later append remains pending (forced interleaving, without failure injection)."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipFences_Tests.cs#Recovery_barrier_failure_keeps_the_restored_prefix_unknown_until_successful_retry",
+          "model": "process-death",
+          "proves": "A retained live authority recovers a killed unsynced confirmation only after successful WAL and directory barriers; two failed recovery attempts retain the old visible version and recovery fences before two complete indexed recoveries."
+        }
       ],
       "gaps": [
         {"text": "No OS/VM reset or physical-device campaign: the device model is unclaimed."},
@@ -133,7 +142,12 @@
         {"test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery", "model": "process-death", "proves": "A reclaimer killed mid-reclamation cannot invalidate another process's live reader or the reused-slot recovery."},
         {"fuzz": "threaded-snapshot", "proves": "Holds N and N+1 readers while two writers demonstrably complete, then overlaps checkpoint and slot reuse and checks all three versions."},
         {"fuzz": "transaction-gate", "proves": "Transaction admission overlaps checkpoints and readers under forced interleavings."},
-        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."}
+        {"fuzz": "cursor-handoff", "proves": "Cursor handoffs between threads overlap checkpoint admission and reclamation."},
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs#Changed_live_authority_refuses_an_already_open_writer_and_preserves_accepted_snapshots",
+          "model": "corrupt-input",
+          "proves": "Ready, either envelope, ABI and capability damage refuse an already-open writer before DB/WAL mutation; accepted old snapshot payloads and cardinality survive."
+        }
       ],
       "gaps": [
         {"text": "Shared reader lease files have observer stages only; no registered fault point interrupts lease publication or expiry."}
@@ -290,11 +304,31 @@
           "test": "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs#Protected_reopens_use_timeout_restored_from_the_WAL",
           "model": "exception",
           "proves": "A protected mapped core restores TIMEOUT from a real WAL; a concurrent exclusive lock contender times out before release, and owner rollback preserves indexed committed contents."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePublicationReview_Tests.cs#Every_writable_open_acquires_WRITE_before_recovering_a_partial_data_tail",
+          "model": "exception",
+          "proves": "Both BeginTrans and getter-shaped writable opens recover partial tails under mapped WRITE. Unchanged adversarial regressions additionally check live attach, stopped close, authority damage and epoch saturation."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+          "model": "process-death",
+          "proves": "Two successor deaths at internal writer/open/structural publication boundaries retain the same live authority and accepted snapshot; exact indexed documents, unrelated data and mapped generations survive two repairs."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs#Terminal_stop_cannot_publish_or_clear_fences_and_releases_WRITE",
+          "model": "exception",
+          "proves": "Terminal stops cannot publish or clear recovery fences; independent native probes establish release, and protected open restores complete known or outcome-unknown transactions."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileAllocation_Tests.cs#Rollback_or_killed_allocator_preserves_free_lists_LastPageID_and_index_reachability",
+          "model": "process-death",
+          "proves": "Plain/encrypted rollback or killed allocation followed by new allocations/checkpoint passes independent page-graph, free-list, LastPageID and index-reachability oracles across two reopens."
         }
       ],
       "gaps": [
         {
-          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Warm admission, writer publication and handoff are dormant follow-on slices."
+          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Writer publication has focused exception/process-death/prefix coverage; whole-path mapped power-loss fuzz, warm admission and handoff remain later-slice gates."
         }
       ]
     }

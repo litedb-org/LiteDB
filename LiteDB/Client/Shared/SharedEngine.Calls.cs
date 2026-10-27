@@ -157,7 +157,7 @@ namespace LiteDB
                 {
                     var errors = core.Close(checkpoint: checkpoint, final: final);
                     SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
-                    this.ExitMappedWriter(errors == null || errors.Count == 0);
+                    this.ExitMappedWriter(!core.StorageUncertain && (errors == null || errors.Count == 0));
                     return errors;
                 }
                 catch
@@ -173,7 +173,12 @@ namespace LiteDB
         private void EnterMappedWriter()
         {
 #if NET8_0_OR_GREATER
-            if (!_settings.SharedOneFile || _mappedWriterHeld) return;
+            if (!_settings.SharedOneFile) return;
+            if (_mappedWriterHeld)
+            {
+                (_readers as SharedMemoryReaders)?.Table.ValidateWriter();
+                return;
+            }
             if (!(_readers is SharedMemoryReaders mapped))
                 throw new InvalidOperationException("SharedOneFile has no mapped participant.");
             mapped.Table.EnterWriter();

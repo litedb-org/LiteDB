@@ -28,10 +28,12 @@
     {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
-      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6–7 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
+      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6\u20137 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
     },
     {
       "id": "ci-split-engine-capacity",
@@ -236,6 +238,20 @@
       "decision": "docs/shared-one-file-prototype.md",
       "invariant": "Only qualified Linux x64 may enable ABI-2 mappings. Native range tests remain enabled on all targets; existing default-mode tests are unchanged.",
       "reason": "The new ABI-2 prototype is dormant and explicitly refuses unqualified mapped platforms. These new tests execute on Linux; Windows/macOS/ARM qualification remains a blocking gap, not a passing claim."
+    },
+    {
+      "id": "p2c-register-mapped-publication-delegate",
+      "kind": "fault-evidence-removed",
+      "subjects": [
+        "unclassified:SharedWriterPublication"
+      ],
+      "disposition": "replaced",
+      "invariant": "Mapped publication cuts retain process-death evidence and registered reachability.",
+      "reason": "The previous entry omitted a hook family and used a marker label instead of the actual PublicationStage injector. Register the real delegate and literal marker; retain the original test reference and add live-DMS, terminal-stop and prefix evidence. No test is removed or weakened.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
+        "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot"
+      ]
     }
   ]
 }

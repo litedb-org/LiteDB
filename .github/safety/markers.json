@@ -45,9 +45,17 @@
       "gate": "advisory",
       "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
     },
-    "SharedWriterPublication": {
+    "PublicationStage": {
       "gate": "advisory",
-      "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFilePublication_Tests; hosted Windows/macOS host-admission coverage is deferred to P1-F."
+      "reason": "Dormant ABI-2 Linux x64 path has focused live-authority process-death, exception and forced-prefix tests; mapped power-loss fuzz and other architecture qualification remain later-slice gates."
+    },
+    "wal-before-failed-append-truncate": {
+      "gate": "advisory",
+      "reason": "Deterministic SharedOneFileWriteFailures_Tests inject append/cleanup failures; the default-mode fuzz smoke does not force these failure paths."
+    },
+    "wal-after-failed-append-truncate": {
+      "gate": "advisory",
+      "reason": "Deterministic SharedOneFileWriteFailures_Tests inject append/cleanup failures; the default-mode fuzz smoke does not force these failure paths."
     }
   },
   "markers": [

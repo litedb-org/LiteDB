@@ -44,8 +44,10 @@ preserved/refused; offline cleanup is not implemented in this round.
 The first exclusive-DMS initializer owns WRITE while invoking protected storage
 validation. No live ABI-2 writer can exist in that state. Live attachment releases
 the independent bootstrap gate after publishing its slot/request and before
-waiting for main ownership. Ordinary writer main->WRITE publication belongs to
-slice 5; no warm status is trusted by these slices.
+waiting for main ownership. Slice 5 now pairs every writable core open, including
+getters/BeginTrans and live participant validation, with main + WRITE. Bootstrap
+validation borrows the initializer's existing WRITE tenure. Read-only snapshots
+keep their nonmutating route.
 
 Through slice 4 the registry shares one mapping, DMS, process-slot lock, exact
 reader table, durability diagnostics and checkpoint backoff across compatible
@@ -58,8 +60,29 @@ Qualification is currently Linux x64/.NET 8+ on the mapped local-volume allowlis
 Other mapped platforms explicitly refuse opt-in; their prototype tests report a
 capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
 Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
-starts with committed-version unknown and fast-admission disabled; slices 5/6 must
-publish all storage fences before any warm reader trusts these reserved fields.
+starts with committed-version unknown and fast-admission disabled. Slice 5
+publishes writer/recovery/structural/reuse/reset identities; warm reader admission
+remains disabled until the later qualification slices.
+
+Recovered confirmations can survive only in a dead writer's OS cache. A writable
+protected open verifies/replays storage, syncs the recovered WAL and its directory,
+and only then publishes a quiet committed version and repairs abandoned structural
+fences. A failed or unverifiable recovery barrier leaves the authority unknown.
+Grouped commits publish no further than their covered prefix; cache-only/degraded
+commits retain recovery fencing instead of advertising a durable version. A
+terminal engine cannot publish successful close or clear a structural fence.
+Every publication validates the live Ready/envelopes. Failure cleanup releases
+WRITE even when a checked epoch or publication fails. Each core captures its
+writer tenure so delayed stop cleanup cannot fence a successor.
+
+`SharedOneFilePublicationReview_Tests` retains the adversarial regressions.
+`SharedOneFileRecoveryCuts_Tests`, `SharedOneFileDurablePrefix_Tests`,
+`SharedOneFileCheckpointFences_Tests`, `SharedOneFileWriteFailures_Tests` and
+`SharedOneFileOwnershipFences_Tests` cover internal cuts, prefix ordering, stopped
+unwinding, exception-safe release and stale cleanup. The mapped allocation and
+opening-mutation classes add full payload/index and independent page-graph checks.
+These exception/process-death/interleaving tests do not qualify real power loss,
+other architectures, warm admission or core handoff.
 
 The Phase 2 port keeps Phase 0's retry ownership reconciliation, live WAL-restored
 timeout access, callback execution frames and close-before-unlock rules. It builds

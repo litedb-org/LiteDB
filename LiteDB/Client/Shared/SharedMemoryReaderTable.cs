@@ -11,7 +11,7 @@ namespace LiteDB.Client.Shared
 {
     // Lifetime references are facade/result edges, never per call or per row.
     // Equal versions share one record. All distinct versions must remain visible.
-    internal sealed class SharedMemoryReaderTable : IBatchedCoordinationSignals
+    internal sealed class SharedMemoryReaderTable : IWriteAdmissionSignals
     {
         private readonly object _gate = new object();
         private readonly Dictionary<int, Generation> _versions = new Dictionary<int, Generation>();
@@ -21,12 +21,7 @@ namespace LiteDB.Client.Shared
         internal readonly EngineSettings Settings;
         internal Action ClosedCallback;
         private int _references = 1;
-        private readonly object _writerGate = new object();
-        private Thread _writerThread;
-        private int _writerDepth;
-        private bool _openFence;
-        private int _structuralDepth;
-        private long _writerMarker;
+        private readonly SharedMemoryWriter _writer;
         internal bool Closed { get { lock (_gate) return _references == 0; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
 
@@ -34,6 +29,7 @@ namespace LiteDB.Client.Shared
         {
             Settings = settings;
             Authority = authority;
+            _writer = new SharedMemoryWriter(authority);
             _admission = admission;
             for (var i = authority.Header.Generations - 1; i >= 0; i--) _free.Push(i);
         }
@@ -60,7 +56,8 @@ namespace LiteDB.Client.Shared
                 if (Directory.Exists(captured.Filename + "-readers") ||
                     new[] { "-shared-live", "-shared-state", "-shared-disabled" }.Any(s => File.Exists(captured.Filename + s)))
                     throw new IOException("Stop all ABI-1 participants and remove recognized legacy coordination offline before enabling SharedOneFile.");
-                var authority = SharedMemoryAuthority.Open(captured, admission.Identity, current =>
+                SharedMemoryReaderTable table = null;
+                SharedMemoryAuthority.Open(captured, admission.Identity, current =>
                 {
                     using var main = SharedMutexFactory.Create(SharedMutexNameFactory.Create(captured.Filename, captured.SharedMutexNameStrategy));
                     var held = false;
@@ -70,14 +67,41 @@ namespace LiteDB.Client.Shared
                         if (!held) throw new IOException("Protected Shared storage validation timed out.");
                         var coreSettings = captured.Clone();
                         coreSettings.SharedAdmission = admission;
-                        coreSettings.SharedReaderVersions = () => Scan(current);
+                        table = new SharedMemoryReaderTable(current, admission, captured);
+                        coreSettings.SharedReaderVersions = table.LiveVersions;
                         coreSettings.AutoRebuildAllowed = () => false;
-                        using var core = new LiteEngine(coreSettings);
-                        captured.Collation = new Collation(core.Pragma(Pragmas.COLLATION).AsString);
+                        var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;
+                        LiteEngine core = null;
+                        var publish = false;
+                        if (writable) table._writer.Enter(borrowedWrite: current.Slot < 0);
+                        try
+                        {
+                            if (writable)
+                            {
+                                coreSettings.SharedWriterTenure = table.WriterTenure;
+                                coreSettings.CoordinationSignals = table;
+                                coreSettings.DurableCommitPublication = table.PublishDurableCommit;
+                                table.BeginOpenRecovery();
+                            }
+                            core = new LiteEngine(coreSettings);
+                            captured.Collation = new Collation(core.Pragma(Pragmas.COLLATION).AsString);
+                            if (writable)
+                            {
+                                core.SyncSharedRecovery();
+                                table.Opened(core.ReadVersion);
+                            }
+                            var errors = core.Close();
+                            publish = !core.StorageUncertain && errors.Count == 0;
+                        }
+                        finally
+                        {
+                            try { core?.Close(checkpoint: false); }
+                            finally { if (writable) table.ExitWriter(publish); }
+                        }
                     }
                     finally { if (held) main.ReleaseMutex(); }
                 });
-                return new SharedMemoryReaderTable(authority, admission, captured);
+                return table;
             }
             catch { admission.Dispose(); throw; }
         }
@@ -123,132 +147,30 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        /// <summary>
-        /// Claim the mapped WRITE byte for the complete lifetime of this process's
-        /// writable core.  The named database mutex orders local facades; this byte
-        /// makes the same tenure visible to every process and is released only after
-        /// its final publication fence is complete.
-        /// </summary>
-        internal void EnterWriter()
-        {
-            lock (_writerGate)
-            {
-                while (_writerDepth != 0 && !ReferenceEquals(_writerThread, Thread.CurrentThread))
-                    Monitor.Wait(_writerGate);
-                if (_writerDepth != 0)
-                {
-                    _writerDepth++;
-                    return;
-                }
-
-                Authority.Locks.EnterWrite();
-                _writerThread = Thread.CurrentThread;
-                _writerDepth = 1;
-                _writerMarker = Marker();
-                var epoch = Authority.Map.Load(SharedMemoryLayout.WriterTenureEpoch);
-                Authority.Map.Store(SharedMemoryLayout.WriterTenureEpoch, checked(epoch + 1));
-                Authority.Map.Store(SharedMemoryLayout.WriterOwner, _writerMarker);
-                Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, _writerMarker);
-                BeginFence();
-                PublishStage("writer-begin");
-            }
-        }
-
-        internal void ExitWriter(bool publish)
-        {
-            lock (_writerGate)
-            {
-                if (_writerDepth == 0) return;
-                if (!ReferenceEquals(_writerThread, Thread.CurrentThread) && _writerDepth > 1)
-                    throw new InvalidOperationException("Shared mapped writer tenure ended on a different thread.");
-                if (--_writerDepth != 0) return;
-
-                // A failed open/close deliberately leaves the odd fence and owner
-                // identity for the next writer to recover under the same WRITE byte.
-                if (publish && !_openFence && _structuralDepth == 0)
-                {
-                    ClearRecoveryOwner();
-                    Authority.Map.Store(SharedMemoryLayout.WriterOwner, 0);
-                    EndFence();
-                    PublishStage("writer-end");
-                }
-                _writerThread = null;
-                _writerMarker = 0;
-                Authority.Locks.ExitWrite();
-                Monitor.PulseAll(_writerGate);
-            }
-        }
-
-        internal void BeginOpenRecovery()
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                _openFence = true;
-                BeginFence();
-                Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, _writerMarker);
-                PublishStage("open-begin");
-            }
-        }
-
-        internal void Opened(int version)
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                if (version >= 0) SetVersion(version);
-                _openFence = false;
-                _structuralDepth = 0;
-                ClearRecoveryOwner();
-                EndFence();
-                PublishStage("open-end");
-            }
-        }
-
-        internal void PublishDurableCommit(int version) => this.Committed(version);
-
-        private void EnsureWriter()
-        {
-            if (_writerDepth == 0) throw new InvalidOperationException("Mapped publication requires WRITE ownership.");
-        }
-
-        private void BeginFence()
-        {
-            var sequence = Authority.Map.Load(SharedMemoryLayout.Control + 8);
-            if ((sequence & 1) == 0) Authority.Map.Store(SharedMemoryLayout.Control + 8, checked(sequence + 1));
-        }
-
-        private void EndFence()
-        {
-            var sequence = Authority.Map.Load(SharedMemoryLayout.Control + 8);
-            if ((sequence & 1) != 0) Authority.Map.Store(SharedMemoryLayout.Control + 8, checked(sequence + 1));
-        }
-
-        private void ClearRecoveryOwner() => Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, 0);
-
-        private void SetVersion(int version)
-        {
-            var current = Authority.Map.Load(SharedMemoryLayout.CommittedVersion);
-            if (version < current) Authority.Map.Store(SharedMemoryLayout.ResetEpoch,
-                checked(Authority.Map.Load(SharedMemoryLayout.ResetEpoch) + 1));
-            Authority.Map.Store(SharedMemoryLayout.CommittedVersion, version);
-        }
-
-        private long Marker()
-        {
-            var bytes = Authority.Incarnation.ToByteArray();
-            return BitConverter.ToInt64(bytes, 0) | 1;
-        }
+        internal long WriterTenure => _writer.Tenure;
+        public void BindState(EngineState state, long tenure) => _writer.BindState(state, tenure);
+        public void Stopped(long tenure) => _writer.Stopped(tenure);
+        internal void EnterWriter() => _writer.Enter();
+        internal void ValidateWriter() => RequireHeader(Authority);
+        internal void ExitWriter(bool publish) => _writer.Exit(publish);
+        internal void BeginOpenRecovery() => _writer.BeginOpenRecovery();
+        internal void Opened(int version) => _writer.Opened(version);
+        internal void PublishDurableCommit(int version) => _writer.Committed(version);
+        public void ValidateWrite() => _writer.ValidateWrite();
+        public void FenceUncertain() => _writer.FenceUncertain();
+        public void StructuralBegin() => _writer.StructuralBegin();
+        public void StructuralEnd(int version) => _writer.StructuralEnd(version);
+        public void SlotReused() => _writer.SlotReused();
+        public void Committed(int version) => _writer.Committed(version);
 
 #if DEBUG || TESTING
         [ThreadStatic] internal static Action<string> PublicationStage;
 #endif
-
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
-        private static void PublishStage(string stage)
+        internal static void PublishStage(string stage)
         {
 #if DEBUG || TESTING
-            Reachability.FaultPoint("SharedWriterPublication");
+            Reachability.FaultPoint("PublicationStage");
             PublicationStage?.Invoke(stage);
 #endif
         }
@@ -273,13 +195,13 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (_references == 0) return null;
-                lock (_writerGate) return Scan(Authority, _writerDepth != 0);
+                return _writer.Scan();
             }
         }
 
-        private static void RequireHeader(SharedMemoryAuthority authority)
+        internal static void RequireHeader(SharedMemoryAuthority authority, bool initializing = false)
         {
-            if (authority.Map.Load(SharedMemoryLayout.Control) != 1 ||
+            if ((!initializing && authority.Map.Load(SharedMemoryLayout.Control) != 1) ||
                 !authority.Map.Read(0, 256).SequenceEqual(authority.Header.Bytes) ||
                 !authority.Map.Read(SharedMemoryLayout.Page, 256).SequenceEqual(authority.Header.Bytes))
                 throw new IOException("Shared mapped authority changed or is damaged.");
@@ -317,60 +239,6 @@ namespace LiteDB.Client.Shared
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ObjectDisposedException)
             { return null; }
-        }
-
-        public void StructuralBegin()
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                if (_structuralDepth++ != 0) return;
-                BeginFence();
-                var epoch = Authority.Map.Load(SharedMemoryLayout.StructuralEpoch);
-                if ((epoch & 1) == 0) Authority.Map.Store(SharedMemoryLayout.StructuralEpoch, checked(epoch + 1));
-                Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, _writerMarker);
-            }
-        }
-
-        public void StructuralEnd(int version)
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                if (_structuralDepth <= 0) throw new InvalidOperationException("Unbalanced Shared mapped structural publication.");
-                if (--_structuralDepth != 0) return;
-                if (version >= 0) SetVersion(version);
-                var epoch = Authority.Map.Load(SharedMemoryLayout.StructuralEpoch);
-                if ((epoch & 1) != 0) Authority.Map.Store(SharedMemoryLayout.StructuralEpoch, checked(epoch + 1));
-                if (!_openFence) ClearRecoveryOwner();
-                EndFence();
-            }
-        }
-
-        public void SlotReused()
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                var ownFence = (Authority.Map.Load(SharedMemoryLayout.Control + 8) & 1) == 0;
-                if (ownFence) BeginFence();
-                Authority.Map.Store(SharedMemoryLayout.ReuseEpoch,
-                    checked(Authority.Map.Load(SharedMemoryLayout.ReuseEpoch) + 1));
-                if (ownFence) EndFence();
-            }
-        }
-
-        public void Committed(int version)
-        {
-            lock (_writerGate)
-            {
-                EnsureWriter();
-                var ownFence = (Authority.Map.Load(SharedMemoryLayout.Control + 8) & 1) == 0;
-                if (ownFence) BeginFence();
-                SetVersion(version);
-                PublishStage("commit-version");
-                if (ownFence) EndFence();
-            }
         }
 
         private sealed class Generation { internal int Slot, References; }

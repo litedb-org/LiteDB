@@ -400,6 +400,9 @@ namespace LiteDB.Engine
             }
         }
 
+        internal bool StorageUncertain => _state.Stopped || _state.WriteFailure != null;
+        internal void SyncSharedRecovery() => _disk.SyncSharedRecovery();
+
         internal int ReadVersion => _walIndex.CurrentReadVersion;
 
         public void Dispose()

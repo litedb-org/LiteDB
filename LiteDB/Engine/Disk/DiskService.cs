@@ -128,7 +128,17 @@ namespace LiteDB.Engine
         // A grouped confirmation is intentionally withheld from mapped readers until
         // its ticket has crossed the device barrier.  The callback is a no-op for
         // engines without a mapped participant.
-        internal void PublishDurableCommit(int version) => _durableCommitPublication?.Invoke(version);
+        internal void PublishDurableCommit(int version)
+        {
+            if (_durableCommitPublication == null) return;
+            _state.Validate();
+            if (!this.IsLogFlushDurable)
+            {
+                (_signals as IWriteAdmissionSignals)?.FenceUncertain();
+                return;
+            }
+            _durableCommitPublication(Math.Min(version, this.CommitReadVersionLimit));
+        }
 
         /// <summary>
         /// Get memory cache instance

@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Client.Shared;
 using LiteDB.Tests;
 using Xunit;
 
@@ -62,6 +63,10 @@ namespace LiteDB.Internals
                     }
                     finally { monitor.BeforeTransactionRegistration = null; }
                     db.BeginTrans().Should().BeTrue();
+                    var map = engine.MappedReaderTable.Authority.Map;
+                    (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
+                    map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
+                    map.Load(SharedMemoryLayout.WriterOwner).Should().NotBe(0);
                     var holds = pinned ? Field<int>(Field<object>(engine, "_pin"), "_holds") : Field<int>(engine.MutexOwner, "_recursion");
                     holds.Should().Be(1, "retry must return the aborted transaction's hold exactly once");
                 }
@@ -77,6 +82,8 @@ namespace LiteDB.Internals
                 db.GetCollection("docs").Insert(Input()).Should().Be(1);
                 callbacks.Should().Be(1);
                 db.Commit().Should().BeTrue();
+                if (!pinned) SharedOneFilePublicationFixture.Quiet(engine.MappedReaderTable);
+                else engine.MappedReaderTable.Authority.Map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
                 await Task.Run(() => peer.GetCollection("docs").Insert(Row(2001))).WaitAsync(TimeSpan.FromSeconds(5));
             }
             for (var repeat = 0; repeat < 2; repeat++)
@@ -125,6 +132,7 @@ namespace LiteDB.Internals
             finally
             {
                 db.Rollback().Should().BeTrue();
+                SharedOneFilePublicationFixture.Quiet(engine.MappedReaderTable);
                 worker.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 engine.Dispose();
             }

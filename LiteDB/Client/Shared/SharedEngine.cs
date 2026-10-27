@@ -107,6 +107,7 @@ namespace LiteDB
         {
             // Writers retire idle read handles before _useLock, preserving lock order.
             if (writing) this.RetireCoordinatedReads();
+            if (writing && _mappedWriterHeld) this.EnterMappedWriter();
             var pin = _pin;
             if (pin != null)
             {
