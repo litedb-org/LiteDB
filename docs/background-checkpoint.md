@@ -71,8 +71,9 @@ share the same worker. Different internal switch settings require separate opens
 
 For an installed core, automatic transaction completion queues a request after
 snapshots, group dependencies, transaction ownership and permits are released.
-Rollback also notifies after release: safepoints and returned allocation pages can
-cross high water without a commit. Strict threshold/equality, CP0 cancellation and
+Rollback also notifies after release, including non-final facade owner cleanup:
+safepoints and returned allocation pages can cross high water without a commit.
+Strict threshold/equality, CP0 cancellation and
 restart, large pragmas and synchronous volatile-WAL fallback retain their stated
 semantics. Explicit checkpoint and close still complete synchronously. Successful
 rebuild binds a fresh incarnation during Open and publishes its recovered backlog

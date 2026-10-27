@@ -112,7 +112,14 @@ namespace LiteDB.Client.Direct
                     try
                     {
                         if (final) owner?.CloseOwner();
-                        else owner?.DisposeOwner();
+                        else
+                        {
+                            owner?.DisposeOwner();
+                            // Owner-thread disposal can roll back an oversize
+                            // transaction and append ReturnNewPages. Notify only
+                            // after its snapshots, locks and permit are released.
+                            Engine.RequestAutomaticCheckpoint();
+                        }
                     }
                     catch (Exception error)
                     {

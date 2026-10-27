@@ -44,7 +44,7 @@ namespace LiteDB.Engine
             return _state.CheckpointLifetime.Worker;
         }
 
-        private void RequestAutomaticCheckpoint()
+        internal void RequestAutomaticCheckpoint()
         {
             var worker = _disk.AutomaticCheckpoint;
             if (worker == null) return;
