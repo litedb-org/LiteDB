@@ -143,6 +143,29 @@ namespace LiteDB.Engine
         /// </summary>
         internal long Install(string backupFilename, string backupLogFilename, string tempFilename)
         {
+            LiteDB.Client.Shared.NativeAdmission.Replacement replacement;
+            try { replacement = LiteDB.Client.Shared.NativeAdmission.LockReplacement(_settings, tempFilename); }
+            catch (Exception error)
+            {
+                DiscardReplacement(tempFilename, error);
+                throw;
+            }
+            using var admission = replacement;
+            try
+            {
+                var difference = this.InstallLocked(backupFilename, backupLogFilename, tempFilename);
+                admission.Published = true;
+                return difference;
+            }
+            catch (Exception error)
+            {
+                admission.PrimaryFailure = error;
+                throw;
+            }
+        }
+
+        private long InstallLocked(string backupFilename, string backupLogFilename, string tempFilename)
+        {
             // Read metadata before installation, so no fallible work separates the
             // completed replacement from the caller updating its engine settings.
             var difference = new FileInfo(_settings.Filename).Length - new FileInfo(tempFilename).Length;

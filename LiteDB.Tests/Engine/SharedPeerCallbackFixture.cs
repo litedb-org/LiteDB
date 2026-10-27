@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using FluentAssertions;
+using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
 
@@ -25,11 +26,18 @@ namespace LiteDB.Tests.Engine
     {
         protected static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan Forever = TimeSpan.FromMinutes(10);
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-peer-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory;
         private readonly List<IDisposable> _open = new List<IDisposable>();
         private bool _retain;
 
-        protected SharedPeerCallbackFixture() => Directory.CreateDirectory(_directory);
+        protected SharedPeerCallbackFixture()
+        {
+            _directory = Path.Combine(Path.GetTempPath(), "litedb-peer-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_directory);
+            // Caller streams bypass filename normalization. Use the same physical
+            // namespace as the filename-backed peer (macOS temp has /var aliases).
+            _directory = DatabaseFileIdentity.CanonicalPath(_directory);
+        }
 
         protected void RetainFailure() => _retain = true;
 

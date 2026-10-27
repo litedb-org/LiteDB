@@ -19,7 +19,7 @@ namespace LiteDB.Engine
                 };
             }
 
-            foreach (var item in _systemCollections)
+            foreach (var item in _systemCollections.Value)
             {
                 yield return new BsonDocument
                 {

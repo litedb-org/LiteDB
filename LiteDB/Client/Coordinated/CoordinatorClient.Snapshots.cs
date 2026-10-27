@@ -304,6 +304,7 @@ namespace LiteDB.Client.Coordinated
             settings.Upgrade = false;
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;
+            settings.BypassDirectHost = true;
             return new LiteEngine(settings);
         }
 

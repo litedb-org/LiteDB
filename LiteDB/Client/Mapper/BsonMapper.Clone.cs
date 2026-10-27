@@ -11,7 +11,9 @@ namespace LiteDB
         /// </summary>
         internal BsonMapper Clone()
         {
-            var clone = this.CreateCloneInstance();
+            var clone = this.GetType() == typeof(BsonMapper)
+                ? new BsonMapper(_typeInstantiator, _typeNameBinder, registerDefaults: false)
+                : this.CreateCloneInstance();
 
             if (clone == null || ReferenceEquals(clone, this))
             {
@@ -30,9 +32,9 @@ namespace LiteDB
             clone.ResolveCollectionName = this.ResolveCollectionName;
             clone.OnDeserialization = this.OnDeserialization;
 
-            clone._customSerializer.Clear();
-            clone._customDeserializer.Clear();
-            clone._entities.Clear();
+            if (!clone._customSerializer.IsEmpty) clone._customSerializer.Clear();
+            if (!clone._customDeserializer.IsEmpty) clone._customDeserializer.Clear();
+            if (!clone._entities.IsEmpty) clone._entities.Clear();
 
             foreach (var item in _customSerializer)
             {
@@ -44,7 +46,9 @@ namespace LiteDB
                 if (!IsGroupingType(item.Key)) clone._customDeserializer[item.Key] = item.Value;
             }
 
-            var entities = _entities.ToArray();
+            var entities = _entities.IsEmpty
+                ? Array.Empty<System.Collections.Generic.KeyValuePair<Type, EntityMapper>>()
+                : _entities.ToArray();
 
             foreach (var item in entities)
             {

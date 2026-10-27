@@ -1,0 +1,150 @@
+name: Phase 1 benchmark gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: 'Optional candidate library SHA/ref (empty uses this branch); harness always comes from workflow ref'
+        required: false
+        type: string
+      baseline_ref:
+        description: 'Optional before library SHA/ref; enables same-job v5/before/after comparison'
+        required: false
+        type: string
+      comparison_scenarios:
+        description: 'Optional comma-separated scenarios; requires baseline_ref and disables ALL gate verdicts'
+        required: false
+        type: string
+      candidate_repository:
+        description: 'Repository for candidate_ref (empty uses this repository)'
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  # Bootstrap dispatch on the fork without installing this workflow on its dev branch.
+  push:
+    branches: ['v6/bench-gate']
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
+    name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        framework: [net8.0, net10.0]
+        # Keep historical job/artifact names; pin the actual hosted OS release.
+        include:
+          - os: ubuntu-latest
+            runner: ubuntu-24.04
+          - os: windows-latest
+            runner: windows-2025
+          - os: macos-latest
+            runner: macos-15
+    steps:
+      - name: Check out PR's own harness or selected workflow branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out candidate production library separately
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
+          path: artifacts_temp/candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out before production library separately
+        if: inputs.baseline_ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.baseline_ref }}
+          path: artifacts_temp/before
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate gate evaluator
+        run: python -m unittest discover -s .github/scripts -p test_benchmark_gate.py
+      - name: Build identical production harnesses
+        env:
+          BASELINE_REF: ${{ inputs.baseline_ref }}
+          BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BENCHMARK_SCENARIOS -and -not $env:BASELINE_REF) {
+            throw 'Scenario subsets require baseline_ref; gate runs must measure all scenarios'
+          }
+          if ($env:BASELINE_REF) {
+            $before = (Resolve-Path 'artifacts_temp/before/LiteDB/LiteDB.csproj').Path
+            $beforeSha = git -C artifacts_temp/before rev-parse HEAD
+            if ($LASTEXITCODE) { throw 'Cannot identify before revision' }
+            "BENCHMARK_BASELINE_SHA=$beforeSha" >> $env:GITHUB_ENV
+            New-Item -ItemType Directory -Force tools/Ab5021Benchmarks/V6Before | Out-Null
+            Copy-Item tools/Ab5021Benchmarks/V6/V6.csproj tools/Ab5021Benchmarks/V6Before/V6.csproj
+            dotnet build tools/Ab5021Benchmarks/V6Before/V6.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$before" -o tools/Ab5021Benchmarks/V6Before --nologo
+            if ($LASTEXITCODE) { throw 'Build failed: before' }
+          }
+          $candidate = (Resolve-Path 'artifacts_temp/candidate/LiteDB/LiteDB.csproj').Path
+          $candidateSha = git -C artifacts_temp/candidate rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify candidate' }
+          "BENCHMARK_CANDIDATE_SHA=$candidateSha" >> $env:GITHUB_ENV
+          $harnessSha = git rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify harness' }
+          "BENCHMARK_HARNESS_SHA=$harnessSha" >> $env:GITHUB_ENV
+          foreach ($version in @('V5', 'V6')) {
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $version" }
+          }
+      - name: Interleaved configured-round A-B comparison
+        env:
+          BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
+        run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
+      - name: Evaluate per-scenario thresholds
+        id: gate
+        env:
+          BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
+        shell: pwsh
+        run: |
+          $comparisonArgs = @()
+          if ($env:BENCHMARK_BASELINE_SHA) {
+            $comparisonArgs += @('--baseline-sha', $env:BENCHMARK_BASELINE_SHA)
+          }
+          if ($env:BENCHMARK_SCENARIOS) {
+            $comparisonArgs += @('--scenarios', $env:BENCHMARK_SCENARIOS)
+          }
+          python .github/scripts/benchmark_gate.py artifacts_temp/ab-5021 --config tools/Ab5021Benchmarks/gate.json --os '${{ runner.os }}' --framework '${{ matrix.framework }}' @comparisonArgs
+          $gateExit = $LASTEXITCODE
+          if ($gateExit -eq 2) {
+            Write-Output '::warning title=NOISY benchmark evidence::Inconclusive; rerun this OS/runtime. This is not a benchmark pass.'
+            exit 0
+          }
+          exit $gateExit
+      - name: Preserve measurements, gate results and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-gate-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/ab-5021/
+          if-no-files-found: warn
+          retention-days: 30

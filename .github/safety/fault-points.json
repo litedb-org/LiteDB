@@ -1064,6 +1064,11 @@
       "protocol": "WAL commit publication",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommit_Tests.cs#Concurrent_commits_share_barriers_and_preserve_durable_visibility",
+          "model": "interleaving",
+          "proves": "All followers reach pending index insertion while the leader's sync is held; no premature acknowledgement or reader visibility, including checkpoint and failed-sync interleavings."
+        },
+        {
           "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
           "model": "process-death",
           "proves": "A worker crashing after index confirmation releases the native mutex."
@@ -1077,6 +1082,11 @@
           "fuzz": "shared",
           "model": "process-death",
           "proves": "Child process dies at the reached hook; the parent requires the matching durable intent marker."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "Reproduces unsupported sync with follower confirmation paused before its completion lookup; scans and both indexes show every acknowledged row through later writes, checkpoint and repeated reopen."
         }
       ]
     },
@@ -1143,6 +1153,11 @@
       "protocol": "WAL append",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+          "model": "exception",
+          "proves": "The follower confirmation fails with I/O/non-I/O while a leader is captured or syncing; leader and zero-frame waiter fail before teardown, with no acknowledgement or later sync/write, and file recovery repeats."
+        },
+        {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
           "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
@@ -1193,6 +1208,11 @@
       "protocol": "WAL append",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
+        {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
           "proves": "Every PromotionPowerLossScenario phase is cut on plain/encrypted and vector files; legacy rows and the compact transaction must be all-or-nothing.",
@@ -1217,6 +1237,11 @@
       "name": "wal-page-before-write",
       "protocol": "WAL append",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+          "model": "exception",
+          "proves": "A short or completed second-frame append fails after a successful first frame in an engine-owned file batch; cleanup preserves the exact prior frame prefix and repeated recovery preserves acknowledged payloads, indexes and untouched data."
+        },
         {
           "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
           "model": "modeled-power-loss",
@@ -1624,12 +1649,40 @@
       "protocol": "WAL batch consistency",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Failed_leader_buffer_flush_publishes_stop_under_the_writer_monitor",
+          "model": "exception",
+          "proves": "The grouped leader throws I/O/non-I/O at its managed flush boundary; queued writer admission sees terminal state, no device sync runs, and repeated recovery verifies complete payloads and indexes."
+        },
+        {
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Failed_completion_after_downgrade_stops_all_facades_without_acknowledging_the_follower",
+          "model": "exception",
+          "proves": "A pending dependency still propagates managed flush failure after downgrade, stops all facades and refuses follower acknowledgement; repeated recovery preserves the earlier acknowledged rows."
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-ticket-completion",
+      "protocol": "WAL group completion",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "A follower paused before ticket lookup completes after unsupported sync downgrades the leader; all facades immediately see acknowledged payloads and indexes, with no remaining read or checkpoint pins."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Zero_frame_results_errors_and_queries_complete_dependencies_after_downgrade",
+          "model": "exception",
+          "proves": "A paused follower releases collection locks before downgrade; zero-frame commits, automatic/explicit constraint errors and standalone FOR UPDATE complete its dependency before returning, flush no new frames and recover exact indexed payloads twice."
+        }
+      ],
+      "gap": "Deterministic exception/interleaving and saved OS-cache image evidence; no device reset or power-loss guarantee on storage that rejects sync."
     }
   ],
   "injectors": [
@@ -1704,6 +1757,11 @@
           "test": "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
           "model": "exception",
           "proves": "Failed initialization releases the file handle and allows a retry."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+          "model": "exception",
+          "proves": "EINVAL and EROFS downgrade while a confirmed follower is paused; zero-error controls retain device durability and every acknowledged row is immediately visible on every facade."
         }
       ]
     },
@@ -1739,6 +1797,11 @@
       "protocol": "WAL write failure teardown",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+          "model": "exception",
+          "proves": "The follower confirmation fails with I/O/non-I/O while a leader is captured or syncing; leader and zero-frame waiter fail before teardown, with no acknowledgement or later sync/write, and file recovery repeats."
+        },
+        {
           "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
           "model": "interleaving",
           "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
@@ -1766,7 +1829,11 @@
     "Observer": "Reachability observer: runs on the thread that hit a marker (for example a fault-point site) so a fuzz oracle can evaluate an invariant there; it never injects a fault.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
-    "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
+    "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
+    "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
+    "BeforeMaintenanceRelease": "Observes successful Direct maintenance after facade services refresh and before releasing its per-host lease, outside the registry/native gates. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release forces a second-thread attach refusal and exception cleanup; no persistent transition is added.",
+    "ReplacementStage": "Observes each in-memory native identity rekey step under NativeAdmission.Gate; no persistent transition is added. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release attempts reentrant attachment before rekey, after old identity removal, after replacement assignment and after publication. Other-thread admission cannot interleave within this gate.",
+    "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled."
   },
   "unhookedTransitions": [
     {

@@ -16,6 +16,7 @@ namespace LiteDB
         internal const int CLOSE_CHECKPOINT_PAGES = 50;
 
         private readonly EngineSettings _settings;
+        private readonly NativeAdmission _admission;
         private readonly Mutex _mutex;
         private readonly SharedMutexTurnstile _turnstile;
         private readonly SharedMutexOwner _owner;
@@ -36,8 +37,9 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
-            // Reopens must use the same path as the mutex and snapshot registry,
-            // even if the process changes its working directory between calls.
+            _settings.SharedMode = true;
+            if (NativeAdmission.IsFile(_settings)) NativeAdmission.Normalize(_settings);
+            // Bind reopens, mutex and snapshot registry to one construction-time path.
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
             _settings.SharedDurability = new SharedDurabilityState();
@@ -74,6 +76,7 @@ namespace LiteDB
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
             _owner = new SharedMutexOwner(_mutex, _turnstile, this.OnOwnerExited);
+            if (NativeAdmission.IsFile(_settings)) _settings.SharedAdmission = _admission = NativeAdmission.Open(_settings, shared: true);
         }
 
         /// <summary>
@@ -133,6 +136,7 @@ namespace LiteDB
 
         private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)
         {
+            _admission?.EnsureValid();
             const int retries = 100;
             for (var attempt = 0; ; attempt++)
             {
@@ -453,7 +457,7 @@ namespace LiteDB
                 if (!pin.CanWaitFrom(Thread.CurrentThread))
                 {
                     // The pin's holder still closes its engine; its streams close on return.
-                    _handles?.Dispose();
+                    this.DeferNativeRelease();
                     _readers.Dispose();
                     return;
                 }
@@ -487,7 +491,7 @@ namespace LiteDB
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
-            this.DisposeCoordination();
+            try { this.DisposeCoordination(); } finally { _admission?.Dispose(); }
         }
     }
 }

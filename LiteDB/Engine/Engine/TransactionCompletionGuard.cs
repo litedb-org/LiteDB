@@ -20,7 +20,7 @@ namespace LiteDB.Engine
             var abortedHere = _monitor.ConsumeExplicitAbort();
 
             if (commit && transaction == null && !abortedHere && _monitor.Transactions.Any(candidate =>
-                candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
+                ReferenceEquals(candidate.FacadeOwner, _monitor.Owner) && candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
                 candidate.OwnerThread != Thread.CurrentThread))
             {
                 Reachability.Sometimes("refusal:explicit-commit-foreign-thread");

@@ -43,6 +43,8 @@ namespace LiteDB.Engine
             var reusePublished = false;
             Exception removedAppendFailure = null;
             var stream = _writer.Value;
+            var group = CommitGroup;
+            long commitTicket = 0;
             Exception flushFailure = null;
             var ownsFailure = false;
 
@@ -50,6 +52,14 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 _state.Validate();
+                // Track plain-file extents for internal cache-only transactions.
+                // Wrappers and arbitrary producers keep their per-frame I/O probes.
+                // The first query stays inside WriteLogPage's uncertain preparation;
+                // every batch re-reads after padding, checkpoint or header journaling.
+                var trackLength = !_durableCommits && transactionState != null && !_logMayBuffer && ChecksumsEnabled &&
+                    stream is ChecksummedWalStream wal && wal.RawStream.GetType() == typeof(FileStream);
+                long? batchLength = null;
+                var previousVersion = checked((int)(_checksums.LastConfirmedPosition / PAGE_SIZE + 1));
                 var uncertain = false;
                 try
                 {
@@ -99,7 +109,7 @@ namespace LiteDB.Engine
                                 this.WriteLogPage(stream, page, written, transactionPages,
                                     ref transactionAnchored, first && rebase,
                                     ref count, ref hasConfirmation, ref reusePublished, ref uncertain,
-                                    ref removedAppendFailure);
+                                    ref removedAppendFailure, trackLength, ref batchLength);
 
                                 if (first && rebase)
                                 {
@@ -125,7 +135,8 @@ namespace LiteDB.Engine
                             {
                                 this.WriteLogPage(stream, delayedConfirmation, written,
                                     transactionPages, ref transactionAnchored, false, ref count,
-                                    ref hasConfirmation, ref reusePublished, ref uncertain, ref removedAppendFailure);
+                                    ref hasConfirmation, ref reusePublished, ref uncertain,
+                                    ref removedAppendFailure, trackLength, ref batchLength);
                                 delayedConfirmation = null;
                             }
                         }
@@ -155,9 +166,16 @@ namespace LiteDB.Engine
                     ownsFailure = _state.BeginStop(flushFailure);
                 }
 
-                // A confirmation makes this WAL batch recoverable. Make all preceding
-                // pages durable before WAL-index confirmation or acknowledging commit.
-                if (flushFailure == null && hasConfirmation)
+                // Grouped writers publish pending versions, but readers and acknowledgements
+                // wait for a barrier covering every preceding frame. Preserve the torn-write
+                // stop above: a failed batch must never issue a ticket or enter a barrier.
+                if (flushFailure == null && hasConfirmation && group != null)
+                {
+                    commitTicket = group.Append(previousVersion,
+                        checked((int)(_checksums.LastConfirmedPosition / PAGE_SIZE + 1)));
+                    if (transactionState != null) transactionState.CommitTicket = commitTicket;
+                }
+                else if (flushFailure == null && hasConfirmation)
                 {
                     try
                     {
@@ -212,13 +230,16 @@ namespace LiteDB.Engine
                 throw flushFailure;
             }
 
+            if (commitTicket != 0 && !(transactionState?.DeferCommitSync ?? false))
+                group.EnsureDurable(commitTicket);
+
             return count;
         }
 
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
             bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished,
-            ref bool uncertain, ref Exception removedAppendFailure)
+            ref bool uncertain, ref Exception removedAppendFailure, bool trackLength, ref long? batchLength)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
@@ -235,7 +256,7 @@ namespace LiteDB.Engine
                 // Keep any failure terminal until all preparation has returned, even if a
                 // caller stream reports it with a non-I/O exception.
                 uncertain = true;
-                previousStreamLength = stream.Length;
+                previousStreamLength = batchLength ?? stream.Length;
                 var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
 
@@ -280,7 +301,18 @@ namespace LiteDB.Engine
                 // can still tear it after the write returned, until the batch's final flush.
                 overwrite = page.Position < previousStreamLength.Value;
                 uncertain = true;
-                stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                var checksummed = stream as ChecksummedWalStream;
+                var coalesce = isConfirmed && !overwrite && !_logMayBuffer &&
+                    checksummed != null && checksummed.RawStream.GetType() == typeof(FileStream);
+                if (coalesce)
+                {
+                    checksummed.WriteFinalPadded(page.Array, page.Offset);
+                }
+                else
+                {
+                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                }
+                if (trackLength) batchLength = Math.Max(previousStreamLength.Value, page.Position + PAGE_SIZE);
                 if (!_logMayBuffer) uncertain = isConfirmed;
                 hasConfirmation |= isConfirmed;
                 this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");

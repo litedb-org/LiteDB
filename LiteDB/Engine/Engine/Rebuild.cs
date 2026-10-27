@@ -20,6 +20,16 @@ namespace LiteDB.Engine
         {
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file, as in 5.x
 
+            if (_host != null)
+            {
+                _monitor.ValidateOwner();
+                return _host.Maintain(() =>
+                {
+                    var result = _host.Engine.Rebuild(options);
+                    this.CopyHostServices();
+                    return result;
+                });
+            }
             if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
 
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
