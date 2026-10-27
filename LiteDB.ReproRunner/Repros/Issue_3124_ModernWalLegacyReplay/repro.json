@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3124_ModernWalLegacyReplay",
+  "title": "Truncated modern WAL beside legacy data is destructively replayed",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3124"
+  ],
+  "failingSince": "0.0.0-knownbad.b3c440623190",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "corrupt-input"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: modern page 3 overwrote legacy data and the WAL was deleted."
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: both refusals preserved both files; matching modern data recovered all rows."
+    }
+  }
+}

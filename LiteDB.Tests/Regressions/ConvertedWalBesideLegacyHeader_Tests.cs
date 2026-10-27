@@ -9,9 +9,9 @@ using Xunit;
 namespace LiteDB.Tests.Regressions
 {
     /// <summary>
-    /// A 5.0.21 data file beside the WAL its conversion wrote: the converted header never reached
-    /// the device while the checksummed frames written after it did (storage that cannot sync,
-    /// #2242, with a power loss or the OS writing the log back first). The open read those frames
+    /// A 5.0.21 data file deliberately paired with the WAL its conversion wrote. A data-only
+    /// restore/copy or storage losing a synced header can mismatch this pair; this test does not
+    /// establish an ordinary crash path on storage honoring sync. The open read those frames
     /// by legacy rules, as 8 KiB pages whose page IDs came from frame trailers, and wrote them into
     /// the data file at those positions: a 6.7 TB sparse file on Linux, "There is not enough space
     /// on the disk" on Windows, and the log deleted. The open is now refused and changes neither file.
@@ -41,7 +41,7 @@ namespace LiteDB.Tests.Regressions
                 }
                 wal.Length.Should().BeGreaterOrEqualTo(WalChecksum.FrameSize);
 
-                // The image a power loss leaves: the legacy header, and the WAL written after it.
+                // Deliberately mismatched image: legacy data and the WAL written after conversion.
                 File.WriteAllBytes(file.Filename, legacy);
                 File.WriteAllBytes(logName, wal);
                 Action open = () => new LiteDatabase(Connection(file.Filename, password, readOnly)).Dispose();

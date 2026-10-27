@@ -73,7 +73,17 @@ never discard what a lease-aware checkpoint left. Legacy WAL pages carry no chec
 committed page must be a page of its type within the bounds the data file, the log and its
 committed headers allow, and a committed header must carry the data header's creation time,
 or the open fails with `INVALID_DATABASE` without changing either file. A
-legacy header beside checksummed WAL frames fails the open without changing either file. Cutover backs up only the header (32 KiB temporary WAL);
+legacy header beside checksummed WAL frames fails the open without changing either file.
+Classify the first plaintext WAL page as soon as its header through byte 31 exists:
+a missing/partial checksum trailer or damaged CRC must not bypass the format gate.
+Use logical length so an incomplete encrypted preamble remains recoverable. Require
+marker 00 on every page admitted to legacy replay, including later committed pages.
+Refuse ambiguous non-legacy markers before replay, tail trimming or checkpoint and
+preserve both files on repeated opens. A legacy/modern mismatch is corrupt-input
+coverage (for example, a data-only restore plus a truncated WAL); it is not evidence
+that an ordinary crash on sync-honoring storage can produce that pair. See
+[the format guards](../../LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs).
+Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the

@@ -333,7 +333,8 @@ namespace LiteDB.Engine
         private static bool IsLegacyPage(PageBuffer buffer, uint pageID)
         {
             var type = buffer.ReadByte(BasePage.P_PAGE_TYPE);
-            return type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
+            return buffer.ReadByte(BasePage.P_PAGE_FORMAT) == PageChecksum.Legacy &&
+                type <= (byte)PageType.Schema && (pageID == 0) == (type == (byte)PageType.Header);
         }
 
         private static LiteException LegacyPageInvalid(uint pageID) => new LiteException(LiteException.INVALID_DATABASE,

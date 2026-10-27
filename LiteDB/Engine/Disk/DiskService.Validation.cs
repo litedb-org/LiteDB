@@ -54,22 +54,35 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// A legacy header next to a WAL of checksummed frames: a conversion's header never reached
-        /// the device while frames written after it did (storage that cannot sync, #2242, or a data
-        /// file restored without its log). Legacy rules would replay those frames as pages at
+        /// A legacy header next to a WAL of checksummed frames: a mismatched restore/copy, or
+        /// storage losing a synced conversion header while retaining newer WAL bytes. This is not
+        /// an ordinary crash on storage honoring sync. Legacy rules would replay frames as pages at
         /// positions read from their trailers, so refuse the open; it changes neither file. A converted
         /// WAL starts over at its first frame, whose trailer lands on a legacy page's page ID, which
         /// no document controls; later frames overlap legacy page content, so only the first is read.
         /// </summary>
         private void RejectConvertedWal()
         {
-            // Like the header journal, never open a log shorter than a frame: an interrupted
-            // encrypted preamble must stay as it is until recovery completes it.
-            if (!_logFactory.Exists() || _logFactory.GetLength() < WalChecksum.FrameSize) return;
+            // GetLength is plaintext length: an incomplete encrypted preamble has no content
+            // and must stay untouched. A page-format marker needs only the first 32 bytes,
+            // even when the payload or its checksum trailer was torn.
+            if (!_logFactory.Exists()) return;
+            var length = _logFactory.GetLength();
+            if (length <= BasePage.P_PAGE_FORMAT) return;
             var reader = (ChecksummedWalStream)_logPool.Rent();
             try
             {
                 var log = reader.RawStream;
+                var prefix = new byte[BasePage.P_PAGE_FORMAT + 1];
+                log.Position = 0;
+                log.ReadRequired(prefix, 0, prefix.Length);
+                if (prefix[BasePage.P_PAGE_FORMAT] != PageChecksum.Legacy)
+                    throw new LiteException(LiteException.INVALID_DATABASE, "Cannot open this database: its log file holds WAL frames of a converted database " +
+                        "or an unsupported page format while its data file still has the legacy (v5) header. " +
+                        "The first log page has non-legacy format 0x{0:X2} at plaintext offset {1}. " +
+                        "Replaying it would corrupt the data file. Neither file was changed; preserve both files for recovery.",
+                        prefix[BasePage.P_PAGE_FORMAT], BasePage.P_PAGE_FORMAT);
+                if (length < WalChecksum.FrameSize) return;
                 var frame = new byte[WalChecksum.FrameSize];
                 log.Position = 0;
                 log.ReadRequired(frame, 0, frame.Length);
