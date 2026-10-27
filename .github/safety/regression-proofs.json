@@ -240,7 +240,12 @@
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Incomplete_encrypted_preamble_does_not_hide_legacy_data",
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Matching_modern_header_still_opens_with_a_truncated_first_frame",
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Later_nonlegacy_committed_page_is_not_admitted_to_legacy_replay",
-        "LiteDB.Tests/Regressions/ConvertedWalUnconfirmed_Tests.cs#Later_nonlegacy_unconfirmed_page_refuses_before_cleanup_and_preserves_both_files"
+        "LiteDB.Tests/Regressions/ConvertedWalUnconfirmed_Tests.cs#Later_nonlegacy_unconfirmed_page_refuses_before_cleanup_and_preserves_both_files",
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Foreign_page_after_valid_legacy_journal_refuses_before_header_repair",
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Invalid_page_type_does_not_mask_later_nonlegacy_format",
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Valid_legacy_journal_and_later_legacy_commit_still_recover",
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Nonpage_initial_tail_is_not_mistaken_for_a_format_marker",
+        "LiteDB.Tests/Internals/ConversionJournalCrash_Tests.cs#EveryConversionRedoWrite_CanTearWithoutPublishingPartialData"
       ]
     }
   ]

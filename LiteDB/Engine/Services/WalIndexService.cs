@@ -242,9 +242,9 @@ namespace LiteDB.Engine
                 // Check abandoned and apparently blank marked pages before any bookkeeping.
                 if (legacy && (!blank || buffer.ReadByte(BasePage.P_PAGE_FORMAT) != PageChecksum.Legacy))
                 {
+                    DiskService.EnsureLegacyWalPageFormat(buffer, current);
                     if (!IsLegacyPage(buffer, buffer.ReadUInt32(BasePage.P_PAGE_ID)))
                         throw LegacyPageInvalid(buffer.ReadUInt32(BasePage.P_PAGE_ID));
-                    DiskService.EnsureLegacyWalPageFormat(buffer, current);
                 }
                 if (blank)
                 {

@@ -165,6 +165,11 @@ namespace LiteDB.Engine
             {
                 var journal = ReadPrepared(stream, position);
                 if (journal == null) continue;
+                // A partial append can leave the sealed footer within this search
+                // window. Prefer it so bytes after its descriptor remain WAL input,
+                // rather than treating that tail as a torn conversion confirmation.
+                var complete = ReadComplete(stream, position);
+                if (complete != null) return complete;
                 // A released engine's commit in the confirmation slot is legacy redo, not a tear.
                 return IsLegacyAppend(stream, position + PAGE_SIZE, journal.Header, true) ? null : journal;
             }

@@ -76,7 +76,9 @@ or the open fails with `INVALID_DATABASE` without changing either file. A
 legacy header beside checksummed WAL frames fails the open without changing either file.
 Classify the first plaintext WAL page as soon as its header through byte 31 exists:
 a missing/partial checksum trailer or damaged CRC must not bypass the format gate.
-Use logical length so an incomplete encrypted preamble remains recoverable. Require
+Use logical length so an incomplete encrypted preamble remains recoverable. A short
+initial tail needs an identifiable page header (including plausible page bookkeeping)
+before byte 31 is a format marker; encrypted torn-intent garbage must remain recoverable. Require
 marker 00 on every page observed by legacy recovery, including later unconfirmed
 pages and marked slots whose first 16 bytes look blank. Inspect identifiable partial
 page headers before trimming; arbitrary non-page garbage tails retain legacy torn-tail recovery.
@@ -128,7 +130,11 @@ transaction IDs to the live committed set before changing either file. Per-frame
 validation during copying alone can certify a partial transaction before a later
 read fails. Hold the exclusive lock across validation and copying, and retain
 summaries rather than buffering all WAL page payloads.
-The header journal binds the preceding WAL bytes. Before repairing or removing
+The header journal binds the preceding WAL bytes. A sealed legacy footer does not
+bind pages appended after it: preflight every replayable complete page and identifiable
+partial tail before repairing the primary header. Prefer a valid sealed footer over its
+prepared record when a partial append leaves both discoverable. Exclude validated
+journal-owned torn conversion records; preserve intent-only and published-header recovery. Before repairing or removing
 it, verify that binding unless a validated newer header salt proves checkpoint
 publication completed. Never discard damaged redo needed by partial data writes.
 Keep the last nonempty recovery report across SharedEngine reopenings; distinguish

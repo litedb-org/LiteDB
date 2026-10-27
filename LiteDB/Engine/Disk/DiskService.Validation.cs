@@ -59,24 +59,36 @@ namespace LiteDB.Engine
         /// an ordinary crash on storage honoring sync. Legacy rules would replay frames as pages at
         /// positions read from their trailers, so refuse the open; it changes neither file. A converted
         /// WAL starts over at its first frame, whose trailer lands on a legacy page's page ID, which
-        /// no document controls; later frames overlap legacy page content, so only the first is read.
+        /// no document controls. Journal recovery also preflights every complete legacy slot before
+        /// its validated journal records, plus any tail after a confirmed footer.
         /// </summary>
-        private void RejectConvertedWal()
+        private void RejectConvertedWal(long? legacyLength = null)
         {
             // GetLength is plaintext length: an incomplete encrypted preamble has no content
             // and must stay untouched. A page-format marker needs only the first 32 bytes,
             // even when the payload or its checksum trailer was torn.
             if (!_logFactory.Exists()) return;
-            var length = _logFactory.GetLength();
+            var length = legacyLength ?? _logFactory.GetLength();
             if (length <= BasePage.P_PAGE_FORMAT) return;
             var reader = (ChecksummedWalStream)_logPool.Rent();
             try
             {
                 var log = reader.RawStream;
                 var prefix = new byte[BasePage.P_PAGE_FORMAT + 1];
-                log.Position = 0;
-                log.ReadRequired(prefix, 0, prefix.Length);
-                EnsureLegacyWalPageFormat(new BufferSlice(prefix, 0, prefix.Length), 0);
+                // Ordinary replay checks later complete pages in RestoreIndex. Header
+                // repair runs earlier, so it must preflight the whole replayable range.
+                var complete = length - length % PAGE_SIZE;
+                var prefixEnd = legacyLength.HasValue && complete != 0 ? complete : 1;
+                for (var position = 0L; position < prefixEnd; position += PAGE_SIZE)
+                {
+                    log.Position = position;
+                    log.ReadRequired(prefix, 0, prefix.Length);
+                    var page = new BufferSlice(prefix, 0, prefix.Length);
+                    // A torn first encrypted intent can leave fewer than a page of
+                    // arbitrary plaintext. A byte at 31 alone is not a page format.
+                    if (complete != 0 || IsWalPagePrefix(page))
+                        EnsureLegacyWalPageFormat(page, position);
+                }
                 // ReadFull sees only complete legacy slots. Inspect an identifiable page
                 // prefix in the partial tail before migration/checkpoint can trim it.
                 var tail = length - length % PAGE_SIZE;
@@ -106,6 +118,18 @@ namespace LiteDB.Engine
                         "Move the log file aside to open the database as it was before the conversion.");
             }
             finally { _logPool.Return(reader); }
+        }
+
+        private static bool IsWalPagePrefix(BufferSlice page)
+        {
+            if (page.ReadInt64(0) == 0 && page.ReadInt64(8) == 0) return true;
+            var type = page.ReadByte(BasePage.P_PAGE_TYPE);
+            var id = page.ReadUInt32(BasePage.P_PAGE_ID);
+            return type <= (byte)PageType.Schema && (id == 0) == (type == (byte)PageType.Header) &&
+                page.ReadByte(BasePage.P_IS_CONFIRMED) <= 1 &&
+                page.ReadUInt16(BasePage.P_USED_BYTES) <= PAGE_SIZE - PAGE_HEADER_SIZE &&
+                page.ReadUInt16(BasePage.P_FRAGMENTED_BYTES) <= PAGE_SIZE - PAGE_HEADER_SIZE &&
+                page.ReadUInt16(BasePage.P_NEXT_FREE_POSITION) <= PAGE_SIZE;
         }
 
         internal static void EnsureLegacyWalPageFormat(BufferSlice page, long position)
