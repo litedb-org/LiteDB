@@ -56,6 +56,12 @@ namespace LiteDB.Engine
 
         internal static bool TryRecover(EngineSettings settings)
         {
+            // An explicit legacy upgrade does not authorize recovery of an
+            // unrelated interrupted rebuild through a read-only connection.
+            if (settings.ReadOnly || settings.ReadOnlyStorage)
+                throw new LiteException(LiteException.REBUILD_INCOMPLETE,
+                    "Rebuild recovery is incomplete. A writable open is required to finish recovery. " +
+                    "Preserve the data, WAL, backup, temporary and recovery files.");
 #if NET8_0_OR_GREATER
             if (!SharedMemoryAuthority.IsPlatformQualified) return false;
             using var path = NativeAdmission.EnterPath(settings.Filename);
@@ -101,8 +107,11 @@ namespace LiteDB.Engine
 
         private static string[] Read(string marker, string filename)
         {
-            var bytes = File.ReadAllBytes(marker);
-            if (bytes.Length < 32 || bytes.Length > 65536) return null;
+            // Bound allocation before reading untrusted recovery metadata.
+            using var file = new FileStream(marker, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (file.Length < 32 || file.Length > 65536) return null;
+            var bytes = new byte[(int)file.Length];
+            file.ReadFully(bytes, 0, bytes.Length);
             var length = bytes.Length - 32;
             using var sha = SHA256.Create();
             if (!sha.ComputeHash(bytes, 0, length).SequenceEqual(bytes.Skip(length))) return null;
