@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -18,7 +20,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename }))
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peer = Open(file.Filename))
             {
@@ -27,6 +29,7 @@ namespace LiteDB.Tests.Engine
                 {
                     anchor.Read().Should().BeTrue();
                     engine.Update("docs", new[] { Row(1) }).Should().Be(1);
+                    engine.Pin.Should().NotBeNull("the variant must actually retain a native pin");
                 }
                 owner.BeginTrans().Should().BeTrue();
                 IEnumerable<BsonDocument> Input()
@@ -77,6 +80,7 @@ namespace LiteDB.Tests.Engine
                 {
                     anchor.Read().Should().BeTrue();
                     engine.Update("docs", new[] { Row(1) }).Should().Be(1);
+                    engine.Pin.Should().NotBeNull("the variant must actually retain a native pin");
                 }
                 owner.BeginTrans().Should().BeTrue();
                 owner.GetCollection("docs").Insert(Row(99));
@@ -95,6 +99,75 @@ namespace LiteDB.Tests.Engine
             }
             Verify(file.Filename);
         }
+
+        [Fact]
+        public void Forced_pin_end_releases_live_transaction_and_stale_reader_cannot_end_successor()
+        {
+            using var file = new TempFile();
+            Seed(file.Filename);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
+            using (var owner = new LiteDatabase(engine, disposeOnClose: false))
+            using (var peer = Open(file.Filename))
+            {
+                using var anchor = engine.Query("docs", new Query());
+                anchor.Read().Should().BeTrue();
+                engine.Update("docs", new[] { Row(1) }).Should().Be(1);
+                owner.BeginTrans().Should().BeTrue();
+                owner.GetCollection("docs").Insert(Row(99));
+                var pin = engine.Pin;
+                pin.Should().NotBeNull();
+                pin.RequestRelease(force: true);
+                pin.WaitReleased();
+                Field(engine, "_transactionLease").Should().BeNull();
+                AssertPeerProgress(peer);
+                owner.BeginTrans().Should().BeTrue("the live owner has no abandoned-owner diagnostic");
+                anchor.Dispose();
+                Record.Exception(() => peer.UserVersion = 73).Should().BeOfType<LiteException>()
+                    .Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION, "old cleanup cannot erase the successor lease");
+                owner.Rollback().Should().BeTrue();
+            }
+            Verify(file.Filename);
+        }
+
+        [Fact]
+        public void Dead_pinned_owner_releases_refusal_lease_but_preserves_legacy_exit_diagnostic()
+        {
+            using var file = new TempFile();
+            Seed(file.Filename);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
+            using (var owner = new LiteDatabase(engine, disposeOnClose: false))
+            using (var peer = Open(file.Filename))
+            {
+                IBsonDataReader anchor = null;
+                Exception failure = null;
+                var thread = new Thread(() => failure = Record.Exception(() =>
+                {
+                    anchor = engine.Query("docs", new Query());
+                    anchor.Read().Should().BeTrue();
+                    engine.Update("docs", new[] { Row(1) }).Should().Be(1);
+                    engine.Pin.Should().NotBeNull();
+                    owner.BeginTrans().Should().BeTrue();
+                    owner.GetCollection("docs").Insert(Row(99));
+                }));
+                thread.Start();
+                thread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                failure.Should().BeNull();
+                SpinWait.SpinUntil(() => Field(engine, "_engine") == null, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                // Wait for the captured holder to finish its complete terminal callback.
+                var pin = engine.Pin;
+                pin?.WaitReleased();
+                SpinWait.SpinUntil(() => Field(engine, "_transactionLease") == null, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                AssertPeerProgress(peer);
+                Record.Exception(() => owner.GetCollection("docs").Count()).Should().BeOfType<LiteException>()
+                    .Which.Message.Should().Contain("owner thread exited");
+                anchor.Dispose();
+                owner.Rollback().Should().BeFalse();
+            }
+            Verify(file.Filename);
+        }
+
+        private static object Field(object value, string name) =>
+            value.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(value);
 
         private static void AssertPeerProgress(LiteDatabase peer)
         {

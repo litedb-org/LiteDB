@@ -249,7 +249,15 @@ namespace LiteDB
             }
             finally
             {
-                if (abandoned && _localTransactions != null) this.EndTransaction(releaseHold: false);
+                if (abandoned)
+                {
+                    // A forced end of a live owner's pin is terminal in either
+                    // Shared mode. Only a dead legacy owner retains its diagnostic
+                    // marker; its foreign-facade refusal lease still ends here.
+                    if (_localTransactions != null || _transactionThread?.IsAlive != false)
+                        this.EndTransaction(releaseHold: false);
+                    else this.ReleaseTransactionLease();
+                }
             }
         }
 
