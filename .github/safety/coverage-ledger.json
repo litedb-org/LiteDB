@@ -49,6 +49,77 @@
       "reason": "Adds an explicit fork-only manual mode for baseline a878a10c6 versus the selected candidate, net8/net10 on Linux x64, five alternating pairs of 50 open/close cycles. Existing comparison selection is unchanged unless this new mode is explicitly requested; no safety test, matrix, timeout or threshold is removed or lowered."
     },
     {
+      "id": "p1-padding-noop-truncate-checksum-crash-4058733",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:4058733:111"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-checksum-crash-3163459",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:3163459:201"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-compact-crash-2937",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "compact-crash:2937:64"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; compact interruption exposes only whole original/new transactions with stable membership through checkpoint.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-compatibility-script",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-vector-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Prepends padding-create, released LiteDB 5.0.21 padding refusal, and padding-verify to the existing compatibility chain. Adds eight fixtures (plain/encrypted at 1, 127, 128 and 129 acknowledged commits); retains every existing compatibility invocation and assertion."
+    },
+    {
+      "id": "p1-padding-compatibility-current",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/VectorCompatibility/Current/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Adds padding-create and padding-verify dispatch to WalPaddingCompatibility. Captures aligned WAL-bearing plain/encrypted files before writer disposal at 1, 127, 128 and 129 commits, then checks every document payload through two recovery/checkpoint opens after legacy refusal. Existing dispatcher paths remain intact."
+    },
+    {
+      "id": "p1-padding-compatibility-legacy",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/VectorCompatibility/Legacy/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Adds padding dispatch for eight plain/encrypted WAL fixtures at 1, 127, 128 and 129 acknowledged commits. Reuses the existing Refuse oracle against actual LiteDB 5.0.21 for read, write, rebuild and upgrade; each refusal checks byte-identical data and WAL. Existing reclaim and other modes retain their checks."
+    },
+    {
+      "id": "p1-same-job-benchmark-comparison-budget",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Benchmark verdicts require complete measurement sets, unchanged owner thresholds and independently verified candidate identities; partial or subset measurements cannot pass the Phase 1 gate.",
+      "reason": "Optional baseline_ref adds same-job v5/before/after evidence with a 23-minute measurement budget and 29-minute job limit. Default jobs retain their existing rounds, timeouts, workloads and verdicts. Incomplete comparisons fail evidence validation; explicit scenario subsets are report-only. Synthetic comparison tests verify shared-v5 identity, separate before/after binaries, rotating order, bounds and subset verdict refusal. No product tests or safety assertions are removed."
+    },
+    {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
       "subjects": [

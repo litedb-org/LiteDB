@@ -41,6 +41,7 @@ namespace LiteDB.Tests.Internals
         public async Task Results_and_errors_cover_the_pending_snapshot_dependency(string operation, bool failSync)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -49,7 +50,7 @@ namespace LiteDB.Tests.Internals
             rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
             db.Checkpoint();
             var data = TempFile.ReadAllBytesShared(file.Filename);
-            var log = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+            var log = TempFile.ReadAllBytesShared(logPath);
             byte[] syncedData = null, syncedLog = null;
             using var appended = new ManualResetEventSlim();
             EngineState.SimulateProcessCrash = phase =>
@@ -59,11 +60,11 @@ namespace LiteDB.Tests.Internals
             var syncs = 0;
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 Interlocked.Increment(ref syncs);
                 if (failSync) return 5;
                 syncedData = TempFile.ReadAllBytesShared(file.Filename);
-                syncedLog = TempFile.ReadAllBytesShared(FileHelper.GetLogFile(file.Filename));
+                syncedLog = TempFile.ReadAllBytesShared(logPath);
                 return 0;
             };
             Task<Exception> first = null;
@@ -177,6 +178,7 @@ namespace LiteDB.Tests.Internals
         public async Task Read_only_explicit_transactions_remain_on_the_durable_prefix(bool promoteToWrite)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
@@ -191,7 +193,7 @@ namespace LiteDB.Tests.Internals
             var syncs = 0;
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 Interlocked.Increment(ref syncs);
                 return 5;
             };
