@@ -228,7 +228,7 @@ namespace LiteDB
             }
             finally
             {
-                if (abandoned) this.EndTransaction(releaseHold: false);
+                if (abandoned && _localTransactions != null) this.EndTransaction(releaseHold: false);
             }
         }
 
