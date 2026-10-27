@@ -22,7 +22,12 @@ namespace LiteDB.Engine
             if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return;
 
-            var marker = GetMarkerFilename(settings.Filename);
+            // Guard lookup, exact-path validation and bootstrap must share the
+            // same namespace, even before admission or while the live name is absent.
+            string filename;
+            try { filename = LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(settings.Filename); }
+            catch (DirectoryNotFoundException) { return; } // no guard can exist in an absent parent
+            var marker = GetMarkerFilename(filename);
             try
             {
                 // FileInfo returns -1 for absence without throwing on every open,
@@ -43,7 +48,12 @@ namespace LiteDB.Engine
                     string.Equals(Path.GetFileName(entry).Normalize(), name, StringComparison.OrdinalIgnoreCase))) return;
             }
 
-            if (settings.SharedOneFile && MappedRebuildRecovery.TryRecover(settings)) return;
+            if (settings.SharedOneFile)
+            {
+                var recovery = settings.Clone();
+                recovery.Filename = filename;
+                if (MappedRebuildRecovery.TryRecover(recovery)) return;
+            }
 
             Reachability.Sometimes("refusal:rebuild-incomplete-marker");
             throw new LiteException(LiteException.REBUILD_INCOMPLETE,

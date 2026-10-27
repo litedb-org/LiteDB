@@ -33,7 +33,6 @@ namespace LiteDB.Client.Shared
         internal static void Normalize(EngineSettings settings)
         {
             var original = System.IO.Path.GetFullPath(settings.Filename);
-            RebuildRecovery.EnsureAvailable(settings);
             var canonical = DatabaseFileIdentity.CanonicalPath(original);
             if (original != canonical)
             {
@@ -45,6 +44,7 @@ namespace LiteDB.Client.Shared
                     throw new IOException("Database alias has a separate WAL. Recover the matching data/WAL pair before opening.");
             }
             settings.Filename = canonical;
+            RebuildRecovery.EnsureAvailable(settings);
         }
 
         internal static void NormalizeSharedNamespace(EngineSettings settings)
