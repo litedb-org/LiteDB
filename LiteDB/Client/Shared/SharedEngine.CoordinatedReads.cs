@@ -279,7 +279,7 @@ namespace LiteDB
                     Interlocked.Increment(ref MeasuredStreamingReaders);
 #endif
                 }
-                return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local));
+                return new SharedDataReader(continued, () => this.ReleaseCached(snapshot, local), ownsResources: true);
             }
             catch
             {
