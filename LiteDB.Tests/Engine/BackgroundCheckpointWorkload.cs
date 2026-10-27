@@ -32,6 +32,9 @@ namespace LiteDB.Tests.Engine
             var actual = rows.FindAll().OrderBy(row => row["_id"].AsInt32).ToArray();
             var expected = Rows(version);
             if (actual.Length != expected.Length) throw new InvalidOperationException("Partial transaction: row count");
+            var plan = rows.Query().Where(Query.EQ("value", version * 100)).GetPlan();
+            if (plan["index"]["name"].AsString != "value")
+                throw new InvalidOperationException("Secondary index is missing or not selected");
             for (var id = 0; id < Count; id++)
             {
                 if (!actual[id].Equals(expected[id]) || !rows.FindById(id).Equals(expected[id]))

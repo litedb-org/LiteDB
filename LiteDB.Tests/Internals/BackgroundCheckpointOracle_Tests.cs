@@ -22,12 +22,13 @@ namespace LiteDB.Internals
             BackgroundCheckpointWorkload.Verify(db, 1);
             var rows = db.GetCollection("rows");
             if (damage == "partial") rows.Update(BackgroundCheckpointWorkload.Rows(0)[5]);
-            if (damage == "payload" || damage == "index")
+            if (damage == "payload")
             {
                 var row = rows.FindById(5);
-                row[damage == "payload" ? "payload" : "value"] = "changed";
+                row["payload"] = "changed";
                 rows.Update(row);
             }
+            if (damage == "index") rows.DropIndex("value");
             if (damage == "sentinel") db.GetCollection("sentinel").DeleteAll();
             Action verify = () => BackgroundCheckpointWorkload.Verify(db, 1);
             verify.Should().Throw<InvalidOperationException>();
