@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using LiteDB.Engine;
+using LiteDB.Utils;
 
 namespace LiteDB.Client.Shared
 {
@@ -193,7 +194,12 @@ namespace LiteDB.Client.Shared
         {
             int error;
 #if DEBUG || TESTING
-            error = AllocateFile != null ? AllocateFile(file, length) : posix_fallocate(file.SafeFileHandle, 0, length);
+            if (AllocateFile != null)
+            {
+                Reachability.FaultPoint("AllocateFile");
+                error = AllocateFile(file, length);
+            }
+            else error = posix_fallocate(file.SafeFileHandle, 0, length);
 #else
             error = posix_fallocate(file.SafeFileHandle, 0, length);
 #endif
@@ -202,7 +208,11 @@ namespace LiteDB.Client.Shared
         private static SharedMemoryMap CreateMap(FileStream file, long size)
         {
 #if DEBUG || TESTING
-            if (MapFile != null) return MapFile(file, size);
+            if (MapFile != null)
+            {
+                Reachability.FaultPoint("MapFile");
+                return MapFile(file, size);
+            }
 #endif
             return new SharedMemoryMap(file, size);
         }
@@ -211,7 +221,11 @@ namespace LiteDB.Client.Shared
         private static void Stage(string stage)
         {
 #if DEBUG || TESTING
-            BootstrapStage?.Invoke(stage);
+            if (BootstrapStage != null)
+            {
+                Reachability.FaultPoint("BootstrapStage");
+                BootstrapStage(stage);
+            }
 #endif
         }
     }

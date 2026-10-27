@@ -60,3 +60,11 @@ capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
 Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
 starts with committed-version unknown and fast-admission disabled; slices 5/6 must
 publish all storage fences before any warm reader trusts these reserved fields.
+
+The Phase 2 port keeps Phase 0's retry ownership reconciliation, live WAL-restored
+timeout access, callback execution frames and close-before-unlock rules. It builds
+on Phase 1's process-owned Direct host and group commit without changing their
+operation paths. `SharedOneFilePhase1_Tests` exercises mapped retry/failed-Begin
+cleanup, pinned and unpinned callback isolation, and protected timeout restoration.
+Existing default-mode callback, cursor ownership and commit-failure tests continue
+to apply; custom streams cannot select the mapped physical-file protocol.

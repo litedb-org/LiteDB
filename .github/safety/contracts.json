@@ -277,6 +277,16 @@
           "test": "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs#Malformed_live_record_and_slot_identity_return_unknown_not_an_empty_floor_set",
           "model": "corrupt-input",
           "proves": "Malformed live record and Ready identity return unknown rather than omit a reader."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs#Retry_releases_obsolete_writer_holds_and_preserves_peer_callback_isolation",
+          "model": "exception",
+          "proves": "Plain/encrypted mapped facades retain one writer hold through repeated failed Begin and duplicate-key retries, reject peer callback self-waits, then permit a queued peer and preserve exact indexed payloads and unrelated data through two cold reopens."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs#Protected_reopens_use_timeout_restored_from_the_WAL",
+          "model": "exception",
+          "proves": "A protected mapped core restores TIMEOUT from a real WAL; a concurrent exclusive lock contender times out before release, and owner rollback preserves indexed committed contents."
         }
       ],
       "gaps": [

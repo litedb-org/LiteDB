@@ -203,6 +203,8 @@
       "id": "shared-one-file-linux-prototype",
       "kind": "conditional-attribute",
       "subjects": [
+        "LiteDB.Internals.SharedOneFilePhase1_Tests.Retry_releases_obsolete_writer_holds_and_preserves_peer_callback_isolation",
+        "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Connection_string_round_trips_configurable_size_and_capacity",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Empty_and_zero_partial_initialization_reset_but_declared_wrong_length_refuses",
