@@ -5,6 +5,39 @@ internal static class SharedOneFileHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (mode == "one-file-review-attach")
+        {
+            SharedMemoryAuthority.BootstrapStage = stage =>
+            {
+                if (stage != "before-storage") return;
+                Console.WriteLine("attached");
+                Console.ReadLine();
+            };
+            LiteDB.Engine.EngineState.SimulateProcessCrash = stage =>
+            {
+                if (stage != "startup-before-tail-trim") return;
+                using var probe = new SharedRangeLocks(SharedMemoryAuthority.PathFor(filename));
+                try
+                {
+                    probe.EnterWrite();
+                    Console.WriteLine("WRITE-free");
+                    probe.ExitWrite();
+                }
+                catch (IOException error) when (error.Message == "Shared main mutex / WRITE ownership mismatch.")
+                { Console.WriteLine("WRITE-held"); }
+            };
+            try
+            {
+                using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true });
+            }
+            finally
+            {
+                SharedMemoryAuthority.BootstrapStage = null;
+                LiteDB.Engine.EngineState.SimulateProcessCrash = null;
+            }
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode.StartsWith("one-file-facade-", StringComparison.Ordinal))
         {
             try
@@ -40,12 +73,14 @@ internal static class SharedOneFileHarness
         }
         if (mode == "one-file-publication-hold")
         {
-            SharedMemoryReaderTable.PublicationStage = stage =>
+            Action<string> pause = stage =>
             {
                 if (stage != args[4]) return;
                 Console.WriteLine("ready");
                 Console.ReadLine();
             };
+            SharedMemoryReaderTable.PublicationStage = pause;
+            LiteDB.Engine.EngineState.SimulateProcessCrash = pause;
             try
             {
                 using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings
@@ -53,7 +88,11 @@ internal static class SharedOneFileHarness
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 db.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["value"] = 1, ["payload"] = new string('x', 1024) });
             }
-            finally { SharedMemoryReaderTable.PublicationStage = null; }
+            finally
+            {
+                SharedMemoryReaderTable.PublicationStage = null;
+                LiteDB.Engine.EngineState.SimulateProcessCrash = null;
+            }
             Console.WriteLine("done");
             return true;
         }
