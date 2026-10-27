@@ -266,6 +266,8 @@ namespace LiteDB.Engine
         /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
         internal bool InvalidDatafileState { get; private set; }
 
+        internal bool HasActiveTransaction => _monitor != null && _monitor.HasActiveTransaction(_monitor.Owner);
+
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();

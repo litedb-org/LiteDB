@@ -60,6 +60,13 @@ namespace LiteDB.Client.Shared
         }
 
         internal static SharedMemoryEnvelope Decode(byte[] bytes, string path, string identity, bool quiescent = false, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
+            => Decode(bytes, path, identity, quiescent, strategy, allowIdentityMismatch: false);
+
+        internal static SharedMemoryEnvelope DecodeForReuse(byte[] bytes, string path, bool quiescent = false, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
+            => Decode(bytes, path, identity: null, quiescent, strategy, allowIdentityMismatch: true);
+
+        private static SharedMemoryEnvelope Decode(byte[] bytes, string path, string identity, bool quiescent,
+            SharedMutexNameStrategy strategy, bool allowIdentityMismatch)
         {
             if (bytes.Length != SharedMemoryLayout.EnvelopeBytes || !Magic.SequenceEqual(bytes.Take(8)))
                 throw new IOException("Unknown Shared coordination magic.");
@@ -70,7 +77,9 @@ namespace LiteDB.Client.Shared
                 BitConverter.ToInt32(bytes, 44) != 8 || BitConverter.ToInt64(bytes, 48) != 1 ||
                 BitConverter.ToInt64(bytes, 56) != 0 || bytes.Skip(144).Take(80).Any(b => b != 0))
                 throw new IOException("Unsupported Shared coordination ABI/layout/capabilities.");
-            if (!Hash(identity).SequenceEqual(bytes.Skip(80).Take(32)) || !NamespaceHash(path, strategy).SequenceEqual(bytes.Skip(112).Take(32)))
+            if (!allowIdentityMismatch && !Hash(identity).SequenceEqual(bytes.Skip(80).Take(32)))
+                throw new IOException("Shared coordination database identity/namespace mismatch.");
+            if (!NamespaceHash(path, strategy).SequenceEqual(bytes.Skip(112).Take(32)))
                 throw new IOException("Shared coordination database identity/namespace mismatch.");
             var result = new SharedMemoryEnvelope(bytes);
             if (result.Processes < 1 || result.Processes > 65536 || result.Generations < 1 || result.Generations > 65536 ||
@@ -82,6 +91,13 @@ namespace LiteDB.Client.Shared
                 throw new IOException("Damaged Shared coordination envelope checksum.");
             return result;
         }
+
+        internal bool MatchesIdentity(string identity) => Hash(identity).SequenceEqual(Bytes.Skip(80).Take(32));
+
+        internal bool MatchesNamespace(string path, SharedMutexNameStrategy strategy) =>
+            NamespaceHash(path, strategy).SequenceEqual(Bytes.Skip(112).Take(32));
+
+        internal bool HasValidChecksum() => Hash(Bytes.Take(HashOffset).ToArray()).SequenceEqual(Bytes.Skip(HashOffset));
 
         private static byte[] NamespaceHash(string path, SharedMutexNameStrategy strategy) =>
             Hash(path + "\0" + SharedMutexNameFactory.Create(path, strategy));

@@ -51,7 +51,8 @@ namespace LiteDB.Internals
                 order.Last().Dispose();
                 table.Closed.Should().BeTrue();
                 using var cold = new SharedEngine(Settings());
-                cold.MappedReaderTable.Authority.Header.Authority.Should().NotBe(table.Authority.Header.Authority);
+                cold.MappedReaderTable.Authority.Header.Authority.Should().Be(table.Authority.Header.Authority,
+                    "a consistent same-layout authority is reusable after all participants close");
             }
             finally { SharedMemoryAuthority.BootstrapStage = null; foreach (var engine in engines) engine.Dispose(); }
         }
@@ -192,7 +193,8 @@ namespace LiteDB.Internals
                 release.Set();
                 await closing;
                 using var fresh = await opening;
-                fresh.MappedReaderTable.Authority.Header.Authority.Should().NotBe(old);
+                fresh.MappedReaderTable.Authority.Header.Authority.Should().Be(old,
+                    "the persisted layout is still valid after the last participant closes");
             }
             finally { release.Set(); await closing; }
         }
