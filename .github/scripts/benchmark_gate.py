@@ -1,6 +1,7 @@
 """Evaluate hosted A/B raw rounds. Exit 0=pass, 1=fail/error, 2=noisy (rerun)."""
 import argparse
 import csv
+import copy
 import json
 import math
 import os
@@ -35,7 +36,7 @@ def rounds_for_os(config, operating_system):
     return config.get("roundsByOS", {}).get(operating_system, config["rounds"])
 
 
-def read_samples(directory, config, operating_system, framework):
+def read_samples(directory, config, operating_system, framework, expected_commit=None):
     """Reject incomplete/duplicate rounds and workload changes before judging speed."""
     validate_config(config)
     configs = [config["baseline"], config["candidate"], *config["reportOnlyConfigs"]]
@@ -79,7 +80,8 @@ def read_samples(directory, config, operating_system, framework):
     commits = {commit for identity in identities.values() for _, commit in identity}
     if len(commits) != 1 or not next(iter(commits)):
         raise ValueError("Missing or inconsistent candidate commit")
-    if os.environ.get("BENCHMARK_CANDIDATE_SHA") and commits != {os.environ["BENCHMARK_CANDIDATE_SHA"]}:
+    expected_commit = expected_commit or os.environ.get("BENCHMARK_CANDIDATE_SHA")
+    if expected_commit and commits != {expected_commit}:
         raise ValueError("Measured candidate does not match the workflow checkout")
     return samples
 
@@ -89,10 +91,10 @@ def timing(values):
                 spreadPercent=100 * (max(values) / min(values) - 1))
 
 
-def evaluate(directory, config, operating_system, framework):
+def evaluate(directory, config, operating_system, framework, expected_commit=None):
     if operating_system not in config["operatingSystems"] or framework not in config["frameworks"]:
         raise ValueError("Unexpected OS/runtime")
-    samples = read_samples(directory, config, operating_system, framework)
+    samples = read_samples(directory, config, operating_system, framework, expected_commit)
     results = []
     for scenario, rule in config["scenarios"].items():
         baseline = timing(samples[config["baseline"], scenario])
@@ -118,7 +120,8 @@ def evaluate(directory, config, operating_system, framework):
                                 config=name, verdict=verdict, reason=reason, ratio=ratio,
                                 ratioLowerBound=lower, ratioUpperBound=upper,
                                 maxRatio=limit, baseline=baseline, candidate=candidate))
-    one_writer = timing(samples["dev-default", "durable_insert_5k_1_writers"])["medianMs"]
+    one_writer = (timing(samples["dev-default", "durable_insert_5k_1_writers"])["medianMs"]
+                  if config["scalingScenarios"] else None)
     for scenario in config["scalingScenarios"]:
         candidate = timing(samples["dev-default", scenario])
         results.append(dict(os=operating_system, framework=framework, scenario=scenario,
@@ -131,6 +134,49 @@ def evaluate(directory, config, operating_system, framework):
     return dict(schemaVersion=1, os=operating_system, framework=framework, verdict=verdict,
                 rounds=rounds_for_os(config, operating_system), maxSpreadPercent=config["maxSpreadPercent"],
                 rerunRequired="noisy" in verdicts, results=results)
+
+
+def evaluate_comparison(directory, config, operating_system, framework, baseline_sha, scenarios=""):
+    """Full comparisons retain gate rules; subsets never issue a gate verdict."""
+    if not baseline_sha:
+        raise ValueError("Comparison requires a baseline SHA")
+    if scenarios:
+        names = scenarios.split(",")
+        if len(names) != len(set(names)) or not set(names) <= set(config["scenarios"]):
+            raise ValueError("Unknown or duplicate comparison scenarios")
+        config = copy.deepcopy(config)
+        config["scenarios"] = {name: dict(config["scenarios"][name], maxRatio=None) for name in names}
+        config["scalingScenarios"] = {}
+    after = evaluate(directory, config, operating_system, framework)
+    before = evaluate(directory / "before", config, operating_system, framework, baseline_sha)
+
+    def shared_v5(folder):
+        rounds = {}
+        for path in folder.glob("round-*.json"):
+            result = json.loads(path.read_text(encoding="utf-8"))
+            if result["config"] == config["baseline"]:
+                result.pop("candidateCommit")
+                rounds[result["round"]] = result
+        return rounds
+
+    if shared_v5(directory) != shared_v5(directory / "before"):
+        raise ValueError("Before and after must share identical v5 measurements")
+    after["baselineCommit"] = baseline_sha
+    after["baselineGate"] = before
+    after["comparisonOnly"] = bool(scenarios)
+    after["comparisons"] = []
+    for a, b in zip(before["results"], after["results"]):
+        old, new = a["candidate"], b["candidate"]
+        after["comparisons"].append(dict(
+            os=operating_system, framework=framework, scenario=b["scenario"], config=b["config"],
+            verdict="report-only", reason="Same-job after/before; lower is faster",
+            ratio=new["medianMs"] / old["medianMs"],
+            ratioLowerBound=new["minMs"] / old["maxMs"],
+            ratioUpperBound=new["maxMs"] / old["minMs"], maxRatio=None,
+            baseline=old, candidate=new))
+    if scenarios:
+        after["verdict"] = before["verdict"] = "report-only"
+    return after
 
 
 def markdown(report):
@@ -148,6 +194,16 @@ def markdown(report):
     if report["rerunRequired"]:
         lines += ["", "NOISY: rerun this OS/runtime before drawing conclusions for noisy scenarios.",
                   "Stable failures remain failures; noisy scenarios are inconclusive, never passes."]
+    if "baselineGate" in report:
+        lines += ["", "### Before revision vs v5", markdown(report["baselineGate"]),
+                  "### Same-job after/before (report-only; lower is faster)", "",
+                  "| Scenario | Config | After/before | Lower bound | Upper bound |",
+                  "|---|---|---:|---:|---:|"]
+        for row in report["comparisons"]:
+            lines.append(f"| {row['scenario']} | {row['config']} | {row['ratio']:.3f} | "
+                         f"{row['ratioLowerBound']:.3f} | {row['ratioUpperBound']:.3f} |")
+        if report["comparisonOnly"]:
+            lines += ["", "Comparison subset only: no Phase 1 gate verdict is issued."]
     return "\n".join(lines) + "\n"
 
 
@@ -157,15 +213,28 @@ def main():
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--os", required=True)
     parser.add_argument("--framework", required=True)
+    parser.add_argument("--baseline-sha", default="")
+    parser.add_argument("--scenarios", default="")
     args = parser.parse_args()
     try:
-        report = evaluate(args.directory, json.loads(args.config.read_text()), args.os, args.framework)
+        config = json.loads(args.config.read_text())
+        if args.scenarios and not args.baseline_sha:
+            raise ValueError("Scenario subsets require comparison mode")
+        report = (evaluate_comparison(args.directory, config, args.os, args.framework,
+                                      args.baseline_sha, args.scenarios) if args.baseline_sha else
+                  evaluate(args.directory, config, args.os, args.framework))
     except (ValueError, KeyError, TypeError, OSError) as error:
         print(f"Benchmark evidence error: {error}", file=sys.stderr)
         return 1
     (args.directory / "gate.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     rows = [{key: value for key, value in row.items() if key not in ("baseline", "candidate")}
             for row in report["results"]]
+    if "baselineGate" in report:
+        rows = [dict(comparison="after/v5", **row) for row in rows]
+        for label, source in (("before/v5", report["baselineGate"]["results"]),
+                              ("after/before", report["comparisons"])):
+            rows.extend(dict(comparison=label, **{k: v for k, v in row.items()
+                        if k not in ("baseline", "candidate")}) for row in source)
     with (args.directory / "gate.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(dict.fromkeys(key for row in rows for key in row)))
         writer.writeheader()
@@ -179,7 +248,7 @@ def main():
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
             handle.write(f"verdict={report['verdict']}\nrerun-required={str(report['rerunRequired']).lower()}\n")
-    return {"pass": 0, "fail": 1, "noisy": 2}[report["verdict"]]
+    return {"pass": 0, "fail": 1, "noisy": 2, "report-only": 0}[report["verdict"]]
 
 
 if __name__ == "__main__":

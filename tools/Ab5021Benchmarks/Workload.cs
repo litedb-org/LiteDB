@@ -29,6 +29,11 @@ internal sealed class Workload
         }).ToArray();
     }
 
+    // Subsets are report-only, enforced by both the orchestrator and evaluator.
+    private static readonly HashSet<string>? Selected =
+        string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS")) ? null :
+        new HashSet<string>(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS")!.Split(','));
+
     public void Run()
     {
         var path = Path.Combine(_root, "main.db");
@@ -93,10 +98,10 @@ internal sealed class Workload
             }
         });
         using (var db = Open(path)) Verify(db.GetCollection<Document>("documents"), _count / 10);
-        SmallTransactions();
-        Checkpoint();
+        if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
+        if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
 #if DEV
-        if (_config == "dev-default")
+        if (_config == "dev-default" && Selected == null)
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
 #endif
     }
@@ -178,6 +183,7 @@ internal sealed class Workload
             Console.WriteLine($"{_config} warmup finished {scenario}");
             return;
         }
+        if (Selected != null && !Selected.Contains(scenario)) return;
         var totalBytes = Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length);
         Samples.Add(new Sample(scenario, watch.Elapsed.TotalMilliseconds, operations, new FileInfo(path).Length, totalBytes));
         Console.WriteLine($"{_config} {scenario}: {watch.Elapsed.TotalMilliseconds:F3} ms");

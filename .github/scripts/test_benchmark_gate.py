@@ -69,6 +69,137 @@ class BenchmarkGateTests(unittest.TestCase):
     def row(self, report, scenario="single_insert_5k_tx", config="dev-os-cache"):
         return next(row for row in report["results"] if row["scenario"] == scenario and row["config"] == config)
 
+    def make_before(self):
+        before = self.output / "before"
+        before.mkdir()
+        for path in self.output.glob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["candidateCommit"] = "c" * 40
+            if result["config"] != "v5":
+                result["assemblySha256"] = "d" * 64
+                for sample in result["samples"]:
+                    sample["milliseconds"] *= 2
+            (before / path.name).write_text(json.dumps(result))
+
+    def compare(self, scenarios=""):
+        return gate.evaluate_comparison(self.output, self.config, "Linux", "net8.0", "c" * 40, scenarios)
+
+    def test_comparison_bounds_and_before_gate_do_not_change_after_gate(self):
+        self.make_before()
+        self.config["maxSpreadPercent"] = 100
+        self.times("dev-os-cache", "single_insert_5k_tx", [80, 100, 100, 100, 100, 120])
+        report = self.compare()
+        self.assertEqual("pass", report["verdict"])
+        self.assertEqual("fail", report["baselineGate"]["verdict"])
+        for row in report["comparisons"]:
+            self.assertEqual("report-only", row["verdict"])
+            self.assertEqual(0.5, row["ratio"])
+        row = self.row(dict(results=report["comparisons"]))
+        self.assertEqual(0.4, row["ratioLowerBound"])
+        self.assertEqual(0.6, row["ratioUpperBound"])
+        self.assertIn("Same-job after/before", gate.markdown(report))
+        self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
+        self.assertEqual("fail", self.compare()["verdict"])
+
+    def test_comparison_rejects_missing_or_wrong_before_evidence(self):
+        self.make_before()
+        path = self.output / "before" / "round-1-dev-default.json"
+        original = path.read_text()
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "Incomplete"):
+            self.compare()
+        result = json.loads(original)
+        result["candidateCommit"] = "wrong"
+        path.write_text(json.dumps(result))
+        with self.assertRaises(ValueError):
+            self.compare()
+        for path in (self.output / "before").glob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["candidateCommit"] = "e" * 40
+            path.write_text(json.dumps(result))
+        with self.assertRaisesRegex(ValueError, "workflow checkout"):
+            self.compare()
+
+    def test_comparison_rejects_different_v5_measurements(self):
+        self.make_before()
+        self.times("v5", "single_insert_5k_tx", [101] * 6)
+        with self.assertRaisesRegex(ValueError, "identical v5"):
+            self.compare()
+
+    def test_subset_never_issues_gate_verdict_and_rejects_unknown_names(self):
+        self.make_before()
+        scenario = "single_insert_5k_tx"
+        for path in self.output.rglob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["samples"] = [s for s in result["samples"] if s["scenario"] == scenario]
+            path.write_text(json.dumps(result))
+        report = self.compare(scenario)
+        self.assertEqual("report-only", report["verdict"])
+        self.assertEqual("report-only", report["baselineGate"]["verdict"])
+        self.assertTrue(all(r["maxRatio"] is None and r["verdict"] == "report-only"
+                            for r in report["results"]))
+        self.assertEqual(2, len(report["comparisons"]))
+        self.assertIn("no Phase 1 gate verdict", gate.markdown(report))
+        self.assertEqual(CONFIG, self.config)
+        for invalid in ("unknown", scenario + "," + scenario, ""):
+            with self.assertRaises(ValueError):
+                self.compare(invalid)
+        command = [sys.executable, str(ROOT / ".github/scripts/benchmark_gate.py"), str(self.output),
+                   "--config", str(HARNESS / "gate.json"), "--os", "Linux", "--framework", "net8.0",
+                   "--scenarios", scenario]
+        self.assertEqual(1, subprocess.run(command, capture_output=True).returncode)
+        child = subprocess.run(command + ["--baseline-sha", "c" * 40], capture_output=True, text=True)
+        self.assertEqual(0, child.returncode, child.stderr)
+        with (self.output / "gate.csv").open() as handle:
+            rows = list(csv.DictReader(handle))
+        self.assertEqual({"after/v5", "before/v5", "after/before"}, {r["comparison"] for r in rows})
+        self.assertTrue(all(r["verdict"] == "report-only" for r in rows))
+
+    def test_comparison_rotates_all_variants_and_preserves_both_configurations(self):
+        positions = {variant: set() for variant in ("v5", "before", "after")}
+        for number in range(1, 7):
+            order = RUNNER.comparison_order(number)
+            self.assertEqual(5, len(order))
+            variants = list(dict.fromkeys(v for v, _ in order))
+            for variant in variants:
+                positions[variant].add(variants.index(variant))
+                self.assertEqual(["v5"] if variant == "v5" else
+                                 (["dev-default", "dev-os-cache"] if number % 2 else
+                                  ["dev-os-cache", "dev-default"]),
+                                 [c for v, c in order if v == variant])
+        self.assertTrue(all(p == {0, 1, 2} for p in positions.values()))
+
+    def test_runner_comparison_uses_separate_binaries_and_revision_metadata(self):
+        scenario = "single_insert_5k_tx"
+        calls = []
+
+        def child(command, **kwargs):
+            config, number, destination = command[-3:]
+            env = kwargs["env"]
+            calls.append((command[1], config, env["BENCHMARK_CANDIDATE_SHA"]))
+            source = json.loads(self.path(config, int(number)).read_text())
+            source["candidateCommit"] = env["BENCHMARK_CANDIDATE_SHA"]
+            source["samples"] = [s for s in source["samples"] if s["scenario"] == scenario]
+            Path(destination).write_text(json.dumps(source))
+            return subprocess.CompletedProcess(command, 0, stdout="synthetic child")
+
+        destination = self.output / "runner"
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux",
+                                     "BENCHMARK_BASELINE_SHA": "c" * 40,
+                                     "BENCHMARK_HARNESS_SHA": "f" * 40,
+                                     "BENCHMARK_SCENARIOS": scenario}), \
+                patch.object(sys, "argv", ["run.py", "net8.0", str(destination)]), \
+                patch.object(RUNNER.subprocess, "check_output", return_value="synthetic dotnet info"), \
+                patch.object(RUNNER.subprocess, "run", side_effect=child), redirect_stdout(io.StringIO()):
+            RUNNER.main()
+        self.assertEqual(30, len(calls))
+        self.assertEqual(12, sum("V6Before" in binary and sha == "c" * 40 for binary, _, sha in calls))
+        report = gate.evaluate_comparison(destination, CONFIG, "Linux", "net8.0", "c" * 40, scenario)
+        self.assertEqual("report-only", report["verdict"])
+        self.assertTrue(all(r["ratio"] == 1 for r in report["comparisons"]))
+        metadata = json.loads((destination / "environment.json").read_text())
+        self.assertEqual(30, len(metadata["order"]))
+
     def test_checked_in_limits_match_owner_brief(self):
         expected = {"single_insert_5k_tx": 1.10, "bulk_insert_100k": 1.10,
                     "full_scan_3x100k": 1.10, "update_10k_one_tx": 1.10,

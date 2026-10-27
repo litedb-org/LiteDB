@@ -34,6 +34,50 @@ its `LiteDB/` and build props/targets to the intended dev SHA before pushing.
 Only use the fork for initial validation. The integration branch is
 `v6/p1-bench-gate`; no PR is needed for this step.
 
+## Same-job before/after comparison
+
+Set `baseline_ref` to build a third library variant, from the same repository as
+`candidate_ref` (`candidate_repository` applies to both). Pin both refs to full
+SHAs. The harness always comes from the workflow branch. For example:
+
+```sh
+gh workflow run benchmark-gate.yml -R JKamsker/LiteDB --ref v6/p1-fix-gate-compare \
+  -f candidate_repository=litedb-org/LiteDB \
+  -f baseline_ref=a2664ea415e1e574bc5c8f28cb0c484c1bb898c7 \
+  -f candidate_ref=0e98a80c754d30c4b1bb2ae2f298da95ee9633f6 \
+  -f comparison_scenarios=bulk_insert_100k,update_10k_one_tx,single_insert_5k_tx
+```
+
+Each round rotates the three variants: v5/before/after, before/after/v5,
+after/v5/before. Both v6 variants run durable default and OS-cache configurations;
+their configuration order reverses each round. v5 is measured once per round
+and shared by both evaluations. `before/` contains the before raw rounds and a
+copy of each shared v5 round (its candidateCommit metadata identifies the before
+evaluation; the measured assembly and timings are unchanged). Execution order,
+revision identities and selected scenarios are retained in `environment.json`.
+
+Without a scenario subset, both revisions receive the existing vs-v5 verdicts,
+with unchanged thresholds, workloads and round counts. The overall verdict and
+exit code remain the after revision's gate result. `baselineGate` in `gate.json`
+contains the before gate; `comparisons` contains report-only after/before ratios
+for every scenario/configuration, including durable writer scaling. The ratios
+use median(after)/median(before), with observed min(after)/max(before) and
+max(after)/min(before) bounds. These bounds are not confidence intervals.
+`gate.csv` distinguishes after/v5, before/v5 and after/before rows; `gate.md`
+and the job log/summary include all three tables.
+
+Comparison jobs have a 23-minute measurement budget and 29-minute job timeout.
+To keep targeted investigations within that budget, `comparison_scenarios` may
+select a comma-separated subset of the ordinary scenario names in `gate.json`.
+Subsets require `baseline_ref`: **all results are report-only and no gate verdict
+is issued**, even if every selected scenario meets a threshold. Required main
+workload setup, dependencies and content checks still execute; unselected main
+scenario timings are discarded. Independent small-transaction/checkpoint work
+is omitted when unselected, as is durable writer scaling. Warmup uses the same
+selection. Round counts and selected workload sizes remain unchanged.
+An incomplete run remains an evidence error. Empty `baseline_ref` preserves the
+original execution order, reports, gate rules and time budgets.
+
 ## Comparable work
 
 Each Linux/Windows/macOS × net8.0/net10.0 job builds both projects from the same
