@@ -15,6 +15,8 @@ namespace LiteDB
         /// <summary>Test hook: runs in OpenDatabase between the engine check and counting the user.</summary>
         internal Action BeforeCountingUser { get; set; }
 
+        internal Action<string> OwnershipStage;
+
         internal int EngineOpens { get; private set; }
 
         internal int SnapshotOpens { get; private set; }
@@ -22,6 +24,15 @@ namespace LiteDB
         internal SharedMutexOwner MutexOwner => _owner;
         internal SharedFileHandles FileHandles => _handles;
 #endif
+
+        [Conditional("DEBUG"), Conditional("TESTING")]
+        private void AtOwnershipStage(string stage)
+        {
+#if DEBUG || TESTING
+            Reachability.FaultPoint("OwnershipStage");
+            this.OwnershipStage?.Invoke(stage);
+#endif
+        }
 
         /// <summary>
         /// Reachability: what a Dispose overlaps when it starts, read once the pin it must end is

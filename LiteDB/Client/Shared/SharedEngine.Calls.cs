@@ -58,7 +58,8 @@ namespace LiteDB
             }
             finally
             {
-                CloseDatabase(use);
+                try { this.ReconcileMappedTransaction(); }
+                finally { CloseDatabase(use); }
             }
         });
 
@@ -156,6 +157,7 @@ namespace LiteDB
                 try
                 {
                     var errors = core.Close(checkpoint: checkpoint, final: final);
+                    this.AtOwnershipStage("core-closed");
                     SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
                     this.ExitMappedWriter(!core.StorageUncertain && (errors == null || errors.Count == 0));
                     return errors;

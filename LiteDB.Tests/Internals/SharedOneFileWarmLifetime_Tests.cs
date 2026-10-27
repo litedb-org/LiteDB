@@ -169,7 +169,7 @@ namespace LiteDB.Internals
                 var weak = Abandon(engine);
                 Collect();
                 weak.IsAlive.Should().BeFalse();
-                var owners = Field<System.Collections.Generic.Dictionary<int, int>>(engine, "_localReaders");
+                var owners = Field<System.Collections.Generic.Dictionary<Thread, int>>(engine, "_localReaders");
                 SpinWait.SpinUntil(() => { lock (owners) return owners.Count == 0; }, TimeSpan.FromSeconds(5)).Should().BeTrue();
                 engine.Dispose();
                 Collect();

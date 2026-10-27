@@ -45,6 +45,7 @@ namespace LiteDB.Client.Shared
                 _uncertain = true;
                 BeginFence();
                 Authority.Map.Store(SharedMemoryLayout.FastAdmissionDisabled, 1);
+                SharedMemoryReaderTable.PublishStage("fast-admission-disabled");
                 Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, _writerMarker);
                 SharedMemoryReaderTable.PublishStage("writer-uncertain");
             }
@@ -159,6 +160,7 @@ namespace LiteDB.Client.Shared
             {
                 EnsureWriter();
                 if (version >= 0) SetVersion(version);
+                SharedMemoryReaderTable.PublishStage("open-version");
                 var structural = Authority.Map.Load(SharedMemoryLayout.StructuralEpoch);
                 if ((structural & 1) != 0)
                     Authority.Map.Store(SharedMemoryLayout.StructuralEpoch, checked(structural + 1));
@@ -168,6 +170,7 @@ namespace LiteDB.Client.Shared
                 _structuralDepth = 0;
                 ClearRecoveryOwner();
                 Authority.Map.Store(SharedMemoryLayout.FastAdmissionDisabled, 0);
+                SharedMemoryReaderTable.PublishStage("fast-admission-enabled");
                 EndFence();
                 SharedMemoryReaderTable.PublishStage("open-end");
             }

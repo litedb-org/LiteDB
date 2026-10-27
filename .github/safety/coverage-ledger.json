@@ -26,6 +26,19 @@
   ],
   "dispositions": [
     {
+      "id": "p2j-immediate-terminal-core-cleanup-oracles",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileSlice7Review_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs",
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileOwnershipHarness.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Implicit abort immediately returns transaction ownership; retry registration faults must target the actual retry core and reader cleanup must use actual Thread identity. All five adversarial scenarios and all assertions remain.",
+      "reason": "R1 previously dereferenced the facade current core after abort, which the required immediate native teardown now closes/clears. Capture that exact core before the duplicate and assert its abort afterwards. Retry injection now targets a retained pin core or the newly opened ordinary core. Lifetime reflection follows Dictionary<Thread,int>. No test is removed, skipped or weakened."
+    },
+    {
       "id": "p2i-fork-only-open-close-measurement",
       "kind": "ci-test-config-changed",
       "subjects": [

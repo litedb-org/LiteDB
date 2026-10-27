@@ -252,7 +252,7 @@ namespace LiteDB
         private IBsonDataReader ReadCached(string collection, Query query, CachedSharedSnapshot snapshot, long workStarted = 0)
         {
             IBsonDataReader reader = null;
-            int? local = null;
+            Thread local = null;
             var released = false;
             try
             {
@@ -298,7 +298,7 @@ namespace LiteDB
             finally { if (workStarted != 0) this.RecordCachedWork(Stopwatch.GetTimestamp() - workStarted); }
         }
 
-        private void ReleaseCached(CachedSharedSnapshot snapshot, int? local)
+        private void ReleaseCached(CachedSharedSnapshot snapshot, Thread local)
         {
             var checkpoint = false;
             try
@@ -327,7 +327,7 @@ namespace LiteDB
             }
             finally
             {
-                if (local.HasValue) this.RemoveLocalReader(local.Value);
+                if (local != null) this.RemoveLocalReader(local);
                 else if (checkpoint) this.CheckpointAfterLastReader();
             }
         }

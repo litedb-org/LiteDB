@@ -96,9 +96,11 @@ namespace LiteDB.Client.Shared
                     Stage("before-ready");
                     result.Map.Store(SharedMemoryLayout.Control, 1);
                     Stage("ready");
+                    Stage("before-dms-downgrade");
                     result.Locks.DowngradeDms();
                     Stage("downgraded");
                     result.Locks.ExitWrite();
+                    Stage("write-released");
                 }
                 else
                 {
@@ -126,9 +128,11 @@ namespace LiteDB.Client.Shared
                     Stage("before-ready");
                     result.Map.Store(SharedMemoryLayout.Control, 1);
                     Stage("ready");
+                    Stage("before-dms-downgrade");
                     result.Locks.DowngradeDms();
                     Stage("downgraded");
                     result.Locks.ExitWrite();
+                    Stage("write-released");
                 }
                 result.Claim();
                 Stage("claimed");

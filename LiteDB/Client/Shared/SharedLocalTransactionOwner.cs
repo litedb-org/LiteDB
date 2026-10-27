@@ -35,7 +35,10 @@ namespace LiteDB.Client.Shared
 
                 while (_current != null)
                 {
-                    Monitor.Wait(_gate);
+                    // A native holder normally pulses on terminal cleanup. Recheck
+                    // actual Thread identity if death precedes its cleanup callback.
+                    Monitor.Wait(_gate, 100);
+                    ReleaseDeadOwnerLocked();
                     if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
                         ReferenceEquals(_current.Thread, thread))
                     {

@@ -1691,6 +1691,33 @@
   ],
   "injectors": [
     {
+      "name": "OwnershipStage",
+      "protocol": "Shared terminal completion, core-close and snapshot-open boundaries",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state",
+          "model": "exception",
+          "proves": "Commit/rollback/core-close/Dispose cuts release local and native ownership for both ordinary and pinned holders, followed by immediate peer admission and two cold indexed payload checks."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Every_protected_entry_propagates_abandonment_until_the_real_WRITE_byte_is_acquired",
+          "model": "exception",
+          "proves": "An injected read-only snapshot open failure follows the normal writable fallback after real mutex abandonment and a conflicting WRITE byte."
+        }
+      ]
+    },
+    {
+      "name": "WriteRetry",
+      "protocol": "Native WRITE conflict with a held main mutex",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Real_abandoned_thread_with_live_handles_requires_actual_WRITE_and_can_retry_after_timeout",
+          "model": "interleaving",
+          "proves": "A real abandoned thread leaves live handles in its surviving process; a controlled byte release permits acquisition, persistent conflict times out without stealing ownership and a later retry succeeds."
+        }
+      ]
+    },
+    {
       "name": "BeforeTransactionRegistration",
       "protocol": "Transaction retry registration before admission",
       "evidence": [
@@ -1831,6 +1858,14 @@
       "protocol": "ABI-2 ephemeral mapping bootstrap and final close",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+          "model": "process-death",
+          "proves": "Real SharedEngine construction/close hits production reuse stores with asserted reuse and marker reachability, two child deaths per cut and two indexed payload/sentinel recovery checks.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileProductionReuseHarness.cs"
+          ]
+        },
+        {
           "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
           "model": "process-death",
           "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
@@ -1877,6 +1912,14 @@
       "name": "PublicationStage",
       "protocol": "ABI-2 mapped writer publication and recovery fences",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+          "model": "process-death",
+          "proves": "Real SharedEngine construction/close hits production reuse stores with asserted reuse and marker reachability, two child deaths per cut and two indexed payload/sentinel recovery checks.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileProductionReuseHarness.cs"
+          ]
+        },
         {
           "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
           "model": "process-death",

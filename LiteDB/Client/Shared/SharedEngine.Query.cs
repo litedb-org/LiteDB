@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Runtime.ExceptionServices;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -70,7 +71,7 @@ namespace LiteDB
                     {
                         try
                         {
-                            this.EnterMappedWriter();
+                            this.EnterMappedWriter(recoveredAbandonedOwner);
                             this.OpenEngine(recoveredAbandonedOwner, writing: true);
                         }
                         catch { this.ExitMappedWriter(false); _owner.Exit(); throw; }
@@ -319,7 +320,7 @@ namespace LiteDB
                         {
                             if (release)
                             {
-                                if (!_transactionRunning) _transactionThreadId = 0;
+                                if (!_transactionRunning) _transactionThread = null;
                                 _owner.Exit();
                             }
                         }
@@ -343,6 +344,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
                 this.EnsureReadCoordination();
 #endif
+                this.AtOwnershipStage("before-snapshot-open");
                 snapshot = this.CreateEngine(recoveredAbandonedOwner, this.SnapshotSettings());
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException))

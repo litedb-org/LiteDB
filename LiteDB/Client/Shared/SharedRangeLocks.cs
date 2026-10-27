@@ -11,6 +11,9 @@ namespace LiteDB.Client.Shared
         private readonly DatabaseFileLock _probe;
         private readonly DatabaseFileLock _writer;
         private bool _writing;
+#if DEBUG || TESTING
+        [ThreadStatic] internal static Action WriteRetry;
+#endif
         internal string Identity => _owner.Identity;
 
         internal SharedRangeLocks(string path)
@@ -41,6 +44,10 @@ namespace LiteDB.Client.Shared
             if (_writing) throw new InvalidOperationException("WRITE is already owned.");
             if (!_writer.TryLock(SharedMemoryLayout.Write, true))
             {
+#if DEBUG || TESTING
+                LiteDB.Utils.Reachability.FaultPoint("WriteRetry");
+                WriteRetry?.Invoke();
+#endif
                 // A killed process can abandon its named mutex before the kernel
                 // finishes closing its OFD descriptions. Keep main ownership and
                 // require the actual WRITE lock; never infer its release from death.

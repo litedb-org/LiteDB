@@ -27,9 +27,10 @@ namespace LiteDB.Internals
             {
                 owner.BeginTrans().Should().BeTrue();
                 owner.GetCollection("docs").Insert(Row(2));
+                var abortedCore = Core(first);
                 Action duplicate = () => owner.GetCollection("docs").Insert(Row(1));
                 duplicate.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(110);
-                Core(first).HasActiveTransaction.Should().BeFalse("the inner engine already rolled back");
+                abortedCore.HasActiveTransaction.Should().BeFalse("the inner engine already rolled back");
 
                 Exception peerFailure;
                 try

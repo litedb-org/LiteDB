@@ -67,9 +67,10 @@ namespace LiteDB.Client.Shared
                 {
                     using var main = SharedMutexFactory.Create(SharedMutexNameFactory.Create(captured.Filename, captured.SharedMutexNameStrategy));
                     var held = false;
+                    var abandoned = false;
                     try
                     {
-                        try { held = main.WaitOne(TimeSpan.FromSeconds(5)); } catch (AbandonedMutexException) { held = true; }
+                        try { held = main.WaitOne(TimeSpan.FromSeconds(5)); } catch (AbandonedMutexException) { held = true; abandoned = true; }
                         if (!held) throw new IOException("Protected Shared storage validation timed out.");
                         var coreSettings = captured.Clone();
                         coreSettings.SharedAdmission = admission;
@@ -81,7 +82,7 @@ namespace LiteDB.Client.Shared
                         var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;
                         LiteEngine core = null;
                         var publish = false;
-                        if (writable) table._writer.Enter(borrowedWrite: current.Slot < 0);
+                        if (writable) table._writer.Enter(borrowedWrite: current.Slot < 0, abandonedOwner: abandoned);
                         try
                         {
                             if (writable)

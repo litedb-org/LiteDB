@@ -27,7 +27,7 @@ namespace LiteDB
         private LiteEngine _engine;
         private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
-        private int _transactionThreadId;
+        private Thread _transactionThread;
         private int _databaseUsers;
         private SharedMutexPin _transactionUse;
         private SharedLocalTransactionOwner _localTransactions;
@@ -114,10 +114,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
-            if (_localTransactions?.IsHeldByOther(this, Thread.CurrentThread) == true)
-                throw new InvalidOperationException(
-                    "Another connection (mapped Shared facade) owns the writable transaction on this thread. " +
-                    "Complete it before using this facade on the same thread.");
+            this.ThrowIfForeignLocalTransaction();
             // Writers retire idle read handles before _useLock, preserving lock order.
             if (writing) this.RetireCoordinatedReads();
             if (writing && _mappedWriterHeld) this.EnterMappedWriter();
@@ -229,7 +226,7 @@ namespace LiteDB
             }
             finally
             {
-                if (!_transactionRunning) _transactionThreadId = 0;
+                if (!_transactionRunning) _transactionThread = null;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
                 // Any thread may end it, for example when disposing a reader.
                 _owner.Exit(generation);
@@ -251,11 +248,12 @@ namespace LiteDB
                 _databaseUsers = 0;
                 var engine = _engine;
                 _engine = null;
-                if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
-                this.CloseMutexSnapshotsLocked();
-                _transactionRunning = false;
-                _transactionThreadId = 0;
-                this.ReleaseLocalTransaction();
+                try
+                {
+                    if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
+                    this.CloseMutexSnapshotsLocked();
+                }
+                finally { this.EndTransaction(releaseHold: false); }
             }
             _handles?.CloseIdle();
         }
@@ -364,41 +362,20 @@ namespace LiteDB
                 {
                     // The pin's holder still closes its engine; its streams close on return.
                     this.DeferNativeRelease();
-                    _readers.Dispose();
                     return;
                 }
-                pin.WaitReleased();
+                try { pin.WaitReleased(); }
+                catch
+                {
+                    this.WaitForAdmittedCalls();
+                    this.DisposeOwnedResources();
+                    throw;
+                }
             }
 
             // Calls admitted before Dispose started finish first; later ones are refused.
             this.WaitForAdmittedCalls();
-            var closed = false;
-            // The ownership an open engine implies ends only after ReleaseAll below.
-            using (this.OwnershipFrame(() => _owner.IsHeld))
-            lock (_useLock)
-            {
-                if (_engine != null)
-                {
-                    this.CloseRetainedCore(_engine, final: true);
-                    _engine = null;
-                    closed = true;
-                }
-                this.CloseMutexSnapshotsLocked();
-                _databaseUsers = 0;
-            }
-            // Open readers and transactions of any thread end with the connection.
-            _owner.ReleaseAll();
-            this.ReleaseLocalTransaction();
-            // Operations left a WAL below the close threshold: checkpoint it now, so
-            // the data file alone is the database again once every connection closed.
-            if (!closed) this.CheckpointOnDispose();
-            _handles?.Dispose();
-            // Leased readers may outlive the connection; the slot file closes after the last.
-            _readers.Dispose();
-            // A disposed connection holds no mutex, even for the moment its holder
-            // needs to release it; another connection's final close may try it next.
-            _owner.WaitForRelease();
-            try { this.DisposeCoordination(); } finally { _admission?.Dispose(); }
+            this.DisposeOwnedResources();
         }
     }
 }

@@ -181,3 +181,7 @@ open/turnstile seams, storage I/O and helper-thread work. A zero value establish
 that those selected seams were avoided; it does not establish zero syscalls for
 a whole query. Cold and contended controls are in `SharedOneFileWarmCounter_Tests`.
 The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
+
+The [ownership transition protocol](shared-one-file-ownership.md) specifies local
+reservation/publication, native tenure, terminal cleanup, abandoned-owner handoff
+and deferred disposal, together with their discriminating safety tests and limits.

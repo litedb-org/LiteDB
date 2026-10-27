@@ -54,15 +54,22 @@ internal static class SharedOneFileOwnershipHarness
                 catch (LiteException error) when (error.ErrorCode == 110) { }
                 if (command == "retry-failed")
                 {
-                    var core = Field<LiteEngine>(engine, "_engine");
-                    var monitor = Field<TransactionMonitor>(core, "_monitor");
-                    monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    TransactionMonitor? monitor = null;
+                    engine.BeforeCountingUser = () =>
+                    {
+                        monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
+                        monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    };
                     try
                     {
                         try { db.BeginTrans(); throw new Exception("Retry failure missed"); }
                         catch (IOException error) when (error.Message == "retry begin failure") { }
                     }
-                    finally { monitor.BeforeTransactionRegistration = null; }
+                    finally
+                    {
+                        engine.BeforeCountingUser = null;
+                        if (monitor != null) monitor.BeforeTransactionRegistration = null;
+                    }
                     if (!LiteDB.Utils.Reachability.Snapshot().ContainsKey("fault-point:BeforeTransactionRegistration"))
                         throw new Exception("Retry registration fault marker was not reached");
                     Console.WriteLine("retry-failed");

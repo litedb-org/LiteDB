@@ -9,6 +9,14 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "OwnershipStage": {
+      "gate": "advisory",
+      "reason": "Focused SharedOneFile terminal, teardown callback and writable fallback tests force these exception boundaries. Generic default-mode fuzz does not install this instance hook; whole-path mapped fuzz remains a later-slice qualification gate."
+    },
+    "WriteRetry": {
+      "gate": "advisory",
+      "reason": "Focused SharedOneFileRetryHandoff tests force real abandoned-thread conflicts and native byte release/timeout. Default-mode fuzz does not enable ABI-2 or retain dead-thread native handles."
+    },
     "BeforeTransactionRegistration": {
       "gate": "advisory",
       "reason": "Deterministic mapped and legacy retry tests install this exception hook; default-mode fuzz does not inject failed registration. Cross-process mapped retry coverage retains complete cold payload/index/sentinel oracles."

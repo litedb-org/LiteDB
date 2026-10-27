@@ -54,14 +54,30 @@ namespace LiteDB.Internals
                     db.GetCollection("docs").Insert(Row(1000 + retry));
                     Action duplicate = () => db.GetCollection("docs").Insert(Row(1));
                     duplicate.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(110);
-                    var monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
-                    monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    TransactionMonitor monitor = null;
+                    var retained = Field<LiteEngine>(engine, "_engine");
+                    if (retained != null)
+                    {
+                        monitor = Field<TransactionMonitor>(retained, "_monitor");
+                        monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    }
+                    // Terminal abort may close the old core immediately. Install the
+                    // registration failure on the independently reopened retry core.
+                    engine.BeforeCountingUser = () =>
+                    {
+                        monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
+                        monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+                    };
                     try
                     {
                         Action failedBegin = () => db.BeginTrans();
                         failedBegin.Should().Throw<IOException>().WithMessage("retry begin failure");
                     }
-                    finally { monitor.BeforeTransactionRegistration = null; }
+                    finally
+                    {
+                        engine.BeforeCountingUser = null;
+                        if (monitor != null) monitor.BeforeTransactionRegistration = null;
+                    }
                     db.BeginTrans().Should().BeTrue();
                     var map = engine.MappedReaderTable.Authority.Map;
                     (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
