@@ -2180,7 +2180,8 @@
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
     "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
     "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled.",
-    "WaitObserved": "Observes the mapped holder sample, pressure recheck, native wait and return to force wake interleavings and inspect the actual timeout/error; no persistent mutation."
+    "WaitObserved": "Observes the mapped holder sample, pressure recheck, native wait and return to force wake interleavings and inspect the actual timeout/error; no persistent mutation.",
+    "NativeWakeStage": "Observes a Darwin timeout post and native wait return so SharedPlatformWake_Tests.Native_backend_opens_peer_handles_and_recreates_a_retired_authority can force a queued callback to retain the semaphore until it drains; no persistent mutation."
   },
   "unhookedTransitions": [
     {
