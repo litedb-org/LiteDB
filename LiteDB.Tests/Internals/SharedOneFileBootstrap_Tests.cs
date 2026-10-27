@@ -26,7 +26,7 @@ namespace LiteDB.Internals
             db.GetCollection("unrelated").Insert(new BsonDocument { ["_id"] = 7, ["payload"] = new string('z', 20000) });
         }
         internal static readonly string[] Cuts = { "created", "invalidated", "allocated", "mapped", "odd", "envelope-a", "envelope-b",
-            "before-storage", "after-storage", "before-ready", "ready", "downgraded", "claimed", "before-close", "closed" };
+            "before-storage", "after-storage", "before-ready", "ready", "before-dms-downgrade", "downgraded", "write-released", "claimed", "before-close", "closed" };
         public static IEnumerable<object[]> Boundaries => Cuts.Select(s => new object[] { s });
         private EngineSettings Settings(int processes = 256, int generations = 256) => new EngineSettings
         { Filename = Filename, SharedMode = true, SharedProcessCapacity = processes, SharedGenerationCapacity = generations };
