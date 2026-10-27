@@ -86,6 +86,7 @@ namespace LiteDB
                 throw ForeignTransactionCompletion();
             }
 
+            var failed = false;
             try
             {
                 // Dispose ended the transaction with the connection; a rollback in a catch
@@ -102,6 +103,14 @@ namespace LiteDB
                     this.AtOwnershipStage(commit ? "before-commit" : "before-rollback");
                     return commit ? _engine.Commit() : _engine.Rollback();
                 }
+                catch
+                {
+                    failed = true;
+                    // A failed completion may leave an inner transaction alive.
+                    // It must be rolled back by close before this tenure is reused.
+                    pin?.RequestRelease(force: true);
+                    throw;
+                }
                 finally
                 {
                     this.EndTransaction(releaseHold: true);
@@ -109,7 +118,11 @@ namespace LiteDB
             }
             finally
             {
-                if (pinned) pin.Exit(hold: false);
+                if (pinned)
+                {
+                    this.CloseDatabase(pin);
+                    if (failed && pin.CanWaitFrom(Thread.CurrentThread)) pin.WaitReleased();
+                }
                 else _owner.Exit();
             }
         }

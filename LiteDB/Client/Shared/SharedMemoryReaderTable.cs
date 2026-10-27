@@ -171,6 +171,27 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        internal IDisposable RequestWriter()
+        {
+            if (!TryRetain()) throw new ObjectDisposedException(nameof(SharedMemoryReaderTable));
+            try { return new WriterRequest(this, Authority.Requests.Enter()); }
+            catch { Release(); throw; }
+        }
+        private sealed class WriterRequest : IDisposable
+        {
+            private SharedMemoryReaderTable _table;
+            private readonly IDisposable _request;
+            internal WriterRequest(SharedMemoryReaderTable table, IDisposable request)
+            { _table = table; _request = request; }
+            public void Dispose()
+            {
+                var table = Interlocked.Exchange(ref _table, null);
+                if (table == null) return;
+                try { _request.Dispose(); }
+                finally { table.Release(); }
+            }
+        }
+
         internal long WriterTenure => _writer.Tenure;
         public void BindState(EngineState state, long tenure) => _writer.BindState(state, tenure);
         public void Stopped(long tenure) => _writer.Stopped(tenure);

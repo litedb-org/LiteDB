@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace LiteDB.Client.Shared
 {
@@ -43,6 +44,31 @@ namespace LiteDB.Client.Shared
         }
         internal long CompareExchange(long offset, long value, long expected)
         { this.Require(offset, 8); return Interlocked.CompareExchange(ref *(long*)(_pointer + offset), value, expected); }
+        internal long Increment(long offset)
+        { this.Require(offset, 8); return Interlocked.Increment(ref *(long*)(_pointer + offset)); }
+
+        // Linux x64 FUTEX_WAIT/FUTEX_WAKE (shared, never FUTEX_PRIVATE_FLAG).
+        // The mapping remains pinned until every holder/request lease drains.
+        internal void Wake()
+        {
+            Increment(SharedMemoryLayout.WriterWake);
+            var result = syscall(202, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 1, int.MaxValue, IntPtr.Zero);
+            if (result < 0) throw new IOException("Shared writer futex wake failed: " + Marshal.GetLastPInvokeError());
+        }
+        internal void WaitWake(long observed, int milliseconds)
+        {
+            var timeout = new Timespec { Seconds = 0, Nanoseconds = milliseconds * 1000000L };
+            var result = syscall(202, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 0,
+                unchecked((int)observed), (IntPtr)(&timeout));
+            if (result >= 0) return;
+            var error = Marshal.GetLastPInvokeError();
+            if (error != 11 && error != 4 && error != 110)
+                throw new IOException("Shared writer futex wait failed: " + error);
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Timespec { internal long Seconds, Nanoseconds; }
+        [DllImport("libc", SetLastError = true)]
+        private static extern long syscall(long number, IntPtr address, int operation, int value, IntPtr timeout);
         internal bool Matches(long offset, byte[] expected)
         {
             for (var i = 0; i < expected.Length; i += 8)

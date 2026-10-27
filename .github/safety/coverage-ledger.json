@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "p3a-fork-only-writer-tenure-measurements",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Existing full CI and benchmark comparisons remain unchanged by default; Phase 3-A measurements run only on the fork in isolated production builds.",
+      "reason": "Adds an opt-in Linux net8/net10 job comparing exact Phase 2 against the candidate, five alternating paired rounds, durable and nonsync small transactions and two-process alternating latency. A bounded job and required artifacts add evidence without reducing existing thresholds or tests."
+    },
+    {
       "id": "p2j-immediate-terminal-core-cleanup-oracles",
       "kind": "assertions-reduced",
       "subjects": [

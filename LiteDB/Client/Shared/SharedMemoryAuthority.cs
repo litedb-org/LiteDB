@@ -17,6 +17,7 @@ namespace LiteDB.Client.Shared
         internal SharedMemoryMap Map { get; private set; }
         internal SharedMemoryEnvelope Header { get; private set; }
         internal int Slot { get; private set; } = -1;
+        internal SharedWriterRequests Requests { get; private set; }
         internal readonly Guid Incarnation = Guid.NewGuid();
         internal long Block => SharedMemoryLayout.Blocks + (long)Slot * Header.Stride;
         private FileStream _file;
@@ -136,13 +137,14 @@ namespace LiteDB.Client.Shared
                 }
                 result.Claim();
                 Stage("claimed");
-                // A future lingering writer sees the peer/request before this open
-                // can block on its main mutex. The wake word is reserved, not active.
-                result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 1);
+                result.Requests = new SharedWriterRequests(result);
                 bootstrap.ReleaseMutex();
                 held = false;
-                if (!first) { Stage("before-storage"); validateStorage(result); Stage("after-storage"); }
-                result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 0);
+                if (!first)
+                {
+                    using (result.Requests.Enter())
+                    { Stage("before-storage"); validateStorage(result); Stage("after-storage"); }
+                }
                 return result;
             }
             catch { result?.Dispose(); throw; }

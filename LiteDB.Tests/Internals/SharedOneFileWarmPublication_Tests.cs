@@ -56,6 +56,7 @@ namespace LiteDB.Internals
                 }
                 else
                 {
+                    Quiet(table);
                     synced.Should().BeTrue();
                     reached.Should().Contain(new[] { "fence-begin", "commit-version", "fence-end", "writer-end" });
                     table.Reads.TryRead(out var after).Should().BeTrue();

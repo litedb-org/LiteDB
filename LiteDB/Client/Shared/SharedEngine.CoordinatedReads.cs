@@ -121,7 +121,7 @@ namespace LiteDB
 
         private IBsonDataReader TryQueryCoordinated(string collection, Query query)
         {
-            if ((_coordination == null && MappedReads == null) || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
+            if ((_coordination == null && MappedReads == null) || (_pin != null && !(this.UsesMappedTenure && _pin.IsIdle)) || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             bool yieldToWriter;
             int delay;
             lock (_snapshotGate)
@@ -193,7 +193,7 @@ namespace LiteDB
         }
 
         /// <summary>Install only a snapshot opened and leased under the database mutex.</summary>
-        private IBsonDataReader TryInstallCoordinated(string collection, Query query, LiteEngine engine)
+        private IBsonDataReader TryInstallCoordinated(string collection, Query query, LiteEngine engine, SharedMutexPin use = null)
         {
             // A single read between writes cannot amortize retaining a snapshot.
             // Start caching only after two consecutive read-only opens.
@@ -209,7 +209,7 @@ namespace LiteDB
             catch
             {
                 try { engine.Dispose(); }
-                finally { _owner.Exit(); }
+                finally { this.ReleaseSnapshotUse(use); }
                 throw;
             }
             var snapshot = new CachedSharedSnapshot(engine, lease, status) { Readers = 1 };
@@ -241,7 +241,7 @@ namespace LiteDB
                 }
                 throw;
             }
-            finally { _owner.Exit(); }
+            finally { this.ReleaseSnapshotUse(use); }
         }
 
         private void RecordCachedWork(long ticks)

@@ -3,6 +3,11 @@ name: Phase 1 benchmark gate
 on:
   workflow_dispatch:
     inputs:
+      shared_tenure_only:
+        description: 'Only run the fork-only Phase 3-A mapped writer tenure comparison'
+        required: false
+        type: boolean
+        default: false
       shared_open_close_only:
         description: 'Only run the fork-only Phase 2 mapped open/close comparison'
         required: false
@@ -28,7 +33,7 @@ permissions:
 jobs:
   compare:
     if: >-
-      inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
+      inputs.shared_tenure_only != true && inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
@@ -163,6 +168,63 @@ jobs:
         if: always()
         with:
           name: mapped-open-close-${{ matrix.framework }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  mapped-writer-tenure:
+    if: github.repository == 'JKamsker/LiteDB' && github.event_name == 'workflow_dispatch' && inputs.shared_tenure_only == true
+    name: Mapped writer tenure (${{ matrix.framework }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: litedb-org/LiteDB
+          ref: 7d9975e30264973cb69a6d3c301212b10a3379fa
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Validate tenure measurement orchestration without measurements
+        run: python3 -m unittest discover -s candidate/.github/scripts -p test_shared_writer_tenure.py
+      - name: Build isolated production libraries and identical candidate harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git -C baseline rev-parse HEAD > evidence/base.txt
+          git -C candidate rev-parse HEAD > evidence/head.txt
+          dotnet --info > evidence/runtime.txt
+          for variant in baseline candidate; do
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
+            library="$GITHUB_WORKSPACE/$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
+            dotnet build candidate/tools/SharedWriterTenureMeasurements -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
+          done
+      - name: Five paired single-process throughput and alternating-writer latency rounds
+        env:
+          DOTNET_TieredCompilation: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 10m python3 candidate/tools/SharedWriterTenureMeasurements/run.py runner-baseline runner-candidate scratch evidence | tee evidence/report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mapped-writer-tenure-${{ matrix.framework }}
           path: evidence/
           if-no-files-found: error
           retention-days: 30

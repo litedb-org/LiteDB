@@ -9,6 +9,10 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "RequestStage": {
+      "gate": "advisory",
+      "reason": "Focused writer-tenure tests hit both request cuts with exceptions and process death/suspension. Default-mode fuzz does not enable the Linux x64 mapped opt-in; mapped whole-path qualification remains a later step."
+    },
     "OwnershipStage": {
       "gate": "advisory",
       "reason": "Focused SharedOneFile terminal, teardown callback and writable fallback tests force these exception boundaries. Generic default-mode fuzz does not install this instance hook; whole-path mapped fuzz remains a later-slice qualification gate."

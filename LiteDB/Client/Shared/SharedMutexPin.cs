@@ -28,6 +28,9 @@ namespace LiteDB.Client.Shared
         internal static readonly TimeSpan YieldAfter = TimeSpan.FromMilliseconds(10);
         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
 
+#if NET8_0_OR_GREATER
+        private SharedWriterTenure _tenure;
+#endif
         private readonly Mutex _mutex;
         private readonly SharedMutexTurnstile _turnstile;
         private readonly Func<bool> _localWaiters;
@@ -64,10 +67,13 @@ namespace LiteDB.Client.Shared
             _idleLimit = idleLimit;
             _holdLimit = holdLimit;
             _close = close;
-            this.Owner = Thread.CurrentThread;
+            _owner = Thread.CurrentThread;
         }
 
-        public Thread Owner { get; }
+        private volatile Thread _owner;
+        public Thread Owner => _owner;
+
+        internal bool IsIdle { get { lock (_sync) return _accepting && _operations == 0 && _holds == 0; } }
 
         public bool RecoveredAbandonedOwner { get; private set; }
 
@@ -112,6 +118,23 @@ namespace LiteDB.Client.Shared
             return pin;
         }
 
+#if NET8_0_OR_GREATER
+        internal static SharedMutexPin AcquireTenure(Mutex mutex, SharedMutexTurnstile turnstile,
+            Func<bool> localWaiters, Action<SharedMutexPin, bool> close, SharedWriterTenure tenure)
+        {
+            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, IdleLimit, HoldLimit) { _tenure = tenure };
+            var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB mapped writer holder" };
+            try { holder.Start(); }
+            catch { tenure.Dispose(); throw; }
+            pin._acquired.Wait();
+            if (pin._error != null)
+            {
+                holder.Join();
+                ExceptionDispatchInfo.Capture(pin._error).Throw();
+            }
+            return pin;
+        }
+#endif
         /// <summary>
         /// Enter an operation on the owner thread while the pin still holds. Once
         /// an end is due, a new top-level operation is refused so a tight loop
@@ -121,9 +144,17 @@ namespace LiteDB.Client.Shared
         /// </summary>
         public bool TryEnter()
         {
-            if (!ReferenceEquals(Thread.CurrentThread, this.Owner)) return false;
             lock (_sync)
             {
+                if (!ReferenceEquals(Thread.CurrentThread, this.Owner))
+                {
+#if NET8_0_OR_GREATER
+                    if (_tenure == null || _operations != 0 || _holds != 0) return false;
+                    _owner = Thread.CurrentThread;
+#else
+                    return false;
+#endif
+                }
                 if (!_accepting) return false;
                 if (_operations == 0 && _holds == 0 && this.ShouldEnd())
                 {
@@ -144,6 +175,10 @@ namespace LiteDB.Client.Shared
                 if (hold) _holds--;
                 else _operations--;
                 _lastUse = _clock.Elapsed;
+#if NET8_0_OR_GREATER
+                if (_tenure != null && _operations == 0 && _holds == 0 && _tenure.ShouldEnd(boundary: true))
+                    _requested = true;
+#endif
             }
             _signal.Set();
         }
@@ -169,6 +204,11 @@ namespace LiteDB.Client.Shared
             {
                 _requested = true;
                 _forced |= force;
+#if NET8_0_OR_GREATER
+                // Once close starts, it can detach the participant. Serialize
+                // the last wake with that transition; stale release is harmless.
+                if (_accepting) _tenure?.Wake();
+#endif
             }
             _signal.Set();
         }
@@ -212,6 +252,9 @@ namespace LiteDB.Client.Shared
             catch (Exception ex)
             {
                 _error = ex;
+#if NET8_0_OR_GREATER
+                try { _tenure?.Dispose(); } catch (Exception) { }
+#endif
                 _acquired.Set();
                 _released.Set();
                 return;
@@ -219,14 +262,32 @@ namespace LiteDB.Client.Shared
 
             _lastUse = _clock.Elapsed;
             _acquired.Set();
-            var abandoned = this.WaitForEnd();
-
+            var abandoned = true;
             Exception error = null;
+            try { abandoned = this.WaitForEnd(); }
+            catch (Exception ex)
+            {
+                error = ex;
+                // A failed wake/pressure read cannot close under a live call.
+                while (true)
+                {
+                    lock (_sync)
+                    {
+                        _accepting = false;
+                        if (_operations == 0 || !this.Owner.IsAlive) break;
+                    }
+                    _signal.WaitOne(Poll);
+                }
+            }
             try { _close(this, abandoned); }
-            catch (Exception ex) { error = ex; }
+            catch (Exception ex) { error = error ?? ex; }
             SharedOwnershipEvents.Release(_mutex);
             try { _mutex.ReleaseMutex(); }
             catch (Exception ex) { error = error ?? ex; }
+#if NET8_0_OR_GREATER
+            try { _tenure?.Dispose(); }
+            catch (Exception ex) { error = error ?? ex; }
+#endif
             _error = error;
             _released.Set();
         }
@@ -240,6 +301,9 @@ namespace LiteDB.Client.Shared
                 lock (_sync)
                 {
                     var ownerExited = !this.Owner.IsAlive;
+#if NET8_0_OR_GREATER
+                    if (_tenure != null && _operations == 0 && _holds == 0) ownerExited = false;
+#endif
                     var drained = !_accepting && _operations == 0;
                     if (ownerExited || drained || this.ShouldEnd())
                     {
@@ -248,6 +312,9 @@ namespace LiteDB.Client.Shared
                     }
                     var now = _clock.Elapsed;
                     probe = _accepting && !_waiterSeen && now - _lastProbe >= Poll;
+#if NET8_0_OR_GREATER
+                    if (_tenure != null) probe = false;
+#endif
                     if (probe) _lastProbe = now;
                 }
                 // Outside the lock: the owner's operations never wait for a probe.
@@ -256,6 +323,10 @@ namespace LiteDB.Client.Shared
                     lock (_sync) _waiterSeen = true;
                     continue;
                 }
+#if NET8_0_OR_GREATER
+                if (_tenure != null) _tenure.Wait();
+                else
+#endif
                 _signal.WaitOne(Poll);
             }
         }
@@ -266,6 +337,9 @@ namespace LiteDB.Client.Shared
             if (_forced) return true;
             if (_holds > 0) return false;
             if (_requested || !this.Counted || _localWaiters()) return true;
+#if NET8_0_OR_GREATER
+            if (_tenure != null) return _tenure.ShouldEnd();
+#endif
             var now = _clock.Elapsed;
             if (_waiterSeen && now - _readyAt >= _yield) return true;
             return now - _lastUse >= _idle || now - _readyAt >= _hold;

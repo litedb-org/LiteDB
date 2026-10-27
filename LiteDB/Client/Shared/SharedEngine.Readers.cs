@@ -57,7 +57,7 @@ namespace LiteDB
 
             // Any thread may dispose the owner's last reader and so end its pin.
             var pin = _pin;
-            if (pin != null && ReferenceEquals(pin.Owner, owner))
+            if (!this.UsesMappedTenure && pin != null && ReferenceEquals(pin.Owner, owner))
             {
                 pin.RequestRelease(force: false);
                 if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
@@ -101,7 +101,7 @@ namespace LiteDB
         /// replaced directly. A holder cannot acquire a mutex this thread owns.
         /// </summary>
         private bool CanPin() =>
-            !_transactionRunning && this.HasLocalReaders(Thread.CurrentThread) && !_owner.IsOwnedByCurrentThread;
+            !_transactionRunning && (this.UsesMappedTenure || this.HasLocalReaders(Thread.CurrentThread)) && !_owner.IsOwnedByCurrentThread;
 
         /// <summary>
         /// Acquire the mutex on a holder thread and open the engine for this thread.
@@ -127,7 +127,7 @@ namespace LiteDB
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                pin = this.AcquirePin();
             }
             finally
             {
@@ -208,7 +208,21 @@ namespace LiteDB
                     var engine = _engine;
                     _engine = null;
                     var close = Stopwatch.StartNew();
-                    this.CloseRetainedCore(engine, checkpoint: !abandoned);
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+                    var previous = SharedMemoryReaderTable.PublicationStage;
+                    SharedMemoryReaderTable.PublicationStage = HandoffPublication;
+#endif
+                    try
+                    {
+                        try { this.AtOwnershipStage("tenure-handoff"); }
+                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned); }
+                    }
+                    finally
+                    {
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+                        SharedMemoryReaderTable.PublicationStage = previous;
+#endif
+                    }
                     _lastPinClose = close.Elapsed;
                 }
             }

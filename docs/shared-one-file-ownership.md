@@ -84,3 +84,64 @@ They do not establish Windows/macOS or ARM/x86 mapped execution, Framework mappe
 execution, device power loss or whole-path mapped power-loss fuzz qualification.
 Transaction handles and supported cross-thread completion are Phase 4 work;
 legacy explicit transactions still complete on their creating Thread.
+
+## Phase 3-A writer tenure
+
+A writable mapped facade uses a dedicated native mutex holder from its first
+writable open, including legacy BeginTrans. While alone, it retains main, WRITE
+and the same core between calls and while idle. Idle tenure can move to another
+application Thread; a running call, explicit transaction or retained reader still
+belongs to its actual Thread. A sibling facade requests a boundary handoff through
+the participant; facade callbacks/settings and stale-result generations stay
+isolated. The unmapped path retains its previous scoped/pinned behavior.
+
+The existing pin gate serializes operation entry and handoff. It counts at most
+eight completed outer operations (therefore no more than eight transactions) or
+one monotonic millisecond after observing contention. `SharedWriterTenure`
+contains the internal budgets. An attached live process also enables the budget,
+even without a writer request. A budget never interrupts a transaction or a
+stream still retaining the writable core. New top-level calls stop entering at
+exhaustion; the holder closes under main, ends WRITE exactly once, then releases
+main. Stopped cores request forced drain before returning the failing operation;
+their odd fence remains until independent protected recovery. Durable group
+publication, structural/reuse fencing and reader admission rechecks are unchanged.
+
+Request records use reserved ABI-2 process-block bytes 80 (ticket) and 88 (expiry),
+with a shared sequence at control+1032. Each participant publishes its oldest
+pending ticket before waiting for main, including constructor validation and cold
+readers. One renewal timer per requesting process extends a 100 ms lease every
+25 ms. Nested/local waiters share the record; only the last release clears it.
+A requester waits behind older unexpired process tickets before entering the
+existing native turnstile. The releasing writer must also publish a fresh ticket,
+so it cannot repeatedly barge ahead of a live waiting process. Expired, dead,
+not-Ready and out-of-range expiry records cannot reserve a turn. An alive process
+whose renewal is suspended can lose its position and retry; liveness assumes
+scheduled renewal and bounded transactions/retained results. Requests authorize
+no storage access. Abandonment still requires actual native WRITE acquisition.
+
+Linux x64 uses shared `FUTEX_WAIT`/`FUTEX_WAKE` on the low aligned 32 bits of
+control+1024. Request publication increments the mapped wake sequence before
+waking the holder. The holder samples the word, rechecks pressure and waits on
+that sampled value, so publication racing wait cannot lose the wake. A 20 ms
+maximum wait checks application-owner death; under contention it waits at most
+1 ms. This is a scheduling/liveness bound, not a real-time OS guarantee. Local
+forced drain wakes the same futex. No holder probes the turnstile while alone.
+The full mapping stays pinned through native holder release and request lease disposal;
+both edges retain their own participant reference, independently of facade disposal.
+
+Windows qualification must implement an auto-reset named kernel event scoped by
+the validated authority UUID and mutex namespace, with matching access control.
+`SetEvent` after sequence publication and `WaitForSingleObject` between predicate
+rechecks provide the same retained wake semantics; `WaitOnAddress` is not a
+cross-process substitute. macOS qualification must use an authority-scoped POSIX
+named semaphore (`sem_open`/`sem_post`/`sem_wait`), coalescing posts with a
+shared pending bit and unlinking only at protected offline retirement. A holder-local
+timer posts the same semaphore at the bounded liveness deadline (20 ms alone,
+1 ms under pressure); do not assume Darwin provides POSIX `sem_timedwait`. Both need
+crash/recreation/name/permission and lost-wake tests before enabling them. This
+slice still refuses mapped mode outside Linux x64; no Windows/macOS/ARM execution
+or power-loss qualification is claimed by compiling those targets.
+
+Native reference semantics: [Linux futex](https://man7.org/linux/man-pages/man2/futex.2.html)
+uses an aligned shared 32-bit word; [Windows WaitOnAddress](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress)
+wakes only within one process. Native execution remains a qualification requirement.

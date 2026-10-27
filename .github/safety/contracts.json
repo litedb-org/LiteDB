@@ -276,9 +276,15 @@
       ],
       "paths": [
         "LiteDB/Client/Shared/SharedMemory*.cs",
-        "LiteDB/Client/Shared/SharedRangeLocks.cs"
+        "LiteDB/Client/Shared/SharedRangeLocks.cs",
+        "LiteDB/Client/Shared/SharedWriter*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Alone_keeps_main_WRITE_and_the_same_core_across_transactions_and_idle", "proves": "Automatic and explicit commits keep the same idle core with zero additional native WRITE acquisitions; main and WRITE remain held and cold payload/index/sentinel state is exact."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Request_without_main_wakes_holder_and_hands_off_at_transaction_boundary", "model": "interleaving", "proves": "A real requester publishes before main; commit and terminal stop during handoff close once, recover fenced state and preserve indexed committed data."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Dead_holder_with_a_waiting_requester_recovers_commits_and_discards_aborted_rows", "model": "process-death", "proves": "An accepted reader survives actual holder death while a requester waits; recovery preserves acknowledged rows and excludes the uncommitted row."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Three_contending_processes_each_make_progress_and_preserve_every_commit", "model": "interleaving", "proves": "Each of three processes completes 24 independently observed commits under per-worker deadlines, followed by exact cold payload and sentinel checks."},
+
         {"test": "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs#Awakened_peer_legitimately_owns_WRITE_after_dead_pinned_holder_releases", "proves": "An already-queued peer acquires WRITE after real pinned owner death; a controlled live peer hold excludes an independent raw probe, and after its commit WRITE is free with complete cold indexed state."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#Later_streamed_transform_disposal_waits_until_its_Read_returns", "proves": "Ordinary and pinned disposal from a later retained ReadTransform defers core close until the callback returns, retains WRITE teardown authority with or without a sibling, then admits a peer and preserves repeated cold indexed state."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff", "proves": "Production reuse, publication, WRITE and DMS death cuts execute twice and recover complete indexed committed and unrelated data."},

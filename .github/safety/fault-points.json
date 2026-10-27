@@ -1988,9 +1988,30 @@
         }
       ],
       "gap": "Bounded Linux x64 SC/CLR evidence; no ARM or device memory-ordering qualification."
+    },
+    {
+      "name": "RequestStage",
+      "protocol": "ABI-2 expiring FIFO writer requests before native acquisition",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Request_fault_releases_its_record_and_does_not_poison_the_next_writer",
+          "model": "exception",
+          "proves": "Both request cuts throw, clear their record and permit the next protected writer with cold indexed data preserved."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Dead_or_expired_requester_cannot_reserve_a_turn",
+          "model": "process-death",
+          "proves": "A child killed or SIGSTOPped at publication cannot prevent the next requester acquiring main after the holder commits.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedWriterTenureHarness.cs"
+          ]
+        }
+      ],
+      "gap": "Linux x64 only; no Windows/macOS or device reset qualification."
     }
   ],
   "observers": {
+    "HandoffPublication": "Carries the existing thread-local PublicationStage injector from an operation to its retained holder teardown; no additional publication boundary.",
     "AtCrashPoint": "Per-engine delivery of the process-crash family's named points (CrashPoint also calls SimulateProcessCrash); each name is registered under hooks with its own evidence, so this delegate adds no boundary of its own.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",

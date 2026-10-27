@@ -14,6 +14,9 @@ namespace LiteDB.Client.Shared
 #if DEBUG || TESTING
         [ThreadStatic] internal static Action WriteRetry;
 #endif
+#if DEBUG || TESTING
+        internal long WriteAcquisitions { get; private set; }
+#endif
         internal string Identity => _owner.Identity;
 
         internal SharedRangeLocks(string path)
@@ -56,6 +59,9 @@ namespace LiteDB.Client.Shared
                     throw new IOException("Shared main mutex / WRITE ownership mismatch.");
             }
             _writing = true;
+#if DEBUG || TESTING
+            WriteAcquisitions++;
+#endif
         }
 
         internal void ExitWrite()

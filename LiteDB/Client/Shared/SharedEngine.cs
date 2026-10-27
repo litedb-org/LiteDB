@@ -126,6 +126,9 @@ namespace LiteDB
                 if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
             }
 
+            if (this.UsesMappedTenure && !_owner.IsOwnedByCurrentThread && !_transactionRunning)
+                return this.StartPin();
+
             // Acquire mutex for every call to open DB.
             var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
 
@@ -204,8 +207,13 @@ namespace LiteDB
         {
             if (use != null)
             {
+                this.CaptureHandoffPublication();
+                // A stopped core cannot linger or publish from a later idle close.
+                var stopped = _engine?.StorageUncertain == true;
+                if (stopped) use.RequestRelease(force: true);
                 // The pin keeps the engine; its holder closes it.
                 use.Exit(hold);
+                if (stopped && use.CanWaitFrom(Thread.CurrentThread)) use.WaitReleased();
                 return;
             }
 
@@ -355,6 +363,7 @@ namespace LiteDB
             SharedMutexPin pin;
             lock (_useLock) pin = _pin;
             this.MarkDisposeOverlaps(pin);
+            this.CaptureHandoffPublication();
             if (pin != null)
             {
                 pin.RequestRelease(force: true);

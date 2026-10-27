@@ -21,6 +21,72 @@ namespace LiteDB
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER
         internal SharedMemoryReaderTable MappedReaderTable => (_readers as SharedMemoryReaders)?.Table;
 #endif
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+        private Action<string> HandoffPublication;
+#endif
+        [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
+        private void CaptureHandoffPublication()
+        {
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+            HandoffPublication = SharedMemoryReaderTable.PublicationStage;
+#endif
+        }
+
+        // A retained writable core protects a fresh committed snapshot while
+        // the usual read cache is installed, without ending its writer tenure.
+        private IBsonDataReader TryQueryRetained(string collection, Query query)
+        {
+            var retained = _pin;
+            if (retained == null || !retained.TryEnter()) return null;
+            var transferred = false;
+            try
+            {
+                if (_engine.HasActiveTransaction) return null;
+                var snapshot = this.TryOpenSnapshot(false);
+                if (snapshot == null) return null;
+                transferred = true;
+                return this.QuerySnapshot(collection, query, snapshot, retained);
+            }
+            finally { if (!transferred) this.CloseDatabase(retained); }
+        }
+
+        private void ReleaseSnapshotUse(SharedMutexPin use)
+        {
+            if (use != null) this.CloseDatabase(use);
+            else _owner.Exit();
+        }
+
+        private bool UsesMappedTenure => _settings.SharedOneFile && !_settings.ReadOnly && !_settings.ReadOnlyStorage;
+
+        private SharedMutexPin AcquirePin()
+        {
+#if NET8_0_OR_GREATER
+            if (this.UsesMappedTenure)
+            {
+                var table = (_readers as SharedMemoryReaders)?.Table;
+                if (table == null) throw new ObjectDisposedException(nameof(SharedEngine));
+                using (table.RequestWriter())
+                {
+                    if (System.Threading.Volatile.Read(ref _disposed) != 0)
+                        throw new ObjectDisposedException(nameof(SharedEngine));
+                    return SharedMutexPin.AcquireTenure(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin,
+                        new SharedWriterTenure(table));
+                }
+            }
+#endif
+            using (this.RequestMappedTurn())
+                return SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+        }
+
+        private IDisposable RequestMappedTurn()
+        {
+#if NET8_0_OR_GREATER
+            return (_readers as SharedMemoryReaders)?.Table.RequestWriter();
+#else
+            return null;
+#endif
+        }
+
         private static void BindParticipantSettings(EngineSettings settings, ISharedReaderRegistry readers)
         {
 #if NET8_0_OR_GREATER

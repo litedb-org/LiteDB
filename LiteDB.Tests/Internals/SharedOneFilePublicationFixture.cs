@@ -46,12 +46,24 @@ namespace LiteDB.Internals
         }
         internal static void Quiet(SharedMemoryReaderTable table)
         {
-            var map = table.Authority.Map;
-            (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
-            (map.Load(SharedMemoryLayout.StructuralEpoch) & 1).Should().Be(0);
-            map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
-            map.Load(SharedMemoryLayout.WriterOwner).Should().Be(0);
-            SharedMemoryReaderTable.Scan(table.Authority).Should().NotBeNull();
+            // Healthy idle cores now retain WRITE. Request an actual boundary
+            // handoff before inspecting the same quiescent publication contract.
+            using var request = table.Authority.Requests.Enter();
+            using var main = SharedMutexFactory.Create(SharedMutexNameFactory.Create(table.Settings.Filename, table.Settings.SharedMutexNameStrategy));
+            var held = main.WaitOne(TimeSpan.FromSeconds(5));
+            held.Should().BeTrue("the requested tenure must return main after closing storage and WRITE");
+            try
+            {
+                using var probe = new SharedRangeLocks(SharedMemoryAuthority.PathFor(table.Settings.Filename));
+                probe.EnterWrite(); probe.ExitWrite();
+                var map = table.Authority.Map;
+                (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
+                (map.Load(SharedMemoryLayout.StructuralEpoch) & 1).Should().Be(0);
+                map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
+                map.Load(SharedMemoryLayout.WriterOwner).Should().Be(0);
+                SharedMemoryReaderTable.Scan(table.Authority).Should().NotBeNull();
+            }
+            finally { if (held) main.ReleaseMutex(); }
         }
         internal static void Fenced(SharedMemoryReaderTable table)
         {
