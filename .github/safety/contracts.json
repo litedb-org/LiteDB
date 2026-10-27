@@ -31,6 +31,7 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes", "model": "modeled-power-loss", "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileWarmPrefix_Tests.cs#Live_cache_admission_never_leads_two_separate_durable_prefixes_or_a_failed_later_sync", "model": "modeled-power-loss", "proves": "Real public cache admissions overlap separately covered prefixes and failed later sync; lost/torn/reordered unacknowledged WAL bytes recover the acknowledged prefix twice with warm admissions and payload/index/sentinel oracles."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Facades_share_covered_acknowledgements_and_terminal_barrier_failures", "model": "exception", "proves": "Three independently owned Direct facades share two covered barriers; readers and acknowledgements advance by the captured prefix, either failed barrier poisons every facade, and repeated recovery preserves acknowledged payloads and indexes."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "After a peer acknowledges and detaches, final close with checkpoint enabled or disabled fails pending writer and zero-frame tickets without acknowledging them or retrying the group; repeated recovery preserves acknowledged rows and exact indexes."},
@@ -92,6 +93,10 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildGuardInput_Tests.cs#Valid_checksum_does_not_authorize_malformed_or_foreign_recovery", "model": "corrupt-input", "proves": "Checksummed foreign/malformed paths, identities, encodings and bounded oversized records refuse twice without changing the bundle; restoring the valid record recovers complete indexed data."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildGuardInput_Tests.cs#Read_only_storage_and_explicit_upgrade_do_not_authorize_guard_recovery", "model": "process-death", "proves": "Plain/encrypted interrupted installs refuse read-only storage before changing bundle bytes or coordination bytes, even with explicit upgrade; writable recovery verifies documents and indexes."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceUpgradeReview_Tests.cs#Explicit_upgrade_must_still_run_before_read_only_mapped_open", "model": "exception", "proves": "Real plaintext/encrypted v7 files match an independent Direct explicit-read-only-upgrade control, retain all documents and forbid writes after upgrade on repeated mapped opens."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes", "model": "modeled-power-loss", "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#New_database_open_write_rollback_and_read_only_reopen_preserve_payloads_and_indexes", "proves": "New plain/encrypted Direct/Shared databases preserve committed complete payloads and secondary-index results, exclude the rolled-back row, preserve an unrelated row, and leave data bytes unchanged through read-only reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "Final host close leaves recoverable complete outcome-unknown follower rows while preserving the acknowledged prefix and secondary indexes over two reopen/checkpoint cycles."},
         {"test": "LiteDB.Tests/Internals/DirectColdReplacementProcess_Tests.cs#Cold_process_opens_cannot_create_or_modify_files_during_replacement", "model": "exception", "proves": "At three forced replacement boundaries, repeated child Direct/Shared admission refuses with identical file names and bytes; the owner and two indexed cold reopens preserve the committed row."},
@@ -104,7 +109,7 @@
         {"fuzz": "rebuild-transition", "model": "exception", "proves": "All backup and install gates are faulted while rebuilding indexes/FileStorage and changing passwords."}
       ],
       "gaps": [
-        {"text": "Directory-entry persistence of the rebuild marker and renames is not modeled (#3011); the install matrix is not power-loss evidence."}
+        {"text": "Direct/legacy Shared marker directory persistence remains unmodeled (#3011). Mapped guard persistence has a finite atomic-rename/successful-sync directory model; this does not qualify device resets or the entire storage stack."}
       ]
     },
     {
@@ -255,6 +260,7 @@
         "scripts/run-ci-tests.ps1"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes", "model": "modeled-power-loss", "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."},
         {"test": "LiteDB.Fuzz.Tests/DeadlineOracle_Tests.cs#A_stalled_actor_fails_its_child_process_although_another_actor_keeps_progressing", "proves": "A stalled operation fails its real child process with the replayable DEADLINE identity while another actor keeps completing operations."},
         {"test": "LiteDB.Fuzz.Tests/OwnershipOracle_Tests.cs#Releasing_ownership_while_a_core_is_closing_fails_the_ownership_oracle", "proves": "Releasing the writer mutex while a protected core is still closing is latched and fails the ownership oracle."},
         {"test": "LiteDB.Fuzz.Tests/OracleSelfTest_Tests.cs#Durable_fails_for_a_lost_acknowledged_effect_or_a_visible_aborted_one", "proves": "A lost acknowledged write and a visible aborted write each fail the durability oracle on a cold reopen."},
@@ -282,6 +288,7 @@
         "LiteDB/Client/Shared/SharedWriter*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes", "model": "modeled-power-loss", "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Rebuild_refuses_a_failed_storage_close_before_creating_a_replacement", "model": "exception", "proves": "A reached close-checkpoint failure refuses Rebuild before a guard or replacement backup is created; repeated independent recovery preserves all committed indexed data."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs#Checkpoint_backfills_with_an_idle_process_and_truncates_only_after_detach", "proves": "Plain/encrypted checkpoints with an idle remote participant actually backfill while retaining the WAL, then truncate only after detach and preserve complete indexed payloads."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceOpening_Tests.cs#Legacy_WAL_conversion_requires_sole_DMS_even_with_no_active_snapshot", "proves": "An idle read-only remote participant excludes legacy WAL conversion without changing data bytes; after detach, repeated conversion/open validates full indexed state."},

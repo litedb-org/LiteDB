@@ -255,6 +255,8 @@ unvalidated storage. Managed I/O/flush failures preserve recovery evidence.
 rekey, indexed payload preservation, encrypted files, installation and repeated
 recovery death cuts, directory-sync errors, guard damage and warm remote readers.
 The fault model is Linux x64 process death with surviving OS cache, injected I/O
-failure and corrupt metadata. Directory barriers rely on qualified local
-filesystem rename/fsync semantics; this is not device-reset or whole-path
+failure and corrupt metadata. The guard protocol also has a finite exhaustive
+directory-durability model: see [rebuild recovery](rebuild-recovery.md) and
+`SharedOneFileRebuildPowerLoss_Tests`. Directory barriers rely on qualified local
+atomic-rename/fsync semantics. This is not device-reset or whole-storage-stack
 modeled-power-loss qualification.

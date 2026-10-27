@@ -76,3 +76,37 @@ Unknown/damaged/partial records still refuse; Direct and legacy Shared never
 automatically interpret this extension. Preserve guarded files for inspection.
 See [mapped ownership](shared-one-file-ownership.md#phase-3-c-maintenance-and-final-close)
 for rekey and final-close ordering and the tested fault-model limits.
+
+Mapped guard recovery requires a writable open. `ReadOnly` or internal
+`ReadOnlyStorage` refuses with error 139 before recovery creates coordination
+files or changes any bundle bytes, even with `Upgrade=true`. Relative paths,
+`./` spellings and parent-directory symlinks resolve to the canonical guard
+namespace before lookup and bootstrap. Moving a guarded bundle elsewhere does
+not authorize rewriting its recorded absolute paths: move it back or preserve it
+for offline inspection. Foreign identities, hardlinks and malformed/checksum-invalid
+records are refused before the first recovery mutation; record reads are bounded
+to 64 KiB before allocating their buffer.
+
+Explicit `Upgrade=true` retains the Direct v7 contract: after protected header
+inspection, mapped mode opens a writable maintenance core under main/WRITE and
+sole-participant DMS, completes the rebuild, and then applies the requested
+read-only facade. A modern file with a no-op upgrade retains read-only storage
+semantics. Upgrade does not bypass an existing incomplete-rebuild guard.
+
+`SharedOneFileRebuildPowerLoss_Tests` extends the existing
+`PromotionPowerLossStream` byte model with `RebuildDirectoryCrashDevice`.
+It enumerates all pre/post-barrier namespace images from the real forward,
+bounded-rollback and recovery code, then explores interrupted recovery to a
+fixed point. Every reachable image must recover without refusal and preserve
+complete committed documents, indexed results and an unrelated indexed
+collection through two cold opens. It includes absent original WALs, plaintext
+and encrypted files, every lost/torn pending-write prefix, every damaged guard
+prefix, and independently reordered candidate/guard cleanup deletions. The
+committed-state oracle is checked against a deliberately stranded WAL.
+
+This is a finite modeled-power-loss test of the guard protocol, assuming atomic
+same-directory rename and successful file/directory sync. Published guards cannot
+tear under those assumptions; torn published guards are separately tested as
+corrupt input and must preserve the bundle. Inode identities are opaque tokens
+remapped consistently when materializing copies. It is not a device-reset test,
+a model of the entire storage stack, or filesystem/ARM qualification.

@@ -1863,6 +1863,14 @@
       "protocol": "WAL directory entry sync",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
+          "model": "modeled-power-loss",
+          "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder.",
+          "via": [
+            "LiteDB.Tests/Engine/RebuildDirectoryCrashDevice.cs"
+          ]
+        },
+        {
           "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_failed_directory_sync_fails_the_commit",
           "model": "exception",
           "proves": "A failed directory sync fails the commit."
@@ -2113,6 +2121,12 @@
       "protocol": "Mapped Shared rebuild guard publication and repeatable original-pair recovery",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
+          "model": "modeled-power-loss",
+          "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder.",
+          "via": []
+        },
+        {
           "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
           "model": "process-death",
           "proves": "Real child death at each listed boundary, repeated recovery, complete payload/index/unrelated-data validation and fault-marker reachability.",
@@ -2129,7 +2143,7 @@
           ]
         }
       ],
-      "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
+      "gap": "Linux x64 modern runtimes; atomic same-directory rename and successful sync assumed. No physical-device reset, other-filesystem or whole-storage-stack power-loss qualification."
     },
     {
       "name": "FinalCloseStage",
@@ -2171,7 +2185,7 @@
   "unhookedTransitions": [
     {
       "protocol": "rebuild install",
-      "transition": "Directory-entry persistence of the recovery marker and the backup/install renames: rebuild-install hooks fault the operations, but the model does not lose unsynced directory entries.",
+      "transition": "Direct/legacy Shared directory-entry persistence remains unmodeled. Mapped guard publication and every forward/rollback/recovery rename are covered by RebuildDirectoryCrashDevice using the registered directory-sync injector, under atomic-rename/successful-sync assumptions.",
       "issue": 3011
     },
     {
