@@ -71,9 +71,11 @@ namespace LiteDB.Tests.Engine
                 refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("another connection");
                 peer.GetCollection("rows").Insert(Row(9));
                 this.CloseAll();
-                VerifyCold(this.Filename, encrypted, new[] { 1, 9, 100 });
             }
             finally { Directory.Delete(alias); }
+            // Caller-owned streams outlive outer.Dispose; release them before the
+            // cold Direct reopen, whose Windows sharing mode excludes other writers.
+            VerifyCold(this.Filename, encrypted, new[] { 1, 9, 100 });
         }
 #endif
 
