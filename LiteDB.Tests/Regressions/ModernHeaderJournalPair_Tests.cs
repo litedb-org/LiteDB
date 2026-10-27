@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Regressions
         public static IEnumerable<object[]> ModernPairs()
         {
             foreach (var password in new[] { null, "wal-secret" })
-            foreach (var damage in new[] { "none", "checksum", "identity", "salt" })
+            foreach (var damage in new[] { "none", "checksum", "identity", "salt", "salt-marker" })
                 yield return new object[] { password, damage };
         }
 
@@ -81,7 +81,8 @@ namespace LiteDB.Tests.Regressions
                             bytes[HeaderPage.P_FILE_VERSION] = 0;
                             bytes[WalChecksum.MarkerPosition] ^= 1;
                         }
-                        if (damage == "salt") bytes[WalChecksum.SaltPosition] ^= 1;
+                        if (damage == "salt" || damage == "salt-marker") bytes[WalChecksum.SaltPosition] ^= 1;
+                        if (damage == "salt-marker") bytes[WalChecksum.MarkerPosition] ^= 1;
                     });
                 foreach (var readOnly in new[] { false, true })
                 {

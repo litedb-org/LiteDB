@@ -152,6 +152,11 @@ versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside th
 vector compatibility script. See `docs/compact-document-storage.md` for layout,
 bounds, BSON rebuild options, and benchmark results.
 
+Modern header-journal recovery also validates the original primary before selecting a
+replacement header. A surviving modern format identity or exact nonzero journal salt
+permits torn-header recovery; a legacy primary with no such binding must refuse before
+repair or WAL truncation. See [modern journal pair tests](../../LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs).
+
 ## Migration and failure questions
 
 Answer these in a format-changing PR. Atomicity, retry, and crash/power-loss behavior

@@ -247,6 +247,18 @@
         "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Nonpage_initial_tail_is_not_mistaken_for_a_format_marker",
         "LiteDB.Tests/Internals/ConversionJournalCrash_Tests.cs#EveryConversionRedoWrite_CanTearWithoutPublishingPartialData"
       ]
+    },
+    {
+      "repro": "Issue_3124_ModernJournalLegacyPrimary",
+      "knownBad": {
+        "kind": "dev-commit",
+        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
+        "reason": "The modern-journal repair path also exists on this verified dev revision; PR-head de837c732 remains vulnerable. No published package has been verified for this exact scenario."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs#Modern_journal_beside_legacy_primary_refuses_before_repair_or_truncation",
+        "LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs#Matching_modern_journal_recovers_committed_rows_and_modern_collection_twice"
+      ]
     }
   ]
 }
