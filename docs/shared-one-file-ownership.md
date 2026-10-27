@@ -114,7 +114,11 @@ contains the internal budgets. An attached live process also enables the budget,
 even without a writer request. A budget never interrupts a transaction or a
 stream still retaining the writable core. New top-level calls stop entering at
 exhaustion; the holder closes under main, ends WRITE exactly once, then releases
-main. Stopped cores request forced drain before returning the failing operation;
+main. Mapped tenure close does not checkpoint, including a newcomer wake: the
+committed WAL remains authoritative. Storage teardown and healthy/uncertain fence
+publication still precede WRITE/main release. Recovery replays the WAL under the
+successor's ownership; per-commit checkpoints and the exclusive-DMS final-reference
+checkpoint remain unchanged. Stopped cores request forced drain before returning the failing operation;
 their odd fence remains until independent protected recovery. Durable group
 publication, structural/reuse fencing and reader admission rechecks are unchanged.
 

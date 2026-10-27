@@ -26,6 +26,15 @@
   ],
   "dispositions": [
     {
+      "id": "p3fx-fork-ci-newcomer-acquisition-evidence",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Production performance evidence is CI-only, uses isolated before/after libraries, keeps durability modes and runtimes separate and verifies the resulting database independently; the ordinary benchmark gate remains exhaustive.",
+      "reason": "Add a separately selected, fork-only Linux x64 job with a finite 20-minute job/15-minute process budget and error on missing evidence. Existing comparison, preattached tenure and open/close jobs remain available. The new input excludes the unrelated comparison job only when explicitly requested. Identical candidate timing programs measure fresh process attachments against df6b16f80 and the fixed candidate, with positive CHECKPOINT, real writer admission, raw p50/p99 samples and cold row/index/sentinel checks. Fake-worker unit tests validate ordering without running measurements locally.",
+      "coveredBy": [".github/scripts/test_shared_newcomer.py"]
+    },
+    {
       "id": "p3fx-aborted-retry-releases-legacy-ownership",
       "kind": "test-removed",
       "subjects": ["LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"],

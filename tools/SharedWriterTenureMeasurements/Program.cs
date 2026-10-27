@@ -28,6 +28,11 @@ if (mode == "verify")
     return;
 }
 var durable = bool.Parse(args[2]);
+if (mode == "newcomer")
+{
+    Newcomer.Run(path, durable);
+    return;
+}
 using var engine = new SharedEngine(new EngineSettings { Filename = path, SharedOneFile = true, DurableCommits = durable });
 using var db = new LiteDatabase(engine, disposeOnClose: false);
 db.CheckpointSize = 0;

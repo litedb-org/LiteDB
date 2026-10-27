@@ -233,7 +233,10 @@ namespace LiteDB
                     try
                     {
                         try { this.AtOwnershipStage("tenure-handoff"); }
-                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned); }
+                        // Mapped handoff leaves committed WAL authoritative. Close storage
+                        // and publish its fence before WRITE/main release; final-reference
+                        // cleanup retains the separately protected checkpoint.
+                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned && !this.UsesMappedTenure); }
                     }
                     finally
                     {
