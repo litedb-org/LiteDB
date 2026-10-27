@@ -36,6 +36,19 @@
   },
   "markers": [
     {
+      "name": "refusal:direct-attach-during-maintenance",
+      "kind": "refusal",
+      "paths": ["LiteDB/Client/Direct/DirectProcessHost.cs"],
+      "targets": [
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Replacement_identity_cannot_publish_a_second_core_before_maintenance_returns",
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release"
+      ],
+      "gate": "advisory",
+      "gateReason": "Forced xUnit schedules cover the native identity swap and a completed rebuild whose facade still owns maintenance; xUnit does not record markers and PR fuzz smoke does not force this window.",
+      "doc": "docs/direct-process-host.md",
+      "reason": "A Direct attach finds the same stable native admission entry throughout maintenance, including after physical identity replacement, and refuses before a second core can open."
+    },
+    {
       "name": "maintenance:checkpoint-during-active-readers",
       "kind": "maintenance",
       "paths": [

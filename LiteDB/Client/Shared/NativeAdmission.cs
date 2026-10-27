@@ -25,6 +25,11 @@ namespace LiteDB.Client.Shared
 
         private NativeAdmission(Entry entry) { _entry = entry; }
         internal string Identity => _entry.File.Identity;
+        internal Entry RegistryKey => _entry;
+
+#if DEBUG || TESTING
+        internal static Action<string, string> ReplacementStage;
+#endif
 
         internal static bool IsFile(EngineSettings settings) => settings.DataStream == null &&
             settings.LogStream == null && settings.TempStream == null &&
@@ -216,10 +221,22 @@ namespace LiteDB.Client.Shared
                             using var live = new DatabaseFileLock(_entry.Path, true, false);
                             if (live.Identity == _replacement.Identity)
                             {
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "before-rekey");
+#endif
                                 Entries.Remove(_entry.File.Identity);
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "old-identity-removed");
+#endif
                                 _entry.File.Dispose();
                                 _entry.File = _replacement;
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "replacement-assigned");
+#endif
                                 Entries.Add(_replacement.Identity, _entry);
+#if DEBUG || TESTING
+                                ReplacementStage?.Invoke(_entry.Path, "replacement-published");
+#endif
                                 if (_entry.Shared)
                                 {
                                     DatabasePathLock.Claim(_replacement, _entry.Path);

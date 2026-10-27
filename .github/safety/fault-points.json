@@ -1798,6 +1798,8 @@
     "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
     "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
+    "BeforeMaintenanceRelease": "Observes successful Direct maintenance after facade services refresh and before releasing its per-host lease, outside the registry/native gates. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release forces a second-thread attach refusal and exception cleanup; no persistent transition is added.",
+    "ReplacementStage": "Observes each in-memory native identity rekey step under NativeAdmission.Gate; no persistent transition is added. DirectProcessHostRekey_Tests.Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release attempts reentrant attachment before rekey, after old identity removal, after replacement assignment and after publication. Other-thread admission cannot interleave within this gate.",
     "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled."
   },
   "unhookedTransitions": [
