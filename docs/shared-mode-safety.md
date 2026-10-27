@@ -77,13 +77,16 @@ holder thread, the checkpoint after the last leased reader, owner-exit cleanup a
 disposing the connection. An uncaught refusal aborts the outer operation like any
 exception from its callback.
 
-Only executing work is refused. A same-thread wait on an idle owner of another
-connection still waits: an idle pin ends for the waiter, and a result left open can
-be disposed on any thread. An open explicit transaction is idle too, but only its
-own thread can complete it, so a same-thread write through another connection
-waits until that connection is disposed elsewhere; see
-[#3073](https://github.com/litedb-org/LiteDB/issues/3073). Waits that cross
-threads (a callback waiting for another thread's call) are not detected.
+Only executing work is refused. A same-thread wait on an idle reader or pin of
+another connection still waits: it can end for the waiter, and a result left open
+can be disposed on any thread. An open explicit transaction is different: a write
+through another connection on its owning thread throws
+`LiteException.SAME_THREAD_TRANSACTION` immediately. Set
+`wait for same thread transaction=true` (or
+`EngineSettings.WaitForSameThreadTransaction`) to wait up to `TIMEOUT` instead.
+Reads retain their existing semantics. Waits that cross threads (a callback
+waiting for another thread's call) are not detected. Legacy transactions remain
+thread-bound; do not use `await` between `BeginTrans` and `Commit`/`Rollback`.
 
 Each operation opens and closes an engine. Its close checkpoints only once the
 WAL holds 50 pages (or the CHECKPOINT pragma if smaller), so between operations

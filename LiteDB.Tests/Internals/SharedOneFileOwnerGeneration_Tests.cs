@@ -45,7 +45,7 @@ namespace LiteDB.Internals
                 });
                 cleanup.Start(); cleanup.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 Action foreign = () => peer.Rollback();
-                foreign.Should().Throw<InvalidOperationException>().WithMessage("*connection*");
+                foreign.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
                 engine.Commit().Should().BeTrue();
             })) { IsBackground = true };
             successor.Start(); successor.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); failure.Should().BeNull();

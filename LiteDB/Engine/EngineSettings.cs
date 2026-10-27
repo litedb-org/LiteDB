@@ -81,6 +81,13 @@ namespace LiteDB.Engine
         public int SharedGenerationCapacity { get; set; } = 256;
 
         /// <summary>
+        /// Wait for another facade's explicit transaction on this thread instead of
+        /// refusing the write immediately. The wait is bounded by the database TIMEOUT
+        /// pragma and is disabled by default.
+        /// </summary>
+        public bool WaitForSameThreadTransaction { get; set; }
+
+        /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>

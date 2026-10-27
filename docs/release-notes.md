@@ -1,5 +1,16 @@
 # Release notes
 
+## Same-thread transaction writes (Phase 5 migration note)
+
+When one `LiteDatabase` has a legacy explicit transaction open, a write through
+another facade for the same file on that transaction's thread now fails
+immediately with `LiteException.SAME_THREAD_TRANSACTION`. Finish the transaction
+on its owning thread before using the peer facade. Applications that deliberately
+coordinate a bounded wait can set `wait for same thread transaction=true` in the
+connection string or `EngineSettings.WaitForSameThreadTransaction`; the wait uses
+the database `TIMEOUT` pragma. Reads keep their existing behavior, and legacy
+transactions remain thread-bound across `await` continuations.
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only
