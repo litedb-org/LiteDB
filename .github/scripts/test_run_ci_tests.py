@@ -43,7 +43,9 @@ if attempt['guards'] is not None:
         for name in attempt['guards']) + '</Results></TestRun>')
 for arg in args:
     if arg.startswith('/Diag:'):
-        Path(arg.split(':', 1)[1]).write_text('probe diagnostic log')
+        log = Path(arg.split(':', 1)[1])
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text('probe diagnostic log')
 print('Simulated VSTest after test entry: exit', attempt['exit'])
 sys.exit(attempt['exit'])
 '''
@@ -86,6 +88,7 @@ class RunCiTestsTests(unittest.TestCase):
             run = subprocess.run(["pwsh", "-NoProfile", "-File", str(harness)],
                                  env=env, capture_output=True, text=True, timeout=45)
             output = run.stdout + run.stderr
+            self.assertNotIn("Traceback (most recent call last)", output)
             calls = json.loads((root / "calls.json").read_text())
             return run.returncode, output, calls
 
@@ -105,6 +108,10 @@ class RunCiTestsTests(unittest.TestCase):
                 code, output, calls = self.run_runner([attempt(139, None), retry])
                 self.assertEqual(139, code, output)
                 self.assertEqual(2, len(calls))
+                self.assertIn(
+                    f"Diagnostic retry exited with {retry['exit']}; this partition remains failed",
+                    output)
+                self.assertIn("probe diagnostic log", output)
 
     def test_failure_with_trx_does_not_retry(self):
         code, output, calls = self.run_runner([attempt(1)])
