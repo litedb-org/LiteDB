@@ -17,7 +17,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedOneFilePublication_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-publication-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-publication-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
 
         public SharedOneFilePublication_Tests()

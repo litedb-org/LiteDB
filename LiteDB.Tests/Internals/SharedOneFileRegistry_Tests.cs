@@ -20,7 +20,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFileRegistry")]
     public class SharedOneFileRegistry_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-registry-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-registry-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedOneFileRegistry_Tests() => Directory.CreateDirectory(_directory);
         private EngineSettings Settings(string path = null) => new EngineSettings { Filename = path ?? Filename, SharedOneFile = true };

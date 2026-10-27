@@ -43,6 +43,7 @@ namespace LiteDB
             _settings = settings.Clone();
             _settings.TransactionOwner = new TransactionOwnerToken();
             _settings.SharedMode = true;
+            ValidateOneFileSettings(_settings);
             if (NativeAdmission.IsFile(_settings)) NativeAdmission.Normalize(_settings);
             // Bind reopens, mutex and snapshot registry to one construction-time path.
             NativeAdmission.NormalizeSharedNamespace(_settings);

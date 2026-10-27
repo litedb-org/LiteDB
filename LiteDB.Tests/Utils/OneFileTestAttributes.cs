@@ -1,5 +1,5 @@
 #if NET8_0_OR_GREATER
-using System.Runtime.InteropServices;
+using LiteDB.Client.Shared;
 using Xunit;
 
 namespace LiteDB.Tests
@@ -16,8 +16,7 @@ namespace LiteDB.Tests
     }
     internal static class OneFileTestPlatform
     {
-        internal static string Reason => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64 ? null :
+        internal static string Reason => SharedMemoryAuthority.IsPlatformQualified ? null :
             "ABI-2 mapped prototype refuses platforms other than qualified Linux x64; native backend tests remain enabled.";
     }
 }

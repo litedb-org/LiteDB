@@ -200,8 +200,10 @@ namespace LiteDB.Tests.Engine
             db.BeginTrans().Should().BeTrue();
             db.GetCollection("docs").Insert(Row(2000));
             db.Commit().Should().BeTrue();
-            using (var child = new LiteDB.Internals.MvccProcess("insert", Filename, Password(encrypted), "3000"))
+            using (var child = new LiteDB.Internals.MvccProcess("insert-ready", Filename, Password(encrypted), "3000"))
             {
+                child.Expect("ready").GetAwaiter().GetResult();
+                child.Send("continue");
                 child.ReadLine(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult().Should().Be("done");
                 child.Finish().GetAwaiter().GetResult();
             }

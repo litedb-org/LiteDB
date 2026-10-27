@@ -16,7 +16,7 @@ namespace LiteDB.Internals
         [OneFileFact]
         public void Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation()
         {
-            using var file = new LiteDB.Tests.TempFile();
+            using var file = new MappedTestFile();
             var settings = new EngineSettings { Filename = file.Filename, SharedOneFile = true, SharedMode = true };
             var table = SharedMemoryReaderTable.Open(settings);
             using var facade = new SharedMemoryReaders(table);
@@ -56,7 +56,7 @@ namespace LiteDB.Internals
             db.Checkpoint();
             core.GetWalIndex().SnapshotCount.Should().Be(0);
             new FileInfo(log).Length.Should().Be(0);
-            // TempFile owns only legacy sidecars, so remove the quiescent new file here.
+            // Release the authority before deleting its quiescent coordination file.
             facade.Dispose();
             File.Delete(file.Filename + "-shm");
         }
@@ -64,7 +64,7 @@ namespace LiteDB.Internals
         [OneFileFact]
         public void Include_keeps_referenced_collection_at_its_exact_admitted_generation()
         {
-            var directory = Path.Combine(Path.GetTempPath(), "litedb-shm-include-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-include-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, "test.db");
             try

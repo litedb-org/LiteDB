@@ -12,7 +12,7 @@ namespace LiteDB.Internals
 {
     internal sealed class SharedOneFilePublicationFixture : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-fix-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-fix-" + Guid.NewGuid().ToString("N"));
         internal string Filename => Path.Combine(_directory, "test.db");
         internal string Log => FileHelper.GetLogFile(Filename);
         private readonly string _password;

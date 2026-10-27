@@ -76,6 +76,10 @@ internal static class MvccHarness
                 collection.Update(Documents(int.Parse(args[4])));
                 Console.WriteLine("done");
                 break;
+            case "insert-ready":
+                Console.WriteLine("ready");
+                Console.ReadLine();
+                goto case "insert";
             case "insert":
                 var start = int.Parse(args[4]);
                 for (var i = start; i < start + 20; i++) collection.Insert(new BsonDocument { ["_id"] = i });

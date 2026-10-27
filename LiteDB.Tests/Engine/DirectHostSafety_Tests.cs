@@ -112,7 +112,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Unsupported_native_volume_fails_before_storage_initialization()
         {
-            DatabaseFileIdentity.UnsupportedVolume = file => file == Filename;
+            DatabaseFileIdentity.UnsupportedVolume = file => file == DatabaseFileIdentity.CanonicalPath(Filename);
             try
             {
                 Action open = () => { using var db = new LiteDatabase(Filename); };

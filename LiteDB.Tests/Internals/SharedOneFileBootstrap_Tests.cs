@@ -15,7 +15,7 @@ namespace LiteDB.Internals
 {
     public class SharedOneFileBootstrap_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-bootstrap-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-bootstrap-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedOneFileBootstrap_Tests()
         {

@@ -183,12 +183,15 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
+        internal static bool IsPlatformQualified => BitConverter.IsLittleEndian &&
+            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+
         private static void RequirePlatform(string path)
         {
             // Initial qualification is Linux x64 only. Backends for other systems
             // compile, but do not silently claim mapped-atomic/platform qualification.
-            if (!BitConverter.IsLittleEndian || !RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-                RuntimeInformation.ProcessArchitecture != Architecture.X64)
+            if (!IsPlatformQualified)
                 throw new PlatformNotSupportedException("ABI-2 Shared prototype currently requires Linux x64 qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);

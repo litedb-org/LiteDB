@@ -279,6 +279,7 @@
         "LiteDB/Client/Shared/SharedRangeLocks.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/SharedIntegrationSeam_Tests.cs#Physical_file_opt_in_matches_qualification_and_refusal_preserves_storage", "proves": "Ordinary Fact independently checks the product and attribute platform predicate, verifies two supported opens, or repeats unsupported platform/runtime refusal without changing database/WAL bytes or creating a mapping, followed by indexed cold validation."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#A_blocked_cleanup_cannot_block_the_finalizer_or_finalize_its_pinned_pages", "proves": "GC finishes while cache Gate blocks abandoned-result cleanup; pins stay rooted until a normal thread releases the generation."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#Final_facade_disposal_between_admission_and_counting_cannot_unmap_a_published_record", "proves": "Disposal before or after record publication refuses admission and releases the participant only after the admitting call leaves the cache gate."},
         {"test": "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs#New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations", "model": "process-death", "proves": "Each writer/recovery/failed-sync cut races a new public admission with two accepted warm generations; protected recovery preserves full old/current payloads and committed indexes."},

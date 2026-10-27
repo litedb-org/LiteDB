@@ -262,6 +262,61 @@
       "disposition": "strengthened",
       "invariant": "Collected cold and warm streams release all generation ownership; remote checkpoints drain the WAL completely and preserve committed data.",
       "reason": "The parent authorized correcting the original oracle: an absent WAL after successful checkpoint is length zero; a present nonempty WAL still fails. Both original zero-length assertions, all other assertions and the second checkpoint/manual-cleanup sequence remain. Added bounded asynchronous waits (10 seconds with diagnostic failure) for the original deferred-cleanup conditions, without relaxing them. Retained the corrected lifetime sibling because its one-checkpoint sequence is not byte-for-byte identical. No test is removed or skipped."
+    },
+    {
+      "id": "p2h-exact-abi2-platform-qualification",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Tests/Utils/OneFileTestAttributes.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "ABI-2 executes every existing case on qualified little-endian Linux x64 and refuses all other runtime/platform targets without mutating storage. Native range-lock tests stay enabled everywhere.",
+      "reason": "The existing one-file attributes now use the same product predicate, including endianness; no previously qualified target is removed. An ordinary Fact checks the predicate independently, positively opens twice on qualified platforms and asserts repeated physical-file refusal with byte-preserved data/WAL and indexed cold reads on Framework, Windows, macOS and ARM64.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedIntegrationSeam_Tests.cs#Physical_file_opt_in_matches_qualification_and_refusal_preserves_storage"
+      ]
+    },
+    {
+      "id": "p2h-qualified-volume-and-canonical-test-paths",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Utils/TempFile.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePublicationFixture.cs",
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRegistryProcess_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePublicationReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSnapshotSafety_Tests.cs",
+        "LiteDB.Tests/Engine/DirectHostSafety_Tests.cs",
+        "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Process-death cuts, mapped reader floors, durability failure hooks and last-close schedules must reach the operation they assert, with identical payload/index/recovery oracles.",
+      "reason": "Hosted /tmp is RAM-backed and is correctly refused by ABI-2. Only ABI-2 fixtures select the existing qualified-volume helper, falling back to the workspace on the same policy as product; no skip is added. General TempFile still uses the same original temporary volume, with canonical spelling so Darwin /var aliases cannot bypass equality-based fault hooks. Direct hooks compare canonical spellings. No assertion, cut, timeout or configured test matrix is removed."
+    },
+    {
+      "id": "p2h-native-lock-child-release",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A stopped child remains kernel-live; after child death its DMS, slot and WRITE ownership disappear while the observer remains open.",
+      "reason": "Canonicalize the original temporary path for the alias-refusing range backend; keep every native platform enabled. Declare that shared files remain open during Kill, preventing the Windows cleanup helper from asking for exclusive access against the intentional observer. The actual three-range release assertions are unchanged."
+    },
+    {
+      "id": "p2h-child-startup-before-write-deadline",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/MvccHarness.cs",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "After a failed/retried explicit transaction, an independent child must perform 20 real writes within five seconds while the parent reader survives.",
+      "reason": "Use a new ready/continue handshake to distinguish runtime startup from operation liveness. The harness retains exact parent runtime/architecture guards, its existing 20-second startup bound and the original five-second write bound; no completion, data or lock assertion is relaxed."
     }
   ]
 }

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Direct;
+using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
 
@@ -145,7 +146,7 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             DirectProcessHost.BeforeFinalClose = file =>
             {
-                if (file != Filename) return;
+                if (file != DatabaseFileIdentity.CanonicalPath(Filename)) return;
                 entered.Set();
                 if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException();
             };

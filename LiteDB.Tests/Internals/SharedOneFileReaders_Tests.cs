@@ -15,7 +15,7 @@ namespace LiteDB.Internals
 {
     public class SharedOneFileReaders_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-readers-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-readers-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedOneFileReaders_Tests() => Directory.CreateDirectory(_directory);
         private EngineSettings Settings(int generations = 256) => new EngineSettings

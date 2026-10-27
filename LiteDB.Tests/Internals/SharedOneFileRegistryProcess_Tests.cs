@@ -11,7 +11,7 @@ namespace LiteDB.Internals
 {
     public class SharedOneFileRegistryProcess_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shm-registry-process-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-registry-process-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedOneFileRegistryProcess_Tests() => Directory.CreateDirectory(_directory);
 

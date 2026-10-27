@@ -6,6 +6,18 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
+        private static void ValidateOneFileSettings(EngineSettings settings)
+        {
+            if (!settings.SharedOneFile) return;
+#if NET8_0_OR_GREATER
+            if (!NativeAdmission.IsFile(settings)) throw new NotSupportedException("SharedOneFile requires a physical database file.");
+            if (!SharedMemoryAuthority.IsPlatformQualified)
+                throw new PlatformNotSupportedException("ABI-2 Shared prototype currently requires Linux x64 qualification.");
+#else
+            throw new PlatformNotSupportedException("SharedOneFile requires .NET 8 or later.");
+#endif
+        }
+
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER
         internal SharedMemoryReaderTable MappedReaderTable => (_readers as SharedMemoryReaders)?.Table;
 #endif

@@ -4,13 +4,14 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
+using LiteDB.Tests;
 using Xunit;
 
 namespace LiteDB.Internals
 {
     public class SharedOneFileLock_Tests : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-one-lock-" + Guid.NewGuid().ToString("N"));
+        private readonly string _directory = Path.Combine(DatabaseFileIdentity.CanonicalPath(Path.GetTempPath()), "litedb-one-lock-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test-shm");
         public SharedOneFileLock_Tests() => Directory.CreateDirectory(_directory);
 
@@ -67,7 +68,7 @@ namespace LiteDB.Internals
                 }
                 finally { kill(child.ProcessId, 18).Should().Be(0); } // SIGCONT
             }
-            await child.Kill();
+            await child.Kill(sharedFilesRemainOpen: true);
             observer.IsLive(0).Should().BeFalse();
             observer.TryExclusiveDms().Should().BeTrue();
             observer.EnterWrite();
