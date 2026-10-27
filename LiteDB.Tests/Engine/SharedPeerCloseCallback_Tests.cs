@@ -53,8 +53,8 @@ namespace LiteDB.Tests.Engine
             try
             {
                 var filename = Path.Combine(alias, Path.GetFileName(this.Filename));
-                using var data = new CallbackFile(filename);
-                using var log = new CallbackFile(FileHelper.GetLogFile(filename));
+                using var data = CallbackFile.Open(filename);
+                using var log = CallbackFile.Open(FileHelper.GetLogFile(filename));
                 using var outer = new SharedEngine(new EngineSettings
                 { Filename = filename, Password = Password(encrypted), DataStream = data, LogStream = log });
                 var peer = this.OpenPeer(this.Filename, encrypted);
