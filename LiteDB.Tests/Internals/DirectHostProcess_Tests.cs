@@ -27,10 +27,10 @@ namespace LiteDB.Internals
                 using (var unrelated = new FileStream(Filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     unrelated.Length.Should().BeGreaterThan(0);
                 var files = Directory.GetFiles(_directory);
-                var data = File.ReadAllBytes(Filename);
+                var data = TempFile.ReadAllBytesShared(Filename);
                 await MvccProcess.Run("direct-host-direct-refused", Filename, null);
                 await MvccProcess.Run("direct-host-shared-refused", Filename, null);
-                File.ReadAllBytes(Filename).Should().Equal(data);
+                TempFile.ReadAllBytesShared(Filename).Should().Equal(data);
                 Directory.GetFiles(_directory).Should().BeEquivalentTo(files);
                 first.Dispose();
                 await MvccProcess.Run("direct-host-direct-refused", Filename, null);

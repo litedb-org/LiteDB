@@ -82,6 +82,7 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#New_database_open_write_rollback_and_read_only_reopen_preserve_payloads_and_indexes", "proves": "New plain/encrypted Direct/Shared databases preserve committed complete payloads and secondary-index results, exclude the rolled-back row, preserve an unrelated row, and leave data bytes unchanged through read-only reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "Final host close leaves recoverable complete outcome-unknown follower rows while preserving the acknowledged prefix and secondary indexes over two reopen/checkpoint cycles."},
         {"test": "LiteDB.Tests/Internals/DirectColdReplacementProcess_Tests.cs#Cold_process_opens_cannot_create_or_modify_files_during_replacement", "model": "exception", "proves": "At three forced replacement boundaries, repeated child Direct/Shared admission refuses with identical file names and bytes; the owner and two indexed cold reopens preserve the committed row."},
         {"test": "LiteDB.Tests/Internals/DirectHostProcess_Tests.cs#Rebuild_transfers_exclusion_to_the_replacement_inode", "proves": "Direct/Shared child opens remain excluded after inode replacement; local compatible attachment reads the row and cold child admission succeeds only after final disposal."},
@@ -118,6 +119,8 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Native_admission_coexists_with_managed_streams_without_losing_exclusion", "proves": "Direct and Shared native admission coexist with real managed read/write streams, remain held after unrelated stream closes, and release only with their last admission reference."},
+        {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Shared_processes_can_attach_while_native_admission_still_excludes_Direct", "proves": "A child reaches a real indexed Shared write, a concurrent Shared peer reads and writes successfully, Direct remains refused, and the committed child/peer rows survive cold indexed reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Facades_share_covered_acknowledgements_and_terminal_barrier_failures", "model": "exception", "proves": "Every Direct facade reads only the durable group prefix through document scans and secondary indexes while followers from separate facades are pending."},
         {"test": "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs#Foreign_facade_never_joins_or_completes_an_explicit_transaction", "proves": "Same-thread foreign facade work is refused, foreign Commit/Rollback cannot complete the owner transaction, rollback removes its row and a subsequent owner commit remains readable."},
         {"test": "LiteDB.Tests/Internals/DirectHostProcess_Tests.cs#Shared_reader_keeps_native_exclusion_after_its_facade_disposes", "proves": "An admitted Shared reader returns all 256 rows after facade disposal and excludes child Direct admission until the reader closes."},

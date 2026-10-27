@@ -5,6 +5,22 @@ internal static class DirectHostHarness
     internal static bool TryRun(string mode, string filename, string password)
     {
         if (!mode.StartsWith("direct-host-", StringComparison.Ordinal)) return false;
+        if (mode == "direct-host-durable-liveness")
+        {
+            DirectHostLivenessHarness.Run(filename, password);
+            return true;
+        }
+        if (mode == "direct-host-shared-admission-hold")
+        {
+            using var database = new LiteDatabase(new ConnectionString
+                { Filename = filename, Password = password, Connection = ConnectionType.Shared });
+            database.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "child" });
+            database.GetCollection("docs").EnsureIndex("value");
+            Console.WriteLine("ready");
+            Console.ReadLine();
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "direct-host-hold")
         {
             using var database = new LiteDatabase(new ConnectionString { Filename = filename, Password = password });

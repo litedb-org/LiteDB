@@ -32,7 +32,10 @@ namespace LiteDB.Tests
                     var probe = Path.Combine(root, ".litedb-test-probe-" + Guid.NewGuid().ToString("N"));
                     using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                         1, FileOptions.DeleteOnClose)) { }
-                    Root = root;
+                    // Keep low-level authority/temporary-file helpers on the same
+                    // physical path that SharedEngine uses (Darwin /var -> /private/var).
+                    // This resolves spelling only; the selected volume is unchanged.
+                    Root = DatabaseFileIdentity.CanonicalPath(root);
                     return;
                 }
                 catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ArgumentException)

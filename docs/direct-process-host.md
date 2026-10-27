@@ -52,16 +52,49 @@ Neither path can create a database in a replacement's missing-name interval.
 
 ## Native admission
 
-The native lock implementation uses Windows LockFileEx;
-Linux F_OFD_SETLK/F_OFD_GETLK (37/36); Darwin OFD commands 90/92, including the
-arm64 variadic ABI. Darwin does implement OFD commands; see Apple's
-[fcntl.h](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/fcntl.h).
+The native lock implementation uses Windows LockFileEx and Linux
+F_OFD_SETLK/F_OFD_GETLK (37/36) on the data inode. Darwin uses its own
+F_OFD_SETLK/F_OFD_GETLK (90/92), including the arm64 variadic ABI, on a separate
+lock inode. These commands are present in Apple's
+[fcntl.h](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/fcntl.h)
+and handled by
+[kern_descrip.c](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_descrip.c).
 Unsupported kernels/filesystems fail closed. There is no classic POSIX-lock
 fallback, so closing an unrelated descriptor cannot release admission.
 
+Darwin's OFD byte locks and whole-file `flock` locks share a conflict domain
+([kern_lockf.c](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_lockf.c)).
+.NET uses shared `flock` locks to emulate ordinary FileStream sharing
+([runtime implementation](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/Microsoft/Win32/SafeHandles/SafeFileHandle.Unix.cs)).
+An exclusive OFD lock even beyond EOF therefore denies the host's own streams;
+Shared path-range probes also see unrelated runtime locks as conflicts. Linux's
+independent lock domains do not have that behavior.
+
+On macOS, every admission descriptor also opens
+`.litedb-admission/<device>-<inode>.lock` below the data file's canonical parent
+with native `open(O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)`, without a managed
+FileStream or `flock`. The data descriptor still
+supplies physical identity, single-link and volume qualification. All admission,
+path-binding and conflict probes use the sibling descriptor; the existing
+distinct-descriptor enforcement probe remains mandatory. Symlink, hard-link and
+non-regular lock files, and symlink lock directories, are refused. The same physical file in the same canonical parent
+always selects the same lock inode, including through symlink aliases.
+
+Lock files contain no database state and are never truncated, renamed or
+automatically deleted, including after an unsuccessful open or last close.
+Deleting an unlocked file would race an opener retaining its old inode and
+allow two independent locks. Last close and process death release ownership by
+closing the descriptor; the empty file may remain and is reused on reopen.
+Only offline maintenance with no database participants may remove these files.
+Database directories must permit creation of this lock directory/file, including a first
+read-only open. Admission does not support external removal/replacement of its
+lock directory or files while participants are live. Rebuild candidates live in the same
+directory: retaining original and candidate locks across publication preserves
+exclusion as the physical identity changes, without moving either lock file.
+
 Admission locks one byte at `long.MaxValue - 4096`, beyond all database pages,
 exclusive for Direct (including read-only Direct), shared for Shared. It never
-locks page data or the whole file. Unix Direct needs a writable native descriptor
+locks page data or the whole file. Unix Direct needs writable native descriptors
 even when its engine is read-only. Hard links are refused because WAL/recovery
 names are path-based. Symlinks canonicalize, and a file alias with its own WAL is
 refused. File-only bind mounts and unqualified/network volumes are refused.
@@ -102,6 +135,25 @@ settings, maintenance, concurrent attachments and final-close admission.
 symlink and hard-link policy. `DirectHostProcess_Tests` verifies native exclusion
 after unrelated handle closes, Shared reader disposal, replacement, finalization
 and process death, with repeated plain/encrypted recovery and indexed reads.
+`DirectHostAdmission_Tests` covers first creation, plain/encrypted Direct/Shared
+rollback and indexed read-only reopen, managed streams coexisting with native
+admission, last-release lock availability, concurrent Shared child admission,
+and persistent Unix lock-file identity and symlink refusal.
+`DirectColdOpen_Tests` also forces creation through a parent symlink while the
+canonical path's bootstrap is held. Bootstrap mutex names canonicalize at entry.
+Mapped-test helpers use the engine's canonical path spelling on the same volume;
+low-level authority headers and crash-temporary attribution therefore match
+Darwin's `/var`/`/private/var` aliases. Windows live-byte assertions use explicit
+read/write sharing so they observe the database without denying its existing writer.
+The bounded child-process durable liveness cases exercise first open, index
+creation, 1/4/8 writers, rollback, checkpoint, final close and two indexed reopens
+on every modern-runtime OS, including Windows. Each operation checkpoint must
+arrive within 20 seconds; a stalled child is killed during failure cleanup.
+This is a correctness guard, not a performance threshold. The original Windows
+benchmark's silent warmup timeout does not identify its blocked operation;
+warmup progress diagnostics now precede opens and workload stages. Until hosted
+Windows evidence distinguishes the failure, it is an unresolved liveness issue,
+not evidence that admission's already nonblocking LockFileEx needs different flags.
 `DirectHostAllocation_Tests` interleaves facade-owned allocations with a peer
 header commit, checking commit/rollback, full payloads and indexes through two
 reopens and further allocations.

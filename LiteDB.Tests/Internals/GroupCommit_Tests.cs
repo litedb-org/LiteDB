@@ -29,7 +29,7 @@ namespace LiteDB.Tests.Internals
                 stream.WriteByte(99);
                 new FileInfo(file.Filename).Length.Should().Be(1);
                 NativeFileSync.FlushDevice(handle, stream.Name);
-                File.ReadAllBytes(file.Filename).Should().Equal(42);
+                TempFile.ReadAllBytesShared(file.Filename).Should().Equal(42);
                 stream.Flush();
             }
             File.ReadAllBytes(file.Filename).Should().Equal(42, 99);

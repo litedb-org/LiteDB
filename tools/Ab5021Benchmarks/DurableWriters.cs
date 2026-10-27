@@ -25,6 +25,7 @@ internal sealed class DurableWriters
         foreach (var writers in new[] { 1, 4, 8 })
         {
             var path = Path.Combine(_root, $"durable-{writers}.db");
+            if (!_record) Console.WriteLine($"{_config} warmup opening durable-{writers}.db");
             double milliseconds;
             using (var db = Open(path))
             {
@@ -50,12 +51,14 @@ internal sealed class DurableWriters
                 })).ToArray();
                 foreach (var thread in threads) thread.Start();
                 ready.Wait();
+                if (!_record) Console.WriteLine($"{_config} warmup starting {writers} durable writers");
                 var watch = Stopwatch.StartNew();
                 start.Set();
                 foreach (var thread in threads) thread.Join();
                 watch.Stop();
                 milliseconds = watch.Elapsed.TotalMilliseconds;
                 if (!errors.IsEmpty) throw new AggregateException(errors);
+                if (!_record) Console.WriteLine($"{_config} warmup finished {writers} durable writers");
                 Verify(db);
             }
             // Verification and graceful reopen are untimed. This is not a power-loss test.

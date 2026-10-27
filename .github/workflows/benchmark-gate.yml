@@ -28,7 +28,7 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 29 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -75,7 +75,7 @@ jobs:
             dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" --nologo
             if ($LASTEXITCODE) { throw "Build failed: $version" }
           }
-      - name: Interleaved six-round A-B comparison
+      - name: Interleaved configured-round A-B comparison
         run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
       - name: Evaluate per-scenario thresholds
         id: gate

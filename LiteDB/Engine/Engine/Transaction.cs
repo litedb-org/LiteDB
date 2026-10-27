@@ -165,9 +165,12 @@ namespace LiteDB.Engine
 
             var checkpointPages = this.CheckpointPages;
 
-            // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
+            // Like v5, checkpoint only after the logical WAL exceeds the pragma.
+            // GetFileLength excludes checksum trailers, alignment padding and journals.
+            // Widen before multiplying: large valid pragmas must not wrap negative.
             if (checkpointPages > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (checkpointPages * PAGE_SIZE))
+                (_settings.CheckpointEachCommit ||
+                 _disk.GetFileLength(FileOrigin.Log) > ((long)checkpointPages * PAGE_SIZE)))
             {
                 _walIndex.TryAutoCheckpoint();
             }

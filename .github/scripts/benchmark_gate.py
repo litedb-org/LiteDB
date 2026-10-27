@@ -15,7 +15,9 @@ def positive(value):
 
 
 def validate_config(config):
-    if config["schemaVersion"] != 1 or config["rounds"] < 3:
+    if config["schemaVersion"] != 1 or any(
+            type(n) is not int or n < 3
+            for n in [config["rounds"], *config.get("roundsByOS", {}).values()]):
         raise ValueError("Unsupported schema or insufficient rounds")
     if not positive(config["maxSpreadPercent"]):
         raise ValueError("Invalid noise limit")
@@ -27,6 +29,10 @@ def validate_config(config):
             raise ValueError("Invalid operation count")
         if rule["maxRatio"] is not None and not positive(rule["maxRatio"]):
             raise ValueError("Invalid ratio threshold")
+
+
+def rounds_for_os(config, operating_system):
+    return config.get("roundsByOS", {}).get(operating_system, config["rounds"])
 
 
 def read_samples(directory, config, operating_system, framework):
@@ -43,7 +49,7 @@ def read_samples(directory, config, operating_system, framework):
         if not result["runtime"].startswith(f".NET {framework[3:]}."):
             raise ValueError(f"Actual runtime differs from target: {path.name}")
         name, number = result["config"], result["round"]
-        if name not in configs or type(number) is not int or not 1 <= number <= config["rounds"]:
+        if name not in configs or type(number) is not int or not 1 <= number <= rounds_for_os(config, operating_system):
             raise ValueError(f"Unexpected round: {path.name}")
         if (name, number) in seen:
             raise ValueError(f"Duplicate round: {name}/{number}")
@@ -64,7 +70,7 @@ def read_samples(directory, config, operating_system, framework):
                     or sample["operations"] != expected[scenario]["operations"]):
                 raise ValueError(f"Invalid time or workload size: {path.name}/{scenario}")
             samples.setdefault((name, scenario), []).append(elapsed)
-    if len(seen) != len(configs) * config["rounds"]:
+    if len(seen) != len(configs) * rounds_for_os(config, operating_system):
         raise ValueError("Incomplete round set; do not judge partial measurements")
     if any(len(identity) != 1 for identity in identities.values()):
         raise ValueError("Binary or candidate changed between rounds")
@@ -93,17 +99,24 @@ def evaluate(directory, config, operating_system, framework):
         for name in [config["candidate"], *config["reportOnlyConfigs"]]:
             candidate = timing(samples[name, scenario])
             ratio = candidate["medianMs"] / baseline["medianMs"]
+            lower = candidate["minMs"] / baseline["maxMs"]
+            upper = candidate["maxMs"] / baseline["minMs"]
             limit = rule["maxRatio"] if name == config["candidate"] else None
             verdict, reason = "report-only", "Outside the Phase 1 gate"
             if limit is not None:
-                if max(baseline["spreadPercent"], candidate["spreadPercent"]) > config["maxSpreadPercent"]:
-                    verdict, reason = "noisy", "Round spread exceeds limit; rerun this OS/runtime"
+                if lower > limit:
+                    verdict, reason = "fail", "min(B)/max(A) exceeds threshold despite spread"
+                elif ratio <= limit and upper <= limit:
+                    verdict, reason = "pass", "max(B)/min(A) meets threshold despite spread"
+                elif max(baseline["spreadPercent"], candidate["spreadPercent"]) > config["maxSpreadPercent"]:
+                    verdict, reason = "noisy", "Observed ratio bounds straddle threshold and spread exceeds limit; rerun this OS/runtime"
                 elif ratio > limit:
                     verdict, reason = "fail", "Median B/A exceeds threshold"
                 else:
                     verdict, reason = "pass", "Median B/A meets threshold"
             results.append(dict(os=operating_system, framework=framework, scenario=scenario,
                                 config=name, verdict=verdict, reason=reason, ratio=ratio,
+                                ratioLowerBound=lower, ratioUpperBound=upper,
                                 maxRatio=limit, baseline=baseline, candidate=candidate))
     one_writer = timing(samples["dev-default", "durable_insert_5k_1_writers"])["medianMs"]
     for scenario in config["scalingScenarios"]:
@@ -111,23 +124,27 @@ def evaluate(directory, config, operating_system, framework):
         results.append(dict(os=operating_system, framework=framework, scenario=scenario,
                             config="dev-default", verdict="report-only",
                             reason="v6 durable scaling only; v5 has no commit device-sync setting",
-                            ratio=None, maxRatio=None, baseline=None, candidate=candidate,
+                            ratio=None, ratioLowerBound=None, ratioUpperBound=None, maxRatio=None, baseline=None, candidate=candidate,
                             speedupVsOneWriter=one_writer / candidate["medianMs"]))
     verdicts = {row["verdict"] for row in results}
     verdict = "fail" if "fail" in verdicts else "noisy" if "noisy" in verdicts else "pass"
     return dict(schemaVersion=1, os=operating_system, framework=framework, verdict=verdict,
-                rounds=config["rounds"], maxSpreadPercent=config["maxSpreadPercent"],
+                rounds=rounds_for_os(config, operating_system), maxSpreadPercent=config["maxSpreadPercent"],
                 rerunRequired="noisy" in verdicts, results=results)
 
 
 def markdown(report):
     lines = [f"## Phase 1 benchmark gate: {report['verdict'].upper()} — {report['os']} / {report['framework']}",
              "", "B/A uses medians. Durable default, checkpoint, open/close and v6 writer scaling are report-only.",
-             "", "| Scenario | Config | B/A | Limit | Verdict |", "|---|---|---:|---:|---|"]
+             "Bounds are observed min(B)/max(A) to max(B)/min(A), not confidence intervals.",
+             "", "| Scenario | Config | B/A | Lower bound | Upper bound | Limit | Verdict |",
+             "|---|---|---:|---:|---:|---:|---|"]
     for row in report["results"]:
         ratio = f"{row['ratio']:.3f}" if row["ratio"] is not None else "v6 scaling only"
         limit = str(row["maxRatio"]) if row["maxRatio"] is not None else "—"
-        lines.append(f"| {row['scenario']} | {row['config']} | {ratio} | {limit} | {row['verdict']} |")
+        lower = f"{row['ratioLowerBound']:.3f}" if row["ratioLowerBound"] is not None else "—"
+        upper = f"{row['ratioUpperBound']:.3f}" if row["ratioUpperBound"] is not None else "—"
+        lines.append(f"| {row['scenario']} | {row['config']} | {ratio} | {lower} | {upper} | {limit} | {row['verdict']} |")
     if report["rerunRequired"]:
         lines += ["", "NOISY: rerun this OS/runtime before drawing conclusions for noisy scenarios.",
                   "Stable failures remain failures; noisy scenarios are inconclusive, never passes."]

@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "p1-benchmark-range-verdicts-and-macos-rounds",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "disposition": "strengthened",
+      "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
+      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6–7 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
+    },
+    {
       "id": "ci-split-engine-capacity",
       "kind": "ci-test-config-changed",
       "subjects": [
