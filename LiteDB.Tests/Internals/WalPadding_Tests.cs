@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests;
 using Xunit;
 
 namespace LiteDB.Internals
@@ -48,6 +49,74 @@ namespace LiteDB.Internals
                 reader.Length.Should().Be(count * 8192L);
                 copy.ToArray().Should().Equal(before);
             }
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(129)]
+        public void FinalFramePaddingWrite_IsByteIdenticalToTheExistingPath(int frames)
+        {
+            byte[] Write(bool coalesced)
+            {
+                using var file = new TempFile();
+                using (var raw = new FileStream(file.Filename, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    var checksum = new WalChecksum();
+                    checksum.Reset(new byte[16]);
+                    using var writer = new ChecksummedWalStream(raw, checksum);
+                    for (var id = 1; id < frames; id++)
+                    {
+                        var page = Page(id);
+                        page[BasePage.P_IS_CONFIRMED] = 0;
+                        writer.Write(page, 0, page.Length);
+                    }
+                    var final = Page(frames);
+                    if (coalesced) writer.WriteFinalPadded(final, 0);
+                    else writer.Write(final, 0, final.Length);
+                    writer.Flush();
+                }
+                return File.ReadAllBytes(file.Filename);
+            }
+
+            Write(true).Should().Equal(Write(false));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("padding-secret")]
+        public void FinalFramePaddingWrite_FallsBackByteIdenticallyForCallerAndEncryptedStreams(string password)
+        {
+            byte[] prefix;
+            using (var source = new MemoryStream())
+            using (var factory = new StreamFactory(source, password))
+            {
+                var checksum = new WalChecksum();
+                checksum.Reset(new byte[16]);
+                using var writer = new ChecksummedWalStream(factory.GetStream(true, false), checksum);
+                var first = Page(1);
+                first[BasePage.P_IS_CONFIRMED] = 0;
+                writer.Write(first, 0, first.Length);
+                writer.Flush();
+                prefix = source.ToArray();
+            }
+
+            byte[] Write(bool throughCandidate)
+            {
+                using var bytes = new MemoryStream();
+                bytes.Write(prefix, 0, prefix.Length);
+                bytes.Position = 0;
+                using var factory = new StreamFactory(bytes, password);
+                var checksum = new WalChecksum();
+                checksum.Reset(new byte[16]);
+                using var writer = new ChecksummedWalStream(factory.GetStream(true, false), checksum);
+                var final = Page(2);
+                if (throughCandidate) writer.WriteFinalPadded(final, 0);
+                else writer.Write(final, 0, final.Length);
+                writer.Flush();
+                return bytes.ToArray();
+            }
+
+            Write(true).Should().Equal(Write(false));
         }
 
         private static byte[] Page(int id)

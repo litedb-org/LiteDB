@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using LiteDB.Utils;
 using static LiteDB.Constants;
@@ -72,6 +73,46 @@ namespace LiteDB.Engine
             _stream.Position = _position / PAGE_SIZE * WalChecksum.FrameSize;
             _allocation.Reserve(_stream, _stream.Position + _frame.Length);
             _stream.Write(_frame, 0, _frame.Length);
+            _checksum.Accept(page, _position, frame);
+            _position += PAGE_SIZE;
+        }
+
+        /// <summary>
+        /// Writes a final appended checksummed frame and its compatibility
+        /// zeros in one bounded physical write. This is deliberately limited
+        /// to the engine's plain FileStream WAL; wrappers and caller streams
+        /// retain the ordinary frame-then-pad path.
+        /// </summary>
+        internal void WriteFinalPadded(byte[] buffer, int offset)
+        {
+            if (!_checksum.Enabled || _checksum.JournalBytes != 0 || _stream.GetType() != typeof(FileStream))
+            {
+                Write(buffer, offset, PAGE_SIZE);
+                return;
+            }
+
+            CheckPage(PAGE_SIZE);
+            Buffer.BlockCopy(buffer, offset, _frame, 0, PAGE_SIZE);
+            var page = new BufferSlice(_frame, 0, PAGE_SIZE);
+            var frame = _checksum.Prepare(page,
+                new BufferSlice(_frame, PAGE_SIZE, WalChecksum.MetadataSize), _position);
+            var physical = checked(_position / PAGE_SIZE * WalChecksum.FrameSize);
+            var end = checked(physical + _frame.Length);
+            var aligned = WalPadding.AlignedLength(end);
+            var count = checked((int)(aligned - physical));
+            var combined = ArrayPool<byte>.Shared.Rent(count);
+            try
+            {
+                Buffer.BlockCopy(_frame, 0, combined, 0, _frame.Length);
+                Array.Clear(combined, _frame.Length, count - _frame.Length);
+                _stream.Position = physical;
+                _allocation.Reserve(_stream, aligned);
+                _stream.Write(combined, 0, count);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(combined, clearArray: true);
+            }
             _checksum.Accept(page, _position, frame);
             _position += PAGE_SIZE;
         }
