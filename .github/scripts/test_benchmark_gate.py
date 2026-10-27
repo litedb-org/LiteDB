@@ -196,7 +196,8 @@ class BenchmarkGateTests(unittest.TestCase):
         with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux",
                                      "BENCHMARK_BASELINE_SHA": "c" * 40,
                                      "BENCHMARK_HARNESS_SHA": "f" * 40,
-                                     "BENCHMARK_SCENARIOS": scenario}), \
+                                     "BENCHMARK_SCENARIOS": scenario,
+                                     "ImageOS": "ubuntu24", "ImageVersion": "synthetic-image"}), \
                 patch.object(sys, "argv", ["run.py", "net8.0", str(destination)]), \
                 patch.object(RUNNER.subprocess, "check_output", side_effect=check_output), \
                 patch.object(RUNNER.subprocess, "run", side_effect=child), redirect_stdout(io.StringIO()):
@@ -208,6 +209,30 @@ class BenchmarkGateTests(unittest.TestCase):
         self.assertTrue(all(r["ratio"] == 1 for r in report["comparisons"]))
         metadata = json.loads((destination / "environment.json").read_text())
         self.assertEqual(30, len(metadata["order"]))
+        self.assertEqual("ubuntu24", metadata["imageName"])
+        self.assertEqual("synthetic-image", metadata["imageVersion"])
+        self.assertEqual(RUNNER.platform.release(), metadata["kernel"])
+        summary = (self.output / "synthetic-summary.md").read_text()
+        self.assertIn("ubuntu24 / synthetic-image", summary)
+        self.assertIn(metadata["kernel"], summary)
+
+    def test_image_warning_is_advisory_in_cli_and_summary(self):
+        current = dict(imageName="ubuntu24", imageVersion="20261023.334.3")
+        (self.output / "environment.json").write_text(json.dumps(current))
+        reference = self.output / "historical-environment.json"
+        command = [sys.executable, str(ROOT / ".github/scripts/benchmark_gate.py"), str(self.output),
+                   "--config", str(HARNESS / "gate.json"), "--os", "Linux", "--framework", "net8.0",
+                   "--compare-environment", str(reference)]
+        for version, warned in (("20261023.334.3", False), ("20261024.1", True)):
+            reference.write_text(json.dumps(dict(runner=dict(ImageOS="ubuntu24", ImageVersion=version))))
+            for values, expected in (([100] * 6, 0), ([400] * 6, 1), ([100] * 5 + [200], 2)):
+                self.times("dev-os-cache", "single_insert_5k_tx", values)
+                child = subprocess.run(command, capture_output=True, text=True)
+                self.assertEqual(expected, child.returncode, child.stderr)
+                self.assertEqual(warned, "WARNING: Comparing differing runner images" in child.stdout)
+                self.assertEqual(warned, "WARNING:" in (self.output / "gate.md").read_text())
+        self.assertEqual([], gate.image_warnings({}, current))
+        self.assertTrue(gate.image_warnings(current, dict(imageName="ubuntu26", imageVersion=current["imageVersion"])))
 
     def test_checked_in_limits_match_owner_brief(self):
         expected = {"single_insert_5k_tx": 1.10, "bulk_insert_100k": 1.10,

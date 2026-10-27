@@ -179,6 +179,19 @@ def evaluate_comparison(directory, config, operating_system, framework, baseline
     return after
 
 
+def image_warnings(current, reference):
+    """Advisory only: historical environments may use the original runner fields."""
+    def identity(metadata):
+        runner = metadata.get("runner", {})
+        return (metadata.get("imageName", runner.get("ImageOS")),
+                metadata.get("imageVersion", runner.get("ImageVersion")))
+    after, before = identity(current), identity(reference)
+    if all(after) and all(before) and after != before:
+        return [f"WARNING: Comparing differing runner images: {before[0]} / {before[1]} "
+                f"vs {after[0]} / {after[1]}. Cross-image timings may shift; verdict unchanged."]
+    return []
+
+
 def markdown(report):
     lines = [f"## Phase 1 benchmark gate: {report['verdict'].upper()} — {report['os']} / {report['framework']}",
              "", "B/A uses medians. Durable default, checkpoint, open/close and v6 writer scaling are report-only.",
@@ -204,6 +217,7 @@ def markdown(report):
                          f"{row['ratioLowerBound']:.3f} | {row['ratioUpperBound']:.3f} |")
         if report["comparisonOnly"]:
             lines += ["", "Comparison subset only: no Phase 1 gate verdict is issued."]
+    lines += ["", *report.get("warnings", [])]
     return "\n".join(lines) + "\n"
 
 
@@ -215,6 +229,8 @@ def main():
     parser.add_argument("--framework", required=True)
     parser.add_argument("--baseline-sha", default="")
     parser.add_argument("--scenarios", default="")
+    parser.add_argument("--compare-environment", type=Path,
+                        help="Historical environment.json to compare (warning only)")
     args = parser.parse_args()
     try:
         config = json.loads(args.config.read_text())
@@ -223,6 +239,11 @@ def main():
         report = (evaluate_comparison(args.directory, config, args.os, args.framework,
                                       args.baseline_sha, args.scenarios) if args.baseline_sha else
                   evaluate(args.directory, config, args.os, args.framework))
+        reference = args.compare_environment or (args.directory / "before" / "environment.json")
+        current = args.directory / "environment.json"
+        if reference.is_file() and current.is_file():
+            report["warnings"] = image_warnings(json.loads(current.read_text(encoding="utf-8")),
+                                                json.loads(reference.read_text(encoding="utf-8")))
     except (ValueError, KeyError, TypeError, OSError) as error:
         print(f"Benchmark evidence error: {error}", file=sys.stderr)
         return 1

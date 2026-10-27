@@ -112,6 +112,8 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, DOTNET_TieredCompilation="0", DOTNET_CLI_TELEMETRY_OPTOUT="1")
     metadata = dict(platform=platform.platform(), machine=platform.machine(), processor=platform.processor(),
+                    kernel=platform.release(), imageName=os.environ.get("ImageOS", "unknown"),
+                    imageVersion=os.environ.get("ImageVersion", "unknown"),
                     framework=framework, runner={key: value for key, value in os.environ.items()
                     if key in ["RUNNER_OS", "RUNNER_ARCH", "RUNNER_NAME", "ImageOS", "ImageVersion", "GITHUB_SHA"]},
                     candidateCommit=os.environ["BENCHMARK_CANDIDATE_SHA"],
@@ -122,6 +124,12 @@ def main():
     if comparison:
         metadata.update(baselineCommit=os.environ["BENCHMARK_BASELINE_SHA"], comparisonScenarios=scenarios)
     (output / "environment.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    environment_summary = (f"### Runner environment — {framework}\n\n"
+                           f"Image: {metadata['imageName']} / {metadata['imageVersion']}\n\n"
+                           f"Kernel: {metadata['kernel']} ({platform.system()})\n\n")
+    print(environment_summary, flush=True)
+    with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+        handle.write(environment_summary)
     start = time.monotonic()
     rounds = rounds_for_os(os.environ["RUNNER_OS"])
     budget = 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60

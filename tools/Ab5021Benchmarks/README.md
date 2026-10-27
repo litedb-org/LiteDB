@@ -179,6 +179,21 @@ JSON/CSV/Markdown with per-OS/runtime/scenario verdicts. Job summaries include
 both timings and gate results. Startup, data generation, warmup, content
 verification and cleanup are outside scenario timings.
 
+The benchmark workflow uses fixed GA OS labels `ubuntu-24.04`, `windows-2025`,
+and `macos-15` from the [runner-images catalog](https://github.com/actions/runner-images#available-images).
+Historical job/artifact names retain their `*-latest` aliases; those names no
+longer select the runner. Evaluator keys remain Linux, Windows and macOS.
+These labels pin OS releases, not weekly image builds or kernels.
+`environment.json` and the job summary record ImageOS, ImageVersion and kernel
+release before measurements, including same-job comparison mode.
+
+For historical cross-run analysis, pass `--compare-environment /path/to/old/environment.json`
+to the evaluator. It prints and retains an advisory warning if image names or
+versions differ, without changing ratios, thresholds or verdicts. It also checks
+`before/environment.json` automatically when present; same-job before/after
+measurements normally share the root environment. Older artifacts without image
+metadata remain readable and cannot establish image equivalence.
+
 Every stage checks counts, checksums, indexed results and/or contents. Databases
 are reopened and verified; the writer scenarios verify every document and
 indexed key both before and after reopen. These checks establish workload

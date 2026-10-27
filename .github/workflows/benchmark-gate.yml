@@ -35,13 +35,21 @@ jobs:
       (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         framework: [net8.0, net10.0]
+        # Keep historical job/artifact names; pin the actual hosted OS release.
+        include:
+          - os: ubuntu-latest
+            runner: ubuntu-24.04
+          - os: windows-latest
+            runner: windows-2025
+          - os: macos-latest
+            runner: macos-15
     steps:
       - name: Check out PR's own harness or selected workflow branch
         uses: actions/checkout@v4
