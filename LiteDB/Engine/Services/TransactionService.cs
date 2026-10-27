@@ -34,6 +34,7 @@ namespace LiteDB.Engine
 
         // expose (as read only)
         public int ThreadID => _ownerThread.ManagedThreadId;
+        internal object FacadeOwner => _monitor.Owner;
         internal Thread OwnerThread => _ownerThread;
         public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;

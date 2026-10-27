@@ -1766,7 +1766,9 @@
     "Observer": "Reachability observer: runs on the thread that hit a marker (for example a fault-point site) so a fuzz oracle can evaluate an invariant there; it never injects a fault.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
     "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
-    "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
+    "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks.",
+    "BeforeFinalClose": "Pauses the last Direct facade close before engine disposal; DirectProcessHost_Tests.Open_during_last_close_waits_then_opens_fresh forces the open/close interleaving.",
+    "UnsupportedVolume": "Overrides native volume qualification for fail-closed admission capability testing; no fallback is enabled."
   },
   "unhookedTransitions": [
     {

@@ -103,6 +103,11 @@ namespace LiteDB
         #endregion
 
         public BsonMapper(Func<Type, object> customTypeInstantiator = null, ITypeNameBinder typeNameBinder = null)
+            : this(customTypeInstantiator, typeNameBinder, registerDefaults: true)
+        {
+        }
+
+        private BsonMapper(Func<Type, object> customTypeInstantiator, ITypeNameBinder typeNameBinder, bool registerDefaults)
         {
             this.SerializeNullValues = false;
             this.TrimWhitespace = true;
@@ -119,6 +124,9 @@ namespace LiteDB
 
             #region Register CustomTypes
 
+            // A clone copies its source's exact registrations, including replaced
+            // defaults. Do not construct registrations only to clear them again.
+            if (!registerDefaults) return;
             RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString, UriKind.RelativeOrAbsolute));
             RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
             RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
@@ -205,7 +213,7 @@ namespace LiteDB
             return this;
         }
 
-        private readonly Regex _lowerCaseDelimiter = new Regex("(?!(^[A-Z]))([A-Z])", RegexOptions.Compiled);
+        private static readonly Regex _lowerCaseDelimiter = new Regex("(?!(^[A-Z]))([A-Z])", RegexOptions.Compiled);
 
         /// <summary>
         /// Uses lower camel case with delimiter to convert property names to field names
