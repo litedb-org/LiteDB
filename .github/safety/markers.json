@@ -9,6 +9,7 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "DispatchOverride": {"gate": "advisory", "reason": "TESTING-only per-owner dispatch seam: SharedReaderCleanupDispatch_Tests.Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease forces false/OutOfMemoryException and asserts fault-point:DispatchOverride; False_after_queueing_and_retry_callbacks_dispose_each_owner_once covers delayed duplicates. PR fuzz smoke does not install the seam or deterministically abandon/finalize Shared results."},
     "before-candidate-republish": {
       "gate": "advisory",
       "reason": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not."

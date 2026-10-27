@@ -26,10 +26,10 @@ namespace LiteDB
             _dispose = dispose;
         }
 
-        internal SharedDataReader(IBsonDataReader reader, Action dispose, bool ownsResources)
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, bool ownsResources, System.IO.FileStream[] leaseFiles = null)
             : this(reader, dispose)
         {
-            if (ownsResources) _cleanup = new SharedReaderCleanup(reader, dispose);
+            if (ownsResources) _cleanup = new SharedReaderCleanup(reader, dispose, leaseFiles: leaseFiles);
         }
 
         /// <summary>

@@ -82,3 +82,12 @@ Borrowed views cannot outlive the page/buffer that backs them. `byte[]` storage
 marshalled into structs may contain only unmanaged data; keep managed references
 in GC-visible storage. Do not remove cache lifetime synchronization as a mechanical
 performance tweak. See [memory lifecycle audit](../memory-lifecycle-audit.md).
+
+Abandonment cleanup roots must contain only callback-free resource state. A cursor,
+engine, settings object, caller stream or release delegate can indirectly refer to
+its escaping wrapper through request state; rooting that graph defeats the wrapper's
+finalizer. Root page storage and native lease files separately, and transfer built-in
+reader finalization to the cleanup owner before publishing the result. Keep cursor
+disposal before lease release, with a non-blocking publication-only finalizer and
+retryable normal-thread dispatch. See `SharedReaderCleanupCycles_Tests` alongside
+the existing abandoned-reader, blocked-release and dispatch-failure guards.
