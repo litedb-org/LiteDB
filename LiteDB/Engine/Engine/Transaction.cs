@@ -121,6 +121,9 @@ namespace LiteDB.Engine
             {
                 if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
+                    // Constraint errors can also reveal a pending predecessor.
+                    // Establish that dependency before returning the original error.
+                    if (transaction.Pages.CommitTicket != 0) _disk.CommitGroup?.EnsureDurable(transaction.Pages.CommitTicket);
                     this.RollbackAndReleaseTransaction(transaction);
 
                     if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();

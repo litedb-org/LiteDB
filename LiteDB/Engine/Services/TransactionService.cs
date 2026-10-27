@@ -310,7 +310,8 @@ namespace LiteDB.Engine
 
             LOG($"commit transaction ({_transPages.TransactionSize} pages)", "TRANSACTION");
 
-            if (_mode == LockMode.Write || _transPages.HeaderChanged)
+            if ((_mode == LockMode.Write || _transPages.HeaderChanged) &&
+                !(_disk.CommitGroup?.TryCommit(this, _header) ?? false))
             {
                 lock (_header)
                 {
@@ -325,16 +326,18 @@ namespace LiteDB.Engine
                 }
             }
 
-            // dispose all snapshots
-            foreach (var snapshot in this.Snapshots)
-            {
-                snapshot.Dispose();
-            }
-
+            this.ReleaseCommitSnapshots();
+            if (_transPages.CommitTicket != 0) _disk.CommitGroup?.EnsureDurable(_transPages.CommitTicket);
             _state = TransactionState.Committed;
         }
 
-        private void PersistAndConfirm()
+        internal void ReleaseCommitSnapshots()
+        {
+            foreach (var snapshot in this.Snapshots) snapshot.Dispose();
+            _snapshots.Clear();
+            _cursorSnapshots.Clear();
+        }
+        internal void PersistAndConfirm()
         {
             // persist all dirty page as commit mode (mark last page as IsConfirm)
             var count = this.PersistDirtyPages(true);

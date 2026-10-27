@@ -11,6 +11,7 @@ namespace LiteDB.Engine
         private readonly Stream _stream;
         private readonly WalChecksum _checksum;
         private readonly byte[] _frame = new byte[WalChecksum.FrameSize];
+        private readonly WalFileAllocation _allocation = new WalFileAllocation();
         private long _position;
         internal WalChecksum.Frame LastFrame { get; private set; }
         internal Stream RawStream => _stream;
@@ -69,6 +70,7 @@ namespace LiteDB.Engine
             var page = new BufferSlice(_frame, 0, PAGE_SIZE);
             var frame = _checksum.Prepare(page, new BufferSlice(_frame, PAGE_SIZE, WalChecksum.MetadataSize), _position);
             _stream.Position = _position / PAGE_SIZE * WalChecksum.FrameSize;
+            _allocation.Reserve(_stream, _stream.Position + _frame.Length);
             _stream.Write(_frame, 0, _frame.Length);
             _checksum.Accept(page, _position, frame);
             _position += PAGE_SIZE;
@@ -94,6 +96,7 @@ namespace LiteDB.Engine
             if (_checksum.Enabled && value % PAGE_SIZE != 0) throw new ArgumentException("WAL length must be page aligned.");
             var length = _checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value;
             _stream.SetLength(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
+            _allocation.Reset();
             // CryptoStream can forward an empty final write on dispose. Do not
             // let a borrowed stream position re-extend a truncated memory WAL.
             if (_stream.Position > length) _stream.Position = length;
