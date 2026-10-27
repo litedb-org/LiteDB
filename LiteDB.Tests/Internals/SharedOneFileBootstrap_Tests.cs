@@ -89,6 +89,46 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Wake_name_follows_envelope_publication_and_quiescent_replacement_retires_the_old_name()
+        {
+            var settings = Settings(2, 3);
+            using var admission = NativeAdmission.Open(settings, true);
+            var identities = new HashSet<Guid>();
+            SharedMemoryAuthority.BootstrapStage = stage =>
+            {
+                if (stage != "envelope-b" && stage != "before-storage") return;
+                var bytes = File.ReadAllBytes(SharedMemoryAuthority.PathFor(Filename));
+                var first = SharedMemoryEnvelope.Decode(bytes.Take(SharedMemoryLayout.EnvelopeBytes).ToArray(),
+                    Filename, admission.Identity, quiescent: true);
+                var second = SharedMemoryEnvelope.Decode(bytes.Skip(SharedMemoryLayout.Page)
+                    .Take(SharedMemoryLayout.EnvelopeBytes).ToArray(), Filename, admission.Identity, quiescent: true);
+                second.Authority.Should().Be(first.Authority);
+                identities.Add(first.Authority);
+                SharedPlatformWake_Tests.AssertDarwinNameExists(first.Authority, stage == "before-storage");
+            };
+            try
+            {
+                Guid old;
+                using (var first = Open(settings, admission)) old = first.Header.Authority;
+                // Raw authority disposal closes handles but retains the published
+                // namespace for recovery; a quiescent capacity reset must retire it.
+                SharedPlatformWake_Tests.AssertDarwinNameExists(old, true);
+                using (var replacement = Open(Settings(3, 5), admission))
+                {
+                    replacement.Header.Authority.Should().NotBe(old);
+                    SharedPlatformWake_Tests.AssertDarwinNameExists(old, false);
+                }
+                identities.Count.Should().Be(2);
+                for (var repeat = 0; repeat < 2; repeat++) Validate(settings, admission);
+            }
+            finally
+            {
+                SharedMemoryAuthority.BootstrapStage = null;
+                foreach (var identity in identities) SharedWakeSignal.Retire(identity);
+            }
+        }
+
+        [OneFileFact]
         public void First_opener_chooses_capacity_later_openers_map_declared_size_and_only_quiescence_changes_it()
         {
             var settings = Settings(2, 3);

@@ -66,6 +66,7 @@ namespace LiteDB.Client.Shared
                     settings.SharedMutexNameStrategy);
                 if (first && !reuse)
                 {
+                    if (old != null) SharedWakeSignal.Retire(old.Authority);
 #if DEBUG || TESTING
                     Interlocked.Increment(ref BootstrapResetCount);
 #endif
@@ -90,6 +91,7 @@ namespace LiteDB.Client.Shared
                     Stage("envelope-a");
                     result.Map.Write(SharedMemoryLayout.Page, result.Header.Bytes);
                     Stage("envelope-b");
+                    result.Map.PrepareWake();
                     Stage("before-storage");
                     validateStorage(result); // must open/recover independently under main
                     Stage("after-storage");
@@ -113,6 +115,7 @@ namespace LiteDB.Client.Shared
                     if (!reuse && (result.Map.Load(SharedMemoryLayout.Control) != 1 ||
                         result.Map.Load(SharedMemoryLayout.Control + 8) == 0))
                         throw new IOException("Live Shared authority is not Ready.");
+                    result.Map.PrepareWake();
                 }
                 if (first && reuse)
                 {

@@ -12,7 +12,7 @@ namespace LiteDB.Client.Shared
     internal sealed class SharedWakeSignal : IDisposable
     {
         private readonly EventWaitHandle _windows;
-        private readonly IntPtr _darwin;
+        private readonly Lazy<IntPtr> _darwin;
         private readonly bool _isDarwin;
         private int _disposed;
 #if DEBUG || TESTING
@@ -30,14 +30,7 @@ namespace LiteDB.Client.Shared
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 _isDarwin = true;
-                var name = DarwinName(authority);
-                // Darwin O_CREAT is 0x0200 (0x40 is O_ASYNC). On Apple
-                // arm64 the variadic mode/value arguments must be on the stack.
-                _darwin = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                    ? sem_open_arm64(name, 0x0200, 0, 0, 0, 0, 0, 0, 0x1b6, 0)
-                    : sem_open(name, 0x0200, 0x1b6, 0);
-                if (_darwin == new IntPtr(-1))
-                    throw new IOException("Opening the Shared macOS wake semaphore failed (native error " + Marshal.GetLastWin32Error() + ").");
+                _darwin = new Lazy<IntPtr>(() => OpenDarwin(authority));
                 return;
             }
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -46,6 +39,23 @@ namespace LiteDB.Client.Shared
 
         internal static SharedWakeSignal Open(Guid authority) =>
             RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? null : new SharedWakeSignal(authority);
+
+        private static IntPtr OpenDarwin(Guid authority)
+        {
+            var name = DarwinName(authority);
+            // Darwin O_CREAT is 0x0200 (0x40 is O_ASYNC). On Apple
+            // arm64 the variadic mode/value arguments must be on the stack.
+            var semaphore = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? sem_open_arm64(name, 0x0200, 0, 0, 0, 0, 0, 0, 0x1b6, 0)
+                : sem_open(name, 0x0200, 0x1b6, 0);
+            if (semaphore == new IntPtr(-1))
+                throw new IOException("Opening the Shared macOS wake semaphore failed (native error " + Marshal.GetLastWin32Error() + ").");
+            return semaphore;
+        }
+
+        // Bootstrap calls this only after both recoverable authority envelopes
+        // exist. Process death must not strand a name with no recoverable owner.
+        internal void Prepare() { if (_isDarwin) _ = _darwin.Value; }
 
         // Keep all 128 authority bits within Darwin's 31-byte semaphore name limit.
         internal static string DarwinName(Guid authority) => "/ldb-w-" +
@@ -64,7 +74,7 @@ namespace LiteDB.Client.Shared
                 _windows.Set();
                 return;
             }
-            if (_isDarwin && sem_post(_darwin) != 0)
+            if (_isDarwin && sem_post(_darwin.Value) != 0)
                 throw new IOException("Posting the Shared macOS wake semaphore failed (native error " + Marshal.GetLastWin32Error() + ").");
         }
 
@@ -76,6 +86,7 @@ namespace LiteDB.Client.Shared
                 return;
             }
             if (!_isDarwin) return;
+            var semaphore = _darwin.Value;
 
             // Darwin does not provide a usable sem_timedwait on all supported
             // baselines. A holder-local timer posts the same semaphore, which
@@ -85,7 +96,7 @@ namespace LiteDB.Client.Shared
             {
                 while (true)
                 {
-                    if (sem_wait(_darwin) == 0)
+                    if (sem_wait(semaphore) == 0)
                     {
                         Observe("native-returned");
                         return;
@@ -108,7 +119,7 @@ namespace LiteDB.Client.Shared
         {
             var wake = (SharedWakeSignal)state;
             wake.Observe("timer-post");
-            sem_post(wake._darwin);
+            sem_post(wake._darwin.Value);
         }
 
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
@@ -123,7 +134,7 @@ namespace LiteDB.Client.Shared
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _windows?.Dispose();
-            if (_isDarwin && _darwin != IntPtr.Zero && _darwin != new IntPtr(-1)) sem_close(_darwin);
+            if (_darwin?.IsValueCreated == true) sem_close(_darwin.Value);
         }
 
         [DllImport("libSystem.B.dylib", EntryPoint = "sem_open", SetLastError = true, CharSet = CharSet.Ansi)]

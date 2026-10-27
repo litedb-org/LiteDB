@@ -44,21 +44,57 @@ namespace LiteDB.Internals
                     using var peer = SharedWakeSignal.Open(authority);
                     first.Should().NotBeNull();
                     peer.Should().NotBeNull();
-                    VerifyWake(first, peer);
+                    AssertDarwinNameExists(authority, false);
+                    first.Prepare();
+                    AssertDarwinNameExists(authority, true);
+                    VerifyWake(first, peer, authority);
                     first.Dispose();
                     first.Dispose();
-                    VerifyWake(peer, peer);
+                    VerifyWake(peer, peer, authority);
                 }
                 finally { SharedWakeSignal.Retire(authority); }
+                AssertDarwinNameExists(authority, false);
             }
         }
 
-        private static void VerifyWake(SharedWakeSignal first, SharedWakeSignal peer)
+        internal static void AssertDarwinNameExists(Guid authority, bool expected)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+            var handle = sem_open(SharedWakeSignal.DarwinName(authority), 0);
+            var error = Marshal.GetLastWin32Error();
+            var exists = handle != new IntPtr(-1);
+            if (exists) sem_close(handle);
+            exists.Should().Be(expected);
+            if (!expected) error.Should().Be(2, "the name must be absent, not merely inaccessible");
+        }
+
+        [DllImport("libSystem.B.dylib", EntryPoint = "sem_open", SetLastError = true, CharSet = CharSet.Ansi)]
+        private static extern IntPtr sem_open(string name, int oflag);
+        [DllImport("libSystem.B.dylib", EntryPoint = "sem_close", SetLastError = true)]
+        private static extern int sem_close(IntPtr semaphore);
+        [DllImport("libSystem.B.dylib", EntryPoint = "sem_trywait", SetLastError = true)]
+        private static extern int sem_trywait(IntPtr semaphore);
+
+        private static void VerifyWake(SharedWakeSignal first, SharedWakeSignal peer, Guid authority)
         {
             using var posting = new ManualResetEventSlim();
             using var allowPost = new ManualResetEventSlim();
             using var returned = new ManualResetEventSlim();
             var darwin = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+            if (darwin)
+            {
+                // Hints from the previous peer wake and its drained timeout post
+                // may remain. Start this forced callback interval with no tokens.
+                var handle = sem_open(SharedWakeSignal.DarwinName(authority), 0);
+                handle.Should().NotBe(new IntPtr(-1));
+                try
+                {
+                    var drained = 0;
+                    while (sem_trywait(handle) == 0) (++drained).Should().BeLessThan(16);
+                    Marshal.GetLastWin32Error().Should().Be(35, "Darwin EAGAIN proves the hint queue is empty");
+                }
+                finally { sem_close(handle); }
+            }
             peer.NativeWakeStage = stage =>
             {
                 if (stage == "native-returned") returned.Set();

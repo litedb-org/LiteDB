@@ -49,6 +49,8 @@ namespace LiteDB.Client.Shared
         internal long Increment(long offset)
         { this.Require(offset, 8); return Interlocked.Increment(ref *(long*)(_pointer + offset)); }
 
+        internal void PrepareWake() => _wake?.Prepare();
+
         // The mapping remains pinned until every holder/request lease drains.
         internal void Wake()
         {
