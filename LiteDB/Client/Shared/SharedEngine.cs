@@ -32,6 +32,7 @@ namespace LiteDB
         private SharedMutexPin _transactionUse;
         private SharedLocalTransactionOwner _localTransactions;
         private SharedLocalTransactionOwner.Lease _localTransaction;
+        private SharedTransactionOwnership.Lease _transactionLease;
         // ABI-2 mapped WRITE tenure is held while this connection's writable core
         // exists.  The local named mutex still orders facades; the mapped byte orders
         // processes and provides a kernel-visible dead-man switch.
@@ -114,7 +115,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
-            this.ThrowIfForeignLocalTransaction();
+            if (writing || _localTransactions != null) this.ThrowIfForeignLocalTransaction(writing);
             // Writers retire idle read handles before _useLock, preserving lock order.
             if (writing) this.RetireCoordinatedReads();
             if (writing && _mappedWriterHeld) this.EnterMappedWriter();
@@ -268,6 +269,7 @@ namespace LiteDB
                 finally
                 {
                     if (_localTransactions != null) this.EndTransaction(releaseHold: false);
+                    else this.ReleaseTransactionLease();
                 }
             }
             _handles?.CloseIdle();

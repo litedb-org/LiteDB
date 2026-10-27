@@ -18,12 +18,13 @@ coordinator's internally owned engines retain their previous path.
 
 Transactions remain synchronous and thread-bound. A transaction also has the
 identity of its facade's monitor. An operation through another facade on that
-same thread throws `InvalidOperationException` before joining or changing the
+same thread throws `LiteException` with error code
+`LiteException.SAME_THREAD_TRANSACTION` before joining or changing the
 transaction. That facade's Commit/Rollback return false. Complete the owning
-transaction before using the other facade on the same thread. Separate threads
-can run independent transactions through different facades using the existing
-collection locks. This deliberately rejects same-thread reentrant foreign work
-instead of allowing thread-recursive collection locks to admit two writers.
+transaction before using the other facade on the same thread. Separate threads can run independent transactions
+through different facades using the existing collection locks. This deliberately
+rejects same-thread reentrant foreign work by default instead of allowing
+thread-recursive collection locks to admit two writers.
 
 Disposing a non-last facade rolls back its own idle transaction on the current thread;
 it does not dispose a peer's transaction. Last dispose uses the engine-close transaction cleanup. Disposing an idle write transaction

@@ -94,7 +94,7 @@ namespace LiteDB.Internals
                     callbacks++;
                     db.BeginTrans().Should().BeFalse();
                     Action callback = () => peer.BeginTrans();
-                    callback.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+                    callback.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
                     yield return Row(2000);
                 }
                 db.GetCollection("docs").Insert(Input()).Should().Be(1);

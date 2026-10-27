@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Engine
             first.BeginTrans().Should().BeTrue();
             first.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             Action insert = () => second.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2 });
-            insert.Should().Throw<InvalidOperationException>().WithMessage("*Another Direct facade*");
+            insert.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
             second.Commit().Should().BeFalse();
             second.Rollback().Should().BeFalse();
             first.Rollback().Should().BeTrue();

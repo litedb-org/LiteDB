@@ -26,6 +26,28 @@
   ],
   "dispositions": [
     {
+      "id": "p3j-remove-experimental-same-thread-wait-option",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Database.ConnectionString_Tests.Same_thread_transaction_wait_setting_round_trips",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Direct_opt_in_same_thread_wait_times_out",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Mapped_shared_opt_in_same_thread_wait_times_out",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Opt_in_same_thread_wait_is_bounded_by_timeout"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The removed tests required the experimental opt-in to round-trip and replace immediate same-thread foreign-facade refusal with a TIMEOUT-bounded wait.",
+      "reason": "The owner removed the opt-in for Phase 3: legacy same-thread foreign-facade writes always throw SAME_THREAD_TRANSACTION (141). Cooperative waiting is deferred to Phase 4 thread-independent transaction handles. The retained Direct, legacy Shared and mapped Shared tests require immediate code-141 refusal, successful owner rollback and separate-thread progress after commit; the removed setting and its obsolete waiting behavior must not be restored.",
+      "decision": "docs/connection-string-parsing.md#same-thread-transaction-writes",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Direct_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Legacy_shared_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Mapped_shared_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Direct_foreign_thread_writer_waits_for_commit",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Foreign_thread_writer_still_waits_and_succeeds_after_commit",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Mapped_shared_foreign_thread_writer_waits_for_commit"
+      ]
+    },
+    {
       "id": "p3h-shared-session-capacity-and-hang-capture",
       "kind": "ci-test-config-changed",
       "subjects": [

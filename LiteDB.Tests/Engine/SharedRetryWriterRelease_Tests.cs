@@ -171,7 +171,7 @@ namespace LiteDB.Tests.Engine
                 db.BeginTrans().Should().BeFalse();
                 db.GetCollection("docs").Insert(Row(2001));
                 Action callback = () => peer.BeginTrans();
-                callback.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+                callback.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
                 yield return Row(2002);
             }
             db.GetCollection("docs").Insert(Input()).Should().Be(2);

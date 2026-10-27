@@ -80,6 +80,7 @@ namespace LiteDB
         /// </summary>
         private T WriteDatabase<T>(Func<T> write, bool scoped = false) => this.Call(() =>
         {
+            this.ThrowIfForeignLocalTransaction(writing: true);
             var pin = _pin;
             var use = this.TryEnterPin(pin) ? pin
                 : this.CanPin() ? this.StartPin()
