@@ -69,6 +69,10 @@ namespace LiteDB.Tests.Engine
                 refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("another connection");
                 peer.GetCollection("rows").Insert(Row(9));
                 this.CloseAll();
+                // Windows refuses a new writer while the caller-owned writable
+                // stream remains open, even after the engine has closed it.
+                data.Dispose();
+                log.Dispose();
                 VerifyCold(this.Filename, encrypted, new[] { 1, 9, 100 });
             }
             finally { Directory.Delete(alias); }
