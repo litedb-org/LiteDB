@@ -2169,7 +2169,7 @@
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
     "CoreStage": "Ownership observer: reports the opened/closing/closed lifecycle of each Shared core that requires writer exclusion; it never injects a fault.",
-    "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
+    "CoordinationStage": "Observes in-process Shared admission stages (opening, cached-pin, lease-published, admitted, expiring), including forced holder detachment between pin sampling and use; lease-file persistence is listed under unhookedTransitions.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",

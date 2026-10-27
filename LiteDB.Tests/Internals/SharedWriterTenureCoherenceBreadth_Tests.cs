@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using FluentAssertions;
 using LiteDB.Tests;
 using Xunit;
@@ -114,6 +115,66 @@ namespace LiteDB.Internals
                     engine.Update("docs", new[] { Row(1, value) }).Should().Be(1);
                     engine.MappedReaderTable.ReadCache.Snapshot.Should().NotBeSameAs(cached);
                 }
+                remote.Send("exit"); remote.Finish().GetAwaiter().GetResult();
+            }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var cold = new LiteDatabase(new LiteDB.Engine.LiteEngine(files.Settings)); Verify(cold, 4);
+            }
+        }
+
+        [OneFileTheory]
+        [InlineData(null, false)] [InlineData(null, true)]
+        [InlineData("secret", false)] [InlineData("secret", true)]
+        public void Tenure_release_between_cached_pin_check_and_use_observes_remote_partial_checkpoint(string password, bool legacy)
+        {
+            using var files = new SharedOneFilePublicationFixture(password, legacy);
+            using (var engine = new SharedEngine(files.Settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            using (var remote = new MvccProcess("one-file-warm-writer", files.Filename, password))
+            {
+                remote.Expect("ready").GetAwaiter().GetResult();
+                var reached = 0;
+                for (var value = 1; value <= 4; value++)
+                {
+                    using var closing = new ManualResetEventSlim();
+                    using var finishClose = new ManualResetEventSlim();
+                    engine.OwnershipStage = stage =>
+                    {
+                        if (stage != "before-tenure-close") return;
+                        closing.Set();
+                        finishClose.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    };
+                    try
+                    {
+                        engine.Update("docs", new[] { Row(1, value - 1) }).Should().Be(1);
+                        var pin = engine.Pin;
+                        pin.Should().NotBeNull();
+                        pin.RequestRelease(force: false);
+                        closing.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                        engine.CoordinationStage = stage =>
+                        {
+                            if (stage != "cached-pin") return;
+                            engine.CoordinationStage = null;
+                            reached++;
+                            // The real holder clears the volatile pin between
+                            // the reader's null check and use of that pin.
+                            finishClose.Set();
+                            pin.WaitReleased();
+                            engine.Pin.Should().BeNull();
+                            remote.Send("backfill " + value);
+                            remote.Expect("backfill-done").GetAwaiter().GetResult();
+                        };
+                        Verify(db, value);
+                    }
+                    finally
+                    {
+                        finishClose.Set();
+                        engine.CoordinationStage = null;
+                        engine.OwnershipStage = null;
+                    }
+                }
+                reached.Should().Be(4, "every iteration must force the checked pin to detach before use");
                 remote.Send("exit"); remote.Finish().GetAwaiter().GetResult();
             }
             for (var repeat = 0; repeat < 2; repeat++)
