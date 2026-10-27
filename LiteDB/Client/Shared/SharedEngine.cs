@@ -253,7 +253,14 @@ namespace LiteDB
                     if (engine != null) this.CloseRetainedCore(engine, checkpoint: false);
                     this.CloseMutexSnapshotsLocked();
                 }
-                finally { this.EndTransaction(releaseHold: false); }
+                // The mapped participant owns an explicit local lease that must be
+                // terminated when its pin holder dies. Legacy Shared keeps the
+                // transaction marker until the next opener reports the abandoned
+                // owner, preserving the pre-mapped Shared contract.
+                finally
+                {
+                    if (_localTransactions != null) this.EndTransaction(releaseHold: false);
+                }
             }
             _handles?.CloseIdle();
         }
