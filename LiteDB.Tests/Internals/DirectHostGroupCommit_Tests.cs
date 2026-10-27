@@ -21,6 +21,7 @@ namespace LiteDB.Tests.Internals
         public async Task Facades_share_covered_acknowledgements_and_terminal_barrier_failures(int failingSync)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             Seed(file.Filename);
             var facades = Enumerable.Range(0, 3).Select(_ => new LiteDatabase(file.Filename)).ToArray();
             using var firstSync = new ManualResetEventSlim();
@@ -37,7 +38,7 @@ namespace LiteDB.Tests.Internals
             };
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 var number = Interlocked.Increment(ref syncs);
                 if (number == 1) { firstSync.Set(); Wait(releaseFirst); }
                 if (number == 2) { secondSync.Set(); Wait(releaseSecond); }
@@ -112,6 +113,7 @@ namespace LiteDB.Tests.Internals
         public async Task Final_facade_close_fails_pending_writer_and_zero_frame_follower(int checkpoint)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             Seed(file.Filename);
             using var first = new LiteDatabase(file.Filename);
             using var last = new LiteDatabase(file.Filename);
@@ -133,7 +135,7 @@ namespace LiteDB.Tests.Internals
             };
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 var number = Interlocked.Increment(ref syncs);
                 if (number == 1) { firstSync.Set(); Wait(releaseFirst); }
                 if (number == 2) { secondSync.Set(); Wait(releaseSecond); }

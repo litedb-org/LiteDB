@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Client.Shared;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -10,6 +11,12 @@ namespace LiteDB.Tests.Issues
     public class NativeFileSyncCollection
     {
         public const string Name = "NativeFileSync";
+
+        internal static string CanonicalPath(string filename) => DatabaseFileIdentity.CanonicalPath(filename);
+
+        internal static string LogPath(string filename) => FileHelper.GetLogFile(CanonicalPath(filename));
+
+        internal static string DirectoryPath(string filename) => Path.GetDirectoryName(CanonicalPath(filename));
     }
 
     /// <summary>

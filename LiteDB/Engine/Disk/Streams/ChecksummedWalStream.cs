@@ -10,7 +10,8 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly WalChecksum _checksum;
-        private readonly byte[] _frame = new byte[WalChecksum.FrameSize];
+        private byte[] _frame = new byte[WalChecksum.FrameSize];
+        private BufferSlice _page, _metadata;
         private readonly WalFileAllocation _allocation = new WalFileAllocation();
         private long _position;
         internal WalChecksum.Frame LastFrame { get; private set; }
@@ -22,6 +23,7 @@ namespace LiteDB.Engine
         {
             _stream = stream;
             _checksum = checksum;
+            SetFrameSlices();
         }
 
         public override bool CanRead => _stream.CanRead;
@@ -43,11 +45,10 @@ namespace LiteDB.Engine
             }
             CheckPage(count);
             _stream.Position = _position / PAGE_SIZE * WalChecksum.FrameSize;
-            var read = _stream.ReadFully(_frame, 0, _frame.Length);
+            var read = _stream.ReadFully(_frame, 0, WalChecksum.FrameSize);
             if (read == 0) return 0;
-            if (read != _frame.Length) throw new PageChecksumException(FileOrigin.Log, _position);
-            var page = new BufferSlice(_frame, 0, PAGE_SIZE);
-            LastFrame = _checksum.Validate(page, new BufferSlice(_frame, PAGE_SIZE, WalChecksum.MetadataSize), _position);
+            if (read != WalChecksum.FrameSize) throw new PageChecksumException(FileOrigin.Log, _position);
+            LastFrame = _checksum.Validate(_page, _metadata, _position);
             Buffer.BlockCopy(_frame, 0, buffer, offset, PAGE_SIZE);
             _position += PAGE_SIZE;
             return PAGE_SIZE;
@@ -67,13 +68,55 @@ namespace LiteDB.Engine
             }
             CheckPage(count);
             Buffer.BlockCopy(buffer, offset, _frame, 0, PAGE_SIZE);
-            var page = new BufferSlice(_frame, 0, PAGE_SIZE);
-            var frame = _checksum.Prepare(page, new BufferSlice(_frame, PAGE_SIZE, WalChecksum.MetadataSize), _position);
-            _stream.Position = _position / PAGE_SIZE * WalChecksum.FrameSize;
-            _allocation.Reserve(_stream, _stream.Position + _frame.Length);
-            _stream.Write(_frame, 0, _frame.Length);
-            _checksum.Accept(page, _position, frame);
+            var frame = _checksum.Prepare(_page, _metadata, _position);
+            var physical = _position / PAGE_SIZE * WalChecksum.FrameSize;
+            _stream.Position = physical;
+            _allocation.Reserve(_stream, physical + WalChecksum.FrameSize);
+            _stream.Write(_frame, 0, WalChecksum.FrameSize);
+            _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
+        }
+
+        /// <summary>
+        /// Writes a final appended checksummed frame and its compatibility
+        /// zeros in one bounded physical write. This is deliberately limited
+        /// to the engine's plain FileStream WAL; wrappers and caller streams
+        /// retain the ordinary frame-then-pad path.
+        /// </summary>
+        internal void WriteFinalPadded(byte[] buffer, int offset)
+        {
+            if (!_checksum.Enabled || _checksum.JournalBytes != 0 || _stream.GetType() != typeof(FileStream))
+            {
+                Write(buffer, offset, PAGE_SIZE);
+                return;
+            }
+
+            CheckPage(PAGE_SIZE);
+            var physical = checked(_position / PAGE_SIZE * WalChecksum.FrameSize);
+            var end = checked(physical + WalChecksum.FrameSize);
+            var aligned = WalPadding.AlignedLength(end);
+            var count = checked((int)(aligned - physical));
+            // Only writers taking the combined path need the extra capacity.
+            // Reuse it for later frames; readers keep their single-frame buffer.
+            if (_frame.Length < count)
+            {
+                Array.Resize(ref _frame, 2 * PAGE_SIZE);
+                SetFrameSlices();
+            }
+            Buffer.BlockCopy(buffer, offset, _frame, 0, PAGE_SIZE);
+            var frame = _checksum.Prepare(_page, _metadata, _position);
+            Array.Clear(_frame, WalChecksum.FrameSize, count - WalChecksum.FrameSize);
+            _stream.Position = physical;
+            _allocation.Reserve(_stream, aligned);
+            _stream.Write(_frame, 0, count);
+            _checksum.Accept(_page, _position, frame);
+            _position += PAGE_SIZE;
+        }
+
+        private void SetFrameSlices()
+        {
+            _page = new BufferSlice(_frame, 0, PAGE_SIZE);
+            _metadata = new BufferSlice(_frame, PAGE_SIZE, WalChecksum.MetadataSize);
         }
 
         private void CheckPage(int count)

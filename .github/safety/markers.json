@@ -139,6 +139,19 @@
       "reason": "An engine (Direct, or a Shared core) closes while a transaction is still registered in its monitor; detected per transaction in TransactionMonitor.Dispose."
     },
     {
+      "name": "maintenance:direct-finalizer-release-queued",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Direct/DirectFacadeLifetime.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs#Abandoned_finalizer_release_does_not_block_the_finalizer_thread"
+      ],
+      "gate": "advisory",
+      "gateReason": "No deterministic PR smoke target forces GC/finalization of an undisposed Direct facade; DirectProcessHost_Tests.Abandoned_finalizer_release_does_not_block_the_finalizer_thread forces collection and pauses final close to prove finalizer progress and attach serialization. xUnit does not record markers.",
+      "reason": "An abandoned Direct facade publishes its final release to the normal-thread reaper so the finalizer cannot block on host admission or storage close."
+    },
+    {
       "name": "maintenance:close-during-foreign-transaction",
       "kind": "maintenance",
       "paths": [

@@ -45,7 +45,7 @@ namespace LiteDB.Tests.Internals
             int writers, bool collections, bool explicitTransaction, int failingSync)
         {
             using var file = new TempFile();
-            var logPath = FileHelper.GetLogFile(file.Filename);
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;

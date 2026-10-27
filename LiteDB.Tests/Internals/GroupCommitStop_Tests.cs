@@ -24,6 +24,7 @@ namespace LiteDB.Tests.Internals
             bool syncStarted, bool ioFailure)
         {
             using var file = new TempFile();
+            var logPath = NativeFileSyncCollection.LogPath(file.Filename);
             Seed(file.Filename);
             using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
@@ -49,7 +50,7 @@ namespace LiteDB.Tests.Internals
             };
             NativeFileSync.SimulateErrno = path =>
             {
-                if (path != FileHelper.GetLogFile(file.Filename)) return 0;
+                if (path != logPath) return 0;
                 Interlocked.Increment(ref syncs);
                 if (syncStarted)
                 {

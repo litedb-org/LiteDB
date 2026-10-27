@@ -29,6 +29,11 @@ internal sealed class Workload
         }).ToArray();
     }
 
+    // Subsets are report-only, enforced by both the orchestrator and evaluator.
+    private static readonly HashSet<string>? Selected =
+        string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS")) ? null :
+        new HashSet<string>(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS")!.Split(','));
+
     public void Run()
     {
         var path = Path.Combine(_root, "main.db");
@@ -64,6 +69,7 @@ internal sealed class Workload
                     foreach (var doc in col.Find(Query.GTE("Value", 0))) sum += doc.Id;
             });
             Require(sum == 3L * _count * (_count + 1) / 2, "scan checksum");
+            ReadControls(db, col, path);
             var updates = _documents.Take(_count / 10).Select(d => new Document
             {
                 Id = d.Id, Key = d.Key, Value = d.Value + 1000, Payload = d.Payload
@@ -93,12 +99,43 @@ internal sealed class Workload
             }
         });
         using (var db = Open(path)) Verify(db.GetCollection<Document>("documents"), _count / 10);
-        SmallTransactions();
-        Checkpoint();
+        if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
+        if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
 #if DEV
-        if (_config == "dev-default")
+        if (_config == "dev-default" && Selected == null)
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
 #endif
+    }
+
+    private void ReadControls(LiteDatabase db, ILiteCollection<Document> col, string path)
+    {
+        long selective = 0;
+        Measure("selective_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++)
+                foreach (var doc in col.Find(Query.GTE("Value", 990))) selective += doc.Id;
+        });
+        Require(selective == 3 * _documents.Where(d => d.Value >= 990).Sum(d => (long)d.Id), "selective checksum");
+
+        long count = 0;
+        Measure("count_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++) count += col.Count(Query.GTE("Value", 0));
+        });
+        Require(count == 3L * _count, "count checksum");
+
+        long total = 0;
+        Measure("aggregate_scan_3x100k", 3 * _count, path, () =>
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                using var result = db.Execute("SELECT { total: SUM(*.Value) } FROM documents WHERE Value >= 0");
+                Require(result.Read(), "aggregate row");
+                total += result.Current["total"].AsInt64;
+                Require(!result.Read(), "aggregate single row");
+            }
+        });
+        Require(total == 3 * _documents.Sum(d => (long)d.Value), "aggregate checksum");
     }
 
     private void SmallTransactions()
@@ -178,6 +215,7 @@ internal sealed class Workload
             Console.WriteLine($"{_config} warmup finished {scenario}");
             return;
         }
+        if (Selected != null && !Selected.Contains(scenario)) return;
         var totalBytes = Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length);
         Samples.Add(new Sample(scenario, watch.Elapsed.TotalMilliseconds, operations, new FileInfo(path).Length, totalBytes));
         Console.WriteLine($"{_config} {scenario}: {watch.Elapsed.TotalMilliseconds:F3} ms");
