@@ -187,18 +187,19 @@ $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 $exitCode = $LASTEXITCODE
 if ($exitCode -ne 0 -and !(Test-Path $resultPath)) {
     # VSTest occasionally exits on macOS runners without any output or result file
-    # (seen in the query partition). Record what is known and retry once with a
-    # diagnostic log; the guards below still decide whether the retry counts.
+    # (seen in the query partition). Missing results can also mean a crash after
+    # test entry. Retry only for diagnostics; the original failure remains fatal.
     Write-Host "VSTest exited with $exitCode and wrote no result file ($resultPath); retrying once with diagnostics."
     $diag = Join-Path $results "vstest-diag-$([IO.Path]::GetFileNameWithoutExtension($ResultFile)).log"
     $retry = @($arguments[0..($arguments.IndexOf('--') - 1)]) + "/Diag:$diag" + @($arguments[$arguments.IndexOf('--')..($arguments.Count - 1)])
     & dotnet @retry
-    $exitCode = $LASTEXITCODE
+    $retryExitCode = $LASTEXITCODE
     foreach ($log in @(Get-ChildItem -Path $results -Filter 'vstest-diag-*' -ErrorAction SilentlyContinue)) {
         Write-Host "--- last lines of $($log.Name)"
         Get-Content $log.FullName -Tail 40 | ForEach-Object { Write-Host $_ }
     }
-    if ($exitCode -ne 0 -and !(Test-Path $resultPath)) { Write-Host "Retry also wrote no result file." }
+    if ($retryExitCode -ne 0 -and !(Test-Path $resultPath)) { Write-Host "Retry also wrote no result file." }
+    Write-Host "::error::VSTest originally exited with $exitCode without results ($resultPath). Diagnostic retry exited with $retryExitCode; this partition remains failed."
 }
 if ($exitCode -ne 0) { exit $exitCode }
 
