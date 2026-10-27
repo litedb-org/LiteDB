@@ -107,6 +107,41 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Closed_waits_for_native_teardown_after_the_final_reference_is_removed()
+        {
+            using var files = new SharedOneFilePublicationFixture();
+            SharedMemoryReaderTable table;
+            using (var engine = new SharedEngine(files.Settings))
+            {
+                table = engine.MappedReaderTable;
+                table.TryRetain().Should().BeTrue();
+            }
+            Exception error = null;
+            var closer = new Thread(() =>
+            {
+                try { table.Release(); }
+                catch (Exception ex) { error = ex; }
+            }) { IsBackground = true };
+            try
+            {
+                lock (table.ReadCache.Gate)
+                {
+                    closer.Start();
+                    SpinWait.SpinUntil(() => Field<int>(table, "_references") == 0,
+                        TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    table.Closed.Should().BeFalse("final native teardown is blocked on the cache gate");
+                    Action incompatible = () => new LiteDatabase(files.Filename).Dispose();
+                    incompatible.Should().Throw<System.IO.IOException>();
+                }
+            }
+            finally { closer.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+            error.Should().BeNull();
+            table.Closed.Should().BeTrue();
+            using var reopened = new LiteDatabase(files.Filename);
+            Verify(reopened, 0);
+        }
+
+        [OneFileFact]
         public void Collected_transform_identity_cannot_be_replaced_while_participant_is_retained()
         {
             using var files = new SharedOneFilePublicationFixture();

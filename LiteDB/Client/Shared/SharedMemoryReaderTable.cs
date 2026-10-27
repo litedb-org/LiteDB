@@ -29,7 +29,7 @@ namespace LiteDB.Client.Shared
         private int _references = 1;
         private bool _closing;
         private readonly SharedMemoryWriter _writer;
-        internal bool Closed { get { lock (_gate) return _references == 0; } }
+        internal bool Closed { get { lock (_gate) return _references == 0 && !_closing; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
 
         private SharedMemoryReaderTable(SharedMemoryAuthority authority, NativeAdmission admission, EngineSettings settings)
