@@ -12,15 +12,21 @@ namespace LiteDB.Client.Shared
     {
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
-        private readonly SharedWakeSignal _wake;
+        private SharedWakeSignal _wake;
+        private readonly ReaderWriterLockSlim _wakeLifetime;
         private byte* _pointer;
         private bool _acquired;
+        private int _disposed;
         internal readonly long Size;
 
         internal SharedMemoryMap(FileStream file, long size, Guid authority = default(Guid))
         {
             Size = size;
-            if (authority != Guid.Empty) _wake = SharedWakeSignal.Open(authority);
+            if (authority != Guid.Empty)
+            {
+                _wake = SharedWakeSignal.Open(authority);
+                if (_wake != null) _wakeLifetime = new ReaderWriterLockSlim();
+            }
             _map = MemoryMappedFile.CreateFromFile(file, null, size, MemoryMappedFileAccess.ReadWrite,
                 HandleInheritability.None, leaveOpen: true);
             try
@@ -51,13 +57,34 @@ namespace LiteDB.Client.Shared
 
         internal void PrepareWake() => _wake?.Prepare();
 
+        // Maintenance owns exclusive DMS and bootstrap. Local wake/wait calls
+        // can still run, so drain their native handle use before replacement.
+        internal void RekeyWake(Guid previous, Guid authority)
+        {
+            if (_wakeLifetime == null) return;
+            _wakeLifetime.EnterWriteLock();
+            try
+            {
+                var next = SharedWakeSignal.Open(authority);
+                try { next.Prepare(); }
+                catch { next.Dispose(); throw; }
+                var old = _wake;
+                _wake = next;
+                old.Dispose();
+                SharedWakeSignal.Retire(previous);
+            }
+            finally { _wakeLifetime.ExitWriteLock(); }
+        }
+
         // The mapping remains pinned until every holder/request lease drains.
         internal void Wake()
         {
             Increment(SharedMemoryLayout.WriterWake);
-            if (_wake != null)
+            if (_wakeLifetime != null)
             {
-                _wake.Wake();
+                _wakeLifetime.EnterReadLock();
+                try { _wake.Wake(); }
+                finally { _wakeLifetime.ExitReadLock(); }
                 return;
             }
             var result = syscall(FutexSyscall, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 1, int.MaxValue, IntPtr.Zero);
@@ -65,16 +92,21 @@ namespace LiteDB.Client.Shared
         }
         internal void WaitWake(long observed, int milliseconds)
         {
-            if (_wake != null)
+            if (_wakeLifetime != null)
             {
-                if (Load(SharedMemoryLayout.WriterWake) != observed)
+                _wakeLifetime.EnterReadLock();
+                try
                 {
+                    if (Load(SharedMemoryLayout.WriterWake) != observed)
+                    {
+                        ObserveWait("returned", 0);
+                        return;
+                    }
+                    ObserveWait("syscall", milliseconds);
+                    _wake.Wait(milliseconds);
                     ObserveWait("returned", 0);
-                    return;
                 }
-                ObserveWait("syscall", milliseconds);
-                _wake.Wait(milliseconds);
-                ObserveWait("returned", 0);
+                finally { _wakeLifetime.ExitReadLock(); }
                 return;
             }
             var timeout = new Timespec { Seconds = 0, Nanoseconds = milliseconds * 1000000L };
@@ -135,11 +167,13 @@ namespace LiteDB.Client.Shared
         ~SharedMemoryMap() { this.Dispose(); }
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             GC.SuppressFinalize(this);
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }
             _view?.Dispose();
             _map?.Dispose();
             _wake?.Dispose();
+            _wakeLifetime?.Dispose();
         }
     }
 }

@@ -29,9 +29,22 @@ namespace LiteDB.Internals
                 var table = engine.MappedReaderTable;
                 var original = table.Authority.Header.Authority;
                 var identity = table.Admission.Identity;
-                db.Rebuild();
+                var namespaceCuts = 0;
+                SharedMemoryMaintenance.MaintenanceStage = stage =>
+                {
+                    if (stage != "rekey-invalidated" && stage != "rekey-envelope-a" && stage != "rekey-envelope-b") return;
+                    namespaceCuts++;
+                    SharedPlatformWake_Tests.AssertDarwinNameExists(original, false);
+                    if (stage != "rekey-invalidated")
+                        SharedPlatformWake_Tests.AssertNativeNameExists(table.Authority.Header.Authority, false);
+                };
+                try { db.Rebuild(); }
+                finally { SharedMemoryMaintenance.MaintenanceStage = null; }
+                namespaceCuts.Should().Be(3);
                 replacement = table.Authority.Header.Authority;
                 replacement.Should().NotBe(original);
+                SharedPlatformWake_Tests.AssertNativeNameExists(original, false);
+                SharedPlatformWake_Tests.AssertNativeNameExists(replacement, true);
                 table.Admission.Identity.Should().NotBe(identity);
                 table.Authority.Header.MatchesIdentity(table.Admission.Identity).Should().BeTrue();
                 Verify(db, 11);

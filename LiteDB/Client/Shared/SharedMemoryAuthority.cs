@@ -211,6 +211,10 @@ namespace LiteDB.Client.Shared
             dimensions.SharedProcessCapacity = Header.Processes;
             dimensions.SharedGenerationCapacity = Header.Generations;
             var next = SharedMemoryEnvelope.Create(dimensions, identity);
+            var previous = Header.Authority;
+            // Existing native handles remain usable after unlink. Retire while
+            // the old identity is still recoverable, before either envelope goes.
+            SharedWakeSignal.Retire(previous);
             Map.Zero(0, 2 * SharedMemoryLayout.Page);
             SharedMemoryMaintenance.Stage("rekey-invalidated");
             Header = next;
@@ -218,6 +222,7 @@ namespace LiteDB.Client.Shared
             SharedMemoryMaintenance.Stage("rekey-envelope-a");
             Map.Write(SharedMemoryLayout.Page, Header.Bytes);
             SharedMemoryMaintenance.Stage("rekey-envelope-b");
+            Map.RekeyWake(previous, Header.Authority);
             if (Slot >= 0) Map.Write(Block + 32, Header.Authority.ToByteArray());
         }
 

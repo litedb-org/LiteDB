@@ -1,10 +1,12 @@
 #if NET8_0_OR_GREATER
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
+using LiteDB.Tests;
 using Xunit;
 
 namespace LiteDB.Internals
@@ -66,6 +68,92 @@ namespace LiteDB.Internals
             if (exists) sem_close(handle);
             exists.Should().Be(expected);
             if (!expected) error.Should().Be(2, "the name must be absent, not merely inaccessible");
+        }
+
+        internal static void AssertNativeNameExists(Guid authority, bool expected)
+        {
+            AssertDarwinNameExists(authority, expected);
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            var exists = EventWaitHandle.TryOpenExisting("LiteDB.Shared.Wake." + authority.ToString("N"), out var handle);
+            handle?.Dispose();
+            exists.Should().Be(expected);
+        }
+
+        [Fact]
+        public void Mapped_rekey_drains_native_waiters_retires_the_old_name_and_accepts_new_peer_wakes()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                SharedWakeSignal.Open(Guid.NewGuid()).Should().BeNull();
+                return;
+            }
+            var original = Guid.NewGuid();
+            var replacement = Guid.NewGuid();
+            var path = Path.Combine(SharedMappedDirectory.Root, "wake-rekey-" + original.ToString("N"));
+            using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite,
+                FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.DeleteOnClose);
+            file.SetLength(SharedMemoryLayout.Blocks);
+            try
+            {
+                using var map = new SharedMemoryMap(file, file.Length, original);
+                map.PrepareWake();
+                using var entered = new ManualResetEventSlim();
+                using var allowWait = new ManualResetEventSlim();
+                using var rekeyStarted = new ManualResetEventSlim();
+                map.WaitObserved = (stage, _) =>
+                {
+                    if (stage != "syscall") return;
+                    entered.Set();
+                    allowWait.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                };
+                var waiting = Task.Run(() => map.WaitWake(map.Load(SharedMemoryLayout.WriterWake), 20));
+                Task changing = null;
+                try
+                {
+                    entered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    changing = Task.Run(() => { rekeyStarted.Set(); map.RekeyWake(original, replacement); });
+                    rekeyStarted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    changing.Wait(TimeSpan.FromMilliseconds(50)).Should().BeFalse("the native waiter still owns its handle");
+                    AssertNativeNameExists(original, true);
+                    AssertNativeNameExists(replacement, false);
+                }
+                finally
+                {
+                    allowWait.Set();
+                    waiting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    waiting.GetAwaiter().GetResult();
+                    if (changing != null)
+                    {
+                        changing.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                        changing.GetAwaiter().GetResult();
+                    }
+                }
+                AssertNativeNameExists(original, false);
+                AssertNativeNameExists(replacement, true);
+                using var peer = SharedWakeSignal.Open(replacement);
+                peer.Prepare();
+                entered.Reset();
+                map.WaitObserved = (stage, _) => { if (stage == "syscall") entered.Set(); };
+                waiting = Task.Run(() => map.WaitWake(map.Load(SharedMemoryLayout.WriterWake), 5000));
+                try
+                {
+                    entered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    peer.Wake();
+                    waiting.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue("a replacement peer must wake the live map before timeout");
+                }
+                finally
+                {
+                    map.Wake();
+                    waiting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    waiting.GetAwaiter().GetResult();
+                    map.WaitObserved = null;
+                }
+            }
+            finally
+            {
+                SharedWakeSignal.Retire(original);
+                SharedWakeSignal.Retire(replacement);
+            }
         }
 
         [DllImport("libSystem.B.dylib", EntryPoint = "sem_open", SetLastError = true, CharSet = CharSet.Ansi)]
