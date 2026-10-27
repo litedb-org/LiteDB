@@ -1,0 +1,28 @@
+{
+  "id": "Issue_2722_MapperCloneAttributes",
+  "title": "Global mapper clone loses opt-in ID and ignore attribute registrations",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/2722"
+  ],
+  "failingSince": "6.0.0-prerelease.355",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "CLONE_DEFECT_VERIFIED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}

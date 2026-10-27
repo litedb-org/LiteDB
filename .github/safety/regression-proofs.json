@@ -225,6 +225,17 @@
         "scripts/test-5021-regression-compatibility.py",
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
+    },
+    {
+      "repro": "Issue_2722_MapperCloneAttributes",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.355"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Mapper/AttributeMappingClone_Tests.cs#Registered_attributes_survive_database_persistence",
+        "LiteDB.Tests/Mapper/AttributeMappingClone_Tests.cs#Later_registrations_are_isolated_in_both_directions"
+      ]
     }
   ]
 }

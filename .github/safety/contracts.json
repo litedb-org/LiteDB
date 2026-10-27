@@ -182,6 +182,7 @@
         {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
         {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},
         {"fuzz": "sql-dml", "proves": "Generated SQL statements are executed differentially against a full state model."},
+        {"test": "LiteDB.Tests/Mapper/AttributeMappingClone_Tests.cs#Registered_attributes_survive_database_persistence", "proves": "Cold Global clones preserve each opt-in ID/ignore attribute registration in real persisted BSON and primary-key lookup after reopen; warm/explicit and native/fluent mappings remain controls."},
         {"fuzz": "mapper", "proves": "The first serialization is compared with an independently constructed BSON tree."}
       ],
       "gaps": [

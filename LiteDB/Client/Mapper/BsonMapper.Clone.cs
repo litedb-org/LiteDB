@@ -18,6 +18,13 @@ namespace LiteDB
                 throw new InvalidOperationException("CreateCloneInstance must return a new BsonMapper instance.");
             }
 
+            // Registration replaces these immutable arrays; clones keep their own snapshot.
+            var attributes = this.GetAttributeMappings();
+            clone._idAttributeTypes = attributes.IdTypes;
+            clone._ignoreAttributeTypes = attributes.IgnoreTypes;
+            clone._idAttributeNames = attributes.IdNames;
+            clone._ignoreAttributeNames = attributes.IgnoreNames;
+
             clone.SerializeNullValues = this.SerializeNullValues;
             clone.TrimWhitespace = this.TrimWhitespace;
             clone.EmptyStringToNull = this.EmptyStringToNull;
