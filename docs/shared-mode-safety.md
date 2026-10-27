@@ -81,10 +81,7 @@ Only executing work is refused. A same-thread wait on an idle reader or pin of
 another connection still waits: it can end for the waiter, and a result left open
 can be disposed on any thread. An open explicit transaction is different: a write
 through another connection on its owning thread throws
-`LiteException.SAME_THREAD_TRANSACTION` immediately. Set
-`wait for same thread transaction=true` (or
-`EngineSettings.WaitForSameThreadTransaction`) to wait up to `TIMEOUT` instead.
-Reads retain their existing semantics. Waits that cross threads (a callback
+`LiteException.SAME_THREAD_TRANSACTION` immediately. Reads retain their existing semantics. Waits that cross threads (a callback
 waiting for another thread's call) are not detected. Legacy transactions remain
 thread-bound; do not use `await` between `BeginTrans` and `Commit`/`Rollback`.
 

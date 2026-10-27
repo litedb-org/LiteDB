@@ -42,9 +42,6 @@ namespace LiteDB.Engine
         private DirectProcessHost _host;
         private DirectFacadeLifetime _lifetime;
         private NativeAdmission _sharedAdmission;
-        // This is a facade setting. Direct facades share the monitor but may choose
-        // independently whether a same-thread foreign write waits.
-        private readonly bool _waitForSameThreadTransaction;
 
         /// <summary>
         /// All system read-only collections for get metadata database information
@@ -82,7 +79,6 @@ namespace LiteDB.Engine
         public LiteEngine(EngineSettings settings)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
-            _waitForSameThreadTransaction = settings.WaitForSameThreadTransaction;
             _settings = settings;
             if (!settings.BypassDirectHost && !settings.SharedMode && NativeAdmission.IsFile(settings))
             {

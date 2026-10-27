@@ -5,11 +5,10 @@
 When one `LiteDatabase` has a legacy explicit transaction open, a write through
 another facade for the same file on that transaction's thread now fails
 immediately with `LiteException.SAME_THREAD_TRANSACTION`. Finish the transaction
-on its owning thread before using the peer facade. Applications that deliberately
-coordinate a bounded wait can set `wait for same thread transaction=true` in the
-connection string or `EngineSettings.WaitForSameThreadTransaction`; the wait uses
-the database `TIMEOUT` pragma. Reads keep their existing behavior, and legacy
-transactions remain thread-bound across `await` continuations.
+on its owning thread before using the peer facade. Phase 4 will introduce
+thread-independent transaction handles for coordinated cross-thread completion.
+Reads keep their existing behavior, and legacy transactions remain thread-bound
+across `await` continuations.
 
 ## Shared mapped reads
 

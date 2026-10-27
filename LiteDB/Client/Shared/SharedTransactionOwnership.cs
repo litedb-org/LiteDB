@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 
 namespace LiteDB.Client.Shared
@@ -18,14 +17,12 @@ namespace LiteDB.Client.Shared
             internal readonly string Namespace;
             internal readonly object Facade;
             internal readonly Thread Thread;
-            internal readonly TimeSpan Timeout;
 
-            internal Entry(string ns, object facade, Thread thread, TimeSpan timeout)
+            internal Entry(string ns, object facade, Thread thread)
             {
                 Namespace = ns;
                 Facade = facade;
                 Thread = thread;
-                Timeout = timeout;
             }
         }
 
@@ -53,7 +50,7 @@ namespace LiteDB.Client.Shared
         private static readonly object Gate = new object();
         private static readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
 
-        internal static Lease Enter(string ns, object facade, Thread thread, TimeSpan timeout)
+        internal static Lease Enter(string ns, object facade, Thread thread)
         {
             lock (Gate)
             {
@@ -61,34 +58,20 @@ namespace LiteDB.Client.Shared
                 if (Entries.ContainsKey(ns))
                     throw LiteDB.LiteException.SameThreadTransaction();
 
-                var entry = new Entry(ns, facade, thread, timeout);
+                var entry = new Entry(ns, facade, thread);
                 Entries.Add(ns, entry);
                 return new Lease(entry);
             }
         }
 
-        /// <summary>
-        /// Refuse immediately by default. When enabled, wait for the foreign
-        /// explicit transaction to end, bounded by the owner's TIMEOUT pragma.
-        /// </summary>
-        internal static void WaitForWrite(string ns, object facade, Thread thread, bool wait)
+        internal static void EnsureWriteAllowed(string ns, object facade, Thread thread)
         {
             lock (Gate)
             {
-                var started = Stopwatch.StartNew();
-                while (true)
-                {
-                    RemoveDeadOwnerLocked(ns);
-                    if (!Entries.TryGetValue(ns, out var entry) || ReferenceEquals(entry.Facade, facade) ||
-                        !ReferenceEquals(entry.Thread, thread)) return;
-
-                    if (!wait) throw LiteDB.LiteException.SameThreadTransaction();
-
-                    var remaining = entry.Timeout - started.Elapsed;
-                    if (remaining <= TimeSpan.Zero)
-                        throw LiteDB.LiteException.LockTimeout("same-thread transaction", entry.Timeout);
-                    Monitor.Wait(Gate, remaining);
-                }
+                RemoveDeadOwnerLocked(ns);
+                if (Entries.TryGetValue(ns, out var entry) && !ReferenceEquals(entry.Facade, facade) &&
+                    ReferenceEquals(entry.Thread, thread))
+                    throw LiteDB.LiteException.SameThreadTransaction();
             }
         }
 

@@ -16,7 +16,7 @@ The string constructors of `ConnectionString` and `LiteDatabase` use these rules
   `index migration limit size`, `legacy index scan`,
   `initial size`, `readonly`, `upgrade`, `auto-rebuild`,
   `reject invalid local time`, `durable commits`, `collation`, `memory profile`,
-  `cache size`, `transaction pages`, or `wait for same thread transaction`.
+  `cache size`, or `transaction pages`.
 - A single unknown `key=value`, including `tenant=acme` or the typo
   `filenam=production.db`, is now a filename. This changes the previous
   custom-option behavior and can select a different database. Multiple custom
@@ -104,16 +104,13 @@ streams cannot be synced and ignore it. `$database.durableLogFlush` reports
 `false` while commits are not synced, either because of this setting or because
 the storage rejected the sync request (some network shares).
 
-## Same-thread transaction waits
+## Same-thread transaction writes
 
-By default, a write through another facade while a legacy explicit transaction is
-open on the current thread fails immediately with
-`LiteException.SAME_THREAD_TRANSACTION`. Set
-`wait for same thread transaction=true` or
-`ConnectionString.WaitForSameThreadTransaction` /
-`EngineSettings.WaitForSameThreadTransaction` to wait up to the database
-`TIMEOUT` pragma. Reads keep their existing semantics; legacy transactions still
-must be completed on the thread that began them.
+A write through another facade while a legacy explicit transaction is open on the
+current thread fails immediately with `LiteException.SAME_THREAD_TRANSACTION`.
+Phase 4 will introduce thread-independent transaction handles for coordinated
+cross-thread completion. Reads keep their existing semantics; legacy transactions
+still must be completed on the thread that began them.
 
 ## Reading files that await index migration read-only
 

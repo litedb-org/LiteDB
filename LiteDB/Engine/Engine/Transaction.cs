@@ -23,7 +23,7 @@ namespace LiteDB.Engine
             if (_settings.ReadOnly && !_settings.ReadOnlyStorage)
                 throw new IOException("Cannot start a transaction in a read-only database.");
 
-            var transacion = _monitor.GetTransaction(true, false, out var isNew, _waitForSameThreadTransaction);
+            var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
             if (transacion.OpenCursors.Count > 0) throw new LiteException(0, "This thread contains an open cursors/query. Close cursors before Begin()");
 
@@ -105,7 +105,7 @@ namespace LiteDB.Engine
             if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
                 throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
 
-            var transaction = _monitor.GetTransaction(true, false, out var isNew, _waitForSameThreadTransaction);
+            var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
             {

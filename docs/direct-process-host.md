@@ -21,10 +21,7 @@ identity of its facade's monitor. An operation through another facade on that
 same thread throws `LiteException` with error code
 `LiteException.SAME_THREAD_TRANSACTION` before joining or changing the
 transaction. That facade's Commit/Rollback return false. Complete the owning
-transaction before using the other facade on the same thread. Set
-`WaitForSameThreadTransaction=true` (or
-`EngineSettings.WaitForSameThreadTransaction`) to wait up to the database
-`TIMEOUT` pragma instead. Separate threads can run independent transactions
+transaction before using the other facade on the same thread. Separate threads can run independent transactions
 through different facades using the existing collection locks. This deliberately
 rejects same-thread reentrant foreign work by default instead of allowing
 thread-recursive collection locks to admit two writers.

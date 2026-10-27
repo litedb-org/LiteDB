@@ -25,12 +25,6 @@ namespace LiteDB
         public int SharedGenerationCapacity { get; set; } = 256;
 
         /// <summary>
-        /// Wait for another facade's explicit transaction on this thread instead of
-        /// refusing the write immediately. The wait is bounded by TIMEOUT (default false).
-        /// </summary>
-        public bool WaitForSameThreadTransaction { get; set; }
-
-        /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>
@@ -203,7 +197,6 @@ namespace LiteDB
             this.SharedProcessCapacity = _values.GetValue("shared process capacity", this.SharedProcessCapacity);
             this.SharedGenerationCapacity = _values.GetValue("shared generation capacity", this.SharedGenerationCapacity);
             this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
-            this.WaitForSameThreadTransaction = _values.GetValue("wait for same thread transaction", this.WaitForSameThreadTransaction);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -237,8 +230,7 @@ namespace LiteDB
                 firstKey.Equals("shared one file", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("shared memory size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("shared process capacity", StringComparison.OrdinalIgnoreCase) ||
-                firstKey.Equals("shared generation capacity", StringComparison.OrdinalIgnoreCase) ||
-                firstKey.Equals("wait for same thread transaction", StringComparison.OrdinalIgnoreCase);
+                firstKey.Equals("shared generation capacity", StringComparison.OrdinalIgnoreCase);
         }
 
         private static CompactStorageMode ParseCompactStorage(string value)
@@ -318,7 +310,6 @@ namespace LiteDB
                 SharedMemorySize = this.SharedMemorySize,
                 SharedProcessCapacity = this.SharedProcessCapacity,
                 SharedGenerationCapacity = this.SharedGenerationCapacity,
-                WaitForSameThreadTransaction = this.WaitForSameThreadTransaction,
             };
 
             engineSettingsAction?.Invoke(settings);

@@ -23,7 +23,6 @@ namespace LiteDB.Engine
         private readonly WalIndexService _walIndex;
 
         private readonly int _transactionPageLimit;
-        private readonly object _foreignWait = new object();
         private int _disposed;
         private object _owner = new TransactionOwnerToken();
         internal object Owner => _owner;
@@ -62,7 +61,6 @@ namespace LiteDB.Engine
                 {
                     if (ReferenceEquals(_slot.Value, transaction)) _slot.Value = null;
                     _locker.ExitTransaction(transaction.OwnerThread);
-                    lock (_foreignWait) Monitor.PulseAll(_foreignWait);
                 }
             }
             _explicitAborted.Dispose();
@@ -99,8 +97,7 @@ namespace LiteDB.Engine
             if (owner != null) _owner = owner;
         }
 
-        public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew,
-            bool waitForSameThreadTransaction = false)
+        public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
             var transaction = _slot.Value;
@@ -159,24 +156,10 @@ namespace LiteDB.Engine
                     }
                     if (create && !queryOnly)
                     {
-                        if (waitForSameThreadTransaction)
-                        {
-                            var timeout = _header.Pragmas.Timeout;
-                            var started = DateTime.UtcNow;
-                            lock (_foreignWait)
-                            {
-                                while (transaction.State == TransactionState.Active)
-                                {
-                                    var remaining = timeout - (DateTime.UtcNow - started);
-                                    if (remaining <= TimeSpan.Zero)
-                                        throw LiteException.LockTimeout("same-thread transaction", timeout);
-                                    Monitor.Wait(_foreignWait, remaining);
-                                }
-                            }
-                            _slot.Value = null;
-                            return this.GetTransaction(create, queryOnly, out isNew, waitForSameThreadTransaction);
-                        }
-
+                        // Legacy transactions are thread-bound. Phase 4 will add
+                        // thread-independent handles; until then, refuse a foreign
+                        // same-thread write immediately so it cannot wait on work
+                        // that only the owning facade/thread can complete.
                         throw LiteException.SameThreadTransaction();
                     }
                     return null;
@@ -231,7 +214,6 @@ namespace LiteDB.Engine
                     if (removed)
                     {
                         _locker.ExitTransaction(transaction.OwnerThread);
-                        lock (_foreignWait) Monitor.PulseAll(_foreignWait);
 #if DEBUG || TESTING
                         AfterTransactionExit?.Invoke();
 #endif
@@ -309,7 +291,6 @@ namespace LiteDB.Engine
 
             cleanup.Catch(_slot.Dispose);
             cleanup.Catch(_explicitAborted.Dispose);
-            lock (_foreignWait) Monitor.PulseAll(_foreignWait);
             if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 

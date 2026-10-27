@@ -105,9 +105,6 @@ namespace LiteDB
                     .Append(';');
             }
 
-            if (connection.WaitForSameThreadTransaction)
-                bld.Append("Wait For Same Thread Transaction=true;");
-
             if (connection.SharedOneFile) bld.Append("Shared One File=true;");
             if (connection.SharedMemorySize != 0) bld.Append("Shared Memory Size=").Append(connection.SharedMemorySize.ToString(CultureInfo.InvariantCulture)).Append(';');
             if (connection.SharedProcessCapacity != 256) bld.Append("Shared Process Capacity=").Append(connection.SharedProcessCapacity.ToString(CultureInfo.InvariantCulture)).Append(';');

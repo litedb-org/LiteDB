@@ -48,28 +48,6 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Direct_opt_in_same_thread_wait_times_out()
-        {
-            using var file = new TempFile();
-            using var owner = new LiteDatabase(file.Filename);
-            using var peer = new LiteDatabase(new ConnectionString
-            {
-                Filename = file.Filename,
-                WaitForSameThreadTransaction = true
-            });
-            owner.Timeout = TimeSpan.FromSeconds(1);
-            owner.BeginTrans().Should().BeTrue();
-
-            var clock = Stopwatch.StartNew();
-            var failure = Record.Exception(() => peer.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 }));
-
-            clock.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(900));
-            clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
-            failure.Should().BeOfType<LiteException>().Which.ErrorCode.Should().Be(LiteException.LOCK_TIMEOUT);
-            owner.Rollback().Should().BeTrue();
-        }
-
-        [Fact]
         public void Direct_foreign_thread_writer_waits_for_commit()
         {
             using var file = new TempFile();
@@ -94,7 +72,6 @@ namespace LiteDB.Tests.Engine
             {
                 Filename = file.Filename,
                 Connection = ConnectionType.Shared,
-                WaitForSameThreadTransaction = true
             };
             using var owner = new LiteDatabase(settings);
             using var peer = new LiteDatabase(settings);
@@ -107,31 +84,6 @@ namespace LiteDB.Tests.Engine
             owner.Commit().Should().BeTrue();
             write.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             peer.GetCollection("docs").Count().Should().Be(2);
-        }
-
-        [Fact]
-        public void Opt_in_same_thread_wait_is_bounded_by_timeout()
-        {
-            using var file = new TempFile();
-            var ownerSettings = new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared };
-            var peerSettings = new ConnectionString
-            {
-                Filename = file.Filename,
-                Connection = ConnectionType.Shared,
-                WaitForSameThreadTransaction = true
-            };
-            using var owner = new LiteDatabase(ownerSettings);
-            owner.Timeout = TimeSpan.FromSeconds(1);
-            using var peer = new LiteDatabase(peerSettings);
-            owner.BeginTrans().Should().BeTrue();
-
-            var clock = Stopwatch.StartNew();
-            var failure = Record.Exception(() => peer.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 }));
-
-            clock.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(900));
-            clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
-            failure.Should().BeOfType<LiteException>().Which.ErrorCode.Should().Be(LiteException.LOCK_TIMEOUT);
-            owner.Rollback().Should().BeTrue();
         }
 
 #if NET8_0_OR_GREATER
@@ -167,7 +119,7 @@ namespace LiteDB.Tests.Engine
         [OneFileFact]
         public void Mapped_shared_foreign_thread_writer_waits_for_commit()
         {
-            var directory = Path.Combine(SharedMappedDirectory.Root, "same-thread-wait-" + Guid.NewGuid().ToString("N"));
+            var directory = Path.Combine(SharedMappedDirectory.Root, "same-thread-foreign-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try
             {
@@ -177,7 +129,6 @@ namespace LiteDB.Tests.Engine
                 {
                     Filename = filename,
                     SharedOneFile = true,
-                    WaitForSameThreadTransaction = true
                 });
                 using var owner = new LiteDatabase(first, disposeOnClose: false);
                 using var peer = new LiteDatabase(second, disposeOnClose: false);
@@ -196,40 +147,6 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [OneFileFact]
-        public void Mapped_shared_opt_in_same_thread_wait_times_out()
-        {
-            var directory = Path.Combine(SharedMappedDirectory.Root, "same-thread-timeout-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(directory);
-            try
-            {
-                var filename = Path.Combine(directory, "mapped.db");
-                using var first = new SharedEngine(new EngineSettings { Filename = filename, SharedOneFile = true });
-                using var second = new SharedEngine(new EngineSettings
-                {
-                    Filename = filename,
-                    SharedOneFile = true,
-                    WaitForSameThreadTransaction = true
-                });
-                using var owner = new LiteDatabase(first, disposeOnClose: false);
-                using var peer = new LiteDatabase(second, disposeOnClose: false);
-                owner.Timeout = TimeSpan.FromSeconds(1);
-                owner.BeginTrans().Should().BeTrue();
-
-                var clock = Stopwatch.StartNew();
-                var failure = Record.Exception(() => peer.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 }));
-
-                clock.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(900));
-                clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
-                failure.Should().BeOfType<LiteException>().Which.ErrorCode.Should().Be(LiteException.LOCK_TIMEOUT);
-                owner.Rollback().Should().BeTrue();
-            }
-            finally
-            {
-                try { Directory.Delete(directory, true); }
-                catch (DirectoryNotFoundException) { }
-            }
-        }
 #endif
     }
 }

@@ -40,8 +40,7 @@ namespace LiteDB
                 {
                     ReleaseTransactionLease();
                     _transactionLease = SharedTransactionOwnership.Enter(
-                        _mutexName, this, Thread.CurrentThread,
-                        TimeSpan.FromSeconds(_engine.Pragma(Pragmas.TIMEOUT).AsInt32));
+                        _mutexName, this, Thread.CurrentThread);
                     // A new inner transaction proves the old one aborted. Return its hold
                     // while this call still protects the engine and the new transaction.
                     if (_transactionRunning) CloseDatabase(_transactionUse, hold: true);
@@ -162,8 +161,7 @@ namespace LiteDB
         private void ThrowIfForeignLocalTransaction(bool writing = false)
         {
             if (writing)
-                SharedTransactionOwnership.WaitForWrite(_mutexName, this, Thread.CurrentThread,
-                    _settings.WaitForSameThreadTransaction);
+                SharedTransactionOwnership.EnsureWriteAllowed(_mutexName, this, Thread.CurrentThread);
             if (_localTransactions?.IsHeldByOther(this, Thread.CurrentThread) == true)
             {
                 if (writing) throw LiteException.SameThreadTransaction();
