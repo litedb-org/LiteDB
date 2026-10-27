@@ -55,7 +55,7 @@ namespace LiteDB.Client.Shared
         /// makes the same tenure visible to every process and is released only after
         /// its final publication fence is complete.
         /// </summary>
-        internal void Enter(bool borrowedWrite = false)
+        internal void Enter(bool borrowedWrite = false, bool abandonedOwner = false)
         {
             lock (_writerGate)
             {
@@ -68,7 +68,7 @@ namespace LiteDB.Client.Shared
                 }
 
                 SharedMemoryReaderTable.RequireHeader(Authority, initializing: borrowedWrite);
-                if (!borrowedWrite) Authority.Locks.EnterWrite();
+                if (!borrowedWrite) Authority.Locks.EnterWrite(abandonedOwner);
                 _borrowedWrite = borrowedWrite;
                 try
                 {

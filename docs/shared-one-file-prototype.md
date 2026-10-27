@@ -19,12 +19,14 @@ then releases data admission. A result retains actual mapping/admission resource
 Direct's existing global cold-open gates remain a separately reported limitation;
 this prototype adds no work on Direct operations.
 
-Each facade carries a unique reference-identity TransactionOwnerToken, propagated
-explicitly through EngineSettings to every reopened core and monitor. It contains
-no Thread, AsyncLocal or execution context. Legacy APIs still use actual Thread
-identity for transaction lookup/completion. Future handles can carry tokens across
-threads; this seam does not authorize current legacy calls to move threads or
-implement Shared's unified writer ownership (slice 7).
+Direct and legacy Shared facades carry a reference-identity TransactionOwnerToken,
+propagated through EngineSettings to every reopened core and monitor. Mapped Shared
+facades share their physical participant's token and one generation-tagged local
+transaction lease. That lease records the actual Thread and facade: same-thread
+foreign facades refuse, other threads wait, and implicit abort/retry reconciles
+ownership before completion. Tokens contain no Thread, AsyncLocal or execution
+context. Legacy calls still use actual Thread identity for lookup/completion;
+this does not authorize moving an explicit transaction across threads.
 
 SharedMemoryLayout fixes the bootstrap and lock offsets. Configurable block stride,
 capacities and map size are declared in two checksummed envelopes. Locks are beyond
@@ -49,9 +51,26 @@ getters/BeginTrans and live participant validation, with main + WRITE. Bootstrap
 validation borrows the initializer's existing WRITE tenure. Read-only snapshots
 keep their nonmutating route.
 
+Named-mutex abandonment can precede the kernel closing a killed process's native
+lock descriptions. A successor holding abandoned main ownership retries WRITE
+for at most five seconds, requiring an actual native acquisition before storage
+access. Abandonment never permits bypassing a live WRITE lock. Other ownership
+mismatches still refuse immediately. The two-process ownership tests and the live
+native-writer negative control cover both outcomes.
+
+Exclusive DMS and WRITE permit reusing a matching quiescent envelope only after
+protected DB/WAL validation. Checksum/identity or supported layout/capacity/size
+mismatches reset the ephemeral authority; an untrusted namespace, unknown ABI or
+inconsistent declared physical length refuses without changing it. Live participants
+retain their declared layout: new attachments use a free existing slot or refuse
+capacity exhaustion, never resize. Only quiescence permits adopting new capacities.
+Reuse-validation death tests assert the reuse counter and reachability markers,
+repeat interruptions inside actual startup repair and around Ready/final close,
+then verify the same authority and indexed committed data after recovery.
+
 Through slice 4 the registry shares one mapping, DMS, process-slot lock, exact
 reader table, durability diagnostics and checkpoint backoff across compatible
-local facades. Main ownership/core state remain per facade until slices 7/8.
+local facades. Main mutex/core state remain per facade; mapped local transaction admission is shared in slice 7.
 The participant captures no facade callbacks or facade token. Initialization is
 per physical identity; unrelated identities never wait behind its entry gate.
 Closing the last facade/result retires that exact entry without erasing a successor.

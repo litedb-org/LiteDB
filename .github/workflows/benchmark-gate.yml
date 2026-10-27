@@ -3,6 +3,11 @@ name: Phase 1 benchmark gate
 on:
   workflow_dispatch:
     inputs:
+      shared_open_close_only:
+        description: 'Only run the fork-only Phase 2 mapped open/close comparison'
+        required: false
+        type: boolean
+        default: false
       candidate_ref:
         description: 'Optional candidate library SHA/ref (empty uses this branch); harness always comes from workflow ref'
         required: false
@@ -23,9 +28,9 @@ permissions:
 jobs:
   compare:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.os == 'macos-latest' && 29 || 45 }}
@@ -95,4 +100,69 @@ jobs:
           name: benchmark-gate-${{ matrix.os }}-${{ matrix.framework }}
           path: artifacts_temp/ab-5021/
           if-no-files-found: warn
+          retention-days: 30
+
+  mapped-open-close:
+    if: github.repository == 'JKamsker/LiteDB' && github.event_name == 'workflow_dispatch' && inputs.shared_open_close_only == true
+    name: Mapped open-close (${{ matrix.framework }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: litedb-org/LiteDB
+          ref: a878a10c6cbb3f2fdf11815406a167b4c49ecaab
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate timing evidence orchestration without measurements
+        run: python -m unittest discover -s harness/.github/scripts -p test_shared_open_close.py
+      - name: Build isolated production libraries and identical timing programs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git -C baseline rev-parse HEAD > evidence/base.txt
+          git -C candidate rev-parse HEAD > evidence/head.txt
+          git -C harness rev-parse HEAD > evidence/harness.txt
+          dotnet --info > evidence/runtime.txt
+          for variant in baseline candidate; do
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
+            library="$GITHUB_WORKSPACE/$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
+            dotnet build harness/tools/SharedOpenCloseMeasurements -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
+          done
+      - name: Five serial alternating 50-cycle comparisons
+        env:
+          DOTNET_TieredCompilation: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python harness/tools/SharedOpenCloseMeasurements/run.py runner-baseline runner-candidate "$GITHUB_WORKSPACE/scratch" evidence "$(cat evidence/base.txt)" "$(cat evidence/head.txt)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mapped-open-close-${{ matrix.framework }}
+          path: evidence/
+          if-no-files-found: error
           retention-days: 30

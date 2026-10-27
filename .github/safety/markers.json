@@ -9,6 +9,10 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "BeforeTransactionRegistration": {
+      "gate": "advisory",
+      "reason": "Deterministic mapped and legacy retry tests install this exception hook; default-mode fuzz does not inject failed registration. Cross-process mapped retry coverage retains complete cold payload/index/sentinel oracles."
+    },
     "BootstrapStage": {
       "gate": "advisory",
       "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate."

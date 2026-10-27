@@ -34,11 +34,20 @@ namespace LiteDB.Client.Shared
         internal void ReleaseSlot(int slot) => _owner.Unlock(Slot(slot));
         internal bool IsLive(int slot) => _probe.Conflicts(Slot(slot));
 
-        internal void EnterWrite()
+        internal void EnterWrite() => EnterWrite(false);
+
+        internal void EnterWrite(bool abandonedOwner)
         {
             if (_writing) throw new InvalidOperationException("WRITE is already owned.");
             if (!_writer.TryLock(SharedMemoryLayout.Write, true))
-                throw new IOException("Shared main mutex / WRITE ownership mismatch.");
+            {
+                // A killed process can abandon its named mutex before the kernel
+                // finishes closing its OFD descriptions. Keep main ownership and
+                // require the actual WRITE lock; never infer its release from death.
+                if (!abandonedOwner || !System.Threading.SpinWait.SpinUntil(
+                    () => _writer.TryLock(SharedMemoryLayout.Write, true), TimeSpan.FromSeconds(5)))
+                    throw new IOException("Shared main mutex / WRITE ownership mismatch.");
+            }
             _writing = true;
         }
 

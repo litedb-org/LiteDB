@@ -64,9 +64,13 @@ namespace LiteDB.Internals
                 if (!_existingReaders.Contains(path)) _childReaders.Add(path);
         }
 
-        /// <summary>Next output line, or null once the process closed its output.</summary>
-        internal Task<string> ReadLine(TimeSpan timeout) =>
-            _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+        /// <summary>Next output line; include child stderr if its output closes unexpectedly.</summary>
+        internal async Task<string> ReadLine(TimeSpan timeout)
+        {
+            var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+            if (line == null) throw new Exception(await _errors);
+            return line;
+        }
 
         internal void Send(string command) => _process.StandardInput.WriteLine(command);
 

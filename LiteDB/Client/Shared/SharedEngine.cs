@@ -135,7 +135,7 @@ namespace LiteDB
             try
             {
                 RejectAbandonedTransaction();
-                if (writing) this.EnterMappedWriter();
+                if (writing) this.EnterMappedWriter(recoveredAbandonedOwner);
             }
             catch { this.ExitMappedWriter(false); this.EndWriterPressure(); _owner.Exit(); throw; }
 

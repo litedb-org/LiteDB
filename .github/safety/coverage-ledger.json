@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p2i-fork-only-open-close-measurement",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing production benchmark gate scenarios and thresholds remain required by their original triggers; mapped startup evidence must identify both exact production libraries and verify retained data.",
+      "reason": "Adds an explicit fork-only manual mode for baseline a878a10c6 versus the selected candidate, net8/net10 on Linux x64, five alternating pairs of 50 open/close cycles. Existing comparison selection is unchanged unless this new mode is explicitly requested; no safety test, matrix, timeout or threshold is removed or lowered."
+    },
+    {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
       "subjects": [

@@ -6,6 +6,8 @@ internal static class SharedOneFileHarness
     internal static bool TryRun(string mode, string filename, string[] args)
     {
         if (SharedOneFileWarmHarness.TryRun(mode, filename, args)) return true;
+        if (SharedOneFileOwnershipHarness.TryRun(mode, filename, args)) return true;
+        if (SharedOneFileReuseHarness.TryRun(mode, filename, args)) return true;
         if (mode == "one-file-mutation-cut")
         {
             using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings

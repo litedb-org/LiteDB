@@ -170,7 +170,7 @@ namespace LiteDB
             }
         }
 
-        private void EnterMappedWriter()
+        private void EnterMappedWriter(bool abandonedOwner = false)
         {
 #if NET8_0_OR_GREATER
             if (!_settings.SharedOneFile) return;
@@ -181,7 +181,7 @@ namespace LiteDB
             }
             if (!(_readers is SharedMemoryReaders mapped))
                 throw new InvalidOperationException("SharedOneFile has no mapped participant.");
-            mapped.Table.EnterWriter();
+            mapped.Table.EnterWriter(abandonedOwner);
             _mappedWriterHeld = true;
 #endif
         }

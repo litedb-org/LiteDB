@@ -173,7 +173,7 @@ namespace LiteDB.Client.Shared
         internal long WriterTenure => _writer.Tenure;
         public void BindState(EngineState state, long tenure) => _writer.BindState(state, tenure);
         public void Stopped(long tenure) => _writer.Stopped(tenure);
-        internal void EnterWriter() => _writer.Enter();
+        internal void EnterWriter(bool abandonedOwner = false) => _writer.Enter(abandonedOwner: abandonedOwner);
         internal void ValidateWriter() => RequireHeader(Authority);
         internal void ExitWriter(bool publish) => _writer.Exit(publish);
         internal void BeginOpenRecovery() => _writer.BeginOpenRecovery();

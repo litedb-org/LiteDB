@@ -24,7 +24,7 @@ namespace LiteDB
             try
             {
 #if NET8_0_OR_GREATER
-                if (writableMapped) this.EnterMappedWriter();
+                if (writableMapped) this.EnterMappedWriter(recoveredAbandonedOwner);
                 this.EnsureCoordination(allowCreate: !final, writing: true);
                 if (writing) this.StartWriterPressure();
                 recovering = _coordination?.BeginOpenRecovery() ?? false;

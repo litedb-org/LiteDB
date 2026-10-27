@@ -67,7 +67,7 @@ namespace LiteDB.Engine
         }
 
 #if TESTING
-        internal Action BeforeTransactionRegistration { get; set; }
+        internal Action BeforeTransactionRegistration;
 #endif
 #if DEBUG || TESTING
         internal Action AfterTransactionExit { get; set; }
@@ -107,7 +107,11 @@ namespace LiteDB.Engine
                 isNew = true;
 
 #if TESTING
-                BeforeTransactionRegistration?.Invoke();
+                if (BeforeTransactionRegistration != null)
+                {
+                    Reachability.FaultPoint("BeforeTransactionRegistration");
+                    BeforeTransactionRegistration();
+                }
 #endif
                 this.ThrowIfDisposed();
 

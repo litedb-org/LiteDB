@@ -1000,6 +1000,14 @@
       "protocol": "startup trailing-page trim",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
+        {
           "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
           "model": "process-death",
           "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
@@ -1016,6 +1024,14 @@
       "name": "startup-before-tail-trim",
       "protocol": "startup trailing-page trim",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
         {
           "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
           "model": "process-death",
@@ -1675,6 +1691,20 @@
   ],
   "injectors": [
     {
+      "name": "BeforeTransactionRegistration",
+      "protocol": "Transaction retry registration before admission",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive",
+          "model": "exception",
+          "proves": "Plain/encrypted mapped owners hit three failed registrations then retry, commit and admit 20 writes from a separate process while the owner stays alive; cold indexed payload and sentinel oracles exclude aborted rows.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileOwnershipHarness.cs"
+          ]
+        }
+      ]
+    },
+    {
       "name": "SimulateDiskWriteFail",
       "protocol": "WAL page writes",
       "evidence": [
@@ -1800,6 +1830,14 @@
       "name": "BootstrapStage",
       "protocol": "ABI-2 ephemeral mapping bootstrap and final close",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
         {
           "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
           "model": "exception",
