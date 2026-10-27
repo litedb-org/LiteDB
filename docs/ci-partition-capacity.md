@@ -222,3 +222,44 @@ or duplicating allocation fails with 11 coverage problems on each target, and
 missing-result controls reject each of the six additional partition names.
 The largest measured local sessions are engine-shared at 185.3 seconds on net8
 and 185.6 seconds on net10; these Linux spans do not predict Windows wall times.
+
+
+## Phase 3 mapped Shared capacity
+
+Run [40521868246](https://github.com/litedb-org/LiteDB/actions/runs/40521868246)
+used the same `shared` session for 684 non-process cases plus two host guards.
+Linux x64 .NET 8 completed 358 cases totaling **288.907 seconds** before the
+300-second session abort; its last completion was 9.55 seconds before abort.
+ARM64 .NET 8/9/10 completed 449/395/473 cases, totaling
+**298.096/296.187/298.118 seconds**, with their last completions only
+0.35/2.37/0.43 seconds before the session finished. These are serial test-work
+sums from TRX results, not time spent waiting for a single unfinished operation.
+The complete x64 .NET 9/10 sessions passed 686 results with
+**258.727/268.930 seconds** of test work. The failed sessions exhausted their
+cumulative budget while still progressing; they do not establish a futex deadlock.
+This classification is limited to those aborts and does not rule out other races.
+
+Regrouping each TRX result by its TestDefinitions class/method (not its display
+name or theory arguments) preserves every case. The new sessions select:
+
+| Session | Complete net9/net10 case count, excluding guards | Maximum retained test-work seconds |
+| --- | ---: | ---: |
+| shared-maintenance-crash | 68 | 130.228 |
+| shared-final-close | 37 | 51.473 |
+| shared-rebuild | 48 | 53.620 |
+| shared-writer-tenure | 63 | 20.290 |
+| shared (complement) | 468 | 94.988 |
+
+The maxima include the partial failed Linux sessions. The complement and tenure
+were not fully reached in those sessions; their complete measurements come from
+x64 net9/net10. These sums estimate capacity, not future wall times. Fresh hosted
+qualification must complete every session, including the unchanged process and
+legacy Shared classes. No session timeout, assertion, fault cut or concurrency
+is relaxed. The existing exhaustive discovery verifier and evidence manifests
+include all 22 sessions; four new sessions add eight repeated host-guard results.
+
+Shared filters also enable VSTest's blame-hang collector with a **120-second
+per-test inactivity timeout** and mini dumps. The unchanged 300-second session
+limit still catches cumulative exhaustion. Sequence XML and dump files are
+uploaded with each leg's TRX artifacts, including failures, so a genuinely stalled
+operation has diagnostic evidence instead of only an unnamed host abort.

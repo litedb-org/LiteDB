@@ -82,7 +82,13 @@ if ($PartitionSuite) {
         'shared-mapped-process' = 'FullyQualifiedName~LiteDB.Internals.SharedMappedProcess'
         'shared-upgrade-process' = 'FullyQualifiedName~LiteDB.Internals.SharedCoordinationUpgradeProcess'
         'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process&FullyQualifiedName!~LiteDB.Internals.SharedMappedProcess&FullyQualifiedName!~LiteDB.Internals.SharedCoordinationUpgradeProcess'
-        shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process'
+        # The old shared session exhausted 300 s while still completing cases.
+        # Keep process-death matrices and tenure reviews independently bounded.
+        'shared-maintenance-crash' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process'
+        'shared-final-close' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileFinalClose&FullyQualifiedName!~Process'
+        'shared-rebuild' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileRebuild&FullyQualifiedName!~Process'
+        'shared-writer-tenure' = 'FullyQualifiedName~LiteDB.Internals.SharedWriterTenure&FullyQualifiedName!~Process'
+        shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process&FullyQualifiedName!~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~LiteDB.Internals.SharedOneFileFinalClose&FullyQualifiedName!~LiteDB.Internals.SharedOneFileRebuild&FullyQualifiedName!~LiteDB.Internals.SharedWriterTenure'
         mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
@@ -182,6 +188,11 @@ $arguments = @(
     "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=minimal'
 )
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }
+# Per-test inactivity capture distinguishes a stalled Shared operation from a
+# session that simply exhausts its unchanged 300-second cumulative budget.
+if ($Filter -match 'Shared') {
+    $arguments += '/Blame:CollectHangDump;TestTimeout=120s;HangDumpType=mini'
+}
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 & dotnet @arguments
 $exitCode = $LASTEXITCODE

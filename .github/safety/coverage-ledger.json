@@ -26,6 +26,18 @@
   ],
   "dispositions": [
     {
+      "id": "p3h-shared-session-capacity-and-hang-capture",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1",
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every discovered Shared test executes exactly once per leg with the runtime/hook guards, unchanged assertions, concurrency and 300-second session limit; a stalled test cannot count as complete.",
+      "reason": "Retained 40521868246 TRX files show ongoing serial completions until all four Linux shared session aborts; passing x64 net9/net10 need 258.7/268.9 seconds of test work. Split maintenance-crash, final-close, rebuild and tenure from the shared complement; preserve process partitions and exhaustive discovery accounting. Add 120-second per-test blame-hang mini dumps and sequence artifacts, retaining failure status. No tests or fault cuts are removed and no timeout is raised.",
+      "decision": "docs/ci-partition-capacity.md"
+    },
+    {
       "id": "p3b-multigeneration-slow-and-warm",
       "kind": "conditional-attribute",
       "subjects": [
@@ -98,9 +110,7 @@
     {
       "id": "p2i-fork-only-open-close-measurement",
       "kind": "ci-test-config-changed",
-      "subjects": [
-        ".github/workflows/benchmark-gate.yml"
-      ],
+      "subjects": [".github/workflows/benchmark-gate.yml"],
       "disposition": "strengthened",
       "invariant": "Existing production benchmark gate scenarios and thresholds remain required by their original triggers; mapped startup evidence must identify both exact production libraries and verify retained data.",
       "reason": "Adds an explicit fork-only manual mode for baseline a878a10c6 versus the selected candidate, net8/net10 on Linux x64, five alternating pairs of 50 open/close cycles. Existing comparison selection is unchanged unless this new mode is explicitly requested; no safety test, matrix, timeout or threshold is removed or lowered."
@@ -108,9 +118,7 @@
     {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
-      "subjects": [
-        ".github/workflows/benchmark-gate.yml"
-      ],
+      "subjects": [".github/workflows/benchmark-gate.yml"],
       "disposition": "strengthened",
       "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
       "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6\u20137 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
