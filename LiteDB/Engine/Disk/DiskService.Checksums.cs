@@ -99,6 +99,7 @@ namespace LiteDB.Engine
         internal void RotateWalSalt()
         {
             if (!ChecksumsEnabled) return;
+            this.CheckpointStage("checkpoint-before-salt-write");
             var stream = _dataPool.Writer.Value;
             var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             stream.Position = 0;
@@ -109,7 +110,9 @@ namespace LiteDB.Engine
             stream.Position = 0;
             try { stream.Write(header.Array, 0, PAGE_SIZE); }
             catch (IOException error) { WriteFailure.InFile(error, FileOrigin.Data); throw; }
+            this.CheckpointStage("checkpoint-after-salt-write");
             this.FlushCheckpointData(stream);
+            this.CheckpointStage("checkpoint-after-salt-sync");
         }
 
         internal void DiscardWalTail(long end, bool invalidTail)

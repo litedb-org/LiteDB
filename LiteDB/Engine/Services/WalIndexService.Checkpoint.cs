@@ -200,7 +200,9 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 if (!reclaim) Reachability.Sometimes("maintenance:checkpoint-during-active-readers");
 #endif
+                _disk.CheckpointStage("checkpoint-before-validation");
                 var verifiedBody = this.ValidateCheckpoint();
+                _disk.CheckpointStage("checkpoint-after-validation");
 
                 var pages = new List<PagePosition>();
                 foreach (var entry in _index)

@@ -243,6 +243,22 @@ Exception/interleaving tests do not establish modeled power-loss or process-deat
 coverage. Those campaigns, old-v5 refusal on stable aligned copies, dirty-WAL
 compatibility and full runtime/platform CI remain required before activation.
 
+Slice 8 supplies finite active-worker recovery matrices in
+`BackgroundCheckpointProcess_Tests` and `BackgroundCheckpointPowerLoss_Tests`.
+Runtime-matched children install the same fixture lifetime, acknowledge externally,
+then die at full/reader-pinned checkpoint boundaries, with queued work, uncommitted
+safepoint output, a high-water writer or final close draining. The existing
+physical durability devices beneath encryption model lost unsynced bytes,
+512/4096-byte write prefixes, persisted truncation and failed WAL/journal/data/salt
+syncs, including two more interruptions during recovery. Exact whole payloads,
+primary/secondary indexes, an untouched sentinel, allocation reachability and
+byte-preserving read-only opens are checked through three recovery cycles.
+Cache-only acknowledgements permit only complete protocol-allowed generations;
+durably acknowledged rows are mandatory. The test-only stream factory preserves
+Direct host/worker ownership while replacing physical bytes with the device; it
+does not model directory-entry loss or an OS/VM/device reset. Hosted platform and
+integrated candidate-tree evidence remain activation gates.
+
 Benchmark only on hosted runners with production Release binaries. Preserve the
 5,000 cache-only auto-commit foreground <=1.10x v5 gate, and require the matched
 contiguous insert-through-immediate-close/drain <=1.10x comparison for acceptance.
