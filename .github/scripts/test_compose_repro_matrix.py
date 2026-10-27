@@ -48,7 +48,8 @@ class ReproMatrixTests(unittest.TestCase):
         retired = json.loads((ROOT / ".github/repro-ci.json").read_text())
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
         active = [repro for repro in self.inventory() if repro["name"] not in retired]
-        self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication",
+        self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_2722_MapperCloneAttributes",
+                          "Issue_3082_AllocationPublication",
                           "Issue_3094_SharedRetryWriterRelease", "Issue_3099_TimeoutAfterWalRestore"},
                          {repro["name"] for repro in active})
         for tier in ("pr", "full"):
