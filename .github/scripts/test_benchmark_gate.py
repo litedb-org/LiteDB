@@ -1,5 +1,6 @@
 """Synthetic timings only: these tests never run a workload or benchmark."""
 import copy
+import csv
 from contextlib import redirect_stdout
 import importlib.util
 import io
@@ -99,16 +100,76 @@ class BenchmarkGateTests(unittest.TestCase):
         self.assertEqual(100, row["candidate"]["minMs"])
         self.assertEqual(112, row["candidate"]["medianMs"])
 
-    def test_noise_in_either_side_requires_rerun_even_if_ratio_fails(self):
+    def test_ambiguous_noise_in_either_side_requires_rerun(self):
         for config in ("v5", "dev-os-cache"):
             with self.subTest(config=config):
                 self.times("v5", "single_insert_5k_tx", [100] * 6)
-                self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
+                self.times("dev-os-cache", "single_insert_5k_tx", [112] * 6)
                 self.times(config, "single_insert_5k_tx", [100, 100, 100, 100, 100, 200])
                 report = self.evaluate()
                 self.assertEqual("noisy", report["verdict"])
                 self.assertEqual("noisy", self.row(report)["verdict"])
                 self.assertTrue(report["rerunRequired"])
+
+    def test_windows_fivefold_regression_survives_noisy_ranges(self):
+        for ratio in (5.25, 5.95):
+            with self.subTest(ratio=ratio):
+                self.times("v5", "single_insert_5k_tx", [80, 100, 100, 100, 100, 150])
+                self.times("dev-os-cache", "single_insert_5k_tx",
+                           [400, 100 * ratio, 100 * ratio, 100 * ratio, 100 * ratio, 800])
+                row = self.row(self.evaluate())
+                self.assertEqual("fail", row["verdict"])
+                self.assertEqual(ratio, row["ratio"])
+                self.assertAlmostEqual(400 / 150, row["ratioLowerBound"])
+                self.assertEqual(10, row["ratioUpperBound"])
+                self.assertFalse(self.evaluate()["rerunRequired"])
+
+    def test_macos_high_spread_pass_fail_and_ambiguous(self):
+        # Ten rounds, including large outliers: bounds alone decide clear cases.
+        for path in self.output.glob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["runnerOS"] = "macOS"
+            path.write_text(json.dumps(result))
+        for name in RUNNER.CONFIGS:
+            for number in range(7, 11):
+                result = json.loads(self.path(name, 1).read_text())
+                result["round"] = number
+                self.path(name, number).write_text(json.dumps(result))
+        for values, expected in (([50] * 9 + [110], "pass"),
+                                 ([111] * 9 + [200], "fail"),
+                                 ([100] * 9 + [200], "noisy"),
+                                 ([110] * 9 + [200], "noisy")):
+            self.times("dev-os-cache", "single_insert_5k_tx", values)
+            report = gate.evaluate(self.output, CONFIG, "macOS", "net8.0")
+            self.assertEqual(expected, self.row(report)["verdict"])
+            self.assertEqual(10, report["rounds"])
+        with patch.dict(os.environ, {"RUNNER_OS": "macOS"}), \
+                patch.object(sys, "argv", ["run.py", "net8.0"]), redirect_stdout(io.StringIO()):
+            RUNNER.summarize(self.output)
+        self.assertIn("10 rounds per configuration", (self.output / "synthetic-summary.md").read_text())
+        self.path("v5", 10).unlink()
+        with self.assertRaisesRegex(ValueError, "Incomplete"):
+            gate.evaluate(self.output, CONFIG, "macOS", "net8.0")
+
+    def test_lower_bound_equality_is_not_failure_when_noisy(self):
+        self.times("dev-os-cache", "single_insert_5k_tx", [110] * 5 + [200])
+        row = self.row(self.evaluate())
+        self.assertEqual(1.10, row["ratioLowerBound"])
+        self.assertEqual("noisy", row["verdict"])
+
+    def test_round_config_and_ten_round_alternation(self):
+        for operating_system, count in (("Linux", 6), ("Windows", 6), ("macOS", 10)):
+            self.assertEqual(count, gate.rounds_for_os(CONFIG, operating_system))
+            self.assertEqual(count, RUNNER.rounds_for_os(operating_system))
+            for candidate in ("dev-default", "dev-os-cache"):
+                pairs = [[name for name in RUNNER.execution_order(n) if name in ("v5", candidate)]
+                         for n in range(1, count + 1)]
+                self.assertEqual([["v5", candidate], [candidate, "v5"]] * (count // 2), pairs)
+        for invalid in (True, 2, 3.5):
+            config = copy.deepcopy(CONFIG)
+            config["roundsByOS"]["macOS"] = invalid
+            with self.assertRaises(ValueError):
+                gate.validate_config(config)
 
     def test_noise_limit_boundary(self):
         self.times("dev-os-cache", "single_insert_5k_tx", [100] * 5 + [120])
@@ -118,7 +179,7 @@ class BenchmarkGateTests(unittest.TestCase):
 
     def test_stable_failure_is_preserved_alongside_noise(self):
         self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
-        self.times("v5", "full_scan_3x100k", [100] * 5 + [200])
+        self.times("v5", "full_scan_3x100k", [100] * 5 + [50])
         report = self.evaluate()
         self.assertEqual("fail", report["verdict"])
         self.assertTrue(report["rerunRequired"])
@@ -189,7 +250,9 @@ class BenchmarkGateTests(unittest.TestCase):
                     result.update(runnerOS=operating_system, framework=f".NETCoreApp,Version=v{framework[3:]}",
                                   runtime=f".NET {framework[3:]}.0")
                     path.write_text(json.dumps(result))
-                report = gate.evaluate(self.output, CONFIG, operating_system, framework)
+                config = copy.deepcopy(CONFIG)
+                config["roundsByOS"] = {}  # This fixture represents six historical rounds.
+                report = gate.evaluate(self.output, config, operating_system, framework)
                 self.assertEqual("pass", report["verdict"])
                 self.assertTrue(all(row["os"] == operating_system and row["framework"] == framework
                                     for row in report["results"]))
@@ -203,7 +266,11 @@ class BenchmarkGateTests(unittest.TestCase):
             self.assertEqual(expected, child.returncode, child.stderr)
             report = json.loads((self.output / "gate.json").read_text())
             self.assertEqual({0: "pass", 1: "fail", 2: "noisy"}[expected], report["verdict"])
-            self.assertIn("single_insert_5k_tx", (self.output / "gate.csv").read_text())
+            with (self.output / "gate.csv").open() as handle:
+                csv_row = next(csv.DictReader(handle))
+            self.assertEqual(self.row(report)["ratioLowerBound"], float(csv_row["ratioLowerBound"]))
+            self.assertEqual(self.row(report)["ratioUpperBound"], float(csv_row["ratioUpperBound"]))
+            self.assertIn("Lower bound | Upper bound", (self.output / "gate.md").read_text())
             self.assertIn(report["verdict"].upper(), (self.output / "gate.md").read_text())
 
     def test_runner_summary_and_alternating_order(self):

@@ -95,12 +95,18 @@ auto-commit, bulk insert, scan, update and delete; indexed point lookup must be
 is deferred to Phase 5. Durable multi-thread scaling is also report-only.
 There is no combined score across scenarios, hosts or runtimes.
 
-The operational noise cutoff is separate from the performance thresholds:
-`maxSpreadPercent=20`, using `100 × (max/min − 1)`. If either side of a gated
-scenario exceeds it, that scenario is **noisy**, regardless of its median ratio.
-Rerun that OS/runtime instead of declaring a pass or performance failure for the
-scenario. macOS/net8 needs particular care and repeated runs when noisy. Do not
-change thresholds or discard individual rounds to make a result green.
+The operational noise cutoff remains `maxSpreadPercent=20`, using
+`100 × (max/min − 1)` independently for A and B. A gated scenario fails even
+with high spread when `min(B)/max(A) > threshold`. It passes when its median
+ratio and `max(B)/min(A)` both meet the threshold. Otherwise, the median verdict
+applies only when both spreads are ≤20%; high-spread ambiguous results are
+**noisy** and require a rerun. JSON, CSV and Markdown report both observed ratio
+bounds; these are not confidence intervals. No rounds are discarded.
+
+Round counts come from `gate.json`: six on Linux/Windows, ten on macOS, with
+alternating process order retained. macOS has a 24-minute measurement budget
+(including child timeouts) and a 29-minute job limit. Incomplete measurements
+remain evidence errors. Thresholds are unchanged.
 
 The evaluator reads raw rounds and independently recomputes medians. Missing or
 duplicate rounds/scenarios, invalid timings, wrong operation counts/runtime/OS,
