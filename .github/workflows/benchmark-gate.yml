@@ -1,0 +1,98 @@
+name: Phase 1 benchmark gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: 'Optional candidate library SHA/ref (empty uses this branch); harness always comes from workflow ref'
+        required: false
+        type: string
+      candidate_repository:
+        description: 'Repository for candidate_ref (empty uses this repository)'
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  # Bootstrap dispatch on the fork without installing this workflow on its dev branch.
+  push:
+    branches: ['v6/bench-gate']
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
+    name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        framework: [net8.0, net10.0]
+    steps:
+      - name: Check out PR's own harness or selected workflow branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out candidate production library separately
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
+          path: artifacts_temp/candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate gate evaluator
+        run: python -m unittest discover -s .github/scripts -p test_benchmark_gate.py
+      - name: Build identical production harnesses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidate = (Resolve-Path 'artifacts_temp/candidate/LiteDB/LiteDB.csproj').Path
+          $candidateSha = git -C artifacts_temp/candidate rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify candidate' }
+          "BENCHMARK_CANDIDATE_SHA=$candidateSha" >> $env:GITHUB_ENV
+          $harnessSha = git rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify harness' }
+          "BENCHMARK_HARNESS_SHA=$harnessSha" >> $env:GITHUB_ENV
+          foreach ($version in @('V5', 'V6')) {
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $version" }
+          }
+      - name: Interleaved six-round A-B comparison
+        run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
+      - name: Evaluate per-scenario thresholds
+        id: gate
+        shell: pwsh
+        run: |
+          python .github/scripts/benchmark_gate.py artifacts_temp/ab-5021 --config tools/Ab5021Benchmarks/gate.json --os '${{ runner.os }}' --framework '${{ matrix.framework }}'
+          $gateExit = $LASTEXITCODE
+          if ($gateExit -eq 2) {
+            Write-Output '::warning title=NOISY benchmark evidence::Inconclusive; rerun this OS/runtime. This is not a benchmark pass.'
+            exit 0
+          }
+          exit $gateExit
+      - name: Preserve measurements, gate results and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-gate-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/ab-5021/
+          if-no-files-found: warn
+          retention-days: 30
