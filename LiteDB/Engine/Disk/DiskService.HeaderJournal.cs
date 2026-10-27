@@ -43,7 +43,8 @@ namespace LiteDB.Engine
             data.Position = 0;
             data.ReadRequired(header, 0, header.Length);
             if (ChecksumsEnabled) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
-            BeginHeaderJournal(header, verifiedBody: verifiedBody);
+            try { BeginHeaderJournal(header, verifiedBody: verifiedBody); }
+            catch (IOException error) { WriteFailure.InFile(error, FileOrigin.Log); throw; }
         }
 
         private void RecoverHeaderJournal(ref byte[] header)

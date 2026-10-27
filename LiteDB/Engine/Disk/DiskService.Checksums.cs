@@ -107,8 +107,9 @@ namespace LiteDB.Engine
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             StampDataPage(header);
             stream.Position = 0;
-            stream.Write(header.Array, 0, PAGE_SIZE);
-            stream.FlushToDisk();
+            try { stream.Write(header.Array, 0, PAGE_SIZE); }
+            catch (IOException error) { WriteFailure.InFile(error, FileOrigin.Data); throw; }
+            this.FlushCheckpointData(stream);
         }
 
         internal void DiscardWalTail(long end, bool invalidTail)
@@ -152,12 +153,16 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             if (_state.DeferCheckpointStop) return false;
 #endif
+            if (exception is IOException && WriteFailure.NamesFile(exception))
+                this.RecordWriteFailure("A checkpoint", exception);
             owned = _state.BeginStop(exception);
             return true;
         }
 
         internal void StopAfterCheckpointFailure(Exception exception, bool begun, bool owned)
         {
+            if (!begun && exception is IOException && WriteFailure.NamesFile(exception))
+                this.RecordWriteFailure("A checkpoint", exception);
             if (begun) _state.CompleteStop(exception, owned);
             else _state.Stop(exception);
         }

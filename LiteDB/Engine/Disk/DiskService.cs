@@ -332,13 +332,14 @@ namespace LiteDB.Engine
                     this.CrashPoint("checkpoint-before-page-write");
                     this.PreserveFileVersion(page);
                     this.StampDataPage(page);
-                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    try { stream.Write(page.Array, page.Offset, PAGE_SIZE); }
+                    catch (IOException error) { WriteFailure.InFile(error, FileOrigin.Data); throw; }
                     this.CrashPoint("checkpoint-after-page-write");
                     this.CheckpointStage("data-page");
                 }
 
                 this.CrashPoint("checkpoint-before-data-flush");
-                stream.FlushToDisk();
+                this.FlushCheckpointData(stream);
                 this.CrashPoint("checkpoint-after-data-flush");
                 this.CheckpointStage("data-flushed");
             }

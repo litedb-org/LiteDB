@@ -87,11 +87,19 @@ semantics. Explicit checkpoint and close still complete synchronously. Successfu
 rebuild binds a fresh incarnation during Open and publishes its recovered backlog
 after Open returns; retired requests cannot operate on replacement services.
 
-**Next: slice 7**, the full forced scheduling, sustained-writer, reader/page-lease
-and failure matrix. Slice 8 worker process-death/modeled-power-loss, compatibility
-and performance qualification also remain required before production activation
-or acceptance. Current slice 6 exception/forced-interleaving tests, including
-file-image recovery tests, do not establish worker process-death or power loss.
+**Slice 7 adds forced scheduling and exception evidence:** checkpoint, rebuild,
+close, writers and pragma changes at worker/storage boundaries; sustained
+high-water admission cycles and native-sync stalls; WAL generations pinned by
+cursors, INCLUDE and borrowed scans; oversize commit/rollback; and both group
+barrier orders with zero-frame followers. Background write/sync failures record
+the causal file and retained-WAL diagnostic before terminal publication, including
+data and salt sync, so all facades and acknowledgement waiters retain that cause.
+The executable matrix is indexed in `.github/safety/contracts.json`.
+
+Slice 8 worker process-death/modeled-power-loss, compatibility and performance
+qualification remain required before production activation or acceptance.
+Exception/forced-interleaving tests, including file-image recovery tests, do not
+establish worker process-death or power loss.
 
 ## Accepted observable behavior
 

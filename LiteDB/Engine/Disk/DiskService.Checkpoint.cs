@@ -7,6 +7,12 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
+        private void FlushCheckpointData(Stream stream)
+        {
+            try { stream.FlushToDisk(); }
+            catch (IOException error) { WriteFailure.InFile(error, FileOrigin.Data); throw; }
+        }
+
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
         internal void CheckpointStage(string stage)
         {
