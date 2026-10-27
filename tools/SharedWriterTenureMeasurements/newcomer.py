@@ -84,8 +84,14 @@ def measure(runner, path, durable, output, count=200, warmup=10):
                     p50Microseconds=percentile(latencies, .50),
                     p99Microseconds=percentile(latencies, .99), samples=samples)
     finally:
+        cleanup_error = None
         for worker in workers:
-            worker.close()
+            try:
+                worker.close()
+            except Exception as error:
+                cleanup_error = error
+        if cleanup_error is not None:
+            raise cleanup_error
 
 
 def main():

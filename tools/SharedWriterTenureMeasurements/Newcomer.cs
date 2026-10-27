@@ -46,8 +46,14 @@ internal static class Newcomer
                         if (db == null) throw new Exception("No holder");
                         db.CheckpointSize = 1000;
                         db.Checkpoint();
+                        var value = int.Parse(parts[1]);
                         for (var n = 0; n < 30; n++)
-                            if (!db.GetCollection("docs").Update(Row(int.Parse(parts[1])))) throw new Exception("Missing row");
+                        {
+                            // Move the indexed key each time; leave the independently
+                            // expected final value in the last committed update.
+                            var next = n == 29 ? value : -(value * 30 + n + 1);
+                            if (!db.GetCollection("docs").Update(Row(next))) throw new Exception("Missing row");
+                        }
                         var walPhysicalBytes = new FileInfo(Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path) + "-log" + Path.GetExtension(path))).Length;
                         if (walPhysicalBytes <= 50L * 8192) throw new Exception("Insufficient WAL pressure");
                         Console.WriteLine(JsonSerializer.Serialize(new { walPhysicalBytes, updates = 30, checkpoint = db.CheckpointSize }));
