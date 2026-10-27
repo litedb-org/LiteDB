@@ -45,14 +45,15 @@ namespace LiteDB.Engine
             return hash;
         }
 
-        internal bool Matches(string[] fields)
+        internal bool Matches(BsonDocument document)
         {
-            var next = 0;
+            var elements = new CompactDocumentElements(document).GetEnumerator();
+            var hasNext = elements.MoveNext();
             foreach (var field in Fields)
             {
-                if (next < fields.Length && field == fields[next]) next++;
+                if (hasNext && field == elements.Current.Key) hasNext = elements.MoveNext();
             }
-            return next == fields.Length;
+            return !hasNext;
         }
 
         internal static StorageSchema Read(BinaryReader reader)

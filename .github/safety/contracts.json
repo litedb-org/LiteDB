@@ -31,6 +31,7 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/CompactWriteLifetime_Tests.cs#Unknown_confirmation_outcome_stops_writes_and_reopens_with_complete_schemas", "model": "exception", "proves": "Plain/encrypted compact writes reuse preparation before an injected post-confirmation exception, stop later writes, and recover only the complete old or new transaction with exact indexed payloads and unrelated data on three opens."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Facades_share_covered_acknowledgements_and_terminal_barrier_failures", "model": "exception", "proves": "Three independently owned Direct facades share two covered barriers; readers and acknowledgements advance by the captured prefix, either failed barrier poisons every facade, and repeated recovery preserves acknowledged payloads and indexes."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "After a peer acknowledges and detaches, final close with checkpoint enabled or disabled fails pending writer and zero-frame tickets without acknowledging them or retrying the group; repeated recovery preserves acknowledged rows and exact indexes."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupStop_Tests.cs#Uncertain_writer_poisoning_reaches_pending_tickets_on_every_facade", "model": "exception", "proves": "An uncertain I/O or non-I/O confirmation on a third facade poisons a captured or in-flight leader and a zero-frame waiter before teardown; no acknowledgement or later sync starts, the original cause reaches both waiters, and repeated recovery preserves complete payloads and indexes."},
@@ -82,6 +83,7 @@
         "LiteDB/Client/Shared/SharedCoordination*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/CompactWriteLifetime_Tests.cs#Reused_preparation_before_wal_failure_recovers_only_whole_transaction", "model": "exception", "proves": "After multiple compact preparations, a failed second WAL write discards unconfirmed rows and schemas; three file-backed opens preserve exact indexed originals and unrelated data, and retrying the shape survives another reopen, plain and encrypted."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#New_database_open_write_rollback_and_read_only_reopen_preserve_payloads_and_indexes", "proves": "New plain/encrypted Direct/Shared databases preserve committed complete payloads and secondary-index results, exclude the rolled-back row, preserve an unrelated row, and leave data bytes unchanged through read-only reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Final_facade_close_fails_pending_writer_and_zero_frame_follower", "model": "exception", "proves": "Final host close leaves recoverable complete outcome-unknown follower rows while preserving the acknowledged prefix and secondary indexes over two reopen/checkpoint cycles."},
         {"test": "LiteDB.Tests/Internals/DirectColdReplacementProcess_Tests.cs#Cold_process_opens_cannot_create_or_modify_files_during_replacement", "model": "exception", "proves": "At three forced replacement boundaries, repeated child Direct/Shared admission refuses with identical file names and bytes; the owner and two indexed cold reopens preserve the committed row."},
@@ -119,6 +121,8 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/CompactWriteLifetime_Tests.cs#Active_reader_keeps_its_schema_version_while_writer_reuses_and_extends_its_catalog", "model": "exception", "proves": "A held file-backed plain/encrypted cursor returns exact original payloads across a competing writer's compact schema extension and checkpoint, while a new read sees all committed shapes."},
+        {"test": "LiteDB.Tests/Engine/CompactWriteLifetime_Tests.cs#Encoder_leases_are_exclusive_reset_and_disposed_with_the_snapshot", "model": "exception", "proves": "Nested preparation leases receive distinct encoders; return clears pending schemas, retains at most one encoder, closes the extra stream, and rollback closes the snapshot-owned stream."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Native_admission_coexists_with_managed_streams_without_losing_exclusion", "proves": "Direct and Shared native admission coexist with real managed read/write streams, remain held after unrelated stream closes, and release only with their last admission reference."},
         {"test": "LiteDB.Tests/Internals/DirectHostAdmission_Tests.cs#Shared_processes_can_attach_while_native_admission_still_excludes_Direct", "proves": "A child reaches a real indexed Shared write, a concurrent Shared peer reads and writes successfully, Direct remains refused, and the committed child/peer rows survive cold indexed reopen."},
         {"test": "LiteDB.Tests/Internals/DirectHostGroupCommit_Tests.cs#Facades_share_covered_acknowledgements_and_terminal_barrier_failures", "model": "exception", "proves": "Every Direct facade reads only the durable group prefix through document scans and secondary indexes while followers from separate facades are pending."},
@@ -166,6 +170,7 @@
         "tools/*Compatibility/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/CompactWritePreparation_Tests.cs#Fixed_corpus_keeps_pre_optimization_payload_and_schema_bytes", "proves": "A fixed corpus captured from a2664ea41 compares every compact payload and newly admitted schema definition byte, including optional fields, order/casing, all scalar types, Unicode, nested arrays/documents and bitmap boundaries."},
         {"test": "LiteDB.Tests/Engine/IndexMigrationPowerLoss_Tests.cs#Released_indexes_survive_power_loss_and_another_interrupted_recovery", "model": "modeled-power-loss", "proves": "Indexes written by the released 5.0.21 package survive migration power loss and a second interrupted recovery, with complete payloads and index plans."},
         {"test": "LiteDB.Tests/Internals/LazyChecksumMigration_Tests.cs#CutoverChangesOnlyHeader_ThenWritesMigratePagesOutOfOrder", "model": "exception", "proves": "The checksum cutover changes only the header; later writes migrate pages in any order."},
         {"script": "scripts/test-v9-compatibility.py", "proves": "An actual v9 predecessor creates vector/scalar indexes and clean/dirty WAL; the current engine migrates through every layer and v9 rejects the result."},

@@ -7,6 +7,21 @@ namespace LiteDB.Engine
     internal partial class Snapshot
     {
         private SchemaCatalog _schemaCatalog;
+        private CompactDocumentWriter _compactWriter;
+
+        internal CompactDocumentWriter RentCompactWriter()
+        {
+            var writer = _compactWriter;
+            _compactWriter = null; // Do not expose in-use preparation state to a reentrant call.
+            return writer ?? new CompactDocumentWriter(Schemas, ObserveShape);
+        }
+
+        internal void ReturnCompactWriter(CompactDocumentWriter writer)
+        {
+            writer.Reset();
+            if (_disposed || _compactWriter != null) writer.Dispose();
+            else _compactWriter = writer;
+        }
         internal bool CompactStorage => _disk.CompactStorage;
         internal bool ObserveShape(ulong hash) => _disk.ObserveShape(_collectionPage.PageID, hash, _compactDocumentHash);
         internal SchemaCatalog Schemas => _schemaCatalog ??= _mode == LockMode.Read

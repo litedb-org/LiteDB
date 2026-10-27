@@ -29,10 +29,11 @@ namespace LiteDB.Engine
             if (length > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
             if (snapshot.ShouldPrepareCompact(document, length))
             {
-                using (var encoder = new CompactDocumentWriter(snapshot.Schemas, snapshot.ObserveShape))
+                var encoder = snapshot.RentCompactWriter();
+                try
                 {
                     byte[] payload;
-                    try { payload = encoder.Encode(document); }
+                    try { payload = encoder.Encode(document, length - 9); }
                     catch (NotSupportedException) { payload = null; }
                     catch (System.Text.EncoderFallbackException) { payload = null; }
                     if (payload != null && payload.Length + 8 < length)
@@ -43,6 +44,7 @@ namespace LiteDB.Engine
                     }
                     snapshot.ObserveCompactResult(false);
                 }
+                finally { snapshot.ReturnCompactWriter(encoder); }
             }
             return new WritePlan(document, length);
         }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace LiteDB.Engine
 {
@@ -9,6 +8,7 @@ namespace LiteDB.Engine
     {
         private readonly Dictionary<uint, StorageSchema> _schemas = new Dictionary<uint, StorageSchema>();
         private readonly HashSet<ulong> _candidates = new HashSet<ulong>();
+        private StorageSchema _preparedSchema;
         internal IEnumerable<StorageSchema> Schemas => _schemas.Values;
         internal int Count => _schemas.Count;
 
@@ -42,17 +42,18 @@ namespace LiteDB.Engine
             return schema;
         }
 
-        internal StorageSchema Select(string[] fields, List<StorageSchema> pending, Func<ulong, bool> admit = null)
+        internal StorageSchema Select(BsonDocument document, List<StorageSchema> pending, Func<ulong, bool> admit = null)
         {
-            if (fields.Length == 0 || fields.Length > StorageSchema.MaxFields) return null;
-            foreach (var schema in _schemas.Values) if (schema.Matches(fields)) return schema;
-            foreach (var schema in pending) if (schema.Matches(fields)) return schema;
+            if (document.Count == 0 || document.Count > StorageSchema.MaxFields) return null;
+            foreach (var schema in _schemas.Values) if (schema.Matches(document)) return schema;
+            foreach (var schema in pending) if (schema.Matches(document)) return schema;
             if (Count + pending.Count >= StorageSchema.MaxSchemas) return null;
             // Admission is a hint only. Hash collisions can admit a shape earlier,
             // but persisted schemas and references always use the complete verified definition.
             var hash = 14695981039346656037UL;
-            foreach (var field in fields)
+            foreach (var element in new CompactDocumentElements(document))
             {
+                var field = element.Key;
                 hash = unchecked((hash ^ (uint)field.Length) * 1099511628211UL);
                 foreach (var character in field) hash = unchecked((hash ^ character) * 1099511628211UL);
             }
@@ -63,13 +64,35 @@ namespace LiteDB.Engine
                 if (admit == null) _candidates.Add(hash);
                 return null;
             }
-            if (fields.Any(f => StorageSchema.Utf8.GetByteCount(f) > StorageSchema.MaxNameBytes || f.IndexOf('\0') >= 0)) return null;
-            var candidate = new StorageSchema((uint)(Count + pending.Count + 1), fields);
+            // A repeated shape whose payload did not save enough bytes would otherwise
+            // rebuild its immutable definition on every admission attempt. Keep one plan
+            // in this snapshot's catalog, and still perform admission on every attempt.
+            var nextId = (uint)(Count + pending.Count + 1);
+            if (_preparedSchema != null && _preparedSchema.Id == nextId &&
+                _preparedSchema.Fields.Length == document.Count && _preparedSchema.Matches(document))
+            {
+                pending.Add(_preparedSchema);
+                return _preparedSchema;
+            }
+            var fields = new string[document.Count];
+            var index = 0;
+            foreach (var element in new CompactDocumentElements(document))
+            {
+                var field = element.Key;
+                if (StorageSchema.Utf8.GetByteCount(field) > StorageSchema.MaxNameBytes || field.IndexOf('\0') >= 0) return null;
+                fields[index++] = field;
+            }
+            var candidate = new StorageSchema(nextId, fields);
             if (candidate.Definition.Length + 12 > 4096) return null;
+            _preparedSchema = candidate;
             pending.Add(candidate);
             return candidate;
         }
 
-        internal void Add(StorageSchema schema) => _schemas.Add(schema.Id, schema);
+        internal void Add(StorageSchema schema)
+        {
+            _schemas.Add(schema.Id, schema);
+            _preparedSchema = null;
+        }
     }
 }

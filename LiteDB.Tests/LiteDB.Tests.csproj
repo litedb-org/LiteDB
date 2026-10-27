@@ -31,6 +31,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources\CompactWrite_a2664ea41.bin" />
     <EmbeddedResource Include="Resources\artifacts.json" />
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />

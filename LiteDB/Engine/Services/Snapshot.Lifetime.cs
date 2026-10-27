@@ -29,7 +29,10 @@ namespace LiteDB.Engine
             }
             finally
             {
-                this.ReleaseSnapshotPin();
+                var writer = _compactWriter;
+                _compactWriter = null;
+                try { writer?.Dispose(); }
+                finally { this.ReleaseSnapshotPin(); }
             }
         }
     }

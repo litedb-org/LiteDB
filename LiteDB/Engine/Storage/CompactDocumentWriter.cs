@@ -1,7 +1,7 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace LiteDB.Engine
 {
@@ -12,6 +12,7 @@ namespace LiteDB.Engine
         private readonly BinaryWriter _writer;
         private readonly SchemaCatalog _catalog;
         private readonly Func<ulong, bool> _admit;
+        private byte[] _textBuffer;
         internal List<StorageSchema> Pending { get; } = new List<StorageSchema>();
 
         internal CompactDocumentWriter(SchemaCatalog catalog, Func<ulong, bool> admit = null)
@@ -21,43 +22,79 @@ namespace LiteDB.Engine
             _writer = new BinaryWriter(_stream, StorageSchema.Utf8, true);
         }
 
-        internal byte[] Encode(BsonDocument document)
+        // The snapshot owns this encoder. Payloads returned to write plans are independent
+        // arrays; neither a safepoint nor another write can overwrite an outstanding plan.
+        internal void Reset()
         {
+            Pending.Clear();
+            _stream.SetLength(0);
+            _stream.Position = 0;
+            // A single large value must not retain a multi-megabyte buffer for the transaction.
+            if (_stream.Capacity > 64 * 1024) _stream.Capacity = 0;
+        }
+
+        internal byte[] Encode(BsonDocument document, int maxLength = Constants.MAX_DOCUMENT_SIZE)
+        {
+            Reset();
+            var schema = SelectSchema(document);
+            // Decide one-off scalar admission before allocating the stream's backing buffer.
+            if (_admit != null && schema == null && !HasContainers(document)) return null;
             _writer.Write(Magic);
             _writer.Write((byte)1);
             _writer.Write((byte)0);
             _writer.Write(0); // exact total length filled once, after all schema choices
-            if (!WriteDocument(document, 0)) return null;
-            if (_stream.Length > Constants.MAX_DOCUMENT_SIZE) return null;
+            WriteDocument(document, 0, schema);
+            if (_stream.Length > maxLength || _stream.Length > Constants.MAX_DOCUMENT_SIZE) return null;
             var length = (int)_stream.Length;
             _stream.Position = 6;
             _writer.Write(length);
             return _stream.ToArray();
         }
 
-        private void WriteName(string name)
+        internal static bool HasContainers(BsonDocument document)
         {
-            var bytes = StorageSchema.Utf8.GetBytes(name);
-            if (bytes.Length > ushort.MaxValue || name.IndexOf('\0') >= 0) throw new NotSupportedException("Compact field name limit.");
-            _writer.Write((ushort)bytes.Length);
-            _writer.Write(bytes);
+            foreach (var element in new CompactDocumentElements(document))
+                if (element.Value.IsArray || element.Value.IsDocument) return true;
+            return false;
         }
 
-        private bool WriteDocument(BsonDocument document, int depth)
+        private StorageSchema SelectSchema(BsonDocument document)
+        {
+            if (document.Count > ushort.MaxValue) throw new NotSupportedException("Compact field count limit.");
+            return _catalog.Select(document, Pending, _admit);
+        }
+
+        private void WriteName(string name)
+        {
+            var length = StorageSchema.Utf8.GetByteCount(name);
+            if (length > ushort.MaxValue || name.IndexOf('\0') >= 0) throw new NotSupportedException("Compact field name limit.");
+            _writer.Write((ushort)length);
+            WriteText(name, length);
+        }
+
+        private void WriteText(string text, int length)
+        {
+            if (length == 0) return;
+            var bytes = length > 256 ? ArrayPool<byte>.Shared.Rent(length) : (_textBuffer ??= new byte[256]);
+            try
+            {
+                StorageSchema.Utf8.GetBytes(text, 0, text.Length, bytes, 0);
+                _writer.Write(bytes, 0, length);
+            }
+            finally
+            {
+                if (length > 256) ArrayPool<byte>.Shared.Return(bytes);
+            }
+        }
+
+        private void WriteDocument(BsonDocument document, int depth, StorageSchema schema)
         {
             if (depth > 64) throw new NotSupportedException("Compact nesting limit.");
-            var elements = document.GetElements().ToArray();
-            if (elements.Length > ushort.MaxValue) throw new NotSupportedException("Compact field count limit.");
-            var fields = elements.Select(e => e.Key).ToArray();
-            var schema = _catalog.Select(fields, Pending, _admit);
-            // Dynamic scalar dictionaries cannot save space without a reused shape.
-            // Avoid encoding/copying every value merely to reject the result later.
-            if (_admit != null && depth == 0 && schema == null && !elements.Any(e => e.Value.IsArray || e.Value.IsDocument)) return false;
             _writer.Write(schema?.Id ?? 0);
             if (schema == null)
             {
-                _writer.Write((ushort)elements.Length);
-                foreach (var element in elements)
+                _writer.Write((ushort)document.Count);
+                foreach (var element in new CompactDocumentElements(document))
                 {
                     WriteName(element.Key);
                     WriteValue(element.Value, depth + 1);
@@ -66,20 +103,24 @@ namespace LiteDB.Engine
             else
             {
                 _writer.Write(schema.Fingerprint);
-                var bitmap = new byte[(schema.Fields.Length + 7) / 8];
-                var next = 0;
+                var elements = new CompactDocumentElements(document).GetEnumerator();
+                var hasNext = elements.MoveNext();
+                byte bitmap = 0;
                 for (var slot = 0; slot < schema.Fields.Length; slot++)
                 {
-                    if (next < fields.Length && schema.Fields[slot] == fields[next])
+                    if (hasNext && schema.Fields[slot] == elements.Current.Key)
                     {
-                        bitmap[slot / 8] |= (byte)(1 << (slot % 8));
-                        next++;
+                        bitmap |= (byte)(1 << (slot % 8));
+                        hasNext = elements.MoveNext();
+                    }
+                    if (slot % 8 == 7 || slot == schema.Fields.Length - 1)
+                    {
+                        _writer.Write(bitmap);
+                        bitmap = 0;
                     }
                 }
-                _writer.Write(bitmap);
-                foreach (var element in elements) WriteValue(element.Value, depth + 1);
+                foreach (var element in new CompactDocumentElements(document)) WriteValue(element.Value, depth + 1);
             }
-            return true;
         }
 
         private void WriteValue(BsonValue value, int depth)
@@ -88,7 +129,7 @@ namespace LiteDB.Engine
             _writer.Write((byte)value.Type);
             switch (value.Type)
             {
-                case BsonType.Document: WriteDocument(value.AsDocument, depth); break;
+                case BsonType.Document: WriteDocument(value.AsDocument, depth, SelectSchema(value.AsDocument)); break;
                 case BsonType.Array:
                     _writer.Write(value.AsArray.Count);
                     foreach (var item in value.AsArray) WriteValue(item, depth + 1);
@@ -100,9 +141,10 @@ namespace LiteDB.Engine
                     foreach (var part in decimal.GetBits(value.AsDecimal)) _writer.Write(part);
                     break;
                 case BsonType.String:
-                    var text = StorageSchema.Utf8.GetBytes(value.AsString);
-                    _writer.Write(text.Length);
-                    _writer.Write(text);
+                    var text = value.AsString;
+                    var length = StorageSchema.Utf8.GetByteCount(text);
+                    _writer.Write(length);
+                    WriteText(text, length);
                     break;
                 case BsonType.Binary:
                     _writer.Write(value.AsBinary.Length);
