@@ -22,7 +22,7 @@ namespace LiteDB.Engine
 
             if (_host != null)
             {
-                _monitor.ValidateOwner();
+                _monitor.EnsureWriteAllowed();
                 return _host.Maintain(() =>
                 {
                     var result = _host.Engine.Rebuild(options);

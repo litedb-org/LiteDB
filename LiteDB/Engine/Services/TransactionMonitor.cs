@@ -97,8 +97,8 @@ namespace LiteDB.Engine
             if (owner != null) _owner = owner;
         }
 
-        // Header writes must apply the same facade rule before their separate
-        // restriction against changing a pragma inside the owner's transaction.
+        // Header writes and host maintenance must check the foreign facade rule
+        // before applying their own transaction or multiple-facade restrictions.
         internal void EnsureWriteAllowed()
         {
             this.ThrowIfDisposed();
