@@ -376,6 +376,17 @@ namespace LiteDB
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;
             settings.CoordinationSignals = null;
+#if NET8_0_OR_GREATER
+            if (_readers is SharedMemoryReaders mapped)
+            {
+                // A process cache must not retain the creating facade through its
+                // settings delegates, admission object or cached stream owner.
+                settings.SharedReaderVersions = mapped.Table.LiveVersions;
+                settings.AutoRebuildAllowed = () => false;
+                settings.SharedAdmission = mapped.Table.Admission;
+                settings.SharedFileHandles = null;
+            }
+#endif
             return settings;
         }
 

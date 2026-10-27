@@ -86,6 +86,9 @@ namespace LiteDB
                 _readers = _readers ?? CreateReaderRegistry(_settings);
                 _settings.SharedReaderVersions = _readers.LiveVersions;
                 BindParticipantSettings(_settings, _readers);
+#if NET8_0_OR_GREATER
+                if (_readers is SharedMemoryReaders mapped) _readCache = mapped.Table.ReadCache;
+#endif
             }
             catch
             {

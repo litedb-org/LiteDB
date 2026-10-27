@@ -44,6 +44,7 @@ namespace LiteDB.Client.Shared
             {
                 _uncertain = true;
                 BeginFence();
+                Authority.Map.Store(SharedMemoryLayout.FastAdmissionDisabled, 1);
                 Authority.Map.Store(SharedMemoryLayout.RecoveryOwner, _writerMarker);
                 SharedMemoryReaderTable.PublishStage("writer-uncertain");
             }
@@ -79,6 +80,7 @@ namespace LiteDB.Client.Shared
                     _writerThread = Thread.CurrentThread;
                     _writerDepth = 1;
                     _writerMarker = Marker();
+                    BeginFence();
                     Authority.Map.Store(SharedMemoryLayout.WriterTenureEpoch, epoch);
                     SharedMemoryReaderTable.PublishStage("writer-epoch");
                     Authority.Map.Store(SharedMemoryLayout.WriterOwner, _writerMarker);
@@ -165,6 +167,7 @@ namespace LiteDB.Client.Shared
                 _uncertain = false;
                 _structuralDepth = 0;
                 ClearRecoveryOwner();
+                Authority.Map.Store(SharedMemoryLayout.FastAdmissionDisabled, 0);
                 EndFence();
                 SharedMemoryReaderTable.PublishStage("open-end");
             }

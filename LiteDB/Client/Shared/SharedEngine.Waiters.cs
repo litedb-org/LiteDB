@@ -25,7 +25,8 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             long request = 0;
             if (writing)
-                lock (_snapshotGate) request = _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0;
+                lock (_snapshotGate) request = (MappedReads?.RequestWriterTurn(System.Environment.TickCount64) ??
+                    _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0);
 #endif
             this.AddMutexWaiter();
             try
@@ -40,7 +41,7 @@ namespace LiteDB
             catch
             {
 #if NET8_0_OR_GREATER
-                _coordination?.EndWriterTurn(request);
+                this.EndWriterTurn(request);
 #endif
                 throw;
             }
@@ -58,7 +59,8 @@ namespace LiteDB
             // here because engine opening can already hold useLock.
             if (Interlocked.Read(ref _writerRequest) == 0)
                 Interlocked.Exchange(ref _writerRequest,
-                    _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0);
+                    (MappedReads?.RequestWriterTurn(System.Environment.TickCount64) ??
+                    _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0));
 #endif
         }
 
@@ -67,9 +69,17 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             // Page disposal serializes with this call. Do not take snapshotGate
             // while closing an engine under useLock (admission takes them in reverse).
-            _coordination?.EndWriterTurn(Interlocked.Exchange(ref _writerRequest, 0));
+            this.EndWriterTurn(Interlocked.Exchange(ref _writerRequest, 0));
 #endif
         }
+
+#if NET8_0_OR_GREATER
+        private void EndWriterTurn(long request)
+        {
+            if (MappedReads != null) MappedReads.EndWriterTurn(request);
+            else _coordination?.EndWriterTurn(request);
+        }
+#endif
 
         private bool HasMutexWaiters() => Volatile.Read(ref _mutexWaiters) > 0;
 

@@ -324,11 +324,37 @@
           "test": "LiteDB.Tests/Internals/SharedOneFileAllocation_Tests.cs#Rollback_or_killed_allocator_preserves_free_lists_LastPageID_and_index_reachability",
           "model": "process-death",
           "proves": "Plain/encrypted rollback or killed allocation followed by new allocations/checkpoint passes independent page-graph, free-list, LastPageID and index-reachability oracles across two reopens."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Process_cache_admission_has_zero_coordination_operations_even_while_main_mutex_is_owned",
+          "proves": "A second facade uses the process cache with zero counted coordination operations under a peer-owned main mutex; idle cache owns no record."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Writer_scan_before_or_after_record_publication_preserves_full_old_snapshot_and_current_index",
+          "proves": "Remote commit/checkpoint before and after record publication forces fallback before execution and returns complete current indexed payloads."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Reclaimed_WAL_address_negative_control_requires_the_post_record_fence",
+          "proves": "Skipping the final check reads a reclaimed WAL position and fails; correct admission reopens before executing."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+          "model": "process-death",
+          "proves": "Warm exact generations and full payloads survive each writer fence death and repeated protected recovery."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmResources_Tests.cs#Active_generation_never_expires_and_warm_capacity_failure_releases_slow_ownership",
+          "model": "exception",
+          "proves": "Expiry cannot retire an active generation; warm capacity fallback fails before query and releases main ownership."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmResources_Tests.cs#Independent_four_MiB_WAL_and_page_cache_limits_prevent_idle_retention",
+          "proves": "Actual large WAL and independently large read page cache both prevent idle retention; sorter spill and expiry have separate resource tests."
         }
       ],
       "gaps": [
         {
-          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Writer publication has focused exception/process-death/prefix coverage; whole-path mapped power-loss fuzz, warm admission and handoff remain later-slice gates."
+          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Writer publication has focused exception/process-death/prefix coverage; warm admission has focused fence/slot/recovery coverage; whole-path mapped power-loss fuzz and handoff remain later-slice gates."
         }
       ]
     }

@@ -1869,9 +1869,44 @@
           "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Interrupted_writer_acquisition_unwinds_native_and_thread_ownership",
           "model": "exception",
           "proves": "Each injected partial acquisition releases WRITE and local ownership before an independently threaded protected recovery succeeds."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+          "model": "process-death",
+          "proves": "A genuinely warm streamed snapshot survives writer death at each writer/open/commit fence and repeated recovery with exact indexed payloads.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmPublication_Tests.cs#Every_publication_step_admits_only_a_sync_covered_version_and_stopped_writer_never_reenables",
+          "model": "interleaving",
+          "proves": "Every reached publication stage samples at most a sync-covered prefix; failed sync remains fenced and cannot reenable warm status."
         }
       ],
       "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+    },
+    {
+      "name": "AdmissionStage",
+      "protocol": "ABI-2 warm reader publish/fence/recheck",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Every_status_load_rejects_a_raced_64_bit_fence_without_executing_a_query",
+          "model": "interleaving",
+          "proves": "Each mapped sequence/authority/field/recheck cut rejects a crossed publication and samples complete 64-bit epochs."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Sequence_change_at_each_load_before_and_after_record_publication_falls_back",
+          "model": "interleaving",
+          "proves": "Crossing any load in either status sample rejects even a same-version publication; no query executes warm and no record leaks."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmFailures_Tests.cs#Admission_exception_releases_a_new_record_without_query_execution",
+          "model": "exception",
+          "proves": "Every status cut and the post-record cut throws before execution, releases any new generation, and leaves the next read usable."
+        }
+      ],
+      "gap": "Bounded Linux x64 SC/CLR evidence; no ARM or device memory-ordering qualification."
     }
   ],
   "observers": {

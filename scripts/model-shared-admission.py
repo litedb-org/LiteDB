@@ -151,4 +151,31 @@ for release_order in itertools.permutations(range(4)):
 assert aggregate_failures and stale_failures
 results['exact-version-release-reuse'] = dict(schedules=exact_cases, counterexamples=0,
     aggregate_minimum_counterexamples=aggregate_failures, untagged_release_counterexamples=stale_failures)
+# ABI-2 status sampling: every field and the final sequence check can race a
+# publisher. A quiet status may advertise only a prefix whose sync completed.
+# Terminate the publisher at each store to model process death with live DMS.
+def mapped_status(order):
+    sequence, version, synced = 2, 0, 0
+    before, sampled = None, None
+    accepted = False
+    for event in order:
+        if event == 'begin': sequence += 1
+        elif event == 'sync': synced = 1
+        elif event == 'version': version = 1
+        elif event == 'end': sequence += 1
+        elif event == 'read-sequence': before = sequence
+        elif event == 'read-fields': sampled = version
+        elif event == 'recheck':
+            accepted = before == sequence and sequence % 2 == 0
+            if accepted and sampled > synced: return False
+    return True
+
+for mutant in [False, True]:
+    publisher = ['begin', 'version', 'end', 'sync'] if mutant else ['begin', 'sync', 'version', 'end']
+    orders = [order for cut in range(len(publisher) + 1)
+              for order in schedules(['read-sequence', 'read-fields', 'recheck'], publisher[:cut])]
+    failures = [order for order in orders if not mapped_status(order)]
+    assert bool(failures) == mutant
+    results['mapped-premature-version' if mutant else 'mapped-covered-prefix'] = dict(
+        schedules=len(orders), counterexamples=len(failures), example=failures[:1])
 print(json.dumps(results, indent=2))

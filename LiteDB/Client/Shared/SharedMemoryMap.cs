@@ -41,6 +41,14 @@ namespace LiteDB.Client.Shared
             _view.ReadArray(offset, result, 0, count);
             return result;
         }
+        internal long CompareExchange(long offset, long value, long expected)
+        { this.Require(offset, 8); return Interlocked.CompareExchange(ref *(long*)(_pointer + offset), value, expected); }
+        internal bool Matches(long offset, byte[] expected)
+        {
+            for (var i = 0; i < expected.Length; i += 8)
+                if (Load(offset + i) != BitConverter.ToInt64(expected, i)) return false;
+            return true;
+        }
         internal void Write(long offset, byte[] bytes)
         {
             this.Require(offset, bytes.Length);

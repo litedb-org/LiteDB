@@ -37,6 +37,7 @@ namespace LiteDB.Client.Shared
 
         internal void Lock(long offset, bool exclusive)
         {
+            SharedCoordinationDiagnostics.Operation();
             SharedCoordinationFile.Observe(this.Path, exclusive ? "mode-exclusive-lock" : "mode-shared-lock");
             if (DatabaseFileIdentity.Windows)
             {
@@ -49,6 +50,7 @@ namespace LiteDB.Client.Shared
 
         internal void Unlock(long offset, long length = 1)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (DatabaseFileIdentity.Windows)
             {
                 var position = Position(offset);
@@ -70,6 +72,7 @@ namespace LiteDB.Client.Shared
         // F_OFD_GETLK works on read-only descriptors, unlike a trial write lock.
         internal bool Conflicts(long offset, long length = 1)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
             if (!DatabaseFileIdentity.Windows)
                 return this.UnixLock(offset, WriteLock, query: true, length: length) != UnlockLock;
@@ -87,6 +90,7 @@ namespace LiteDB.Client.Shared
         // callers must never infer death from access, unsupported-kernel or I/O errors.
         internal bool TryLock(long offset, bool exclusive)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (!DatabaseFileIdentity.Windows)
                 return this.UnixLock(offset, exclusive ? WriteLock : ReadLock, false, allowConflict: true) != -1;
             var position = Position(offset);

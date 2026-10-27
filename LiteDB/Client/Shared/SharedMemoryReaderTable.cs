@@ -18,9 +18,13 @@ namespace LiteDB.Client.Shared
         private readonly Stack<int> _free = new Stack<int>();
         internal readonly SharedMemoryAuthority Authority;
         private readonly NativeAdmission _admission;
+        internal NativeAdmission Admission => _admission;
         internal readonly EngineSettings Settings;
+        internal readonly SharedSnapshotCache ReadCache = new SharedSnapshotCache();
+        internal readonly SharedMemoryReadAdmission Reads;
         internal Action ClosedCallback;
         private int _references = 1;
+        private bool _closing;
         private readonly SharedMemoryWriter _writer;
         internal bool Closed { get { lock (_gate) return _references == 0; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
@@ -30,6 +34,7 @@ namespace LiteDB.Client.Shared
             Settings = settings;
             Authority = authority;
             _writer = new SharedMemoryWriter(authority);
+            Reads = new SharedMemoryReadAdmission(authority);
             _admission = admission;
             for (var i = authority.Header.Generations - 1; i >= 0; i--) _free.Push(i);
         }
@@ -110,6 +115,7 @@ namespace LiteDB.Client.Shared
         {
             lock (_gate)
             {
+                while (_closing) Monitor.Wait(_gate);
                 if (_references == 0) return false;
                 _references++;
                 return true;
@@ -121,8 +127,22 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (--_references != 0) return;
-                try { Authority.Dispose(); }
-                finally { try { _admission.Dispose(); } finally { ClosedCallback?.Invoke(); } }
+                _closing = true;
+            }
+            // No table gate while taking the cache gate: admission takes them in
+            // the reverse order. Zero references means no facade or result remains.
+            try
+            {
+                try { ReadCache.Dispose(); }
+                finally
+                {
+                    try { Authority.Dispose(); }
+                    finally { try { _admission.Dispose(); } finally { ClosedCallback?.Invoke(); } }
+                }
+            }
+            finally
+            {
+                lock (_gate) { _closing = false; Monitor.PulseAll(_gate); }
             }
         }
 
@@ -202,8 +222,8 @@ namespace LiteDB.Client.Shared
         internal static void RequireHeader(SharedMemoryAuthority authority, bool initializing = false)
         {
             if ((!initializing && authority.Map.Load(SharedMemoryLayout.Control) != 1) ||
-                !authority.Map.Read(0, 256).SequenceEqual(authority.Header.Bytes) ||
-                !authority.Map.Read(SharedMemoryLayout.Page, 256).SequenceEqual(authority.Header.Bytes))
+                !authority.Map.Matches(0, authority.Header.Bytes) ||
+                !authority.Map.Matches(SharedMemoryLayout.Page, authority.Header.Bytes))
                 throw new IOException("Shared mapped authority changed or is damaged.");
         }
 

@@ -10,18 +10,20 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
-        private readonly object _snapshotGate = new object();
+        private readonly SharedSnapshotCache _readCache = new SharedSnapshotCache();
+        private object _snapshotGate => _readCache.Gate;
+        private SharedMemoryReadAdmission MappedReads => (_readers as SharedMemoryReaders)?.Table?.Reads;
         private SharedCoordinationPage _coordination;
         private bool _coordinationUnavailable;
         private readonly bool _mappedReadsDisabled = SharedCoordinationPolicy.MappedReadsDisabled;
         private int _coordinationDemand;
-        private int _readCacheDemand;
-        private CachedSharedSnapshot _cachedSnapshot;
-        private Timer _snapshotIdle;
-        private readonly SharedReadPacer _readPacer = new SharedReadPacer();
-        private static readonly TimeSpan SnapshotIdle = TimeSpan.FromMilliseconds(100);
+        private int _readCacheDemand { get => _readCache.Demand; set => _readCache.Demand = value; }
+        private CachedSharedSnapshot _cachedSnapshot { get => _readCache.Snapshot; set => _readCache.Snapshot = value; }
+        private Timer _snapshotIdle { get => _readCache.Idle; set => _readCache.Idle = value; }
+        private SharedReadPacer _readPacer => _readCache.Pacer;
+
 #if DEBUG || TESTING
-        internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
+        internal TimeSpan CoordinatedIdleLimit { get => _readCache.IdleLimit; set => _readCache.IdleLimit = value; }
         internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
         internal int CoordinatedReadHits;
         internal int MeasuredStreamingReaders;
@@ -30,7 +32,7 @@ namespace LiteDB
         internal bool UnsafeSkipCoordinationRecheck;
         internal bool ForceCoordinatedYield;
 #else
-        private TimeSpan CoordinatedIdleLimit => SnapshotIdle;
+        private TimeSpan CoordinatedIdleLimit => _readCache.IdleLimit;
 #endif
 
         private void EnsureReadCoordination()
@@ -48,7 +50,7 @@ namespace LiteDB
         // The caller owns the database mutex, so nobody can create a competing authority.
         private void EnsureCoordination(bool allowCreate = true, bool writing = false)
         {
-            if (_settings.SharedOneFile) return; // writer publications/warm reads belong to slices 5/6
+            if (_settings.SharedOneFile) return; // ABI 2 uses the participant authority.
             if (_coordination != null) return;
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {
@@ -119,13 +121,13 @@ namespace LiteDB
 
         private IBsonDataReader TryQueryCoordinated(string collection, Query query)
         {
-            if (_coordination == null || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
+            if ((_coordination == null && MappedReads == null) || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             bool yieldToWriter;
             int delay;
             lock (_snapshotGate)
             {
-                yieldToWriter = _cachedSnapshot != null && _coordination != null &&
-                    _coordination.ShouldYieldToWriter(Environment.TickCount64);
+                yieldToWriter = _cachedSnapshot != null && (MappedReads?.ShouldYieldToWriter(Environment.TickCount64) ??
+                    (_coordination?.ShouldYieldToWriter(Environment.TickCount64) ?? false));
 #if DEBUG || TESTING
                 yieldToWriter |= ForceCoordinatedYield;
 #endif
@@ -148,7 +150,7 @@ namespace LiteDB
             lock (_snapshotGate)
             {
                 snapshot = _cachedSnapshot;
-                if (snapshot == null || _coordination == null || !_coordination.TryReadHint(out var status) ||
+                if (snapshot == null || !this.TryReadStatus(out var status, hint: true) ||
                     status.Version != snapshot.Status.Version || !status.SameStorage(snapshot.Status)) return null;
 #if DEBUG || TESTING
                 CoordinationStage?.Invoke("cached-status");
@@ -159,22 +161,27 @@ namespace LiteDB
                     try { snapshot.Lease = _readers.RegisterUnscanned(checked((int)status.Version)); }
                     catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { return null; }
                 }
-                Interlocked.MemoryBarrier();
-#if DEBUG || TESTING
-                CoordinationStage?.Invoke("lease-published");
-                if (!UnsafeSkipCoordinationRecheck)
-#endif
+                try
                 {
-                    if (!_coordination.TryRead(out var after) || !after.SameStorage(status))
+                    Interlocked.MemoryBarrier();
+                    if (_settings.SharedOneFile) SharedMemoryReadAdmission.Stage("reader-record");
+#if DEBUG || TESTING
+                    CoordinationStage?.Invoke("lease-published");
+                    if (!UnsafeSkipCoordinationRecheck)
+#endif
                     {
-                        if (addedLease) { snapshot.Lease.Dispose(); snapshot.Lease = null; }
-                        return null;
+                        if (!this.TryReadStatus(out var after) || !after.SameStorage(status) ||
+                            (MappedReads != null && (after.Sequence != status.Sequence || after.Version != status.Version)))
+                        {
+                            if (addedLease) { snapshot.Lease?.Dispose(); snapshot.Lease = null; }
+                            return null;
+                        }
                     }
+                    lock (_useLock) this.AdmitLocked();
                 }
-                try { lock (_useLock) this.AdmitLocked(); }
                 catch
                 {
-                    if (addedLease) { snapshot.Lease.Dispose(); snapshot.Lease = null; }
+                    if (addedLease) { snapshot.Lease?.Dispose(); snapshot.Lease = null; }
                     throw;
                 }
                 snapshot.Readers++;
@@ -190,10 +197,21 @@ namespace LiteDB
         {
             // A single read between writes cannot amortize retaining a snapshot.
             // Start caching only after two consecutive read-only opens.
-            if (_readCacheDemand < 2) _readCacheDemand++;
-            if (_readCacheDemand < 2 || _coordination == null || !_coordination.TryRead(out var status) || status.Version != engine.ReadVersion) return null;
-            var lease = this.TryRegisterLease(engine.ReadVersion);
-            if (lease == null) return null;
+            SharedCoordinationStatus status;
+            IDisposable lease;
+            try
+            {
+                if (_readCacheDemand < 2) _readCacheDemand++;
+                if (_readCacheDemand < 2 || !this.TryReadStatus(out status) || status.Version != engine.ReadVersion) return null;
+                lease = this.TryRegisterLease(engine.ReadVersion);
+                if (lease == null) return null;
+            }
+            catch
+            {
+                try { engine.Dispose(); }
+                finally { _owner.Exit(); }
+                throw;
+            }
             var snapshot = new CachedSharedSnapshot(engine, lease, status) { Readers = 1 };
             var installed = false;
             try
@@ -205,14 +223,10 @@ namespace LiteDB
                     _cachedSnapshot = null;
                     RetireSnapshot(previous);
                     _cachedSnapshot = snapshot;
-                    if (_snapshotIdle == null)
-                    {
-                        var weak = new WeakReference<SharedEngine>(this);
-                        _snapshotIdle = new Timer(state =>
-                        {
-                            if (((WeakReference<SharedEngine>)state).TryGetTarget(out var owner)) owner.ExpireSnapshot();
-                        }, weak, this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
-                    }
+#if DEBUG || TESTING
+                    _readCache.Observer = new WeakReference<SharedEngine>(this);
+#endif
+                    _readCache.StartExpiry();
                     installed = true;
                 }
                 return this.ReadCached(collection, query, snapshot);
@@ -318,47 +332,7 @@ namespace LiteDB
             }
         }
 
-        private void ExpireSnapshot()
-        {
-            // Timer callbacks must never let cleanup errors escape onto the runtime
-            // thread. Explicit reader/connection disposal retains its error behavior.
-            try { this.ExpireSnapshotCore(); }
-            catch (Exception) { }
-        }
-
-        private void ExpireSnapshotCore()
-        {
-            lock (_snapshotGate)
-            {
-                var snapshot = _cachedSnapshot;
-                if (snapshot == null) return;
-                if (snapshot.Readers != 0)
-                {
-                    _snapshotIdle?.Change(this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
-                    return;
-                }
-                var remaining = this.CoordinatedIdleLimit.TotalMilliseconds - (Environment.TickCount64 - snapshot.LastUse);
-                if (remaining > 0)
-                {
-                    _snapshotIdle?.Change(TimeSpan.FromMilliseconds(remaining), Timeout.InfiniteTimeSpan);
-                    return;
-                }
-                _cachedSnapshot = null;
-                try
-                {
-#if DEBUG || TESTING
-                    this.CoordinationStage?.Invoke("expiring");
-#endif
-                }
-                finally
-                {
-                    try { RetireSnapshot(snapshot); }
-                    finally { _snapshotIdle?.Dispose(); _snapshotIdle = null; }
-                }
-            }
-            // Idle state owns no lease and cannot delay reclamation. Expiration only
-            // closes the read-only engine; durability remains with ordinary closes.
-        }
+        private void ExpireSnapshot() => _readCache.Expire();
 
         private void RetireCachedSnapshot()
         {
@@ -378,22 +352,12 @@ namespace LiteDB
             if (snapshot.Readers == 0) snapshot.Close();
         }
 
-        private sealed class CachedSharedSnapshot
+        private bool TryReadStatus(out SharedCoordinationStatus status, bool hint = false)
         {
-            internal CachedSharedSnapshot(LiteEngine engine, IDisposable lease, SharedCoordinationStatus status)
-            { Engine = engine; Lease = lease; Status = status; }
-            internal LiteEngine Engine { get; }
-            internal IDisposable Lease { get; set; }
-            internal SharedCoordinationStatus Status { get; }
-            internal int Readers;
-            internal bool Retired;
-            internal bool HadStreamingReader;
-            internal long LastUse = Environment.TickCount64;
-            internal void Close()
-            {
-                try { Engine.Dispose(); }
-                finally { Lease?.Dispose(); Lease = null; }
-            }
+            status = default;
+            var mapped = MappedReads;
+            if (mapped != null) return !_mappedReadsDisabled && mapped.TryRead(out status);
+            return _coordination != null && (hint ? _coordination.TryReadHint(out status) : _coordination.TryRead(out status));
         }
     }
 }

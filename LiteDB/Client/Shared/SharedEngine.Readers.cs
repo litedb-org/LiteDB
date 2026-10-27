@@ -299,6 +299,7 @@ namespace LiteDB
 
         private static bool LogHasContent(string filename)
         {
+            SharedCoordinationDiagnostics.Operation();
             var log = new FileInfo(FileHelper.GetLogFile(filename));
             return log.Exists && log.Length > 0;
         }

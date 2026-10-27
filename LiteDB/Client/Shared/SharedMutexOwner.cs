@@ -128,6 +128,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         public bool Enter(bool scoped = false)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (this.TryRecurse()) return false;
             while (!_gate.Wait(Poll)) this.ReleaseIfOwnerExited();
             bool abandoned;
@@ -142,6 +143,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         public bool TryEnter(out bool abandoned, bool scoped = false)
         {
+            SharedCoordinationDiagnostics.Operation();
             abandoned = false;
             if (this.TryRecurse()) return true;
             // This connection's own release in flight is not another owner.

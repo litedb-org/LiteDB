@@ -1,6 +1,6 @@
 # One-file Shared prototype integration contract
 
-ABI 2 is opt-in and dormant by default until slices 5–10 are qualified. The
+ABI 2 is opt-in and dormant by default until slices 7–10 are qualified. The
 existing multi-file Shared implementation remains the default. ABI 1/2 deployment
 requires all old executables stopped: unmodified old clients cannot be fenced by
 a protocol they do not implement. No database-format change or rebuild is needed.
@@ -61,8 +61,8 @@ Other mapped platforms explicitly refuse opt-in; their prototype tests report a
 capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
 Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
 starts with committed-version unknown and fast-admission disabled. Slice 5
-publishes writer/recovery/structural/reuse/reset identities; warm reader admission
-remains disabled until the later qualification slices.
+publishes writer/recovery/structural/reuse/reset identities. Slice 6 enables mapped warm
+admission only after protected validation and a covering durable sync.
 
 Recovered confirmations can survive only in a dead writer's OS cache. A writable
 protected open verifies/replays storage, syncs the recovered WAL and its directory,
@@ -82,7 +82,7 @@ writer tenure so delayed stop cleanup cannot fence a successor.
 unwinding, exception-safe release and stale cleanup. The mapped allocation and
 opening-mutation classes add full payload/index and independent page-graph checks.
 These exception/process-death/interleaving tests do not qualify real power loss,
-other architectures, warm admission or core handoff.
+other architectures or core handoff.
 
 The Phase 2 port keeps Phase 0's retry ownership reconciliation, live WAL-restored
 timeout access, callback execution frames and close-before-unlock rules. It builds
@@ -91,3 +91,47 @@ operation paths. `SharedOneFilePhase1_Tests` exercises mapped retry/failed-Begin
 cleanup, pinned and unpinned callback isolation, and protected timeout restoration.
 Existing default-mode callback, cursor ownership and commit-failure tests continue
 to apply; custom streams cannot select the mapped physical-file protocol.
+
+Slice 6 shares one snapshot cache, inactivity timer and read pacing budget per
+participant. Two protected read-only opens establish cache demand. The idle cache
+owns no reader record; active results retain the exact generation, mapping and
+data admission. A facade close cannot retire a peer's cache. Final participant
+release closes idle cached storage before unmapping and makes local reattach wait
+for completed native teardown. Cached settings borrow participant resources and
+delegates rather than retaining a creating facade. Spilling sorts, page caches
+above 4 MiB and WALs above 4 MiB cannot remain cached; the inactivity timeout stays
+100 ms. Expiry never invalidates an active result. Stateful transforms retain their
+single-execution protected route and capacity fails before callback execution.
+
+Warm admission atomically samples the sequence, Ready/disable/recovery state,
+committed version, structural/reuse/reset epochs and writer tenure, and validates
+both immutable envelopes against the attached authority. Each sample rechecks its
+sequence. The cache must match the sampled version and storage tenure. Admission
+publishes the packed exact-generation record, executes a full memory barrier,
+then repeats the complete sample and requires the *same sequence and version*.
+An odd or changed fence, damaged envelope, recovery owner, unknown version or
+disabled state falls back before any query or callback executes. Writers fence
+before advancing tenure or changing storage. Stopped/uncertain writers disable
+fast admission until independent protected validation and sync repair the fence.
+The mapping remains reconstructible metadata, never durable evidence itself.
+
+All warm admission checks and reader publication/release use mapped atomic words
+and process-local gates. No pathname, liveness, file, named mutex or native range
+lock probe occurs on admission. An internal test-only counter at coordination
+I/O/lock seams asserts zero attempts for repeated buffered warm reads from another
+facade while main ownership is held elsewhere, with the slow path as its positive
+control. Query page misses may perform ordinary storage I/O. Last streamed-result
+cleanup retains the existing best-effort checkpoint route after its lease ends;
+it is not part of admission. Advisory writer pressure uses expiring mapped request
+words and the existing 7:1 work-based pacer, outside the cache gate and reader lease.
+Stale hints never evict a generation or authorize reclamation.
+
+The SharedOneFileWarm* classes force both status samples' load boundaries, a
+remote writer's scan on either side of record publication, every writer/open/commit
+fence death with a surviving warm result, and reader death. Repeated recovery checks
+complete payloads, secondary indexes and unrelated records. The reclaimed-WAL
+negative control must fail when the final check is bypassed. The bounded SC model
+also rejects unmarked destruction, ignored records and premature version visibility.
+These are Linux x64 exception/process-death/interleaving tests; they do not qualify
+ARM memory ordering, actual device power loss, unmodified old clients or default
+enablement. SharedOneFile remains false by default.
