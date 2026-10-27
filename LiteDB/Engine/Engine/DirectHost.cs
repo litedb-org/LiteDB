@@ -4,6 +4,9 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        private readonly bool _ownsDirectHost;
+        private bool _backgroundCheckpointEnabled;
+
         internal void ValidateHost() => _state.Validate();
         internal void StopHost(Exception error) => _state.Stop(error);
 
@@ -17,20 +20,37 @@ namespace LiteDB.Engine
         internal void ThrowBackgroundCheckpointFailure(Exception cleanup = null) => _state.CheckpointLifetime?.ThrowIfFailed(cleanup);
 
 #if DEBUG || TESTING
-        // Slice 5 test installation. No production open binds these services yet.
+        // Enable only this process-owned core, before fixture concurrency starts.
         internal AutomaticCheckpointCoordinator InstallDirectCheckpointLifetime()
         {
             if (_host == null) throw new InvalidOperationException("Only a process-owned Direct core may own the coordinator.");
-            return _host.Engine.BindDirectCheckpointLifetime();
+            var core = _host.Engine;
+            var worker = core.BindDirectCheckpointLifetime();
+            if (worker == null) throw new InvalidOperationException("Background checkpoint requires a writable filename-backed Direct core with a persistent WAL.");
+            core._backgroundCheckpointEnabled = true;
+            core.RequestAutomaticCheckpoint();
+            return worker;
         }
 #endif
 
         private AutomaticCheckpointCoordinator BindDirectCheckpointLifetime()
         {
             _state.Validate();
+            if (!_ownsDirectHost || _settings.SharedMode || _settings.ReadOnly || _settings.ReadOnlyStorage ||
+                _settings.CheckpointEachCommit || _settings.CoordinationSignals != null ||
+                !LiteDB.Client.Shared.NativeAdmission.IsFile(_settings)) return null;
             if (_state.CheckpointLifetime == null)
                 _ = new DirectCheckpointLifetime(this, _state, _disk, _walIndex, _header.Pragmas.Checkpoint);
             return _state.CheckpointLifetime.Worker;
+        }
+
+        private void RequestAutomaticCheckpoint()
+        {
+            var worker = _disk.AutomaticCheckpoint;
+            if (worker == null) return;
+            var pages = this.CheckpointPages;
+            if (pages > 0 && _disk.GetFileLength(FileOrigin.Log) > (long)pages * Constants.PAGE_SIZE)
+                worker.Request(worker.Incarnation);
         }
 
         private void CopyHostServices()

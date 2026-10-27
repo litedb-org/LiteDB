@@ -176,7 +176,9 @@ namespace LiteDB.Engine
                 (_settings.CheckpointEachCommit ||
                  _disk.GetFileLength(FileOrigin.Log) > ((long)checkpointPages * PAGE_SIZE)))
             {
-                _walIndex.TryAutoCheckpoint();
+                if (_disk.AutomaticCheckpoint != null && !_settings.CheckpointEachCommit)
+                    this.RequestAutomaticCheckpoint();
+                else _walIndex.TryAutoCheckpoint();
             }
             if (state.CheckpointLifetime != null) state.ValidateCheckpointAcknowledgement();
         }
@@ -194,6 +196,9 @@ namespace LiteDB.Engine
                 _state.Stop(ex);
                 throw;
             }
+            // Rollback may have extended the WAL at safepoints/ReturnNewPages.
+            // Start maintenance only after its snapshots and permit are released.
+            this.RequestAutomaticCheckpoint();
         }
     }
 }

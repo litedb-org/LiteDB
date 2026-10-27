@@ -81,7 +81,7 @@ namespace LiteDB.Engine
 
             // re-open engine
             this.Open();
-            if (background != null) this.BindDirectCheckpointLifetime();
+            this.RequestAutomaticCheckpoint();
 
             _state.Disposed = false;
 

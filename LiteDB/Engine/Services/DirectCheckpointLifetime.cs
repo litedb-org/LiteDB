@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace LiteDB.Engine
 {
-    // Optional core owner. The default Direct/Shared paths do not install this yet.
+    // Optional core owner. Default Direct and all Shared paths leave this unbound.
     // Closing admission is distinct from Disposed: an in-flight sync can still fail.
     internal sealed class DirectCheckpointLifetime
     {

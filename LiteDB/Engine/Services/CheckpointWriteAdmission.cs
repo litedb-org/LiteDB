@@ -5,7 +5,7 @@ using System.Threading;
 namespace LiteDB.Engine
 {
     /// <summary>
-    /// Core-local writer permits. Installation is disabled until Direct lifetime integration.
+    /// Core-local writer permits, installed only for an opted-in Direct lifetime.
     /// No storage lock may be acquired under _sync. Permits remain counted through CP0.
     /// </summary>
     internal sealed class CheckpointWriteAdmission

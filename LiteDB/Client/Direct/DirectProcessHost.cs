@@ -34,7 +34,7 @@ namespace LiteDB.Client.Direct
             _admission = admission;
             _identity = admission.Identity;
             Settings.BypassDirectHost = true;
-            Engine = new LiteEngine(Settings);
+            Engine = new LiteEngine(Settings, ownsDirectHost: true);
             _identity = admission.Identity;
         }
 

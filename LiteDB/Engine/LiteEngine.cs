@@ -77,8 +77,15 @@ namespace LiteDB.Engine
         /// Initialize LiteEngine using initial engine settings
         /// </summary>
         public LiteEngine(EngineSettings settings)
+            : this(settings, ownsDirectHost: false)
+        {
+        }
+
+        internal LiteEngine(EngineSettings settings, bool ownsDirectHost)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
+            _ownsDirectHost = ownsDirectHost;
+            _backgroundCheckpointEnabled = settings.BackgroundCheckpoint;
             _settings = settings;
             if (!settings.BypassDirectHost && !settings.SharedMode && NativeAdmission.IsFile(settings))
             {
@@ -90,10 +97,24 @@ namespace LiteDB.Engine
                     {
                         this.CopyHostServices();
                         _lifetime = new DirectFacadeLifetime(_host, _monitor);
+                        // Attach has released the registry gate. Recovered-tail
+                        // admission was bound by Open before publishing the host.
+                        _host.Engine.RequestAutomaticCheckpoint();
                     }
-                    catch
+                    catch (Exception error)
                     {
-                        _host.Release(_monitor);
+                        // Startup notification can fail after a finalizable owner
+                        // was created. Detach that owner exactly once, so its later
+                        // finalizer cannot release another facade's host reference.
+                        try
+                        {
+                            if (_lifetime != null) _lifetime.Dispose();
+                            else _host.Release(_monitor);
+                        }
+                        catch (Exception cleanup)
+                        {
+                            if (!ReferenceEquals(error, cleanup)) error.Data["LiteDB.DirectOpenCleanupError"] = cleanup;
+                        }
                         _host = null;
                         throw;
                     }
@@ -237,6 +258,7 @@ namespace LiteDB.Engine
 
                 this.MigrateIndexOrdering();
                 _disk.TrimTrailingPages();
+                if (_backgroundCheckpointEnabled) this.BindDirectCheckpointLifetime();
 
                 LOG("initialization completed", "ENGINE");
 

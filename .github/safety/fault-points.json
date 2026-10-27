@@ -121,6 +121,11 @@
       "protocol": "checkpoint backfill",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointNotificationFailure_Tests.cs#AutomaticNotificationRetainsCauseAndWholeCommittedState",
+          "proves": "An automatically requested background pass fails on its first data-page write after cache-only acknowledgement; no successor acknowledges and three recovery/checkpoint cycles preserve full payloads, exact indexes, sentinel and raw allocation reachability.",
+          "model": "exception"
+        },
+        {
           "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
           "model": "exception",
           "proves": "Checkpoint is thrown out of at the stage (hit asserted); both recovered images keep the committed value."
@@ -1726,24 +1731,34 @@
       "protocol": "background checkpoint thread start",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointNotificationFailure_Tests.cs#AutomaticNotificationRetainsCauseAndWholeCommittedState",
+          "proves": "First excess-page notification injects thread-start failure only after transaction/permit release; shared terminal failure refuses continuation and three indexed cold reopens preserve the whole transaction and raw allocation reachability.",
+          "model": "exception"
+        },
+        {
           "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorkerFailure_Tests.cs#WorkerFailureIsTerminalForAllFacadesAndAttachment",
           "model": "exception",
           "proves": "Thread start failure latches the first cause, refuses all facades and new attachment, and preserves complete acknowledged data through three reopens."
         }
       ],
-      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
     },
     {
       "name": "BeforeCheckpointWorkerPass",
       "protocol": "background checkpoint scheduling",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Engine/BackgroundCheckpointNotificationFailure_Tests.cs#AutomaticNotificationRetainsCauseAndWholeCommittedState",
+          "proves": "An automatically requested pass is held before storage entry until the triggering cache-only commit returns. Releasing it into data-page failure retains that acknowledged transaction through three indexed reopens.",
+          "model": "interleaving"
+        },
+        {
           "test": "LiteDB.Tests/Engine/AutomaticCheckpointWorker_Tests.cs#LazyWorkerCoalescesRequestsAndRetainsRequestRacingCompletion",
           "model": "interleaving",
           "proves": "One lazy thread coalesces one hundred requests during a paused pass and executes exactly one successor pass."
         }
       ],
-      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
     },
     {
       "name": "AfterCheckpointWorkerPass",
@@ -1755,7 +1770,7 @@
           "proves": "Failure after a completed persistent pass remains terminal; racing requests cannot replace the original error or resume work, and file recovery preserves acknowledged data."
         }
       ],
-      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
     },
     {
       "name": "BeforeCheckpointWorkerPauseWait",
@@ -1767,7 +1782,7 @@
           "proves": "Explicit executor checkpoint demonstrably waits for the running worker, then performs its own attempt and returns zero after worker reclamation."
         }
       ],
-      "gap": "Unactivated component installed only by deterministic xUnit fixtures. Process-death, modeled-power-loss and final host-lifetime integration are later slices."
+      "gap": "Default-off Direct component enabled by deterministic xUnit fixtures/internal opt-in. Full worker scheduling/reader/failure qualification, process-death and modeled-power-loss coverage remain later slices."
     },
     {
       "name": "SimulateDiskWriteFail",

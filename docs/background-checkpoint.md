@@ -6,11 +6,12 @@ writers. This is an accepted behavior contract, not a claim of implementation,
 safety qualification or measured performance. The barrier-reduction redesign is
 separate: [litedb-org/LiteDB#3134](https://github.com/litedb-org/LiteDB/issues/3134).
 
-Implementation is staged and **default OFF**. Production open still leaves all
-three disk bindings null and keeps synchronous automatic checkpoint. Only the
-TESTING/DEBUG `InstallDirectCheckpointLifetime` fixture entry point installs the
-core owner, admission, worker and checkpoint/group interlock. `BypassDirectHost`
-alone does not grant that authority.
+Implementation is staged and **default OFF**. The internal
+`EngineSettings.BackgroundCheckpoint` switch defaults to false, leaving all three
+disk bindings null and retaining synchronous automatic checkpoint. An eligible
+process-owned Direct core can opt in at open; tests can also enable that core via
+the TESTING/DEBUG `InstallDirectCheckpointLifetime` fixture entry point before
+concurrency starts. `BypassDirectHost` alone does not grant that authority.
 
 ## Current implementation boundary
 
@@ -58,14 +59,30 @@ checkpoint, and binds a fresh lifetime only after successful synchronous Open.
 Old requests cannot start work on the replacement incarnation. A committed CP0
 while a pass is started lets that pass finish and suppresses later close work.
 
-**Next: the remaining slice 6 integration.** Production eligibility and internal
-opt-in plumbing, automatic post-transaction Request routing and recovered-tail
-startup publication are not wired. No production open starts a worker; automatic
-checkpoint remains synchronous even in the manually installed fixtures. Do not
-enable production bindings before that integration and its eligibility/open/
-pragma matrix. Full process-death, modeled-power-loss, compatibility, borrowed
-page-lifetime and performance qualification also remain later required slices.
-The current exception/forced-interleaving tests do not establish those models.
+**Slice 6 integration is present behind the default-off switch.** Successful Open
+binds the coordinator, barrier and recovered-tail admission only after synchronous
+recovery, migration and trimming finish. The Direct host supplies explicit core
+authority; read-only, Shared/coordinated, bypass-only, volatile-WAL, memory/temp and
+caller-stream engines cannot acquire it. A facade publishes the initial request
+after Attach releases the registry gate, before returning to its caller. Thus an
+already recovered high tail closes admission before any facade can write, without
+starting a worker during recovery or under the registry gate. Compatible facades
+share the same worker. Different internal switch settings require separate opens.
+
+For an installed core, automatic transaction completion queues a request after
+snapshots, group dependencies, transaction ownership and permits are released.
+Rollback also notifies after release: safepoints and returned allocation pages can
+cross high water without a commit. Strict threshold/equality, CP0 cancellation and
+restart, large pragmas and synchronous volatile-WAL fallback retain their stated
+semantics. Explicit checkpoint and close still complete synchronously. Successful
+rebuild binds a fresh incarnation during Open and publishes its recovered backlog
+after Open returns; retired requests cannot operate on replacement services.
+
+**Next: slice 7**, the full forced scheduling, sustained-writer, reader/page-lease
+and failure matrix. Slice 8 worker process-death/modeled-power-loss, compatibility
+and performance qualification also remain required before production activation
+or acceptance. Current slice 6 exception/forced-interleaving tests, including
+file-image recovery tests, do not establish worker process-death or power loss.
 
 ## Accepted observable behavior
 

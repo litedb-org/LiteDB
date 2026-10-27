@@ -5,8 +5,8 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
-        // Internal installation switch: null in every production path. The future
-        // Direct core owner installs these before publishing its facades.
+        // Null by default. An opted-in, process-owned Direct core installs these
+        // after synchronous open prerequisites, before publishing its facades.
         internal CheckpointWriteAdmission WriteAdmission { get; set; }
         internal AutomaticCheckpointCoordinator AutomaticCheckpoint { get; set; }
 

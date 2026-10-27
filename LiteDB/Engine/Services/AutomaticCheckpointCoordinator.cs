@@ -7,7 +7,7 @@ namespace LiteDB.Engine
     internal enum AutomaticCheckpointState { Idle, Queued, Running, Paused, Closing, Faulted, Stopped }
 
     /// <summary>
-    /// Unactivated Direct-core worker. Its owner must stop/join before retiring services.
+    /// Opt-in Direct-core worker. Its owner must stop/join before retiring services.
     /// Request/Pause/Dispose run outside storage locks; tail/unpin notifications never do I/O.
     /// </summary>
     internal sealed class AutomaticCheckpointCoordinator : IDisposable
@@ -102,7 +102,7 @@ namespace LiteDB.Engine
         }
 
         // State-only notification, safe under WAL serialization. First thread start
-        // belongs to Request, after transaction release (activation is a later slice).
+        // belongs to Request, after transaction release or successful cold open.
         internal void PublishTail(long bytes)
         {
             lock (_sync)

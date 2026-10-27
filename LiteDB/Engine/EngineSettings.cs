@@ -58,6 +58,9 @@ namespace LiteDB.Engine
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
         internal bool BypassDirectHost { get; set; }
+        // Staged Candidate C switch. Only the process-owned Direct core may bind
+        // it; production callers retain synchronous checkpoint by default.
+        internal bool BackgroundCheckpoint { get; set; }
         internal bool SharedMode { get; set; }
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();

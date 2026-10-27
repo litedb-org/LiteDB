@@ -8,6 +8,7 @@ namespace LiteDB.Client.Direct
         internal static void RequireCompatible(EngineSettings a, EngineSettings b, string collation)
         {
             if (a.Password != b.Password || a.ReadOnly != b.ReadOnly || a.DurableCommits != b.DurableCommits ||
+                a.BackgroundCheckpoint != b.BackgroundCheckpoint ||
                 a.CompactStorage != b.CompactStorage || a.LegacyIndexScan != b.LegacyIndexScan ||
                 a.GetCacheSize() != b.GetCacheSize() || a.TransactionPageLimit != b.TransactionPageLimit ||
                 a.InitialSize != b.InitialSize || a.IndexMigrationLimitSize != b.IndexMigrationLimitSize ||
