@@ -80,7 +80,12 @@ internal static class Program
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 Exception? failure = null;
-                try { using var db = Open(filename, password, readOnly); _ = db.GetCollection("rows").Count(); }
+                try
+                {
+                    using var db = Open(filename, password, readOnly);
+                    _ = db.GetCollection("rows").FindAll().ToArray();
+                    _ = db.GetCollection("newrows").FindAll().ToArray();
+                }
                 catch (Exception error) { failure = error; }
                 var dataSame = File.ReadAllBytes(filename).SequenceEqual(legacy);
                 var walSame = File.Exists(logname) && File.ReadAllBytes(logname).SequenceEqual(wal);
