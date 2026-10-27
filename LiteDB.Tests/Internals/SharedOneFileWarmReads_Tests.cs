@@ -31,9 +31,9 @@ namespace LiteDB.Internals
             using var db = new LiteDatabase(first, disposeOnClose: false);
             using var peer = new SharedEngine(files.Settings);
             using var peerDb = new LiteDatabase(peer, disposeOnClose: false);
-            SharedCoordinationDiagnostics.Operations = 0;
+            SharedCoordinationDiagnostics.AdmissionOperations = 0;
             Warm(first, db);
-            SharedCoordinationDiagnostics.Operations.Should().BeGreaterThan(0, "the counter must detect the protected path");
+            SharedCoordinationDiagnostics.AdmissionOperations.Should().BeGreaterThan(0, "the counter must detect the protected path");
             var cache = first.MappedReaderTable.ReadCache.Snapshot;
             cache.Lease.Should().BeNull("idle cache must not pin a generation");
             first.MappedReaderTable.HasReaders.Should().BeFalse();
@@ -42,9 +42,9 @@ namespace LiteDB.Internals
             {
                 var read = Task.Run(() =>
                 {
-                    SharedCoordinationDiagnostics.Operations = 0;
+                    SharedCoordinationDiagnostics.AdmissionOperations = 0;
                     for (var i = 0; i < 12; i++) peerDb.GetCollection("docs").FindById(1).As<object>().Should().BeEquivalentTo(Row(1, 0));
-                    return SharedCoordinationDiagnostics.Operations;
+                    return SharedCoordinationDiagnostics.AdmissionOperations;
                 });
                 read.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue("warm reads must finish under remote main ownership");
                 read.GetAwaiter().GetResult().Should().Be(0);

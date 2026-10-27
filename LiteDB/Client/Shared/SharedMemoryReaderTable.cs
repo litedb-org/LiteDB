@@ -206,8 +206,10 @@ namespace LiteDB.Client.Shared
                     _versions.Remove(version);
                     _free.Push(generation.Slot);
                 }
-                this.Release();
             }
+            // Release can take ReadCache.Gate on final close. Never carry the
+            // reentrant table gate into it: admission takes cache -> table.
+            this.Release();
         }
 
         internal int[] LiveVersions()

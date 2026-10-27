@@ -135,3 +135,30 @@ also rejects unmarked destruction, ignored records and premature version visibil
 These are Linux x64 exception/process-death/interleaving tests; they do not qualify
 ARM memory ordering, actual device power loss, unmodified old clients or default
 enablement. SharedOneFile remains false by default.
+
+Escaping engine-created Shared results own a detached cleanup record. Its GC handle
+roots the inner cursor, pages and release callback without rooting the escaping
+wrapper. Explicit disposal releases that record immediately. A collected wrapper
+publishes its record to a lock-free pending list; a normal-thread reaper disposes
+the inner cursor before releasing the generation, local reader and participant.
+The finalizer performs no I/O, user callback, monitor acquisition or wait. Cleanup
+can wait for a live cache operation without preventing other finalizers from
+running. The handle is freed after both disposal and the release callback have
+been attempted, including exceptional cleanup. Reclamation is eventual, so
+`GC.WaitForPendingFinalizers` alone does not wait for deferred disposal.
+
+Cache admission takes cache Gate before the reader-table gate. `Unregister` must
+release the table gate before calling `Release`, including its reentrant caller
+scope: final `Release` can dispose the cache. Once final release marks the table
+closing with zero references, another attach waits for close and retries a new
+participant; it cannot register against the mapping being unmapped. The forced
+schedule in `SharedOneFileWarmGenerations_Tests` holds cache Gate while the final
+unregister starts, then verifies the table gate remains obtainable.
+
+`SharedCoordinationDiagnostics.AdmissionOperations` is an admission coordination
+counter for selected file/range-lock/owner/probe seams on the calling thread. It
+excludes local monitor contention, deliberate Sleep/Yield pacing, direct native
+open/turnstile seams, storage I/O and helper-thread work. A zero value establishes
+that those selected seams were avoided; it does not establish zero syscalls for
+a whole query. Cold and contended controls are in `SharedOneFileWarmCounter_Tests`.
+The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
