@@ -78,7 +78,7 @@ namespace LiteDB.Tests.Regressions
                 }
                 finally { File.Delete(log); }
             }
-            var output = Environment.GetEnvironmentVariable("REVIEW_MATRIX_OUT");
+            var output = Environment.GetEnvironmentVariable("REVIEW_380_OUT");
             if (output != null) File.WriteAllLines(output, results);
             results.Count.Should().Be(381);
             failures.Should().BeEmpty("all 380 same-database states have valid committed redo");

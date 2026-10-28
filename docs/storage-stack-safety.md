@@ -161,7 +161,9 @@ classifier. It reads every non-header page prefix, requires valid legacy physica
 IDs and bounds plus collection, index and data page kinds, and rejects the
 classification on any modern page marker. The existing version-only-to-8 recovery
 case and a complete legacy-shaped header over a modern body both recover.
-Header-only checksum cutover can, however, leave every body page legacy. Restoring
+The ambiguous class is a fully legacy-shaped header prefix (including the legacy
+transaction sentinel and zero reserved modern metadata) over an entirely legacy
+body. Header-only checksum cutover can leave every body page legacy. Restoring
 the entire original header then recreates the exact released primary bytes; no
 page inspection can distinguish that stale-write state from a foreign released
 file beside the same journal. The explicit residual guard tests two real cutovers

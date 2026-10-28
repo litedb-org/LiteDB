@@ -217,12 +217,13 @@ namespace LiteDB.Tests.Regressions
         public void Independent_page_read_failure_preserves_bytes_and_stream_position(int failureOffset)
         {
             var data = ConvertedWalFiles.Entry("LegacyWal_5_0_21.zip", "plain.db");
+            var before = (byte[])data.Clone();
             using var stream = new FailingPageRead(data, failureOffset);
             stream.Position = 37;
             Action identify = () => LegacyPrimaryLayout.IsIdentified(stream, new BufferSlice(data, 0, PAGE_SIZE));
             identify.Should().Throw<IOException>().WithMessage("independent page read failed");
             stream.Position.Should().Be(37);
-            stream.ToArray().Should().Equal(data);
+            stream.ToArray().Should().Equal(before);
         }
 
         private sealed class FailingPageRead : MemoryStream
