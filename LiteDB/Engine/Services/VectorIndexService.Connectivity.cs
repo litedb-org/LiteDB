@@ -93,6 +93,10 @@ namespace LiteDB.Engine
             // creates. Even degree-one deletion must not claim those are repaired.
             if (seeds.Any(seed => !this.GetNode(seed).GetNeighbors(0).Contains(removed))) return null;
             if (seeds.Count == 1) return bridges;
+            // Wider neighbourhoods need proportionally more proof work than
+            // paths. The bound remains independent of collection size: B..7B.
+            var branching = Math.Max(1, seeds.Sum(seed => this.GetNode(seed).GetNeighbors(0).Count - 1) / seeds.Count);
+            var budget = ConnectivityRepairBudget * branching;
             var parents = Enumerable.Range(0, seeds.Count).ToArray();
             var owners = new Dictionary<PageAddress, int>();
             var pending = new Queue<PageAddress>();
@@ -111,7 +115,7 @@ namespace LiteDB.Engine
             }
             while (pending.Count > 0)
             {
-                if (links.Count == ConnectivityRepairBudget) return null;
+                if (links.Count == budget) return null;
                 var address = pending.Dequeue();
                 outstanding[Find(owners[address])]--;
                 var neighbors = this.GetNode(address).GetNeighbors(0)
@@ -141,7 +145,7 @@ namespace LiteDB.Engine
                     }
                 }
                 _snapshot.Safepoint();
-                if (links.Count == ConnectivityRepairBudget && pending.Count > 0) return null;
+                if (links.Count == budget && pending.Count > 0) return null;
                 // Every other component is exhausted: it cannot reach any of the
                 // remaining frontier. Leave that frontier's component at a chain end.
                 if (Enumerable.Range(0, seeds.Count).Count(i => Find(i) == i && outstanding[i] > 0) <= 1)
@@ -179,7 +183,7 @@ namespace LiteDB.Engine
             try
             {
                 System.Diagnostics.Trace.TraceWarning($"Vector index '{index.Name}' repair deferred " +
-                    $"(budget {ConnectivityRepairBudget}); queries use exact document scans until repaired.");
+                    $"(base budget {ConnectivityRepairBudget}); queries use exact document scans until repaired.");
             }
             catch { }
         }

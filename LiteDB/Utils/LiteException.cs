@@ -144,7 +144,7 @@ namespace LiteDB
         internal static LiteException VectorRepairDeferred(string index, int budget)
         {
             return new LiteException(VECTOR_REPAIR_DEFERRED,
-                "Vector index repair deferred for '{0}' after reaching the {1}-node mutation budget. " +
+                "Vector index repair deferred for '{0}' after bounded connectivity repair (base budget {1} nodes). " +
                 "Run Rebuild() after stopping old-version writers; public vector queries use an exact document scan meanwhile.",
                 index, budget);
         }

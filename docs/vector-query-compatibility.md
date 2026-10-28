@@ -92,7 +92,11 @@ graphs even after a new-version rebuild. Old binaries parse the same bytes but d
 not enforce the deferred-repair signal described below; do not use them on an
 index awaiting repair.
 
-Deletion repair uses at most B=1,024 expanded nodes, each with M=8 links.
+Deletion repair uses a branching-proportional budget B, each node with M=8 links.
+The base allowance is 1,024 expanded nodes. B is the base multiplied by the
+integer average of (former neighbour degree - 1), with a minimum multiplier of
+one: 1,024..7,168 nodes for M=8. Sparse paths keep the original base limit; wider
+neighbourhoods get more connectivity-proof work, independently of collection size.
 It verifies reciprocal paths (at most M additional reverse-link reads per
 expanded node). Degree zero needs no search; degree one checks its backlink.
 Multi-source BFS stops when former neighbours meet, or bridges fully exhausted
@@ -121,7 +125,7 @@ message derived from `ConnectivityRepairBudget`; the public planner uses scans.
 
 Each later vector write retries a bounded reconciliation from the retained tree
 and current primary-key documents. It never reads retained stale DataBlocks.
-The retry allowance is B units: one per retained node and M per current document,
+The retry allowance is the base 1,024 units: one per retained node and M per current document,
 so it reconstructs at most 128 current vectors with normal HNSW construction.
 Successful reconstruction, old-node reclamation and signal clearing share the
 write transaction. The input is bounded independently of N; normal reconstruction
