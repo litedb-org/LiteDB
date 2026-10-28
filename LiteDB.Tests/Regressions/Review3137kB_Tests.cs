@@ -39,18 +39,18 @@ namespace LiteDB.Tests.Regressions
                 try
                 {
                     Capture(file.Filename, input.password, out _, out var wal);
-                    foreach (var damage in new[] { "intact", "crc", "version", "signature", "header-zero", "crc-body-zero", "crc-body-prefix" })
+                    foreach (var damage in new[] { "intact", "crc", "version", "signature", "header-zero", "crc-body-zero", "crc-body-prefix", "version-body-zero", "version-body-prefix" })
                     {
                         // v4 has no modern AES wrapper: its version-7 header remains raw.
                         var data = input.password == null ? (byte[])input.data.Clone() : Rewrite(input.data, input.password, _ => { });
                         Action<byte[]> tear = b =>
                         {
                             if (damage.StartsWith("crc")) b[BasePage.P_TRANSACTION_ID] ^= 1;
-                            if (damage == "version") b[HeaderPage.P_FILE_VERSION] = 0;
+                            if (damage.StartsWith("version")) b[HeaderPage.P_FILE_VERSION] = 0;
                             if (damage == "signature") b[HeaderPage.P_HEADER_INFO] = 0;
                             if (damage == "header-zero") Array.Clear(b, 0, PAGE_SIZE);
-                            if (damage == "crc-body-zero") Array.Clear(b, PAGE_SIZE, PAGE_SIZE);
-                            if (damage == "crc-body-prefix") Array.Clear(b, PAGE_SIZE + BasePage.P_PAGE_ID, 4);
+                            if (damage.EndsWith("body-zero")) Array.Clear(b, PAGE_SIZE, PAGE_SIZE);
+                            if (damage.EndsWith("body-prefix")) Array.Clear(b, PAGE_SIZE + BasePage.P_PAGE_ID, 4);
                         };
                         if (input.password == null) tear(data); else data = Rewrite(data, input.password, tear);
                         foreach (var readOnly in new[] { true, false })
@@ -64,6 +64,14 @@ namespace LiteDB.Tests.Regressions
                                 var wc = !File.Exists(log) || !File.ReadAllBytes(log).SequenceEqual(wal);
                                 var row = $"foreign\t{input.name}\t{damage}\t{readOnly}\t{attempt}\t{error?.GetType().Name ?? "OK"}\t{dc}\t{wc}";
                                 Save(row);
+                                if (Evidence != null && dc && input.name == "LegacyWal_5_0_21.zip/plain" &&
+                                    damage == "version-body-prefix" && !readOnly && attempt == 0)
+                                {
+                                    File.WriteAllBytes(Evidence + ".before.db", data);
+                                    File.WriteAllBytes(Evidence + ".before-log.db", wal);
+                                    File.WriteAllBytes(Evidence + ".after.db", File.ReadAllBytes(file.Filename));
+                                    if (File.Exists(log)) File.WriteAllBytes(Evidence + ".after-log.db", File.ReadAllBytes(log));
+                                }
                                 if (error == null || dc || wc) failures.Add(row);
                             }
                         }
