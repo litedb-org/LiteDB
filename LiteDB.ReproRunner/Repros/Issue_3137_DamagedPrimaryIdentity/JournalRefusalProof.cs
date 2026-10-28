@@ -74,7 +74,8 @@ internal static class JournalRefusalProof
                     catch (Exception error) { failure = error; }
                     var dataSame = File.ReadAllBytes(filename).SequenceEqual(primary);
                     var logSame = File.Exists(logname) && File.ReadAllBytes(logname).SequenceEqual(wal);
-                    host.SendLog($"readOnly={readOnly} attempt={attempt} dataSame={dataSame} logSame={logSame} error={failure}");
+                    var logLost = !File.Exists(logname) || new FileInfo(logname).Length < wal.Length;
+                    host.SendLog($"readOnly={readOnly} attempt={attempt} dataSame={dataSame} logSame={logSame} logLost={logLost} error={failure}");
                     if (damaged)
                     {
                         // A checksum-invalid creation+1 is indistinguishable from
@@ -88,8 +89,7 @@ internal static class JournalRefusalProof
                         allFixed &= failure is LiteException refusal && refusal.ErrorCode == LiteException.INVALID_DATABASE &&
                             refusal.Message.Contains("preserve both files for recovery") && dataSame && logSame;
                         allBug &= readOnly ? failure == null && dataSame && logSame :
-                            failure is LiteException format && format.ErrorCode == LiteException.INVALID_DATABASE &&
-                            format.Message.Contains("non-legacy format 0xA5") && !dataSame && logSame;
+                            failure == null && !dataSame && !logSame && logLost;
                     }
                 }
             }

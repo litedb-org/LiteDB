@@ -243,6 +243,19 @@
         "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_fields_do_not_override_verified_journal_recovery",
         "LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs#Extended_torn_header_matrix_recovers_all_committed_data"
       ]
+    },
+    {
+      "id": "3137-prepared-suffix-historical-oracle",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.ReproRunner/Repros/Issue_3137_DamagedPrimaryIdentity/JournalRefusalProof.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "The prepared-suffix candidate must refuse every open with INVALID_DATABASE and preserve both files; the real known-bad state must demonstrate unsafe admission and mutation.",
+      "reason": "Re-running the retained 7c206728b package confirms acceptance without exception, primary replacement and lost/truncated WAL. The old oracle expected an exception after mutation and misclassified this real defect as inconclusive; retained prior F-3137f output shows the same acceptance. The historical oracle now requires the exact observed acceptance, primary mutation and WAL loss, while candidate refusal/diagnostic/byte-preservation checks and all 36 permanent refusal cases are unchanged.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair"
+      ]
     }
   ]
 }
