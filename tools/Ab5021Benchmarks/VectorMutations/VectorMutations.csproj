@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CandidateProject Condition="'$(CandidateProject)' == ''">../../../LiteDB/LiteDB.csproj</CandidateProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CandidateProject)" />
+  </ItemGroup>
+</Project>

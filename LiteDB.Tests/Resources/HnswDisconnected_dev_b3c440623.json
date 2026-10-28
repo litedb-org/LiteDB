@@ -1,0 +1,7 @@
+{
+  "producerCommit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
+  "producer": "V-3140 fresh-index comparison iteration 109, Linux net8 Release TestingEnabled=true",
+  "recipe": "Insert ids 1..20, Embedding=[1,id] except every fifth null; then EnsureIndex coalesced on COALESCE($.Embedding, [0, 0]), cosine dimensions 2. Natural sampled levels 1,1,1,1,1,1,1,1,1,3,1,1,1,4,4,1,2,2,1,1. Checkpoint. No damage injection.",
+  "sha256Uncompressed": "3c63d8063ffa50831e7f594507608f21405eec8f63089f56cfdda214774722c0",
+  "expected": "20 documents; only 11 nodes reachable from root id14 over all levels; nearest id7 absent from ANN; exact scan returns 16 defined vectors; Rebuild preserves documents and restores recall."
+}

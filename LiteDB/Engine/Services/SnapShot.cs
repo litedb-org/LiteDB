@@ -218,20 +218,19 @@ namespace LiteDB.Engine
             // collection read snapshot keeps its pinned version even if a page ID it reaches was reused here.
             var walPosition = default(PagePosition);
             var dirty = (_mode == LockMode.Write || _collectionName == "$") && _transPages.DirtyPages.TryGetValue(pageID, out walPosition);
+            PageBuffer buffer;
             if (dirty)
             {
                 origin = FileOrigin.Log;
                 position = walPosition.Position;
                 walVersion = _readVersion;
+                buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             }
             else
             {
-                position = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
-                origin = position == long.MaxValue ? FileOrigin.Data : FileOrigin.Log;
-                if (origin == FileOrigin.Data) position = BasePage.GetPagePosition(pageID);
+                buffer = this.ReadCommittedPage(pageID, useLatestVersion, out origin, out position, out walVersion);
             }
 
-            var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             try
             {
                 var page = BasePage.ReadPage<T>(buffer);
@@ -637,7 +636,6 @@ namespace LiteDB.Engine
             ENSURE(!_disposed, "the snapshot is disposed");
 
             var indexer = new IndexService(this, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-            VectorIndexService vectorIndexer = null;
             
             // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)
             _transPages.FirstDeletedPageID = _collectionPage.PageID;
@@ -670,10 +668,9 @@ namespace LiteDB.Engine
             }
             
             
-            foreach (var (_, metadata) in _collectionPage.GetVectorIndexes())
+            if (_collectionPage.GetVectorIndexes().Any())
             {
-                vectorIndexer ??= new VectorIndexService(this, _header.Pragmas.Collation);
-                vectorIndexer.Drop(metadata);
+                new VectorIndexService(this, _header.Pragmas.Collation).DropAll();
 
                 safePoint();
             }

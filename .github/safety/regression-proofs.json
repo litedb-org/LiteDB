@@ -225,6 +225,85 @@
         "scripts/test-5021-regression-compatibility.py",
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
+    },
+    {
+      "repro": "Issue_3141_HnswConnectivity",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Replayed_levels_keep_every_node_reachable_and_restore_exhaustive_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Seeded_mutations_preserve_connectivity_and_exhaustive_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Equal_vectors_remain_reachable_after_saturated_neighborhoods_and_root_deletion",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Deleting_an_articulation_point_reconnects_every_surviving_component",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Lost_and_torn_graph_wal_writes_recover_whole_transactions_twice",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Graph_mutations_rollback_and_committed_wal_recover_complete_documents_and_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Existing_disconnected_graph_reads_unchanged_and_rebuild_restores_recall"
+      ]
+    },
+    {
+      "repro": "Issue_3142_DeferredAnn",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "6b2ecd3af26829c52d964da9dc0c33d67c7753a4",
+        "reason": "Refusal was introduced in this unmerged PR; no published package contains it.",
+        "pr": 3142
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexBoundedRepair_Tests.cs#Budget_exhaustion_succeeds_bounds_writes_and_survives_rollback_reopen_and_rebuild"
+      ]
+    },
+    {
+      "repro": "Issue_3142_AsymmetricDelete",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "6b2ecd3af26829c52d964da9dc0c33d67c7753a4",
+        "reason": "This repair queue crash was introduced in this unmerged PR; no published package contains it.",
+        "pr": 3142
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexHnswbReview_Tests.cs#Review2_delete_with_asymmetric_saturated_components_does_not_throw",
+        "LiteDB.Tests/Query/VectorIndexDeferredRetry_Tests.cs#Persisted_asymmetric_graph_defers_before_mutation_and_retries_from_current_documents"
+      ]
+    },
+    {
+      "repro": "Issue_3141_IncomingOnlyDelete",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Incoming_only_links_at_every_level_retain_tombstone_until_reconciliation",
+        "LiteDB.Tests/Query/VectorIndexHnswcReview_Tests.cs#Review2_hnswc_asymmetric_fixture_endpoint_delete_never_frees_a_referenced_node"
+      ]
+    },
+    {
+      "repro": "Issue_3141_DisconnectedDrop",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_fixture_drop_and_rebuild_release_all_allocated_vector_pages",
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_retry_and_drop_reclaim_pages_and_preserve_sibling_indexes"
+      ]
+    },
+    {
+      "repro": "Issue_3142_ForeignPageCensus",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "2e89d62bc95adf0ac2b4d8c5caadf8c9ab747f37",
+        "reason": "The physical vector census was introduced in this unmerged PR; no published package contains it.",
+        "pr": 3142
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Review2_hnswd_census_accepts_foreign_pages_committed_after_writer_snapshot",
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_census_preserves_foreign_commits_and_writer_atomicity",
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_read_census_keeps_pinned_pages_after_foreign_growth_and_reuse",
+        "LiteDB.Tests/Query/VectorIndexCensusRace_Tests.cs#Review2_hnswe_census_latest_frame_survives_supersede_and_checkpoint",
+        "LiteDB.Tests/Query/VectorIndexCensusRace_Tests.cs#Census_latest_read_pin_survives_checkpoint_and_is_released_on_success_or_failure"
+      ]
     }
   ]
 }

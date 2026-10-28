@@ -39,32 +39,6 @@ namespace LiteDB.Engine
             _collation = collation;
         }
 
-        public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
-        {
-            _snapshot.RequireVectorVersion();
-            var value = index.BsonExpr.ExecuteScalar(document, _collation);
-
-            if (!TryExtractVector(value, metadata.Dimensions, out var vector))
-            {
-                this.Delete(metadata, dataBlock);
-                return;
-            }
-
-            this.Delete(metadata, dataBlock);
-            this.Insert(metadata, dataBlock, vector);
-        }
-
-        public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
-        {
-            _snapshot.RequireVectorVersion();
-            if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
-            {
-                return;
-            }
-
-            this.RemoveNode(metadata, address, node);
-        }
-
         public void Drop(VectorIndexMetadata metadata)
         {
             _snapshot.RequireVectorVersion();
@@ -180,23 +154,27 @@ namespace LiteDB.Engine
                     vector,
                     currentEntry,
                     level,
-                    VectorIndexNode.MaxNeighborsPerLevel,
+                    EfConstruction,
                     EfConstruction,
                     null,
                     vectorCache);
 
-                var selected = this.SelectNeighbors(
-                    candidates.Where(x => x.Address != newAddress).ToList(),
+                var selected = this.SelectConstructionNeighbors(
+                    metadata, vectorCache, candidates.Where(x => x.Address != newAddress).ToList(),
                     VectorIndexNode.MaxNeighborsPerLevel);
 
                 var selectedAddresses = selected.Select(x => x.Address).ToList();
 
                 node = this.GetNode(newAddress);
-                node.SetNeighbors(level, selectedAddresses);
+                if (level > 0) node.SetNeighbors(level, selectedAddresses);
 
                 foreach (var neighbor in selectedAddresses)
                 {
-                    if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
+                    if (level == 0)
+                    {
+                        this.ConnectLevelZero(metadata, neighbor, newAddress, vectorCache);
+                    }
+                    else if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
                     {
                         node = this.GetNode(newAddress);
                         node.RemoveNeighbor(level, neighbor);
@@ -389,100 +367,9 @@ namespace LiteDB.Engine
                 scored.Add(new NodeDistance(neighbor, distance, double.NaN));
             }
 
-            return this.SelectNeighbors(scored, VectorIndexNode.MaxNeighborsPerLevel)
+            return this.SelectConstructionNeighbors(metadata, vectorCache, scored, VectorIndexNode.MaxNeighborsPerLevel)
                 .Select(x => x.Address)
                 .ToList();
-        }
-
-        private void RemoveNode(VectorIndexMetadata metadata, PageAddress address, VectorIndexNode node)
-        {
-            var start = PageAddress.Empty;
-
-            for (var level = 0; level < node.LevelCount && start.IsEmpty; level++)
-            {
-                foreach (var neighbor in node.GetNeighbors(level))
-                {
-                    if (!neighbor.IsEmpty)
-                    {
-                        start = neighbor;
-                        break;
-                    }
-                }
-            }
-
-            for (var level = 0; level < node.LevelCount; level++)
-            {
-                foreach (var neighbor in node.GetNeighbors(level))
-                {
-                    if (neighbor.IsEmpty)
-                    {
-                        continue;
-                    }
-
-                    var neighborNode = this.GetNode(neighbor);
-                    neighborNode.RemoveNeighbor(level, address);
-                }
-            }
-
-            if (metadata.Root == address)
-            {
-                metadata.Root = this.SelectNewRoot(metadata, address, start);
-                _snapshot.CollectionPage.IsDirty = true;
-                node = this.GetNode(address);
-            }
-
-            this.ReleaseNode(metadata, node);
-        }
-
-        private PageAddress SelectNewRoot(VectorIndexMetadata metadata, PageAddress removed, PageAddress start)
-        {
-            if (start.IsEmpty)
-            {
-                return PageAddress.Empty;
-            }
-
-            var best = PageAddress.Empty;
-            byte bestLevel = 0;
-
-            var visited = new HashSet<PageAddress>();
-            var queue = new Queue<PageAddress>();
-            queue.Enqueue(start);
-
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-                if (current == removed || !visited.Add(current))
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(current);
-                var levelCount = node.LevelCount;
-                var neighbors = new List<PageAddress>();
-
-                for (var level = 0; level < levelCount; level++)
-                {
-                    neighbors.AddRange(node.GetNeighbors(level));
-                }
-
-                if (best.IsEmpty || levelCount > bestLevel)
-                {
-                    best = current;
-                    bestLevel = levelCount;
-                }
-
-                _snapshot.Safepoint();
-
-                foreach (var neighbor in neighbors)
-                {
-                    if (!neighbor.IsEmpty && neighbor != removed)
-                    {
-                        queue.Enqueue(neighbor);
-                    }
-                }
-            }
-
-            return best;
         }
 
         private bool TryFindNode(VectorIndexMetadata metadata, PageAddress dataBlock, out PageAddress address, out VectorIndexNode node)
@@ -538,42 +425,7 @@ namespace LiteDB.Engine
 
         private void ClearTree(VectorIndexMetadata metadata)
         {
-            if (metadata.Root.IsEmpty)
-            {
-                return;
-            }
-
-            var visited = new HashSet<PageAddress>();
-            var stack = new Stack<PageAddress>();
-            stack.Push(metadata.Root);
-
-            while (stack.Count > 0)
-            {
-                var address = stack.Pop();
-                if (!visited.Add(address))
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(address);
-                var neighbors = new List<PageAddress>();
-
-                for (var level = 0; level < node.LevelCount; level++)
-                {
-                    neighbors.AddRange(node.GetNeighbors(level));
-                }
-
-                foreach (var neighbor in neighbors)
-                {
-                    if (!neighbor.IsEmpty && !visited.Contains(neighbor))
-                    {
-                        stack.Push(neighbor);
-                    }
-                }
-
-                this.ReleaseNode(metadata, node);
-                _snapshot.Safepoint();
-            }
+            this.ReconcileVectorPages(metadata, PageAddress.Empty, bounded: false);
         }
 
         private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)

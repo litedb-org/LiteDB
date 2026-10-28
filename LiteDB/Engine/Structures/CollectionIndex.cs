@@ -64,6 +64,15 @@ namespace LiteDB.Engine
         /// </summary>
         public byte Reserved { get; set; } = 1;
 
+        // The old max-level byte is read/written but otherwise unused. Bit 7 is
+        // meaningful only for vector indexes; older binaries preserve this byte
+        // but do not enforce the signal. Stop old writers before rebuilding.
+        internal bool VectorRepairDeferred
+        {
+            get => this.IndexType == 1 && (this.Reserved & 0x80) != 0;
+            set => this.Reserved = (byte)(value ? this.Reserved | 0x80 : this.Reserved & 0x7f);
+        }
+
         /// <summary>
         /// Free index page linked-list (all pages here must have at least 600 bytes)
         /// </summary>

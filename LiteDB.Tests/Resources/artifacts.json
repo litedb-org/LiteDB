@@ -1,5 +1,5 @@
 {
-  "revision": "e059a85e1cbd641e4a682882a70b1c84906d393f",
+  "revision": "d2d34f3de6373953644b037248533530bbebb87b",
   "files": {
     "DamagedDocument_5_0_21.zip": {
       "path": "compatibility/fixtures/DamagedDocument_5_0_21.zip",
@@ -28,6 +28,18 @@
     "WalCrash_5_0_21.zip": {
       "path": "compatibility/fixtures/WalCrash_5_0_21.zip",
       "sha256": "3ecc257b66fd94112f39f3b275d7e182c18ecb2e5ebeaa3361fafa682243679a"
+    },
+    "HnswAsymmetric_6b2ecd3af.zip": {
+      "path": "compatibility/fixtures/hnswc/HnswAsymmetric_6b2ecd3af.zip",
+      "sha256": "0829e321d13ab3e66d61d47281c76b2c769ba607fd5e7bb32ce7bea91d49356b"
+    },
+    "HnswMutation20000_6b2ecd3af.zip": {
+      "path": "compatibility/fixtures/hnswc/HnswMutation20000_6b2ecd3af.zip",
+      "sha256": "93a68d2038e1c8e58d5f1c66c81967e52364ca7ed16deedadb9efea3ea0e61d4"
+    },
+    "HnswDeferred_6b2ecd3af.zip": {
+      "path": "compatibility/fixtures/hnswc/HnswDeferred_6b2ecd3af.zip",
+      "sha256": "c9ee0261f77fbe996449d52889add9612ead6ed6c27ab13f35fefc6b7d0caa81"
     }
   }
 }

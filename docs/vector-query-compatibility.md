@@ -71,6 +71,108 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
+## HNSW graph connectivity
+
+New construction preserves a connected, reciprocal level-zero graph.
+Construction applies the [HNSW diversity heuristic (algorithm 4)](https://arxiv.org/abs/1603.09320)
+to the construction candidates. At level zero, an existing link is pruned only
+when a two-hop path already replaces it; if all links may be bridges, an isolated
+new node subdivides an existing link. Local deletion repair preserves all existing
+survivor edges and bridges split components using spare neighbour slots.
+This addresses [issue #3141](https://github.com/litedb-org/LiteDB/issues/3141).
+
+The node layout, eight neighbours per level, metadata lengths, and file versions
+are unchanged. Existing indexes remain readable, including disconnected graphs
+made by older releases. Opening a file does not repair its graph. An explicit
+`Rebuild()` regenerates vector indexes from preserved documents and repairs those
+graphs; it uses the existing rebuild recovery protocol and is not forced on open.
+Until rebuilt, an old disconnected graph can still omit neighbours. **Stop all
+old-version writers before running Rebuild**: they can reintroduce disconnected
+graphs even after a new-version rebuild. Old binaries parse the same bytes but do
+not enforce the deferred-repair signal described below; do not use them on an
+index awaiting repair.
+
+Deletion repair uses a branching-proportional budget B, each node with M=8 links.
+The base allowance is 1,024 expanded nodes. B is the base multiplied by the
+integer average of (former neighbour degree - 1), with a minimum multiplier of
+one: 1,024..7,168 nodes for M=8. Sparse paths keep the original base limit; wider
+neighbourhoods get more connectivity-proof work, independently of collection size.
+It verifies reciprocal paths (at most M additional reverse-link reads per
+expanded node). Degree zero needs no search; degree one checks its backlink.
+Multi-source BFS stops when former neighbours meet, or bridges fully exhausted
+components to the one remaining frontier. It need not exhaust a large surviving
+component. Before mutation it verifies enough spare endpoints exist. Asymmetric
+links or insufficient spare endpoints defer repair instead of throwing. Existing
+component edges are preserved; at most 2*(M-1) bridge endpoints are written.
+Connectivity planning uses O(B*M) address memory and O(B*M) link work, with
+bounded owner bookkeeping for M seeds. Finding a document's vector node and
+selecting a new root retain their pre-existing O(V+E) worst-case reads.
+
+Before freeing any node, a separate reverse census checks every allocated vector
+node in the collection at all four levels. An incoming-only edge, or a census
+that cannot finish within 8,192 physical database pages, retains the deleted
+node as a tombstone and defers repair. This includes references from disconnected
+components and prevents slot reuse while any uncertified reference survives.
+The census scans physical page ownership, including full pages missing from free
+lists; it adds up to 8,192 page reads plus bounded node/link inspection per page.
+The cap applies to the whole file, so unrelated collections and free pages can
+also cause conservative deferral. Connectivity-proof and dirty-page bounds above
+do not bound total delete reads.
+
+If repair cannot be certified within the budget, the document mutation still
+succeeds. Its transaction sets bit 7 of the existing `CollectionIndex.Reserved`
+byte before any graph mutation, retaining the old tree. While deferred, **all
+public vector queries, including bounded `TopKNear`, scan current documents
+exactly** using the index metric, thresholds, filters, scores and normal sort /
+limit pipeline. They never dereference stale graph document pointers. This
+costs O(N*D) scoring plus the query pipeline's sorting work (potentially spilling
+to temporary storage), rather than ANN traversal. Applications can inspect
+`vectorRepairDeferred` in `$indexes`, or `VECTOR EXACT SCAN (REPAIR DEFERRED)` in
+the query plan. A best-effort trace warning is queued once when a transaction first enters
+deferred state, not for each query or retry; an aborted transaction can therefore
+have emitted a warning too. Applications must configure a Trace listener to
+capture it. Listener delivery runs on another thread without the writer's execution
+context, so listeners cannot reenter an incomplete document mutation. Direct internal ANN searches still refuse with error 142 and a
+message derived from `ConnectivityRepairBudget`; the public planner uses scans.
+
+Each later vector write retries a bounded reconciliation from every physically
+allocated vector page in the collection and current primary-key documents. It
+never reads retained stale DataBlocks. The physical census must fit within
+1,024 database pages. The retry input allowance is separately 1,024 units: one
+per allocated vector node (including disconnected nodes) and M per current
+document per vector index. It reconstructs at most 128 current vectors across
+all vector indexes with normal HNSW construction. The legacy format records
+collection ownership without per-index node ownership, so reconciliation also
+reconstructs sibling vector indexes instead of guessing which index owns an
+orphan full page.
+Successful reconstruction, old-node reclamation and signal clearing share the
+write transaction. The input is bounded independently of N; normal reconstruction
+has additional bounded construction work, worst-case quadratic in that small
+input, and vector storage cost proportional to its dimensions. It is not a
+1,024-total-read bound for reconstruction. Attempts that do not fit make no graph
+changes and retain exact-query mode. There is no durable progress cursor or
+background worker: each retry restarts its bounded scan. **Large retained graphs
+do not have guaranteed incremental convergence**; `Rebuild()` guarantees complete
+reconstruction and signal clearing. This is an open owner design question for
+PR #3142, not a promise of background convergence. Until repair / rebuild / drop,
+retained stale vectors consume space. Commit, rollback, WAL recovery, checkpoint
+and reopen preserve the graph / document / signal transaction atomically.
+
+Dropping a vector index performs an unbounded physical census and releases every
+collection vector node and external payload, then reconstructs surviving sibling
+vector indexes from current documents in the same transaction. This can require
+additional temporary space, materializes surviving sibling vectors in memory
+(O(total sibling vectors * dimensions)), and evaluates the sibling expressions;
+failures roll back the drop. Dropping the collection releases all vector pages once without
+reconstructing siblings. Empty roots and disconnected full pages are included.
+
+No node or metadata length, reserved-byte position or file-version changes, and
+no forced legacy rebuild. Older engines preserve but ignore the bit; stop old
+writers before repair or Rebuild and do not use them on a deferred index.
+
+Approximate recall with an exploration budget below the graph size remains
+approximate. Equal-distance neighbours retain unspecified relative order.
+
 ## Legacy v8/v9 migration and vector format 11
 
 BSON-only databases use **format v11** and Auto compact databases **v12**. Both protect vector pages and the
