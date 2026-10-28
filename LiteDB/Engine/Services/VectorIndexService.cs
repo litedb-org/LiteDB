@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteDB;
@@ -42,6 +42,7 @@ namespace LiteDB.Engine
         public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
             _snapshot.RequireVectorVersion();
+            if (this.IsRepairDeferred(metadata)) return;
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
             if (!TryExtractVector(value, metadata.Dimensions, out var vector))
@@ -57,6 +58,7 @@ namespace LiteDB.Engine
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
             _snapshot.RequireVectorVersion();
+            if (this.IsRepairDeferred(metadata)) return;
             if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
                 return;
@@ -400,6 +402,16 @@ namespace LiteDB.Engine
 
         private void RemoveNode(VectorIndexMetadata metadata, PageAddress address, VectorIndexNode node)
         {
+            var seeds = node.GetNeighbors(0).ToArray();
+            var bridges = this.PlanLevelZeroRepair(seeds, address);
+            if (bridges == null)
+            {
+                this.GetRepairIndex(metadata).VectorRepairDeferred = true;
+                _snapshot.CollectionPage.IsDirty = true;
+                return;
+            }
+            // Planning can safepoint; never retain a borrowed node across it.
+            node = this.GetNode(address);
             var start = PageAddress.Empty;
 
             for (var level = 0; level < node.LevelCount && start.IsEmpty; level++)
@@ -428,8 +440,11 @@ namespace LiteDB.Engine
                 }
             }
 
-            // Deleting an articulation point must not strand its surviving components.
-            this.ReconnectLevelZero(node.GetNeighbors(0), address);
+            foreach (var bridge in bridges)
+            {
+                this.GetNode(bridge.Left).TryAddNeighbor(0, bridge.Right);
+                this.GetNode(bridge.Right).TryAddNeighbor(0, bridge.Left);
+            }
 
             if (metadata.Root == address)
             {

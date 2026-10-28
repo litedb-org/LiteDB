@@ -78,58 +78,83 @@ namespace LiteDB.Engine
             this.GetNode(target).SetNeighbors(0, targetNeighbors);
         }
 
-        private void ReconnectLevelZero(IReadOnlyList<PageAddress> seeds, PageAddress removed)
-        {
-            var oldLinks = new Dictionary<PageAddress, IReadOnlyList<PageAddress>>();
-            var order = new List<PageAddress>();
-            var components = 0;
-            foreach (var seed in seeds)
-            {
-                if (seed.IsEmpty || seed == removed || oldLinks.ContainsKey(seed)) continue;
-                components++;
-                var pending = new Stack<PageAddress>();
-                pending.Push(seed);
-                while (pending.Count > 0)
-                {
-                    var address = pending.Pop();
-                    if (address == removed || oldLinks.ContainsKey(address)) continue;
-                    var links = this.GetNode(address).GetNeighbors(0).ToArray();
-                    oldLinks.Add(address, links);
-                    order.Add(address);
-                    foreach (var neighbor in links)
-                    {
-                        if (!neighbor.IsEmpty) pending.Push(neighbor);
-                    }
-                    _snapshot.Safepoint();
-                }
-            }
-            if (components <= 1) return;
+        // Repair reads at most 1024 nodes, each with M=8 links: O(B*M) time
+        // and memory, independent of collection size. Degree <=1 needs no search.
+        // Multi-source BFS stops as soon as all former neighbours are connected.
+        // A split requires exhausting its components within B. Each component has
+        // >=2 spare slots: sum(8-degree) is positive and even. Thus a chain of
+        // bridges preserves every existing edge with <=2*(M-1) endpoint writes.
+        // No finite local search can certify arbitrary long alternate paths. On
+        // budget exhaustion retain the old tree for disposal and defer maintenance;
+        // a transactional persisted flag blocks ANN until explicit Rebuild().
+        internal const int ConnectivityRepairBudget = 1024;
 
-            // An articulation-point deletion can leave many saturated components.
-            // A spanning path needs only two slots per node. Restore old shortcuts
-            // afterwards, in reciprocal pairs, without displacing that path.
-            for (var i = 0; i < order.Count; i++)
+        private List<(PageAddress Left, PageAddress Right)> PlanLevelZeroRepair(
+            IReadOnlyList<PageAddress> seeds, PageAddress removed)
+        {
+            var bridges = new List<(PageAddress Left, PageAddress Right)>();
+            if (seeds.Count <= 1) return bridges;
+            var parents = Enumerable.Range(0, seeds.Count).ToArray();
+            var owners = new Dictionary<PageAddress, int>();
+            var pending = new Queue<PageAddress>();
+            var links = new Dictionary<PageAddress, PageAddress[]>();
+            for (var i = 0; i < seeds.Count; i++)
             {
-                var links = new List<PageAddress>(2);
-                if (i > 0) links.Add(order[i - 1]);
-                if (i + 1 < order.Count) links.Add(order[i + 1]);
-                this.GetNode(order[i]).SetNeighbors(0, links);
-                _snapshot.Safepoint();
+                owners.Add(seeds[i], i);
+                pending.Enqueue(seeds[i]);
             }
-            foreach (var address in order)
+            var components = seeds.Count;
+            int Find(int owner)
             {
-                foreach (var neighbor in oldLinks[address])
+                while (parents[owner] != owner) owner = parents[owner];
+                return owner;
+            }
+            while (pending.Count > 0)
+            {
+                if (links.Count == ConnectivityRepairBudget) return null;
+                var address = pending.Dequeue();
+                var neighbors = this.GetNode(address).GetNeighbors(0)
+                    .Where(x => x != removed && !x.IsEmpty).ToArray();
+                links.Add(address, neighbors);
+                foreach (var neighbor in neighbors)
                 {
-                    if (neighbor == removed || !oldLinks.ContainsKey(neighbor)) continue;
-                    var left = this.GetNode(address).GetNeighbors(0);
-                    var right = this.GetNode(neighbor).GetNeighbors(0);
-                    if (left.Contains(neighbor) || left.Count == VectorIndexNode.MaxNeighborsPerLevel ||
-                        right.Count == VectorIndexNode.MaxNeighborsPerLevel) continue;
-                    this.GetNode(address).TryAddNeighbor(0, neighbor);
-                    this.GetNode(neighbor).TryAddNeighbor(0, address);
+                    if (owners.TryGetValue(neighbor, out var owner))
+                    {
+                        var left = Find(owners[address]);
+                        var right = Find(owner);
+                        if (left != right)
+                        {
+                            parents[right] = left;
+                            if (--components == 1) return bridges;
+                        }
+                    }
+                    else
+                    {
+                        owners.Add(neighbor, owners[address]);
+                        pending.Enqueue(neighbor);
+                    }
                 }
                 _snapshot.Safepoint();
             }
+            var slots = new Dictionary<int, Queue<PageAddress>>();
+            foreach (var pair in links)
+            {
+                var owner = Find(owners[pair.Key]);
+                if (!slots.TryGetValue(owner, out var available))
+                    slots.Add(owner, available = new Queue<PageAddress>());
+                // A chain consumes no more than two slots in any component.
+                for (var i = pair.Value.Length; i < VectorIndexNode.MaxNeighborsPerLevel &&
+                    available.Count < 2; i++) available.Enqueue(pair.Key);
+            }
+            var groups = slots.Values.ToArray();
+            for (var i = 1; i < groups.Length; i++)
+                bridges.Add((groups[i - 1].Dequeue(), groups[i].Dequeue()));
+            return bridges;
         }
+
+        private CollectionIndex GetRepairIndex(VectorIndexMetadata metadata) =>
+            _snapshot.CollectionPage.GetVectorIndexes().Single(x => x.Metadata.Slot == metadata.Slot).Index;
+
+        private bool IsRepairDeferred(VectorIndexMetadata metadata) => this.GetRepairIndex(metadata).VectorRepairDeferred;
     }
 }
