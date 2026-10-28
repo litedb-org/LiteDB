@@ -425,42 +425,7 @@ namespace LiteDB.Engine
 
         private void ClearTree(VectorIndexMetadata metadata)
         {
-            if (metadata.Root.IsEmpty)
-            {
-                return;
-            }
-
-            var visited = new HashSet<PageAddress>();
-            var stack = new Stack<PageAddress>();
-            stack.Push(metadata.Root);
-
-            while (stack.Count > 0)
-            {
-                var address = stack.Pop();
-                if (!visited.Add(address))
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(address);
-                var neighbors = new List<PageAddress>();
-
-                for (var level = 0; level < node.LevelCount; level++)
-                {
-                    neighbors.AddRange(node.GetNeighbors(level));
-                }
-
-                foreach (var neighbor in neighbors)
-                {
-                    if (!neighbor.IsEmpty && !visited.Contains(neighbor))
-                    {
-                        stack.Push(neighbor);
-                    }
-                }
-
-                this.ReleaseNode(metadata, node);
-                _snapshot.Safepoint();
-            }
+            this.ReconcileVectorPages(metadata, PageAddress.Empty, bounded: false);
         }
 
         private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)

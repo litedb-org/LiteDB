@@ -15,6 +15,16 @@ namespace LiteDB.Engine
         private Dictionary<uint, uint> _publishedLinks;
         private List<KeyValuePair<uint, uint>> _publishing;
 
+        // Caller holds the header monitor. Unpublished reservations of another
+        // collection may not have a readable physical image yet.
+        internal HashSet<uint> GetOtherReservations(TransactionPages owner)
+        {
+            var pages = new HashSet<uint>();
+            foreach (var pending in _pending)
+                if (pending != owner) pages.UnionWith(pending.NewPages);
+            return pages;
+        }
+
         internal void Reserve(TransactionPages owner, uint pageID)
         {
             if (owner.NewPages.Count == 0) _pending.Add(owner);

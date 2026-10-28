@@ -7,6 +7,12 @@ namespace LiteDB.Engine
     {
         private void RemoveNode(VectorIndexMetadata metadata, PageAddress address, VectorIndexNode node)
         {
+            if (!this.CertifyIncomingLinks(address))
+            {
+                this.DeferRepair(metadata);
+                return;
+            }
+            node = this.GetNode(address);
             var seeds = node.GetNeighbors(0).ToArray();
             var bridges = this.PlanLevelZeroRepair(seeds, address);
             if (bridges == null)
