@@ -13,14 +13,24 @@ namespace LiteDB.Engine
             var signature = page.ReadString(HeaderPage.P_HEADER_INFO, HeaderPage.HEADER_INFO.Length);
             // A valid journal cannot authorize replacing an identifiable legacy
             // primary. Check this before considering the journal's generation.
-            if (signature == HeaderPage.HEADER_INFO && (version == 8 || version == 9))
+            // v4 (file version 7) has its signature at a different offset,
+            // even when encrypted. A raw v5+ encryption preamble is likewise
+            // an identifiable primary, not an erased page from this journal.
+            if (FileReaderV7.IsVersion(header) || HasEncryptedPreamble(header) ||
+                (signature == HeaderPage.HEADER_INFO && version != 0 &&
+                 (version < HeaderPage.CHECKSUM_FILE_VERSION || version > HeaderPage.CURRENT_FILE_VERSION)))
                 RefusePrimary();
             // Salt rotation is legitimate, but the immutable creation identity
             // of a checksum-valid published primary must still be the same.
-            if (page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page) &&
-                page.ReadInt64(HeaderPage.P_CREATION_TIME) !=
-                new BufferSlice(Header, 0, PAGE_SIZE).ReadInt64(HeaderPage.P_CREATION_TIME))
-                RefusePrimary();
+            if (page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page))
+            {
+                if (page.ReadInt64(HeaderPage.P_CREATION_TIME) !=
+                    new BufferSlice(Header, 0, PAGE_SIZE).ReadInt64(HeaderPage.P_CREATION_TIME))
+                    RefusePrimary();
+                // An intact matching primary already supplies authority. Never
+                // use the journal-only fallback to override a valid header.
+                return;
+            }
             // A torn modern header need not pass its CRC. Its format identity
             // can survive independently of the salt, including salt rotation.
             if (version >= HeaderPage.CHECKSUM_FILE_VERSION && version <= HeaderPage.CURRENT_FILE_VERSION &&
@@ -51,6 +61,20 @@ namespace LiteDB.Engine
             // of arbitrary substituted files whose identity was also destroyed.
             if (nonzero && BodyChecksum == ComputeVerifiedBody(stream, Position, Header, null)) return;
             RefusePrimary();
+        }
+
+        private static bool HasEncryptedPreamble(byte[] header)
+        {
+            if (header[0] != 1) return false;
+            // The raw encrypted header reserves bytes outside the salt and
+            // password-check blocks. A lone marker-like byte in torn plaintext
+            // is insufficient to identify an encryption preamble.
+            for (var i = 1 + ENCRYPTION_SALT_SIZE; i < PAGE_SIZE; i++)
+            {
+                if (i >= AesPreamble.CHECK_START && i < AesPreamble.CHECK_START + AesPreamble.CHECK_SIZE) continue;
+                if (header[i] != 0) return false;
+            }
+            return true;
         }
 
         private void RefusePrimary()
