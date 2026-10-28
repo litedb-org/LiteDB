@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -17,19 +18,17 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Blocked_abandoned_cleanup_does_not_block_finalizers_and_keeps_resources_rooted()
         {
+            using var file = new TempFile();
             using var entered = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             using var released = new ManualResetEventSlim();
             using var timedOut = new ManualResetEventSlim();
             var disposalThread = 0;
-            var reader = new BlockingReader(entered, resume, timedOut);
-            var resources = new WeakReference(reader);
-            var weak = Abandon(reader, () =>
+            var weak = AbandonBlocked(file.Filename, entered, resume, timedOut, () =>
             {
                 disposalThread = Environment.CurrentManagedThreadId;
                 released.Set();
-            });
-            reader = null;
+            }, out var resources);
             try
             {
                 CollectPromptly();
@@ -43,6 +42,11 @@ namespace LiteDB.Tests.Engine
             released.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
             timedOut.IsSet.Should().BeFalse("a cleanup safety timeout must fail the test instead of silently unblocking disposal");
             disposalThread.Should().NotBe(0);
+            SpinWait.SpinUntil(() =>
+            {
+                CollectPromptly();
+                return !resources.IsAlive;
+            }, TimeSpan.FromSeconds(5)).Should().BeTrue("completed cleanup must release its resource root");
         }
 
         [Theory]
@@ -70,9 +74,18 @@ namespace LiteDB.Tests.Engine
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static WeakReference Abandon(IBsonDataReader reader, Action release)
+        private static WeakReference AbandonBlocked(string filename, ManualResetEventSlim entered,
+            ManualResetEventSlim resume, ManualResetEventSlim timedOut, Action release, out WeakReference resources)
         {
-            var result = new SharedDataReader(reader, release, ownsResources: true);
+            // Custom readers are deliberately excluded from the callback-free root.
+            // Observe a lease FileStream actually held by that root instead of the
+            // BlockingReader receiver, whose liveness during Dispose is JIT-dependent.
+            // Keep allocation in this frame so caller temporaries cannot root it.
+            var leaseFiles = new[] { new FileStream(filename, FileMode.CreateNew, FileAccess.ReadWrite,
+                FileShare.None, 1, FileOptions.DeleteOnClose) };
+            resources = new WeakReference(leaseFiles[0]);
+            var result = new SharedDataReader(new BlockingReader(entered, resume, timedOut), release,
+                ownsResources: true, leaseFiles: leaseFiles);
             return new WeakReference(result);
         }
 
