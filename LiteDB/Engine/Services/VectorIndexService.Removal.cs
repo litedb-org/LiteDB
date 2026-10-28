@@ -11,8 +11,7 @@ namespace LiteDB.Engine
             var bridges = this.PlanLevelZeroRepair(seeds, address);
             if (bridges == null)
             {
-                this.GetRepairIndex(metadata).VectorRepairDeferred = true;
-                _snapshot.CollectionPage.IsDirty = true;
+                this.DeferRepair(metadata);
                 return;
             }
             // Planning can safepoint; never retain a borrowed node across it.

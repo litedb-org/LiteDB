@@ -26,6 +26,7 @@ namespace LiteDB.Engine
                         ["expression"] = index.Expression,
                         ["unique"] = index.Unique,
                         ["indexType"] = (int)index.IndexType,
+                        ["vectorRepairDeferred"] = index.VectorRepairDeferred,
                     };
                 }
             }

@@ -46,6 +46,8 @@ namespace LiteDB
         public const int REBUILD_INCOMPLETE = 139;
         /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
         public const int CHECKSUM_MISMATCH = 140;
+        /// <summary>An internal ANN search requires a connected, current vector index.</summary>
+        public const int VECTOR_REPAIR_DEFERRED = 142;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;

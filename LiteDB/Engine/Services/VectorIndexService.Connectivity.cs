@@ -78,25 +78,25 @@ namespace LiteDB.Engine
             this.GetNode(target).SetNeighbors(0, targetNeighbors);
         }
 
-        // Repair reads at most 1024 nodes, each with M=8 links: O(B*M) time
-        // and memory, independent of collection size. Degree <=1 needs no search.
-        // Multi-source BFS stops as soon as all former neighbours are connected.
-        // A split requires exhausting its components within B. Each component has
-        // >=2 spare slots: sum(8-degree) is positive and even. Thus a chain of
-        // bridges preserves every existing edge with <=2*(M-1) endpoint writes.
-        // No finite local search can certify arbitrary long alternate paths. On
-        // budget exhaustion retain the old tree for disposal and defer maintenance;
-        // a transactional persisted flag blocks ANN until explicit Rebuild().
+        // Planning reads at most B nodes (and at most M reverse links per node).
+        // Only reciprocal paths certify connectivity. Exhausted components can be
+        // bridged to the one still being searched, without exploring that large
+        // component in full. Preserve every surviving edge and plan before writing.
         internal const int ConnectivityRepairBudget = 1024;
 
         private List<(PageAddress Left, PageAddress Right)> PlanLevelZeroRepair(
             IReadOnlyList<PageAddress> seeds, PageAddress removed)
         {
             var bridges = new List<(PageAddress Left, PageAddress Right)>();
-            if (seeds.Count <= 1) return bridges;
+            if (seeds.Count == 0) return bridges;
+            // Old asymmetric graphs do not have the spare slots deletion normally
+            // creates. Even degree-one deletion must not claim those are repaired.
+            if (seeds.Any(seed => !this.GetNode(seed).GetNeighbors(0).Contains(removed))) return null;
+            if (seeds.Count == 1) return bridges;
             var parents = Enumerable.Range(0, seeds.Count).ToArray();
             var owners = new Dictionary<PageAddress, int>();
             var pending = new Queue<PageAddress>();
+            var outstanding = Enumerable.Repeat(1, seeds.Count).ToArray();
             var links = new Dictionary<PageAddress, PageAddress[]>();
             for (var i = 0; i < seeds.Count; i++)
             {
@@ -113,11 +113,14 @@ namespace LiteDB.Engine
             {
                 if (links.Count == ConnectivityRepairBudget) return null;
                 var address = pending.Dequeue();
+                outstanding[Find(owners[address])]--;
                 var neighbors = this.GetNode(address).GetNeighbors(0)
                     .Where(x => x != removed && !x.IsEmpty).ToArray();
                 links.Add(address, neighbors);
                 foreach (var neighbor in neighbors)
                 {
+                    // A directed edge alone is not a proof of mutual reachability.
+                    if (!this.GetNode(neighbor).GetNeighbors(0).Contains(address)) return null;
                     if (owners.TryGetValue(neighbor, out var owner))
                     {
                         var left = Find(owners[address]);
@@ -125,31 +128,59 @@ namespace LiteDB.Engine
                         if (left != right)
                         {
                             parents[right] = left;
+                            outstanding[left] += outstanding[right];
+                            outstanding[right] = 0;
                             if (--components == 1) return bridges;
                         }
                     }
                     else
                     {
                         owners.Add(neighbor, owners[address]);
+                        outstanding[Find(owners[address])]++;
                         pending.Enqueue(neighbor);
                     }
                 }
                 _snapshot.Safepoint();
+                // Every other component is exhausted: it cannot reach any of the
+                // remaining frontier. Leave that frontier's component at a chain end.
+                if (Enumerable.Range(0, seeds.Count).Count(i => Find(i) == i && outstanding[i] > 0) <= 1)
+                    break;
             }
             var slots = new Dictionary<int, Queue<PageAddress>>();
-            foreach (var pair in links)
+            // Include unprocessed seeds too: reciprocal backlinks guarantee one
+            // spare slot in the component that is still being searched.
+            foreach (var address in links.Keys.Concat(seeds).Distinct())
             {
-                var owner = Find(owners[pair.Key]);
+                var owner = Find(owners[address]);
                 if (!slots.TryGetValue(owner, out var available))
                     slots.Add(owner, available = new Queue<PageAddress>());
-                // A chain consumes no more than two slots in any component.
-                for (var i = pair.Value.Length; i < VectorIndexNode.MaxNeighborsPerLevel &&
-                    available.Count < 2; i++) available.Enqueue(pair.Key);
+                var degree = links.TryGetValue(address, out var neighbors) ? neighbors.Length
+                    : this.GetNode(address).GetNeighbors(0).Count(x => x != removed);
+                for (var i = degree; i < VectorIndexNode.MaxNeighborsPerLevel && available.Count < 2; i++)
+                    available.Enqueue(address);
             }
-            var groups = slots.Values.ToArray();
+            var groups = slots.OrderBy(pair => outstanding[pair.Key] > 0 ? 1 : 0).Select(pair => pair.Value).ToArray();
+            for (var i = 0; i < groups.Length; i++)
+                if (groups[i].Count < (i == 0 || i == groups.Length - 1 ? 1 : 2)) return null;
             for (var i = 1; i < groups.Length; i++)
                 bridges.Add((groups[i - 1].Dequeue(), groups[i].Dequeue()));
             return bridges;
+        }
+
+        private void DeferRepair(VectorIndexMetadata metadata)
+        {
+            var index = this.GetRepairIndex(metadata);
+            if (index.VectorRepairDeferred) return;
+            index.VectorRepairDeferred = true;
+            _snapshot.CollectionPage.IsDirty = true;
+            // Trace listeners are application callbacks. A diagnostic must never
+            // turn a successful document mutation into a failure.
+            try
+            {
+                System.Diagnostics.Trace.TraceWarning($"Vector index '{index.Name}' repair deferred " +
+                    $"(budget {ConnectivityRepairBudget}); queries use exact document scans until repaired.");
+            }
+            catch { }
         }
 
         private CollectionIndex GetRepairIndex(VectorIndexMetadata metadata) =>
