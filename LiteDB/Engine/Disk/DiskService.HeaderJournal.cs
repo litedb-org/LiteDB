@@ -45,7 +45,7 @@ namespace LiteDB.Engine
             BeginHeaderJournal(header);
         }
 
-        private void RecoverHeaderJournal(ref byte[] header)
+        private void RecoverHeaderJournal(ref byte[] header, Stream primary)
         {
             if (!_logFactory.Exists() || _logFactory.GetLength() < PAGE_SIZE) return;
             var reader = (ChecksummedWalStream)_logPool.Rent();
@@ -53,18 +53,28 @@ namespace LiteDB.Engine
             {
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
-                journal.ValidatePrimary(reader.RawStream, header);
+                // Zero ciphertext decrypts to arbitrary bytes when another block of
+                // the torn page survived. It cannot supply a creation identity.
+                var erasedCreation = primary is AesStream aes &&
+                    aes.IsBlank(header, HeaderPage.P_CREATION_TIME / 16 * 16);
+                journal.ValidatePrimary(reader.RawStream, header, erasedCreation);
                 var published = journal.IsPublished(header);
                 // Unsealed conversion records followed by legacy commits: recover
                 // the whole WAL by legacy rules; conversion restarts after checkpoint.
                 if (journal.LegacyTail) return;
                 journal.ValidateCheckpointWal(reader.RawStream, published ? header : journal.Header);
                 // A valid footer binds its prefix, not pages appended after it. Refuse
-                // foreign formats before repairing the primary. Validated journal records
-                // (including a torn conversion confirmation) are not legacy replay pages;
+                // foreign formats before repairing the primary. A prepared record's
+                // unrecognized confirmation is not proven to belong to the journal;
+                // inspect its identifiable pages before excluding it from legacy replay.
+                // Validated journal records are not legacy replay pages;
                 // intent-only redo and published modern headers keep their own recovery rules.
                 if (journal.Legacy && !published && !journal.IntentOnly)
+                {
                     this.RejectConvertedWal(reader.RawStream.Length - journal.FooterBytes);
+                    if (journal.Prepared)
+                        this.RejectPreparedForeignTail(reader.RawStream, journal.Position + PAGE_SIZE);
+                }
                 // An intent-only journal proves the primary still matches the
                 // legacy header. Keep those exact bytes: rewriting the intent
                 // metadata here can tear an AES block without sealed redo to

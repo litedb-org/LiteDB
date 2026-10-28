@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Regressions
         public static IEnumerable<object[]> ModernPairs()
         {
             foreach (var password in new[] { null, "wal-secret" })
-            foreach (var damage in new[] { "none", "checksum", "identity", "salt", "salt-marker" })
+            foreach (var damage in new[] { "none", "checksum", "identity", "salt", "salt-marker", "creation-erased", "creation-invalid" })
                 yield return new object[] { password, damage };
         }
 
@@ -74,6 +74,9 @@ namespace LiteDB.Tests.Regressions
                     modern = ConvertedWalFiles.Rewrite(modern, password, bytes =>
                     {
                         if (damage == "checksum") bytes[BasePage.P_TRANSACTION_ID] ^= 1;
+                        if (damage == "creation-erased" || damage == "creation-invalid")
+                            new BufferSlice(bytes, 0, PAGE_SIZE).Write(
+                                damage == "creation-erased" ? 0L : long.MaxValue, HeaderPage.P_CREATION_TIME);
                         // Even the version/format identity may tear; the preserved
                         // generation salt can still bind the primary to its journal.
                         if (damage == "identity")

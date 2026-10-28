@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using static LiteDB.Constants;
 
@@ -5,7 +6,7 @@ namespace LiteDB.Engine
 {
     internal sealed partial class HeaderJournal
     {
-        internal void ValidatePrimary(Stream stream, byte[] header)
+        internal void ValidatePrimary(Stream stream, byte[] header, bool erasedCreation)
         {
             if (Legacy) return;
             var page = new BufferSlice(header, 0, PAGE_SIZE);
@@ -20,13 +21,16 @@ namespace LiteDB.Engine
                 (signature == HeaderPage.HEADER_INFO && version != 0 &&
                  (version < HeaderPage.CHECKSUM_FILE_VERSION || version > HeaderPage.CURRENT_FILE_VERSION)))
                 RefusePrimary();
-            // Salt rotation is legitimate, but the immutable creation identity
-            // of a checksum-valid published primary must still be the same.
-            if (page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page))
+            // Creation time is immutable even across salt rotation. A damaged
+            // checksum must not hide a surviving, conflicting identity on *any*
+            // authority path. Zero/invalid ticks and erased AES blocks are not an identity.
+            var checksumValid = page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page);
+            var creation = page.ReadInt64(HeaderPage.P_CREATION_TIME);
+            if ((checksumValid || (!erasedCreation && creation > 0 && creation <= DateTime.MaxValue.Ticks)) &&
+                creation != new BufferSlice(Header, 0, PAGE_SIZE).ReadInt64(HeaderPage.P_CREATION_TIME))
+                RefusePrimary();
+            if (checksumValid)
             {
-                if (page.ReadInt64(HeaderPage.P_CREATION_TIME) !=
-                    new BufferSlice(Header, 0, PAGE_SIZE).ReadInt64(HeaderPage.P_CREATION_TIME))
-                    RefusePrimary();
                 // An intact matching primary already supplies authority. Never
                 // use the journal-only fallback to override a valid header.
                 if (signature == HeaderPage.HEADER_INFO && page.ReadUInt32(BasePage.P_PAGE_ID) == 0 &&

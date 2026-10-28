@@ -35,7 +35,7 @@ namespace LiteDB.Engine
                     offset += read;
                 }
 
-                this.RecoverHeaderJournal(ref bytes);
+                this.RecoverHeaderJournal(ref bytes, stream);
                 if (bytes[0] == 1)
                     throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
@@ -118,6 +118,21 @@ namespace LiteDB.Engine
                         "Move the log file aside to open the database as it was before the conversion.");
             }
             finally { _logPool.Return(reader); }
+        }
+
+        private void RejectPreparedForeignTail(Stream stream, long start)
+        {
+            var prefix = new byte[BasePage.P_PAGE_FORMAT + 1];
+            for (var position = start; position + prefix.Length <= stream.Length; position += PAGE_SIZE)
+            {
+                stream.Position = position;
+                stream.ReadRequired(prefix, 0, prefix.Length);
+                var page = new BufferSlice(prefix, 0, prefix.Length);
+                // A conversion confirmation may tear into arbitrary plaintext,
+                // especially through AES. Only a surviving page header identifies
+                // a foreign format; its marker alone is not journal ownership.
+                if (IsWalPagePrefix(page)) EnsureLegacyWalPageFormat(page, position);
+            }
         }
 
         private static bool IsWalPagePrefix(BufferSlice page)

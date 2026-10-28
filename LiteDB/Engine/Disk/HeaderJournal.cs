@@ -27,6 +27,7 @@ namespace LiteDB.Engine
         internal bool ConfirmsLegacyBackup { get; private set; }
         internal long FooterBytes { get; private set; } = Size;
         internal bool IntentOnly { get; private set; }
+        internal bool Prepared { get; private set; }
         private uint BodyChecksum { get; set; }
 
         internal void ValidateCheckpointWal(Stream stream, byte[] selectedHeader)
@@ -194,7 +195,7 @@ namespace LiteDB.Engine
             _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
             return new HeaderJournal
             {
-                Header = bytes, Position = position, ConfirmsLegacyBackup = true,
+                Header = bytes, Position = position, ConfirmsLegacyBackup = true, Prepared = true,
                 FooterBytes = stream.Length - position
             };
         }

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Utils;
@@ -71,6 +73,76 @@ namespace LiteDB.Tests.Regressions
                 descriptor.Write(0u, 148);
                 descriptor.Write(~Crc32C.Update(uint.MaxValue, wal, position, HeaderJournal.Size), 148);
             }, LiteException.CHECKSUM_MISMATCH);
+        }
+
+        [Fact]
+        public void Erased_AES_creation_block_with_plausible_ticks_is_not_a_foreign_identity()
+        {
+            const string password = "wal-secret";
+            using var file = new TempFile();
+            var log = FileHelper.GetLogFile(file.Filename);
+            try
+            {
+                ModernHeaderJournalPair_Tests.Capture(file.Filename, password, out _, out var primary, out var wal);
+                primary = EncryptWithPlausibleBlankCreation(ConvertedWalFiles.Plaintext(primary, password), password);
+                Array.Clear(primary, PAGE_SIZE + 64, 16);
+                var ticks = BitConverter.ToInt64(ConvertedWalFiles.Plaintext(primary, password), HeaderPage.P_CREATION_TIME);
+                ticks.Should().BeGreaterThan(0).And.BeLessThan(DateTime.MaxValue.Ticks);
+                foreach (var readOnly in new[] { true, false })
+                {
+                    File.WriteAllBytes(file.Filename, primary);
+                    File.WriteAllBytes(log, wal);
+                    for (var attempt = 0; attempt < 2; attempt++)
+                    {
+                        using (var db = new LiteDatabase(new ConnectionString
+                        {
+                            Filename = file.Filename, Password = password, ReadOnly = readOnly
+                        }))
+                        {
+                            db.GetCollection("rows").FindAll().Select(x => x.ToString()).Should().Equal(
+                                new BsonDocument { ["_id"] = 1, ["value"] = 42 }.ToString());
+                            db.GetCollection("newrows").FindAll().Select(x => x.ToString()).Should().Equal(
+                                new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed-modern-only" }.ToString());
+                        }
+                        if (readOnly)
+                        {
+                            File.ReadAllBytes(file.Filename).Should().Equal(primary);
+                            File.ReadAllBytes(log).Should().Equal(wal);
+                        }
+                    }
+                }
+            }
+            finally { File.Delete(log); }
+        }
+
+        private static byte[] EncryptWithPlausibleBlankCreation(byte[] plain, string password)
+        {
+            // Pick a deterministic key whose zero-ciphertext block decodes to
+            // valid ticks. Otherwise this regression would depend on random salts.
+            for (var candidate = 0; candidate < 256; candidate++)
+            {
+                var salt = new byte[16];
+                salt[0] = (byte)candidate;
+                using var derive = new Rfc2898DeriveBytes(password, salt);
+                using var aes = Aes.Create();
+                aes.Key = derive.GetBytes(32);
+                aes.Mode = CipherMode.ECB;
+                aes.Padding = PaddingMode.None;
+                using var decryptor = aes.CreateDecryptor();
+                var blank = decryptor.TransformFinalBlock(new byte[16], 0, 16);
+                var ticks = BitConverter.ToInt64(blank, HeaderPage.P_CREATION_TIME - 64);
+                if (ticks <= 0 || ticks >= DateTime.MaxValue.Ticks) continue;
+                var result = new byte[PAGE_SIZE + plain.Length];
+                result[0] = 1;
+                Buffer.BlockCopy(salt, 0, result, 1, salt.Length);
+                using var encryptor = aes.CreateEncryptor();
+                var check = Enumerable.Repeat((byte)1, 32).ToArray();
+                encryptor.TransformBlock(check, 0, check.Length, result, 32);
+                var payload = encryptor.TransformFinalBlock(plain, 0, plain.Length);
+                Buffer.BlockCopy(payload, 0, result, PAGE_SIZE, payload.Length);
+                return result;
+            }
+            throw new InvalidOperationException("No deterministic plausible blank-block ticks found");
         }
 
         private static void CheckRefusal(string password, Action<byte[], byte[]> change, int code, bool? onlyReadOnly = null)

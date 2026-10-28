@@ -26,21 +26,27 @@ namespace LiteDB.Tests.Regressions
             foreach (var marker in new byte[] { 0xA5, 0xFF, 0x42 })
             foreach (var length in new[] { 32, PAGE_SIZE - 1, PAGE_SIZE })
             foreach (var readOnly in new[] { false, true })
-                yield return new object[] { password, marker, length, readOnly };
+            {
+                yield return new object[] { password, marker, length, readOnly, false };
+                if (length == 32) yield return new object[] { password, marker, length, readOnly, true };
+            }
         }
 
         [Theory]
         [MemberData(nameof(PreparedForeignPages))]
         public void Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair(
-            string password, byte marker, int length, bool readOnly)
+            string password, byte marker, int length, bool readOnly, bool laterSlot)
         {
             var data = LegacyData(password);
             var sealedWal = Journal(data, password, new byte[0]);
+            var slot = laterSlot ? 4 : 3;
+            if (laterSlot) Array.Resize(ref sealedWal, sealedWal.Length + PAGE_SIZE);
             var wal = ConvertedWalFiles.Rewrite(sealedWal, password, bytes =>
             {
-                Array.Clear(bytes, 3 * PAGE_SIZE, PAGE_SIZE);
-                Buffer.BlockCopy(ForeignPage(marker), 0, bytes, 3 * PAGE_SIZE, length);
-            }).Take((password == null ? 0 : PAGE_SIZE) + 3 * PAGE_SIZE + length).ToArray();
+                Array.Clear(bytes, 3 * PAGE_SIZE, bytes.Length - 3 * PAGE_SIZE);
+                if (laterSlot) bytes[3 * PAGE_SIZE + BasePage.P_PAGE_TYPE] = 0xFE;
+                Buffer.BlockCopy(ForeignPage(marker), 0, bytes, slot * PAGE_SIZE, length);
+            }).Take((password == null ? 0 : PAGE_SIZE) + slot * PAGE_SIZE + length).ToArray();
             using (var raw = new MemoryStream(wal))
             using (var factory = new StreamFactory(raw, password))
             using (var stream = factory.GetStream(false, false))
@@ -51,7 +57,7 @@ namespace LiteDB.Tests.Regressions
                 journal.FooterBytes.Should().Be(stream.Length - 2 * PAGE_SIZE);
                 journal.Header.Should().NotEqual(ConvertedWalFiles.Plaintext(data, password).Take(PAGE_SIZE));
             }
-            AssertRefusedTwice(data, wal, password, marker, 3L * PAGE_SIZE + BasePage.P_PAGE_FORMAT, readOnly);
+            AssertRefusedTwice(data, wal, password, marker, (long)slot * PAGE_SIZE + BasePage.P_PAGE_FORMAT, readOnly);
         }
 
         // Corrupt input: the footer binds only its prefix, so appending a foreign
