@@ -272,6 +272,30 @@
         "LiteDB.Tests/Engine/PromotionJournalAuthority_Tests.cs#Durable_journal_recovers_erased_identity_after_two_torn_repairs",
         "fuzz:compact-power-loss"
       ]
+    },
+    {
+      "repro": "Issue_3137_DamagedPrimaryIdentity",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "7c206728b423dc3f0b8bac8ba3d6f7941a11d718",
+        "pr": 3137,
+        "reason": "The review finding is reproduced at this exact pre-merge PR head; no published package has been verified for this scenario."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_with_surviving_foreign_creation_refuses_before_repair"
+      ]
+    },
+    {
+      "repro": "Issue_3137_PreparedJournalSuffix",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "7c206728b423dc3f0b8bac8ba3d6f7941a11d718",
+        "pr": 3137,
+        "reason": "The review finding is reproduced at this exact pre-merge PR head; no published package has been verified for this scenario."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair"
+      ]
     }
   ]
 }
