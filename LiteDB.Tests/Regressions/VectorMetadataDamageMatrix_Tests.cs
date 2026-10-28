@@ -132,6 +132,13 @@ namespace LiteDB.Tests.Regressions
         {
             using var file = new TempFile();
             Create(file.Filename, password, state, VectorDistanceMetric.Euclidean);
+            BsonDocument[] expectedDocuments;
+            BsonDocument[] expectedComputed;
+            using (var original = new LiteDatabase(Connection(file.Filename, password) + ";readonly=true;legacy index scan=true"))
+            {
+                expectedDocuments = original.GetCollection("docs").FindAll().OrderBy(x => x["_id"].AsInt32).ToArray();
+                expectedComputed = original.GetCollection("computed").FindAll().OrderBy(x => x["_id"].AsInt32).ToArray();
+            }
             Damage(file.Filename, password, kind);
             var expectedIds = state == "legacy" ? Enumerable.Range(1, 40).ToArray() : new[] { 1, 2 };
             if (state == "legacy")
@@ -154,18 +161,16 @@ namespace LiteDB.Tests.Regressions
                 }
                 var docs = rebuilt.GetCollection("docs");
                 docs.FindAll().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(expectedIds);
+                docs.Count().Should().Be(expectedIds.Length);
+                docs.FindAll().OrderBy(x => x["_id"].AsInt32).Should().Equal(expectedDocuments);
                 rebuilt.GetCollection("$indexes").Find(Query.EQ("collection", "docs"))
                     .Select(x => x["name"].AsString).Should().BeEquivalentTo(
                         state == "current" ? new[] { "_id" } : new[] { "_id", "name" });
                 rebuilt.GetCollection("_rebuild_errors").FindAll().Select(x => x["message"].AsString)
-                    .Should().Contain(x => x.Contains("embedding"));
+                    .Should().ContainSingle().Which.Should().Contain("embedding").And.NotContain("coalesced");
                 if (state != "current")
                 {
-                    rebuilt.GetCollection("computed").Count().Should().Be(20);
-                    var computed = rebuilt.GetCollection("computed").Query()
-                        .TopKNear(BsonExpression.Create("COALESCE($.Embedding, [0, 0])"), new[] { 1f, 7f }, 20);
-                    computed.GetPlan()["index"]["name"].AsString.Should().Be("coalesced");
-                    computed.ToArray().Should().Contain(x => x["_id"].AsInt32 == 7);
+                    VectorMetadataRebuildAssertions.ComputedIndex(rebuilt, file.Filename, password, expectedComputed);
                 }
                 if (state != "legacy")
                 {
@@ -178,6 +183,12 @@ namespace LiteDB.Tests.Regressions
             {
                 using var db = new LiteDatabase(Connection(file.Filename, password));
                 db.GetCollection("docs").Count().Should().Be(expectedIds.Length + attempt);
+                db.GetCollection("docs").FindAll().Where(x => x["_id"].AsInt32 < 100)
+                    .OrderBy(x => x["_id"].AsInt32).Should().Equal(expectedDocuments);
+                if (state != "current")
+                {
+                    VectorMetadataRebuildAssertions.ComputedIndex(db, file.Filename, password, expectedComputed);
+                }
                 db.GetCollection("docs").Insert(VectorDocument(100 + attempt, 1f, 2f));
             }
         }
