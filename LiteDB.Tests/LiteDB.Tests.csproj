@@ -34,6 +34,7 @@
     <EmbeddedResource Include="Resources\artifacts.json" />
     <EmbeddedResource Include="Resources\HnswDisconnected_dev_b3c440623.zip" />
     <EmbeddedResource Include="Resources\HnswAsymmetric_6b2ecd3af.zip" />
+    <EmbeddedResource Include="Resources\HnswMutation20000_6b2ecd3af.zip" />
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />
     <EmbeddedResource Include="Resources\IndexMigration_5_0_21.zip" />

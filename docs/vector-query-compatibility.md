@@ -117,10 +117,11 @@ limit pipeline. They never dereference stale graph document pointers. This
 costs O(N*D) scoring plus the query pipeline's sorting work (potentially spilling
 to temporary storage), rather than ANN traversal. Applications can inspect
 `vectorRepairDeferred` in `$indexes`, or `VECTOR EXACT SCAN (REPAIR DEFERRED)` in
-the query plan. A trace warning is emitted once when a transaction first enters
+the query plan. A best-effort trace warning is queued once when a transaction first enters
 deferred state, not for each query or retry; an aborted transaction can therefore
 have emitted a warning too. Applications must configure a Trace listener to
-capture it. Direct internal ANN searches still refuse with error 142 and a
+capture it. Listener delivery runs on another thread without the writer's execution
+context, so listeners cannot reenter an incomplete document mutation. Direct internal ANN searches still refuse with error 142 and a
 message derived from `ConnectivityRepairBudget`; the public planner uses scans.
 
 Each later vector write retries a bounded reconciliation from the retained tree

@@ -178,14 +178,7 @@ namespace LiteDB.Engine
             if (index.VectorRepairDeferred) return;
             index.VectorRepairDeferred = true;
             _snapshot.CollectionPage.IsDirty = true;
-            // Trace listeners are application callbacks. A diagnostic must never
-            // turn a successful document mutation into a failure.
-            try
-            {
-                System.Diagnostics.Trace.TraceWarning($"Vector index '{index.Name}' repair deferred " +
-                    $"(base budget {ConnectivityRepairBudget}); queries use exact document scans until repaired.");
-            }
-            catch { }
+            VectorRepairDiagnostics.Report(_snapshot.CollectionName, index.Name, ConnectivityRepairBudget);
         }
 
         private CollectionIndex GetRepairIndex(VectorIndexMetadata metadata) =>

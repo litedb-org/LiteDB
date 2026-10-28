@@ -23,8 +23,8 @@ namespace LiteDB.Tests.QueryTest
             return output.ToArray();
         }
 
-        private static bool RepairDeferred(LiteDatabase db) => db.Execute(
-            "SELECT vectorRepairDeferred FROM $indexes WHERE collection = 'docs' AND name = 'embedding_idx'").Single()["vectorRepairDeferred"].AsBoolean;
+        private static bool RepairDeferred(LiteDatabase db, string collection = "docs") => db.Execute(
+            "SELECT vectorRepairDeferred FROM $indexes WHERE collection = @0 AND name = 'embedding_idx'", collection).Single()["vectorRepairDeferred"].AsBoolean;
 
         [Theory]
         [InlineData(false)]
