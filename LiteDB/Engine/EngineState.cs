@@ -93,7 +93,8 @@ namespace LiteDB.Engine
             LOG(ex.Message, "ERROR");
 
             if (ex is IOException ||
-                (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
+                (ex is LiteException lex && !lex.PreserveStorageOnRefusal &&
+                    (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
             {
                 this.StopAfter("A write", ex);
 

@@ -75,6 +75,24 @@ class ReproMatrixTests(unittest.TestCase):
         self.assertEqual(len(expected), len(entries))
         self.assertEqual([], skipped)
 
+    def test_damaged_vector_metadata_repro_has_matrix_guards_and_remains_manually_runnable(self):
+        name = "Issue_3060_DamagedVectorMetadata"
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        self.assertIn(
+            "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Damaged_metadata_cannot_admit_queries_or_writes",
+            policy[name]["tests"])
+        self.assertIn(
+            "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Healthy_indexes_keep_their_metric_and_maintain_writes",
+            policy[name]["tests"])
+        entries, skipped, _ = self.compose([repro for repro in self.inventory() if repro["name"] == name])
+        self.assertEqual([], entries)
+        self.assertEqual([name], [entry.split(" (", 1)[0] for entry in skipped])
+        entries, skipped, _ = self.compose(
+            [repro for repro in self.inventory() if repro["name"] == name], include_retired=True)
+        self.assertTrue(entries)
+        self.assertEqual({name}, {entry["repro"] for entry in entries})
+        self.assertEqual([], skipped)
+
     def test_new_repros_are_not_silently_retired(self):
         entries, _, _ = self.compose([{"name": "NewSafetyCheck"}])
         self.assertEqual(3, len(entries))

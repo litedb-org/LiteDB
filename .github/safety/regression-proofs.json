@@ -127,6 +127,23 @@
       ]
     },
     {
+      "repro": "Issue_3060_DamagedVectorMetadata",
+      "knownBad": {
+        "kind": "dev-commit",
+        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
+        "reason": "The regression was confirmed on origin/dev before this fix; no published package contains the affected current-file behavior."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/VectorMetadataDamage_Tests.cs#Current_file_refuses_damaged_vector_queries_and_writes_without_mutation",
+        "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Damaged_metadata_cannot_admit_queries_or_writes",
+        "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Healthy_indexes_keep_their_metric_and_maintain_writes",
+        "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Legacy_corrupt_metadata_still_allows_read_only_document_inspection",
+        "LiteDB.Tests/Regressions/LegacyDroppedIndex_Tests.cs#Collection_with_an_index_dropped_by_5_0_21_stays_writable",
+        "LiteDB.Tests/Regressions/PrereleaseVectorFile_Tests.cs#Prerelease_vector_indexes_stay_usable_after_the_writable_open",
+        "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Rebuild_reports_only_the_damaged_index_and_preserves_documents"
+      ]
+    },
+    {
       "repro": "Issue_3059_ReadOnlyStorageNoLog",
       "knownBad": {
         "kind": "package",

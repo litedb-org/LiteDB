@@ -84,6 +84,11 @@ list on DropIndex; every vector-index writer, v8 prereleases included, stores th
 section right after the list. Read a collection page's vector section only when the page
 lists a vector index (IndexType 1). Keep coverage Mixed
 conservatively until explicit rebuild; there is no background migration.
+If a declared vector section is CRC-valid but cannot be decoded or fails its
+index-slot/metric checks, retain that damaged state. Current ordered files must
+refuse vector queries and writes with rebuild guidance while leaving
+the files unchanged; legacy or unmigrated files keep the 5.0.21 stale-tail
+tolerance and use the migration/rebuild path.
 Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use
 bytes 14..17 (the unused persisted transaction ID); WAL frames append 64 plaintext

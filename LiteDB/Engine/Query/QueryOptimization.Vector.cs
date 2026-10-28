@@ -13,6 +13,11 @@ namespace LiteDB.Engine
             // SQL uses ordinary indexes and the streaming, disk-backed query pipeline.
             if (_query.VectorTarget == null) return false;
 
+            // A current file may still be opened for inspection after its page checksum
+            // validates, but a vector query must not fall back to scalar cosine when the
+            // declared index metadata is damaged. The fallback would change the metric.
+            _snapshot.ThrowIfDamagedVectorMetadata();
+
             // API arguments choose the index and target. Scalar VECTOR_SIM predicates
             // always mean cosine distance and must remain in the ordinary filter pipeline.
             var expression = CanonicalVectorExpression(_query.VectorField);
