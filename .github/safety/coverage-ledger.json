@@ -28,7 +28,9 @@
     {
       "id": "hnswc-count-session-capacity",
       "kind": "ci-test-config-changed",
-      "subjects": ["scripts/run-ci-tests.ps1"],
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
       "disposition": "strengthened",
       "invariant": "Every discovered vector mutation count case runs exactly once per complete-suite leg with unchanged runtime/hook guards and 300-second session timeout.",
       "reason": "Put the four additive 5k/20k deterministic workload cases in their own disjoint session instead of consuming the general query session's budget. No old test case, assertion, CI leg or timeout is removed or changed; existing partition coverage and complete evidence checks still account for every discovered case."
@@ -206,6 +208,21 @@
       "disposition": "strengthened",
       "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
       "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
+    },
+    {
+      "id": "hnswc-external-pinned-fixture-transport",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Historical vector and WAL fixtures retain immutable bytes and SHA-256 validation while old-graph HNSW regressions remain permanent.",
+      "reason": "Pin artifacts commit d2d34f3de6373953644b037248533530bbebb87b, retain all seven prior manifest paths and hashes, and add three original-head HNSW ZIPs. Move candidate-only embedded fixtures to the external repository without changing bytes or test cases; both repros and tests use ArtifactFixtures.Path. Source generators and writer provenance remain available. Maintainer artifacts-branch merge is required before #3142 merges.",
+      "coveredBy": [
+        "LiteDB.Tests/Utils/ArtifactFixtures_Tests.cs",
+        "LiteDB.Tests/Query/VectorIndexDeferredRetry_Tests.cs#Persisted_asymmetric_graph_defers_before_mutation_and_retries_from_current_documents",
+        "LiteDB.Tests/Query/VectorIndexMutationCounts_Tests.cs#Seeded_ordinary_mutations_count_deferral_without_timing"
+      ]
     }
   ]
 }

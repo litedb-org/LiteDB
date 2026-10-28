@@ -26,8 +26,7 @@ namespace LiteDB.Tests.QueryTest
             {
                 // A genuine old-writer checkpoint avoids repeating quadratic
                 // index construction; every mutation and oracle below is unchanged.
-                using var resource = typeof(VectorIndex_Tests).Assembly.GetManifestResourceStream(
-                    "LiteDB.Tests.Resources.HnswMutation20000_6b2ecd3af.zip");
+                using var resource = File.OpenRead(ArtifactFixtures.Path("HnswMutation20000_6b2ecd3af.zip"));
                 using var archive = new ZipArchive(resource);
                 using var input = archive.GetEntry("vectors.db").Open();
                 using var output = File.Create(file.Filename);

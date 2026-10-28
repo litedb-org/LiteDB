@@ -14,8 +14,7 @@ namespace LiteDB.Tests.QueryTest
     {
         private static byte[] AsymmetricFixture()
         {
-            using var resource = typeof(VectorIndex_Tests).Assembly.GetManifestResourceStream(
-                "LiteDB.Tests.Resources.HnswAsymmetric_6b2ecd3af.zip");
+            using var resource = File.OpenRead(ArtifactFixtures.Path("HnswAsymmetric_6b2ecd3af.zip"));
             using var archive = new ZipArchive(resource);
             using var input = archive.GetEntry("vectors.db").Open();
             using var output = new MemoryStream();

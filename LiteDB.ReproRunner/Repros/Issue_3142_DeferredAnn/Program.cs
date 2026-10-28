@@ -1,5 +1,5 @@
 using System.IO.Compression;
-using System.Reflection;
+using LiteDB.Tests;
 using LiteDB;
 using LiteDB.Vector;
 using LiteDB.ReproRunner.Shared;
@@ -20,8 +20,8 @@ internal static class Program
         try
         {
             var filename = Path.Combine(directory, "vectors.db");
-            using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("Fixture"))
-            using (var archive = new ZipArchive(resource!))
+            using (var resource = File.OpenRead(ArtifactFixtures.Path("HnswDeferred_6b2ecd3af.zip")))
+            using (var archive = new ZipArchive(resource))
             using (var input = archive.GetEntry("vectors.db")!.Open())
             using (var output = File.Create(filename)) input.CopyTo(output);
             using var db = new LiteDatabase(filename);
