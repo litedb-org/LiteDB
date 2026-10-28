@@ -99,6 +99,7 @@
         {"fuzz": "rebuild-transition", "model": "exception", "proves": "All backup and install gates are faulted while rebuilding indexes/FileStorage and changing passwords."}
       ],
       "gaps": [
+        {"text": "A substituted primary whose header checksum/identity is also damaged is not authenticated: ordinary data/index pages carry no independent database identity. Plausible creation/salt bytes in a checksum-invalid header cannot establish substitution without refusing valid torn-header recovery; verified journal authority retains the dev fault-model limit."},
         {"text": "Directory-entry persistence of the rebuild marker and renames is not modeled (#3011); the install matrix is not power-loss evidence."}
       ]
     },
