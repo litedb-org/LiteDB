@@ -146,12 +146,7 @@ namespace LiteDB.Tests.QueryTest
                 // A collection read must ignore this transaction's private images
                 // too, even when those pages are beyond the data-file end.
                 InsertCensusForeign(db, "private");
-                AutoTransactionMethod.MakeGenericMethod(typeof(int)).Invoke(EngineField.GetValue(db), new object[]
-                {
-                    new Func<TransactionService, int>(transaction => (int)typeof(TransactionService)
-                        .GetMethod("PersistDirtyPages", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                        .Invoke(transaction, new object[] { false }))
-                });
+                PersistCensusPrivatePages(db);
                 CensusSnapshot(db, LockMode.Read, snapshot => snapshot.GetVectorPages()).Should().Equal(original);
                 db.Rollback().Should().BeTrue();
                 db.GetCollection("foreign").Count().Should().Be(foreignRollback ? 0 : 1);
@@ -163,6 +158,47 @@ namespace LiteDB.Tests.QueryTest
                 db.GetCollection<VectorDocument>("docs").Count().Should().Be(65);
             }
         }
+
+        [Theory]
+        [InlineData("delete", false)]
+        [InlineData("delete", true)]
+        [InlineData("drop", false)]
+        [InlineData("drop", true)]
+        [InlineData("repair", false)]
+        [InlineData("repair", true)]
+        public void Vector_census_preserves_private_pages_of_other_collections_in_its_transaction(string operation, bool persist)
+        {
+            using var file = new TempFile();
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.CheckpointSize = 0;
+                BuildBoundedRepairGraph(db, 65, arms: false);
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+                if (operation == "repair") SetCensusDeferred(db);
+                db.Checkpoint();
+                foreach (var rollback in new[] { true, false })
+                {
+                    db.BeginTrans().Should().BeTrue();
+                    CensusSnapshot(db, LockMode.Write, snapshot => snapshot.ReadVersion);
+                    InsertCensusForeign(db, "foreign");
+                    if (persist) PersistCensusPrivatePages(db);
+                    if (operation == "drop") db.GetCollection<VectorDocument>("docs").DropIndex("embedding_idx").Should().BeTrue();
+                    else db.GetCollection<VectorDocument>("docs").Delete(2).Should().BeTrue();
+                    if (rollback) db.Rollback().Should().BeTrue();
+                    else db.Commit().Should().BeTrue();
+                    AssertCensusOutcome(db, operation, rollback, rollback);
+                }
+            }
+            using (var db = new LiteDatabase(file.Filename)) AssertCensusOutcome(db, operation, false, false);
+        }
+
+        private static void PersistCensusPrivatePages(LiteDatabase db) =>
+            AutoTransactionMethod.MakeGenericMethod(typeof(int)).Invoke(EngineField.GetValue(db), new object[]
+            {
+                new Func<TransactionService, int>(transaction => (int)typeof(TransactionService)
+                    .GetMethod("PersistDirtyPages", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .Invoke(transaction, new object[] { false }))
+            });
 
         private static T CensusSnapshot<T>(LiteDatabase db, LockMode mode, Func<Snapshot, T> inspect) =>
             (T)AutoTransactionMethod.MakeGenericMethod(typeof(T)).Invoke(EngineField.GetValue(db), new object[]

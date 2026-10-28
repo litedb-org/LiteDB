@@ -21,11 +21,14 @@ namespace LiteDB.Engine
             ENSURE(last < uint.MaxValue && (ulong)last <= physicalPages + (ulong)_transPages.NewPages.Count + (ulong)privatePages.Count,
                 "Invalid page bound during vector ownership scan");
             if (last > pageBudget) return null;
+            // Other collection snapshots in this transaction can also own
+            // reservations that have not been written to either file yet.
+            privatePages.UnionWith(_transPages.NewPages);
             var dataPages = _disk.GetFileLength(FileOrigin.Data) / PAGE_SIZE;
             var pages = new List<uint>();
             for (uint id = 1; id <= last; id++)
             {
-                if (id == _collectionPage.PageID || (_mode == LockMode.Write && privatePages.Contains(id))) continue;
+                if (id == _collectionPage.PageID) continue;
                 if (_localPages.TryGetValue(id, out var local))
                 {
                     if (local.PageType == PageType.VectorIndex && local.ColID == _collectionPage.PageID)
@@ -33,6 +36,8 @@ namespace LiteDB.Engine
                 }
                 else
                 {
+                    if (_mode == LockMode.Write && privatePages.Contains(id) &&
+                        !_transPages.DirtyPages.ContainsKey(id)) continue;
                     // A writer holds this collection's lock, but foreign pages
                     // can be committed or reused after its WAL pin. Classify their
                     // current images; readers must retain their pinned ownership.
