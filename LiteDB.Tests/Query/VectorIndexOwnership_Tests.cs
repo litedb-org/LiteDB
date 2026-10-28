@@ -71,6 +71,10 @@ namespace LiteDB.Tests.QueryTest
                 reuse.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(256));
                 var oldPage = db.Execute("SELECT $ FROM $dump WHERE $.pageID = @0", (int)removed.PageID).Single();
                 oldPage["collection"].AsString.Should().Be("reuse");
+                oldPage["pageType"].AsString.Should().Be("Data");
+                var reusedBytes = db.Execute($"SELECT $ FROM $dump({removed.PageID})").Single()["buffer"].AsBinary;
+                BitConverter.ToUInt16(reusedBytes, BasePage.CalcLengthAddr(removed.Index)).Should().BeGreaterThan(0,
+                    "a new insert must actually reuse the exact freed page and slot, not just reserve its page");
                 AssertAllocatedVectorLinks(db, 65);
                 docs.Query().TopKNear(x => x.Embedding, BoundedVector(-999), 65).ToArray()
                     .Select(x => x.Id).Should().BeEquivalentTo(docs.FindAll().Select(x => x.Id));

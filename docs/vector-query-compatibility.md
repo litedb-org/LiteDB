@@ -161,8 +161,9 @@ and reopen preserve the graph / document / signal transaction atomically.
 Dropping a vector index performs an unbounded physical census and releases every
 collection vector node and external payload, then reconstructs surviving sibling
 vector indexes from current documents in the same transaction. This can require
-additional temporary space and evaluates the sibling expressions; failures roll
-back the drop. Dropping the collection releases all vector pages once without
+additional temporary space, materializes surviving sibling vectors in memory
+(O(total sibling vectors * dimensions)), and evaluates the sibling expressions;
+failures roll back the drop. Dropping the collection releases all vector pages once without
 reconstructing siblings. Empty roots and disconnected full pages are included.
 
 No node or metadata length, reserved-byte position or file-version changes, and
