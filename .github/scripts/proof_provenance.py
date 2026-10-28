@@ -158,7 +158,12 @@ def check_commit(bad, label, report, dev_ref, offline=False, cwd=None):
         report.error(f"{label}: known-bad commit {commit} is not available in this clone"
                      + (f" after fetching {describe(bad)}{hint}" if kind == "pr-commit" else ""))
         return
-    on_dev = run(["git", "merge-base", "--is-ancestor", commit, dev_ref], cwd) == 0
+    ancestry = run(["git", "merge-base", "--is-ancestor", commit, dev_ref], cwd)
+    if ancestry not in (0, 1):
+        report.error(f"{label}: cannot determine ancestry against {dev_ref}; "
+                     "fetch a valid dev ref before validating known-bad provenance")
+        return
+    on_dev = ancestry == 0
     if kind == "dev-commit" and not on_dev:
         report.error(f"{label}: {commit} never existed on {dev_ref}; use pr-commit with its originating PR")
     if kind == "pr-commit":
