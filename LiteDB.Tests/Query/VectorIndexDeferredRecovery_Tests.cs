@@ -77,25 +77,34 @@ namespace LiteDB.Tests.QueryTest
         [InlineData(true)]
         public void Deferred_repair_signal_and_document_delete_recover_atomically_at_every_wal_cut(bool update)
         {
-            var writes = RunDeferredPowerCut(0, false, update);
+            // Freeze one checkpointed primary-key layout for every cut. Rebuilding
+            // it per trial changes random skip-list levels and physical write counts.
+            (byte[] Data, byte[] Log) baseline;
+            using (var data = new PromotionPowerLossStream())
+            using (var log = new PromotionPowerLossStream())
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log })))
+            {
+                db.CheckpointSize = 0;
+                BuildBoundedRepairGraph(db, 2049, arms: true);
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+                db.Checkpoint();
+                baseline = (data.DurableBytes, log.DurableBytes);
+            }
+            var writes = RunDeferredPowerCut(baseline, 0, false, update);
             writes.Should().BeGreaterThan(0);
             for (var cut = 1; cut <= writes; cut++)
             {
-                RunDeferredPowerCut(cut, false, update).Should().Be(cut);
-                RunDeferredPowerCut(cut, true, update).Should().Be(cut);
+                RunDeferredPowerCut(baseline, cut, false, update).Should().Be(cut);
+                RunDeferredPowerCut(baseline, cut, true, update).Should().Be(cut);
             }
         }
 
-        private static int RunDeferredPowerCut(int cut, bool torn, bool update)
+        private static int RunDeferredPowerCut((byte[] Data, byte[] Log) baseline, int cut, bool torn, bool update)
         {
-            using var data = new PromotionPowerLossStream();
-            using var log = new PromotionPowerLossStream();
+            using var data = new PromotionPowerLossStream(baseline.Data);
+            using var log = new PromotionPowerLossStream(baseline.Log);
             using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = data, LogStream = log }));
             db.CheckpointSize = 0;
-            BuildBoundedRepairGraph(db, 2049, arms: true);
-            db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
-            db.Checkpoint();
-            var baseline = data.DurableBytes;
             var writes = 0;
             log.TearNextWrite = (buffer, offset, count) =>
             {
@@ -113,7 +122,7 @@ namespace LiteDB.Tests.QueryTest
             if (cut == 0) mutation();
             else mutation.Should().Throw<IOException>().WithMessage("Modeled power loss");
             using var file = new TempFile();
-            File.WriteAllBytes(file.Filename, baseline);
+            File.WriteAllBytes(file.Filename, baseline.Data);
             var wal = FileHelper.GetLogFile(file.Filename);
             File.WriteAllBytes(wal, log.DurableBytes);
             try
