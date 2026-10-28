@@ -300,7 +300,9 @@
       "permanentGuard": [
         "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Review2_hnswd_census_accepts_foreign_pages_committed_after_writer_snapshot",
         "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_census_preserves_foreign_commits_and_writer_atomicity",
-        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_read_census_keeps_pinned_pages_after_foreign_growth_and_reuse"
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_read_census_keeps_pinned_pages_after_foreign_growth_and_reuse",
+        "LiteDB.Tests/Query/VectorIndexCensusRace_Tests.cs#Review2_hnswe_census_latest_frame_survives_supersede_and_checkpoint",
+        "LiteDB.Tests/Query/VectorIndexCensusRace_Tests.cs#Census_latest_read_pin_survives_checkpoint_and_is_released_on_success_or_failure"
       ]
     }
   ]
