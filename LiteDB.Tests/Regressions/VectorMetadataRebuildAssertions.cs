@@ -26,6 +26,11 @@ namespace LiteDB.Tests.Regressions
             var bytes = VectorMetadataDamageFiles.Read(filename, password);
             var header = new HeaderPage(new PageBuffer(bytes, 0, 0));
             var collectionId = header.GetCollections().Single(x => x.Key == "computed").Value;
+            var pageOffset = checked((int)collectionId * PAGE_SIZE);
+            var collectionPage = new CollectionPage(new PageBuffer(bytes, pageOffset, 0));
+            var metadata = collectionPage.GetVectorIndexMetadata("coalesced");
+            metadata.Should().NotBeNull();
+            metadata.Root.IsEmpty.Should().BeFalse("the healthy graph must retain its entry point");
             var nodes = new List<VectorIndexNode>();
             for (var start = PAGE_SIZE; start < bytes.Length; start += PAGE_SIZE)
             {
@@ -34,6 +39,7 @@ namespace LiteDB.Tests.Regressions
                 if (page.ColID == collectionId) nodes.AddRange(page.GetNodes());
             }
             nodes.Should().HaveCount(documents.Length);
+            nodes.Select(x => x.Position).Should().Contain(metadata.Root);
             nodes.Select(x => x.DataBlock).Should().OnlyHaveUniqueItems();
             foreach (var document in documents)
             {
