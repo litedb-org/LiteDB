@@ -527,6 +527,23 @@ class VersionTests(unittest.TestCase):
 
 
 class PackTests(unittest.TestCase):
+    def test_missing_exact_package_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(SystemExit, "missing exact LiteDB package 0.0.0-knownbad.abc"):
+                proof.require_exact_package(directory, "0.0.0-knownbad.abc")
+
+    def test_pack_matrix_skips_published_packages_and_checks_each_commit_package(self):
+        entries = [entry(knownBad={"kind": "package", "version": "5.0.20"}),
+                   entry(repro="Issue_2", knownBad={"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 3137})]
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(proof, "load", return_value=entries), \
+                patch.object(proof, "pack_known_bad", return_value="0.0.0-knownbad.aaaaaaaaaaaa") as pack, \
+                patch.object(proof, "require_exact_package") as require:
+            versions = proof.pack_known_bad_matrix(directory, tree=object())
+        self.assertEqual(versions, ["0.0.0-knownbad.aaaaaaaaaaaa"])
+        pack.assert_called_once_with(BAD_COMMIT, directory, 3137, None)
+        require.assert_called_once_with(directory, "0.0.0-knownbad.aaaaaaaaaaaa")
+
     def test_cli_rejects_empty_arguments_before_fetch_or_build(self):
         for arguments, error in ((["--pr", ""], "--pr must be"),
                                  (["--pr", "1", "--repository", ""], "--repository must be")):

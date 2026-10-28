@@ -55,6 +55,10 @@ internal sealed class ReproBuildCoordinator
                 arguments.Add($"-p:LiteDBPackageVersion={plan.LiteDBPackageVersion}");
             }
 
+            // A missing known-bad package must fail restore instead of allowing NuGet
+            // to substitute a lower version (NU1603).
+            arguments.Add("-p:WarningsAsErrors=NU1603");
+
             var (exitCode, output) = await RunProcessAsync(projectDirectory, arguments, cancellationToken).ConfigureAwait(false);
 
             if (exitCode != 0)
