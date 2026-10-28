@@ -101,6 +101,8 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_census_preserves_foreign_commits_and_writer_atomicity", "proves": "Pinned vector writers delete, drop or reconcile after foreign WAL-only allocation/reuse commits or rollbacks; writer rollback, repeated cold reopen and checkpoint preserve exact foreign payloads, vector links and unrelated data."},
+        {"test": "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_read_census_keeps_pinned_pages_after_foreign_growth_and_reuse", "proves": "Pinned read censuses retain original WAL-only graph pages while foreign reservations reuse them, after foreign commit/rollback, and alongside the reader transaction's own foreign private pages; no missing data-file image is read."},
         {"test": "LiteDB.Tests/Query/VectorIndexOwnershipIsolation_Tests.cs#Vector_census_ignores_foreign_unpublished_page_reservations", "proves": "A second writer holds unpublished pages while vector deletion commits; the census skips foreign private reservations, does not read missing pages, and repeated open preserves the vector graph and the peer rollback."},
         {"test": "LiteDB.Tests/Internals/MvccReclamationRace_Tests.cs#AResolvedButUnreadWalOffsetCannotBeReclaimed", "model": "exception", "proves": "A WAL offset a reader resolved but has not read yet is never reclaimed under a concurrent checkpoint."},
         {"test": "LiteDB.Tests/Internals/MvccCursorModel_Tests.cs#LongLivedCursorsAcrossCheckpoints_MatchModel", "proves": "Long-lived cursors across partial checkpoints return exactly what an independent model predicts."},

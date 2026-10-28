@@ -288,6 +288,20 @@
         "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_fixture_drop_and_rebuild_release_all_allocated_vector_pages",
         "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_retry_and_drop_reclaim_pages_and_preserve_sibling_indexes"
       ]
+    },
+    {
+      "repro": "Issue_3142_ForeignPageCensus",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "2e89d62bc95adf0ac2b4d8c5caadf8c9ab747f37",
+        "reason": "The physical vector census was introduced in this unmerged PR; no published package contains it.",
+        "pr": 3142
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Review2_hnswd_census_accepts_foreign_pages_committed_after_writer_snapshot",
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_census_preserves_foreign_commits_and_writer_atomicity",
+        "LiteDB.Tests/Query/VectorIndexCensusVersion_Tests.cs#Vector_read_census_keeps_pinned_pages_after_foreign_growth_and_reuse"
+      ]
     }
   ]
 }

@@ -21,10 +21,11 @@ namespace LiteDB.Engine
             ENSURE(last < uint.MaxValue && (ulong)last <= physicalPages + (ulong)_transPages.NewPages.Count + (ulong)privatePages.Count,
                 "Invalid page bound during vector ownership scan");
             if (last > pageBudget) return null;
+            var dataPages = _disk.GetFileLength(FileOrigin.Data) / PAGE_SIZE;
             var pages = new List<uint>();
             for (uint id = 1; id <= last; id++)
             {
-                if (id == _collectionPage.PageID || privatePages.Contains(id)) continue;
+                if (id == _collectionPage.PageID || (_mode == LockMode.Write && privatePages.Contains(id))) continue;
                 if (_localPages.TryGetValue(id, out var local))
                 {
                     if (local.PageType == PageType.VectorIndex && local.ColID == _collectionPage.PageID)
@@ -32,7 +33,19 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    var page = this.ReadPage<BasePage>(id, out _, out _, out _, false);
+                    // A writer holds this collection's lock, but foreign pages
+                    // can be committed or reused after its WAL pin. Classify their
+                    // current images; readers must retain their pinned ownership.
+                    var latest = _mode == LockMode.Write;
+                    if (id >= dataPages && !(latest && _transPages.DirtyPages.ContainsKey(id)) &&
+                        _walIndex.GetPageIndex(id, latest ? int.MaxValue : _readVersion, out _) == long.MaxValue)
+                    {
+                        // The global bound includes pages invisible to an older
+                        // reader. There is no data-file image to fall back to.
+                        ENSURE(!latest, $"Missing committed page {id} during vector ownership scan");
+                        continue;
+                    }
+                    var page = this.ReadPage<BasePage>(id, out _, out _, out _, latest);
                     var owned = page.PageType == PageType.VectorIndex && page.ColID == _collectionPage.PageID;
                     // Do not put unrelated pages or untyped wrappers in this
                     // snapshot's writable cache. No borrowed view escapes here.
