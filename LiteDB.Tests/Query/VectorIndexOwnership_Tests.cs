@@ -126,6 +126,7 @@ namespace LiteDB.Tests.QueryTest
 
         [Theory]
         [InlineData(2)]
+        [InlineData(256)]
         [InlineData(2048)]
         public void Disconnected_retry_and_drop_reclaim_pages_and_preserve_sibling_indexes(int dimensions)
         {
@@ -152,7 +153,16 @@ namespace LiteDB.Tests.QueryTest
                                 for (var l = 0; l < VectorIndexNode.MaxLevels; l++) node.SetNeighbors(l, Array.Empty<PageAddress>());
                             snapshot.Safepoint();
                         }
-                        snapshot.CollectionPage.GetVectorIndexMetadata("embedding_idx").Root = PageAddress.Empty;
+                        var target = snapshot.CollectionPage.GetVectorIndexMetadata("embedding_idx");
+                        if (dimensions == 256)
+                        {
+                            // Six 1,196-byte nodes fill every vector page beyond
+                            // the free-list threshold. After losing the root this
+                            // index has no graph or free-list ownership anchor.
+                            target.Reserved.Should().Be(uint.MaxValue);
+                            snapshot.GetVectorPages().Should().NotBeEmpty();
+                        }
+                        target.Root = PageAddress.Empty;
                         snapshot.CollectionPage.GetCollectionIndex("embedding_idx").VectorRepairDeferred = true;
                         snapshot.CollectionPage.IsDirty = true;
                         return true;
