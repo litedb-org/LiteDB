@@ -180,6 +180,7 @@
         "LiteDB/Client/Database/LiteGrouping.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Query/VectorIndexOwnershipIsolation_Tests.cs#Census_read_failure_cannot_publish_a_partial_delete", "model": "exception", "proves": "An injected physical read failure on an unrelated collection page proves the ownership census ran; deletion aborts and reopen preserves the original documents, allocated links, healthy signal and unrelated payload."},
         {"test": "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Incoming_only_links_at_every_level_retain_tombstone_until_reconciliation", "proves": "All four incoming-only edge levels retain referenced tombstones until reconciliation; rollback, checkpoint/reopen and physical page reuse by another collection preserve allocated link ownership and current documents."},
         {"test": "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_retry_and_drop_reclaim_pages_and_preserve_sibling_indexes", "proves": "Empty-root/disconnected inline and external vector nodes are reclaimed across retry and drop without orphan nodes, sibling index loss or payload page leaks against an independent document-only control."},
         {"test": "LiteDB.Tests/Query/VectorIndexOwnershipBudget_Tests.cs#Reverse_census_boundary_preserves_nodes_when_file_cannot_be_certified", "proves": "Valid sparse checksummed free-page fixtures at the physical reverse census cap and one page above distinguish certified release from metadata-only deferral, retaining exact fallback and explicit rebuild recovery."},

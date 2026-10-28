@@ -21,7 +21,7 @@ namespace LiteDB.Engine
                 var page = _snapshot.GetPage<VectorIndexPage>(id);
                 foreach (var candidate in page.GetNodes())
                     for (var level = 0; level < VectorIndexNode.MaxLevels; level++)
-                        if (candidate.GetNeighbors(level).Contains(removed) &&
+                        if (candidate.HasNeighbor(level, removed) &&
                             (level >= levelCount || !outgoing[level].Contains(candidate.Position)))
                             return false;
                 _snapshot.Safepoint();

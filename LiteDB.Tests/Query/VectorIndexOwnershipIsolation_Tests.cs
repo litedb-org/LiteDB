@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,6 +48,48 @@ namespace LiteDB.Tests.QueryTest
             {
                 AssertConnectivity(db, 64);
                 db.GetCollection("private").Count().Should().Be(0);
+            }
+        }
+
+        [Fact]
+        public void Census_read_failure_cannot_publish_a_partial_delete()
+        {
+            using var file = new TempFile();
+            uint coldPage;
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                BuildBoundedRepairGraph(db, 65, arms: false);
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+                coldPage = (uint)db.Execute("SELECT $ FROM $dump WHERE $.collection = 'cold' AND $.pageType = 'Data'")
+                    .Single()["pageID"].AsInt32;
+                db.Checkpoint();
+            }
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                var engine = (LiteEngine)EngineField.GetValue(db);
+                var reached = false;
+                engine.SimulateDiskReadFail = page =>
+                {
+                    if (page.ReadUInt32(BasePage.P_PAGE_ID) != coldPage) return;
+                    reached = true;
+                    throw new IOException("census read failure");
+                };
+                try
+                {
+                    Action delete = () => db.GetCollection<VectorDocument>("docs").Delete(2);
+                    delete.Should().Throw<IOException>().WithMessage("census read failure");
+                    reached.Should().BeTrue("ordinary graph lookup cannot visit the unrelated collection page");
+                }
+                finally { engine.SimulateDiskReadFail = null; }
+            }
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.GetCollection<VectorDocument>("docs").Count().Should().Be(65);
+                db.GetCollection<VectorDocument>("docs").FindById(2).Should().NotBeNull();
+                RepairDeferred(db).Should().BeFalse();
+                AssertConnectivity(db, 65);
+                AssertAllocatedVectorLinks(db, 65);
+                db.GetCollection("cold").FindById(1)["value"].AsString.Should().Be("untouched");
             }
         }
 
