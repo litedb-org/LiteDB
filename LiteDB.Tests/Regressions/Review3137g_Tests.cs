@@ -7,6 +7,7 @@ using Xunit;
 
 namespace LiteDB.Tests.Regressions
 {
+    [Trait("Category", "IoSafety")]
     public class Review3137g_Tests
     {
         [Fact]

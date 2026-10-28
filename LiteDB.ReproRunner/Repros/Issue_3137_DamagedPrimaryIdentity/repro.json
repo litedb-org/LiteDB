@@ -1,10 +1,10 @@
 {
   "id": "Issue_3137_DamagedPrimaryIdentity",
-  "title": "Damaged modern primary loses surviving foreign creation identity during journal recovery",
+  "title": "Torn modern primary identity wrongly refuses valid same-database journal recovery",
   "issues": [
     "https://github.com/litedb-org/LiteDB/pull/3137"
   ],
-  "failingSince": "0.0.0-knownbad.7c206728b423",
+  "failingSince": "0.0.0-knownbad.fc39c52da8c5",
   "timeoutSeconds": 120,
   "requiresParallel": false,
   "defaultInstances": 1,

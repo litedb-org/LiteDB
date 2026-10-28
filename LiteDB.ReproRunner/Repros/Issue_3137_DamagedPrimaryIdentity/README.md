@@ -1,7 +1,21 @@
-# Damaged modern primary loses surviving foreign creation identity during journal recovery
+# Torn modern primary identity refuses valid journal recovery
 
-Pins PR #3137 commit `7c206728b423dc3f0b8bac8ba3d6f7941a11d718`. No released package has been verified for this exact pre-merge defect.
+The proof captures a real modern checkpoint journal using public caller-stream
+I/O, then changes the primary creation timestamp by one tick without repairing
+its checksum. This is indistinguishable from a same-database header tear.
+The known-bad PR commit `fc39c52da8c5c6bab4ae5baffdb5ae81b0aa3a99` refuses
+both writable and read-only opens without changing either file (exit 0).
+The candidate recovers all committed rows, indexed lookup and the WAL-only
+collection across two opens; read-only sources remain identical (exit 1).
+Unexpected results exit 2. An unchanged-primary positive control must recover.
 
-The public-API proof constructs the affected file pair, checks a matching recovery control, and checks both files across two writable and two read-only opens. The damaged-primary case captures a real checkpoint journal then changes only creation time, invalidating the primary CRC. The prepared-suffix case uses the embedded released 5.0.21 primary and constructs CRC-bound conversion records with an identifiable A5 confirmation-slot page.
+This proof replaces the earlier incorrect assumption that creation+1 on a
+checksum-invalid header proved a foreign database. The generation test retains
+all 20 original damage cases as recovery checks, and intact conflicting creation
+identity still refuses. The separate prepared-suffix proof retains its original
+known-bad state and preserving-refusal oracle.
 
-Exit 0 requires the exact known-bad mutation/admission; exit 1 requires INVALID_DATABASE refusal and byte-identical files; other outcomes exit 2. Broader plain/encrypted, partial-tail and authority-path coverage remains in the registered xUnit guards.
+Fault model: synthetic corrupt/torn primary bytes with a retained valid journal,
+not hardware power loss. Substitution plus identity damage is unauthenticated,
+as on dev; ordinary data/index pages have no database identity. See
+`docs/rules/compatibility.md` and `.github/safety/regression-proofs.json`.

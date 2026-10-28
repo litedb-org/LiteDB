@@ -45,7 +45,7 @@ namespace LiteDB.Engine
             BeginHeaderJournal(header);
         }
 
-        private void RecoverHeaderJournal(ref byte[] header, Stream primary)
+        private void RecoverHeaderJournal(ref byte[] header)
         {
             if (!_logFactory.Exists() || _logFactory.GetLength() < PAGE_SIZE) return;
             var reader = (ChecksummedWalStream)_logPool.Rent();
@@ -53,11 +53,7 @@ namespace LiteDB.Engine
             {
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
-                // Zero ciphertext decrypts to arbitrary bytes when another block of
-                // the torn page survived. It cannot supply a creation identity.
-                var erasedCreation = primary is AesStream aes &&
-                    aes.IsBlank(header, HeaderPage.P_CREATION_TIME / 16 * 16);
-                journal.ValidatePrimary(reader.RawStream, header, erasedCreation);
+                journal.ValidatePrimary(reader.RawStream, header);
                 var published = journal.IsPublished(header);
                 // Unsealed conversion records followed by legacy commits: recover
                 // the whole WAL by legacy rules; conversion restarts after checkpoint.

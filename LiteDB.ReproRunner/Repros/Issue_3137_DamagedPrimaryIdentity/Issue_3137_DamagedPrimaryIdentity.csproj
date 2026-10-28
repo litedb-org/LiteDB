@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
     <!-- The known-bad state (see .github/safety/regression-proofs.json). -->
-    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">0.0.0-knownbad.7c206728b423</LiteDBPackageVersion>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">0.0.0-knownbad.fc39c52da8c5</LiteDBPackageVersion>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseProjectReference)' == 'true'">

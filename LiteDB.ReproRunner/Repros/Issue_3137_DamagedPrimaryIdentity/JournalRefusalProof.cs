@@ -56,18 +56,41 @@ internal static class JournalRefusalProof
                 for (var attempt = 0; attempt < 2; attempt++)
                 {
                     Exception? failure = null;
-                    try { using var db = Open(filename, readOnly); }
+                    try
+                    {
+                        using var db = Open(filename, readOnly);
+                        if (damaged)
+                        {
+                            Require(db.GetCollection("rows").FindAll().Select(x => x.ToString()).SequenceEqual(new[]
+                            {
+                                new BsonDocument { ["_id"] = 1, ["value"] = 42 }.ToString()
+                            }), "Torn-header recovery lost committed rows");
+                            Require(db.GetCollection("rows").Find(Query.EQ("_id", 1)).Single()["value"].AsInt32 == 42,
+                                "Torn-header recovery lost indexed lookup");
+                            Require(db.GetCollection("newrows").FindAll().Single()["value"].AsString == "modern",
+                                "Torn-header recovery lost the WAL-only collection");
+                        }
+                    }
                     catch (Exception error) { failure = error; }
                     var dataSame = File.ReadAllBytes(filename).SequenceEqual(primary);
                     var logSame = File.Exists(logname) && File.ReadAllBytes(logname).SequenceEqual(wal);
-                    var truncated = File.Exists(logname) && new FileInfo(logname).Length < wal.Length;
                     host.SendLog($"readOnly={readOnly} attempt={attempt} dataSame={dataSame} logSame={logSame} error={failure}");
-                    allFixed &= failure is LiteException refusal && refusal.ErrorCode == LiteException.INVALID_DATABASE &&
-                        refusal.Message.Contains("preserve both files for recovery") && dataSame && logSame;
-                    allBug &= readOnly ? failure == null && dataSame && logSame :
-                        damaged ? failure == null && !dataSame && truncated :
-                        failure is LiteException format && format.ErrorCode == LiteException.INVALID_DATABASE &&
-                        format.Message.Contains("non-legacy format 0xA5") && !dataSame && logSame;
+                    if (damaged)
+                    {
+                        // A checksum-invalid creation+1 is indistinguishable from
+                        // a torn own header. The regression is refusing valid redo.
+                        allFixed &= failure == null && (!readOnly || (dataSame && logSame));
+                        allBug &= failure is LiteException refusal && refusal.ErrorCode == LiteException.INVALID_DATABASE &&
+                            dataSame && logSame;
+                    }
+                    else
+                    {
+                        allFixed &= failure is LiteException refusal && refusal.ErrorCode == LiteException.INVALID_DATABASE &&
+                            refusal.Message.Contains("preserve both files for recovery") && dataSame && logSame;
+                        allBug &= readOnly ? failure == null && dataSame && logSame :
+                            failure is LiteException format && format.ErrorCode == LiteException.INVALID_DATABASE &&
+                            format.Message.Contains("non-legacy format 0xA5") && !dataSame && logSame;
+                    }
                 }
             }
             Require(allFixed || allBug, "Neither exact known-bad behavior nor preserving refusal occurred");

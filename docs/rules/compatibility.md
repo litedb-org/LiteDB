@@ -153,20 +153,25 @@ vector compatibility script. See `docs/compact-document-storage.md` for layout,
 bounds, BSON rebuild options, and benchmark results.
 
 Modern header-journal recovery validates the original primary before selecting a
-replacement header. Identifiable v8/v9 primaries and primaries with a surviving
-conflicting creation identity (valid nonzero DateTime ticks, even with a damaged
-checksum) refuse before repair or WAL truncation. Zero or invalid creation ticks
-and the AES zero-ciphertext sentinel can be torn bytes. Recognizable torn modern headers may bind through surviving
-format or matching nonzero generation evidence after that identity check. A tear
-can erase both modern identity and salt; then recovery requires the validated backup
-and footer, a nonzero journal generation, verified WAL frame generations, checksums
-and transaction witnesses, and the bound physical WAL prefix. See
+replacement header. Intact recognizable legacy/unsupported formats (including the
+v4/v7 layout and raw encrypted preamble) refuse before repair or WAL truncation.
+A checksum-valid modern primary retains its own authority; conflicting creation
+identity refuses without changing either file. A checksum-invalid primary cannot
+supply trustworthy creation time or generation salt: partial plaintext or AES
+ciphertext tears can produce plausible but wrong values. Its recovery requires
+the validated journal backup/footer, nonzero journal generation, verified WAL
+frame generations, checksums and transaction witnesses, and bound physical WAL
+prefix, even when modern format or matching salt bytes survive. See
 [modern journal pair tests](../../LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs),
-[generation refusal tests](../../LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs) and
+[generation tests](../../LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs),
+[288-case tear matrix](../../LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs) and
 [repeated torn repair tests](../../LiteDB.Tests/Engine/PromotionJournalAuthority_Tests.cs).
-This assumes ordered per-file torn writes with the durable journal retained. CRCs
-and generation salts do not authenticate arbitrary substituted files whose primary
-identity was also independently destroyed.
+This assumes ordered per-file torn writes with the durable journal retained.
+Ordinary data/index pages carry no database identity; their CRCs validate only
+page bytes. WAL salts bind the WAL to the journal, not the primary. As on dev,
+a substituted primary plus damaged identity is not authenticated. Refusing such
+input solely from plausible fields of its damaged header would also refuse valid
+same-database recovery. No arbitrary-substitution or device-reset guarantee is made.
 
 ## Migration and failure questions
 

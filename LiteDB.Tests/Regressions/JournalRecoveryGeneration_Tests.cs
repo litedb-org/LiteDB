@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Regressions
 {
     public class JournalRecoveryGeneration_Tests
     {
-        public static IEnumerable<object[]> DamagedForeignIdentities()
+        public static IEnumerable<object[]> TornIdentities()
         {
             foreach (var password in new[] { null, "wal-secret" })
             foreach (var damage in new[] { "checksum", "salt", "salt-marker", "version", "all-format" })
@@ -22,13 +22,15 @@ namespace LiteDB.Tests.Regressions
         }
 
         [Theory]
-        [MemberData(nameof(DamagedForeignIdentities))]
-        public void Damaged_primary_with_surviving_foreign_creation_refuses_before_repair(
+        [MemberData(nameof(TornIdentities))]
+        public void Damaged_primary_fields_do_not_override_verified_journal_recovery(
             string password, string damage, bool readOnly)
         {
-            CheckRefusal(password, (primary, wal) =>
+            CheckRecovery(password, primary =>
             {
                 var page = new BufferSlice(primary, 0, PAGE_SIZE);
+                // This is the same database with torn fields, not an independently
+                // created foreign database. Even plausible ticks/salt may be wrong.
                 page.Write(page.ReadInt64(HeaderPage.P_CREATION_TIME) + 1, HeaderPage.P_CREATION_TIME);
                 if (damage == "salt" || damage == "salt-marker") primary[WalChecksum.SaltPosition] ^= 1;
                 if (damage == "salt-marker") primary[WalChecksum.MarkerPosition] ^= 1;
@@ -40,7 +42,7 @@ namespace LiteDB.Tests.Regressions
                     page.Write(creation, HeaderPage.P_CREATION_TIME);
                 }
                 page.ReadUInt32(BasePage.P_TRANSACTION_ID).Should().NotBe(PageChecksum.Compute(page));
-            }, LiteException.INVALID_DATABASE, readOnly);
+            }, readOnly);
         }
 
         [Theory]
@@ -109,6 +111,39 @@ namespace LiteDB.Tests.Regressions
                             File.ReadAllBytes(file.Filename).Should().Equal(primary);
                             File.ReadAllBytes(log).Should().Equal(wal);
                         }
+                    }
+                }
+            }
+            finally { File.Delete(log); }
+        }
+
+        private static void CheckRecovery(string password, Action<byte[]> change, bool readOnly)
+        {
+            using var file = new TempFile();
+            var log = FileHelper.GetLogFile(file.Filename);
+            try
+            {
+                ModernHeaderJournalPair_Tests.Capture(file.Filename, password, out _, out var primary, out var wal);
+                primary = ConvertedWalFiles.Rewrite(primary, password, change);
+                File.WriteAllBytes(file.Filename, primary);
+                File.WriteAllBytes(log, wal);
+                for (var attempt = 0; attempt < 2; attempt++)
+                {
+                    using (var db = new LiteDatabase(new ConnectionString
+                    {
+                        Filename = file.Filename, Password = password, ReadOnly = readOnly
+                    }))
+                    {
+                        var expected = new BsonDocument { ["_id"] = 1, ["value"] = 42 }.ToString();
+                        db.GetCollection("rows").FindAll().Select(x => x.ToString()).Should().Equal(expected);
+                        db.GetCollection("rows").Find(Query.EQ("_id", 1)).Select(x => x.ToString()).Should().Equal(expected);
+                        db.GetCollection("newrows").FindAll().Select(x => x.ToString()).Should().Equal(
+                            new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed-modern-only" }.ToString());
+                    }
+                    if (readOnly)
+                    {
+                        File.ReadAllBytes(file.Filename).Should().Equal(primary);
+                        File.ReadAllBytes(log).Should().Equal(wal);
                     }
                 }
             }

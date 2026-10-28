@@ -277,12 +277,15 @@
       "repro": "Issue_3137_DamagedPrimaryIdentity",
       "knownBad": {
         "kind": "pr-commit",
-        "commit": "7c206728b423dc3f0b8bac8ba3d6f7941a11d718",
+        "commit": "fc39c52da8c5c6bab4ae5baffdb5ae81b0aa3a99",
         "pr": 3137,
-        "reason": "The review finding is reproduced at this exact pre-merge PR head; no published package has been verified for this scenario."
+        "reason": "F-3137f introduced false refusal of torn same-database creation identity in this PR; dev recovers. Re-pinned after V-3137g disproved the earlier damaged-foreign identity assumption."
       },
       "permanentGuard": [
-        "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_with_surviving_foreign_creation_refuses_before_repair"
+        "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_fields_do_not_override_verified_journal_recovery",
+        "LiteDB.Tests/Regressions/Review3137g_Tests.cs#Partially_erased_creation_with_matching_generation_and_valid_redo_recovers",
+        "LiteDB.Tests/Regressions/Review3137g_Tests.cs#Partially_erased_ciphertext_creation_block_with_valid_redo_recovers",
+        "LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs#Extended_torn_header_matrix_recovers_all_committed_data"
       ]
     },
     {
