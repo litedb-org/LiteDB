@@ -21,7 +21,7 @@ try
     var samples = Run(count, operations, Path.Combine(root, "measured.db"));
     var assembly = typeof(LiteDatabase).Assembly;
     Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-    File.WriteAllText(output, JsonSerializer.Serialize(new
+    File.WriteAllText(output, System.Text.Json.JsonSerializer.Serialize(new
     {
         count, operations, dimensions = 64, seed = 3142,
         reportOnly = true,

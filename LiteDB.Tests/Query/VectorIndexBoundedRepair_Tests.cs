@@ -96,6 +96,47 @@ namespace LiteDB.Tests.QueryTest
             }
         }
 
+        [Fact]
+        public void Saturated_split_components_keep_existing_edges_and_use_spare_endpoints()
+        {
+            using var db = new LiteDatabase(":memory:");
+            BuildBoundedRepairGraph(db, 65, arms: true);
+            db.BeginTrans().Should().BeTrue();
+            // Upgrade the snapshot to write mode before installing eight cliques.
+            db.GetCollection<VectorDocument>("docs").Update(new VectorDocument { Id = 1, Embedding = BoundedVector(1) });
+            var edges = InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            {
+                CountNodes(snapshot, metadata.Root).Should().Be(65);
+                var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
+                var nodes = snapshot.LocalPages.OfType<VectorIndexPage>().SelectMany(x => x.GetNodes())
+                    .ToDictionary(node => lookup.Load(node.DataBlock)["_id"].AsInt32, node => node.Position);
+                var original = new Dictionary<PageAddress, PageAddress[]>();
+                for (var id = 1; id <= 65; id++)
+                {
+                    var links = id == 1 ? Enumerable.Range(0, 8).Select(i => nodes[2 + i * 8]).ToArray()
+                        : Enumerable.Range(2 + (id - 2) / 8 * 8, 8).Where(other => other != id).Select(other => nodes[other])
+                            .Concat((id - 2) % 8 == 0 ? new[] { nodes[1] } : Array.Empty<PageAddress>()).ToArray();
+                    snapshot.GetPage<VectorIndexPage>(nodes[id].PageID).GetNode(nodes[id].Index).SetNeighbors(0, links);
+                    if (id > 1) original.Add(nodes[id], links.Where(x => x != nodes[1]).ToArray());
+                }
+                metadata.Root = nodes[1];
+                snapshot.CollectionPage.IsDirty = true;
+                return original;
+            });
+            db.Commit().Should().BeTrue();
+            db.GetCollection<VectorDocument>("docs").Delete(1).Should().BeTrue();
+            AssertConnectivity(db, 64);
+            InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            {
+                foreach (var pair in edges)
+                {
+                    var links = snapshot.GetPage<VectorIndexPage>(pair.Key.PageID).GetNode(pair.Key.Index).GetNeighbors(0);
+                    links.Should().Contain(pair.Value).And.HaveCountLessThanOrEqualTo(8);
+                }
+                return true;
+            }).Should().BeTrue();
+        }
+
         private static void MutateDeferredGraph(LiteDatabase db, bool update)
         {
             var docs = db.GetCollection<VectorDocument>("docs");

@@ -15,8 +15,9 @@ namespace LiteDB.Engine
             bool applyLimit = true,
             DatafileLookup documentLookup = null)
         {
-            if (this.IsRepairDeferred(metadata))
-                throw new LiteException(0, "Vector index repair deferred after reaching the 1024-node mutation budget. " +
+            var index = this.GetRepairIndex(metadata);
+            if (index.VectorRepairDeferred)
+                throw new LiteException(0, $"Vector index repair deferred for '{index.Name}' after reaching the 1024-node mutation budget. " +
                     "Run Rebuild() after stopping old-version writers; use WhereNear for an exact scan meanwhile.");
 
             if (metadata.Root.IsEmpty)

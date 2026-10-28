@@ -4,6 +4,7 @@ using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Tests.Engine;
+using LiteDB.Vector;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -71,19 +72,21 @@ namespace LiteDB.Tests.QueryTest
             }
         }
 
-        [Fact]
-        public void Deferred_repair_signal_and_document_delete_recover_atomically_at_every_wal_cut()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Deferred_repair_signal_and_document_delete_recover_atomically_at_every_wal_cut(bool update)
         {
-            var writes = RunDeferredPowerCut(0, false);
+            var writes = RunDeferredPowerCut(0, false, update);
             writes.Should().BeGreaterThan(0);
             for (var cut = 1; cut <= writes; cut++)
             {
-                RunDeferredPowerCut(cut, false).Should().Be(cut);
-                RunDeferredPowerCut(cut, true).Should().Be(cut);
+                RunDeferredPowerCut(cut, false, update).Should().Be(cut);
+                RunDeferredPowerCut(cut, true, update).Should().Be(cut);
             }
         }
 
-        private static int RunDeferredPowerCut(int cut, bool torn)
+        private static int RunDeferredPowerCut(int cut, bool torn, bool update)
         {
             using var data = new PromotionPowerLossStream();
             using var log = new PromotionPowerLossStream();
@@ -104,7 +107,7 @@ namespace LiteDB.Tests.QueryTest
             Action mutation = () =>
             {
                 db.BeginTrans().Should().BeTrue();
-                db.GetCollection<VectorDocument>("docs").Delete(1).Should().BeTrue();
+                MutateDeferredGraph(db, update);
                 db.Commit().Should().BeTrue();
             };
             if (cut == 0) mutation();
@@ -119,11 +122,12 @@ namespace LiteDB.Tests.QueryTest
                 {
                     using var recovered = new LiteDatabase(file.Filename);
                     var docs = recovered.GetCollection<VectorDocument>("docs");
-                    var first = cut == 0 ? 2 : 1;
+                    var first = cut == 0 && !update ? 2 : 1;
                     var stored = docs.FindAll().OrderBy(x => x.Id).ToArray();
                     stored.Select(x => x.Id).Should().Equal(Enumerable.Range(first, 2050 - first));
-                    foreach (var document in stored) document.Embedding.Should().Equal(BoundedVector(document.Id));
-                    if (cut == 0) AssertDeferredRepair(recovered, update: false);
+                    foreach (var document in stored)
+                        document.Embedding.Should().Equal(BoundedVector(cut == 0 && update && document.Id == 1 ? -1 : document.Id));
+                    if (cut == 0) AssertDeferredRepair(recovered, update);
                     else
                     {
                         AssertConnectivity(recovered, 2049);
