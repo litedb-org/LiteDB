@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Utils;
@@ -10,6 +11,36 @@ namespace LiteDB.Tests.Regressions
 {
     public class JournalRecoveryGeneration_Tests
     {
+        public static IEnumerable<object[]> DamagedForeignIdentities()
+        {
+            foreach (var password in new[] { null, "wal-secret" })
+            foreach (var damage in new[] { "checksum", "salt", "salt-marker", "version", "all-format" })
+            foreach (var readOnly in new[] { false, true })
+                yield return new object[] { password, damage, readOnly };
+        }
+
+        [Theory]
+        [MemberData(nameof(DamagedForeignIdentities))]
+        public void Damaged_primary_with_surviving_foreign_creation_refuses_before_repair(
+            string password, string damage, bool readOnly)
+        {
+            CheckRefusal(password, (primary, wal) =>
+            {
+                var page = new BufferSlice(primary, 0, PAGE_SIZE);
+                page.Write(page.ReadInt64(HeaderPage.P_CREATION_TIME) + 1, HeaderPage.P_CREATION_TIME);
+                if (damage == "salt" || damage == "salt-marker") primary[WalChecksum.SaltPosition] ^= 1;
+                if (damage == "salt-marker") primary[WalChecksum.MarkerPosition] ^= 1;
+                if (damage == "version") primary[HeaderPage.P_FILE_VERSION] = 0;
+                if (damage == "all-format")
+                {
+                    var creation = page.ReadInt64(HeaderPage.P_CREATION_TIME);
+                    Array.Clear(primary, 0, PAGE_SIZE);
+                    page.Write(creation, HeaderPage.P_CREATION_TIME);
+                }
+                page.ReadUInt32(BasePage.P_TRANSACTION_ID).Should().NotBe(PageChecksum.Compute(page));
+            }, LiteException.INVALID_DATABASE, readOnly);
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("wal-secret")]
@@ -42,7 +73,7 @@ namespace LiteDB.Tests.Regressions
             }, LiteException.CHECKSUM_MISMATCH);
         }
 
-        private static void CheckRefusal(string password, Action<byte[], byte[]> change, int code)
+        private static void CheckRefusal(string password, Action<byte[], byte[]> change, int code, bool? onlyReadOnly = null)
         {
             using var file = new TempFile();
             var log = FileHelper.GetLogFile(file.Filename);
@@ -54,7 +85,7 @@ namespace LiteDB.Tests.Regressions
                 change(plainPrimary, plainWal);
                 primary = ConvertedWalFiles.Rewrite(primary, password, bytes => Buffer.BlockCopy(plainPrimary, 0, bytes, 0, plainPrimary.Length));
                 wal = ConvertedWalFiles.Rewrite(wal, password, bytes => Buffer.BlockCopy(plainWal, 0, bytes, 0, plainWal.Length));
-                foreach (var readOnly in new[] { false, true })
+                foreach (var readOnly in onlyReadOnly.HasValue ? new[] { onlyReadOnly.Value } : new[] { false, true })
                 {
                     File.WriteAllBytes(file.Filename, primary);
                     File.WriteAllBytes(log, wal);

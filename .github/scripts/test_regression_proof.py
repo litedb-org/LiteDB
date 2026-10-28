@@ -208,6 +208,23 @@ class ProvenanceTests(unittest.TestCase):
                         self.assertTrue(any(expected in error for error in report.errors), report.errors)
 
 
+    def test_unresolved_dev_ref_refuses_unknown_classification(self):
+        with GitRepo() as repo:
+            commit = repo.commit({"base.txt": "base"})
+            repo._git("update-ref", "refs/pull/7/head", commit)
+            repo._git("update-ref", "refs/proof/pr-7", commit)
+            repo._git("remote", "add", "origin", str(repo.path))
+            for kind in ("dev-commit", "pr-commit"):
+                for offline in (False, True):
+                    with self.subTest(kind=kind, offline=offline):
+                        report = common.Report("")
+                        with patch.object(provenance, "listed_pr_commit") as membership:
+                            provenance.check_commit({"kind": kind, "commit": commit, "pr": 7},
+                                                    REPRO, report, "origin/missing-dev", offline=offline)
+                        self.assertTrue(any("cannot determine ancestry" in error for error in report.errors),
+                                        report.errors)
+                        membership.assert_not_called()
+
     def test_originating_pr_pin_survives_each_merge_method(self):
         for method in ("merge", "squash", "rebase"):
             with self.subTest(method=method), GitRepo() as repo:

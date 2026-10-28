@@ -20,6 +20,40 @@ namespace LiteDB.Tests.Regressions
                 yield return new object[] { password, marker, length };
         }
 
+        public static IEnumerable<object[]> PreparedForeignPages()
+        {
+            foreach (var password in new[] { null, "wal-secret" })
+            foreach (var marker in new byte[] { 0xA5, 0xFF, 0x42 })
+            foreach (var length in new[] { 32, PAGE_SIZE - 1, PAGE_SIZE })
+            foreach (var readOnly in new[] { false, true })
+                yield return new object[] { password, marker, length, readOnly };
+        }
+
+        [Theory]
+        [MemberData(nameof(PreparedForeignPages))]
+        public void Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair(
+            string password, byte marker, int length, bool readOnly)
+        {
+            var data = LegacyData(password);
+            var sealedWal = Journal(data, password, new byte[0]);
+            var wal = ConvertedWalFiles.Rewrite(sealedWal, password, bytes =>
+            {
+                Array.Clear(bytes, 3 * PAGE_SIZE, PAGE_SIZE);
+                Buffer.BlockCopy(ForeignPage(marker), 0, bytes, 3 * PAGE_SIZE, length);
+            }).Take((password == null ? 0 : PAGE_SIZE) + 3 * PAGE_SIZE + length).ToArray();
+            using (var raw = new MemoryStream(wal))
+            using (var factory = new StreamFactory(raw, password))
+            using (var stream = factory.GetStream(false, false))
+            {
+                var journal = HeaderJournal.Read(stream);
+                journal.Should().NotBeNull();
+                journal.IntentOnly.Should().BeFalse();
+                journal.FooterBytes.Should().Be(stream.Length - 2 * PAGE_SIZE);
+                journal.Header.Should().NotEqual(ConvertedWalFiles.Plaintext(data, password).Take(PAGE_SIZE));
+            }
+            AssertRefusedTwice(data, wal, password, marker, 3L * PAGE_SIZE + BasePage.P_PAGE_FORMAT, readOnly);
+        }
+
         // Corrupt input: the footer binds only its prefix, so appending a foreign
         // page leaves a fully valid journal discoverable through its intent page.
         [Theory]
@@ -181,13 +215,13 @@ namespace LiteDB.Tests.Regressions
             return raw.ToArray();
         }
 
-        private static void AssertRefusedTwice(byte[] data, byte[] wal, string password, byte marker, long offset)
+        private static void AssertRefusedTwice(byte[] data, byte[] wal, string password, byte marker, long offset, bool? onlyReadOnly = null)
         {
             using var file = new TempFile();
             var log = FileHelper.GetLogFile(file.Filename);
             try
             {
-                foreach (var readOnly in new[] { false, true })
+                foreach (var readOnly in onlyReadOnly.HasValue ? new[] { onlyReadOnly.Value } : new[] { false, true })
                 {
                     File.WriteAllBytes(file.Filename, data);
                     File.WriteAllBytes(log, wal);
