@@ -126,6 +126,20 @@ namespace LiteDB.Tests.QueryTest
                 .Should().Equal(expected.Take(12));
             docs.Query().WhereNear(x => x.Embedding, target, double.MaxValue).Where(x => x.Id > 100)
                 .Select(x => new { x.Id }).Offset(3).Limit(8).ToArray().Select(x => x.Id).Should().Equal(expected.Where(id => id > 100).Skip(3).Take(8));
+            var ranked = ComputeExpectedRanking(documents, target, metric);
+            var scored = docs.Query().TopKNearWithScore(x => x.Embedding, target, 12).ToArray();
+            scored.Select(hit => hit.Document.Id).Should().Equal(expected.Take(12));
+            for (var i = 0; i < scored.Length; i++)
+            {
+                scored[i].Metric.Should().Be(metric);
+                scored[i].Score.Should().BeApproximately(metric == VectorDistanceMetric.DotProduct
+                    ? ranked[i].Similarity : ranked[i].Distance, 1e-7);
+            }
+            var threshold = metric == VectorDistanceMetric.DotProduct
+                ? (ranked[9].Similarity + ranked[10].Similarity) / 2
+                : (ranked[9].Distance + ranked[10].Distance) / 2;
+            docs.Query().WhereNear(x => x.Embedding, target, threshold).Limit(50).ToArray().Select(x => x.Id).Should()
+                .Equal(expected.Take(10));
             RepairDeferred(db).Should().BeTrue();
         }
     }

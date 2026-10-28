@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Reflection;
 using LiteDB;
+using LiteDB.Vector;
 using LiteDB.ReproRunner.Shared;
 using LiteDB.ReproRunner.Shared.Messaging;
 
