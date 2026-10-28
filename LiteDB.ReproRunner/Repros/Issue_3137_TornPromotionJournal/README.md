@@ -1,13 +1,24 @@
-# Issue 3137: Durable promotion journal recovers a primary whose identity was torn away
+# Torn compact-promotion journal recovery (#3137)
 
-Reproduces [LiteDB issue #3137](https://github.com/litedb-org/LiteDB/issues/3137).
+A caller data stream tears the first compact-promotion header write after 59
+physical bytes and zeroes the rest. The preceding journal and committed WAL
+remain intact. Both plaintext and encrypted images then reopen as real files:
+two read-only attempts preserve both sources; two writable attempts retain all
+four complete rows, the secondary index and the WAL-only collection.
 
-## Expected outcome
+The known-bad state is PR #3137 commit `5d3cc5c248b9fa40f6793783b70a9780ebedc773`:
+it refuses the durable journal because the primary identity and salt were torn
+away (exit 0). The candidate recovers (exit 1). Unexpected outcomes exit 2.
+A clean legacy-storage control must recover before injecting the tear. The
+repro uses public caller-stream I/O rather than internal fault hooks.
 
-Against the known-bad LiteDB `0.0.0-knownbad.5d3cc5c248b9` pinned in the `.csproj` the repro exits `0` (the bug
-reproduces). Against the fixed in-repo source it exits non-zero. The **Regression proof** workflow
-requires both; see `docs/rules/safety-evidence.md#regression-proofs`.
+`PromotionJournalAuthority_Tests` additionally models lost volatile writes and
+two torn repairs before real-file reopen; the unchanged `compact-power-loss`
+target exercises the original seeds. These are modeled faults, not a device
+reset campaign or authentication of arbitrarily substituted damaged files.
 
 ```bash
 dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_3137_TornPromotionJournal
 ```
+
+See `.github/safety/regression-proofs.json` for the pinned proof and permanent guards.
