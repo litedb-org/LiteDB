@@ -73,33 +73,54 @@ have no specified relative order unless the query supplies a tie-breaker.
 
 ## HNSW graph connectivity
 
-New construction and mutation preserve a connected, reciprocal level-zero graph.
+New construction preserves a connected, reciprocal level-zero graph.
 Construction applies the [HNSW diversity heuristic (algorithm 4)](https://arxiv.org/abs/1603.09320)
-to the construction candidates.
-At level zero, an existing link is pruned only when a two-hop path already
-replaces it; if all links may be bridges, an isolated new node subdivides an
-existing link. Deleting an articulation point reconnects surviving components
-with a spanning path, then restores old shortcuts that fit the eight-link limit.
-This prevents whole clusters becoming permanently unreachable as in
-[issue #3141](https://github.com/litedb-org/LiteDB/issues/3141).
+to the construction candidates. At level zero, an existing link is pruned only
+when a two-hop path already replaces it; if all links may be bridges, an isolated
+new node subdivides an existing link. Local deletion repair preserves all existing
+survivor edges and bridges split components using spare neighbour slots.
+This addresses [issue #3141](https://github.com/litedb-org/LiteDB/issues/3141).
 
-The node layout, eight neighbors per level, metadata, and file versions are
-unchanged. Existing indexes remain readable, including disconnected graphs made
-by older releases. Opening a file does not repair its graph. An explicit
+The node layout, eight neighbours per level, metadata lengths, and file versions
+are unchanged. Existing indexes remain readable, including disconnected graphs
+made by older releases. Opening a file does not repair its graph. An explicit
 `Rebuild()` regenerates vector indexes from preserved documents and repairs those
-graphs; it is optional, uses the existing rebuild recovery protocol, and is not
-forced by this change. Until rebuilt, a disconnected old graph can still omit
-neighbors, and writes into it are not a general repair mechanism.
+graphs; it uses the existing rebuild recovery protocol and is not forced on open.
+Until rebuilt, an old disconnected graph can still omit neighbours. **Stop all
+old-version writers before running Rebuild**: they can reintroduce disconnected
+graphs even after a new-version rebuild. Old binaries parse the same bytes but do
+not enforce the deferred-repair signal described below; do not use them on an
+index awaiting repair.
 
-Construction considers up to 24 candidates for diversity and performs bounded
-local adjacency checks before pruning. This adds distance/adjacency work per
-insert without a whole-graph connectivity scan. Delete/update already search the
-graph to locate a node; component detection adds O(V + E) traversal and temporary
-address storage, and an articulation-point repair rewrites level-zero links
-across the surviving components. This can increase write amplification. Benchmark
-CI must measure the impact; no local benchmark establishes a cost bound.
+Deletion repair skips connectivity search for degree zero or one. Otherwise a
+multi-source breadth-first search starts at former neighbours and stops once
+they meet. Its explicit budget B is 1,024 loaded nodes, with at most eight links
+each: O(B * M) time/address memory for M=8. If complete split components fit the
+budget, each has at least two free slots: the positive sum of (8 - degree) is
+even. A chain of bridges therefore reconnects them without removing old edges,
+writing at most 2 * (M - 1) endpoints. Backlink removal touches at most M nodes
+per level (at most four levels), plus node/free-list and metadata pages.
+Construction retains its bounded 24-candidate diversity and local pruning work.
+These bounds apply to connectivity maintenance: finding a document's vector node
+and selecting a new highest-level root still have their pre-existing O(V + E)
+worst-case reads. They do not dirty every survivor.
+
+An arbitrary long alternate path cannot be certified within a finite local
+budget. On budget exhaustion, the document delete/update **still succeeds**.
+The transaction sets bit 7 of the vector index's existing unused `CollectionIndex.Reserved`
+byte and retains the original graph for eventual disposal. Subsequent document
+writes proceed without maintaining that index. `TopKNear` then throws an explicit
+"Vector index repair deferred" diagnostic recommending `Rebuild()`; it never
+returns silently incomplete ANN results from that graph. Exact `WhereNear`
+queries continue scanning current documents. The signal survives commit, WAL
+recovery, checkpoint and reopen; rollback restores the original graph and signal.
+Explicit `Rebuild()` reconstructs the index and clears the signal. Until then,
+stale vector payloads consume space; no background repair runs. The old byte was
+already serialized and ignored by older engines, so no layout/version change or
+forced legacy rebuild is required.
+
 Approximate recall with an exploration budget below the graph size remains
-approximate. Equal-distance neighbors retain unspecified relative order.
+approximate. Equal-distance neighbours retain unspecified relative order.
 
 ## Legacy v8/v9 migration and vector format 11
 
