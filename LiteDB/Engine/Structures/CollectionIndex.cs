@@ -73,7 +73,6 @@ namespace LiteDB.Engine
             set => this.Reserved = (byte)(value ? this.Reserved | 0x80 : this.Reserved & 0x7f);
         }
 
-
         /// <summary>
         /// Free index page linked-list (all pages here must have at least 600 bytes)
         /// </summary>
