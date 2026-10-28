@@ -229,9 +229,8 @@
     {
       "repro": "Issue_3124_ModernWalLegacyReplay",
       "knownBad": {
-        "kind": "dev-commit",
-        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
-        "reason": "Confirmed on this exact dev revision by cross-check; no published package has been verified to contain the same checksummed-WAL recovery path."
+        "kind": "package",
+        "version": "6.0.0-prerelease.355"
       },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs#Damaged_modern_wal_beside_legacy_data_refuses_twice_without_mutation",
@@ -251,9 +250,8 @@
     {
       "repro": "Issue_3124_ModernJournalLegacyPrimary",
       "knownBad": {
-        "kind": "dev-commit",
-        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
-        "reason": "The modern-journal repair path also exists on this verified dev revision; PR-head de837c732 remains vulnerable. No published package has been verified for this exact scenario."
+        "kind": "package",
+        "version": "6.0.0-prerelease.355"
       },
       "permanentGuard": [
         "LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs#Modern_journal_beside_legacy_primary_refuses_before_repair_or_truncation",
