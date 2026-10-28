@@ -17,11 +17,12 @@ namespace LiteDB.Tests.Regressions
 
         internal static byte[] Read(string filename, string password)
         {
-            if (password == null) return File.ReadAllBytes(filename);
-            using var raw = File.OpenRead(filename);
-            using var encrypted = new AesStream(password, raw, allowRecovery: false);
-            var bytes = new byte[encrypted.Length];
-            encrypted.ReadRequired(bytes, 0, bytes.Length);
+            // A checkpointed database may still own its writable handle on Windows.
+            using var raw = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var encrypted = password == null ? null : new AesStream(password, raw, allowRecovery: false);
+            var input = (Stream)encrypted ?? raw;
+            var bytes = new byte[input.Length];
+            input.ReadRequired(bytes, 0, bytes.Length);
             return bytes;
         }
 
