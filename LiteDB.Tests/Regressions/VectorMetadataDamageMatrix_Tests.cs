@@ -130,6 +130,7 @@ namespace LiteDB.Tests.Regressions
         [MemberData(nameof(RecoveryCases))]
         public void Rebuild_reports_only_the_damaged_index_and_preserves_documents(string kind, string password, string state)
         {
+            using var levels = new VectorMetadataRebuildLevels();
             using var file = new TempFile();
             Create(file.Filename, password, state, VectorDistanceMetric.Euclidean);
             BsonDocument[] expectedDocuments;

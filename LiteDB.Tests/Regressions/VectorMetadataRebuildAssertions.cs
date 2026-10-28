@@ -48,6 +48,21 @@ namespace LiteDB.Tests.Regressions
                 var vector = document["Embedding"].IsNull ? new[] { 0f, 0f } : document["Embedding"].AsVector.ToArray();
                 node.ReadVector().Should().Equal(vector, "every surviving document must retain its computed vector entry");
             }
+            documents.Select(document => nodes.Single(node => node.DataBlock == document.RawId).LevelCount)
+                .Should().Equal(VectorMetadataRebuildLevels.Sequence, "rebuild must use the pinned level sequence");
+            var byPosition = nodes.ToDictionary(x => x.Position);
+            var reachable = new HashSet<PageAddress>();
+            var pending = new Queue<PageAddress>();
+            pending.Enqueue(metadata.Root);
+            while (pending.Count > 0)
+            {
+                var address = pending.Dequeue();
+                if (!reachable.Add(address)) continue;
+                var node = byPosition[address];
+                for (var level = 0; level < node.LevelCount; level++)
+                foreach (var neighbor in node.GetNeighbors(level)) pending.Enqueue(neighbor);
+            }
+            reachable.Should().BeEquivalentTo(byPosition.Keys, "this controlled graph must connect every stored node");
 
             // Unbounded WhereNear uses exact scanning. Nonzero fixture vectors have distinct
             // cosine distances to this target; null embeddings coalesce to zero (undefined cosine).
@@ -67,6 +82,26 @@ namespace LiteDB.Tests.Regressions
             {
                 actual[i].Metric.Should().Be(VectorDistanceMetric.Cosine);
                 actual[i].Score.Should().HaveValue().And.BeApproximately(oracle[i].Distance, 1e-6);
+            }
+
+            // A bounded TopKNear executes graph search, unlike the unbounded exact scan.
+            // Exact recall is asserted only for this controlled graph, never random levels.
+            foreach (var k in new[] { 5, 20 })
+            {
+                var ann = collection.Query().TopKNear(
+                    BsonExpression.Create("COALESCE($.Embedding, [0, 0])"), target, k);
+                var plan = ann.GetPlan();
+                plan["index"]["name"].AsString.Should().Be("coalesced");
+                plan["index"]["mode"].AsString.Should().Be("VECTOR INDEX SEARCH");
+                plan["orderBy"].IsNull.Should().BeTrue("bounded graph search supplies distance order without scan sorting");
+                var candidates = oracle.Take(k).ToArray();
+                var results = ann.WithScore().ToArray();
+                results.Select(x => x.Document["_id"].AsInt32).Should().Equal(candidates.Select(x => x.Id));
+                for (var i = 0; i < results.Length; i++)
+                {
+                    results[i].Metric.Should().Be(VectorDistanceMetric.Cosine);
+                    results[i].Score.Should().HaveValue().And.BeApproximately(candidates[i].Distance, 1e-6);
+                }
             }
         }
 
