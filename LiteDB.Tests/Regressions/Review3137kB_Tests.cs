@@ -23,9 +23,11 @@ namespace LiteDB.Tests.Regressions
             var resources = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Resources"));
             foreach (var name in new[] { "v4.db", "Issue_2494_EncryptedV4.db", "Issue2255_Before2753.db", "Issue2417_MyData.db", "Issue2417_TestCacheDb.db" })
                 inputs.Add((name, File.ReadAllBytes(Path.Combine(resources, name)), null));
-            foreach (var archive in new[] { "LegacyWal_5_0_21.zip", "IndexMigration_5_0_21.zip", "IndexMigrationLegacyKeys_5_0_21.zip" })
+            foreach (var archive in new[] { "LegacyWal_5_0_21.zip", "IndexMigration_5_0_21.zip" })
             foreach (var password in new[] { (string)null, archive == "LegacyWal_5_0_21.zip" ? "wal-secret" : "migration-power-loss" })
                 inputs.Add((archive + "/" + (password == null ? "plain" : "encrypted"), Entry(archive, password == null ? "plain.db" : "encrypted.db"), password));
+            foreach (var name in new[] { "stale.db", "indexes.db", "stale-encrypted.db", "indexes-encrypted.db" })
+                inputs.Add(("LegacyKeys/" + name, Entry("IndexMigrationLegacyKeys_5_0_21.zip", name), name.Contains("encrypted") ? "secret" : null));
             var corpus = Environment.GetEnvironmentVariable("REVIEW_KB_CORPUS");
             if (corpus != null)
             foreach (var path in Directory.GetFiles(corpus, "*.db"))
@@ -82,7 +84,7 @@ namespace LiteDB.Tests.Regressions
             try
             {
                 Capture(file.Filename, password, out var data, out var wal);
-                foreach (var damage in new[] { "zero-data", "prefix-data", "zero-collection-and-data" })
+                foreach (var damage in new[] { "zero-data", "prefix-data", "zero-two-data-pages" })
                 {
                     var torn = Rewrite(data, password, b =>
                     {
@@ -90,10 +92,10 @@ namespace LiteDB.Tests.Regressions
                         b[BasePage.P_PAGE_FORMAT] = 0;
                         Array.Clear(b, WalChecksum.MarkerPosition, 4);
                         Array.Clear(b, BasePage.P_TRANSACTION_ID, 4);
-                        // WAL covers rows collection page 1 and data page 3.
+                        // WAL covers the two updated data pages, 3 and 6.
                         if (damage == "prefix-data") Array.Clear(b, 3 * PAGE_SIZE, PAGE_HEADER_SIZE);
                         else Array.Clear(b, 3 * PAGE_SIZE, PAGE_SIZE);
-                        if (damage == "zero-collection-and-data") Array.Clear(b, PAGE_SIZE, PAGE_SIZE);
+                        if (damage == "zero-two-data-pages") Array.Clear(b, 6 * PAGE_SIZE, PAGE_SIZE);
                     });
                     foreach (var readOnly in new[] { true, false })
                     {
@@ -133,14 +135,15 @@ namespace LiteDB.Tests.Regressions
 
         private static void Capture(string filename, string password, out byte[] modern, out byte[] wal)
         {
-            File.WriteAllBytes(filename, Entry("LegacyWal_5_0_21.zip", password == null ? "plain.db" : "encrypted.db"));
             using (var engine = new LiteEngine(new EngineSettings { Filename = filename, Password = password }))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 7 });
                 db.GetCollection("newrows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed-modern-only" });
                 db.Checkpoint();
                 db.GetCollection("rows").Update(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
+                db.GetCollection("newrows").Update(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed-modern-only" });
                 engine.SimulateDataWriteFail = page => throw new IOException("capture modern journal");
                 Action checkpoint = () => db.Checkpoint();
                 checkpoint.Should().Throw<IOException>().WithMessage("capture modern journal");
