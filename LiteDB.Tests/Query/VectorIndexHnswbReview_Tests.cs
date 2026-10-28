@@ -71,8 +71,6 @@ namespace LiteDB.Tests.QueryTest
             Action delete = () => docs.Delete(1).Should().BeTrue();
             delete.Should().NotThrow();
         }
-    }
-}
 
         [Fact]
         public void Review2_random_5000_mutations_counts_deferred_marker()
@@ -119,3 +117,5 @@ namespace LiteDB.Tests.QueryTest
             Console.WriteLine($"random_mutations live={live.Count} deletes={deletes} updates={updates} deferred_at={deferredAt}");
             deferredAt.Should().Be(-1, "ordinary random mutations should not exhaust the 1024-node repair budget");
         }
+    }
+}
