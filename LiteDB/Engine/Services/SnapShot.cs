@@ -218,20 +218,19 @@ namespace LiteDB.Engine
             // collection read snapshot keeps its pinned version even if a page ID it reaches was reused here.
             var walPosition = default(PagePosition);
             var dirty = (_mode == LockMode.Write || _collectionName == "$") && _transPages.DirtyPages.TryGetValue(pageID, out walPosition);
+            PageBuffer buffer;
             if (dirty)
             {
                 origin = FileOrigin.Log;
                 position = walPosition.Position;
                 walVersion = _readVersion;
+                buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             }
             else
             {
-                position = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
-                origin = position == long.MaxValue ? FileOrigin.Data : FileOrigin.Log;
-                if (origin == FileOrigin.Data) position = BasePage.GetPagePosition(pageID);
+                buffer = this.ReadCommittedPage(pageID, useLatestVersion, out origin, out position, out walVersion);
             }
 
-            var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
             try
             {
                 var page = BasePage.ReadPage<T>(buffer);
