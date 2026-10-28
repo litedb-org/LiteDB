@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3137_TornPromotionJournal",
+  "title": "Durable promotion journal recovers a primary whose identity was torn away",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3137"
+  ],
+  "failingSince": "0.0.0-knownbad.5d3cc5c248b9",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "modeled-power-loss"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: durable journal refused after promotion erased primary identity."
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: durable journal recovers complete rows and indexes after identity erasure."
+    }
+  }
+}

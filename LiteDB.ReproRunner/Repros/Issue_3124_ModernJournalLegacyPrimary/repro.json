@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3124_ModernJournalLegacyPrimary",
+  "title": "Modern header journal repairs a mismatched legacy primary before refusal",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3124"
+  ],
+  "failingSince": "6.0.0-prerelease.355",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "corrupt-input"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: modern journal overwrote legacy primary and truncated WAL on failed opens."
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: modern journal refuses legacy primary without mutation and matching modern data recovers."
+    }
+  }
+}

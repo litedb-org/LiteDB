@@ -27,6 +27,7 @@ namespace LiteDB.Engine
         internal bool ConfirmsLegacyBackup { get; private set; }
         internal long FooterBytes { get; private set; } = Size;
         internal bool IntentOnly { get; private set; }
+        internal bool Prepared { get; private set; }
         private uint BodyChecksum { get; set; }
 
         internal void ValidateCheckpointWal(Stream stream, byte[] selectedHeader)
@@ -165,6 +166,11 @@ namespace LiteDB.Engine
             {
                 var journal = ReadPrepared(stream, position);
                 if (journal == null) continue;
+                // A partial append can leave the sealed footer within this search
+                // window. Prefer it so bytes after its descriptor remain WAL input,
+                // rather than treating that tail as a torn conversion confirmation.
+                var complete = ReadComplete(stream, position);
+                if (complete != null) return complete;
                 // A released engine's commit in the confirmation slot is legacy redo, not a tear.
                 return IsLegacyAppend(stream, position + PAGE_SIZE, journal.Header, true) ? null : journal;
             }
@@ -189,7 +195,7 @@ namespace LiteDB.Engine
             _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
             return new HeaderJournal
             {
-                Header = bytes, Position = position, ConfirmsLegacyBackup = true,
+                Header = bytes, Position = position, ConfirmsLegacyBackup = true, Prepared = true,
                 FooterBytes = stream.Length - position
             };
         }

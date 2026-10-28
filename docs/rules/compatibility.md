@@ -73,7 +73,21 @@ never discard what a lease-aware checkpoint left. Legacy WAL pages carry no chec
 committed page must be a page of its type within the bounds the data file, the log and its
 committed headers allow, and a committed header must carry the data header's creation time,
 or the open fails with `INVALID_DATABASE` without changing either file. A
-legacy header beside checksummed WAL frames fails the open without changing either file. Cutover backs up only the header (32 KiB temporary WAL);
+legacy header beside checksummed WAL frames fails the open without changing either file.
+Classify the first plaintext WAL page as soon as its header through byte 31 exists:
+a missing/partial checksum trailer or damaged CRC must not bypass the format gate.
+Use logical length so an incomplete encrypted preamble remains recoverable. A short
+initial tail needs an identifiable page header (including plausible page bookkeeping)
+before byte 31 is a format marker; encrypted torn-intent garbage must remain recoverable. Require
+marker 00 on every page observed by legacy recovery, including later unconfirmed
+pages and marked slots whose first 16 bytes look blank. Inspect identifiable partial
+page headers before trimming; arbitrary non-page garbage tails retain legacy torn-tail recovery.
+Refuse ambiguous non-legacy markers before bookkeeping, replay, tail trimming or checkpoint and
+preserve both files on repeated opens. A legacy/modern mismatch is corrupt-input
+coverage (for example, a data-only restore plus a truncated WAL); it is not evidence
+that an ordinary crash on sync-honoring storage can produce that pair. See
+[the format guards](../../LiteDB.Tests/Regressions/ConvertedWalFormat_Tests.cs).
+Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the
@@ -116,7 +130,11 @@ transaction IDs to the live committed set before changing either file. Per-frame
 validation during copying alone can certify a partial transaction before a later
 read fails. Hold the exclusive lock across validation and copying, and retain
 summaries rather than buffering all WAL page payloads.
-The header journal binds the preceding WAL bytes. Before repairing or removing
+The header journal binds the preceding WAL bytes. A sealed legacy footer does not
+bind pages appended after it: preflight every replayable complete page and identifiable
+partial tail before repairing the primary header. Prefer a valid sealed footer over its
+prepared record when a partial append leaves both discoverable. Exclude validated
+journal-owned torn conversion records; preserve intent-only and published-header recovery. Before repairing or removing
 it, verify that binding unless a validated newer header salt proves checkpoint
 publication completed. Never discard damaged redo needed by partial data writes.
 Keep the last nonempty recovery report across SharedEngine reopenings; distinguish
@@ -133,6 +151,27 @@ the collection transaction; read-version catalog caches must be cleared when WAL
 versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside the
 vector compatibility script. See `docs/compact-document-storage.md` for layout,
 bounds, BSON rebuild options, and benchmark results.
+
+Modern header-journal recovery validates the original primary before selecting a
+replacement header. Intact recognizable legacy/unsupported formats (including the
+v4/v7 layout and raw encrypted preamble) refuse before repair or WAL truncation.
+A checksum-valid modern primary retains its own authority; conflicting creation
+identity refuses without changing either file. A checksum-invalid primary cannot
+supply trustworthy creation time or generation salt: partial plaintext or AES
+ciphertext tears can produce plausible but wrong values. Its recovery requires
+the validated journal backup/footer, nonzero journal generation, verified WAL
+frame generations, checksums and transaction witnesses, and bound physical WAL
+prefix, even when modern format or matching salt bytes survive. See
+[modern journal pair tests](../../LiteDB.Tests/Regressions/ModernHeaderJournalPair_Tests.cs),
+[generation tests](../../LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs),
+[288-case tear matrix](../../LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs) and
+[repeated torn repair tests](../../LiteDB.Tests/Engine/PromotionJournalAuthority_Tests.cs).
+This assumes ordered per-file torn writes with the durable journal retained.
+Ordinary data/index pages carry no database identity; their CRCs validate only
+page bytes. WAL salts bind the WAL to the journal, not the primary. As on dev,
+a substituted primary plus damaged identity is not authenticated. Refusing such
+input solely from plausible fields of its damaged header would also refuse valid
+same-database recovery. No arbitrary-substitution or device-reset guarantee is made.
 
 ## Migration and failure questions
 

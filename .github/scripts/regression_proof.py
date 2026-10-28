@@ -5,7 +5,8 @@ real state in which the bug existed, in order of preference:
 
 1. a published NuGet package (`package`, the strongest evidence);
 2. a commit that existed on dev (`dev-commit`);
-3. a commit of the originating PR that never reached dev (`pr-commit`); a PR of
+3. a commit of the originating PR that fixed the defect before merge (`pr-commit`,
+   retained after merge with exact PR membership checked); a PR of
    another repository (a fork) also names it as `repository: owner/name`
    (proof_provenance.py resolves it there, never against upstream's PR number).
 
@@ -305,6 +306,32 @@ def pack_known_bad(commit, feed, pr=None, repository=None):
     return version
 
 
+def require_exact_package(feed, version):
+    """Require the local feed to contain exactly the package version requested."""
+    package = Path(feed) / f"LiteDB.{version}.nupkg"
+    if not package.is_file():
+        raise SystemExit(f"local known-bad feed is missing exact LiteDB package {version}: {package}")
+    return package
+
+
+def pack_known_bad_matrix(feed, tree=None):
+    """Pack every commit-backed regression proof into one checked local feed."""
+    entries = load(tree or common.Tree(common.WORKTREE), common.Report(""))
+    versions = []
+    packed = set()
+    for entry in entries:
+        bad = entry.get("knownBad") or {}
+        if bad.get("kind") == "package":
+            continue
+        if bad.get("commit") in packed:
+            continue
+        version = pack_known_bad(bad["commit"], feed, bad.get("pr"), bad.get("repository"))
+        require_exact_package(feed, version)
+        versions.append(version)
+        packed.add(bad["commit"])
+    return versions
+
+
 def _reversion(source, version, target):
     with zipfile.ZipFile(source) as package, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as output:
         for item in package.infolist():
@@ -390,6 +417,8 @@ def main(argv=None):
     pack.add_argument("--feed", required=True)
     pack.add_argument("--pr", help="The commit's originating PR (fetched when the commit is not local)")
     pack.add_argument("--repository", help="With --pr, the fork that hosts the PR as owner/name")
+    pack_matrix = commands.add_parser("pack-known-bad-matrix", help="Pack all commit-backed proofs into a local feed")
+    pack_matrix.add_argument("--feed", required=True)
     check_run = commands.add_parser("verify", help="Verify a ReproRunner report proves the fix")
     check_run.add_argument("--report", required=True)
     check_run.add_argument("--repro", required=True)
@@ -402,6 +431,10 @@ def main(argv=None):
 
     if args.command == "pack-known-bad":
         print(pack_known_bad(args.commit, args.feed, args.pr, args.repository))
+        return 0
+    if args.command == "pack-known-bad-matrix":
+        for version in pack_known_bad_matrix(args.feed):
+            print(version)
         return 0
     if args.command == "new":
         bad = parse_known_bad(args.known_bad, args.reason)

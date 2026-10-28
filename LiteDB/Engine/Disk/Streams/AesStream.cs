@@ -278,7 +278,7 @@ namespace LiteDB.Engine
             _stream.SetLength(value + PAGE_SIZE);
         }
 
-        private unsafe bool IsBlank(byte[] array, int offset)
+        internal unsafe bool IsBlank(byte[] array, int offset)
         {
             fixed (byte* arrayPtr = array)
             fixed (void* vPtr = _decryptedZeroes)

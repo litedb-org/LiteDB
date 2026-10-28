@@ -49,6 +49,9 @@ class ReproMatrixTests(unittest.TestCase):
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
         active = [repro for repro in self.inventory() if repro["name"] not in retired]
         self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication",
+                          "Issue_3124_ModernWalLegacyReplay", "Issue_3124_ModernJournalLegacyPrimary",
+                          "Issue_3137_TornPromotionJournal", "Issue_3137_DamagedPrimaryIdentity",
+                          "Issue_3137_PreparedJournalSuffix", "Issue_3137_MultifieldHeaderTear",
                           "Issue_3094_SharedRetryWriterRelease", "Issue_3099_TimeoutAfterWalRestore"},
                          {repro["name"] for repro in active})
         for tier in ("pr", "full"):

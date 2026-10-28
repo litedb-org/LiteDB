@@ -35,13 +35,18 @@ namespace LiteDB.Tests.Regressions
         /// </summary>
         [Theory]
         [InlineData("torn", 3452816845u)]
+        [InlineData("legacy torn", 3452816845u)]
         [InlineData("data page 0", 0u)]
         [InlineData("header page 7", 7u)]
         public void Committed_legacy_page_that_is_not_a_page_fails_the_open(string kind, uint pageID)
         {
-            var page = kind == "torn" ? Enumerable.Repeat((byte)0xCD, Constants.PAGE_SIZE).ToArray()
+            var page = kind.EndsWith("torn") ? Enumerable.Repeat((byte)0xCD, Constants.PAGE_SIZE).ToArray()
                 : Page(kind == "data page 0" ? PageType.Data : PageType.Header, pageID);
-            AssertRefused(page, false, $"*commits a page (ID {pageID}) that is not a valid page*move the log file aside*");
+            if (kind == "legacy torn") page[BasePage.P_PAGE_FORMAT] = PageChecksum.Legacy;
+            var message = kind == "torn"
+                ? "*non-legacy format 0xCD at plaintext offset *preserve both files for recovery*"
+                : $"*commits a page (ID {pageID}) that is not a valid page*move the log file aside*";
+            AssertRefused(page, false, message);
         }
 
         /// <summary>The fixture's crash WAL with one more committed page appended.</summary>
