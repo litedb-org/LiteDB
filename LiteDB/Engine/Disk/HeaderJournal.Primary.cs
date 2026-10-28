@@ -13,15 +13,17 @@ namespace LiteDB.Engine
             var version = header[HeaderPage.P_FILE_VERSION];
             var signature = page.ReadString(HeaderPage.P_HEADER_INFO, HeaderPage.HEADER_INFO.Length);
             var checksumValid = page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page);
+            var modernLayout = page.ReadUInt32(WalChecksum.MarkerPosition) == WalChecksum.HeaderMarker ||
+                header[BasePage.P_PAGE_FORMAT] == PageChecksum.Checksummed;
             // A valid journal cannot authorize replacing an identifiable legacy
             // primary. Check this before considering the journal's generation.
             // v4 (file version 7) has its signature at a different offset,
             // even when encrypted. A raw v5+ encryption preamble is likewise
             // an identifiable primary, not an erased page from this journal.
             if (FileReaderV7.IsVersion(header) || HasEncryptedPreamble(header) ||
-                (checksumValid &&
                 (signature == HeaderPage.HEADER_INFO && version != 0 &&
-                 (version < HeaderPage.CHECKSUM_FILE_VERSION || version > HeaderPage.CURRENT_FILE_VERSION))))
+                 (version < HeaderPage.CHECKSUM_FILE_VERSION || version > HeaderPage.CURRENT_FILE_VERSION) &&
+                 (!modernLayout || checksumValid)))
                 RefusePrimary();
             // Creation time is immutable even across salt rotation. A damaged
             // checksum must not hide a surviving, conflicting identity on *any*
