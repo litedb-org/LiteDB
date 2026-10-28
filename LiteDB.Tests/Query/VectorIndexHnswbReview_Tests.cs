@@ -28,9 +28,19 @@ namespace LiteDB.Tests.QueryTest
             InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
             {
                 var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
-                var nodes = snapshot.LocalPages.OfType<VectorIndexPage>()
-                    .SelectMany(page => page.GetNodes())
-                    .ToDictionary(node => lookup.Load(node.DataBlock)["_id"].AsInt32, node => node.Position);
+                var nodes = new Dictionary<int, PageAddress>();
+                var pending = new Stack<PageAddress>();
+                pending.Push(metadata.Root);
+                var seen = new HashSet<PageAddress>();
+                while (pending.Count > 0)
+                {
+                    var address = pending.Pop();
+                    if (!seen.Add(address)) continue;
+                    var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+                    nodes.Add(lookup.Load(node.DataBlock)["_id"].AsInt32, address);
+                    foreach (var neighbor in node.GetNeighbors(0)) pending.Push(neighbor);
+                }
+                nodes.Count.Should().Be(count);
                 var adjacency = nodes.ToDictionary(pair => pair.Key, _ => new List<PageAddress>());
                 for (var component = 0; component < componentCount; component++)
                 {
