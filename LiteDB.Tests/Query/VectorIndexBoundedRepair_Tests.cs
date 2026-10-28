@@ -148,8 +148,18 @@ namespace LiteDB.Tests.QueryTest
         {
             var docs = db.GetCollection<VectorDocument>("docs");
             docs.Count().Should().Be(update ? 2049 : 2048);
-            Action ann = () => docs.Query().TopKNear(x => x.Embedding, BoundedVector(1), 10).ToArray();
-            ann.Should().Throw<LiteException>().WithMessage("*repair deferred*1024*Rebuild()*");
+            docs.Query().TopKNear(x => x.Embedding, BoundedVector(1), 10).ToArray().Select(x => x.Id).Should()
+                .Equal(ComputeExpectedRanking(docs.FindAll(), BoundedVector(1), VectorDistanceMetric.Euclidean).Take(10).Select(x => x.Id));
+            docs.Query().TopKNear(x => x.Embedding, BoundedVector(1), 10).GetPlan()["index"]["mode"].AsString.Should()
+                .Be("VECTOR EXACT SCAN (REPAIR DEFERRED)");
+            InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            {
+                snapshot.CollectionPage.GetVectorIndexes().Single().Index.VectorRepairDeferred.Should().BeTrue();
+                Action direct = () => new VectorIndexService(snapshot, collation).Search(metadata, BoundedVector(1), double.MaxValue, 10);
+                direct.Should().Throw<LiteException>().Where(error => error.ErrorCode == LiteException.VECTOR_REPAIR_DEFERRED)
+                    .WithMessage($"*repair deferred*{VectorIndexService.ConnectivityRepairBudget}*Rebuild()*");
+                return true;
+            }).Should().BeTrue();
             docs.Query().WhereNear(x => x.Embedding, BoundedVector(1), double.MaxValue).ToArray()
                 .Select(x => x.Id).Should().BeEquivalentTo(docs.FindAll().Select(x => x.Id));
             if (update) docs.FindById(1).Embedding.Should().Equal(BoundedVector(-1));

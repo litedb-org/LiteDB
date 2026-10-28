@@ -50,7 +50,7 @@ class ReproMatrixTests(unittest.TestCase):
         active = [repro for repro in self.inventory() if repro["name"] not in retired]
         self.assertEqual({"Issue_2561_TransactionMonitor", "Issue_3082_AllocationPublication",
                           "Issue_3094_SharedRetryWriterRelease", "Issue_3099_TimeoutAfterWalRestore",
-                          "Issue_3141_HnswConnectivity"},
+                          "Issue_3141_HnswConnectivity", "Issue_3142_DeferredAnn", "Issue_3142_AsymmetricDelete"},
                          {repro["name"] for repro in active})
         for tier in ("pr", "full"):
             with self.subTest(tier=tier):

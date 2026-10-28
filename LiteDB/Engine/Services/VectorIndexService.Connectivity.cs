@@ -141,6 +141,7 @@ namespace LiteDB.Engine
                     }
                 }
                 _snapshot.Safepoint();
+                if (links.Count == ConnectivityRepairBudget && pending.Count > 0) return null;
                 // Every other component is exhausted: it cannot reach any of the
                 // remaining frontier. Leave that frontier's component at a chain end.
                 if (Enumerable.Range(0, seeds.Count).Count(i => Find(i) == i && outstanding[i] > 0) <= 1)

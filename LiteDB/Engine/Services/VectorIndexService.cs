@@ -42,7 +42,11 @@ namespace LiteDB.Engine
         public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
             _snapshot.RequireVectorVersion();
-            if (this.IsRepairDeferred(metadata)) return;
+            if (this.IsRepairDeferred(metadata))
+            {
+                this.RetryDeferredRepair(metadata, PageAddress.Empty);
+                return;
+            }
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
             if (!TryExtractVector(value, metadata.Dimensions, out var vector))
@@ -59,7 +63,11 @@ namespace LiteDB.Engine
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
             _snapshot.RequireVectorVersion();
-            if (this.IsRepairDeferred(metadata)) return;
+            if (this.IsRepairDeferred(metadata))
+            {
+                this.RetryDeferredRepair(metadata, dataBlock);
+                return;
+            }
             if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
                 return;
