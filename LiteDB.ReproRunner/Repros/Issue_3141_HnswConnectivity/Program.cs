@@ -11,6 +11,8 @@ internal static class Program
     {
         var host = ReproHostClient.CreateDefault();
         ReproConfigurationReporter.SendConfiguration(host);
+        typeof(LiteDatabase).Assembly.GetType("LiteDB.LiteDBPragmas")
+            ?.GetMethod("I_AM_AWARE_MY_DATABASE_BREAKS_WHEN_I_USE_THIS")?.Invoke(null, null);
         var directory = Path.Combine(Path.GetTempPath(), "hnsw-3141-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try

@@ -229,14 +229,17 @@
     {
       "repro": "Issue_3141_HnswConnectivity",
       "knownBad": {
-        "kind": "dev-commit",
-        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
-        "reason": "The reported graph and deterministic replay were established on this dev revision; the same vector API and persisted graph scenario have not been established against a published package."
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
       },
       "permanentGuard": [
         "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Replayed_levels_keep_every_node_reachable_and_restore_exhaustive_recall",
         "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Seeded_mutations_preserve_connectivity_and_exhaustive_recall",
-        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Equal_vectors_remain_reachable_after_saturated_neighborhoods_and_root_deletion"
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Equal_vectors_remain_reachable_after_saturated_neighborhoods_and_root_deletion",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Deleting_an_articulation_point_reconnects_every_surviving_component",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Lost_and_torn_graph_wal_writes_recover_whole_transactions_twice",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Graph_mutations_rollback_and_committed_wal_recover_complete_documents_and_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Existing_disconnected_graph_reads_unchanged_and_rebuild_restores_recall"
       ]
     }
   ]

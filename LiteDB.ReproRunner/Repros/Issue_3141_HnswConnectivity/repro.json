@@ -4,7 +4,7 @@
   "issues": [
     "https://github.com/litedb-org/LiteDB/issues/3141"
   ],
-  "failingSince": "0.0.0-knownbad.b3c440623190",
+  "failingSince": "6.0.0-prerelease.319",
   "timeoutSeconds": 120,
   "requiresParallel": false,
   "defaultInstances": 1,

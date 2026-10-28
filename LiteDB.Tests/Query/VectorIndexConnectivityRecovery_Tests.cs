@@ -77,6 +77,13 @@ namespace LiteDB.Tests.QueryTest
                 { Id = i, Embedding = new[] { 1f, (float)i } }));
             docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
             db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+            // Force the transaction under test to delete a real cut vertex (id 1),
+            // so the WAL cuts cover the spanning-path repair, not just ordinary links.
+            db.BeginTrans().Should().BeTrue();
+            docs.Update(new VectorDocument { Id = 1, Embedding = new[] { 1f, 1f } }).Should().BeTrue();
+            InstallConnectivityStar(db, 24).AsInt32.Should().Be(1);
+            db.Commit().Should().BeTrue();
+            AssertConnectivity(db, 24);
             db.Checkpoint();
             var baselineData = data.DurableBytes;
             var baselineLog = log.DurableBytes;

@@ -127,7 +127,23 @@ namespace LiteDB.Tests.QueryTest
             // Acquire the collection's write snapshot before installing a valid
             // reciprocal star with eight arms. This explicitly exercises a cut vertex.
             collection.Update(new VectorDocument { Id = 1, Embedding = new[] { 1f, 1f } }).Should().BeTrue();
-            var center = InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            var center = InstallConnectivityStar(db, 25);
+            db.Commit().Should().BeTrue();
+            AssertConnectivity(db, 25);
+            // The nearest node has eight bridge edges and no triangle. Insertion
+            // must subdivide one rather than discard it or isolate the new node.
+            collection.Insert(new VectorDocument { Id = 26, Embedding = new[] { 1f, 1f } });
+            AssertConnectivity(db, 26);
+            collection.Delete(center).Should().BeTrue();
+            AssertConnectivity(db, 25);
+            var target = new[] { 1f, 7.25f };
+            collection.Query().TopKNear(x => x.Embedding, target, 26).ToArray().Select(x => x.Id).Should()
+                .Equal(ComputeExpectedRanking(collection.FindAll(), target, VectorDistanceMetric.Cosine).Select(x => x.Id));
+        }
+
+        private static BsonValue InstallConnectivityStar(LiteDatabase db, int count)
+        {
+            return InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
             {
                 var order = new List<PageAddress>();
                 var pending = new Stack<PageAddress>();
@@ -140,7 +156,14 @@ namespace LiteDB.Tests.QueryTest
                     var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
                     foreach (var neighbor in node.GetNeighbors(0)) pending.Push(neighbor);
                 }
-                order.Count.Should().Be(25);
+                order.Count.Should().Be(count);
+                var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
+                var first = order.Single(address => lookup.Load(snapshot.GetPage<VectorIndexPage>(address.PageID)
+                    .GetNode(address.Index).DataBlock)["_id"].AsInt32 == 1);
+                order.Remove(first);
+                order.Insert(0, first);
+                metadata.Root = first;
+                snapshot.CollectionPage.IsDirty = true;
                 for (var i = 0; i < order.Count; i++)
                 {
                     var links = new List<PageAddress>();
@@ -150,9 +173,10 @@ namespace LiteDB.Tests.QueryTest
                     {
                         var offset = (i - 1) % 3;
                         links.Add(offset == 0 ? order[0] : order[i - 1]);
-                        if (offset < 2) links.Add(order[i + 1]);
+                        if (offset < 2 && i + 1 < order.Count) links.Add(order[i + 1]);
                     }
                     var node = snapshot.GetPage<VectorIndexPage>(order[i].PageID).GetNode(order[i].Index);
+                    if (i == 0) node.SetLevelCount(VectorIndexNode.MaxLevels);
                     node.SetNeighbors(0, links);
                     for (var level = 1; level < node.LevelCount; level++)
                         node.SetNeighbors(level, Array.Empty<PageAddress>());
@@ -161,13 +185,6 @@ namespace LiteDB.Tests.QueryTest
                 return new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null)
                     .Load(root.DataBlock)["_id"];
             });
-            db.Commit().Should().BeTrue();
-            AssertConnectivity(db, 25);
-            collection.Delete(center).Should().BeTrue();
-            AssertConnectivity(db, 24);
-            var target = new[] { 1f, 7.25f };
-            collection.Query().TopKNear(x => x.Embedding, target, 25).ToArray().Select(x => x.Id).Should()
-                .Equal(ComputeExpectedRanking(collection.FindAll(), target, VectorDistanceMetric.Cosine).Select(x => x.Id));
         }
 
         private static void AssertConnectivity(LiteDatabase db, int count)
