@@ -185,18 +185,22 @@ namespace LiteDB.Engine
                     null,
                     vectorCache);
 
-                var selected = this.SelectNeighbors(
-                    candidates.Where(x => x.Address != newAddress).ToList(),
+                var selected = this.SelectConstructionNeighbors(
+                    metadata, vectorCache, candidates.Where(x => x.Address != newAddress).ToList(),
                     VectorIndexNode.MaxNeighborsPerLevel);
 
                 var selectedAddresses = selected.Select(x => x.Address).ToList();
 
                 node = this.GetNode(newAddress);
-                node.SetNeighbors(level, selectedAddresses);
+                if (level > 0) node.SetNeighbors(level, selectedAddresses);
 
                 foreach (var neighbor in selectedAddresses)
                 {
-                    if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
+                    if (level == 0)
+                    {
+                        this.ConnectLevelZero(metadata, neighbor, newAddress, vectorCache);
+                    }
+                    else if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
                     {
                         node = this.GetNode(newAddress);
                         node.RemoveNeighbor(level, neighbor);
@@ -389,7 +393,7 @@ namespace LiteDB.Engine
                 scored.Add(new NodeDistance(neighbor, distance, double.NaN));
             }
 
-            return this.SelectNeighbors(scored, VectorIndexNode.MaxNeighborsPerLevel)
+            return this.SelectConstructionNeighbors(metadata, vectorCache, scored, VectorIndexNode.MaxNeighborsPerLevel)
                 .Select(x => x.Address)
                 .ToList();
         }
@@ -424,6 +428,9 @@ namespace LiteDB.Engine
                 }
             }
 
+            // Deleting an articulation point must not strand its surviving components.
+            this.ReconnectLevelZero(node.GetNeighbors(0), address);
+
             if (metadata.Root == address)
             {
                 metadata.Root = this.SelectNewRoot(metadata, address, start);
@@ -431,7 +438,8 @@ namespace LiteDB.Engine
                 node = this.GetNode(address);
             }
 
-            this.ReleaseNode(metadata, node);
+            // Reconnection may safepoint and evict the original node buffer.
+            this.ReleaseNode(metadata, this.GetNode(address));
         }
 
         private PageAddress SelectNewRoot(VectorIndexMetadata metadata, PageAddress removed, PageAddress start)
