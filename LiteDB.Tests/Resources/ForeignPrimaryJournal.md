@@ -22,3 +22,8 @@ and byte-identical data/WAL on two consecutive opens. Encrypted v4 with a passwo
 refuses in the modern encryption stream layer (`NOT_ENCRYPTED`); without a password,
 its recognizable v7 header must refuse journal replacement (`INVALID_DATABASE`).
 The latter prevents overwriting the old encrypted database before it can be upgraded.
+
+Unsupported-format boundary cases change only the file-version byte of a test copy
+of the 5.0.21 input to 7 or 14 while retaining the modern-layout signature. These
+synthetic corrupt/unsupported inputs are distinguished from the unchanged released
+fixtures and must refuse the journal-only fallback without mutation.
