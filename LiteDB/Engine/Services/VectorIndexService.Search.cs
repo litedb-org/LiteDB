@@ -17,8 +17,7 @@ namespace LiteDB.Engine
         {
             var index = this.GetRepairIndex(metadata);
             if (index.VectorRepairDeferred)
-                throw new LiteException(LiteException.VECTOR_REPAIR_DEFERRED, $"Vector index repair deferred for '{index.Name}' after reaching the {ConnectivityRepairBudget}-node mutation budget. " +
-                    "Run Rebuild() after stopping old-version writers; Public vector queries use an exact document scan meanwhile.");
+                throw LiteException.VectorRepairDeferred(index.Name, ConnectivityRepairBudget);
 
             if (metadata.Root.IsEmpty)
             {

@@ -141,6 +141,14 @@ namespace LiteDB
                 "Database format version {0} is unsupported. This engine reads versions 8, 9, 10, 11, 12 and 13; use a compatible LiteDB engine.", version);
         }
 
+        internal static LiteException VectorRepairDeferred(string index, int budget)
+        {
+            return new LiteException(VECTOR_REPAIR_DEFERRED,
+                "Vector index repair deferred for '{0}' after reaching the {1}-node mutation budget. " +
+                "Run Rebuild() after stopping old-version writers; public vector queries use an exact document scan meanwhile.",
+                index, budget);
+        }
+
         internal static LiteException FileSizeExceeded(long limit)
         {
             return new LiteException(FILE_SIZE_EXCEEDED, "Database size exceeds limit of {0}.", FileHelper.FormatFileSize(limit));

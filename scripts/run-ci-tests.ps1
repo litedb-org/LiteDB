@@ -77,7 +77,10 @@ if ($PartitionSuite) {
         'engine-allocation' = 'FullyQualifiedName~LiteDB.Tests.Engine.Allocation&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationWalFailure_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationConcurrent_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationPowerLoss_Tests&FullyQualifiedName!~LiteDB.Tests.Engine.AllocationOracle_Tests'
         engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index&FullyQualifiedName!~Shared&FullyQualifiedName!~LiteDB.Tests.Engine.Allocation'
         'query-not-equal' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
-        query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests'
+        # Keep deterministic 5k/20k qualification out of the general query session.
+        # The four cases still run on every complete-suite leg, with the same timeout.
+        'vector-mutation-counts' = 'FullyQualifiedName~LiteDB.Tests.QueryTest.VectorIndex_Tests.Seeded_ordinary_mutations_count_deferral_without_timing'
+        query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Tests.QueryTest.NotEqualIndex_Tests&FullyQualifiedName!~LiteDB.Tests.QueryTest.VectorIndex_Tests.Seeded_ordinary_mutations_count_deferral_without_timing'
         # Mapped storage and coordination upgrades dominate shared-process timings.
         'shared-mapped-process' = 'FullyQualifiedName~LiteDB.Internals.SharedMappedProcess'
         'shared-upgrade-process' = 'FullyQualifiedName~LiteDB.Internals.SharedCoordinationUpgradeProcess'

@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "hnswc-count-session-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": ["scripts/run-ci-tests.ps1"],
+      "disposition": "strengthened",
+      "invariant": "Every discovered vector mutation count case runs exactly once per complete-suite leg with unchanged runtime/hook guards and 300-second session timeout.",
+      "reason": "Put the four additive 5k/20k deterministic workload cases in their own disjoint session instead of consuming the general query session's budget. No old test case, assertion, CI leg or timeout is removed or changed; existing partition coverage and complete evidence checks still account for every discovered case."
+    },
+    {
       "id": "ci-split-engine-capacity",
       "kind": "ci-test-config-changed",
       "subjects": [
