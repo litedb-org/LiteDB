@@ -5,7 +5,8 @@ real state in which the bug existed, in order of preference:
 
 1. a published NuGet package (`package`, the strongest evidence);
 2. a commit that existed on dev (`dev-commit`);
-3. a commit of the originating PR that never reached dev (`pr-commit`); a PR of
+3. a commit of the originating PR that fixed the defect before merge (`pr-commit`,
+   retained after merge with exact PR membership checked); a PR of
    another repository (a fork) also names it as `repository: owner/name`
    (proof_provenance.py resolves it there, never against upstream's PR number).
 
