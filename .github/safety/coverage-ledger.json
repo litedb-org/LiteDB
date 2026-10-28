@@ -213,6 +213,36 @@
         "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_fields_do_not_override_verified_journal_recovery",
         "LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs#Extended_torn_header_matrix_recovers_all_committed_data"
       ]
+    },
+    {
+      "id": "3137-torn-primary-contract-evidence-removed",
+      "kind": "contract-evidence-removed",
+      "subjects": [
+        "recovery-generation"
+      ],
+      "disposition": "intentional-change",
+      "decision": "https://github.com/litedb-org/LiteDB/pull/3137#discussion_r4396149006",
+      "invariant": "A torn same-database primary remains recoverable from verified journal authority; checksum-valid foreign identities and intact recognizable legacy/unsupported formats still refuse without mutation.",
+      "reason": "All 20 original damage inputs remain exercised across repeated writable/read-only opens, now asserting complete recovery instead of false refusal. Creation+1 and salt changes in a checksum-invalid own header are indistinguishable from tears. V-3137g proved the former refusal oracle regresses dev. The orchestrator instructed recovery in this state; no independent database identity exists in ordinary data/index pages. The existing damaged-primary proof is repinned to fc39c52da with the recovery oracle; substitution plus damaged header identity remains unauthenticated as on dev.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_fields_do_not_override_verified_journal_recovery",
+        "LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs#Extended_torn_header_matrix_recovers_all_committed_data"
+      ]
+    },
+    {
+      "id": "3137-torn-primary-proof-guard-removed",
+      "kind": "proof-guard-removed",
+      "subjects": [
+        "Issue_3137_DamagedPrimaryIdentity"
+      ],
+      "disposition": "intentional-change",
+      "decision": "https://github.com/litedb-org/LiteDB/pull/3137#discussion_r4396149006",
+      "invariant": "A torn same-database primary remains recoverable from verified journal authority; checksum-valid foreign identities and intact recognizable legacy/unsupported formats still refuse without mutation.",
+      "reason": "All 20 original damage inputs remain exercised across repeated writable/read-only opens, now asserting complete recovery instead of false refusal. Creation+1 and salt changes in a checksum-invalid own header are indistinguishable from tears. V-3137g proved the former refusal oracle regresses dev. The orchestrator instructed recovery in this state; no independent database identity exists in ordinary data/index pages. The existing damaged-primary proof is repinned to fc39c52da with the recovery oracle; substitution plus damaged header identity remains unauthenticated as on dev.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/JournalRecoveryGeneration_Tests.cs#Damaged_primary_fields_do_not_override_verified_journal_recovery",
+        "LiteDB.Tests/Regressions/Review3137gMatrix_Tests.cs#Extended_torn_header_matrix_recovers_all_committed_data"
+      ]
     }
   ]
 }
