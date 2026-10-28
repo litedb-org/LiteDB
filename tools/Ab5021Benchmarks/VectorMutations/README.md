@@ -8,7 +8,8 @@ Both variants use identical candidate harness sources. This is a v6 comparison;
 JSON artifacts identify commits, assembly hashes, runtime, dimensions and seed,
 and report build/insert/update/delete time, allocated bytes, file sizes, exact
 survivor identity/count checks and whether the explicit deferred-repair signal
-occurred. Setup/build and mutation phases are separate; the existing graph lookup
+occurred after each phase. Once deferred, later operations maintain documents only;
+those samples do not measure active graph maintenance. Setup/build and mutation phases are separate; the existing graph lookup
 can still dominate large-N setup. No performance threshold gates the results.
 A harness/oracle error fails the measurement instead of fabricating a sample.
 The runner refuses execution outside GitHub Actions. Do not run it locally.

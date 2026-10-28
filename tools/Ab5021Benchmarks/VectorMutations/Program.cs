@@ -17,8 +17,8 @@ var root = Path.Combine(Path.GetTempPath(), "litedb-vector-mutations-" + Guid.Ne
 Directory.CreateDirectory(root);
 try
 {
-    Run(100, 10, Path.Combine(root, "warmup.db"));
-    var samples = Run(count, operations, Path.Combine(root, "measured.db"));
+    Run(100, 10, Path.Combine(root, "warmup", "vectors.db"));
+    var samples = Run(count, operations, Path.Combine(root, "measured", "vectors.db"));
     var assembly = typeof(LiteDatabase).Assembly;
     Directory.CreateDirectory(Path.GetDirectoryName(output)!);
     File.WriteAllText(output, System.Text.Json.JsonSerializer.Serialize(new
@@ -39,6 +39,7 @@ finally { Directory.Delete(root, true); }
 
 static object Run(int count, int operations, string filename)
 {
+    Directory.CreateDirectory(Path.GetDirectoryName(filename)!);
     using var db = new LiteDatabase(filename);
     db.CheckpointSize = 0;
     var docs = db.GetCollection<VectorDocument>("vectors");
@@ -84,6 +85,12 @@ static object Run(int count, int operations, string filename)
     }
     return new { samples, deferred, exactCount = exact.Length };
 
+    bool IsDeferred()
+    {
+        try { docs.Query().TopKNear(x => x.Embedding, Create(0).Embedding, 1).ToArray(); return false; }
+        catch (LiteException error) when (error.Message.Contains("Vector index repair deferred")) { return true; }
+    }
+
     void Measure(string scenario, int items, Action action)
     {
         var allocated = GC.GetTotalAllocatedBytes();
@@ -94,6 +101,7 @@ static object Run(int count, int operations, string filename)
         {
             scenario, operations = items, milliseconds = watch.Elapsed.TotalMilliseconds,
             allocatedBytes = GC.GetTotalAllocatedBytes() - allocated,
+            deferredRepair = IsDeferred(),
             dataBytes = new FileInfo(filename).Length,
             directoryBytes = Directory.GetFiles(Path.GetDirectoryName(filename)!).Sum(path => new FileInfo(path).Length)
         });
