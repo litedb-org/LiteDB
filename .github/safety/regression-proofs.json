@@ -299,6 +299,19 @@
       "permanentGuard": [
         "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair"
       ]
+    },
+    {
+      "repro": "Issue_3137_MultifieldHeaderTear",
+      "knownBad": {
+        "kind": "pr-commit",
+        "commit": "49adf618d067fbeecc1c107ec510214617ba50c5",
+        "pr": 3137,
+        "reason": "V-3137i independently reproduced false refusal after version and both modern marker tears; dev recovers. This state was introduced only in PR 3137."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Regressions/Review3137i_Tests.cs#Version_and_both_modern_markers_torn_with_valid_same_database_redo_recovers",
+        "LiteDB.Tests/Regressions/Review3137iMatrix_Tests.cs#Multifield_and_ciphertext_tear_matrix_recovers_all_committed_data"
+      ]
     }
   ]
 }

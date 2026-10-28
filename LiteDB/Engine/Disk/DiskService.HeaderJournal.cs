@@ -53,7 +53,7 @@ namespace LiteDB.Engine
             {
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
-                journal.ValidatePrimary(reader.RawStream, header);
+                journal.ValidatePrimary(reader.RawStream, _dataPool.Writer.Value, header);
                 var published = journal.IsPublished(header);
                 // Unsealed conversion records followed by legacy commits: recover
                 // the whole WAL by legacy rules; conversion restarts after checkpoint.
