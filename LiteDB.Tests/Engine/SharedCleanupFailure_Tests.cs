@@ -100,7 +100,8 @@ namespace LiteDB.Tests.Engine
         }
 
         private static T Field<T>(object owner, string name) =>
-            (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
+            (T)(owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner) ??
+                owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner));
 
         private sealed class FailingLease : IDisposable
         {

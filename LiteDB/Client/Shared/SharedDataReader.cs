@@ -12,10 +12,12 @@ namespace LiteDB
     {
         private readonly IBsonDataReader _reader;
         private readonly Action _dispose;
+        private readonly Func<bool> _read;
         // Set when the reader streams under its connection's native ownership.
         private readonly string _namespace;
         private readonly object _connection;
         private readonly Func<bool> _retains;
+        private readonly SharedReaderCleanup _cleanup;
 
         private int _disposed;
 
@@ -25,17 +27,25 @@ namespace LiteDB
             _dispose = dispose;
         }
 
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, bool ownsResources, System.IO.FileStream[] leaseFiles = null)
+            : this(reader, dispose)
+        {
+            if (ownsResources) _cleanup = new SharedReaderCleanup(reader, dispose, leaseFiles: leaseFiles);
+        }
+
         /// <summary>
         /// A reader that keeps its connection's native ownership until disposed. Each read, and
         /// the disposal, runs in a frame of that connection, so a callback it invokes cannot wait
         /// for the ownership through another connection.
         /// </summary>
-        internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains)
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, string ns, object connection, Func<bool> retains, Func<bool> read = null)
             : this(reader, dispose)
         {
+            _read = read;
             _namespace = ns;
             _connection = connection;
             _retains = retains;
+            _cleanup = new SharedReaderCleanup(reader, dispose, ns, connection, retains);
         }
 
         public BsonValue this[string field] => _reader[field];
@@ -49,7 +59,7 @@ namespace LiteDB
         public bool Read()
         {
             if (_retains == null) return _reader.Read();
-            using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _reader.Read();
+            using (SharedCallFrames.Enter(_namespace, _connection, _retains)) return _read != null ? _read() : _reader.Read();
         }
 
         public void Dispose()
@@ -76,10 +86,12 @@ namespace LiteDB
                 // Ending the ownership can close its engine, which writes through caller streams.
                 else using (SharedCallFrames.Enter(_namespace, _connection, _retains)) this.Close();
             }
+            else _cleanup?.Abandon();
         }
 
         private void Close()
         {
+            if (_cleanup != null) { _cleanup.Dispose(); return; }
             try { _reader.Dispose(); }
             finally { _dispose(); }
         }

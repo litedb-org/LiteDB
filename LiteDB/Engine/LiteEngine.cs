@@ -233,7 +233,7 @@ namespace LiteDB.Engine
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit, _settings.TransactionOwner);
 
                 this.MigrateIndexOrdering();
                 _disk.TrimTrailingPages();
@@ -265,6 +265,8 @@ namespace LiteDB.Engine
         /// </summary>
         /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
         internal bool InvalidDatafileState { get; private set; }
+
+        internal bool HasActiveTransaction => _monitor != null && _monitor.HasActiveTransaction(_monitor.Owner);
 
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
@@ -399,6 +401,9 @@ namespace LiteDB.Engine
                 throw;
             }
         }
+
+        internal bool StorageUncertain => _state.Stopped || _state.WriteFailure != null;
+        internal void SyncSharedRecovery() => _disk.SyncSharedRecovery();
 
         internal int ReadVersion => _walIndex.CurrentReadVersion;
 

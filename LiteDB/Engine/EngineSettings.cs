@@ -57,10 +57,26 @@ namespace LiteDB.Engine
 
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
+        // Grouped WAL commits call this only after the covering durable barrier.
+        // It is deliberately an action rather than another publication interface so
+        // existing signal implementations retain their append/structural contract.
+        internal Action<int> DurableCommitPublication { get; set; }
+        // Captured by each EngineState so delayed stop cleanup cannot fence a successor.
+        internal long SharedWriterTenure { get; set; }
+        internal object TransactionOwner { get; set; }
         internal bool BypassDirectHost { get; set; }
         internal bool SharedMode { get; set; }
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
+
+        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
+        public bool SharedOneFile { get; set; }
+        /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
+        public long SharedMemorySize { get; set; }
+        /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>
+        public int SharedProcessCapacity { get; set; } = 256;
+        /// <summary>Distinct snapshot generations per process chosen at initialization (default 256).</summary>
+        public int SharedGenerationCapacity { get; set; } = 256;
 
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when

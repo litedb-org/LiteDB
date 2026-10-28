@@ -9,6 +9,31 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "DispatchOverride": {"gate": "advisory", "reason": "TESTING-only per-owner dispatch seam: SharedReaderCleanupDispatch_Tests.Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease forces false/OutOfMemoryException and asserts fault-point:DispatchOverride; False_after_queueing_and_retry_callbacks_dispose_each_owner_once covers delayed duplicates. PR fuzz smoke does not install the seam or deterministically abandon/finalize Shared results."},
+    "OwnershipStage": {
+      "gate": "advisory",
+      "reason": "Focused SharedOneFile terminal, teardown callback and writable fallback tests force these exception boundaries. Generic default-mode fuzz does not install this instance hook; whole-path mapped fuzz remains a later-slice qualification gate."
+    },
+    "WriteRetry": {
+      "gate": "advisory",
+      "reason": "Focused SharedOneFileRetryHandoff tests force real abandoned-thread conflicts and native byte release/timeout. Default-mode fuzz does not enable ABI-2 or retain dead-thread native handles."
+    },
+    "BeforeTransactionRegistration": {
+      "gate": "advisory",
+      "reason": "Deterministic mapped and legacy retry tests install this exception hook; default-mode fuzz does not inject failed registration. Cross-process mapped retry coverage retains complete cold payload/index/sentinel oracles."
+    },
+    "BootstrapStage": {
+      "gate": "advisory",
+      "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate."
+    },
+    "AllocateFile": {
+      "gate": "advisory",
+      "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate."
+    },
+    "MapFile": {
+      "gate": "advisory",
+      "reason": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate."
+    },
     "wal-before-ticket-completion": {
       "gate": "advisory",
       "reason": "GroupCommitUnsupported_Tests forces unsupported grouped sync and pauses tickets at completion; fuzz smoke does not force this capability downgrade and xUnit marker counts are not collected."
@@ -36,6 +61,22 @@
     "wal-before-batch-flush": {
       "gate": "advisory",
       "reason": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary."
+    },
+    "PublicationStage": {
+      "gate": "advisory",
+      "reason": "Dormant ABI-2 Linux x64 path has focused live-authority process-death, exception and forced-prefix tests; mapped power-loss fuzz and other architecture qualification remain later-slice gates."
+    },
+    "wal-before-failed-append-truncate": {
+      "gate": "advisory",
+      "reason": "Deterministic SharedOneFileWriteFailures_Tests inject append/cleanup failures; the default-mode fuzz smoke does not force these failure paths."
+    },
+    "wal-after-failed-append-truncate": {
+      "gate": "advisory",
+      "reason": "Deterministic SharedOneFileWriteFailures_Tests inject append/cleanup failures; the default-mode fuzz smoke does not force these failure paths."
+    },
+    "AdmissionStage": {
+      "gate": "advisory",
+      "reason": "Linux x64 opt-in warm admission has forced xUnit interleavings; existing default-mode fuzz smoke does not enable ABI 2. Whole-path mapped fuzz/platform qualification remains slice 10."
     }
   },
   "markers": [
@@ -634,7 +675,7 @@
       "name": "refusal:shared-rebuild-with-open-readers",
       "kind": "refusal",
       "paths": [
-        "LiteDB/Client/Shared/SharedEngine.cs"
+        "LiteDB/Client/Shared/SharedEngine.Maintenance.cs"
       ],
       "targets": [
         "LiteDB.Tests/Internals/MvccSharedLifecycle_Tests.cs#RebuildRejectsLiveReadersAndSucceedsAfterTheyClose"

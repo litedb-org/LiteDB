@@ -36,6 +36,7 @@ namespace LiteDB.Engine
 
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
+        private readonly long _sharedWriterTenure;
 
 #if DEBUG || TESTING
         public Action<long, FileOrigin> BeforePageRead;
@@ -62,6 +63,8 @@ namespace LiteDB.Engine
         {
             _engine = engine;
             _settings = settings;
+            _sharedWriterTenure = settings?.SharedWriterTenure ?? 0;
+            (settings?.CoordinationSignals as IWriteAdmissionSignals)?.BindState(this, _sharedWriterTenure);
 #if DEBUG || TESTING
             CheckpointStage = settings?.CheckpointStage;
 #endif
@@ -167,6 +170,10 @@ namespace LiteDB.Engine
         internal void CompleteStop(Exception ex, bool ownsFailure)
         {
             if (!ownsFailure) return;
+            // CompleteStop runs outside disk/index locks. Fence the mapped image
+            // before teardown can finish a structural scope or release ownership.
+            try { (_settings?.CoordinationSignals as IWriteAdmissionSignals)?.Stopped(_sharedWriterTenure); }
+            catch (Exception fenceError) { LOG($"fencing stopped Shared storage failed: {fenceError.Message}", "ERROR"); }
             try { _engine?.Close(ex, this); }
             finally { this.Disposed = true; }
         }

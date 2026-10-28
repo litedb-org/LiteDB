@@ -13,6 +13,7 @@ namespace LiteDB.Client.Shared
     {
         internal static bool ExistsOrUnknown(string path)
         {
+            SharedCoordinationDiagnostics.Operation();
             try
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

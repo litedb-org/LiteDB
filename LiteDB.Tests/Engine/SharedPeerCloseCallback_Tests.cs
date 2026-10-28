@@ -41,6 +41,44 @@ namespace LiteDB.Tests.Engine
 
         private static IEnumerable<BsonDocument> BigBatch(int first) => Enumerable.Range(first, BigRows).Select(Big);
 
+#if NET8_0_OR_GREATER
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Caller_file_stream_through_a_parent_alias_retains_the_physical_peers_namespace(bool encrypted)
+        {
+            this.Seed(this.Filename, encrypted);
+            var alias = Path.Combine(Path.GetDirectoryName(this.Filename), "parent-alias");
+            Directory.CreateSymbolicLink(alias, Path.GetDirectoryName(this.Filename));
+            try
+            {
+                var filename = Path.Combine(alias, Path.GetFileName(this.Filename));
+                using var data = CallbackFile.Open(filename);
+                using var log = CallbackFile.Open(FileHelper.GetLogFile(filename));
+                using var outer = new SharedEngine(new EngineSettings
+                { Filename = filename, Password = Password(encrypted), DataStream = data, LogStream = log });
+                var peer = this.OpenPeer(this.Filename, encrypted);
+                outer.Insert("rows", new[] { Row(100) }, BsonAutoId.Int32).Should().Be(1);
+                var calls = 0;
+                Exception refusal = null;
+                data.Arm(() =>
+                {
+                    calls++;
+                    refusal = Record.Exception(() => peer.GetCollection("rows").Insert(Row(9)));
+                });
+                this.RunBounded(outer.Dispose).Should().BeNull();
+                calls.Should().Be(1);
+                refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("another connection");
+                peer.GetCollection("rows").Insert(Row(9));
+                this.CloseAll();
+            }
+            finally { Directory.Delete(alias); }
+            // Caller-owned streams outlive outer.Dispose; release them before the
+            // cold Direct reopen, whose Windows sharing mode excludes other writers.
+            VerifyCold(this.Filename, encrypted, new[] { 1, 9, 100 });
+        }
+#endif
+
         [Theory]
         [MemberData(nameof(Cases))]
         public void Peer_write_from_stream_callback_during_close_is_refused(Close close, bool encrypted)

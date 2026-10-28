@@ -16,6 +16,9 @@ namespace LiteDB.Client.Shared
         internal const long Admission = long.MaxValue - 4096;
         internal const long Family = Admission + 1;
         private const long ReadOnlyDirect = Admission + 2;
+        // Keep legacy family and Phase 1 read-only marker offsets stable.
+        // The mapped family must not publish a read-only Direct marker.
+        internal const long MappedFamily = Admission + 3;
         private readonly SafeFileHandle _handle;
         private readonly SafeFileHandle _lockHandle;
         internal string Identity { get; }
@@ -65,6 +68,7 @@ namespace LiteDB.Client.Shared
 
         internal void Lock(long offset, bool exclusive)
         {
+            SharedCoordinationDiagnostics.Operation();
             SharedCoordinationFile.Observe(this.Path, exclusive ? "mode-exclusive-lock" : "mode-shared-lock");
             if (DatabaseFileIdentity.Windows)
             {
@@ -77,6 +81,7 @@ namespace LiteDB.Client.Shared
 
         internal void Unlock(long offset, long length = 1)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (DatabaseFileIdentity.Windows)
             {
                 var position = Position(offset);
@@ -98,6 +103,7 @@ namespace LiteDB.Client.Shared
         // F_OFD_GETLK works on read-only descriptors, unlike a trial write lock.
         internal bool Conflicts(long offset, long length = 1)
         {
+            SharedCoordinationDiagnostics.Operation();
             if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
             if (!DatabaseFileIdentity.Windows)
                 return this.UnixLock(offset, WriteLock, query: true, length: length) != UnlockLock;
@@ -111,12 +117,25 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
+        // Only documented lock conflicts mean busy. Other errors must propagate;
+        // callers must never infer death from access, unsupported-kernel or I/O errors.
+        internal bool TryLock(long offset, bool exclusive)
+        {
+            SharedCoordinationDiagnostics.Operation();
+            if (!DatabaseFileIdentity.Windows)
+                return this.UnixLock(offset, exclusive ? WriteLock : ReadLock, false, allowConflict: true) != -1;
+            var position = Position(offset);
+            if (LockFileEx(_handle, exclusive ? 3u : 1u, 0, 1, 0, ref position)) return true;
+            if (Marshal.GetLastWin32Error() == 33) return false;
+            throw Error("LockFileEx");
+        }
+
         private static bool Darwin => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         private static short ReadLock => Darwin ? (short)1 : (short)0;
         private static short WriteLock => Darwin ? (short)3 : (short)1;
         private static short UnlockLock => 2;
 
-        private short UnixLock(long offset, short type, bool query, long length = 1)
+        private short UnixLock(long offset, short type, bool query, long length = 1, bool allowConflict = false)
         {
             int result;
             short actual;
@@ -135,7 +154,12 @@ namespace LiteDB.Client.Shared
                     actual = value.Type;
                 }
             } while (result < 0 && Marshal.GetLastWin32Error() == 4); // EINTR
-            if (result < 0) throw Error("fcntl OFD lock");
+            if (result < 0)
+            {
+                var error = Marshal.GetLastWin32Error();
+                if (allowConflict && (error == 13 || error == (Darwin ? 35 : 11))) return -1;
+                throw Error("fcntl OFD lock");
+            }
             return actual;
         }
 

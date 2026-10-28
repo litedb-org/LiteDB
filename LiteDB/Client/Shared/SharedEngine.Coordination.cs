@@ -15,20 +15,28 @@ namespace LiteDB
         private void OpenEngine(bool recoveredAbandonedOwner, bool final = false, bool writing = false)
         {
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
-#if NET8_0_OR_GREATER
-            this.EnsureCoordination(allowCreate: !final, writing: true);
-            // A fresh connection can attach only under ownership. Announce before
-            // replay/open so cached peers yield during this writer's expensive work.
-            if (writing) this.StartWriterPressure();
-            // A valid open only reconstructs local state. Actual recovery/migration
-            // mutations announce their own structural regions before touching storage.
-            var recovering = _coordination?.BeginOpenRecovery() ?? false;
-#else
-            SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
-#endif
             LiteDB.Engine.LiteEngine opened = null;
+#if NET8_0_OR_GREATER
+            var writableMapped = _settings.SharedOneFile && !_settings.ReadOnly && !_settings.ReadOnlyStorage;
+            var recovering = false;
+            SharedMemoryReaderTable mapped = null;
+#endif
             try
             {
+#if NET8_0_OR_GREATER
+                if (writableMapped) this.EnterMappedWriter(recoveredAbandonedOwner);
+                this.EnsureCoordination(allowCreate: !final, writing: true);
+                if (writing) this.StartWriterPressure();
+                recovering = _coordination?.BeginOpenRecovery() ?? false;
+                mapped = _settings.SharedOneFile ? _settings.CoordinationSignals as SharedMemoryReaderTable : null;
+                if (mapped != null && writableMapped)
+                {
+                    _settings.SharedWriterTenure = mapped.WriterTenure;
+                    mapped.BeginOpenRecovery();
+                }
+#else
+                SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+#endif
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER
                 this.CoordinationStage?.Invoke("opening");
 #endif
@@ -38,7 +46,12 @@ namespace LiteDB
                 this.CoordinationStage?.Invoke("opened");
 #endif
 #if NET8_0_OR_GREATER
-                _coordination?.Opened(opened.ReadVersion, endStructural: recovering);
+                if (_coordination != null) _coordination.Opened(opened.ReadVersion, endStructural: recovering);
+                else if (mapped != null && writableMapped)
+                {
+                    opened.SyncSharedRecovery();
+                    mapped.Opened(opened.ReadVersion);
+                }
 #endif
                 _engine = opened;
             }
@@ -46,11 +59,17 @@ namespace LiteDB
             {
                 // Opening is not complete until publication succeeds. Keep failed
                 // engines out of connection state and preserve the original error.
+#if NET8_0_OR_GREATER
+                try { if (writableMapped && _mappedWriterHeld) mapped?.Stopped(_settings.SharedWriterTenure); }
+                catch (Exception) { /* Unavailable authority already refuses readers. */ }
+#endif
                 try { if (opened != null) this.CloseRetainedCore(opened, checkpoint: false); }
                 catch (Exception) { /* Best effort after a failed open; no checkpoint. */ }
 #if NET8_0_OR_GREATER
                 try { if (recovering) _coordination.StructuralEnd(-1); }
                 catch (Exception) { /* A damaged authority remains untrusted. */ }
+                try { if (writableMapped) this.ExitMappedWriter(false); }
+                catch (Exception) { /* Release runs in finally; retain the opening failure. */ }
 #endif
                 throw;
             }
@@ -64,6 +83,7 @@ namespace LiteDB
         private void RetireCoordinatedReads()
         {
 #if NET8_0_OR_GREATER
+            if (_settings.SharedOneFile && System.Threading.Volatile.Read(ref _disposed) != 0) return;
             lock (_snapshotGate)
             {
                 _readCacheDemand = 0;

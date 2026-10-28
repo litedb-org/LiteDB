@@ -1000,6 +1000,14 @@
       "protocol": "startup trailing-page trim",
       "evidence": [
         {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
+        {
           "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
           "model": "process-death",
           "proves": "The file bytes seen at the hook are restored after the aborted open; a second open dies at the same hook while a tail remains, and the next clean open is page-aligned with every committed row (full payloads, unique-index plan and results) intact; current and legacy v8 formats, plain and encrypted. UninterruptedOpen_CutsEachIncompleteTailOnce pins the hook sequence."
@@ -1016,6 +1024,14 @@
       "name": "startup-before-tail-trim",
       "protocol": "startup trailing-page trim",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
         {
           "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
           "model": "process-death",
@@ -1668,9 +1684,36 @@
     },
     {
       "family": "process-crash",
+      "name": "wal-before-failed-append-truncate",
+      "protocol": "Removal of a failed WAL append under mapped reuse publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+          "model": "exception",
+          "proves": "Injected append failure reaches truncation after reuse invalidation; failed cleanup remains fenced, native WRITE releases and two protected recoveries preserve exact committed data."
+        }
+      ],
+      "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-after-failed-append-truncate",
+      "protocol": "Removal of a failed WAL append under mapped reuse publication",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+          "model": "exception",
+          "proves": "Injected append failure reaches truncation after reuse invalidation; failed cleanup remains fenced, native WRITE releases and two protected recoveries preserve exact committed data."
+        }
+      ],
+      "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+    },
+    {
+      "family": "process-crash",
       "name": "wal-before-ticket-completion",
       "protocol": "WAL group completion",
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions", "model": "exception", "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."},
         {
           "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
           "model": "exception",
@@ -1686,6 +1729,63 @@
     }
   ],
   "injectors": [
+    {
+      "name": "DispatchOverride",
+      "protocol": "abandoned Shared reader cleanup dispatch",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease",
+          "model": "exception",
+          "proves": "False and OutOfMemoryException submission failures retain cursor pins, lease and root until timer retry releases them; checkpoint/reopen preserves data and indexes."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#False_after_queueing_and_retry_callbacks_dispose_each_owner_once",
+          "model": "exception",
+          "proves": "False after queueing plus retry and a delayed duplicate callback preserves exactly-once disposal and root freeing with reader/release exceptions."
+        }
+      ]
+    },
+    {
+      "name": "OwnershipStage",
+      "protocol": "Shared terminal completion, core-close and snapshot-open boundaries",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state",
+          "model": "exception",
+          "proves": "Commit/rollback/core-close/Dispose cuts release local and native ownership for both ordinary and pinned holders, followed by immediate peer admission and two cold indexed payload checks."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Every_protected_entry_propagates_abandonment_until_the_real_WRITE_byte_is_acquired",
+          "model": "exception",
+          "proves": "An injected read-only snapshot open failure follows the normal writable fallback after real mutex abandonment and a conflicting WRITE byte."
+        }
+      ]
+    },
+    {
+      "name": "WriteRetry",
+      "protocol": "Native WRITE conflict with a held main mutex",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Real_abandoned_thread_with_live_handles_requires_actual_WRITE_and_can_retry_after_timeout",
+          "model": "interleaving",
+          "proves": "A real abandoned thread leaves live handles in its surviving process; a controlled byte release permits acquisition, persistent conflict times out without stealing ownership and a later retry succeeds."
+        }
+      ]
+    },
+    {
+      "name": "BeforeTransactionRegistration",
+      "protocol": "Transaction retry registration before admission",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive",
+          "model": "exception",
+          "proves": "Plain/encrypted mapped owners hit three failed registrations then retry, commit and admit 20 writes from a separate process while the owner stays alive; cold indexed payload and sentinel oracles exclude aborted rows.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileOwnershipHarness.cs"
+          ]
+        }
+      ]
+    },
     {
       "name": "SimulateDiskWriteFail",
       "protocol": "WAL page writes",
@@ -1812,6 +1912,142 @@
           "proves": "Queued writer finishes with terminal refusal before failure teardown; later attempts preserve the exact WAL bytes."
         }
       ]
+    },
+    {
+      "name": "BootstrapStage",
+      "protocol": "ABI-2 ephemeral mapping bootstrap and final close",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+          "model": "process-death",
+          "proves": "Real SharedEngine construction/close hits production reuse stores with asserted reuse and marker reachability, two child deaths per cut and two indexed payload/sentinel recovery checks.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileProductionReuseHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+          "model": "process-death",
+          "proves": "Every selected reuse/Ready/close and real protected startup-tail-trim boundary is killed twice; child asserts reuse without reset and bootstrap reachability, then two validations preserve authority, payloads, indexes and unrelated data.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileReuseHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+          "model": "exception",
+          "proves": "Each named bootstrap/final-close boundary is hit, injected twice and followed by protected document/index/unrelated payload validation."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death",
+          "model": "process-death",
+          "proves": "Two kills at each reached bootstrap/close boundary then protected storage validation before Ready."
+        }
+      ],
+      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+    },
+    {
+      "name": "AllocateFile",
+      "protocol": "ABI-2 ephemeral mapping allocation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+          "model": "exception",
+          "proves": "Modeled ENOSPC and map failure repeat twice, preserve DB bytes and release all partial locks before validated retry."
+        }
+      ]
+    },
+    {
+      "name": "MapFile",
+      "protocol": "ABI-2 ephemeral mapping allocation",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+          "model": "exception",
+          "proves": "Modeled ENOSPC and map failure repeat twice, preserve DB bytes and release all partial locks before validated retry."
+        }
+      ]
+    },
+    {
+      "name": "PublicationStage",
+      "protocol": "ABI-2 mapped writer publication and recovery fences",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+          "model": "process-death",
+          "proves": "Real SharedEngine construction/close hits production reuse stores with asserted reuse and marker reachability, two child deaths per cut and two indexed payload/sentinel recovery checks.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileProductionReuseHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
+          "model": "process-death",
+          "proves": "A process killed at each mapped writer publication fence is recoverable; acknowledged payloads and indexes remain complete and the next writer can repeat recovery.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+          "model": "process-death",
+          "proves": "Retained DMS and an actual accepted snapshot survive two successor deaths at each internal writer/open/structural cut; exact generations, payloads and indexes survive protected recovery twice.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileDurablePrefix_Tests.cs#Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+          "model": "interleaving",
+          "proves": "Two separately captured group barriers with a pending later append publish only the prefix covered by the completed barrier."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs#Terminal_stop_cannot_publish_or_clear_fences_and_releases_WRITE",
+          "model": "exception",
+          "proves": "Stopped cores cannot publish commits, clear recovery fencing or retain native WRITE after any tested grouped barrier failure."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Interrupted_writer_acquisition_unwinds_native_and_thread_ownership",
+          "model": "exception",
+          "proves": "Each injected partial acquisition releases WRITE and local ownership before an independently threaded protected recovery succeeds."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+          "model": "process-death",
+          "proves": "A genuinely warm streamed snapshot survives writer death at each writer/open/commit fence and repeated recovery with exact indexed payloads.",
+          "via": [
+            "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+          ]
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmPublication_Tests.cs#Every_publication_step_admits_only_a_sync_covered_version_and_stopped_writer_never_reenables",
+          "model": "interleaving",
+          "proves": "Every reached publication stage samples at most a sync-covered prefix; failed sync remains fenced and cannot reenable warm status."
+        }
+      ],
+      "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+    },
+    {
+      "name": "AdmissionStage",
+      "protocol": "ABI-2 warm reader publish/fence/recheck",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Every_status_load_rejects_a_raced_64_bit_fence_without_executing_a_query",
+          "model": "interleaving",
+          "proves": "Each mapped sequence/authority/field/recheck cut rejects a crossed publication and samples complete 64-bit epochs."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Sequence_change_at_each_load_before_and_after_record_publication_falls_back",
+          "model": "interleaving",
+          "proves": "Crossing any load in either status sample rejects even a same-version publication; no query executes warm and no record leaks."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileWarmFailures_Tests.cs#Admission_exception_releases_a_new_record_without_query_execution",
+          "model": "exception",
+          "proves": "Every status cut and the post-record cut throws before execution, releases any new generation, and leaves the next read usable."
+        }
+      ],
+      "gap": "Bounded Linux x64 SC/CLR evidence; no ARM or device memory-ordering qualification."
     }
   ],
   "observers": {

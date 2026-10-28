@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Runtime.ExceptionServices;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -68,8 +69,12 @@ namespace LiteDB
                     // migration, format promotion, auto-rebuild): proceed as before.
                     lock (_useLock)
                     {
-                        try { this.OpenEngine(recoveredAbandonedOwner); }
-                        catch { _owner.Exit(); throw; }
+                        try
+                        {
+                            this.EnterMappedWriter(recoveredAbandonedOwner);
+                            this.OpenEngine(recoveredAbandonedOwner, writing: true);
+                        }
+                        catch { this.ExitMappedWriter(false); _owner.Exit(); throw; }
                         _databaseUsers++;
                     }
                 }
@@ -90,7 +95,7 @@ namespace LiteDB
             {
                 // A direct owner must establish protection before executing the query: a
                 // reader cannot escape its thread if registration subsequently fails.
-                if (_owner.OwnsDirectly)
+                if (_owner.OwnsDirectly || _settings.SharedOneFile)
                 {
                     lease = this.TryRegisterLease();
                     if (lease == null)
@@ -143,7 +148,8 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true, leaseFiles: (_readers as SharedReaderRegistry)?.LeaseFiles);
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 return result;
@@ -190,7 +196,7 @@ namespace LiteDB
                 _leaseState = LEASES_AVAILABLE;
                 return lease;
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (!(ex is SharedGenerationCapacityException) && (ex is IOException || ex is UnauthorizedAccessException))
             {
                 _leaseState = LEASES_UNAVAILABLE;
                 return null;
@@ -210,7 +216,7 @@ namespace LiteDB
                 _readers.Probe(version);
                 _leaseState = LEASES_AVAILABLE;
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (!(ex is SharedGenerationCapacityException) && (ex is IOException || ex is UnauthorizedAccessException))
             {
                 _leaseState = LEASES_UNAVAILABLE;
             }
@@ -236,7 +242,7 @@ namespace LiteDB
             var release = true;
             try
             {
-                if (_owner.OwnsDirectly)
+                if (_owner.OwnsDirectly || _settings.SharedOneFile)
                 {
                     lease = this.TryRegisterLease(snapshot.ReadVersion);
                     if (lease == null)
@@ -296,7 +302,8 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true, leaseFiles: (_readers as SharedReaderRegistry)?.LeaseFiles);
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 reader = null;
@@ -315,7 +322,7 @@ namespace LiteDB
                         {
                             if (release)
                             {
-                                if (!_transactionRunning) _transactionThreadId = 0;
+                                if (!_transactionRunning) _transactionThread = null;
                                 _owner.Exit();
                             }
                         }
@@ -339,6 +346,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
                 this.EnsureReadCoordination();
 #endif
+                this.AtOwnershipStage("before-snapshot-open");
                 snapshot = this.CreateEngine(recoveredAbandonedOwner, this.SnapshotSettings());
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException))
@@ -372,6 +380,17 @@ namespace LiteDB
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;
             settings.CoordinationSignals = null;
+#if NET8_0_OR_GREATER
+            if (_readers is SharedMemoryReaders mapped)
+            {
+                // A process cache must not retain the creating facade through its
+                // settings delegates, admission object or cached stream owner.
+                settings.SharedReaderVersions = mapped.Table.LiveVersions;
+                settings.AutoRebuildAllowed = () => false;
+                settings.SharedAdmission = mapped.Table.Admission;
+                settings.SharedFileHandles = null;
+            }
+#endif
             return settings;
         }
 
