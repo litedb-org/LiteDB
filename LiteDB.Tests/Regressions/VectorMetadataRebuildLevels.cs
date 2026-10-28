@@ -5,7 +5,7 @@ namespace LiteDB.Tests.Regressions
 {
     // Pin valid level draws, rather than depending on runtime-specific Random sequences.
     // This sequence connects the published fixture's computed index. General HNSW
-    // connectivity is a separate pre-existing limitation: TBD-hnsw-connectivity.
+    // connectivity is a separate pre-existing limitation: https://github.com/litedb-org/LiteDB/issues/3141.
     // Tests run without collection parallelism; always restore the global test hook.
     internal sealed class VectorMetadataRebuildLevels : IDisposable
     {

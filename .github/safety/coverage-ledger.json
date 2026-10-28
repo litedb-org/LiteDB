@@ -207,11 +207,11 @@
       ],
       "disposition": "replaced",
       "invariant": "The recovery matrix exercised a bounded ANN query after rebuilding the healthy computed vector index, including nearest document 7. Complete document/vector preservation and exact metric results are separate invariants.",
-      "reason": "Commit 5c6781007 replaced the old random-level TopKNear([1,7],20) membership assertion with stronger document/vector preservation and exact primary-scan scores, but that scan did not cover ANN reachability. The matrix now retains those stronger oracles and also pins a known-connected valid level sequence, verifies persisted levels and root reachability of every stored node, validates the bounded vector-search plan, and compares TopKNear k=5 and k=20 results/distances to an independent exact oracle after rebuild and two reopens. This asserts exact recall only for the controlled fixture, not random HNSW graphs. V-3140 independently reproduced a disconnected fresh graph on dev b3c440623: EnsureBidirectional removes reciprocal links during nearest-M pruning and SelectNeighbors has no connectivity heuristic. That pre-existing general construction/recall gap is outside PR #3140 and remains tracked separately as TBD-hnsw-connectivity; the orchestrator must replace this placeholder with the follow-up issue link.",
+      "reason": "Commit 5c6781007 replaced the old random-level TopKNear([1,7],20) membership assertion with stronger document/vector preservation and exact primary-scan scores, but that scan did not cover ANN reachability. The matrix now retains those stronger oracles and also pins a known-connected valid level sequence, verifies persisted levels and root reachability of every stored node, validates the bounded vector-search plan, and compares TopKNear k=5 and k=20 results/distances to an independent exact oracle after rebuild and two reopens. This asserts exact recall only for the controlled fixture, not random HNSW graphs. V-3140 independently reproduced a disconnected fresh graph on dev b3c440623: EnsureBidirectional removes reciprocal links during nearest-M pruning and SelectNeighbors has no connectivity heuristic. That pre-existing general construction/recall gap is outside PR #3140 and remains tracked separately in https://github.com/litedb-org/LiteDB/issues/3141.",
       "coveredBy": [
         "LiteDB.Tests/Regressions/VectorMetadataDamageMatrix_Tests.cs#Rebuild_reports_only_the_damaged_index_and_preserves_documents"
       ],
-      "followUp": "TBD-hnsw-connectivity"
+      "followUp": "https://github.com/litedb-org/LiteDB/issues/3141"
     }
   ]
 }
