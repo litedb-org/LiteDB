@@ -71,6 +71,36 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
+## HNSW graph connectivity
+
+New construction and mutation preserve a connected, reciprocal level-zero graph.
+Construction applies the [HNSW diversity heuristic (algorithm 4)](https://arxiv.org/abs/1603.09320)
+to the construction candidates.
+At level zero, an existing link is pruned only when a two-hop path already
+replaces it; if all links may be bridges, an isolated new node subdivides an
+existing link. Deleting an articulation point reconnects surviving components
+with a spanning path, then restores old shortcuts that fit the eight-link limit.
+This prevents whole clusters becoming permanently unreachable as in
+[issue #3141](https://github.com/litedb-org/LiteDB/issues/3141).
+
+The node layout, eight neighbors per level, metadata, and file versions are
+unchanged. Existing indexes remain readable, including disconnected graphs made
+by older releases. Opening a file does not repair its graph. An explicit
+`Rebuild()` regenerates vector indexes from preserved documents and repairs those
+graphs; it is optional, uses the existing rebuild recovery protocol, and is not
+forced by this change. Until rebuilt, a disconnected old graph can still omit
+neighbors, and writes into it are not a general repair mechanism.
+
+Construction considers up to 24 candidates for diversity and performs bounded
+local adjacency checks before pruning. This adds distance/adjacency work per
+insert without a whole-graph connectivity scan. Delete/update already search the
+graph to locate a node; component detection adds O(V + E) traversal and temporary
+address storage, and an articulation-point repair rewrites level-zero links
+across the surviving components. This can increase write amplification. Benchmark
+CI must measure the impact; no local benchmark establishes a cost bound.
+Approximate recall with an exploration budget below the graph size remains
+approximate. Equal-distance neighbors retain unspecified relative order.
+
 ## Legacy v8/v9 migration and vector format 11
 
 BSON-only databases use **format v11** and Auto compact databases **v12**. Both protect vector pages and the

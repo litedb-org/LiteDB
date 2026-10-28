@@ -1,0 +1,29 @@
+{
+  "id": "Issue_3141_HnswConnectivity",
+  "title": "HNSW saturated neighborhoods disconnect stored vectors",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3141"
+  ],
+  "failingSince": "0.0.0-knownbad.b3c440623190",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "vector"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "DISCONNECTED_GRAPH_VERIFIED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}

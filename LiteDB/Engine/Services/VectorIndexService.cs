@@ -180,7 +180,7 @@ namespace LiteDB.Engine
                     vector,
                     currentEntry,
                     level,
-                    VectorIndexNode.MaxNeighborsPerLevel,
+                    EfConstruction,
                     EfConstruction,
                     null,
                     vectorCache);

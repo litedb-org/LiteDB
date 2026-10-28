@@ -225,6 +225,19 @@
         "scripts/test-5021-regression-compatibility.py",
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
+    },
+    {
+      "repro": "Issue_3141_HnswConnectivity",
+      "knownBad": {
+        "kind": "dev-commit",
+        "commit": "b3c4406231908c6ca29f6d4b2769aa08351d6fc2",
+        "reason": "The reported graph and deterministic replay were established on this dev revision; the same vector API and persisted graph scenario have not been established against a published package."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Replayed_levels_keep_every_node_reachable_and_restore_exhaustive_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Seeded_mutations_preserve_connectivity_and_exhaustive_recall",
+        "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Equal_vectors_remain_reachable_after_saturated_neighborhoods_and_root_deletion"
+      ]
     }
   ]
 }

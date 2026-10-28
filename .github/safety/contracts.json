@@ -178,6 +178,11 @@
         "LiteDB/Client/Database/LiteGrouping.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Replayed_levels_keep_every_node_reachable_and_restore_exhaustive_recall", "proves": "A naturally disconnected dev level sequence reaches all 20 nodes at level zero and bounded ANN matches exact metric evaluation when ef exceeds N."},
+        {"test": "LiteDB.Tests/Query/VectorIndexConnectivity_Tests.cs#Seeded_mutations_preserve_connectivity_and_exhaustive_recall", "proves": "Fixed seeds exercise 36 small collections and 2160 insert/delete/update operations, checking reciprocal level-zero reachability and independent metric top-k after every mutation."},
+        {"test": "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Lost_and_torn_graph_wal_writes_recover_whole_transactions_twice", "model": "modeled-power-loss", "proves": "Lost or torn prefixes at every discovered WAL write of a mixed graph transaction preserve the acknowledged graph/documents and cold collection on two file-backed recoveries; completed control preserves the complete new graph."},
+        {"test": "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Graph_mutations_rollback_and_committed_wal_recover_complete_documents_and_recall", "proves": "File-backed mixed graph mutations roll back completely, then committed WAL survives two reopen/checkpoint cycles with exact document, graph and recall oracles."},
+        {"test": "LiteDB.Tests/Query/VectorIndexConnectivityRecovery_Tests.cs#Existing_disconnected_graph_reads_unchanged_and_rebuild_restores_recall", "proves": "An unchanged dev-produced disconnected fixture stays readable without file mutation; optional Rebuild preserves every document and restores ANN recall across two reopens."},
         {"test": "LiteDB.Tests/Query/RangeUnionOptimization_Tests.cs#Merged_ranges_match_unindexed_results_in_both_directions", "proves": "Merged index ranges return exactly the unindexed results in both directions."},
         {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
         {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},

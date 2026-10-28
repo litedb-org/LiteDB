@@ -115,6 +115,61 @@ namespace LiteDB.Tests.QueryTest
             }
         }
 
+        [Fact]
+        public void Deleting_an_articulation_point_reconnects_every_surviving_component()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("docs");
+            collection.Insert(Enumerable.Range(1, 25).Select(i =>
+                new VectorDocument { Id = i, Embedding = new[] { 1f, (float)i } }));
+            collection.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
+            db.BeginTrans().Should().BeTrue();
+            // Acquire the collection's write snapshot before installing a valid
+            // reciprocal star with eight arms. This explicitly exercises a cut vertex.
+            collection.Update(new VectorDocument { Id = 1, Embedding = new[] { 1f, 1f } }).Should().BeTrue();
+            var center = InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            {
+                var order = new List<PageAddress>();
+                var pending = new Stack<PageAddress>();
+                pending.Push(metadata.Root);
+                while (pending.Count > 0)
+                {
+                    var address = pending.Pop();
+                    if (order.Contains(address)) continue;
+                    order.Add(address);
+                    var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+                    foreach (var neighbor in node.GetNeighbors(0)) pending.Push(neighbor);
+                }
+                order.Count.Should().Be(25);
+                for (var i = 0; i < order.Count; i++)
+                {
+                    var links = new List<PageAddress>();
+                    if (i == 0)
+                        for (var arm = 0; arm < 8; arm++) links.Add(order[1 + arm * 3]);
+                    else
+                    {
+                        var offset = (i - 1) % 3;
+                        links.Add(offset == 0 ? order[0] : order[i - 1]);
+                        if (offset < 2) links.Add(order[i + 1]);
+                    }
+                    var node = snapshot.GetPage<VectorIndexPage>(order[i].PageID).GetNode(order[i].Index);
+                    node.SetNeighbors(0, links);
+                    for (var level = 1; level < node.LevelCount; level++)
+                        node.SetNeighbors(level, Array.Empty<PageAddress>());
+                }
+                var root = snapshot.GetPage<VectorIndexPage>(order[0].PageID).GetNode(order[0].Index);
+                return new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null)
+                    .Load(root.DataBlock)["_id"];
+            });
+            db.Commit().Should().BeTrue();
+            AssertConnectivity(db, 25);
+            collection.Delete(center).Should().BeTrue();
+            AssertConnectivity(db, 24);
+            var target = new[] { 1f, 7.25f };
+            collection.Query().TopKNear(x => x.Embedding, target, 25).ToArray().Select(x => x.Id).Should()
+                .Equal(ComputeExpectedRanking(collection.FindAll(), target, VectorDistanceMetric.Cosine).Select(x => x.Id));
+        }
+
         private static void AssertConnectivity(LiteDatabase db, int count)
         {
             InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>

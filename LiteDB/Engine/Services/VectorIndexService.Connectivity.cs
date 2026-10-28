@@ -6,7 +6,8 @@ namespace LiteDB.Engine
 {
     internal sealed partial class VectorIndexService
     {
-        // Algorithm 4's diversity test keeps candidates in different directions. Keep
+        // HNSW algorithm 4 (https://arxiv.org/abs/1603.09320), with
+        // extendCandidates=false and keepPrunedConnections=true. Keep
         // rejected candidates as a fallback (including undefined cosine zero vectors).
         // SearchLayer itself must still return candidates in query-distance order.
         private List<NodeDistance> SelectConstructionNeighbors(VectorIndexMetadata metadata,
@@ -18,7 +19,7 @@ namespace LiteDB.Engine
             {
                 var vector = this.GetVector(metadata, candidate.Address, cache);
                 if (selected.All(other => NormalizeDistance(ComputeDistance(vector,
-                    this.GetVector(metadata, other.Address, cache), metadata.Metric, out _)) >= candidate.Distance))
+                    this.GetVector(metadata, other.Address, cache), metadata.Metric, out _)) > candidate.Distance))
                 {
                     selected.Add(candidate);
                     if (selected.Count == maximum) return selected;
