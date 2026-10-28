@@ -2,8 +2,8 @@
 
 A known-bad state is a published package, a commit that existed on dev
 (`dev-commit`), or a commit of the pull request that introduced and fixed the
-defect before it reached dev (`pr-commit`). A `pr-commit` names its PR and,
-when that PR lives in another repository (a fork), the repository as
+defect before it reached dev (`pr-commit`, retained after merge). A `pr-commit`
+names its PR and, when that PR lives in another repository (a fork), the repository as
 `owner/name`:
 
     {"kind": "pr-commit", "commit": "<40 hex>", "pr": 133, "repository": "JKamsker/LiteDB"}
@@ -14,8 +14,10 @@ With it, the head is fetched from https://github.com/<owner>/<name>.git (public
 repositories need no credentials) into `refs/proof/repo/<owner>/<name>/pr-<pr>`,
 so a fork's PR #N never resolves against the upstream's PR #N.
 """
+import json
 import re
 import subprocess
+import urllib.request
 
 import safety_common as common
 
@@ -112,11 +114,40 @@ def ensure_commit(bad, cwd=None):
     return has_commit(commit, cwd)
 
 
+def listed_pr_commit(bad, cwd=None):
+    """Exact PR membership, excluding dev commits merely inherited by the PR head.
+
+    GitHub lists at most 250 PR commits. Absence (including beyond that limit)
+    fails closed; ancestry alone cannot establish the on-dev exception."""
+    repository = bad.get("repository")
+    if not repository:
+        remote = subprocess.check_output(["git", "remote", "get-url", "origin"],
+                                         cwd=cwd or common.repo_root(), text=True).strip()
+        match = re.fullmatch(r"(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)(.+?)(?:\.git)?/?", remote)
+        repository = match.group(1) if match else None
+    if not valid_repository(repository):
+        raise ValueError("cannot identify the originating GitHub repository from origin")
+    for page in range(1, 4):
+        url = f"https://api.github.com/repos/{repository}/pulls/{bad['pr']}/commits?per_page=100&page={page}"
+        request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            commits = json.load(response)
+        if not isinstance(commits, list) or any(not isinstance(item, dict) or
+                                               not SHA.fullmatch(str(item.get("sha", ""))) for item in commits):
+            raise ValueError("invalid PR commit list from GitHub")
+        if any(item["sha"] == bad["commit"] for item in commits):
+            return True
+        if len(commits) < 100:
+            break
+    return False
+
+
 def check_commit(bad, label, report, dev_ref, offline=False, cwd=None):
     """Git checks that a commit known-bad state is real and correctly classified.
 
     Offline, nothing is fetched: the commit and the PR ref must already be local.
-    Online, only the freshly fetched PR head counts; a failed fetch is an error."""
+    Online, only the freshly fetched PR head counts; a failed fetch is an error.
+    An on-dev pr-commit also requires GitHub's exact PR commit list (online only)."""
     commit = str(bad.get("commit"))
     kind = bad.get("kind")
     hint = "" if bad.get("repository") else \
@@ -131,8 +162,16 @@ def check_commit(bad, label, report, dev_ref, offline=False, cwd=None):
     if kind == "dev-commit" and not on_dev:
         report.error(f"{label}: {commit} never existed on {dev_ref}; use pr-commit with its originating PR")
     if kind == "pr-commit":
-        if on_dev:
-            report.error(f"{label}: {commit} is on {dev_ref}; classify it as dev-commit")
-        elif run(["git", "merge-base", "--is-ancestor", commit, proof_ref(bad)], cwd) != 0:
+        if run(["git", "merge-base", "--is-ancestor", commit, proof_ref(bad)], cwd) != 0:
             report.error(f"{label}: {commit} is not part of PR #{bad.get('pr')} "
                          f"({describe(bad)}, {proof_ref(bad)}){hint}")
+        elif on_dev:
+            if offline:
+                report.error(f"{label}: {commit} is on {dev_ref}; exact PR membership requires online validation")
+                return
+            try:
+                if not listed_pr_commit(bad, cwd):
+                    report.error(f"{label}: {commit} is on {dev_ref} but is not listed in {describe(bad)}; "
+                                 "inherited dev history is not a pr-commit")
+            except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                report.error(f"{label}: could not verify exact commit membership in {describe(bad)}: {error}")
