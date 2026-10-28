@@ -108,7 +108,7 @@ namespace LiteDB.Tests.QueryTest
             {
                 CountNodes(snapshot, metadata.Root).Should().Be(65);
                 var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
-                var nodes = snapshot.LocalPages.OfType<VectorIndexPage>().SelectMany(x => x.GetNodes())
+                var nodes = snapshot.LocalPages.OfType<VectorIndexPage>().ToArray().SelectMany(x => x.GetNodes())
                     .ToDictionary(node => lookup.Load(node.DataBlock)["_id"].AsInt32, node => node.Position);
                 var original = new Dictionary<PageAddress, PageAddress[]>();
                 for (var id = 1; id <= 65; id++)
