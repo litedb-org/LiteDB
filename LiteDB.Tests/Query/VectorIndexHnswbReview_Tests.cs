@@ -73,3 +73,49 @@ namespace LiteDB.Tests.QueryTest
         }
     }
 }
+
+        [Fact]
+        public void Review2_random_5000_mutations_counts_deferred_marker()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var docs = db.GetCollection<VectorDocument>("docs");
+            docs.Insert(Enumerable.Range(1, 5000).Select(id => new VectorDocument
+            {
+                Id = id,
+                Embedding = new[] { (float)(id % 97), (float)(id % 31), 1f, -1f }
+            }));
+            docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(4));
+            var random = new Random(91731);
+            var live = new HashSet<int>(Enumerable.Range(1, 5000));
+            var deferredAt = -1;
+            var deletes = 0;
+            var updates = 0;
+            for (var operation = 0; operation < 1000 && live.Count > 1; operation++)
+            {
+                var id = live.ElementAt(random.Next(live.Count));
+                if ((operation & 1) == 0)
+                {
+                    docs.Delete(id).Should().BeTrue();
+                    live.Remove(id);
+                    deletes++;
+                }
+                else
+                {
+                    docs.Update(new VectorDocument
+                    {
+                        Id = id,
+                        Embedding = new[] { (float)random.Next(0, 10000), 3f, 2f, -2f }
+                    }).Should().BeTrue();
+                    updates++;
+                }
+                var deferred = InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+                    snapshot.CollectionPage.GetVectorIndexes().Single().Index.VectorRepairDeferred);
+                if (deferred)
+                {
+                    deferredAt = operation + 1;
+                    break;
+                }
+            }
+            Console.WriteLine($"random_mutations live={live.Count} deletes={deletes} updates={updates} deferred_at={deferredAt}");
+            deferredAt.Should().Be(-1, "ordinary random mutations should not exhaust the 1024-node repair budget");
+        }
