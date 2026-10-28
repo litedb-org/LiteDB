@@ -42,6 +42,24 @@ namespace LiteDB.Tests.Regressions
         }
 
         [Theory]
+        [InlineData(null, 7)]
+        [InlineData(null, 14)]
+        [InlineData("wal-secret", 7)]
+        [InlineData("wal-secret", 14)]
+        public void Identifiable_unsupported_format_is_not_an_erased_primary(string password, byte version)
+        {
+            using var file = new TempFile();
+            try
+            {
+                ModernHeaderJournalPair_Tests.Capture(file.Filename, password, out var legacy, out _, out var wal);
+                var primary = ConvertedWalFiles.Rewrite(legacy, password, bytes => bytes[HeaderPage.P_FILE_VERSION] = version);
+                foreach (var readOnly in new[] { false, true })
+                    RefuseTwice(file.Filename, primary, wal, password, readOnly, LiteException.INVALID_DATABASE);
+            }
+            finally { File.Delete(FileHelper.GetLogFile(file.Filename)); }
+        }
+
+        [Theory]
         [InlineData(null, false)]
         [InlineData(null, true)]
         [InlineData("wal-secret", false)]

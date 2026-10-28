@@ -29,7 +29,9 @@ namespace LiteDB.Engine
                     RefusePrimary();
                 // An intact matching primary already supplies authority. Never
                 // use the journal-only fallback to override a valid header.
-                return;
+                if (signature == HeaderPage.HEADER_INFO && page.ReadUInt32(BasePage.P_PAGE_ID) == 0 &&
+                    version >= HeaderPage.CHECKSUM_FILE_VERSION && version <= HeaderPage.CURRENT_FILE_VERSION)
+                    return;
             }
             // A torn modern header need not pass its CRC. Its format identity
             // can survive independently of the salt, including salt rotation.
