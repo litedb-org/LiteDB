@@ -25,42 +25,47 @@ namespace LiteDB.Tests.QueryTest
             }));
             docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
 
-            InspectVectorIndex(db, "docs", (snapshot, collation, metadata) =>
+            AutoTransactionMethod.MakeGenericMethod(typeof(bool)).Invoke(EngineField.GetValue(db), new object[]
             {
-                var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
-                var nodes = new Dictionary<int, PageAddress>();
-                var pending = new Stack<PageAddress>();
-                pending.Push(metadata.Root);
-                var seen = new HashSet<PageAddress>();
-                while (pending.Count > 0)
+                new Func<TransactionService, bool>(transaction =>
                 {
-                    var address = pending.Pop();
-                    if (!seen.Add(address)) continue;
-                    var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
-                    nodes.Add(lookup.Load(node.DataBlock)["_id"].AsInt32, address);
-                    foreach (var neighbor in node.GetNeighbors(0)) pending.Push(neighbor);
-                }
-                nodes.Count.Should().Be(count);
-                var adjacency = nodes.ToDictionary(pair => pair.Key, _ => new List<PageAddress>());
-                for (var component = 0; component < componentCount; component++)
-                {
-                    var first = 2 + component * componentSize;
-                    var members = Enumerable.Range(first, componentSize).ToArray();
-                    foreach (var left in members)
-                    foreach (var right in members)
-                        if (left != right) adjacency[left].Add(nodes[right]);
-                }
-                // The deleted center points to one endpoint in each clique, but no
-                // endpoint backlink exists: this is a legal old-reader/asymmetric graph.
-                adjacency[1].AddRange(Enumerable.Range(0, componentCount)
-                    .Select(component => nodes[2 + component * componentSize]));
-                foreach (var pair in adjacency)
-                    snapshot.GetPage<VectorIndexPage>(nodes[pair.Key].PageID)
-                        .GetNode(nodes[pair.Key].Index).SetNeighbors(0, pair.Value);
-                metadata.Root = nodes[1];
-                snapshot.CollectionPage.IsDirty = true;
-                return true;
-            }).Should().BeTrue();
+                    var snapshot = transaction.CreateSnapshot(LockMode.Write, "docs", false);
+                    var metadata = snapshot.CollectionPage.GetVectorIndexMetadata("embedding_idx");
+                    var lookup = new DatafileLookup(new DataService(snapshot, snapshot.MaxItemsCount), false, null);
+                    var nodes = new Dictionary<int, PageAddress>();
+                    var pending = new Stack<PageAddress>();
+                    pending.Push(metadata.Root);
+                    var seen = new HashSet<PageAddress>();
+                    while (pending.Count > 0)
+                    {
+                        var address = pending.Pop();
+                        if (!seen.Add(address)) continue;
+                        var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+                        nodes.Add(lookup.Load(node.DataBlock)["_id"].AsInt32, address);
+                        foreach (var neighbor in node.GetNeighbors(0)) pending.Push(neighbor);
+                    }
+                    nodes.Count.Should().Be(count);
+                    var adjacency = nodes.ToDictionary(pair => pair.Key, _ => new List<PageAddress>());
+                    for (var component = 0; component < componentCount; component++)
+                    {
+                        var first = 2 + component * componentSize;
+                        var members = Enumerable.Range(first, componentSize).ToArray();
+                        foreach (var left in members)
+                        foreach (var right in members)
+                            if (left != right) adjacency[left].Add(nodes[right]);
+                    }
+                    // The deleted center points to one endpoint in each clique, but no
+                    // endpoint backlink exists: this is a legal old-reader/asymmetric graph.
+                    adjacency[1].AddRange(Enumerable.Range(0, componentCount)
+                        .Select(component => nodes[2 + component * componentSize]));
+                    foreach (var pair in adjacency)
+                        snapshot.GetPage<VectorIndexPage>(nodes[pair.Key].PageID).GetNode(nodes[pair.Key].Index)
+                            .SetNeighbors(0, pair.Value);
+                    metadata.Root = nodes[1];
+                    snapshot.CollectionPage.IsDirty = true;
+                    return true;
+                })
+            });
             db.Checkpoint();
 
             Action delete = () => docs.Delete(1).Should().BeTrue();
