@@ -266,6 +266,28 @@
         "LiteDB.Tests/Query/VectorIndexHnswbReview_Tests.cs#Review2_delete_with_asymmetric_saturated_components_does_not_throw",
         "LiteDB.Tests/Query/VectorIndexDeferredRetry_Tests.cs#Persisted_asymmetric_graph_defers_before_mutation_and_retries_from_current_documents"
       ]
+    },
+    {
+      "repro": "Issue_3141_IncomingOnlyDelete",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Incoming_only_links_at_every_level_retain_tombstone_until_reconciliation",
+        "LiteDB.Tests/Query/VectorIndexHnswcReview_Tests.cs#Review2_hnswc_asymmetric_fixture_endpoint_delete_never_frees_a_referenced_node"
+      ]
+    },
+    {
+      "repro": "Issue_3141_DisconnectedDrop",
+      "knownBad": {
+        "kind": "package",
+        "version": "6.0.0-prerelease.319"
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_fixture_drop_and_rebuild_release_all_allocated_vector_pages",
+        "LiteDB.Tests/Query/VectorIndexOwnership_Tests.cs#Disconnected_retry_and_drop_reclaim_pages_and_preserve_sibling_indexes"
+      ]
     }
   ]
 }

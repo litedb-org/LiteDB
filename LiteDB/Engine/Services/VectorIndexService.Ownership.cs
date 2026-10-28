@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         {
             var pages = _snapshot.GetVectorPages(ReverseScanPageBudget);
             if (pages == null) return false;
+            var levelCount = this.GetNode(removed).LevelCount;
             var outgoing = Enumerable.Range(0, VectorIndexNode.MaxLevels)
                 .Select(level => this.GetNode(removed).GetNeighbors(level).ToArray()).ToArray();
             foreach (var id in pages)
@@ -20,7 +21,8 @@ namespace LiteDB.Engine
                 var page = _snapshot.GetPage<VectorIndexPage>(id);
                 foreach (var candidate in page.GetNodes())
                     for (var level = 0; level < VectorIndexNode.MaxLevels; level++)
-                        if (candidate.GetNeighbors(level).Contains(removed) && !outgoing[level].Contains(candidate.Position))
+                        if (candidate.GetNeighbors(level).Contains(removed) &&
+                            (level >= levelCount || !outgoing[level].Contains(candidate.Position)))
                             return false;
                 _snapshot.Safepoint();
             }
@@ -30,9 +32,15 @@ namespace LiteDB.Engine
         // Pages carry collection ownership, not index ownership. Reconstruct
         // sibling vector indexes too: guessing which index owns an orphan full
         // page could either leak it or release another index's live nodes.
-        private bool ReconcileVectorPages(VectorIndexMetadata dropped, PageAddress excluded, bool bounded)
+        public void DropAll()
         {
-            var pages = _snapshot.GetVectorPages(bounded ? ConnectivityRepairBudget : int.MaxValue);
+            _snapshot.RequireVectorVersion();
+            this.ReconcileVectorPages(null, PageAddress.Empty, bounded: false, dropAll: true);
+        }
+
+        private bool ReconcileVectorPages(VectorIndexMetadata dropped, PageAddress excluded, bool bounded, bool dropAll = false)
+        {
+            var pages = _snapshot.GetVectorPages(bounded ? ConnectivityRepairBudget : long.MaxValue);
             if (pages == null) return false;
             var indexes = _snapshot.CollectionPage.GetVectorIndexes().ToArray();
             var remaining = ConnectivityRepairBudget;
@@ -45,20 +53,23 @@ namespace LiteDB.Engine
             var vectors = new List<(VectorIndexMetadata Metadata, PageAddress Block, float[] Vector)>();
             var indexer = new IndexService(_snapshot, _collation, _snapshot.MaxItemsCount);
             var lookup = new DatafileLookup(new DataService(_snapshot, _snapshot.MaxItemsCount), false, null);
-            var survivors = indexes.Where(x => x.Metadata != dropped).ToArray();
-            foreach (var pk in indexer.FindAll(_snapshot.CollectionPage.PK, Query.Ascending))
+            var survivors = indexes.Where(x => !dropAll && x.Metadata != dropped).ToArray();
+            if (survivors.Length > 0)
             {
-                remaining -= VectorIndexNode.MaxNeighborsPerLevel * survivors.Length;
-                if (bounded && remaining < 0) return false;
-                var block = pk.DataBlock;
-                if (block != excluded && survivors.Length > 0)
+                foreach (var pk in indexer.FindAll(_snapshot.CollectionPage.PK, Query.Ascending))
                 {
-                    var document = lookup.Load(block);
-                    foreach (var item in survivors)
-                        if (TryExtractVector(item.Index.BsonExpr.ExecuteScalar(document, _collation),
-                            item.Metadata.Dimensions, out var vector)) vectors.Add((item.Metadata, block, vector));
+                    remaining -= VectorIndexNode.MaxNeighborsPerLevel * survivors.Length;
+                    if (bounded && remaining < 0) return false;
+                    var block = pk.DataBlock;
+                    if (block != excluded && survivors.Length > 0)
+                    {
+                        var document = lookup.Load(block);
+                        foreach (var item in survivors)
+                            if (TryExtractVector(item.Index.BsonExpr.ExecuteScalar(document, _collation),
+                                item.Metadata.Dimensions, out var vector)) vectors.Add((item.Metadata, block, vector));
+                    }
+                    _snapshot.Safepoint();
                 }
-                _snapshot.Safepoint();
             }
 
             // Planning completed without writes. Retire every physical node,

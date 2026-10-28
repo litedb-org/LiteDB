@@ -7,7 +7,7 @@ namespace LiteDB.Engine
     {
         // The legacy node format has no index owner. Inspect physical collection
         // pages, including full pages absent from every index's free list.
-        internal List<uint> GetVectorPages(int pageBudget = int.MaxValue)
+        internal List<uint> GetVectorPages(long pageBudget = long.MaxValue)
         {
             uint last;
             HashSet<uint> privatePages;
@@ -16,7 +16,9 @@ namespace LiteDB.Engine
                 last = _header.LastPageID;
                 privatePages = _header.Allocations.GetOtherReservations(_transPages);
             }
-            ENSURE((ulong)last <= (ulong)MaxItemsCount + AdditionalTraversalItemsCount,
+            var physicalPages = (ulong)(_disk.GetFileLength(FileOrigin.Data) / PAGE_SIZE)
+                + (ulong)(_disk.GetFileLength(FileOrigin.Log) / PAGE_SIZE);
+            ENSURE(last < uint.MaxValue && (ulong)last <= physicalPages + (ulong)_transPages.NewPages.Count + (ulong)privatePages.Count,
                 "Invalid page bound during vector ownership scan");
             if (last > pageBudget) return null;
             var pages = new List<uint>();

@@ -108,6 +108,17 @@ Connectivity planning uses O(B*M) address memory and O(B*M) link work, with
 bounded owner bookkeeping for M seeds. Finding a document's vector node and
 selecting a new root retain their pre-existing O(V+E) worst-case reads.
 
+Before freeing any node, a separate reverse census checks every allocated vector
+node in the collection at all four levels. An incoming-only edge, or a census
+that cannot finish within 8,192 physical database pages, retains the deleted
+node as a tombstone and defers repair. This includes references from disconnected
+components and prevents slot reuse while any uncertified reference survives.
+The census scans physical page ownership, including full pages missing from free
+lists; it adds up to 8,192 page reads plus bounded node/link inspection per page.
+The cap applies to the whole file, so unrelated collections and free pages can
+also cause conservative deferral. Connectivity-proof and dirty-page bounds above
+do not bound total delete reads.
+
 If repair cannot be certified within the budget, the document mutation still
 succeeds. Its transaction sets bit 7 of the existing `CollectionIndex.Reserved`
 byte before any graph mutation, retaining the old tree. While deferred, **all
@@ -124,10 +135,16 @@ capture it. Listener delivery runs on another thread without the writer's execut
 context, so listeners cannot reenter an incomplete document mutation. Direct internal ANN searches still refuse with error 142 and a
 message derived from `ConnectivityRepairBudget`; the public planner uses scans.
 
-Each later vector write retries a bounded reconciliation from the retained tree
-and current primary-key documents. It never reads retained stale DataBlocks.
-The retry allowance is the base 1,024 units: one per retained node and M per current document,
-so it reconstructs at most 128 current vectors with normal HNSW construction.
+Each later vector write retries a bounded reconciliation from every physically
+allocated vector page in the collection and current primary-key documents. It
+never reads retained stale DataBlocks. The physical census must fit within
+1,024 database pages. The retry input allowance is separately 1,024 units: one
+per allocated vector node (including disconnected nodes) and M per current
+document per vector index. It reconstructs at most 128 current vectors across
+all vector indexes with normal HNSW construction. The legacy format records
+collection ownership without per-index node ownership, so reconciliation also
+reconstructs sibling vector indexes instead of guessing which index owns an
+orphan full page.
 Successful reconstruction, old-node reclamation and signal clearing share the
 write transaction. The input is bounded independently of N; normal reconstruction
 has additional bounded construction work, worst-case quadratic in that small
@@ -140,6 +157,13 @@ reconstruction and signal clearing. This is an open owner design question for
 PR #3142, not a promise of background convergence. Until repair / rebuild / drop,
 retained stale vectors consume space. Commit, rollback, WAL recovery, checkpoint
 and reopen preserve the graph / document / signal transaction atomically.
+
+Dropping a vector index performs an unbounded physical census and releases every
+collection vector node and external payload, then reconstructs surviving sibling
+vector indexes from current documents in the same transaction. This can require
+additional temporary space and evaluates the sibling expressions; failures roll
+back the drop. Dropping the collection releases all vector pages once without
+reconstructing siblings. Empty roots and disconnected full pages are included.
 
 No node or metadata length, reserved-byte position or file-version changes, and
 no forced legacy rebuild. Older engines preserve but ignore the bit; stop old

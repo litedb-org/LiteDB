@@ -131,7 +131,9 @@ namespace LiteDB.Tests.QueryTest
                 var docs = db.GetCollection<VectorDocument>("docs");
                 docs.Insert(Enumerable.Range(1, 24).Select(id => new VectorDocument
                     { Id = id, Embedding = Enumerable.Repeat((float)id, dimensions).ToArray() }));
-                var documentPages = db.Execute("SELECT $ FROM $dump WHERE $.collection = 'docs' AND $.pageType = 'Data'").ToArray().Length;
+                using var control = new LiteDatabase(":memory:");
+                control.GetCollection<VectorDocument>("docs").Insert(docs.FindAll().Where(x => x.Id != 2));
+                var documentPages = control.Execute("SELECT $ FROM $dump WHERE $.collection = 'docs' AND $.pageType = 'Data'").ToArray().Length;
                 docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions((ushort)dimensions));
                 docs.EnsureIndex("sibling", "$.Embedding", new VectorIndexOptions((ushort)dimensions, VectorDistanceMetric.Euclidean));
                 AutoTransactionMethod.MakeGenericMethod(typeof(bool)).Invoke(EngineField.GetValue(db), new object[]
@@ -162,7 +164,7 @@ namespace LiteDB.Tests.QueryTest
                 docs.Delete(2).Should().BeTrue();
                 AssertAllocatedVectorLinks(db, 46);
                 docs.DropIndex("embedding_idx").Should().BeTrue();
-                db.Execute("SELECT SUM(itemsCount) AS nodes FROM $dump WHERE $.collection = 'docs' AND $.pageType = 'VectorIndex'")
+                db.Execute("SELECT SUM(*.itemsCount) AS nodes FROM $dump WHERE $.collection = 'docs' AND $.pageType = 'VectorIndex'")
                     .Single()["nodes"].AsInt32.Should().Be(23);
                 var expression = BsonExpression.Create("$.Embedding");
                 docs.Query().TopKNear(expression, Enumerable.Repeat(3f, dimensions).ToArray(), 23).ToArray()
@@ -182,8 +184,14 @@ namespace LiteDB.Tests.QueryTest
             }
         }
 
-        private static int AllocatedVectorPages(LiteDatabase db, string collection) => db.Execute(
-            "SELECT $ FROM $dump WHERE $.collection = @0 AND $.pageType = 'VectorIndex'", collection).ToArray().Length;
+        private static int AllocatedVectorPages(LiteDatabase db, string collection)
+        {
+            // The diagnostic "$" snapshot cannot see another snapshot's dirty,
+            // unflushed pages. Inspect pending writes through their actual owner.
+            var transaction = ((LiteEngine)EngineField.GetValue(db)).GetMonitor().GetThreadTransaction();
+            if (transaction != null) return transaction.CreateSnapshot(LockMode.Read, collection, false).GetVectorPages().Count;
+            return db.Execute("SELECT $ FROM $dump WHERE $.collection = @0 AND $.pageType = 'VectorIndex'", collection).ToArray().Length;
+        }
 
         private static void AssertAllocatedVectorLinks(LiteDatabase db, int expectedNodes)
         {
