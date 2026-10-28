@@ -122,6 +122,8 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        internal System.IO.FileStream[] LeaseFiles => new FileStream[] { _content, _lease };
+
         private int _publishedCount;
 
         /// <summary>Undo only unpublished content; failed cleanup must not replace the registration error.</summary>

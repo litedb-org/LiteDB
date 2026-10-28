@@ -70,6 +70,9 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        // The exact library-created FileStreams have no route to user state.
+        internal System.IO.FileStream[] LeaseFiles { get { lock (_gate) return _slots?.LeaseFiles; } }
+
         /// <summary>Close the slot file once its last lease ends.</summary>
         public void Dispose()
         {

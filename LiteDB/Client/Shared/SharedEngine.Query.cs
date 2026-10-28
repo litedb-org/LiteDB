@@ -143,7 +143,10 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true, leaseFiles: _readers.LeaseFiles);
+                // The escaping result now owns disposal; a lease finalizer must
+                // not unregister it before the cursor releases its pages.
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 return result;
@@ -296,7 +299,10 @@ namespace LiteDB
                         try { ownedLease.Dispose(); }
                         finally { this.RemoveLocalReader(owner); }
                     }
-                });
+                }, ownsResources: true, leaseFiles: _readers.LeaseFiles);
+                // The escaping result now owns disposal; a lease finalizer must
+                // not unregister it before the cursor releases its pages.
+                GC.SuppressFinalize(ownedLease);
                 snapshot = null;
                 lease = null;
                 reader = null;

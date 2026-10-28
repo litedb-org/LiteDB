@@ -16,6 +16,7 @@ namespace LiteDB
         private readonly string _namespace;
         private readonly object _connection;
         private readonly Func<bool> _retains;
+        private readonly SharedReaderCleanup _cleanup;
 
         private int _disposed;
 
@@ -23,6 +24,12 @@ namespace LiteDB
         {
             _reader = reader;
             _dispose = dispose;
+        }
+
+        internal SharedDataReader(IBsonDataReader reader, Action dispose, bool ownsResources, System.IO.FileStream[] leaseFiles = null)
+            : this(reader, dispose)
+        {
+            if (ownsResources) _cleanup = new SharedReaderCleanup(reader, dispose, leaseFiles: leaseFiles);
         }
 
         /// <summary>
@@ -36,6 +43,7 @@ namespace LiteDB
             _namespace = ns;
             _connection = connection;
             _retains = retains;
+            _cleanup = new SharedReaderCleanup(reader, dispose, ns, connection, retains);
         }
 
         public BsonValue this[string field] => _reader[field];
@@ -76,10 +84,12 @@ namespace LiteDB
                 // Ending the ownership can close its engine, which writes through caller streams.
                 else using (SharedCallFrames.Enter(_namespace, _connection, _retains)) this.Close();
             }
+            else _cleanup?.Abandon();
         }
 
         private void Close()
         {
+            if (_cleanup != null) { _cleanup.Dispose(); return; }
             try { _reader.Dispose(); }
             finally { _dispose(); }
         }
