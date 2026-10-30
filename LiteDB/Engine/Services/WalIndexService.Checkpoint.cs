@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -54,6 +55,28 @@ namespace LiteDB.Engine
 
         public int Checkpoint() => this.TryCheckpoint(rationed: false);
 
+        /// <summary>
+        /// Backfill every frame and empty the WAL, or change nothing and return false: when a
+        /// snapshot of this or another process may still read the WAL, or the shared reader
+        /// registry cannot be inspected.
+        /// </summary>
+        public bool TryDrain()
+        {
+            this.TryCheckpoint(rationed: false, drain: true);
+            return _disk.GetFileLength(FileOrigin.Log) == 0;
+        }
+
+        /// <summary>
+        /// Whether a drain would change nothing now because another connection may read the WAL:
+        /// it is not empty and a shared reader holds a snapshot, or the registry cannot be inspected.
+        /// </summary>
+        public bool DrainBlocked()
+        {
+            if (_disk.GetFileLength(FileOrigin.Log) == 0) return false;
+            var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
+            return shared == null || shared.Length > 0;
+        }
+
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
 
         public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
@@ -68,19 +91,23 @@ namespace LiteDB.Engine
         /// Backfill only committed versions visible to every snapshot. Frames that
         /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
-        private int TryCheckpoint(bool rationed)
+        private int TryCheckpoint(bool rationed, bool drain = false)
         {
-            try { return TryCheckpointCore(rationed); }
+            var stopBegun = false;
+            var stopOwned = false;
+            try { return TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned); }
             catch (Exception error)
             {
-                _disk.StopAfterCheckpointFailure(error);
+                _disk.StopAfterCheckpointFailure(error, stopBegun, stopOwned);
                 throw;
             }
         }
 
-        private int TryCheckpointCore(bool rationed)
+        private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
         {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+            // No checkpoint writes or syncs through handles a recorded failure stopped.
+            _disk.RequireNoWriteFailure();
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
@@ -118,15 +145,25 @@ namespace LiteDB.Engine
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
+                // Admission may have passed before a failing WAL writer published its stop.
+                _disk.RequireNoWriteFailure();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
+                if (drain && !reclaim) return 0;
+                // A drain (legacy conversion) runs before the open trims partial pages. Trim them
+                // now, before this checkpoint appends its header journal at the physical WAL end:
+                // a torn legacy frame completed by journal bytes would pass as a committed page.
+                if (drain) _disk.TrimTrailingPages();
                 // Exclusion alone does not mean readers are gone: snapshots and
                 // shared leases survive it. Only a reclaiming checkpoint ends the
                 // back-off; otherwise an unclaimed commit skips partial work, which
                 // starts with a full WAL validation.
                 if (reclaim) _backoff.Reset();
                 else if (!wait) return 0;
+#if DEBUG || TESTING
+                if (!reclaim) Reachability.Sometimes("maintenance:checkpoint-during-active-readers");
+#endif
                 this.ValidateCheckpoint();
 
                 var pages = new List<PagePosition>();
@@ -153,6 +190,7 @@ namespace LiteDB.Engine
 
                 if (obsolete.Count > 0)
                 {
+                    Reachability.Sometimes("maintenance:checkpoint-reclaims-under-live-readers");
                     _disk.ReclaimLogPages(obsolete);
                 }
 
@@ -179,6 +217,12 @@ namespace LiteDB.Engine
                     _backfillVersion = 0;
                 }
                 return pages.Count;
+            }
+            catch (Exception error) when (writerEntered)
+            {
+                // Stop before the WAL writer is released (see DiskService.BeginCheckpointStop).
+                stopBegun = _disk.BeginCheckpointStop(error, out stopOwned);
+                throw;
             }
             finally
             {

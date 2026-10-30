@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -17,7 +18,10 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            if (_settings.ReadOnly) throw new IOException("Cannot start a transaction in a read-only database.");
+            // Storage opened read-only because it cannot be written accepts explicit transactions,
+            // as released versions did; writes are still rejected.
+            if (_settings.ReadOnly && !_settings.ReadOnlyStorage)
+                throw new IOException("Cannot start a transaction in a read-only database.");
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
@@ -48,6 +52,13 @@ namespace LiteDB.Engine
 
                 if (transaction.State == TransactionState.Active)
                 {
+                    // A failed safepoint discarded pages this transaction changed: never publish the rest.
+                    if (transaction.WriteFailure != null)
+                    {
+                        this.RollbackAndReleaseTransaction(transaction);
+                        throw TransactionService.WriteFailed(transaction.WriteFailure);
+                    }
+
                     this.CommitAndReleaseTransaction(transaction);
 
                     return true;
@@ -89,6 +100,11 @@ namespace LiteDB.Engine
 
             if (write && _settings.ReadOnly) throw new IOException("Cannot modify a read-only database.");
 
+            // Without a caller log, changes would only reach the engine-owned volatile WAL:
+            // non-writable storage cannot checkpoint it before the engine releases it.
+            if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
+                throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
+
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
@@ -114,8 +130,14 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// A failure of the storage a completion wrote to: it is recorded before the engine stops.
+        /// </summary>
+        private static bool IsStorageFailure(Exception ex) => ex is IOException;
+
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
+            var state = _state;
             try
             {
                 transaction.Commit();
@@ -123,15 +145,26 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
+                Reachability.Sometimes("maintenance:fatal-during-commit");
+#if DEBUG || TESTING
+                if (_state.Disposed) Reachability.Sometimes("maintenance:commit-cut-off-by-stopped-engine");
+#endif
                 // Completion may have partially persisted state. Do not let a later
                 // write reuse this transaction and report success without committing.
-                _state.Stop(ex);
+                if (IsStorageFailure(ex)) state.Disk?.RecordWriteFailure("A commit", ex);
+                state.Stop(ex);
                 throw;
             }
 
+            // After another thread's failure stopped the engine, or recorded a failure whose stop is
+            // still in progress, nothing more may be written or synced on its handles.
+            if (state.Stopped || state.WriteFailure != null) return;
+
+            var checkpointPages = this.CheckpointPages;
+
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+            if (checkpointPages > 0 &&
+                _disk.GetFileLength(FileOrigin.Log) >= (checkpointPages * PAGE_SIZE))
             {
                 _walIndex.TryAutoCheckpoint();
             }
@@ -146,6 +179,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
+                if (IsStorageFailure(ex)) _state.Disk?.RecordWriteFailure("A rollback", ex);
                 _state.Stop(ex);
                 throw;
             }

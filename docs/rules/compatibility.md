@@ -67,12 +67,22 @@ See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibili
 Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout.
 MVCC reclamation lazily publishes v13 before writing retirement witnesses. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
-data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
+data-page coverage. The legacy WAL is drained completely before conversion, or the open is
+refused (`LOCK_TIMEOUT`) with both files unchanged while a shared reader may still read it;
+never discard what a lease-aware checkpoint left. Legacy WAL pages carry no checksum: a
+committed page must be a page of its type within the bounds the data file, the log and its
+committed headers allow, and a committed header must carry the data header's creation time,
+or the open fails with `INVALID_DATABASE` without changing either file. A
+legacy header beside checksummed WAL frames fails the open without changing either file. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
 A5 for checksummed, and FF reserved for a future globally promoted file format.
 Unknown markers fail closed. Only Mixed non-header pages at or below the
 checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
-coverage and the boundary; new/rebuilt files use Complete. Keep coverage Mixed
+coverage and the boundary; new/rebuilt files use Complete. Released v5 engines wrote
+only ordinary indexes (IndexType 0) and left stale index-entry bytes after the index
+list on DropIndex; every vector-index writer, v8 prereleases included, stores the vector
+section right after the list. Read a collection page's vector section only when the page
+lists a vector index (IndexType 1). Keep coverage Mixed
 conservatively until explicit rebuild; there is no background migration.
 Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use
@@ -160,3 +170,6 @@ checkpoint introduces earlier holes. Only full checkpoint can clear the root and
 rotate salt after all data is durable. A rooted v13 data file requires its WAL.
 Run the `mvcc-retirement` target, corruption tests and separate-process MVCC suite.
 See [retirement format](../mvcc-retirement-format.md).
+
+Released-file corpus: see [legacy file validation](../legacy-file-validation.md).
+Run `python3 scripts/test-release-compatibility.py` for every stable v5 package and v4 upgrade coverage, including read-only inspection, direct writes, rollback and reopen.

@@ -1,10 +1,14 @@
 #if !NETFRAMEWORK
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using FluentAssertions;
+using LiteDB.Tests;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Internals
 {
@@ -12,9 +16,14 @@ namespace LiteDB.Internals
     {
         private readonly Process _process;
         private readonly Task<string> _errors;
+        private readonly string _filename;
+        private readonly HashSet<string> _existingReaders;
+        private readonly HashSet<string> _childReaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         internal MvccProcess(string mode, string filename, string password, string value = null, bool disableFileLocking = false, bool disableMappedReads = false)
         {
+            _filename = filename;
+            _existingReaders = new HashSet<string>(ReaderFiles(), StringComparer.OrdinalIgnoreCase);
             // Use the host beside the runtime executing this test, including
             // isolated CI installations and Windows x86. PATH may select x64
             // or a newer major runtime even when the parent guard is correct.
@@ -47,6 +56,10 @@ namespace LiteDB.Internals
             var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
             if (line == null) throw new Exception(await _errors);
             line.Should().Be(expected);
+            // These barriers precede starting a peer. Remember newly created child-private
+            // leases so a kill can settle them even when another participant keeps the DB open.
+            foreach (var path in ReaderFiles())
+                if (!_existingReaders.Contains(path)) _childReaders.Add(path);
         }
 
         /// <summary>Next output line, or null once the process closed its output.</summary>
@@ -62,10 +75,39 @@ namespace LiteDB.Internals
             _process.ExitCode.Should().Be(0, await _errors);
         }
 
-        internal async Task Kill()
+        internal async Task Kill(bool sharedFilesRemainOpen = false)
         {
-            _process.Kill(entireProcessTree: true);
-            await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            var paths = ReleaseFiles(sharedFilesRemainOpen);
+            await ChildProcessTermination.KillAsync(_process, paths);
+        }
+
+        private string[] ReaderFiles()
+        {
+            if (!WindowsFileRelease.IsWindows) return Array.Empty<string>();
+            try { return Directory.GetFiles(_filename + "-readers"); }
+            catch (DirectoryNotFoundException) { return Array.Empty<string>(); }
+        }
+
+        private string[] ReleaseFiles(bool sharedFilesRemainOpen)
+        {
+            if (!WindowsFileRelease.IsWindows) return Array.Empty<string>();
+            // Shared data/control files cannot be opened exclusively while an intentional
+            // parent/peer survives. In those scenarios probe only the child's private leases.
+            if (sharedFilesRemainOpen) return _childReaders.ToArray();
+            var controls = new[] { _filename + "-shared-live", _filename + "-shared-state", _filename + "-shared-disabled" };
+            var paths = new List<string> { _filename, FileHelper.GetLogFile(_filename) };
+            paths.AddRange(controls);
+            paths.AddRange(ReaderFiles());
+            foreach (var control in controls)
+            {
+                // CreateName only computes a name. Use its database-specific prefix so an
+                // interrupted publication's open temporary is probed without touching peers.
+                var temporary = SharedCoordinationTemporaryFiles.CreateName(control);
+                var name = Path.GetFileName(temporary);
+                paths.AddRange(Directory.GetFiles(Path.GetDirectoryName(temporary),
+                    name.Substring(0, name.LastIndexOf('-') + 1) + "*"));
+            }
+            return paths.ToArray();
         }
 
         internal static async Task Run(string mode, string filename, string password, string value = null)
@@ -77,12 +119,16 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            if (!_process.HasExited)
+            try
             {
-                _process.Kill(entireProcessTree: true);
-                _process.WaitForExit(10000);
+                if (!_process.HasExited)
+                {
+                    // Failure cleanup can run while parent/peer participants are still alive.
+                    var paths = ReleaseFiles(sharedFilesRemainOpen: true);
+                    ChildProcessTermination.Kill(_process, paths, 10000, entireProcessTree: true);
+                }
             }
-            _process.Dispose();
+            finally { _process.Dispose(); }
         }
     }
 }

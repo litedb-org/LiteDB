@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_FailedSafepointWrite",
+  "title": "Commit publishes a transaction whose safepoint write failed, leaving a database whose every read fails",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "safepoint",
+    "transaction"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: Commit published the transaction whose safepoint write failed; the database it left cannot be read, also after reopening: LiteException: get only index below highest index"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the transaction whose safepoint write failed can only be rolled back: a read, a write and Commit in it throw, the committed data stays intact"
+    }
+  }
+}

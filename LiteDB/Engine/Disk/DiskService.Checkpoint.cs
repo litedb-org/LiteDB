@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -10,6 +11,7 @@ namespace LiteDB.Engine
         internal void CheckpointStage(string stage)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint(stage);
             _state.CheckpointStage?.Invoke(stage);
 #endif
         }

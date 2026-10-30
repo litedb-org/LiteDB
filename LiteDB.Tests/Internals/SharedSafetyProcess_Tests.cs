@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Xunit;
+using LiteDB.Tests;
 
 namespace LiteDB.Internals
 {
@@ -38,7 +39,7 @@ namespace LiteDB.Internals
             }
         }
 
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

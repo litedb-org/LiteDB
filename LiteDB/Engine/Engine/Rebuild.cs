@@ -18,13 +18,13 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file, as in 5.x
+
             if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
 
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
             options = options ?? new RebuildOptions();
             var password = options.ResolvePassword(_settings.Password);
-
-            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
             var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
@@ -110,7 +110,7 @@ namespace LiteDB.Engine
                     // first create all user indexes (exclude _id index)
                     foreach (var index in reader.GetIndexes(collection))
                     {
-                        if (index.IndexType == 1 && index.VectorMetadata != null)
+                        if (index.IndexType == 1)
                         {
                             this.EnsureVectorIndex(
                                 collection,

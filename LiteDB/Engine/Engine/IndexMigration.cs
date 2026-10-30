@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteDB.Vector;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -16,16 +17,23 @@ namespace LiteDB.Engine
                 return;
             }
 
+            if (_settings.ReadOnlyStorage && !_settings.ReadOnly) throw new ReadOnlyOpenRequiredException();
             if (_settings.ReadOnly)
             {
                 // The stale ordering stays visible through EnginePragmas.IndexesOrdered;
                 // queries then use full scans instead of seeking these indexes.
                 if (_settings.LegacyIndexScan) return;
+                Reachability.Sometimes("refusal:readonly-open-needs-index-migration");
                 throw new LiteException(0, "Database index ordering/collation requires migration. " +
                     "Open the database writable once to automatically rebuild its indexes, or add " +
                     "`legacy index scan=true` (LegacyIndexScan) to this read-only connection to query " +
                     "it with full scans instead of its indexes.");
             }
+
+            // A drain that cannot run refuses the conversion below, after every document and unique
+            // key was validated; in shared mode each operation retries while a lease lasts. Refuse
+            // before validating when it is already known that the drain cannot run.
+            if (!_disk.ChecksumsEnabled && _walIndex.DrainBlocked()) throw ConversionBlocked();
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
@@ -62,7 +70,10 @@ namespace LiteDB.Engine
                             {
                                 if (index.Unique && previous != null &&
                                     previous.CompareTo(item.Key, _header.Pragmas.Collation) == 0)
+                                {
+                                    Reachability.Sometimes("refusal:index-migration-duplicate-key");
                                     throw LiteException.IndexDuplicateKey(index.Name, item.Key);
+                                }
                                 maximumNodeBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, item.Key, out _) + BasePage.SLOT_SIZE;
                                 previous = item.Key;
                             }
@@ -84,10 +95,14 @@ namespace LiteDB.Engine
             }
             finally { _monitor.ReleaseTransaction(validation); }
 
+            // Conversion replaces the legacy WAL, so it must be drained completely first.
+            // A lease-aware checkpoint skips or limits its work while other connections may
+            // read the WAL; discarding what it left would lose committed transactions. A
+            // refused conversion changes neither file; a drain trims partial pages first.
+            if (!_disk.ChecksumsEnabled && !_walIndex.TryDrain()) throw ConversionBlocked();
             _disk.TrimTrailingPages();
             if (!_disk.ChecksumsEnabled)
             {
-                _walIndex.Checkpoint();
                 _walIndex.Clear();
                 _disk.EnableChecksums(ref _header);
                 _monitor.Dispose();
@@ -184,15 +199,22 @@ namespace LiteDB.Engine
             snapshot.CollectionPage.IsDirty = true;
         }
 
+        private static LiteException ConversionBlocked() => new LiteException(LiteException.LOCK_TIMEOUT,
+            "Cannot convert this legacy database while another connection may still read its log " +
+            "file (a shared reader holds a snapshot, or the reader registry cannot be inspected). " +
+            "Close the other connections, or make the registry readable, and open it again.");
+
         private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index, IndexMigrationCapacity capacity)
         {
+            var metadata = snapshot.CollectionPage.GetVectorIndexMetadata(index.Name);
+            ENSURE(metadata != null, "vector index '{0}' has no vector metadata", index.Name);
             if (IndexExpressionIdentity.IsMemberPath(index.BsonExpr)) return;
             var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
             foreach (var node in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
             {
                 using (var reader = new BufferReader(data.Read(node.DataBlock)))
                     index.BsonExpr.ExecuteScalar(reader.ReadDocument().GetValue(), _header.Pragmas.Collation);
-                capacity.AddVectorDocument(snapshot.CollectionPage.GetVectorIndexMetadata(index.Name).Dimensions);
+                capacity.AddVectorDocument(metadata.Dimensions);
                 snapshot.Safepoint();
             }
         }
@@ -212,7 +234,10 @@ namespace LiteDB.Engine
                     {
                         if (key.IsMinValue || key.IsMaxValue ||
                             IndexNode.GetKeyLength(key, true) > MAX_INDEX_KEY_LENGTH)
+                        {
+                            Reachability.Sometimes("refusal:index-migration-invalid-key");
                             throw LiteException.InvalidIndexKey("Invalid key while migrating index " + index.Name);
+                        }
                         yield return new KeyValuePair<BsonValue, PageAddress>(key, position);
                     }
                 }

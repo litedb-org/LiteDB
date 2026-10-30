@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_DumpInTransaction",
+  "title": "Reading $dump or $page_list inside an explicit transaction makes its next safepoint fail an ENSURE and stop the engine",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "transaction",
+    "wal",
+    "system-collection"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: after $dump or $page_list read pages that an explicit transaction had safepointed into the WAL, its next safepoint failed an ENSURE (LiteException 999: only idle readable pages can be evicted), which stopped the engine and marked the data file invalid"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: after $dump or $page_list read pages that an explicit transaction had safepointed into the WAL, its safepoints and its commit succeeded, and a reopen found every row of it (1001 documents, 1000 updated)"
+    }
+  }
+}

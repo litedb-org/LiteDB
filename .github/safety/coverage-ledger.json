@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "ci-split-engine-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every discovered test method belongs to exactly one complete-suite partition; every session retains the 300-second limit and runtime/architecture and test-hook guards.",
+      "reason": "Split engine shared coordination and allocation families and shared mapped/upgrade process families into separate sessions using Windows TRX timing evidence. No tests, assertions, concurrency or failure injection are removed; the unchanged discovery verifier and per-leg evidence manifest account for every partition."
+    },
+    {
       "id": "3034-evidence-jobs",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -34,6 +44,160 @@
       "disposition": "strengthened",
       "invariant": "Every test leg's results are uploaded and judged; no existing timeout, filter or partition changes.",
       "reason": "Adds the Safety policy and Safety evidence jobs (10-minute limits) and a results upload for the .NET Framework leg, which uploaded nothing before; existing test steps keep their timeouts and filters."
+    },
+    {
+      "id": "ci-framework-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        "docs/ci-partition-capacity.md"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every .NET Framework test remains in the complete xunit.console assembly run and has enough job time to finish and upload its evidence.",
+      "reason": "Retain the unfiltered net462/net481 assembly while raising the Windows Framework job limit from 20 to 35 minutes. Recent net481 evidence took 1,079 seconds and the current run reached 1,215 seconds before cancellation; 35 minutes leaves at least 42.1% headroom at that observed point. No test, filter, assertion or evidence partition is removed."
+    },
+    {
+      "id": "3027-stream-checkpoint-pragma",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.IssueCheckpointFlush_Tests.StreamConstructorRestoresCheckpointSizeAfterDisposal"
+      ],
+      "disposition": "strengthened",
+      "invariant": "LiteDatabase(Stream) checkpoints each commit into the caller's stream and leaves the persisted checkpoint pragma as it was.",
+      "reason": "The stream constructor no longer persists CHECKPOINT=1 at all (a 5.0.21 regression fixed in this PR), so the test asserts the pragma never changes, that a commit reaches the stream, and that it is still 1000 after disposal."
+    },
+    {
+      "id": "safety-m1-reachability-gate",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every smoke leg still runs its targets with unchanged seeds, counts, timeouts and artifact uploads.",
+      "reason": "Adds an upload of each smoke leg's markers.json files (warn when none) and a 10-minute Reachability gate job that judges them after all legs; no existing step, timeout or filter changes."
+    },
+    {
+      "id": "safety-m1-oracle-smoke",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing build and test leg keeps its steps, filters, timeouts and evidence; the Safety evidence job still requires all of them.",
+      "reason": "Adds the always-run Oracle smoke job (15-minute limit; oracle self-tests selected by a filter, the oracle-wired fuzz targets at count 10, reachability report, evidence upload that must not be empty), makes Safety evidence depend on it and declares it for the pr and full tiers; the Safety policy job also runs the reachability registry check."
+    },
+    {
+      "id": "3027-migration-recovery-harness",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-index-migration-recovery.py",
+        "tools/IndexMigrationRecovery/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every index-migration recovery case runs to completion and checks its oracle.",
+      "reason": "The harness now reports how far a case got when it times out (write count, WAL pages, commit state and elapsed time on stderr), for diagnosis, and the per-command timeout that guards against hangs is 300 s instead of 90 s because slow Windows runners took 86 s for one stage; no case or oracle changed."
+    },
+    {
+      "id": "3051-released-file-compatibility",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml",
+        ".github/safety/ci-evidence.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing test leg keeps its timeout, filter and partition; the released v4/v5 corpus is checked on every PR.",
+      "reason": "Adds the released-file-compatibility job (20-minute limit): Linux/ICU and Windows/NLS on PR runs, plus Windows/ICU and macOS/ICU on full runs. The Safety evidence job requires it. Existing jobs are unchanged. Fixtures listed in tools/ReleaseCompatibility/pending-activation.json are run and must still fail with their recorded diagnostic."
+    },
+    {
+      "id": "2970-surplus-chunk-rejection",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Issues.Issue2806SurplusChunk_Tests.Reading_exactly_the_declared_length_never_returns_surplus_bytes"
+      ],
+      "disposition": "replaced",
+      "invariant": "Never expose bytes beyond FileStorage metadata length; detect a loaded chunk that overruns it.",
+      "reason": "The previous guard accepted a truncated successful read of corrupt chunks. The replacement requires a corruption error even when the caller requests exactly the declared length, with sequential and seek controls.",
+      "coveredBy": [
+        "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_exactly_the_declared_length_rejects_the_surplus_chunk",
+        "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Reading_rejects_a_file_whose_chunks_overrun_the_declared_length",
+        "LiteDB.Tests/Issues/Issue2806SurplusChunk_Tests.cs#Seeking_into_a_chunk_that_extends_beyond_the_declared_length_is_rejected"
+      ]
+    },
+    {
+      "id": "3059-caller-stream-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy caller-stream regressions use authenticated damaged-document and dropped-index fixture bytes without changing the release corpus.",
+      "reason": "Unions the S07 fixture inventory with the S01 empty manifest now on dev. Adds two archives pinned to e059a85e1cbd641e4a682882a70b1c84906d393f and their unchanged SHA-256 hashes; no existing fixture entry is removed or repinned, and the release corpus has its separate manifest."
+    },
+    {
+      "id": "3060-preserve-vector-fixture-inventory",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released dropped-index and prerelease vector fixtures remain pinned and hash-verified alongside the S01 corpus scaffold.",
+      "reason": "S01 has an empty fixture map at revision 88b857f6; preserve the two S05 entries and their unchanged hashes at e059a85e1cbd641e4a682882a70b1c84906d393f. No fixture is removed or repinned."
+    },
+    {
+      "id": "3060-preserve-corpus-producer",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-release-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "The pinned corpus producer must match its exact recorded source hash; all 56 fixture/archive/database hashes and pending-failure diagnostics remain enforced.",
+      "reason": "Preserves the byte-identical original generator in tools/ReleaseCompatibility/provenance/generate-release-corpus.py while the current operational tool gains bounded timeouts. The verifier still requires an exact producer hash match and rejects unknown producer hashes."
+    },
+    {
+      "id": "3059-refuse-volatile-only-writes",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Regressions/LegacyReadOnlyStream_Tests.cs"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Explicit transactions that only read must commit or roll back without modifying caller data, including a partial page tail; write APIs must not acknowledge volatile-only changes.",
+      "reason": "Changes the existing no-match DeleteMany assertion from successful no-op to IOException when no caller log is supplied, matching the intentional refusal of all write operations before acknowledgement. Retains indexed reads, byte preservation, commit and rollback assertions and executes them for both partial-tail cases; adds eight loss/refusal regressions and two caller-file-log retention controls. No test is removed or skipped.",
+      "decision": "https://github.com/litedb-org/LiteDB/pull/3059#discussion_r4372117216"
+    },
+    {
+      "id": "3061-triage2-seek-cleanup",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests.Regressions.WalWriteFailureWindow_Tests.Failure_publishes_stop_before_a_queued_writer_can_confirm"
+      ],
+      "disposition": "replaced",
+      "invariant": "A queued writer must be refused when a failed seek leaves the WAL uncertain; a safely removed unconfirmed append may permit continued use, as documented in the PR summary and WAL failure-containment release notes.",
+      "reason": "The review-round-2 seek/IOException row incorrectly required terminal stop even after successful append truncation. Replace it with both exception types plus observed failed truncation, retaining every terminal-stop and queued-writer assertion. The expanded safe-seek control covers both original exception types, a queued acknowledged writer, a subsequent commit and two file-backed recovery opens. Existing Disk_Tests retain publication/reservation/length assertions and gain explicit non-stopped and zero-ownership checks.",
+      "coveredBy": [
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Refused_physical_seek_with_successful_append_cleanup_allows_a_later_commit"
+      ]
+    },
+    {
+      "id": "3058-retain-pinned-legacy-wal-and-vector-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Resources/artifacts.json"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Legacy WAL, dropped-index and prerelease-vector guards use immutable, hash-verified released fixtures.",
+      "reason": "Current dev contains the two reviewed S05 fixtures from squash-merged #3060. Add the four S06 WAL fixtures while retaining all six entries and unchanged SHA-256 values at e059a85e1cbd641e4a682882a70b1c84906d393f; no fixture bytes or expectations are removed or repinned."
+    },
+    {
+      "id": "3058-production-compatibility-and-harness-guards",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
+      "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
     }
   ]
 }

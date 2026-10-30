@@ -61,6 +61,19 @@ coverage ledger, and new fault hooks need registered evidence; see
   is different from a passing regression guard. Configuration/handshake errors
   must fail even if the child prints a success marker or expected exit code.
 
+## Binary fixtures
+
+Do not commit new `.zip` or `.db` fixtures under `LiteDB.Tests/Resources`. Keep
+the generator in this repository, upload the produced file to
+`litedb-org/LiteDB-Artifacts`, and add its name, repository path and SHA-256 to
+`LiteDB.Tests/Resources/artifacts.json`, whose `revision` pins the artifacts
+commit. Tests call `ArtifactFixtures.Path("<name>")`, which returns a verified
+file from `$LITEDB_ARTIFACTS_DIR`, the per-user cache
+`<temp>/litedb-artifacts/<revision>/`, or a download from that revision. A hash
+mismatch fails the test. For offline work, set `LITEDB_ARTIFACTS_DIR` to a
+LiteDB-Artifacts checkout at the pinned revision (or a directory with the same
+layout); the cache is not consulted then.
+
 ## Runtime and environment coverage
 
 Validate culture and timezone-sensitive changes outside UTC and invariant culture.
@@ -84,6 +97,16 @@ replay, retention, and campaign options.
 - Compare against an independent model or oracle. Cached versus uncached paths
   sharing one translator detect cache errors but can miss translator bugs;
   add CLR evaluation where semantics align and classify expected differences.
+- Drive a target's operations through the invariant oracles: `Deadline` per
+  operation on the issuing thread, with a deadline the scenario declares (a
+  harness bound, not an API guarantee); `ConnectionClean` after each dispose and
+  `Quiescent` only once every participant stopped; `Ownership`, `Durable`,
+  `FaultReached` and `FaultDisposed` against the path's declared fault contract.
+  A target that cannot apply one says why. Add a `Sometimes` marker for each
+  situation a change is about; the reachability gate fails a PR whose smoke
+  campaign never reaches a marker its diff declares.
+- Harness assertions must not swallow what they do not expect: accept only the
+  specific loser or refusal error a scenario allows, and bound every join.
 - Test the oracle with deliberately broken states. Record actual sort spills,
   cache eviction, crash points, and acknowledged operations, rather than inferring
   coverage from elapsed time or case counts.

@@ -1591,6 +1591,45 @@
           "proves": "Faults all backup/install gates while rebuilding indexes/FileStorage and changing passwords."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-rebase-before-anchor-flush",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-rebase-before-rewrite",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+    },
+    {
+      "family": "process-crash",
+      "name": "wal-before-batch-flush",
+      "protocol": "WAL batch consistency",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "exception",
+          "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        }
+      ],
+      "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
     }
   ],
   "injectors": [
@@ -1598,6 +1637,11 @@
       "name": "SimulateDiskWriteFail",
       "protocol": "WAL page writes",
       "evidence": [
+        {
+          "test": "LiteDB.Tests/Engine/AllocationPublicationFailure_Tests.cs#Failed_foreign_image_publication_refuses_pending_header_free_and_later_header_commits",
+          "model": "exception",
+          "proves": "First/middle foreign empty-image and final header write failures stop a prepared header-free commit and a later header publication; both pre-cleanup crash bytes and stopped files recover twice with complete payloads, indexes and free-list/page invariants."
+        },
         {
           "test": "LiteDB.Tests/Engine/CompactStorageFault_Tests.cs#Failure_at_each_wal_page_boundary_never_publishes_partial_documents_or_schemas",
           "model": "exception",
@@ -1689,19 +1733,39 @@
           "proves": "Volumes without POSIX delete semantics open files per operation."
         }
       ]
+    },
+    {
+      "name": "AfterFailedWalWrite",
+      "protocol": "WAL write failure teardown",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
+          "model": "interleaving",
+          "proves": "A commit started in the window after a failed slot rewrite released the WAL writer and before the engine's teardown finds the engine stopped; it is never acknowledged, and recovery keeps every acknowledged commit."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+          "model": "interleaving",
+          "proves": "Queued writer finishes with terminal refusal before failure teardown; later attempts preserve the exact WAL bytes."
+        }
+      ]
     }
   ],
   "observers": {
+    "AtCrashPoint": "Per-engine delivery of the process-crash family's named points (CrashPoint also calls SimulateProcessCrash); each name is registered under hooks with its own evidence, so this delegate adds no boundary of its own.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",
     "BeforePageRead": "Observes page reads (position, origin) to force read interleavings; faults use SimulateDiskReadFail.",
     "BeforeReadLength": "Interleaving hook before a file length is read; no persistent state changes.",
     "BeforeWaitOutHeartbeats": "Interleaving hook in coordinator status-page heartbeats; in-memory coordination only.",
+    "CoreStage": "Ownership observer: reports the opened/closing/closed lifecycle of each Shared core that requires writer exclusion; it never injects a fault.",
     "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions.",
     "FinalizedInUse": "Detects page buffers finalized while in use (leak diagnostics), not a fault boundary.",
     "HandshakeStage": "Observes coordinator handshake stages to force interleavings; no persistent state changes.",
     "LevelRandomFactory": "Makes vector index level selection deterministic for tests; not a fault boundary.",
     "ObserveCacheEviction": "Measurement hook proving cache eviction happened; not a fault boundary.",
+    "Observer": "Reachability observer: runs on the thread that hit a marker (for example a fault-point site) so a fuzz oracle can evaluate an invariant there; it never injects a fault.",
     "ObserveSortSpill": "Measurement hook proving a sort spilled to disk; not a fault boundary.",
+    "Releasing": "Ownership observer: runs just before a Shared connection releases its native writer mutex so an oracle can check every protected core finished teardown; it never injects a fault.",
     "SnapshotCaptured": "Interleaving hook after checkpoint captures its snapshot; checkpoint persistence is covered by checkpoint-stage and process-crash hooks."
   },
   "unhookedTransitions": [

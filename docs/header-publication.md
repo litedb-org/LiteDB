@@ -164,6 +164,11 @@ checkpoint partially applied, the same risk as before #2818. Every barrier still
 attempts a real sync first, so storage that syncs again regains the full
 guarantee. Data-file syncs are never downgraded.
 
+A legacy header found beside checksummed WAL frames (the conversion's header never reached
+the device while its log did, or a data file restored without its log) fails the open without
+changing either file, since legacy rules would replay the frames as pages at positions read
+from their trailers.
+
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
 
@@ -212,3 +217,43 @@ Failure of any preamble sync aborts initialization or closes the committing engi
 it never uses the ordinary commit-sync fallback. Tests inject both I/O failures and
 unsupported-sync errors at all three barriers and verify recovery of cached and
 durable images, as well as repeated tears of the initial and resumed writes.
+
+## Transaction allocation reservations
+
+`LastPageID` and the live empty-page head also serve the in-process allocator.
+An allocation reserves its ID under the header monitor and records the owning
+`TransactionPages`. Other writers cannot reuse it. Those volatile fields alone
+are not a durable allocation image: another transaction can commit first, or the
+owner can disappear without rollback.
+
+Every transaction that publishes a header therefore emits ordinary empty-page
+images for the other owners' reservations and links them ahead of the live free
+list **in its confirming header clone only**. The empty images and header belong
+to the same WAL transaction and use its existing complete-transaction checksum
+proof and durable barrier. A header cannot publish an unwritten hole, an absent
+extension, or an unlisted reserved free page. No uncommitted document, index,
+schema or collection root is published. The live allocator still excludes those
+IDs. The owner's eventual commit replaces its own empty images and excludes its
+reservations from the persisted free chain; rollback returns its pages while
+preserving all other owners' empty recovery images. Reservation ownership ends
+only after WAL-index confirmation.
+
+After process death, ordinary WAL recovery ignores unconfirmed private images
+and sees the reserved IDs as free pages. Checkpoint copies only confirmed page
+versions. No open-time scan, clamping, new repair transition, forced close-time
+rollback or format change is involved. Existing v6 readers understand all these
+pages, and v5 upgrade/cutover paths are unchanged. This prevents new inconsistent
+allocation images; it does not repair files already damaged by the earlier bug.
+
+The uncontended writer emits the same number of pages and flushes as before.
+While other allocating transactions remain open, their empty images are emitted
+once and again only when their free-list links change. A cache of confirmed links
+avoids rewriting an idle writer's entire reservation set on every header commit.
+Building the recovery chain still visits active reservations; work is bounded by
+active reservation size, not database size. Interleaved allocating writers can
+require extra WAL images, with no additional flush or open-time scan.
+The allocation regression suites cover extension holes/tails, reused free pages,
+owner commit/rollback, multiple owners, safepoints, partial checkpoint, process
+kill, physical torn/lost writes, repeated recovery and allocation reuse. The raw
+byte/free-list oracle and the root-to-node/block reachability oracle are
+independent of the publication implementation.

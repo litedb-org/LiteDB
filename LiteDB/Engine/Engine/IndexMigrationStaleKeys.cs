@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -50,7 +51,10 @@ namespace LiteDB.Engine
                         foreach (var key in keys.SelectMany(x => x.Value))
                         {
                             if (key.IsMinValue || key.IsMaxValue || IndexNode.GetKeyLength(key, true) > MAX_INDEX_KEY_LENGTH)
+                            {
+                                Reachability.Sometimes("refusal:index-migration-invalid-key");
                                 throw LiteException.InvalidIndexKey("Invalid key while migrating collection " + snapshot.CollectionName);
+                            }
                             repairBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, key, out _) + BasePage.SLOT_SIZE;
                         }
                         stale.Add(position);

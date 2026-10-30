@@ -214,7 +214,10 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition) && !_retainedForCursor;
+            // Only write snapshots and the "$" page view ($dump/$page_list) see this transaction's pages: a
+            // collection read snapshot keeps its pinned version even if a page ID it reaches was reused here.
+            var walPosition = default(PagePosition);
+            var dirty = (_mode == LockMode.Write || _collectionName == "$") && _transPages.DirtyPages.TryGetValue(pageID, out walPosition);
             if (dirty)
             {
                 origin = FileOrigin.Log;
@@ -358,8 +361,8 @@ namespace LiteDB.Engine
             // lock header instance to get new page
             lock (_header)
             {
-                // there is need for _header.Savepoint() because changes here will incremental and will be persist later
-                // if any problem occurs here, rollback will catch this changes
+                // Reserve privately. Header publication supplies empty recovery images
+                // for other owners while excluding them from live allocation.
 
                 if (this.TryAllocateFreePage(out pageID, out buffer) == false)
                 {
@@ -386,7 +389,7 @@ namespace LiteDB.Engine
                 }
 
                 // retain a list of created pages to, in a rollback situation, back pages to empty list
-                _transPages.NewPages.Add(pageID);
+                _header.Allocations.Reserve(_transPages, pageID);
             }
 
             var page = BasePage.CreatePage<T>(buffer, pageID);

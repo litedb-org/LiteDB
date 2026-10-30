@@ -30,6 +30,13 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/AllocationWalFailure_Tests.cs#Torn_allocation_publication_stops_before_another_commit_and_recovers_the_complete_graph", "model": "exception", "proves": "Plain/encrypted commit and rollback header publication tear a foreign empty image or confirming header and fail truncation; I/O and non-I/O faults stop later writes and both retained and disposed file images recover complete acknowledged payloads, indexes and page graphs twice."},
+        {"test": "LiteDB.Tests/Engine/AllocationWalFailure_Tests.cs#Failed_safepoint_rollback_publishes_foreign_reservations_before_later_commits", "model": "exception", "proves": "A refused safepoint makes the transaction rollback-only; automatic rollback publishes foreign reservations, and subsequent commits and repeated reopen retain complete payloads, indexes and the free-page graph."},
+        {"test": "LiteDB.Tests/Regressions/CallerStreamAllocation_Tests.cs#Caller_file_log_recovers_interleaved_allocations_without_changing_read_only_data", "model": "exception", "proves": "Plain/encrypted non-writable caller data with a retained file WAL publishes foreign reservations, preserves committed payloads/indexes through owner commit/rollback/abandonment and two unchanged read-only reopens, and materializes a complete page/free-list graph through repeated writable recovery."},
+        {"test": "LiteDB.Tests/Engine/AllocationPublicationFailure_Tests.cs#Failed_foreign_image_publication_refuses_pending_header_free_and_later_header_commits", "model": "exception", "proves": "After staging foreign reservation images, first/middle empty-page or confirming-header I/O failure refuses a pre-existing header-free commit and a later header publication without further writes; pre-cleanup crash prefixes and stopped files recover the prior acknowledged payloads, indexes and page/free-list graph twice."},
+        {"test": "LiteDB.Tests/Engine/AllocationFailure_Tests.cs#Failed_reservation_or_confirmation_write_stops_the_engine_without_publishing_allocations", "model": "exception", "proves": "I/O failures at the first/middle empty reservation and final header stop subsequent writes, preserve the prior acknowledged state and recover a complete page graph twice."},
+        {"test": "LiteDB.Tests/Engine/AllocationProcess_Tests.cs#Killed_allocator_preserves_acknowledged_rows_and_page_graph", "model": "process-death", "proves": "A is killed after B acknowledges a header commit; plain/encrypted extension, tail and free-page reservations recover complete payloads, selected secondary indexes and a complete reusable page graph."},
+        {"test": "LiteDB.Tests/Engine/AllocationPowerLoss_Tests.cs#Every_physical_publication_boundary_recovers_a_complete_graph", "model": "modeled-power-loss", "proves": "Lost unsynced bytes and 15-byte tears at each physical publication boundary preserve the acknowledged state, atomic unknown commits and repeated recovery with independent page reachability."},
         {"fuzz": "power-loss", "model": "modeled-power-loss", "proves": "Each operation's acknowledgment is recorded outside the engine; after a cut only the in-flight operation may resolve to old or new, and complete documents and FileStorage bytes are compared."},
         {"test": "LiteDB.Tests/Internals/WalPowerLoss_Tests.cs#SectorTearsOfNewAppends_PreserveAcknowledgedPrefix", "model": "modeled-power-loss", "proves": "Sector tears of new WAL appends keep every acknowledged commit before them."},
         {"test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes", "model": "modeled-power-loss", "proves": "A rooted full checkpoint cut at each phase keeps complete payloads, secondary-index results and untouched data."},
@@ -98,6 +105,7 @@
         {"test": "LiteDB.Tests/Internals/MvccCursorModel_Tests.cs#LongLivedCursorsAcrossCheckpoints_MatchModel", "proves": "Long-lived cursors across partial checkpoints return exactly what an independent model predicts."},
         {"test": "LiteDB.Tests/Engine/SharedReaderModel_Tests.cs#InterleavedSharedInstances_ReadersMatchModel", "proves": "Held readers of interleaved Shared instances match an independent model."},
         {"test": "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Pin_owner_hands_off_to_each_repeated_waiter", "proves": "Each attempt observes ready, fresh-owner update and re-pin, release and completion, so every handoff is a real one (#3033)."},
+        {"test": "LiteDB.Tests/Engine/ReadSnapshotReusedPage_Tests.cs#Legacy_read_snapshot_ignores_its_own_writes_to_a_reused_page", "proves": "A read snapshot keeps its pinned version when its own transaction reuses a page ID another transaction freed and a safepoint marks it dirty, plain and encrypted (#3092)."},
         {"test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery", "model": "process-death", "proves": "A reclaimer killed mid-reclamation cannot invalidate another process's live reader or the reused-slot recovery."},
         {"fuzz": "threaded-snapshot", "proves": "Holds N and N+1 readers while two writers demonstrably complete, then overlaps checkpoint and slot reuse and checks all three versions."},
         {"fuzz": "transaction-gate", "proves": "Transaction admission overlaps checkpoints and readers under forced interleavings."},
@@ -178,6 +186,43 @@
       ],
       "gaps": [
         {"text": "Cached and uncached paths share one translator; CLR evaluation is the independent oracle only where semantics align."}
+      ]
+    },
+    {
+      "id": "safety-machinery",
+      "title": "The safety machinery judges what it claims: oracles, markers, registries, corpus expectations, test settings and workflows",
+      "docs": [
+        "docs/rules/safety-evidence.md#coverage-accounting",
+        "docs/rules/validation.md#fuzzing"
+      ],
+      "paths": [
+        "LiteDB/Utils/Reachability.cs",
+        "LiteDB/Client/Shared/SharedOwnershipEvents.cs",
+        "LiteDB.Tests/Safety/**",
+        "LiteDB.Fuzz/Fuzz*.cs",
+        "LiteDB.Fuzz/Program.cs",
+        "LiteDB.Fuzz/SelfTests/**",
+        "LiteDB.Fuzz/Corpus/**",
+        "LiteDB.Fuzz/Targets/OracleSelfTestFuzzer.cs",
+        "LiteDB.Fuzz.Tests/**",
+        ".github/safety/**",
+        ".github/scripts/**",
+        ".github/workflows/**",
+        "tests.runsettings",
+        "tests.ci.runsettings",
+        "scripts/run-ci-tests.ps1"
+      ],
+      "evidence": [
+        {"test": "LiteDB.Fuzz.Tests/DeadlineOracle_Tests.cs#A_stalled_actor_fails_its_child_process_although_another_actor_keeps_progressing", "proves": "A stalled operation fails its real child process with the replayable DEADLINE identity while another actor keeps completing operations."},
+        {"test": "LiteDB.Fuzz.Tests/OwnershipOracle_Tests.cs#Releasing_ownership_while_a_core_is_closing_fails_the_ownership_oracle", "proves": "Releasing the writer mutex while a protected core is still closing is latched and fails the ownership oracle."},
+        {"test": "LiteDB.Fuzz.Tests/OracleSelfTest_Tests.cs#Durable_fails_for_a_lost_acknowledged_effect_or_a_visible_aborted_one", "proves": "A lost acknowledged write and a visible aborted write each fail the durability oracle on a cold reopen."},
+        {"test": "LiteDB.Fuzz.Tests/OracleSelfTest_Tests.cs#FaultDisposed_matches_the_declared_contract_and_fails_for_a_swallowed_or_replaced_fault", "proves": "A swallowed or replaced injected fault fails against its declared disposition, while declared discard and failure lists pass."},
+        {"fuzz": "oracle-selftest", "proves": "Every smoke run feeds the core invariant families and the post-close, durability and fault-disposition oracles controlled bad states."},
+        {"script": ".github/scripts/check_reachability.py", "proves": "Unregistered markers fail statically, and a smoke campaign that never hits a marker its diff declares fails the Fuzz workflow."}
+      ],
+      "gaps": [
+        {"text": "A green self-test shows each oracle rejects one deliberately broken state, not that the oracle set is complete."},
+        {"text": "xUnit runs do not record reachability markers yet; markers reached only by tests are advisory."}
       ]
     }
   ]

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using LiteDB.Utils;
 
 namespace LiteDB.Engine
 {
@@ -42,6 +43,7 @@ namespace LiteDB.Engine
                     string.Equals(Path.GetFileName(entry).Normalize(), name, StringComparison.OrdinalIgnoreCase))) return;
             }
 
+            Reachability.Sometimes("refusal:rebuild-incomplete-marker");
             throw new LiteException(LiteException.REBUILD_INCOMPLETE,
                 "Rebuild recovery is incomplete. Database access is blocked by '{0}'. " +
                 "Preserve the data, WAL, backup and temporary files; restore a complete database before removing this marker.", marker);
@@ -50,6 +52,7 @@ namespace LiteDB.Engine
         internal static void Begin(string filename, string backup, string backupLog, string candidate)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint("before-recovery-marker");
             RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker");
 #endif
             // Never overwrite another installation's marker. If creation or flushing
@@ -64,6 +67,7 @@ namespace LiteDB.Engine
                     "Replacement: " + Path.GetFullPath(candidate) + "\n");
                 stream.Write(bytes, 0, bytes.Length);
 #if DEBUG || TESTING
+                Reachability.FaultPoint("before-recovery-marker-flush");
                 RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-flush");
 #endif
                 stream.FlushToDisk();
@@ -73,6 +77,7 @@ namespace LiteDB.Engine
         internal static void Complete(string filename)
         {
 #if DEBUG || TESTING
+            Reachability.FaultPoint("before-recovery-marker-delete");
             RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-delete");
 #endif
             // Closing the new marker invites virus scanners and sync clients to open it, and on

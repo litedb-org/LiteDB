@@ -1,0 +1,32 @@
+{
+  "id": "Issue_3027_LegacyWalConversion",
+  "title": "Converting a 5.0.21 file while a shared reader holds a snapshot discards the commits in its WAL",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3027"
+  ],
+  "failingSince": "6.0.0-prerelease.319",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "legacy-5.0.21",
+    "wal",
+    "shared"
+  ],
+  "supports": ["linux"],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: the conversion ran while a shared reader held a snapshot and discarded the 5.0.21 WAL"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: the conversion was refused with LOCK_TIMEOUT while a shared reader held a snapshot, both files unchanged"
+    }
+  }
+}

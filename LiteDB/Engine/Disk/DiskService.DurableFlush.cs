@@ -69,6 +69,7 @@ namespace LiteDB.Engine
 
             lock (stream)
             {
+                this.RequireNoWriteFailure();
                 // Sync both the header recovery copy and preceding WAL before
                 // overwriting data. A failed sync stops checkpoint before any data
                 // overwrite; storage that cannot sync at all proceeds degraded (#2242).

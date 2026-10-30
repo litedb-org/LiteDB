@@ -118,6 +118,9 @@ namespace LiteDB.Internals
 
             Action write = () => disk.WriteLogDisk(new[] { failed });
             write.Should().Throw<IOException>().WithMessage("write failed");
+            state.Stopped.Should().BeFalse("the unconfirmed append was removed successfully");
+            disk.Cache.WritablePages.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
 
             Action lookup = () => disk.Cache.GetReadablePage(
                 0,
@@ -148,13 +151,17 @@ namespace LiteDB.Internals
                 LogStream = log,
                 CacheSize = PAGE_SIZE * 20L
             };
-            using var disk = new DiskService(settings, new EngineState(null, settings), new[] { 2 });
+            var state = new EngineState(null, settings);
+            using var disk = new DiskService(settings, state, new[] { 2 });
             var failed = disk.NewPage();
             log.FailNextWrite = true;
 
             Action write = () => disk.WriteLogDisk(new[] { failed });
 
             write.Should().Throw<IOException>().WithMessage("partial write failed");
+            state.Stopped.Should().BeFalse("the torn unconfirmed append was truncated");
+            disk.Cache.WritablePages.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
             log.Length.Should().Be(0);
             disk.GetFileLength(FileOrigin.Log).Should().Be(0);
 
@@ -164,6 +171,38 @@ namespace LiteDB.Internals
 
             replacement.Position.Should().Be(0);
             log.Length.Should().Be(2 * PAGE_SIZE);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void WriteLogDisk_IteratorIoFailure_StopsEvenAfterSafeAppendCleanup(bool duringCleanup)
+        {
+            using var disk = CreateDisk(out var state);
+            var iteratorFailure = new IOException("iterator failed");
+            if (duringCleanup)
+                state.SimulateDiskWriteFail = _ => throw new IOException("removed append");
+
+            IEnumerable<PageBuffer> Pages()
+            {
+                try
+                {
+                    yield return disk.NewPage();
+                    if (!duringCleanup) throw iteratorFailure;
+                }
+                finally
+                {
+                    if (duringCleanup) throw iteratorFailure;
+                }
+            }
+
+            Action write = () => disk.WriteLogDisk(Pages());
+            write.Should().Throw<IOException>().Which.Should().BeSameAs(iteratorFailure);
+            state.Stopped.Should().BeTrue("only the specific safely removed append failure is non-terminal");
+            disk.Cache.WritablePages.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
+            Action later = () => disk.WriteLogDisk(Array.Empty<PageBuffer>());
+            later.Should().Throw<IOException>().WithMessage("Engine closed after an I/O failure*");
         }
 
         [Fact]

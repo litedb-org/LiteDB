@@ -428,9 +428,7 @@ namespace LiteDB.Tests.Engine
         public void Dispose()
         {
             _open.Dispose();
-            try { Directory.Delete(_directory, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

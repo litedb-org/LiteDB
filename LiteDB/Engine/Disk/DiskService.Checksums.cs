@@ -66,6 +66,7 @@ namespace LiteDB.Engine
         internal void EnableChecksums(ref HeaderPage header)
         {
             if (_readOnly || ChecksumsEnabled) return;
+            this.RequireWritableStorage();
             using var structural = new StructuralScope(_signals);
             var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
@@ -116,6 +117,7 @@ namespace LiteDB.Engine
             RecoveryReport = new WalRecoveryReport(bytes, invalidTail);
             if (!_readOnly)
             {
+                this.RequireWritableStorage();
                 using var structural = new StructuralScope(_signals);
                 SetLength(end, FileOrigin.Log);
                 SyncLogBarrier(_writer.Value);
@@ -138,6 +140,26 @@ namespace LiteDB.Engine
             lock (_writer.Value) _checksums.Forget(transactionID);
         }
 
-        internal void StopAfterCheckpointFailure(Exception exception) => _state.Stop(exception);
+        /// <summary>
+        /// A checkpoint that fails while it holds the WAL writer publishes the stop before releasing
+        /// it: a commit waiting for the writer must not append behind what the failed checkpoint left
+        /// (a torn retirement record, a reserved slot it never wrote, an outstanding header journal).
+        /// Returns whether the stop was begun; teardown follows once the locks are released.
+        /// </summary>
+        internal bool BeginCheckpointStop(Exception exception, out bool owned)
+        {
+            owned = false;
+#if DEBUG || TESTING
+            if (_state.DeferCheckpointStop) return false;
+#endif
+            owned = _state.BeginStop(exception);
+            return true;
+        }
+
+        internal void StopAfterCheckpointFailure(Exception exception, bool begun, bool owned)
+        {
+            if (begun) _state.CompleteStop(exception, owned);
+            else _state.Stop(exception);
+        }
     }
 }

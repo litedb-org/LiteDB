@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
+using LiteDB.Tests;
 using static LiteDB.Constants;
 
 namespace LiteDB.Internals
@@ -33,7 +34,7 @@ namespace LiteDB.Internals
             {
                 await writer.Expect("ready");
                 new FileInfo(Log).Length.Should().BeGreaterThan(WalChecksum.FrameSize);
-                await writer.Kill();
+                await writer.Kill(sharedFilesRemainOpen: true);
             }
             await Run("verify", password, storage, 1);
             var before = new FileInfo(Log).Length;
@@ -41,7 +42,7 @@ namespace LiteDB.Internals
             {
                 await writer.Expect("ready");
                 new FileInfo(Log).Length.Should().BeGreaterThan(before, "safepoints must write unconfirmed WAL frames");
-                await writer.Kill();
+                await writer.Kill(sharedFilesRemainOpen: true);
             }
             await Run("verify", password, storage, 1);
             await MvccProcess.Run("checkpoint", Filename, password);
@@ -127,7 +128,7 @@ namespace LiteDB.Internals
 
         private static string Options(CompactStorageMode storage, int revision) => storage + "," + revision;
 
-        public void Dispose() => Directory.Delete(_directory, recursive: true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

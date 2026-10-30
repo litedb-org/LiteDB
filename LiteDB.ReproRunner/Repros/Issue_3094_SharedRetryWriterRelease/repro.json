@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3094_SharedRetryWriterRelease",
+  "title": "Shared retry retains aborted transaction writer ownership",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3094"
+  ],
+  "failingSince": "6.0.0-prerelease.322",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "PROVEN_BLOCK"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}
