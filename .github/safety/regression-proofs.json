@@ -225,6 +225,17 @@
         "scripts/test-5021-regression-compatibility.py",
         "LiteDB.Tests/Regressions/LegacyWalCallerStream_Tests.cs#Foreign_legacy_wal_is_refused_without_mutation_even_when_streams_cannot_be_written"
       ]
+    },
+    {
+      "repro": "Issue_3097_SortDiskDispose",
+      "knownBad": {
+        "kind": "dev-commit",
+        "commit": "7b71bc4dd45b48a1df4418ddb4cd245832273b35",
+        "reason": "Issue #3097 reproduces on this dev commit: when closing a pooled scratch stream throws, SortDisk skips deleting the -tmp file. The repro returns the active reader before injecting the fault through private sort/pool fields. No published package with compatible fields has been verified."
+      },
+      "permanentGuard": [
+        "LiteDB.Tests/Internals/SortDiskLifecycle_Tests.cs#Dispose_DeletesScratchFile_AndPreservesDatabase"
+      ]
     }
   ]
 }

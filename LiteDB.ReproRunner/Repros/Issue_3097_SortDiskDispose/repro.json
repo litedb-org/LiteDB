@@ -1,0 +1,27 @@
+{
+  "id": "Issue_3097_SortDiskDispose",
+  "title": "SortDisk leaves scratch file when closing a stream fails",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/3097"
+  ],
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "latest": {
+      "logContains": "ISSUE_3097_FIXED",
+      "exitCode": 1,
+      "kind": "noRepro"
+    },
+    "package": {
+      "logContains": "ISSUE_3097_REPRODUCED",
+      "exitCode": 0,
+      "kind": "reproduce"
+    }
+  }
+}
