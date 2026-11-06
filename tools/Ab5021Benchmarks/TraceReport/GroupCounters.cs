@@ -11,7 +11,7 @@ internal static class GroupCounters
         var rows = new List<object>();
         string scenario = null;
         double begin = 0;
-        long frequency = 1, groups = 0, commits = 0, piggybacks = 0;
+        long frequency = 1, groups = 0, commits = 0, piggybacks = 0, appends = 0, ends = 0;
         var sizes = new Dictionary<long, long>();
         var kinds = new Dictionary<string, long>();
         var waits = new Dictionary<string, (long count, long ticks, long max)>();
@@ -25,12 +25,12 @@ internal static class GroupCounters
                 {
                     scenario = (string)e.PayloadValue(0);
                     begin = e.TimeStampRelativeMSec;
-                    groups = commits = piggybacks = 0;
+                    groups = commits = piggybacks = appends = ends = 0;
                     sizes.Clear(); kinds.Clear(); waits.Clear(); barriers.Clear(); barrier = null;
                 }
                 else if ((int)e.ID == 2 && scenario != null)
                 {
-                    if (commits != 5000 || barriers.Count != groups || kinds.GetValueOrDefault("group-device") != groups)
+                    if (commits != 5000 || appends != 5000 || ends != groups || piggybacks + groups != 5000 || barriers.Count != groups || kinds.GetValueOrDefault("group-device") != groups)
                         throw new InvalidDataException($"Incomplete counters for {scenario}: {commits} commits, {groups} groups, {barriers.Count} starts");
                     rows.Add(new { scenario, elapsedMs = e.TimeStampRelativeMSec - begin,
                         groups, commits, piggybacks, groupSizes = new Dictionary<long, long>(sizes),
@@ -62,12 +62,15 @@ internal static class GroupCounters
                     var ticks = Convert.ToInt64(e.PayloadValue(1));
                     var old = waits.GetValueOrDefault(name);
                     waits[name] = (old.count + 1, old.ticks + ticks, Math.Max(old.max, ticks)); break;
-                case 6: if (barrier != null) barrier["appendsDuring"]++; break;
-                case 7: barrier = null; break;
+                case 6: appends++; if (barrier != null) barrier["appendsDuring"]++; break;
+                case 7: ends++; barrier = null; break;
             }
         };
         source.Process();
-        if (source.EventsLost != 0) throw new InvalidDataException($"Lost {source.EventsLost} events");
+        if (source.EventsLost > 0) throw new InvalidDataException($"Lost {source.EventsLost} events");
+        // TraceEvent can report negative sequence-loss totals for these EventPipe captures.
+        // Preserve that invalid/unknown diagnostic; critical commit/start/end counts reconcile above.
+        File.WriteAllText(output + ".decode.json", JsonSerializer.Serialize(new { eventsLostReported = source.EventsLost }));
         if (rows.Count != 8) throw new InvalidDataException($"Expected eight controls, decoded {rows.Count}");
         File.WriteAllText(output, JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
     }
