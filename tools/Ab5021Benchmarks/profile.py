@@ -14,7 +14,7 @@ root = Path(__file__).resolve().parent
 cpu = []
 writers = [f'durable_insert_5k_{n}_writers{separate}{checkpoint}'
            for separate in ('', '_separate') for checkpoint in ('', '_nocp') for n in (4, 8)]
-metadata = dict(sha=os.environ['GITHUB_SHA'], framework=framework,
+metadata = dict(sha=os.environ['GITHUB_SHA'], candidateSha=os.environ.get('BENCHMARK_CANDIDATE_SHA'), framework=framework,
                 dotnet=subprocess.check_output(['dotnet', '--info'], text=True),
                 note='v5 writers use OS-cache commits; v6 writers use device-sync commits. Not durability equivalents.')
 (out / 'environment.json').write_text(json.dumps(metadata, indent=2))
@@ -23,11 +23,14 @@ for version, config, scenarios in [('V6', 'dev-default', writers)]:
     env = dict(os.environ, DOTNET_TieredCompilation='0', LITEDB_PROFILE='1',
                BENCHMARK_SCENARIOS=','.join(scenarios))
     dll = root / version / 'bin' / 'Release' / framework / f'{version}.dll'
-    command = ['dotnet-trace', 'collect', '--providers',
-               'LiteDB-ScenarioProfile:0xffffffffffffffff:4,LiteDB-CommitProfile:0xffffffffffffffff:4',
-               '--buffersize', '512', '--output', str(trace), '--',
-               'dotnet', str(dll), config, '1', str(out / f'{config}.json')]
+    command = ['dotnet', str(dll), config, '1', str(out / f'{config}.json')]
     with (out / f'{config}.log').open('w') as handle:
         subprocess.run(command, env=env, stdout=handle, stderr=subprocess.STDOUT, check=True, timeout=1500)
-    subprocess.run(['dotnet', str(root / 'TraceReport/bin/Release/net8.0/TraceReport.dll'),
-                    str(trace), str(out / f'{config}-frames.json'), '--counters-only'], check=True, timeout=600)
+    rows = json.loads((out / f'{config}.json.counters.json').read_text())
+    if {row['scenario'] for row in rows} != set(writers) or len(rows) != len(writers):
+        raise RuntimeError('Missing/duplicate counter scenarios')
+    for row in rows:
+        if (row['commits'] != 5000 or row['appends'] != 5000 or
+            row['groups'] + row['piggybacks'] != 5000 or
+            not row['groups'] == row['starts'] == row['ends'] == row['native']):
+            raise RuntimeError(f'Incomplete counters: {row}')

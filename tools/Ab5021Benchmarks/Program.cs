@@ -16,6 +16,7 @@ internal static class Program
             Console.Error.WriteLine("Measurements are restricted to GitHub Actions; do not run locally.");
             return 1;
         }
+        using var counters = ProfileMarkers.Enabled ? new ProfileCounters() : null;
         var config = args[0];
         var round = int.Parse(args[1]);
         var output = Path.GetFullPath(args[2]);
@@ -28,6 +29,7 @@ internal static class Program
             new Workload(config, Path.Combine(root, "warmup"), 2000, 100, false).Run();
             var workload = new Workload(config, Path.Combine(root, "measured"), 100000, 5000, true);
             workload.Run();
+            counters?.Save(output + ".counters.json");
             var assembly = typeof(LiteDatabase).Assembly;
             var result = new
             {

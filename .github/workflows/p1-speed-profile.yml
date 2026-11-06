@@ -2,6 +2,11 @@ name: Phase 1 speed profile
 on:
   workflow_dispatch:
     inputs:
+      candidate_ref:
+        description: Optional instrumented library ref (empty uses workflow head)
+        default: ''
+        required: false
+        type: string
       trace_run:
         description: 'Decode retained captures from this run without repeating workloads (empty = capture)'
         default: ''
@@ -9,7 +14,7 @@ on:
         type: string
   # Register this diagnostic workflow without changing the default branch.
   push:
-    branches: ['v6/p1-speed-profile', 'v6/p1-perf-group']
+    branches: ['v6/p1-speed-profile', 'v6/p1-perf-group', 'v6/p1-perf-group-handle']
 permissions:
   contents: read
   actions: read
@@ -27,6 +32,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/checkout@v4
+        if: inputs.candidate_ref != ''
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          path: artifacts_temp/profile-candidate
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -41,8 +52,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet tool install --global dotnet-trace --version 8.0.547301
           if ($LASTEXITCODE) { throw 'trace tool install failed' }
+          $candidateArgs = @()
+          if ('${{ inputs.candidate_ref }}') {
+            $candidate = (Resolve-Path 'artifacts_temp/profile-candidate/LiteDB/LiteDB.csproj').Path
+            $candidateArgs += "-p:CandidateProject=$candidate"
+            $candidateSha = git -C artifacts_temp/profile-candidate rev-parse HEAD
+          } else { $candidateSha = git rev-parse HEAD }
+          "BENCHMARK_CANDIDATE_SHA=$candidateSha" >> $env:GITHUB_ENV
           foreach ($version in @('V6')) {
-            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false --nologo
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false @candidateArgs --nologo
             if ($LASTEXITCODE) { throw "Build failed: $version" }
           }
           dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
