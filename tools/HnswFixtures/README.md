@@ -21,3 +21,21 @@ then pin the commit and archive hashes in the source manifest. Tests and both
 black-box repros resolve them with `ArtifactFixtures.Path`, which verifies every
 file. For offline runs set `LITEDB_ARTIFACTS_DIR` to a checkout of that pinned
 artifacts commit. Never overwrite historical artifacts in place.
+
+## Runtime portability
+
+The frozen databases contain the producer runtime's ICU collation fingerprint.
+An explicit connection-string collation cannot override that fingerprint.
+`LiteDB.Tests/Utils/HnswFixtureRuntime.cs` prepares disposable test/repro copies:
+it accepts only the four pinned database SHA-256 values, clears bytes 92–95
+(the runtime fingerprint), and recomputes the header CRC32C at bytes 14–17.
+All other bytes, including every historical graph and document page, are retained.
+The original archives, writer commit, generation recipe and manifest hashes remain
+unchanged. The fourth input is the embedded disconnected `b3c440623` fixture.
+
+The helper opens the copy read-only through the real engine's legacy scalar-index
+ordering validation and requires numeric primary keys with no secondary scalar
+indexes. These inputs therefore do not depend on culture-sensitive string order.
+It does not install a matching fingerprint or change product validation.
+`HnswFixtureRuntime_Tests` checks all four inputs, original preservation, exact
+allowed header differences, and rejection after any graph-byte damage.
