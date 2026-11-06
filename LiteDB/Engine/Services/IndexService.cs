@@ -179,9 +179,14 @@ namespace LiteDB.Engine
         /// </summary>
         public byte Flip()
         {
+            return Flip(Randomizer.Current);
+        }
+
+        internal static byte Flip(Randomizer random)
+        {
             byte levels = 1;
 
-            for (int R = Randomizer.Next(); (R & 1) == 1; R >>= 1)
+            for (uint R = random.Next(); (R & 1) == 1; R >>= 1)
             {
                 levels++;
                 if (levels == MAX_LEVEL_LENGTH) break;
