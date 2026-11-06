@@ -155,8 +155,14 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("wal-after-durable-flush");
 #endif
+#if PROFILE
+                    var profileRetire = CommitProfile.Stamp();
+#endif
                     lock (_disk.WalWriterLock)
                     {
+#if PROFILE
+                        CommitProfile.Elapsed("RetireWriter", profileRetire);
+#endif
                         _state.Validate();
                         #if PROFILE
                         CommitProfile.Log.Group(target - _durable);

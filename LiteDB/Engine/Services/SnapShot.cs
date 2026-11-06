@@ -81,8 +81,14 @@ namespace LiteDB.Engine
             try
             {
                 uint collectionPageID;
+#if PROFILE
+                var profilePublication = CommitProfile.Stamp();
+#endif
                 lock (_header.PublicationLock)
                 {
+#if PROFILE
+                    CommitProfile.Elapsed("Publication", profilePublication);
+#endif
                     // Collection identity and WAL visibility must describe the same committed
                     // state. A commit that changes the map holds this lock through confirmation.
                     _readVersion = _walIndex.PinSnapshot(mode == LockMode.Write ? _transPages : null);

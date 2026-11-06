@@ -20,7 +20,13 @@ namespace LiteDB.Engine
 
         internal int PinSnapshot(TransactionPages write = null)
         {
+#if PROFILE
+            var profileIndex = CommitProfile.Stamp();
+#endif
             _indexLock.EnterWriteLock();
+#if PROFILE
+            CommitProfile.Elapsed("IndexPinCheckpoint", profileIndex);
+#endif
             try
             {
                 var version = write != null ? _currentReadVersion : Math.Min(_currentReadVersion, _disk.CommitReadVersionLimit);
@@ -37,7 +43,13 @@ namespace LiteDB.Engine
 
         internal void UnpinSnapshot(int version)
         {
+#if PROFILE
+            var profileIndex = CommitProfile.Stamp();
+#endif
             _indexLock.EnterWriteLock();
+#if PROFILE
+            CommitProfile.Elapsed("IndexPinCheckpoint", profileIndex);
+#endif
             try
             {
                 if (--_snapshots[version] == 0) _snapshots.Remove(version);
@@ -146,7 +158,13 @@ namespace LiteDB.Engine
                 _disk.CheckpointStage("before-commit-lock");
                 System.Threading.Monitor.Enter(commitLock, ref commitEntered);
                 _disk.CheckpointStage("before-index-lock");
-                _indexLock.EnterWriteLock();
+    #if PROFILE
+            var profileIndex = CommitProfile.Stamp();
+#endif
+            _indexLock.EnterWriteLock();
+#if PROFILE
+            CommitProfile.Elapsed("IndexPinCheckpoint", profileIndex);
+#endif
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
                 // Admission may have passed before a failing WAL writer published its stop.
