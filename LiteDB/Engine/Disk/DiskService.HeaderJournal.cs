@@ -20,7 +20,7 @@ namespace LiteDB.Engine
                 SyncLogBarrier(_writer.Value);
                 return;
             }
-            var log = ((ChecksummedWalStream)_writer.Value).RawStream;
+            var log = ((ChecksummedWalStream)_writer.Value).PhysicalStream;
             // Keep the footer aligned too: released engines trim unaligned WAL
             // tails before checking the primary header's newer format version.
             if (ChecksumsEnabled)
@@ -93,7 +93,7 @@ namespace LiteDB.Engine
                 if (_recoveredHeader != null)
                 {
                     // Make an OS-cached recovery copy durable before repairing its primary.
-                    SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
+                    SyncLogBarrier(((ChecksummedWalStream)_writer.Value).PhysicalStream);
                     SyncLogDirectory();
                     this.CrashPoint("promotion-recovery-before-header-write");
                     data.Position = 0;
@@ -103,7 +103,7 @@ namespace LiteDB.Engine
                 data.FlushToDisk();
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
-                var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
+                var writer = ((ChecksummedWalStream)_writer.Value).PhysicalStream;
                 writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
                 SyncLogBarrier(writer);
                 _checksums.JournalBytes = 0;

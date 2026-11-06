@@ -10,19 +10,23 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly WalChecksum _checksum;
+        private readonly Stream _physical;
         private byte[] _frame = new byte[WalChecksum.FrameSize];
         private BufferSlice _page, _metadata;
         private readonly WalFileAllocation _allocation = new WalFileAllocation();
         private long _position;
         internal WalChecksum.Frame LastFrame { get; private set; }
         internal Stream RawStream => _stream;
-        private long ContentLength => Math.Max(0, _stream.Length - _checksum.JournalBytes);
+        internal Stream PhysicalStream => _physical;
+        private long ContentLength => Math.Max(0, _physical.Length - _checksum.JournalBytes);
         internal long TrailingBytes => _checksum.Enabled ? WalPadding.TrailingBytes(ContentLength) : ContentLength % PAGE_SIZE;
 
-        internal ChecksummedWalStream(Stream stream, WalChecksum checksum)
+        internal ChecksummedWalStream(Stream stream, WalChecksum checksum, bool ownedWriter = false)
         {
             _stream = stream;
             _checksum = checksum;
+            _physical = ownedWriter && stream.GetType() == typeof(FileStream)
+                ? new PhysicalWalStream((FileStream)stream) : stream;
             SetFrameSlices();
         }
 
@@ -63,7 +67,7 @@ namespace LiteDB.Engine
             }
             if (!_checksum.Enabled)
             {
-                _stream.Write(buffer, offset, count);
+                _physical.Write(buffer, offset, count);
                 return;
             }
             CheckPage(count);
@@ -72,7 +76,7 @@ namespace LiteDB.Engine
             var physical = _position / PAGE_SIZE * WalChecksum.FrameSize;
             _stream.Position = physical;
             _allocation.Reserve(_stream, physical + WalChecksum.FrameSize);
-            _stream.Write(_frame, 0, WalChecksum.FrameSize);
+            _physical.Write(_frame, 0, WalChecksum.FrameSize);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
         }
@@ -108,7 +112,7 @@ namespace LiteDB.Engine
             Array.Clear(_frame, WalChecksum.FrameSize, count - WalChecksum.FrameSize);
             _stream.Position = physical;
             _allocation.Reserve(_stream, aligned);
-            _stream.Write(_frame, 0, count);
+            _physical.Write(_frame, 0, count);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
         }
@@ -138,7 +142,7 @@ namespace LiteDB.Engine
         {
             if (_checksum.Enabled && value % PAGE_SIZE != 0) throw new ArgumentException("WAL length must be page aligned.");
             var length = _checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value;
-            _stream.SetLength(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
+            _physical.SetLength(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
             _allocation.Reset();
             // CryptoStream can forward an empty final write on dispose. Do not
             // let a borrowed stream position re-extend a truncated memory WAL.
@@ -151,11 +155,11 @@ namespace LiteDB.Engine
         private void Pad()
         {
             if (_checksum.Enabled && _checksum.JournalBytes == 0)
-                WalPadding.Pad(_stream, Length / PAGE_SIZE * WalChecksum.FrameSize);
+                WalPadding.Pad(_physical, Length / PAGE_SIZE * WalChecksum.FrameSize);
         }
 
-        public override void Flush() { Pad(); _stream.Flush(); }
-        internal void FlushToDisk() { Pad(); _stream.FlushToDisk(); }
+        public override void Flush() { Pad(); _physical.Flush(); }
+        internal void FlushToDisk() { Pad(); _physical.FlushToDisk(); }
         protected override void Dispose(bool disposing)
         {
             if (disposing) _stream.Dispose();

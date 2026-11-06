@@ -75,7 +75,13 @@ namespace LiteDB.Engine
                 try
                 {
                     _state.Validate();
-                    if (_durable >= ticket) return;
+                    if (_durable >= ticket)
+                    {
+#if PROFILE
+                        CommitProfile.Log.Piggyback();
+#endif
+                        return;
+                    }
                     long target;
                     int version;
                     Microsoft.Win32.SafeHandles.SafeFileHandle handle;
@@ -116,6 +122,9 @@ namespace LiteDB.Engine
                     lock (_disk.WalWriterLock)
                     {
                         _state.Validate();
+                        #if PROFILE
+                        CommitProfile.Log.Group(target - _durable);
+#endif
                         _durable = target;
                         var remove = 0;
                         while (remove < _pendingVersions.Count && _pendingVersions[remove] <= version) remove++;

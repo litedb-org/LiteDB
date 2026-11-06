@@ -111,7 +111,7 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 var empty = new byte[ChecksumsEnabled ? WalChecksum.FrameSize : PAGE_SIZE];
-                var target = ChecksumsEnabled ? ((ChecksummedWalStream)stream).RawStream : stream;
+                var target = ChecksumsEnabled ? ((ChecksummedWalStream)stream).PhysicalStream : stream;
                 foreach (var position in positions)
                 {
                     _cache.Invalidate(position, FileOrigin.Log);

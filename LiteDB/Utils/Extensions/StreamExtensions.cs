@@ -40,6 +40,10 @@ namespace LiteDB
             {
                 NativeFileSync.FlushToDisk(fstream);
             }
+            else if (stream is PhysicalWalStream physical)
+            {
+                physical.FlushToDisk();
+            }
             else if (stream is AesStream encrypted)
             {
                 encrypted.FlushToDisk();

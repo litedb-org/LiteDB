@@ -101,10 +101,8 @@ internal sealed class Workload
         using (var db = Open(path)) Verify(db.GetCollection<Document>("documents"), _count / 10);
         if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
         if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
-#if DEV
-        if (_config == "dev-default" && Selected == null)
+        if (ProfileMarkers.Enabled || (_config == "dev-default" && Selected == null))
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
-#endif
     }
 
     private void ReadControls(LiteDatabase db, ILiteCollection<Document> col, string path)
@@ -207,9 +205,12 @@ internal sealed class Workload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
+        var profile = ProfileMarkers.Enabled && _record && (Selected == null || Selected.Contains(scenario));
+        if (profile) ProfileMarkers.Log.Begin(scenario);
         var watch = Stopwatch.StartNew();
         action();
         watch.Stop();
+        if (profile) ProfileMarkers.Log.End(scenario);
         if (!_record)
         {
             Console.WriteLine($"{_config} warmup finished {scenario}");

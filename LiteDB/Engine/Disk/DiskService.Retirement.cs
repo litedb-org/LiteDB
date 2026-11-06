@@ -36,7 +36,7 @@ namespace LiteDB.Engine
             {
                 Root = Retirement.Root, RootCrc = Retirement.RootCrc, Sequence = _checksums.Sequence
             };
-            var raw = ((ChecksummedWalStream)_writer.Value).RawStream;
+            var raw = ((ChecksummedWalStream)_writer.Value).PhysicalStream;
             for (var start = 0; start < witnesses.Count; start += WalRetirement.Capacity)
             {
                 var bytes = new byte[WalChecksum.FrameSize];
@@ -76,7 +76,7 @@ namespace LiteDB.Engine
         /// </summary>
         internal void CompletePartialCheckpoint(WalRetirement pending)
         {
-            var raw = ((ChecksummedWalStream)_writer.Value).RawStream;
+            var raw = ((ChecksummedWalStream)_writer.Value).PhysicalStream;
             if (pending != null)
             {
                 var data = _dataPool.Writer.Value;

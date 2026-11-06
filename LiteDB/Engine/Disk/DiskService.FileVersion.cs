@@ -53,7 +53,7 @@ namespace LiteDB.Engine
                         stream.ReadRequired(header.Array, 0, PAGE_SIZE);
                         PageChecksum.Validate(header, 0);
                         _ = new HeaderPage(header);
-                        var rawLog = ((ChecksummedWalStream)writer).RawStream;
+                        var rawLog = ((ChecksummedWalStream)writer).PhysicalStream;
                         var originalLength = rawLog.Length;
                         var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                         if (compact) this.CrashPoint("promotion-before-journal-write");

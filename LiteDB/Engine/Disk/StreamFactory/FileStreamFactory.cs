@@ -48,6 +48,8 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get data filename
         /// </summary>
+        internal bool OwnsExclusiveWriter => _handles == null && !_readonly;
+
         public string Name => Path.GetFileName(_filename);
 
         /// <summary>

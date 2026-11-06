@@ -72,7 +72,7 @@ namespace LiteDB.Engine
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             stream.Position = 0;
             stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
-            var log = ((ChecksummedWalStream)_writer.Value).RawStream;
+            var log = ((ChecksummedWalStream)_writer.Value).PhysicalStream;
             // Successful syncs are required before crossing the format boundary,
             // unless the log storage cannot sync at all (#2242): then the
             // ordered writes keep conversion process-crash safe only.

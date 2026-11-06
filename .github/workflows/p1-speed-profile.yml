@@ -1,0 +1,51 @@
+name: Phase 1 speed profile
+on:
+  workflow_dispatch:
+  # Register this diagnostic workflow without changing the default branch.
+  push:
+    branches: ['v6/p1-speed-profile']
+permissions:
+  contents: read
+jobs:
+  profile:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build diagnostic production harnesses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet tool install --global dotnet-trace --version 8.0.547301
+          if ($LASTEXITCODE) { throw 'trace tool install failed' }
+          foreach ($version in @('V5', 'V6')) {
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $version" }
+          }
+          dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
+          if ($LASTEXITCODE) { throw 'trace report build failed' }
+      - name: Capture scenarios and decode inclusive and exclusive frames
+        run: python tools/Ab5021Benchmarks/profile.py '${{ matrix.framework }}' artifacts_temp/p1-speed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p1-speed-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/p1-speed/
+          if-no-files-found: warn
+          retention-days: 14

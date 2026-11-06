@@ -100,6 +100,8 @@ namespace LiteDB.Internals
                         // Keep the exact FileStream branch, but make its real Write fail.
                         readOnly = new FileStream(source.LogName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                         streamField.SetValue(writer, readOnly);
+                        typeof(ChecksummedWalStream).GetField("_physical", BindingFlags.Instance | BindingFlags.NonPublic)
+                            .SetValue(writer, readOnly);
                     }
                 }
                 if (phase == "wal-confirmation-after-write")
