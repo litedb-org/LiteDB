@@ -63,8 +63,31 @@ namespace LiteDB.Internals
         }
 
         /// <summary>Next output line, or null once the process closed its output.</summary>
-        internal Task<string> ReadLine(TimeSpan timeout) =>
-            _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+        internal async Task<string> ReadLine(TimeSpan timeout)
+        {
+            try { return await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout); }
+            catch (TimeoutException)
+            {
+                var tool = Environment.GetEnvironmentVariable("F_RETRY_STACK");
+                if (tool != null)
+                {
+                    foreach (var pid in new[] { _process.Id, Environment.ProcessId })
+                    {
+                        using var dump = Process.Start(new ProcessStartInfo(tool)
+                        {
+                            ArgumentList = { "report", "-p", pid.ToString() },
+                            RedirectStandardOutput = true, RedirectStandardError = true
+                        });
+                        var output = dump.StandardOutput.ReadToEndAsync();
+                        var errors = dump.StandardError.ReadToEndAsync();
+                        await dump.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                        File.WriteAllText(Environment.GetEnvironmentVariable("F_RETRY_EVIDENCE") + "/stack-" + pid + ".txt",
+                            await output + await errors);
+                    }
+                }
+                throw;
+            }
+        }
 
         internal void Send(string command) => _process.StandardInput.WriteLine(command);
 
@@ -128,7 +151,12 @@ namespace LiteDB.Internals
                     ChildProcessTermination.Kill(_process, paths, 10000, entireProcessTree: true);
                 }
             }
-            finally { _process.Dispose(); }
+            finally
+            {
+                var evidence = Environment.GetEnvironmentVariable("F_RETRY_EVIDENCE");
+                if (evidence != null) File.WriteAllText(evidence + "/child-" + _process.Id + ".txt", _errors.GetAwaiter().GetResult());
+                _process.Dispose();
+            }
         }
     }
 }

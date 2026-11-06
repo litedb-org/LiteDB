@@ -75,7 +75,8 @@ internal static class MvccHarness
                 break;
             case "insert":
                 var start = int.Parse(args[4]);
-                for (var i = start; i < start + 20; i++) collection.Insert(new BsonDocument { ["_id"] = i });
+                Console.Error.WriteLine("insert-start " + DateTime.UtcNow.ToString("O"));
+                for (var i = start; i < start + 20; i++) { Console.Error.WriteLine("insert " + i + " " + DateTime.UtcNow.ToString("O")); collection.Insert(new BsonDocument { ["_id"] = i }); }
                 Console.WriteLine("done");
                 break;
             case "uncommitted":
