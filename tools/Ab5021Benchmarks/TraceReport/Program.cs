@@ -33,7 +33,7 @@ foreach (var e in log.Events)
             rows.Add(new { scenario, elapsedMs = e.TimeStampRelativeMSec - begin, samples, missing,
                 syncs, groups, commits, piggybacks, groupSizes = new Dictionary<long, long>(sizes),
                 syncKinds = new Dictionary<string, long>(syncKinds),
-                barriers,
+                barriers = barriers.ToArray(),
                 waits = waits.ToDictionary(p => p.Key, p => new { count = p.Value.count,
                     totalMs = p.Value.ticks * 1000.0 / frequency, maxMs = p.Value.max * 1000.0 / frequency }),
                 inclusive = inclusive.OrderByDescending(p => p.Value).Take(80).ToArray(),
