@@ -22,7 +22,17 @@ jobs:
             8.0.x
             10.0.x
       - name: Group commit, faults, WAL, recovery and lifetime
-        run: dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter "FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable" --logger "trx;LogFileName=safety.trx" --results-directory artifacts_temp/handle-safety
+        shell: pwsh
+        run: |
+          $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable'
+          $core = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~WalHandleLifetime|FullyQualifiedName~NativeFileSync'
+          $filters = @($core, "($all)&!($core)&FullyQualifiedName~Wal", "($all)&!($core)&FullyQualifiedName!~Wal")
+          $failed = $false
+          for ($i = 0; $i -lt $filters.Count; $i++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=safety-$i.trx" --results-directory artifacts_temp/handle-safety
+            if ($LASTEXITCODE) { $failed = $true }
+          }
+          if ($failed) { throw 'At least one safety partition failed or did not complete' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

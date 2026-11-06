@@ -284,14 +284,23 @@
     },
     {
       "id": "p1-windows-slow-baseline-measurement-budget",
-      "kind": "harness-changed",
+      "kind": "ci-test-config-changed",
       "subjects": [
-        ".github/workflows/benchmark-gate.yml",
-        "tools/Ab5021Benchmarks/run.py"
+        ".github/workflows/benchmark-gate.yml"
       ],
       "disposition": "strengthened",
       "invariant": "Complete same-job baseline/candidate/v5 comparison at unchanged operation counts, six rounds (ten macOS), correctness checks, identity validation and ratio/noise thresholds.",
       "reason": "Optional workflow_dispatch slow_comparison extends only performance measurement deadlines for comparisons: phase1 Windows net8 baseline exceeded 360 seconds in round 1 after durable 4-writer workload. Default budgets and test timeouts stay unchanged; incomplete results still fail. This permits collecting every existing scenario instead of accepting partial rounds."
+    },
+    {
+      "id": "p1-handle-safety-complete-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
+      "reason": "The original combined session exceeded 300 seconds on Windows net8 and net10 with no assertion failures and varying completion counts. Three disjoint filters retain the exact original union, place group/lifecycle/native-sync cases first, and give each partition its own unchanged session budget. Every partition runs and any nonzero exit fails the job."
     }
   ]
 }
