@@ -142,11 +142,14 @@ def evaluate_comparison(directory, config, operating_system, framework, baseline
         raise ValueError("Comparison requires a baseline SHA")
     if scenarios:
         names = scenarios.split(",")
-        if len(names) != len(set(names)) or not set(names) <= set(config["scenarios"]):
+        if len(names) != len(set(names)) or not set(names) <= (set(config["scenarios"]) | set(config["scalingScenarios"])):
             raise ValueError("Unknown or duplicate comparison scenarios")
         config = copy.deepcopy(config)
-        config["scenarios"] = {name: dict(config["scenarios"][name], maxRatio=None) for name in names}
-        config["scalingScenarios"] = {}
+        config["scenarios"] = {name: dict(rule, maxRatio=None)
+                               for name, rule in config["scenarios"].items() if name in names}
+        config["scalingScenarios"] = {name: rule for name, rule in config["scalingScenarios"].items() if name in names}
+        if config["scalingScenarios"] and "durable_insert_5k_1_writers" not in config["scalingScenarios"]:
+            raise ValueError("Scaling subsets require the one-writer control")
     after = evaluate(directory, config, operating_system, framework)
     before = evaluate(directory / "before", config, operating_system, framework, baseline_sha)
 

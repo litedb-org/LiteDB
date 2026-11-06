@@ -101,7 +101,8 @@ internal sealed class Workload
         using (var db = Open(path)) Verify(db.GetCollection<Document>("documents"), _count / 10);
         if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
         if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
-        if (ProfileMarkers.Enabled || (_config == "dev-default" && Selected == null))
+        if (ProfileMarkers.Enabled || (_config == "dev-default" &&
+            (Selected == null || Selected.Any(s => s.StartsWith("durable_insert_")))))
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
     }
 

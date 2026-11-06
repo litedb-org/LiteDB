@@ -126,6 +126,26 @@ class BenchmarkGateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identical v5"):
             self.compare()
 
+    def test_mixed_scaling_subset_preserves_round_validation_and_controls(self):
+        self.make_before()
+        names = ["bulk_insert_100k", *CONFIG["scalingScenarios"]]
+        for path in self.output.rglob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["samples"] = [s for s in result["samples"] if s["scenario"] in names]
+            path.write_text(json.dumps(result))
+        report = self.compare(",".join(names))
+        self.assertEqual("report-only", report["verdict"])
+        self.assertEqual(5, len(report["comparisons"]))
+        self.assertTrue(all(r["ratio"] == 0.5 for r in report["comparisons"]))
+        scaling = [r for r in report["results"] if r["scenario"] in CONFIG["scalingScenarios"]]
+        self.assertEqual(3, len(scaling))
+        self.assertTrue(all(r["ratio"] is None and r["maxRatio"] is None for r in scaling))
+        with self.assertRaisesRegex(ValueError, "one-writer"):
+            self.compare("bulk_insert_100k,durable_insert_5k_4_writers")
+        self.path("dev-default", 6).unlink()
+        with self.assertRaisesRegex(ValueError, "Incomplete round"):
+            self.compare(",".join(names))
+
     def test_subset_never_issues_gate_verdict_and_rejects_unknown_names(self):
         self.make_before()
         scenario = "single_insert_5k_tx"

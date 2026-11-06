@@ -106,8 +106,11 @@ def main():
     comparison = bool(os.environ.get("BENCHMARK_BASELINE_SHA"))
     scenarios = os.environ.get("BENCHMARK_SCENARIOS", "")
     if scenarios and (not comparison or len(set(scenarios.split(","))) != len(scenarios.split(","))
-                      or not set(scenarios.split(",")) <= set(GATE_CONFIG["scenarios"])):
+                      or not set(scenarios.split(",")) <= (set(GATE_CONFIG["scenarios"]) | set(GATE_CONFIG["scalingScenarios"]))):
         raise ValueError("Scenario subsets require comparison mode and known, distinct scenarios")
+    selected_scaling = set(scenarios.split(",")) & set(GATE_CONFIG["scalingScenarios"])
+    if selected_scaling and "durable_insert_5k_1_writers" not in selected_scaling:
+        raise ValueError("Scaling subsets require the one-writer control")
     output = Path(destination).resolve()
     output.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, DOTNET_TieredCompilation="0", DOTNET_CLI_TELEMETRY_OPTOUT="1")
