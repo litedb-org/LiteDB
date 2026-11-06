@@ -24,6 +24,8 @@ internal sealed class DurableWriters
     {
         foreach (var writers in new[] { 1, 4, 8 })
         {
+            var scenario = $"durable_insert_5k_{writers}_writers";
+            if (ProfileMarkers.Enabled && !(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS") ?? "").Split(',').Contains(scenario)) continue;
             var path = Path.Combine(_root, $"durable-{writers}.db");
             if (!_record) Console.WriteLine($"{_config} warmup opening durable-{writers}.db");
             double milliseconds;
@@ -52,10 +54,12 @@ internal sealed class DurableWriters
                 foreach (var thread in threads) thread.Start();
                 ready.Wait();
                 if (!_record) Console.WriteLine($"{_config} warmup starting {writers} durable writers");
+                if (ProfileMarkers.Enabled && _record) ProfileMarkers.Log.Begin(scenario);
                 var watch = Stopwatch.StartNew();
                 start.Set();
                 foreach (var thread in threads) thread.Join();
                 watch.Stop();
+                if (ProfileMarkers.Enabled && _record) ProfileMarkers.Log.End(scenario);
                 milliseconds = watch.Elapsed.TotalMilliseconds;
                 if (!errors.IsEmpty) throw new AggregateException(errors);
                 if (!_record) Console.WriteLine($"{_config} warmup finished {writers} durable writers");
@@ -65,7 +69,6 @@ internal sealed class DurableWriters
             using (var db = Open(path)) Verify(db);
             if (_record)
             {
-                var scenario = $"durable_insert_5k_{writers}_writers";
                 Console.WriteLine($"{_config} {scenario}: {milliseconds:F3} ms (v6 scaling only)");
                 yield return new Sample(scenario, milliseconds, _documents.Length,
                     new FileInfo(path).Length, Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length));

@@ -41,6 +41,9 @@ namespace LiteDB
 
         internal static void FlushToDisk(FileStream stream)
         {
+#if PROFILE
+            Engine.CommitProfile.Log.Sync("stream");
+#endif
 #if DEBUG || TESTING
             Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
@@ -80,6 +83,9 @@ namespace LiteDB
         internal static void FlushDevice(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string path)
         {
 #if NET8_0_OR_GREATER
+#if PROFILE
+            Engine.CommitProfile.Log.Sync("group-device");
+#endif
             if (_windows) RandomAccess.FlushToDisk(handle);
             else if (NativeLibc.TryGet(out var fsync, out var fcntl))
             {

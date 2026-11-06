@@ -59,6 +59,11 @@
         <None Remove="**\*.NetStd.cs"/>
     </ItemGroup>
 
+    <!-- Diagnostic build only; excluded from ordinary production binaries. -->
+    <PropertyGroup Condition="'$(ProfilingEnabled)' == 'true'">
+        <DefineConstants>$(DefineConstants);PROFILE</DefineConstants>
+    </PropertyGroup>
+
     <!-- Begin References -->
     <ItemGroup>
         <None Include="..\LICENSE" Pack="true" PackagePath=""/>
