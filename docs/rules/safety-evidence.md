@@ -135,6 +135,14 @@ test detects the bug that actually occurred. Pin the strongest state available:
    means this repository's PR, so a fork commit fails provenance with a message
    that names the field.
 
+Keep an existing `pr-commit` pin after merge; no post-merge conversion is needed.
+A merge commit can make that original commit reachable from `dev`, while squash
+and rebase normally leave the original SHA off `dev`. Validation still fetches
+the originating PR head and checks ancestry. For an on-`dev` pin it additionally
+requires an exact match in GitHub's PR commit list, so inherited `dev` history
+cannot qualify. This exception needs online validation and fails closed on API
+errors or a missing match ([GitHub lists at most 250 commits per PR](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)).
+
 Record the proof in
 [`regression-proofs.json`](../../.github/safety/regression-proofs.json). It
 names a [ReproRunner](../reprorunner.md) repro whose package variant pins the

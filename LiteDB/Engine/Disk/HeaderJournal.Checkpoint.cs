@@ -25,8 +25,9 @@ namespace LiteDB.Engine
             var recovery = new WalRecovery();
             foreach (var page in recovery.Read(frames)) { }
             recovery.RequireRetirement(checksums.Retirement);
-            if (recovery.InvalidTail || recovery.Sequence != expected.Sequence ||
-                recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE)
+            if (recovery.InvalidTail || (expected != null &&
+                (recovery.Sequence != expected.Sequence ||
+                 recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE)))
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);
             var padding = new byte[length % WalChecksum.FrameSize];
             stream.Position = length - padding.Length;

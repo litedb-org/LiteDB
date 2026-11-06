@@ -115,6 +115,7 @@ internal sealed class RunDirectoryPlanner
 /// </summary>
 internal sealed class RunVariantPlan : IDisposable
 {
+    private static readonly bool KeepRuns = IsKeepRunsEnabled();
     private readonly Action<string> _cleanup;
 
     /// <summary>
@@ -204,6 +205,11 @@ internal sealed class RunVariantPlan : IDisposable
     /// </summary>
     public void Dispose()
     {
+        if (KeepRuns)
+        {
+            return;
+        }
+
         try
         {
             _cleanup(RootDirectory);
@@ -211,5 +217,12 @@ internal sealed class RunVariantPlan : IDisposable
         catch
         {
         }
+    }
+
+    private static bool IsKeepRunsEnabled()
+    {
+        var value = Environment.GetEnvironmentVariable("LITEDB_REPRORUNNER_KEEP_RUNS");
+        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

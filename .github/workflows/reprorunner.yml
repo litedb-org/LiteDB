@@ -50,6 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref && inputs.ref || github.ref }}
+          fetch-depth: 0
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
@@ -84,6 +85,22 @@ jobs:
         run: |
           set -euo pipefail
           python .github/scripts/compose_repro_matrix.py
+
+      - name: Pack commit-backed known-bad packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed="$RUNNER_TEMP/known-bad-feed"
+          python .github/scripts/regression_proof.py pack-known-bad-matrix --feed "$feed"
+          mkdir -p "$feed"
+          tar -czf known-bad-feed.tar.gz -C "$feed" .
+
+      - name: Upload known-bad package feed
+        uses: actions/upload-artifact@v4
+        with:
+          name: known-bad-feed
+          path: known-bad-feed.tar.gz
+          if-no-files-found: error
 
       - name: Package ReproRunner CLI
         run: tar -czf reprorunner-cli.tar.gz -C LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/Release/net8.0 .
@@ -125,6 +142,18 @@ jobs:
         with:
           name: reprorunner-cli
 
+      - name: Download known-bad package feed
+        uses: actions/download-artifact@v4
+        with:
+          name: known-bad-feed
+
+      - name: Extract known-bad package feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p known-bad-feed
+          tar -xzf known-bad-feed.tar.gz -C known-bad-feed
+
       - name: Extract ReproRunner CLI
         shell: bash
         run: |
@@ -134,6 +163,9 @@ jobs:
       - name: Execute repro
         id: run
         shell: bash
+        env:
+          RestoreAdditionalProjectSources: ${{ github.workspace }}/known-bad-feed
+          LITEDB_REPRORUNNER_KEEP_RUNS: "true"
         run: |
           set -euo pipefail
           dotnet reprorunner-cli/LiteDB.ReproRunner.Cli.dll \
@@ -144,11 +176,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.repro }}-${{ matrix.os }}
-          path: |
-            artifacts
-            reprorunner-cli/runs
-            LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/**/runs
-          if-no-files-found: ignore
+          path: reprorunner-cli/runs
+          if-no-files-found: error
 
       - name: Publish summary
         if: always()

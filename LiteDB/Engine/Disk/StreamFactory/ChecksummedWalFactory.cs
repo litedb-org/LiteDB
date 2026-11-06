@@ -15,7 +15,7 @@ namespace LiteDB.Engine
         }
         public string Name => _inner.Name;
         public bool CloseOnDispose => _inner.CloseOnDispose;
-        public Stream GetStream(bool canWrite, bool sequential) => new ChecksummedWalStream(_inner.GetStream(canWrite, sequential), _checksum);
+        public Stream GetStream(bool canWrite, bool sequential, bool validationOnly = false) => new ChecksummedWalStream(_inner.GetStream(canWrite, sequential, validationOnly), _checksum);
         private long ContentLength => System.Math.Max(0, _inner.GetLength() - _checksum.JournalBytes);
         public long GetLength() => _checksum.Enabled ? ContentLength / WalChecksum.FrameSize * PAGE_SIZE : ContentLength;
         internal long TrailingBytes => _checksum.Enabled ? WalPadding.TrailingBytes(ContentLength) : ContentLength % PAGE_SIZE;

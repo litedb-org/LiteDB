@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3137_MultifieldHeaderTear",
+  "title": "Erased version and modern markers wrongly refuse valid same-database redo",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3137"
+  ],
+  "failingSince": "0.0.0-knownbad.49adf618d067",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "corrupt-input"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: multifield header tear"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: multifield header tear"
+    }
+  }
+}

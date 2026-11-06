@@ -194,7 +194,7 @@ class ProvenanceTests(unittest.TestCase):
                 ({"kind": "dev-commit", "commit": on_dev}, None),
                 ({"kind": "dev-commit", "commit": off_dev}, "never existed on dev"),
                 ({"kind": "pr-commit", "commit": off_dev, "pr": 7}, None),
-                ({"kind": "pr-commit", "commit": on_dev, "pr": 7}, "classify it as dev-commit"),
+                ({"kind": "pr-commit", "commit": on_dev, "pr": 7}, "exact PR membership requires online"),
                 ({"kind": "pr-commit", "commit": off_dev, "pr": 8}, "is not part of PR #8"),
             ]
             for bad, expected in cases:
@@ -206,6 +206,109 @@ class ProvenanceTests(unittest.TestCase):
                         self.assertEqual(report.errors, [])
                     else:
                         self.assertTrue(any(expected in error for error in report.errors), report.errors)
+
+
+    def test_unresolved_dev_ref_refuses_unknown_classification(self):
+        with GitRepo() as repo:
+            commit = repo.commit({"base.txt": "base"})
+            repo._git("update-ref", "refs/pull/7/head", commit)
+            repo._git("update-ref", "refs/proof/pr-7", commit)
+            repo._git("remote", "add", "origin", str(repo.path))
+            for kind in ("dev-commit", "pr-commit"):
+                for offline in (False, True):
+                    with self.subTest(kind=kind, offline=offline):
+                        report = common.Report("")
+                        with patch.object(provenance, "listed_pr_commit") as membership:
+                            provenance.check_commit({"kind": kind, "commit": commit, "pr": 7},
+                                                    REPRO, report, "origin/missing-dev", offline=offline)
+                        self.assertTrue(any("cannot determine ancestry" in error for error in report.errors),
+                                        report.errors)
+                        membership.assert_not_called()
+
+    def test_originating_pr_pin_survives_each_merge_method(self):
+        for method in ("merge", "squash", "rebase"):
+            with self.subTest(method=method), GitRepo() as repo:
+                repo.commit({"base.txt": "base"})
+                repo._git("branch", "dev")
+                repo._git("checkout", "-q", "-b", "feature")
+                bad = repo.commit({"bug.txt": "bad"})
+                fixed = repo.commit({"bug.txt": "fixed"})
+                repo._git("update-ref", "refs/pull/7/head", fixed)
+                repo._git("remote", "add", "origin", str(repo.path))
+                repo._git("checkout", "-q", "dev")
+                repo.commit({"unrelated.txt": "dev advanced"})
+                if method == "merge":
+                    repo._git("merge", "-q", "--no-ff", "feature", "-m", "merge")
+                elif method == "squash":
+                    repo._git("merge", "-q", "--squash", "feature")
+                    repo.commit({}, "squash")
+                else:
+                    repo._git("cherry-pick", bad, fixed)  # replay with new parents, as rebase merge does
+                report = common.Report("")
+                with patch.object(provenance, "listed_pr_commit", return_value=True, create=True) as membership:
+                    proof.check_provenance(entry(knownBad={"kind": "pr-commit", "commit": bad, "pr": 7}),
+                                           report, "dev")
+                self.assertEqual(report.errors, [])
+                self.assertEqual(membership.call_count, int(method == "merge"))
+
+    def test_on_dev_exception_rejects_inherited_history_wrong_pr_and_api_errors(self):
+        with GitRepo() as repo:
+            inherited = repo.commit({"base.txt": "base"})
+            repo._git("branch", "dev")
+            repo._git("checkout", "-q", "-b", "feature")
+            bad = repo.commit({"bug.txt": "bad"})
+            fixed = repo.commit({"bug.txt": "fixed"})
+            repo._git("update-ref", "refs/pull/7/head", fixed)
+            repo._git("update-ref", "refs/pull/8/head", inherited)
+            repo._git("remote", "add", "origin", str(repo.path))
+            repo._git("checkout", "-q", "dev")
+            unrelated = repo.commit({"other.txt": "other"})
+            repo._git("merge", "-q", "--no-ff", "feature", "-m", "merge")
+            for commit, pr, result, error, calls in (
+                    (inherited, 7, False, "inherited dev history", 1),
+                    (unrelated, 7, True, "is not part of PR #7", 0),
+                    (bad, 8, True, "is not part of PR #8", 0),
+                    (bad, 7, OSError("API unavailable"), "could not verify exact commit membership", 1)):
+                with self.subTest(commit=commit, pr=pr, result=result):
+                    report = common.Report("")
+                    with patch.object(provenance, "listed_pr_commit", create=True,
+                                      **({"side_effect": result} if isinstance(result, Exception)
+                                         else {"return_value": result})) as membership:
+                        proof.check_provenance(entry(knownBad={"kind": "pr-commit", "commit": commit, "pr": pr}),
+                                               report, "dev")
+                    self.assertTrue(any(error in item for item in report.errors), report.errors)
+                    self.assertEqual(membership.call_count, calls)
+
+    def test_exact_membership_uses_the_originating_repository_and_paginates(self):
+        for remote in ("https://github.com/upstream/LiteDB", "https://github.com/upstream/LiteDB.git",
+                       "git@github.com:upstream/LiteDB.git", "ssh://git@github.com/upstream/LiteDB.git"):
+            for repository in (None, "fork/LiteDB"):
+                with self.subTest(remote=remote, repository=repository), GitRepo() as repo:
+                    repo._git("remote", "add", "origin", remote)
+                    bad = {"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 7}
+                    if repository:
+                        bad["repository"] = repository
+                    pages = [io.BytesIO(json.dumps([{"sha": "b" * 40}] * 100).encode()),
+                             io.BytesIO(json.dumps([{"sha": BAD_COMMIT}]).encode())]
+                    with patch.object(provenance.urllib.request, "urlopen", side_effect=pages) as request:
+                        self.assertTrue(provenance.listed_pr_commit(bad))
+                    urls = [call.args[0].full_url for call in request.call_args_list]
+                    prefix = f"https://api.github.com/repos/{repository or 'upstream/LiteDB'}/pulls/7/commits"
+                    self.assertEqual(urls, [f"{prefix}?per_page=100&page={page}" for page in (1, 2)])
+
+    def test_exact_membership_fails_closed_on_absence_limits_and_malformed_responses(self):
+        bad = {"commit": BAD_COMMIT, "pr": 7, "repository": "fork/LiteDB"}
+        for payloads in ([[]], [[{"sha": "b" * 40}] * 100] * 3):
+            with self.subTest(pages=len(payloads)):
+                pages = [io.BytesIO(json.dumps(payload).encode()) for payload in payloads]
+                with patch.object(provenance.urllib.request, "urlopen", side_effect=pages) as request:
+                    self.assertFalse(provenance.listed_pr_commit(bad))
+                self.assertEqual(request.call_count, len(payloads))
+        for payload in ({"message": "error"}, [None], [{"sha": "invalid"}]):
+            with self.subTest(payload=payload), \
+                    patch.object(provenance.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())):
+                with self.assertRaises(ValueError):
+                    provenance.listed_pr_commit(bad)
 
 
 FORK = "someone/LiteDB"
@@ -424,6 +527,23 @@ class VersionTests(unittest.TestCase):
 
 
 class PackTests(unittest.TestCase):
+    def test_missing_exact_package_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(SystemExit, "missing exact LiteDB package 0.0.0-knownbad.abc"):
+                proof.require_exact_package(directory, "0.0.0-knownbad.abc")
+
+    def test_pack_matrix_skips_published_packages_and_checks_each_commit_package(self):
+        entries = [entry(knownBad={"kind": "package", "version": "5.0.20"}),
+                   entry(repro="Issue_2", knownBad={"kind": "pr-commit", "commit": BAD_COMMIT, "pr": 3137})]
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(proof, "load", return_value=entries), \
+                patch.object(proof, "pack_known_bad", return_value="0.0.0-knownbad.aaaaaaaaaaaa") as pack, \
+                patch.object(proof, "require_exact_package") as require:
+            versions = proof.pack_known_bad_matrix(directory, tree=object())
+        self.assertEqual(versions, ["0.0.0-knownbad.aaaaaaaaaaaa"])
+        pack.assert_called_once_with(BAD_COMMIT, directory, 3137, None)
+        require.assert_called_once_with(directory, "0.0.0-knownbad.aaaaaaaaaaaa")
+
     def test_cli_rejects_empty_arguments_before_fetch_or_build(self):
         for arguments, error in ((["--pr", ""], "--pr must be"),
                                  (["--pr", "1", "--repository", ""], "--repository must be")):

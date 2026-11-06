@@ -1,0 +1,30 @@
+{
+  "id": "Issue_3137_DamagedPrimaryIdentity",
+  "title": "Torn modern primary identity wrongly refuses valid same-database journal recovery",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3137"
+  ],
+  "failingSince": "0.0.0-knownbad.fc39c52da8c5",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof",
+    "wal",
+    "corrupt-input"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "REPRODUCED: damaged primary identity"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 1,
+      "logContains": "FIXED: damaged primary identity"
+    }
+  }
+}
