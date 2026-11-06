@@ -19,7 +19,7 @@ namespace LiteDB.Tests.QueryTest
             using var input = archive.GetEntry("vectors.db").Open();
             using var output = new MemoryStream();
             input.CopyTo(output);
-            return output.ToArray();
+            return HnswFixtureRuntime.Prepare(output.ToArray());
         }
 
         private static bool RepairDeferred(LiteDatabase db, string collection = "docs") => db.Execute(

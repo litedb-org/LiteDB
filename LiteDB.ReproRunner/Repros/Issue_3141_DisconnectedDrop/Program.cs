@@ -20,6 +20,7 @@ internal static class Program
             var file = Path.Combine(directory, "vectors.db");
             using (var resource = typeof(Program).Assembly.GetManifestResourceStream("disconnected.zip"))
             using (var zip = new ZipArchive(resource!)) zip.GetEntry("vectors.db")!.ExtractToFile(file);
+            LiteDB.Tests.HnswFixtureRuntime.PrepareFile(file);
             Dictionary<int, string> expected;
             using (var db = new LiteDatabase(file))
             {

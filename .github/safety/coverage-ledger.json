@@ -223,6 +223,19 @@
         "LiteDB.Tests/Query/VectorIndexDeferredRetry_Tests.cs#Persisted_asymmetric_graph_defers_before_mutation_and_retries_from_current_documents",
         "LiteDB.Tests/Query/VectorIndexMutationCounts_Tests.cs#Seeded_ordinary_mutations_count_deferral_without_timing"
       ]
+    },
+    {
+      "id": "hnswg-portable-numeric-graph-fixtures",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Utils/HnswFixtureRuntime.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All historical graph and document bytes, immutable fixture archives, and before/after proof oracles are preserved across ICU and NLS runtimes.",
+      "reason": "Test-local copies of four SHA-256 allowlisted numeric-only inputs clear only the producer runtime signature and recompute the header checksum. The actual engine performs legacy index-order validation read-only; the helper rejects secondary scalar indexes and nonnumeric primary keys. No product validation changes or synthetic graph mutations. Added tests enforce original-byte preservation, exact allowed header differences and refusal of damaged inputs.",
+      "coveredBy": [
+        "LiteDB.Tests/Query/HnswFixtureRuntime_Tests.cs#Portable_copy_preserves_every_graph_and_document_byte_and_original"
+      ]
     }
   ]
 }

@@ -23,6 +23,7 @@ internal static class Program
             var file = Path.Combine(directory, "vectors.db");
             using (var zip = ZipFile.OpenRead(ArtifactFixtures.Path("HnswAsymmetric_6b2ecd3af.zip")))
                 zip.GetEntry("vectors.db")!.ExtractToFile(file);
+            HnswFixtureRuntime.PrepareFile(file);
             using (var db = new LiteDatabase(file))
             {
                 if (db.GetCollection("docs").Count() != 73 || HasDanglingLink(db))

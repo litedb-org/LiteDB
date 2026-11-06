@@ -29,4 +29,7 @@
     <Compile Include="..\..\..\LiteDB.Tests\Utils\ArtifactFixtures.cs" Link="ArtifactFixtures.cs" />
     <EmbeddedResource Include="..\..\..\LiteDB.Tests\Resources\artifacts.json" LogicalName="LiteDB.Tests.Resources.artifacts.json" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\LiteDB.Tests\Utils\HnswFixtureRuntime.cs" Link="HnswFixtureRuntime.cs" />
+  </ItemGroup>
 </Project>

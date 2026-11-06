@@ -32,6 +32,7 @@ namespace LiteDB.Tests.QueryTest
                 using var output = File.Create(file.Filename);
                 input.CopyTo(output);
             }
+            if (count == 20000) HnswFixtureRuntime.PrepareFile(file.Filename);
             using var db = new LiteDatabase(count == 20000 ? file.Filename : ":memory:");
             var docs = db.GetCollection<VectorDocument>("docs");
             float[] Vector(int id) => new[] { (float)(id % 97), (float)(id % 31), 1f, -1f };

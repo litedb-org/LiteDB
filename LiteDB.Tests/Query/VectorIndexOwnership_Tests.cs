@@ -100,6 +100,7 @@ namespace LiteDB.Tests.QueryTest
             using (var archive = new ZipArchive(resource))
             using (var input = archive.GetEntry("vectors.db").Open())
             using (var output = File.Create(file.Filename)) input.CopyTo(output);
+            HnswFixtureRuntime.PrepareFile(file.Filename);
             BsonDocument[] expected;
             using (var db = new LiteDatabase(file.Filename))
             {

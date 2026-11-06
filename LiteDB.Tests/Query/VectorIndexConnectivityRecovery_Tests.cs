@@ -150,6 +150,7 @@ namespace LiteDB.Tests.QueryTest
             using (var archive = new ZipArchive(resource))
             using (var input = archive.GetEntry("vectors.db").Open())
             using (var output = File.Create(file.Filename)) input.CopyTo(output);
+            HnswFixtureRuntime.PrepareFile(file.Filename);
             var original = File.ReadAllBytes(file.Filename);
             BsonDocument[] expected;
             var expression = BsonExpression.Create("COALESCE($.Embedding, [0, 0])");

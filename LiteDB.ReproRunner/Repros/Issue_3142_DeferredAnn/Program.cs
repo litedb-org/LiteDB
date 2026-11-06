@@ -24,6 +24,7 @@ internal static class Program
             using (var archive = new ZipArchive(resource))
             using (var input = archive.GetEntry("vectors.db")!.Open())
             using (var output = File.Create(filename)) input.CopyTo(output);
+            LiteDB.Tests.HnswFixtureRuntime.PrepareFile(filename);
             using var db = new LiteDatabase(filename);
             var docs = db.GetCollection("docs");
             if (docs.Count() != 2048) throw new InvalidOperationException("Fixture document control failed.");
