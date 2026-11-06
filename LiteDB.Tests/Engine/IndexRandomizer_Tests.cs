@@ -49,16 +49,18 @@ namespace LiteDB.Tests.Engine
         {
             var sources = new Randomizer[8];
             var sequences = new string[8];
+            var repeatedSources = new Randomizer[8];
             using var barrier = new Barrier(8);
             var threads = Enumerable.Range(0, 8).Select(i => new Thread(() =>
             {
                 barrier.SignalAndWait();
                 sources[i] = Randomizer.Current;
-                Assert.Same(sources[i], Randomizer.Current);
+                repeatedSources[i] = Randomizer.Current;
                 sequences[i] = string.Join(",", Enumerable.Range(0, 32).Select(_ => sources[i].Next()));
             })).ToArray();
             foreach (var thread in threads) thread.Start();
             foreach (var thread in threads) Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
+            for (var i = 0; i < 8; i++) Assert.Same(sources[i], repeatedSources[i]);
             Assert.Equal(8, sources.Distinct().Count());
             Assert.Equal(8, sequences.Distinct().Count());
         }
@@ -102,7 +104,7 @@ namespace LiteDB.Tests.Engine
                 collection.Update(new BsonDocument { ["_id"] = 127, ["Key"] = -1, ["Tags"] = new BsonArray(99) });
                 Assert.Equal(127, collection.FindOne(Query.EQ("Key", -1))["_id"].AsInt32);
                 Assert.Null(collection.FindOne(Query.EQ("Key", 1128)));
-                Assert.Equal(127, collection.FindOne(Query.EQ("Tags", 99))["_id"].AsInt32);
+                Assert.Equal(127, collection.FindOne(Query.Any().EQ("Tags[*]", 99))["_id"].AsInt32);
             }, TaskCreationOptions.LongRunning)).ToArray();
             Assert.True(Task.WaitAll(tasks, TimeSpan.FromSeconds(90)));
         }
@@ -115,7 +117,7 @@ namespace LiteDB.Tests.Engine
             for (var tag = 0; tag < 7; tag++)
             {
                 var expected = Enumerable.Range(0, 256).Where(id => id % 7 == tag || (id + 1) % 7 == tag);
-                Assert.Equal(expected, col.Find(Query.EQ("Tags", tag)).Select(d => d["_id"].AsInt32).OrderBy(id => id));
+                Assert.Equal(expected, col.Find(Query.Any().EQ("Tags[*]", tag)).Select(d => d["_id"].AsInt32).OrderBy(id => id));
             }
             for (var id = 0; id < 256; id++)
                 Assert.Equal(id, col.FindOne(Query.EQ("Key", 1000 + id))["_id"].AsInt32);
