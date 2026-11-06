@@ -277,6 +277,22 @@
       "disposition": "strengthened",
       "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
       "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
+    },
+    {
+      "id": "p1-rng-additive-dispatch-validation",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/p1-rng-validation.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing CI test selection, timeout settings and runtime legs remain intact; additional dispatch jobs validate random skip-list heights and persisted index semantics.",
+      "reason": "Moves the new focused RNG validation from an unregistered standalone workflow into existing dispatchable CI. The new six-leg matrix adds six focused cases and bounded existing index fuzz; no pre-existing test is removed, filtered, skipped or given a weaker timeout.",
+      "coveredBy": [
+        ".github/workflows/ci.yml",
+        "LiteDB.Tests/Engine/IndexRandomizer_Tests.cs",
+        "fuzz:index"
+      ]
     }
   ]
 }
