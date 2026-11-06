@@ -1,7 +1,5 @@
 name: F-RETRY paired diagnostics
 on:
-  push:
-    branches: [v6/wip-f-retry-ci]
   workflow_dispatch:
     inputs:
       iterations:
