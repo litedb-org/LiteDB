@@ -73,10 +73,19 @@ internal static class MvccHarness
                 collection.Update(Documents(int.Parse(args[4])));
                 Console.WriteLine("done");
                 break;
+            case "insert-progress":
             case "insert":
                 var start = int.Parse(args[4]);
-                Console.Error.WriteLine("insert-start " + DateTime.UtcNow.ToString("O"));
-                for (var i = start; i < start + 20; i++) { Console.Error.WriteLine("insert " + i + " " + DateTime.UtcNow.ToString("O")); collection.Insert(new BsonDocument { ["_id"] = i }); }
+                for (var i = start; i < start + 20; i++)
+                {
+                    collection.Insert(new BsonDocument { ["_id"] = i });
+                    if (mode == "insert-progress") Console.WriteLine("write:" + i);
+#if TESTING
+                    // Per-child hook, after an acknowledged write; never affects another process.
+                    if (mode == "insert-progress" && args.Length > 5 && args[5] == "stall:" + i)
+                        Thread.Sleep(Timeout.Infinite);
+#endif
+                }
                 Console.WriteLine("done");
                 break;
             case "uncommitted":

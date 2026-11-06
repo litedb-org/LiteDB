@@ -26,6 +26,27 @@
   ],
   "dispositions": [
     {
+      "id": "shared-retry-completed-write-watchdog",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs"
+      ],
+      "disposition": "replaced",
+      "invariant": "A child writer must acquire ownership after retry commit, finish all twenty writes and release; a stalled child must fail. Ownership, release and cold-reopen data assertions remain unchanged.",
+      "reason": "Replace the five-second aggregate done comparison with ordered completed-write validation, the same five-second stall window and a two-minute hard cap. CI run 42244689681 captured continuing writes and FlushFileBuffers after the aggregate deadline. This is a liveness oracle rather than a disk throughput limit.",
+      "coveredBy": [
+        {
+          "test": "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Stalled_child_fails_after_last_completed_write"
+        },
+        {
+          "test": "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Progressing_work_can_exceed_a_single_stall_window"
+        },
+        {
+          "test": "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Overall_cap_bounds_even_progressing_work"
+        }
+      ]
+    },
+    {
       "id": "ci-split-engine-capacity",
       "kind": "ci-test-config-changed",
       "subjects": [
