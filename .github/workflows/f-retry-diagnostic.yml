@@ -79,7 +79,7 @@ jobs:
           }
       - name: Repeat only the child-process cases with original deadlines
         run: |
-          python diagnostic/.github/f-retry/run.py $env:F_RETRY_HOST $env:F_RETRY_TOOLS '${{ inputs.iterations }}'
+          python diagnostic/.github/f-retry/run.py $env:F_RETRY_HOST $env:F_RETRY_TOOLS '${{ inputs.iterations }}' '${{ matrix.arch }}'
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         if: always()

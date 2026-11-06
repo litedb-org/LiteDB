@@ -17,15 +17,22 @@ s = s.replace(old, '''Console.Error.WriteLine($"runtime {Environment.Version} ar
 p.write_text(s)
 p = root / 'LiteDB.Tests/Internals/MvccProcess.cs'
 s = p.read_text(encoding='utf-8-sig')
-old = '''var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);'''
-assert s.count(old) == 1
-s = s.replace(old, '''string line;
+old = "var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);"
+replacement = """string line;
             try { line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout); }
             catch (TimeoutException)
             {
                 await RetryDiagnostics.Capture(_process.Id);
                 throw;
-            }''')
+            }"""
+if old in s:
+    assert s.count(old) == 1
+    s = s.replace(old, replacement)
+else:
+    old = """internal Task<string> ReadLine(TimeSpan timeout) =>
+            _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);"""
+    assert s.count(old) == 1
+    s = s.replace(old, "internal async Task<string> ReadLine(TimeSpan timeout)\n        {\n            " + replacement + "\n            return line;\n        }")
 old = 'finally { _process.Dispose(); }'
 assert s.count(old) == 1
 s = s.replace(old, '''finally
