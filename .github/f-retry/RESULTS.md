@@ -20,7 +20,7 @@ host platform. Windows x86 used .NET 8.0.33.
 | --- | ---: | --- | --- |
 | Windows x86 | 50 | 199 passed, 1 timeout | 200 passed |
 | Ubuntu x64 | 300 | 1200 passed | 1200 passed |
-| Windows x64 | pending | pending | pending |
+| Windows x64 | 300 | 1200 passed | 1200 passed |
 
 ## Failure evidence
 
@@ -48,16 +48,19 @@ from stack collection and are excluded from ordinary latency summaries.
 
 Milliseconds, phase2 / dev. Exclude insert 3000 (cold/JIT cost) and post-timeout
 samples; quantiles describe individual insert completions. Each Windows x86 route
-has 950 samples per revision; each Ubuntu route has 5700.
+has 950 samples per revision; each Ubuntu and Windows x64 route has 5700.
 
 | Platform | Pinned | Median | p95 |
 | --- | --- | --- | --- |
 | Windows x86 | false | 9.908 / 9.7595 | 42.377 / 38.766 |
 | Windows x86 | true | 11.3865 / 11.174 | 74.327 / 70.956 |
+| Windows x64 | false | 14.029 / 13.688 | 44.960 / 42.824 |
+| Windows x64 | true | 16.1565 / 16.1145 | 76.739 / 74.488 |
 | Ubuntu x64 | false | 8.7735 / 8.828 | 22.571 / 22.196 |
 | Ubuntu x64 | true | 9.681 / 9.668 | 30.717 / 29.719 |
 
-The x86 encrypted median difference is +1.5–1.9%; Ubuntu is -0.6% to +0.1%.
+The encrypted median difference is +1.5–1.9% on Windows x86, +0.3–2.5% on
+Windows x64 and -0.6% to +0.1% on Ubuntu.
 The captured timeout does not require encryption. Its observed cost centre is
 repeated core close/checkpoint and synchronous durable WAL flushing.
 `SharedOneFile` is false here, so the ABI-2 mapped writer is inactive.
@@ -82,7 +85,13 @@ gh run download 42244689681 -R litedb-org/LiteDB -D artifacts_temp/f-retry
 python .github/f-retry/analyze.py artifacts_temp/f-retry
 ```
 
+All 5200 cases executed: phase2 had 2599 passes and one timeout; dev had 2600
+passes. No cases were skipped. The run is red because the captured five-second
+timeout remains a real test failure. All three platform artifacts were downloaded
+and their TRX counts verified. These are Release/net8.0 `TestingEnabled=true`
+diagnostic builds; timings are not production benchmark qualification.
+
 The files under `.github/f-retry` supply the identical diagnostic overlay for both
-pinned trees. The extra commit containing this report and analysis script does not
+pinned trees. The report and analysis commits do not
 change the binaries exercised by the linked diagnostic run. This was a targeted
 diagnostic run, not the full suite or a production safety qualification.
