@@ -12,6 +12,7 @@ on:
     branches: ['v6/p1-speed-profile', 'v6/p1-perf-group']
 permissions:
   contents: read
+  actions: read
 jobs:
   profile:
     if: github.event_name == 'workflow_dispatch'
