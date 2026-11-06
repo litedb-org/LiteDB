@@ -1,5 +1,7 @@
 name: F-RETRY paired diagnostics
 on:
+  push:
+    branches: [v6/wip-f-retry-ci]
   workflow_dispatch:
     inputs:
       iterations:
@@ -10,6 +12,7 @@ permissions:
   contents: read
 jobs:
   diagnose:
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
