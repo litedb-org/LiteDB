@@ -91,7 +91,7 @@ namespace LiteDB.Internals
             public void Delete() { }
             public void Dispose() { }
             public void TrimCapacity(Stream stream) { }
-            public Stream GetStream(bool canWrite, bool sequential)
+            public Stream GetStream(bool canWrite, bool sequential, bool validationOnly = false)
             {
                 this.Created = new TrackingStream();
                 this.OnCreate?.Invoke();

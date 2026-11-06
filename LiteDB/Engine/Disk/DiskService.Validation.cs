@@ -70,7 +70,11 @@ namespace LiteDB.Engine
             if (!_logFactory.Exists()) return;
             var length = legacyLength ?? _logFactory.GetLength();
             if (length <= BasePage.P_PAGE_FORMAT) return;
-            var reader = existingReader ?? (ChecksummedWalStream)_logPool.Rent();
+            // A short WAL was never opened by journal recovery. Inspect it without
+            // introducing AES initialization barriers into the recovery protocol.
+            var validationOnly = existingReader == null && length < PAGE_SIZE;
+            var reader = existingReader ?? (ChecksummedWalStream)(validationOnly
+                ? _logFactory.GetStream(false, false, validationOnly: true) : _logPool.Rent());
             try
             {
                 var log = reader.RawStream;
@@ -117,7 +121,11 @@ namespace LiteDB.Engine
                         "conversion's header never reached the device. Replaying those frames would corrupt the data file. " +
                         "Move the log file aside to open the database as it was before the conversion.");
             }
-            finally { if (existingReader == null) _logPool.Return(reader); }
+            finally
+            {
+                if (validationOnly) reader.Dispose();
+                else if (existingReader == null) _logPool.Return(reader);
+            }
         }
 
         private void RejectPreparedForeignTail(Stream stream, long start)

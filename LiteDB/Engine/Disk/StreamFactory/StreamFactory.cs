@@ -40,18 +40,22 @@ namespace LiteDB.Engine
         /// <summary>
         /// Use ConcurrentStream wrapper to support multi thread in same Stream (using lock control)
         /// </summary>
-        public Stream GetStream(bool canWrite, bool sequencial)
+        public Stream GetStream(bool canWrite, bool sequencial, bool validationOnly = false)
         {
             if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(StreamFactory));
+
+            if (validationOnly && canWrite) throw new ArgumentException("Validation streams must be read-only.");
 
             // The factory owns the shared base stream; wrappers only own themselves.
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite, true, _held);
+                var reader = new ConcurrentStream(_stream, canWrite, true, _held);
+                return validationOnly ? new ValidationReadStream(reader) : (Stream)reader;
             }
             else
             {
-                var stream = new ConcurrentStream(_stream, canWrite, true, _held);
+                Stream stream = new ConcurrentStream(_stream, canWrite, true, _held);
+                if (validationOnly) stream = new ValidationReadStream(stream);
                 return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
                     new AesStream(_password, stream, allowRecovery: false);
             }

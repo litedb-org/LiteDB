@@ -11,6 +11,43 @@ namespace LiteDB.Internals
 {
     public class StreamOwnership_Tests
     {
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void Validation_reader_preserves_short_wal_without_flushes(string password)
+        {
+            using var source = new InspectionStream();
+            using var factory = new StreamFactory(source, password, isLog: true);
+            using (var writer = factory.GetStream(true, false))
+            {
+                writer.Write(new byte[32], 0, 32);
+            }
+            var before = source.ToArray();
+            source.Flushes = 0;
+            using (var reader = factory.GetStream(false, false, validationOnly: true))
+            {
+                reader.ReadRequired(new byte[32], 0, 32);
+                reader.Flush();
+                reader.FlushToDisk();
+                using var guard = new ValidationReadStream(new NonClosingStream(source));
+                reader.CanWrite.Should().BeFalse();
+                Action write = () => guard.Write(new byte[16], 0, 16);
+                write.Should().Throw<NotSupportedException>();
+                Action truncate = () => reader.SetLength(0);
+                truncate.Should().Throw<NotSupportedException>();
+            }
+            source.Flushes.Should().Be(0);
+            source.ToArray().Should().Equal(before);
+            source.CanRead.Should().BeTrue();
+        }
+
+        private sealed class InspectionStream : MemoryStream, IDurableStream
+        {
+            internal int Flushes;
+            public override void Flush() => Flushes++;
+            public void FlushToDisk() => Flushes++;
+        }
+
         [Fact]
         public void Concurrent_Factory_Disposal_Closes_Owned_Stream_Once()
         {
@@ -216,7 +253,7 @@ namespace LiteDB.Internals
             public int DisposeCalls => _disposeCalls;
             public string Name => ":counting:";
             public bool CloseOnDispose => false;
-            public Stream GetStream(bool canWrite, bool sequencial) => new MemoryStream();
+            public Stream GetStream(bool canWrite, bool sequencial, bool validationOnly = false) => new MemoryStream();
             public long GetLength() => 0;
             public bool Exists() => false;
             public void Delete() { }

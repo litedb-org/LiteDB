@@ -53,11 +53,12 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create new data file FileStream instance based on filename
         /// </summary>
-        public Stream GetStream(bool canWrite, bool sequencial)
+        public Stream GetStream(bool canWrite, bool sequencial, bool validationOnly = false)
         {
+            if (validationOnly && canWrite) throw new ArgumentException("Validation streams must be read-only.");
             var write = canWrite && (_readonly == false);
 
-            var fileMode = _readonly ? System.IO.FileMode.Open : System.IO.FileMode.OpenOrCreate;
+            var fileMode = _readonly || validationOnly ? System.IO.FileMode.Open : System.IO.FileMode.OpenOrCreate;
             var fileAccess = write ? FileAccess.ReadWrite : FileAccess.Read;
             // Cached shared handles let every shared process open, write and delete the
             // files; exclusive openers are still refused while a writable handle is open.
@@ -99,9 +100,10 @@ namespace LiteDB.Engine
                 }
             }
 
-            if (_password == null || !_useAesStream) return stream;
-            return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
-                new AesStream(_password, stream, allowRecovery: false);
+            Stream reader = validationOnly ? new ValidationReadStream(stream) : (Stream)stream;
+            if (_password == null || !_useAesStream) return reader;
+            return _isLog ? EncryptedLogPreamble.Open(_password, reader) :
+                new AesStream(_password, reader, allowRecovery: false);
         }
 
         /// <summary>
