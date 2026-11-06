@@ -70,7 +70,8 @@ namespace LiteDB.Engine
             // the group's FlushFileBuffers and a follower's Write/Length. Overlapped
             // handles permit independent operations; FileStream still waits for each
             // synchronous Write before its ticket can be captured. Keep sharing unchanged.
-            if (_isLog && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            // Shared handle leases retain their existing synchronous-handle contract.
+            if (_isLog && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                 System.Runtime.InteropServices.OSPlatform.Windows)) fileOptions |= FileOptions.Asynchronous;
 #endif
 
