@@ -11,14 +11,14 @@ framework, destination = sys.argv[1:]
 out = Path(destination).resolve()
 out.mkdir(parents=True, exist_ok=True)
 root = Path(__file__).resolve().parent
-cpu = ['bulk_insert_100k', 'update_10k_one_tx', 'delete_10k_one_tx']
-writers = [f'durable_insert_5k_{n}_writers' for n in (1, 4, 8)]
+cpu = []
+writers = [f'durable_insert_5k_{n}_writers{separate}{checkpoint}'
+           for separate in ('', '_separate') for checkpoint in ('', '_nocp') for n in (4, 8)]
 metadata = dict(sha=os.environ['GITHUB_SHA'], framework=framework,
                 dotnet=subprocess.check_output(['dotnet', '--info'], text=True),
                 note='v5 writers use OS-cache commits; v6 writers use device-sync commits. Not durability equivalents.')
 (out / 'environment.json').write_text(json.dumps(metadata, indent=2))
-for version, config, scenarios in [('V5', 'v5', cpu + writers),
-                                    ('V6', 'dev-os-cache', cpu), ('V6', 'dev-default', writers)]:
+for version, config, scenarios in [('V6', 'dev-default', writers)]:
     trace = out / f'{config}.nettrace'
     env = dict(os.environ, DOTNET_TieredCompilation='0', LITEDB_PROFILE='1',
                BENCHMARK_SCENARIOS=','.join(scenarios))

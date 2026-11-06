@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   # Register this diagnostic workflow without changing the default branch.
   push:
-    branches: ['v6/p1-speed-profile']
+    branches: ['v6/p1-speed-profile', 'v6/p1-perf-group']
 permissions:
   contents: read
 jobs:
@@ -34,7 +34,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet tool install --global dotnet-trace --version 8.0.547301
           if ($LASTEXITCODE) { throw 'trace tool install failed' }
-          foreach ($version in @('V5', 'V6')) {
+          foreach ($version in @('V6')) {
             dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false --nologo
             if ($LASTEXITCODE) { throw "Build failed: $version" }
           }

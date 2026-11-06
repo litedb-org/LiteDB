@@ -49,8 +49,14 @@ namespace LiteDB.Engine
             var ownsFailure = false;
 
             // do a global write lock - only 1 thread can write on disk at time
+#if PROFILE
+            var profileAppendWriter = CommitProfile.Stamp();
+#endif
             lock (stream)
             {
+#if PROFILE
+                CommitProfile.Elapsed("AppendWriter", profileAppendWriter);
+#endif
                 _state.Validate();
                 // Track plain-file extents for internal cache-only transactions.
                 // Wrappers and arbitrary producers keep their per-frame I/O probes.
@@ -256,7 +262,13 @@ namespace LiteDB.Engine
                 // Keep any failure terminal until all preparation has returned, even if a
                 // caller stream reports it with a non-I/O exception.
                 uncertain = true;
+#if PROFILE
+            var profileLength = CommitProfile.Stamp();
+#endif
                 previousStreamLength = batchLength ?? stream.Length;
+#if PROFILE
+            CommitProfile.Elapsed("Length", profileLength);
+#endif
                 var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                 var isConfirmed = page.ReadBool(BasePage.P_IS_CONFIRMED);
 
@@ -306,11 +318,23 @@ namespace LiteDB.Engine
                     checksummed != null && checksummed.RawStream.GetType() == typeof(FileStream);
                 if (coalesce)
                 {
+#if PROFILE
+            var profileFinalWrite = CommitProfile.Stamp();
+#endif
                     checksummed.WriteFinalPadded(page.Array, page.Offset);
+#if PROFILE
+            CommitProfile.Elapsed("FinalWrite", profileFinalWrite);
+#endif
                 }
                 else
                 {
-                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+    #if PROFILE
+            var profileFrameWrite = CommitProfile.Stamp();
+#endif
+                stream.Write(page.Array, page.Offset, PAGE_SIZE);
+#if PROFILE
+            CommitProfile.Elapsed("FrameWrite", profileFrameWrite);
+#endif
                 }
                 if (trackLength) batchLength = Math.Max(previousStreamLength.Value, page.Position + PAGE_SIZE);
                 if (!_logMayBuffer) uncertain = isConfirmed;

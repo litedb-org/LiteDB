@@ -61,8 +61,14 @@ namespace LiteDB.Engine
             try
             {
                 var timeout = _getTimeout();
+#if PROFILE
+            var profileAdmission = CommitProfile.Stamp();
+#endif
                 if (_transaction.TryEnterReadLock(timeout) == false)
                     throw LiteException.LockTimeout("transaction", timeout);
+#if PROFILE
+            CommitProfile.Elapsed("Admission", profileAdmission);
+#endif
             }
             catch (ObjectDisposedException)
             {
@@ -93,7 +99,13 @@ namespace LiteDB.Engine
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
             var timeout = _getTimeout();
+#if PROFILE
+            var profileCollection = CommitProfile.Stamp();
+#endif
             if (collection.TryEnter(timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
+#if PROFILE
+            CommitProfile.Elapsed("Collection", profileCollection);
+#endif
         }
 
         /// <summary>

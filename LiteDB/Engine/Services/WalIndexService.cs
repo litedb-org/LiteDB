@@ -57,7 +57,13 @@ namespace LiteDB.Engine
         {
             get
             {
+                #if PROFILE
+                var profileIndex = CommitProfile.Stamp();
+#endif
                 _indexLock.TryEnterReadLock(-1);
+#if PROFILE
+                CommitProfile.Elapsed("IndexRead", profileIndex);
+#endif
 
                 try
                 {
@@ -81,7 +87,13 @@ namespace LiteDB.Engine
         public void Clear()
         {
             _signals?.StructuralBegin();
-            _indexLock.TryEnterWriteLock(-1);
+            #if PROFILE
+                var profileIndex = CommitProfile.Stamp();
+#endif
+                _indexLock.TryEnterWriteLock(-1);
+#if PROFILE
+                CommitProfile.Elapsed("IndexWrite", profileIndex);
+#endif
 
             try
             {
@@ -131,7 +143,13 @@ namespace LiteDB.Engine
             }
 
             // to get page position, enter _index in read mode
-            _indexLock.TryEnterReadLock(-1);
+            #if PROFILE
+                var profileIndex = CommitProfile.Stamp();
+#endif
+                _indexLock.TryEnterReadLock(-1);
+#if PROFILE
+                CommitProfile.Elapsed("IndexRead", profileIndex);
+#endif
 
             try
             {
@@ -181,7 +199,13 @@ namespace LiteDB.Engine
         {
             int visible;
             // must lock commit operation to update WAL-Index (memory only operation)
-            _indexLock.TryEnterWriteLock(-1);
+            #if PROFILE
+                var profileIndex = CommitProfile.Stamp();
+#endif
+                _indexLock.TryEnterWriteLock(-1);
+#if PROFILE
+                CommitProfile.Elapsed("IndexWrite", profileIndex);
+#endif
 
             try
             {

@@ -38,7 +38,11 @@ namespace LiteDB.Engine
             if (_appended == _durable) Volatile.Write(ref _readVersionLimit, previousVersion);
             _appendedVersion = version;
             _pendingVersions.Add(version);
-            return ++_appended;
+            ++_appended;
+#if PROFILE
+            CommitProfile.Log.Appended(_appended);
+#endif
+            return _appended;
         }
 
         // Snapshot capture owns the index lock. Taking the writer monitor follows
@@ -46,8 +50,14 @@ namespace LiteDB.Engine
         // A later, not yet published append may be included conservatively.
         internal void CaptureDependency(TransactionPages pages)
         {
+#if PROFILE
+            var profileDependency = CommitProfile.Stamp();
+#endif
             lock (_disk.WalWriterLock)
             {
+#if PROFILE
+                CommitProfile.Elapsed("DependencyWriter", profileDependency);
+#endif
                 pages.CommitTicket = Math.Max(pages.CommitTicket, _appended);
             }
         }
@@ -55,8 +65,14 @@ namespace LiteDB.Engine
         internal bool TryCommit(TransactionService transaction, HeaderPage header)
         {
             if (transaction.Pages.HasCommitCallbacks || transaction.OpenCursors.Count != 0) return false;
+#if PROFILE
+            var profileHeader = CommitProfile.Stamp();
+#endif
             lock (header)
             {
+#if PROFILE
+                CommitProfile.Elapsed("Header", profileHeader);
+#endif
                 transaction.Pages.DeferCommitSync = true;
                 transaction.PersistAndConfirm();
                 // Writers may build on the appended version. Readers are pinned
@@ -70,8 +86,14 @@ namespace LiteDB.Engine
         {
             Exception failure = null;
             var ownsFailure = false;
+#if PROFILE
+            var profileGroup = CommitProfile.Stamp();
+#endif
             lock (_sync)
             {
+#if PROFILE
+                CommitProfile.Elapsed("Group", profileGroup);
+#endif
                 try
                 {
                     _state.Validate();
@@ -86,8 +108,14 @@ namespace LiteDB.Engine
                     int version;
                     Microsoft.Win32.SafeHandles.SafeFileHandle handle;
                     string path;
+#if PROFILE
+                    var profileCapture = CommitProfile.Stamp();
+#endif
                     lock (_disk.WalWriterLock)
                     {
+#if PROFILE
+                        CommitProfile.Elapsed("CaptureWriter", profileCapture);
+#endif
                         _state.Validate();
                         target = _appended;
                         version = _appendedVersion;
@@ -115,7 +143,15 @@ namespace LiteDB.Engine
 #endif
                     // Another appender can have stopped the engine since target capture.
                     _state.Validate();
+#if PROFILE
+                    CommitProfile.Log.SyncStart(target, Volatile.Read(ref _appended) - _durable, System.Diagnostics.Stopwatch.Frequency);
+                    var profileDevice = CommitProfile.Stamp();
+#endif
                     _disk.FlushCommitGroup(handle, path);
+#if PROFILE
+                    CommitProfile.Elapsed("Device", profileDevice);
+                    CommitProfile.Log.SyncEnd(target);
+#endif
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("wal-after-durable-flush");
 #endif

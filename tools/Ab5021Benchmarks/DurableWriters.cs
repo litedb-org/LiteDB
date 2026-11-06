@@ -22,16 +22,20 @@ internal sealed class DurableWriters
 
     public IEnumerable<Sample> Run()
     {
+        foreach (var separate in ProfileMarkers.Enabled ? new[] { false, true } : new[] { false })
+        foreach (var noCheckpoint in ProfileMarkers.Enabled ? new[] { false, true } : new[] { false })
         foreach (var writers in new[] { 1, 4, 8 })
         {
-            var scenario = $"durable_insert_5k_{writers}_writers";
+            var scenario = $"durable_insert_5k_{writers}_writers" + (separate ? "_separate" : "") + (noCheckpoint ? "_nocp" : "");
             if (ProfileMarkers.Enabled && !(Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS") ?? "").Split(',').Contains(scenario)) continue;
-            var path = Path.Combine(_root, $"durable-{writers}.db");
+            var path = Path.Combine(_root, scenario + ".db");
             if (!_record) Console.WriteLine($"{_config} warmup opening durable-{writers}.db");
             double milliseconds;
             using (var db = Open(path))
             {
-                db.GetCollection<Document>("documents").EnsureIndex(x => x.Key, true);
+                if (noCheckpoint) db.CheckpointSize = 0;
+                for (var worker = 0; worker < (separate ? writers : 1); worker++)
+                    db.GetCollection<Document>(separate ? "documents" + worker : "documents").EnsureIndex(x => x.Key, true);
                 using var ready = new CountdownEvent(writers);
                 using var start = new ManualResetEventSlim();
                 var errors = new ConcurrentQueue<Exception>();
@@ -42,7 +46,7 @@ internal sealed class DurableWriters
                     start.Wait();
                     try
                     {
-                        var collection = db.GetCollection<Document>("documents");
+                        var collection = db.GetCollection<Document>(separate ? "documents" + worker : "documents");
                         for (var index = worker; index < _documents.Length; index += writers)
                             collection.Insert(_documents[index]);
                     }
@@ -63,10 +67,10 @@ internal sealed class DurableWriters
                 milliseconds = watch.Elapsed.TotalMilliseconds;
                 if (!errors.IsEmpty) throw new AggregateException(errors);
                 if (!_record) Console.WriteLine($"{_config} warmup finished {writers} durable writers");
-                Verify(db);
+                Verify(db, separate ? writers : 1);
             }
             // Verification and graceful reopen are untimed. This is not a power-loss test.
-            using (var db = Open(path)) Verify(db);
+            using (var db = Open(path)) Verify(db, separate ? writers : 1);
             if (_record)
             {
                 Console.WriteLine($"{_config} {scenario}: {milliseconds:F3} ms (v6 scaling only)");
@@ -90,10 +94,10 @@ internal sealed class DurableWriters
         return new LiteDatabase(connection);
     }
 
-    private void Verify(LiteDatabase db)
+    private void Verify(LiteDatabase db, int collections)
     {
-        var collection = db.GetCollection<Document>("documents");
-        var actual = collection.FindAll().OrderBy(document => document.Id).ToArray();
+        var all = Enumerable.Range(0, collections).Select(worker => db.GetCollection<Document>(collections > 1 ? "documents" + worker : "documents")).ToArray();
+        var actual = all.SelectMany(collection => collection.FindAll()).OrderBy(document => document.Id).ToArray();
         if (actual.Length != _documents.Length) throw new InvalidOperationException("durable writer count");
         for (var index = 0; index < actual.Length; index++)
         {
@@ -101,7 +105,7 @@ internal sealed class DurableWriters
             var document = actual[index];
             if (document.Id != expected.Id || document.Key != expected.Key ||
                 document.Value != expected.Value || document.Payload != expected.Payload ||
-                collection.FindOne(Query.EQ("Key", expected.Key))?.Id != expected.Id)
+                all[collections > 1 ? index % collections : 0].FindOne(Query.EQ("Key", expected.Key))?.Id != expected.Id)
                 throw new InvalidOperationException("durable writer contents/index");
         }
     }
