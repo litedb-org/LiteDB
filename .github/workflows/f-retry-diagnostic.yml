@@ -1,0 +1,88 @@
+name: F-RETRY paired diagnostics
+on:
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Paired iterations of the four child-process cases only
+        type: number
+        default: 300
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x86
+          - os: windows-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: diagnostic
+      - uses: actions/checkout@v4
+        with:
+          ref: ef2e0762703e2d936ac26b49534f998e39a563b7
+          path: phase2
+      - uses: actions/checkout@v4
+        with:
+          ref: b3c4406231908c6ca29f6d4b2769aa08351d6fc2
+          path: dev
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Install matching .NET 8 SDK and diagnostic tools
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP 'retry-dotnet'
+          if ($IsWindows) {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile install.ps1
+            ./install.ps1 -Channel 8.0 -Architecture '${{ matrix.arch }}' -InstallDir $runtime
+            $hostPath = Join-Path $runtime 'dotnet.exe'
+          } else {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.sh -OutFile install.sh
+            bash ./install.sh --channel 8.0 --architecture x64 --install-dir $runtime
+            $hostPath = Join-Path $runtime 'dotnet'
+          }
+          "F_RETRY_HOST=$hostPath" >> $env:GITHUB_ENV
+          "DOTNET_ROOT=$runtime" >> $env:GITHUB_ENV
+          "DOTNET_ROOT_X86=$runtime" >> $env:GITHUB_ENV
+          $env:DOTNET_ROOT = $runtime
+          $tools = Join-Path $env:RUNNER_TEMP 'retry-tools'
+          & $hostPath tool install dotnet-stack --version 8.0.547301 --tool-path $tools
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $hostPath tool install dotnet-dump --version 8.0.547301 --tool-path $tools
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "F_RETRY_TOOLS=$tools" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory evidence -Force
+          & $hostPath --info | Out-File evidence/runtime.txt
+      - name: Apply identical diagnostic overlay and build exact revisions
+        run: |
+          foreach ($revision in @('phase2', 'dev')) {
+            python diagnostic/.github/f-retry/instrument.py $revision
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            git -C $revision rev-parse HEAD | Out-File "evidence/$revision-sha.txt"
+            git -C $revision diff | Out-File "evidence/$revision-overlay.patch"
+            dotnet build "$revision/LiteDB.Tests/LiteDB.Tests.csproj" -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+      - name: Repeat only the child-process cases with original deadlines
+        run: |
+          python diagnostic/.github/f-retry/run.py $env:F_RETRY_HOST $env:F_RETRY_TOOLS '${{ inputs.iterations }}'
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: f-retry-${{ matrix.os }}-${{ matrix.arch }}
+          path: evidence/
+          retention-days: 14

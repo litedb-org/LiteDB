@@ -82,7 +82,14 @@ internal static class MvccHarness
                 goto case "insert";
             case "insert":
                 var start = int.Parse(args[4]);
-                for (var i = start; i < start + 20; i++) collection.Insert(new BsonDocument { ["_id"] = i });
+                Console.Error.WriteLine($"runtime {Environment.Version} arch {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture} pid {Environment.ProcessId}");
+                for (var i = start; i < start + 20; i++)
+                {
+                    Console.Error.WriteLine($"insert-begin {i} {DateTime.UtcNow:O}");
+                    var clock = System.Diagnostics.Stopwatch.StartNew();
+                    collection.Insert(new BsonDocument { ["_id"] = i });
+                    Console.Error.WriteLine($"insert-end {i} {DateTime.UtcNow:O} ms={clock.Elapsed.TotalMilliseconds:F3}");
+                }
                 Console.WriteLine("done");
                 break;
             case "uncommitted":

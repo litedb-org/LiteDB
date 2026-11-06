@@ -67,7 +67,13 @@ namespace LiteDB.Internals
         /// <summary>Next output line; include child stderr if its output closes unexpectedly.</summary>
         internal async Task<string> ReadLine(TimeSpan timeout)
         {
-            var line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+            string line;
+            try { line = await _process.StandardOutput.ReadLineAsync().WaitAsync(timeout); }
+            catch (TimeoutException)
+            {
+                await RetryDiagnostics.Capture(_process.Id);
+                throw;
+            }
             if (line == null) throw new Exception(await _errors);
             return line;
         }
@@ -134,7 +140,11 @@ namespace LiteDB.Internals
                     ChildProcessTermination.Kill(_process, paths, 10000, entireProcessTree: true);
                 }
             }
-            finally { _process.Dispose(); }
+            finally
+            {
+                RetryDiagnostics.SaveChild(_process.Id, _errors.GetAwaiter().GetResult());
+                _process.Dispose();
+            }
         }
     }
 }
