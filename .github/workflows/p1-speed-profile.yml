@@ -1,6 +1,12 @@
 name: Phase 1 speed profile
 on:
   workflow_dispatch:
+    inputs:
+      trace_run:
+        description: 'Decode retained captures from this run without repeating workloads (empty = capture)'
+        default: ''
+        required: false
+        type: string
   # Register this diagnostic workflow without changing the default branch.
   push:
     branches: ['v6/p1-speed-profile', 'v6/p1-perf-group']
@@ -40,7 +46,23 @@ jobs:
           }
           dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
           if ($LASTEXITCODE) { throw 'trace report build failed' }
-      - name: Capture scenarios and decode inclusive and exclusive frames
+      - uses: actions/download-artifact@v4
+        if: inputs.trace_run != ''
+        with:
+          run-id: ${{ inputs.trace_run }}
+          github-token: ${{ github.token }}
+          name: p1-speed-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/p1-speed/
+      - name: Decode retained capture counters
+        if: inputs.trace_run != ''
+        shell: pwsh
+        run: |
+          dotnet tools/Ab5021Benchmarks/TraceReport/bin/Release/net8.0/TraceReport.dll artifacts_temp/p1-speed/dev-default.nettrace artifacts_temp/p1-speed/dev-default-frames.json --counters-only
+          if ($LASTEXITCODE) { throw 'counter decode failed' }
+          Remove-Item artifacts_temp/p1-speed/*.nettrace, artifacts_temp/p1-speed/*.etlx -ErrorAction SilentlyContinue
+          '{"decoderSha":"${{ github.sha }}","captureRun":"${{ inputs.trace_run }}"}' | Set-Content artifacts_temp/p1-speed/decoder.json
+      - name: Capture scenarios and decode counters
+        if: inputs.trace_run == ''
         run: python tools/Ab5021Benchmarks/profile.py '${{ matrix.framework }}' artifacts_temp/p1-speed
       - uses: actions/upload-artifact@v4
         if: always()

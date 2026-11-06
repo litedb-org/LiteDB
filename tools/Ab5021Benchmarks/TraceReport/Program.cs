@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Diagnostics.Tracing.Etlx;
 
+if (args.Length == 3 && args[2] == "--counters-only") { GroupCounters.Run(args[0], args[1]); return; }
+
 // Offline trace decoding only. Samples are managed sampled-thread-time, not hardware CPU cycles.
 var etlx = TraceLog.CreateFromEventPipeDataFile(args[0]);
 using var log = new TraceLog(etlx);

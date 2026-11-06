@@ -29,6 +29,5 @@ for version, config, scenarios in [('V6', 'dev-default', writers)]:
                'dotnet', str(dll), config, '1', str(out / f'{config}.json')]
     with (out / f'{config}.log').open('w') as handle:
         subprocess.run(command, env=env, stdout=handle, stderr=subprocess.STDOUT, check=True, timeout=1500)
-    subprocess.run(['dotnet-trace', 'convert', str(trace), '--format', 'Speedscope'], check=True, timeout=300)
     subprocess.run(['dotnet', str(root / 'TraceReport/bin/Release/net8.0/TraceReport.dll'),
-                    str(trace), str(out / f'{config}-frames.json')], check=True, timeout=600)
+                    str(trace), str(out / f'{config}-frames.json'), '--counters-only'], check=True, timeout=600)
