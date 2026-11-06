@@ -52,7 +52,7 @@ namespace LiteDB.Engine
 
                 // ANN top-k is only valid when no remaining operation can discard or reorder candidates.
                 // All other shapes use a complete document scan, including unbounded vector queries.
-                int? limit = _query.Limit > 0 && _query.Limit < int.MaxValue && _query.Offset == 0 &&
+                int? limit = !candidate.VectorRepairDeferred && _query.Limit > 0 && _query.Limit < int.MaxValue && _query.Offset == 0 &&
                     _query.GroupBy == null && _query.Includes.Count == 0 &&
                     (_terms.Count == 0 || (_terms.Count == 1 && _terms[0] == consumedTerm)) &&
                     (_query.OrderBy.Count == 0 || _vectorOrderConsumed) ? _query.Limit : (int?)null;

@@ -15,6 +15,10 @@ namespace LiteDB.Engine
             bool applyLimit = true,
             DatafileLookup documentLookup = null)
         {
+            var index = this.GetRepairIndex(metadata);
+            if (index.VectorRepairDeferred)
+                throw LiteException.VectorRepairDeferred(index.Name, ConnectivityRepairBudget);
+
             if (metadata.Root.IsEmpty)
             {
                 this.LastVisitedCount = 0;

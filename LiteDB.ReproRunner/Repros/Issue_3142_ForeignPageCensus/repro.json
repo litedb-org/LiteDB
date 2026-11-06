@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3142_ForeignPageCensus",
+  "title": "Foreign committed WAL pages must not close a pinned vector writer",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3142"
+  ],
+  "failingSince": "0.0.0-knownbad.2e89d62bc95a",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_VERIFIED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}

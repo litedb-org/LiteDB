@@ -1,0 +1,84 @@
+name: Vector mutation performance (report only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Initial vectors (use 100000 for large mutable collections)'
+        default: '10000'
+        type: string
+      operations:
+        description: 'Operations per insert/update/delete phase'
+        default: '100'
+        type: string
+      baseline_ref:
+        description: 'Optional baseline ref; empty measures candidate only'
+        default: ''
+        type: string
+  pull_request:
+    paths:
+      - 'LiteDB/Engine/Services/VectorIndexService*.cs'
+      - 'tools/Ab5021Benchmarks/VectorMutations/**'
+      - '.github/workflows/vector-mutation-performance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Report (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: inputs.baseline_ref != ''
+        with:
+          path: baseline
+          ref: ${{ inputs.baseline_ref }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build and measure isolated production assemblies
+        shell: pwsh
+        env:
+          VECTOR_COUNT: ${{ inputs.count || '10000' }}
+          VECTOR_OPERATIONS: ${{ inputs.operations || '100' }}
+          VECTOR_FRAMEWORK: ${{ matrix.framework }}
+          VECTOR_BASELINE_REF: ${{ inputs.baseline_ref }}
+          DOTNET_TieredCompilation: '0'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:BENCHMARK_SOURCE_SHA = git -C candidate rev-parse HEAD
+          $variants = @('candidate')
+          if ($env:VECTOR_BASELINE_REF) { $variants += 'baseline' }
+          foreach ($variant in $variants) {
+            $env:BENCHMARK_CANDIDATE_SHA = git -C $variant rev-parse HEAD
+            if ($variant -eq 'baseline') {
+              New-Item -ItemType Directory -Force baseline/tools/Ab5021Benchmarks/VectorMutations | Out-Null
+              Copy-Item candidate/tools/Ab5021Benchmarks/VectorMutations/* baseline/tools/Ab5021Benchmarks/VectorMutations -Force
+            }
+            $project = "$variant/tools/Ab5021Benchmarks/VectorMutations/VectorMutations.csproj"
+            dotnet build $project -c Release -f $env:VECTOR_FRAMEWORK -p:TestingEnabled=false
+            if ($LASTEXITCODE -ne 0) { throw "Production build failed: $variant" }
+            dotnet run --project $project -c Release -f $env:VECTOR_FRAMEWORK --no-build -- $env:VECTOR_COUNT $env:VECTOR_OPERATIONS "results/$variant.json"
+            if ($LASTEXITCODE -ne 0) { throw "Workload/oracle failed: $variant" }
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Report-only vector insert/update/delete samples: see JSON artifacts. No latency or allocation gate is applied. Deferred repair is reported explicitly.'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vector-mutations-${{ matrix.os }}-${{ matrix.framework }}
+          path: results/*.json

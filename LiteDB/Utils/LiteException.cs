@@ -46,6 +46,8 @@ namespace LiteDB
         public const int REBUILD_INCOMPLETE = 139;
         /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
         public const int CHECKSUM_MISMATCH = 140;
+        /// <summary>An internal ANN search requires a connected, current vector index.</summary>
+        public const int VECTOR_REPAIR_DEFERRED = 142;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -137,6 +139,14 @@ namespace LiteDB
             Reachability.Sometimes("refusal:unsupported-file-version");
             return new LiteException(UNSUPPORTED_FILE_VERSION,
                 "Database format version {0} is unsupported. This engine reads versions 8, 9, 10, 11, 12 and 13; use a compatible LiteDB engine.", version);
+        }
+
+        internal static LiteException VectorRepairDeferred(string index, int budget)
+        {
+            return new LiteException(VECTOR_REPAIR_DEFERRED,
+                "Vector index repair deferred for '{0}' after bounded connectivity repair (base budget {1} nodes). " +
+                "Run Rebuild() after stopping old-version writers; public vector queries use an exact document scan meanwhile.",
+                index, budget);
         }
 
         internal static LiteException FileSizeExceeded(long limit)

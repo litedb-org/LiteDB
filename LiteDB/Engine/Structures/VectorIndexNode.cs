@@ -158,6 +158,16 @@ namespace LiteDB.Engine
             return neighbors;
         }
 
+        internal bool HasNeighbor(int level, PageAddress address)
+        {
+            if (level < 0 || level >= MaxLevels) throw new ArgumentOutOfRangeException(nameof(level));
+            var offset = GetLevelOffset(level);
+            var count = _segment.ReadByte(offset);
+            for (var i = 0; i < count; i++)
+                if (_segment.ReadPageAddress(offset + 1 + i * PageAddress.SIZE) == address) return true;
+            return false;
+        }
+
         public void SetNeighbors(int level, IReadOnlyList<PageAddress> neighbors)
         {
             if (level < 0 || level >= MaxLevels)

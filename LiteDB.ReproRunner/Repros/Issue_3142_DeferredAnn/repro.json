@@ -1,0 +1,28 @@
+{
+  "id": "Issue_3142_DeferredAnn",
+  "title": "Deferred HNSW repair makes bounded vector queries unavailable",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/pull/3142"
+  ],
+  "failingSince": "0.0.0-knownbad.6b2ecd3af268",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression-proof"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_VERIFIED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 2,
+      "logContains": "FIXED_VERIFIED"
+    }
+  }
+}

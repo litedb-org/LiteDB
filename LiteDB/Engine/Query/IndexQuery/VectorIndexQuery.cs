@@ -139,7 +139,7 @@ namespace LiteDB.Engine
 
         public override string ToString()
         {
-            return "VECTOR INDEX SEARCH";
+            return _index.VectorRepairDeferred ? "VECTOR EXACT SCAN (REPAIR DEFERRED)" : "VECTOR INDEX SEARCH";
         }
     }
 }
