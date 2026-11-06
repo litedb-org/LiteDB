@@ -23,7 +23,7 @@ for version, config, scenarios in [('V6', 'dev-default', writers)]:
     env = dict(os.environ, DOTNET_TieredCompilation='0', LITEDB_PROFILE='1',
                BENCHMARK_SCENARIOS=','.join(scenarios))
     dll = root / version / 'bin' / 'Release' / framework / f'{version}.dll'
-    command = ['dotnet-trace', 'collect', '--profile', 'cpu-sampling', '--providers',
+    command = ['dotnet-trace', 'collect', '--providers',
                'LiteDB-ScenarioProfile:0xffffffffffffffff:4,LiteDB-CommitProfile:0xffffffffffffffff:4',
                '--buffersize', '512', '--output', str(trace), '--',
                'dotnet', str(dll), config, '1', str(out / f'{config}.json')]
