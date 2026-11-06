@@ -126,6 +126,14 @@ class BenchmarkGateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identical v5"):
             self.compare()
 
+    def test_windows_durable_budget_preserves_round_counts_and_other_budgets(self):
+        self.assertEqual(90 * 60, RUNNER.measurement_budget(True, "Windows", "durable_insert_5k_1_writers"))
+        self.assertEqual(90 * 60, RUNNER.measurement_budget(True, "Windows", ""))
+        self.assertEqual(23 * 60, RUNNER.measurement_budget(True, "Windows", "bulk_insert_100k"))
+        self.assertEqual(23 * 60, RUNNER.measurement_budget(True, "Linux", "durable_insert_5k_1_writers"))
+        self.assertEqual(6, RUNNER.rounds_for_os("Windows"))
+        self.assertEqual(CONFIG, self.config)
+
     def test_mixed_scaling_subset_preserves_round_validation_and_controls(self):
         self.make_before()
         names = ["bulk_insert_100k", *CONFIG["scalingScenarios"]]

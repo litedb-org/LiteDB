@@ -21,6 +21,15 @@ def rounds_for_os(operating_system):
     return GATE_CONFIG.get("roundsByOS", {}).get(operating_system, ROUNDS)
 
 
+def measurement_budget(comparison, operating_system, scenarios):
+    # Windows device-sync workloads take minutes per child. Retain all six
+    # interleaved rounds rather than judging the first incomplete rounds.
+    scaling = not scenarios or bool(set(scenarios.split(",")) & set(GATE_CONFIG["scalingScenarios"]))
+    if comparison and operating_system == "Windows" and scaling:
+        return 90 * 60
+    return 23 * 60 if comparison else 24 * 60 if operating_system == "macOS" else 35 * 60
+
+
 def execution_order(round_number):
     return CONFIGS if round_number % 2 else list(reversed(CONFIGS))
 
@@ -135,7 +144,7 @@ def main():
         handle.write(environment_summary)
     start = time.monotonic()
     rounds = rounds_for_os(os.environ["RUNNER_OS"])
-    budget = 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
+    budget = measurement_budget(comparison, os.environ["RUNNER_OS"], scenarios)
     for round_number in range(1, rounds + 1):
         # Filtered to either A/B pair, this gives A,B,B,A,A,B,B,A,...
         order = comparison_order(round_number) if comparison else [("after", c) for c in execution_order(round_number)]
