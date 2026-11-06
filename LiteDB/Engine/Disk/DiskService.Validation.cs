@@ -35,7 +35,7 @@ namespace LiteDB.Engine
                     offset += read;
                 }
 
-                this.RecoverHeaderJournal(ref bytes);
+                this.RecoverHeaderJournal(ref bytes, stream);
                 if (bytes[0] == 1)
                     throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
@@ -62,7 +62,7 @@ namespace LiteDB.Engine
         /// no document controls. Journal recovery also preflights every complete legacy slot before
         /// its validated journal records, plus any tail after a confirmed footer.
         /// </summary>
-        private void RejectConvertedWal(long? legacyLength = null)
+        private void RejectConvertedWal(long? legacyLength = null, ChecksummedWalStream existingReader = null)
         {
             // GetLength is plaintext length: an incomplete encrypted preamble has no content
             // and must stay untouched. A page-format marker needs only the first 32 bytes,
@@ -70,7 +70,7 @@ namespace LiteDB.Engine
             if (!_logFactory.Exists()) return;
             var length = legacyLength ?? _logFactory.GetLength();
             if (length <= BasePage.P_PAGE_FORMAT) return;
-            var reader = (ChecksummedWalStream)_logPool.Rent();
+            var reader = existingReader ?? (ChecksummedWalStream)_logPool.Rent();
             try
             {
                 var log = reader.RawStream;
@@ -117,7 +117,7 @@ namespace LiteDB.Engine
                         "conversion's header never reached the device. Replaying those frames would corrupt the data file. " +
                         "Move the log file aside to open the database as it was before the conversion.");
             }
-            finally { _logPool.Return(reader); }
+            finally { if (existingReader == null) _logPool.Return(reader); }
         }
 
         private void RejectPreparedForeignTail(Stream stream, long start)

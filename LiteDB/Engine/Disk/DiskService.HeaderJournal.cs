@@ -45,7 +45,7 @@ namespace LiteDB.Engine
             BeginHeaderJournal(header);
         }
 
-        private void RecoverHeaderJournal(ref byte[] header)
+        private void RecoverHeaderJournal(ref byte[] header, Stream primary)
         {
             if (!_logFactory.Exists() || _logFactory.GetLength() < PAGE_SIZE) return;
             var reader = (ChecksummedWalStream)_logPool.Rent();
@@ -53,7 +53,9 @@ namespace LiteDB.Engine
             {
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
-                journal.ValidatePrimary(reader.RawStream, _dataPool.Writer.Value, header);
+                // Reuse the opening readers: constructing an encrypted stream
+                // performs a durable flush, which validation must not introduce.
+                journal.ValidatePrimary(reader.RawStream, primary, header);
                 var published = journal.IsPublished(header);
                 // Unsealed conversion records followed by legacy commits: recover
                 // the whole WAL by legacy rules; conversion restarts after checkpoint.
@@ -67,7 +69,7 @@ namespace LiteDB.Engine
                 // intent-only redo and published modern headers keep their own recovery rules.
                 if (journal.Legacy && !published && !journal.IntentOnly)
                 {
-                    this.RejectConvertedWal(reader.RawStream.Length - journal.FooterBytes);
+                    this.RejectConvertedWal(reader.RawStream.Length - journal.FooterBytes, reader);
                     if (journal.Prepared)
                         this.RejectPreparedForeignTail(reader.RawStream, journal.Position + PAGE_SIZE);
                 }

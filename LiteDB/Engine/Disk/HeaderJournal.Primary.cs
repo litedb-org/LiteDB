@@ -12,6 +12,11 @@ namespace LiteDB.Engine
             var version = header[HeaderPage.P_FILE_VERSION];
             var signature = page.ReadString(HeaderPage.P_HEADER_INFO, HeaderPage.HEADER_INFO.Length);
             var checksumValid = page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page);
+            // Preserve the public unsupported-version diagnostic before the
+            // foreign-primary guard, just as IsPublished does for legacy journals.
+            if (checksumValid && page.ReadUInt32(BasePage.P_PAGE_ID) == 0 &&
+                version > HeaderPage.CURRENT_FILE_VERSION)
+                throw LiteException.UnsupportedFileVersion(version);
             // A valid journal cannot authorize replacing an identifiable legacy
             // primary. Check this before considering the journal's generation.
             // v4 (file version 7) has its signature at a different offset,

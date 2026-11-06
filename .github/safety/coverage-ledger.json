@@ -256,6 +256,16 @@
       "coveredBy": [
         "LiteDB.Tests/Regressions/ConvertedWalJournal_Tests.cs#Foreign_page_in_prepared_confirmation_slot_refuses_before_header_repair"
       ]
+    },
+    {
+      "id": "3137-commit-feed-artifact-presence",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/reprorunner.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every selected known-bad commit package and repro artifact must exist; all historical proofs and candidate tests still execute.",
+      "reason": "F-3137n adds exact-commit local-feed artifacts and changes missing artifact handling from ignore to error. This fails closed when required proof inputs or results are absent; it removes no job, case, assertion, platform or proof."
     }
   ]
 }

@@ -47,7 +47,9 @@ namespace LiteDB.Tests.Regressions
                         {
                             Filename = file.Filename, Password = password, ReadOnly = readOnly
                         }).Dispose();
-                        open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.INVALID_DATABASE);
+                        open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(
+                            version > HeaderPage.CURRENT_FILE_VERSION
+                                ? LiteException.UNSUPPORTED_FILE_VERSION : LiteException.INVALID_DATABASE);
                         File.ReadAllBytes(file.Filename).Should().Equal(data);
                         File.ReadAllBytes(log).Should().Equal(wal);
                     }
