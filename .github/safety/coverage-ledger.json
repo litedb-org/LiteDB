@@ -301,6 +301,16 @@
       "disposition": "strengthened",
       "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
       "reason": "The original combined session exceeded 300 seconds on Windows net8 and net10 with no assertion failures and varying completion counts. Three disjoint filters retain the exact original union, place group/lifecycle/native-sync cases first, and give each partition its own unchanged session budget. Every partition runs and any nonzero exit fails the job."
+    },
+    {
+      "id": "p1-handle-safety-vstest-predicate-syntax",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
+      "reason": "Express the same disjoint partition complement using VSTest supported !~ predicates. Every original case remains in exactly one partition, with unchanged assertions and session timeout."
     }
   ]
 }
