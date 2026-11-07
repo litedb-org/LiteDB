@@ -205,6 +205,26 @@
       "reason": "Adds an explicit fork-only manual mode for baseline a878a10c6 versus the selected candidate, net8/net10 on Linux x64, five alternating pairs of 50 open/close cycles. Existing comparison selection is unchanged unless this new mode is explicitly requested; no safety test, matrix, timeout or threshold is removed or lowered."
     },
     {
+      "id": "p1-cpu-delete-additive-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL/group/fault safety partitions execute unchanged; delete result, rollback, page cursor, snapshot and recovery safety receive additional hosted coverage.",
+      "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
+    },
+    {
+      "id": "p1-mapper-additive-safety-filter",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Retain all existing WAL, group commit, recovery and lifetime tests while verifying mapper contracts.",
+      "reason": "Adds the entire mapper namespace to the existing non-WAL safety partition; no prior selector or partition is removed."
+    },
+    {
       "id": "p1-padding-noop-truncate-checksum-crash-4058733",
       "kind": "corpus-repinned",
       "subjects": [
@@ -609,16 +629,6 @@
       "disposition": "strengthened",
       "invariant": "Every test selected by the existing three WAL/handle safety partitions still executes with unchanged assertions, session timeout and failure propagation.",
       "reason": "Prepends an additional partition for SharedWriterTenureCoordinatedAdmission_Tests, SharedWriterTenureCoherenceBreadth_Tests and SharedOneFileWarmReads_Tests. All three original filter expressions remain unchanged; no exclusion, skip, retry, timeout or expected-result change is introduced, and any partition failure still fails the job."
-    },
-    {
-      "id": "p1-cpu-delete-additive-safety",
-      "kind": "ci-test-config-changed",
-      "subjects": [
-        ".github/workflows/p1-handle-safety.yml"
-      ],
-      "disposition": "strengthened",
-      "invariant": "All existing WAL/group/fault safety partitions execute unchanged; delete result, rollback, page cursor, snapshot and recovery safety receive additional hosted coverage.",
-      "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
     },
     {
       "id": "p1-integrate-add-delete-safety",
