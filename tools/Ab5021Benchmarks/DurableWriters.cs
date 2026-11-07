@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using LiteDB;
 
 namespace Ab5021Benchmarks;
@@ -26,7 +25,7 @@ internal sealed class DurableWriters
         {
             var path = Path.Combine(_root, $"durable-{writers}.db");
             if (!_record) Console.WriteLine($"{_config} warmup opening durable-{writers}.db");
-            double milliseconds;
+            ScenarioMeasurement measurement;
             using (var db = Open(path))
             {
                 db.GetCollection<Document>("documents").EnsureIndex(x => x.Key, true);
@@ -52,11 +51,10 @@ internal sealed class DurableWriters
                 foreach (var thread in threads) thread.Start();
                 ready.Wait();
                 if (!_record) Console.WriteLine($"{_config} warmup starting {writers} durable writers");
-                var watch = Stopwatch.StartNew();
+                measurement = new ScenarioMeasurement();
                 start.Set();
                 foreach (var thread in threads) thread.Join();
-                watch.Stop();
-                milliseconds = watch.Elapsed.TotalMilliseconds;
+                measurement.Stop();
                 if (!errors.IsEmpty) throw new AggregateException(errors);
                 if (!_record) Console.WriteLine($"{_config} warmup finished {writers} durable writers");
                 Verify(db);
@@ -66,9 +64,10 @@ internal sealed class DurableWriters
             if (_record)
             {
                 var scenario = $"durable_insert_5k_{writers}_writers";
-                Console.WriteLine($"{_config} {scenario}: {milliseconds:F3} ms (v6 scaling only)");
-                yield return new Sample(scenario, milliseconds, _documents.Length,
-                    new FileInfo(path).Length, Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length));
+                Console.WriteLine($"{_config} {scenario}: {measurement.Milliseconds:F3} ms (v6 scaling only)");
+                yield return new Sample(scenario, measurement.Milliseconds, _documents.Length,
+                    new FileInfo(path).Length, Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length),
+                    measurement.Gen0, measurement.Gen1, measurement.Gen2, measurement.AllocatedBytes);
             }
         }
     }
