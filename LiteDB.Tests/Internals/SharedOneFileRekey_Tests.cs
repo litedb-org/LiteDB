@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -66,6 +68,69 @@ namespace LiteDB.Internals
                 Verify(cold, 0, 1, 2);
                 cold.Checkpoint();
             }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache(string password)
+        {
+            using var file = new TempFile();
+            var settings = new EngineSettings { Filename = file.Filename, Password = password };
+            using var engine = new SharedEngine(settings);
+            using var owner = new LiteDatabase(engine, disposeOnClose: false);
+            using var peerEngine = new SharedEngine(settings);
+            using var peer = new LiteDatabase(peerEngine, disposeOnClose: false);
+            peerEngine.CoordinatedIdleLimit = TimeSpan.FromHours(1);
+            owner.GetCollection("docs").Insert(Row(0));
+            owner.GetCollection("docs").EnsureIndex("value");
+            owner.GetCollection("sentinel").Insert(Row(42));
+            Verify(peer, 0);
+            peerEngine.HasCachedSnapshot.Should().BeTrue();
+            var cache = (SharedSnapshotCache)typeof(SharedEngine)
+                .GetField("_readCache", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(peerEngine);
+            using var start = new ManualResetEventSlim();
+            using var locked = new ManualResetEventSlim();
+            using var returned = new ManualResetEventSlim();
+            var refusedWhileLocked = false;
+            // The expiry worker in the captured dump owns this gate while closing
+            // a snapshot. Bound the wait so the old query path fails without hanging CI.
+            var worker = new Thread(() =>
+            {
+                if (!start.Wait(TimeSpan.FromSeconds(10))) return;
+                lock (cache.Gate)
+                {
+                    locked.Set();
+                    refusedWhileLocked = returned.Wait(TimeSpan.FromSeconds(5));
+                }
+            }) { IsBackground = true };
+            worker.Start();
+            NativeAdmission.ReplacementStage = (path, stage) =>
+            {
+                if (path != settings.Filename || stage != "before-rekey") return;
+                start.Set();
+                locked.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                try
+                {
+                    Action read = () => peer.GetCollection("docs").Count();
+                    read.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+                }
+                finally { returned.Set(); }
+            };
+            try { owner.Rebuild(); }
+            finally
+            {
+                NativeAdmission.ReplacementStage = null;
+                start.Set();
+                returned.Set();
+                worker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            }
+            refusedWhileLocked.Should().BeTrue("callback refusal must precede waiting for the cache gate");
+            peer.GetCollection("docs").Insert(Row(1));
+            Verify(owner, 0, 1);
+            Verify(peer, 0, 1);
+            using var cold = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
+            Verify(cold, 0, 1);
         }
 
         [OneFileTheory]
