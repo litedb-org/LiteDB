@@ -41,6 +41,13 @@ namespace LiteDB
 
         internal static void FlushToDisk(FileStream stream)
         {
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync(stream.Name);
+#endif
+#if PROFILE
+            try
+            {
+#endif
 #if DEBUG || TESTING
             Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
@@ -72,6 +79,11 @@ namespace LiteDB
             stream.Flush(false);
             var errno = Sync(stream.SafeFileHandle, fsync, fcntl);
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
+
+#if PROFILE
+            }
+            finally { Engine.CheckpointProfile.NativeSyncEnd(); }
+#endif
         }
 
         // Only exact FileStreams use this path. Their managed buffers have already
@@ -79,6 +91,13 @@ namespace LiteDB
         // only, allowing another writer to append while the device sync runs.
         internal static void FlushDevice(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string path)
         {
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync(path);
+#endif
+#if PROFILE
+            try
+            {
+#endif
 #if NET8_0_OR_GREATER
             if (_windows) RandomAccess.FlushToDisk(handle);
             else if (NativeLibc.TryGet(out var fsync, out var fcntl))
@@ -94,6 +113,11 @@ namespace LiteDB
 #endif
 #else
             throw new NotSupportedException();
+#endif
+
+#if PROFILE
+            }
+            finally { Engine.CheckpointProfile.NativeSyncEnd(); }
 #endif
         }
 
@@ -140,6 +164,9 @@ namespace LiteDB
             }
 #endif
             if (_windows) return;
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync("directory:" + directory);
+#endif
             if (RuntimeSyncSimulated || !NativeLibc.TryGetDirectorySync(out var open, out var fsync, out var close))
                 throw FileSyncException.Unavailable(directory);
 

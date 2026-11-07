@@ -15,6 +15,8 @@ internal static class Program
             Console.Error.WriteLine("Measurements are restricted to GitHub Actions; do not run locally.");
             return 1;
         }
+        if (args[0].StartsWith("--")) return RecoveryExperiment.Run(args);
+        using var observer = new Experiment();
         var config = args[0];
         var round = int.Parse(args[1]);
         var output = Path.GetFullPath(args[2]);
@@ -45,7 +47,8 @@ internal static class Program
                 durableWriterComparison = "v6 scaling only: v5 has no per-commit device-sync setting",
                 seed = 5021,
                 inheritedGcNormalization = "Collect/WaitForPendingFinalizers/Collect before every scenario timer",
-                checkpointPages = 1000,
+                checkpointPages = Experiment.Pages,
+                diagnostics = Experiment.Results,
                 samples = workload.Samples
             };
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);

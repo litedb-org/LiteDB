@@ -83,7 +83,9 @@ internal sealed class DurableWriters
 #if DEV
         connection.DurableCommits = true;
 #endif
-        return new LiteDatabase(connection);
+        var db = new LiteDatabase(connection);
+        if (db.CheckpointSize != Experiment.Pages) db.CheckpointSize = Experiment.Pages;
+        return db;
     }
 
     private void Verify(LiteDatabase db)

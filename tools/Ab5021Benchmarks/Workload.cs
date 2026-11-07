@@ -38,7 +38,7 @@ internal sealed class Workload
         var path = Path.Combine(_root, "main.db");
         using (var db = Open(path))
         {
-            Require(db.CheckpointSize == 1000, "default checkpoint threshold changed");
+            Require(db.CheckpointSize == Experiment.Pages, "default checkpoint threshold changed");
             var col = db.GetCollection<Document>("documents");
             col.EnsureIndex(x => x.Key, true);
             Measure("bulk_insert_100k", _count, path, () =>
@@ -146,7 +146,13 @@ internal sealed class Workload
             col.EnsureIndex(x => x.Key, true);
             Measure("single_insert_5k_tx", _small, path, () =>
             {
-                foreach (var doc in _documents.Take(_small)) col.Insert(doc);
+                foreach (var doc in _documents.Take(_small))
+                {
+                    col.Insert(doc);
+                    Experiment.Committed(path);
+                }
+                // Include the final tail checkpoint equally at every threshold/version.
+                db.Checkpoint();
             });
             Require(col.Count() == _small, "small transaction count");
         }
@@ -188,7 +194,11 @@ internal sealed class Workload
 #if DEV
         connection.DurableCommits = _config != "dev-os-cache";
 #endif
-        return new LiteDatabase(connection);
+        var database = new LiteDatabase(connection);
+#if DEV
+        if (database.CheckpointSize != Experiment.Pages) database.CheckpointSize = Experiment.Pages;
+#endif
+        return database;
     }
 
     private void Verify(ILiteCollection<Document> col, int deleted)
@@ -206,9 +216,11 @@ internal sealed class Workload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
+        Experiment.Start(path, scenario);
         var measurement = new ScenarioMeasurement();
         action();
         measurement.Stop();
+        Experiment.Stop(path);
         if (!_record)
         {
             Console.WriteLine($"{_config} warmup finished {scenario}");

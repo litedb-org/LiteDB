@@ -73,4 +73,7 @@
 
     <!-- End References -->
 
+<PropertyGroup Condition="'$(ProfilingEnabled)' == 'true'">
+    <DefineConstants>$(DefineConstants);PROFILE</DefineConstants>
+  </PropertyGroup>
 </Project>

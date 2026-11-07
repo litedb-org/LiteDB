@@ -333,10 +333,16 @@ namespace LiteDB.Engine
                     this.PreserveFileVersion(page);
                     this.StampDataPage(page);
                     stream.Write(page.Array, page.Offset, PAGE_SIZE);
+#if PROFILE
+                    CheckpointProfile.DataWrite(PAGE_SIZE);
+#endif
                     this.CrashPoint("checkpoint-after-page-write");
                     this.CheckpointStage("data-page");
                 }
 
+                #if PROFILE
+                CheckpointProfile.Mark("data-sync");
+#endif
                 this.CrashPoint("checkpoint-before-data-flush");
                 stream.FlushToDisk();
                 this.CrashPoint("checkpoint-after-data-flush");

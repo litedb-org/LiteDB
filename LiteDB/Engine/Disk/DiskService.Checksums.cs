@@ -108,6 +108,9 @@ namespace LiteDB.Engine
             StampDataPage(header);
             stream.Position = 0;
             stream.Write(header.Array, 0, PAGE_SIZE);
+#if PROFILE
+                    CheckpointProfile.DataWrite(PAGE_SIZE);
+#endif
             stream.FlushToDisk();
         }
 
