@@ -13,7 +13,7 @@ out.mkdir(parents=True, exist_ok=True)
 root = Path(__file__).resolve().parent
 cpu = []
 writers = [f'durable_insert_5k_{n}_writers{separate}{checkpoint}'
-           for separate in ('', '_separate') for checkpoint in ('', '_nocp') for n in (4, 8)]
+           for separate in ('', '_separate') for checkpoint in ('', '_nocp') for n in (1, 4, 8)]
 metadata = dict(sha=os.environ['GITHUB_SHA'], candidateSha=os.environ.get('BENCHMARK_CANDIDATE_SHA'), framework=framework,
                 dotnet=subprocess.check_output(['dotnet', '--info'], text=True),
                 note='v5 writers use OS-cache commits; v6 writers use device-sync commits. Not durability equivalents.')

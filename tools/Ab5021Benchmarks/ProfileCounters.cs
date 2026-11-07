@@ -10,6 +10,7 @@ internal sealed class ProfileCounters : EventListener
     private readonly object _gate = new();
     private readonly List<object> _rows = new();
     private string? _scenario;
+    private readonly Dictionary<string, long> _ticks = new();
     private long _groups, _commits, _piggybacks, _appends, _starts, _ends, _native, _during;
     private bool _active;
 
@@ -34,6 +35,7 @@ internal sealed class ProfileCounters : EventListener
                     _scenario = (string)e.Payload![0]!;
                     _groups = _commits = _piggybacks = _appends = _starts = _ends = _native = _during = 0;
                     _active = false;
+                    _ticks.Clear();
                 }
                 else if (e.EventId == 2)
                 {
@@ -43,7 +45,8 @@ internal sealed class ProfileCounters : EventListener
                         throw new InvalidDataException("Incomplete in-process counters: " + _scenario);
                     _rows.Add(new { scenario = _scenario, groups = _groups, commits = _commits,
                         piggybacks = _piggybacks, appends = _appends, starts = _starts,
-                        ends = _ends, native = _native, appendsDuringSync = _during });
+                        ends = _ends, native = _native, appendsDuringSync = _during, ticks = new Dictionary<string, long>(_ticks),
+                        frequency = System.Diagnostics.Stopwatch.Frequency });
                     _scenario = null;
                 }
                 return;
@@ -57,6 +60,11 @@ internal sealed class ProfileCounters : EventListener
                 case 4:
                     if (_active) throw new InvalidDataException("Overlapping syncs");
                     _starts++; _active = true; break;
+                case 5:
+                    var kind = (string)e.Payload![0]!;
+                    _ticks.TryGetValue(kind, out var ticks);
+                    _ticks[kind] = ticks + Convert.ToInt64(e.Payload![1]);
+                    break;
                 case 6: _appends++; if (_active) _during++; break;
                 case 7: _ends++; _active = false; break;
             }
@@ -67,7 +75,7 @@ internal sealed class ProfileCounters : EventListener
     {
         lock (_gate)
         {
-            if (_scenario != null || _rows.Count != 8) throw new InvalidDataException("Expected eight complete scenarios");
+            if (_scenario != null || _rows.Count != 12) throw new InvalidDataException("Expected twelve complete scenarios");
             File.WriteAllText(path, JsonSerializer.Serialize(_rows, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
