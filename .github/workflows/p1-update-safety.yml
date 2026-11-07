@@ -1,6 +1,8 @@
 name: P1 update index safety
 on:
   workflow_dispatch:
+  push:
+    branches: [v6/wip-p1-cpu-update]
 permissions:
   contents: read
 jobs:

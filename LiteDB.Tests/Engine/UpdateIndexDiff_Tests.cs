@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Engine;
+using LiteDB.Vector;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -34,7 +36,7 @@ namespace LiteDB.Tests.Engine
                     {
                         // Unchanged, reordered/duplicated, partially overlapping, then empty.
                         var keys = round == 0 ? expected[id] : round == 1 ?
-                            expected[id].Reverse().Concat(expected[id]).ToArray() : round == 2 ?
+                            expected[id].AsEnumerable().Reverse().Concat(expected[id]).ToArray() : round == 2 ?
                             Enumerable.Range(id + 5, width).ToArray() : new int[0];
                         expected[id] = keys;
                         rows.Update(Row(id, keys)).Should().BeTrue();
