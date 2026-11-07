@@ -580,6 +580,16 @@
       "disposition": "strengthened",
       "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
       "reason": "Express the same disjoint partition complement using VSTest supported !~ predicates. Every original case remains in exactly one partition, with unchanged assertions and session timeout."
+    },
+    {
+      "id": "p3-coordinated-admission-safety-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every test selected by the existing three WAL/handle safety partitions still executes with unchanged assertions, session timeout and failure propagation.",
+      "reason": "Prepends an additional partition for SharedWriterTenureCoordinatedAdmission_Tests, SharedWriterTenureCoherenceBreadth_Tests and SharedOneFileWarmReads_Tests. All three original filter expressions remain unchanged; no exclusion, skip, retry, timeout or expected-result change is introduced, and any partition failure still fails the job."
     }
   ]
 }
