@@ -1,0 +1,85 @@
+name: Phase 2 Shared publication hang stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Full collection repetitions per platform
+        type: number
+        default: 200
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    name: Shared publication (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x86-net9, os: windows-latest, arch: x86 }
+          - { name: windows-x64-net9, os: windows-latest, arch: x64 }
+          - { name: linux-x64-net9, os: ubuntu-latest, arch: x64 }
+          - { name: linux-arm64-net9, os: ubuntu-24.04-arm, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Build hook-enabled tests
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true
+      - name: Repeat the exact SharedOneFilePublication collection
+        shell: pwsh
+        env:
+          ITERATIONS: ${{ inputs.iterations }}
+          STRESS_ARCH: ${{ matrix.arch }}
+          LITEDB_SHARED_EXPECT_TEMP_VOLUME: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $count = [int]$env:ITERATIONS
+          if ($count -lt 1 -or $count -gt 1000) { throw 'Iterations must be 1..1000.' }
+          $classes = @(Get-ChildItem LiteDB.Tests -Filter '*.cs' -Recurse | ForEach-Object {
+            $source = Get-Content $_.FullName -Raw
+            if ($source -match '\[Collection\("SharedOneFilePublication"\)\]' -and $source -match 'class\s+(\w+)') {
+              "FullyQualifiedName~LiteDB.Internals.$($Matches[1])."
+            }
+          } | Sort-Object -Unique)
+          if ($classes.Count -ne 33) { throw "Unexpected collection class count: $($classes.Count)" }
+          $filter = $classes -join '|'
+          New-Item -ItemType Directory -Force LiteDB.Tests/TestResults | Out-Null
+          $classes | Set-Content LiteDB.Tests/TestResults/collection-filter.txt
+          git rev-parse HEAD | Set-Content LiteDB.Tests/TestResults/tested-sha.txt
+          $runtime = Join-Path $env:RUNNER_TEMP "litedb-runtime-9-$env:STRESS_ARCH"
+          for ($iteration = 1; $iteration -le $count; $iteration++) {
+            "START $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
+            $options = @{
+              RuntimeMajor = 9; Framework = 'net8.0'; Architecture = $env:STRESS_ARCH
+              Filter = $filter; ResultFile = "iteration-$iteration.trx"; HangTimeoutSeconds = 60
+            }
+            if ($iteration -gt 1) { $options.RuntimeDirectory = $runtime }
+            ./scripts/run-ci-tests.ps1 @options
+            if ($LASTEXITCODE -ne 0) { throw "Iteration $iteration failed with exit $LASTEXITCODE" }
+            "PASS $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
+          }
+      - name: Upload all sequences, dumps, results and iteration counts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-rekey-hang-${{ matrix.name }}
+          path: LiteDB.Tests/TestResults/
+          retention-days: 14
+      - name: Upload matching managed binaries and symbols after failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-rekey-binaries-${{ matrix.name }}
+          path: |
+            LiteDB.Tests/bin/Release/net8.0/
+            ${{ runner.temp }}/litedb-runtime-9-${{ matrix.arch }}/shared/Microsoft.NETCore.App/
+          retention-days: 14
