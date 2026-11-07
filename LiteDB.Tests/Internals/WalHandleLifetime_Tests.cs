@@ -62,6 +62,7 @@ namespace LiteDB.Tests.Internals
             slice.Write(1u, BasePage.P_PAGE_ID);
             slice.Write(1u, BasePage.P_TRANSACTION_ID);
             slice[BasePage.P_PAGE_TYPE] = (byte)PageType.Data;
+            slice[BasePage.P_PAGE_FORMAT] = PageChecksum.Checksummed;
             writer.Write(page, 0, page.Length);
             new FileInfo(file.Filename).Length.Should().Be(0);
             writer.Flush();
