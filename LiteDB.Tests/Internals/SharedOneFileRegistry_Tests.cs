@@ -241,7 +241,7 @@ namespace LiteDB.Internals
         {
             using (var seed = new LiteDatabase(Filename)) seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var alias = Path.Combine(_directory, "linked.db");
-            link(Filename, alias).Should().Be(0);
+            MappedPlatformTestNative.Link(Filename, alias).Should().Be(0);
             var before = File.ReadAllBytes(Filename);
             Action open = () => { using var engine = new SharedEngine(Settings(alias)); };
             open.Should().Throw<IOException>().WithMessage("*Hard-linked*");
@@ -261,7 +261,6 @@ namespace LiteDB.Internals
             using (var valid = new SharedEngine(settings)) valid.MappedReaderTable.Should().NotBeNull();
             await MvccProcess.Run("direct-host-direct-open", Filename, "secret");
         }
-        [DllImport("libc", SetLastError = true)] private static extern int link(string original, string alias);
         public void Dispose() => Directory.Delete(_directory, true);
     }
 }

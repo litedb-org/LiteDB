@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Engine
             qualified = (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                 System.Runtime.InteropServices.OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) &&
                 System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture ==
-                    System.Runtime.InteropServices.Architecture.X64);
+                    System.Runtime.InteropServices.Architecture.X64;
             SharedMemoryAuthority.IsPlatformQualified.Should().Be(qualified);
             OneFileTestPlatform.Reason.Should().Be(qualified ? null :
                 "ABI-2 mapped Shared is refused on this OS/architecture; native backend tests remain enabled.");

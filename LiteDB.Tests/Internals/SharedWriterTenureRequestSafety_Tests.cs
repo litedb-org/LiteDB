@@ -83,7 +83,7 @@ namespace LiteDB.Internals
                 stale.Expect("requested").GetAwaiter().GetResult();
                 var authority = engine.MappedReaderTable.Authority;
                 var block = RemoteBlock(authority);
-                kill(stale.ProcessId, 19).Should().Be(0);
+                MappedPlatformTestNative.Signal(stale.ProcessId, 19).Should().Be(0);
                 try
                 {
                     var expiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
@@ -91,7 +91,7 @@ namespace LiteDB.Internals
                     using var successor = new MvccProcess("one-file-tenure-request", files.Filename, null);
                     successor.Expect("requested").GetAwaiter().GetResult();
                     var sequence = authority.Map.Load(SharedMemoryLayout.RequestSequence);
-                    kill(stale.ProcessId, 18).Should().Be(0);
+                    MappedPlatformTestNative.Signal(stale.ProcessId, 18).Should().Be(0);
                     SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.TenureRequest) > sequence,
                         TimeSpan.FromSeconds(5)).Should().BeTrue("resuming renewal takes a new ticket instead of resurrecting expired priority");
                     stale.Send("go"); successor.Send("go");
@@ -104,7 +104,7 @@ namespace LiteDB.Internals
                         peer.Send("close"); peer.Expect("done").GetAwaiter().GetResult(); peer.Finish().GetAwaiter().GetResult();
                     }
                 }
-                finally { kill(stale.ProcessId, 18); }
+                finally { MappedPlatformTestNative.Signal(stale.ProcessId, 18); }
             }
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
             cold.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).OrderBy(id => id).Should().Equal(911, 912);
@@ -151,7 +151,6 @@ namespace LiteDB.Internals
         private static long RemoteBlock(SharedMemoryAuthority authority) => Enumerable.Range(0, authority.Header.Processes)
             .Where(slot => slot != authority.Slot).Select(slot => SharedMemoryLayout.Blocks + (long)slot * authority.Header.Stride)
             .Single(block => authority.Map.Load(block) == 1 && authority.Map.Load(block + SharedMemoryLayout.TenureRequest) > 0);
-        [DllImport("libc", SetLastError = true)] private static extern int kill(int process, int signal);
     }
 }
 #endif

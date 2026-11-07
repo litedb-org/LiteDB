@@ -15,7 +15,7 @@ def classes(stress=False):
     selected = set()
     for path in (ROOT / 'LiteDB.Tests').rglob('*.cs'):
         source = path.read_text(encoding='utf-8-sig')
-        if not re.search(r'\[OneFile(?:Fact|Theory)\b', source):
+        if not re.search(r'\[OneFile(?:Fact|Theory)\b|public class SharedOneFile\w*_Tests', source):
             continue
         namespace = re.search(r'namespace\s+([\w.]+)', source).group(1)
         for name in re.findall(r'public class (\w+_Tests)', source):
@@ -24,6 +24,7 @@ def classes(stress=False):
     selected.add('LiteDB.Internals.SharedPlatformWake_Tests')
     if not stress:
         selected.add('LiteDB.Tests.Engine.SharedIntegrationSeam_Tests')
+        selected.add('LiteDB.Tests.Engine.TestHost_Tests')
     return sorted(selected)
 
 
@@ -56,6 +57,8 @@ def main():
     args = parser.parse_args()
     output = ROOT / 'artifacts_temp/windows-qualification'
     output.mkdir(parents=True, exist_ok=True)
+    os.environ['LITEDB_EXPECTED_RUNTIME_MAJOR'] = args.framework.removeprefix('net').split('.')[0]
+    os.environ['LITEDB_EXPECTED_ARCHITECTURE'] = 'X64'
     selected = classes(args.stress)[args.shard::args.shards]
     report = {'sha': os.environ.get('GITHUB_SHA'), 'framework': args.framework,
               'classes': selected, 'runs': [], 'errors': []}

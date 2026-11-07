@@ -72,9 +72,9 @@ namespace LiteDB.Internals
             var table = SharedMemoryReaderTable.Open(Settings());
             using var local = new SharedMemoryReaders(table);
             table.LiveVersions().Should().Equal(11);
-            kill(first.ProcessId, 19).Should().Be(0);
+            MappedPlatformTestNative.Signal(first.ProcessId, 19).Should().Be(0);
             try { table.LiveVersions().Should().Equal(11); }
-            finally { kill(first.ProcessId, 18).Should().Be(0); }
+            finally { MappedPlatformTestNative.Signal(first.ProcessId, 18).Should().Be(0); }
             await first.Kill();
             table.LiveVersions().Should().BeEmpty();
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
@@ -171,7 +171,6 @@ namespace LiteDB.Internals
         private static IEnumerable<BsonDocument> Documents(int generation) => Enumerable.Range(0, 300).Select(id =>
             new BsonDocument { ["_id"] = id, ["group"] = id % 2, ["generation"] = generation,
                 ["payload"] = new string((char)('a' + generation), 2048) });
-        [DllImport("libc", SetLastError = true)] private static extern int kill(int process, int signal);
         public void Dispose() => Directory.Delete(_directory, true);
     }
 }

@@ -124,7 +124,7 @@ namespace LiteDB.Internals
             // replacement and the saved original data/WAL after publication.
             var path = field == 5 ? files.Log : fields[field == 0 ? 1 : field];
             var alias = path + ".hardlink";
-            link(path, alias).Should().Be(0);
+            MappedPlatformTestNative.Link(path, alias).Should().Be(0);
             try { RefuseWithoutMutation(files.Settings, identityMismatch: true); }
             finally { File.Delete(alias); }
             SharedOneFileMaintenanceCrash_Tests.Recover(files);
@@ -194,7 +194,6 @@ namespace LiteDB.Internals
             await child.Expect("ready");
             await child.Kill();
         }
-        [DllImport("libc", SetLastError = true)] private static extern int link(string original, string alias);
     }
 }
 #endif
