@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      slow_comparison:
+        description: 'Allow 55 minutes for complete comparisons against a slow durable baseline; rounds and thresholds unchanged'
+        required: false
+        default: false
+        type: boolean
       candidate_ref:
         description: 'Optional candidate library SHA/ref (empty uses this branch); harness always comes from workflow ref'
         required: false
@@ -51,7 +56,7 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
+    timeout-minutes: ${{ inputs.slow_comparison && inputs.baseline_ref && 65 || inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -133,6 +138,7 @@ jobs:
           }
       - name: Interleaved configured-round A-B comparison
         env:
+          BENCHMARK_SLOW_COMPARISON: ${{ inputs.slow_comparison }}
           BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
         run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
       - name: Evaluate per-scenario thresholds

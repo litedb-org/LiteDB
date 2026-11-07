@@ -270,7 +270,7 @@ namespace LiteDB.Engine
                 var logName = FileHelper.GetLogFile(this.Filename);
 
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true,
-                    handles: this.SharedFileHandles);
+                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits && !this.SharedMode);
             }
 
             return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);

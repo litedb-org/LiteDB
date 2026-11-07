@@ -64,6 +64,19 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual(len(retired), len(skipped))
                 self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
 
+    def test_wal_handle_replacement_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {
+            'LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_handle_preserves_exclusivity_truncation_and_disposal',
+            'LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_caller_file_stream_retains_buffering_until_flush',
+            'LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_completed_native_writes_preserve_offsets_bytes_and_reopen',
+            'LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_completed_native_write_reports_access_failure_without_mutating_file',
+            'LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_reopens_after_checkpoint_rebuild_and_disposal',
+        }
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
+        self.assertEqual(expected, actual)
+
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
