@@ -47,6 +47,61 @@ namespace LiteDB.Tests.Internals
                 exclusive.Length.Should().Be(1);
         }
 
+        [Fact]
+        public void Wal_completed_native_writes_preserve_offsets_bytes_and_reopen()
+        {
+            using var file = new TempFile();
+            using var factory = new FileStreamFactory(file.Filename, null, false, false, isLog: true);
+            var expected = new byte[32768];
+            new Random(92).NextBytes(expected);
+            using (var stream = (FileStream)factory.GetStream(true, false))
+            using (var writer = new WalFileWrite())
+            {
+                // Bind to FileStream's IOCP first; native writes must suppress packets
+                // whose OVERLAPPED belongs to our stack rather than the runtime.
+                stream.Write(expected, 0, expected.Length);
+                for (var i = 0; i < 100; i++)
+                {
+                    var offset = i % 2 * 16384;
+                    stream.Position = offset;
+                    if (stream.IsAsync) writer.Write(stream, expected, offset, 16384);
+                    else stream.Write(expected, offset, 16384);
+                    stream.Position.Should().Be(offset + 16384);
+                    stream.Length.Should().Be(expected.Length);
+                }
+                stream.SetLength(16384);
+                stream.Position = 16384;
+                if (stream.IsAsync) writer.Write(stream, expected, 16384, 16384);
+                else stream.Write(expected, 16384, 16384);
+                NativeFileSync.FlushDevice(stream.SafeFileHandle, file.Filename);
+                using var reader = (FileStream)factory.GetStream(false, false);
+                reader.IsAsync.Should().BeFalse();
+                var actual = new byte[expected.Length];
+                reader.ReadFully(actual, 0, actual.Length).Should().Be(actual.Length);
+                actual.Should().Equal(expected);
+            }
+            File.ReadAllBytes(file.Filename).Should().Equal(expected);
+        }
+
+        [Fact]
+        public void Wal_completed_native_write_reports_access_failure_without_mutating_file()
+        {
+            using var file = new TempFile();
+            File.WriteAllBytes(file.Filename, new byte[] { 42 });
+            using var stream = new FileStream(file.Filename, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite, 8192, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? FileOptions.Asynchronous : FileOptions.None);
+            using var writer = new WalFileWrite();
+            Action write = () =>
+            {
+                if (stream.IsAsync) writer.Write(stream, new byte[8192], 0, 8192);
+                else stream.Write(new byte[8192], 0, 8192);
+            };
+            write.Should().Throw<Exception>();
+            stream.Length.Should().Be(1);
+            File.ReadAllBytes(file.Filename).Should().Equal(42);
+        }
+
         [Theory]
         [InlineData(false)]
         [InlineData(true)]

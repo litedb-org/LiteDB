@@ -14,6 +14,9 @@ namespace LiteDB.Engine
         private BufferSlice _page, _metadata;
         private readonly WalFileAllocation _allocation = new WalFileAllocation();
         private long _position;
+#if NET8_0_OR_GREATER
+        private WalFileWrite _fileWrite;
+#endif
         internal WalChecksum.Frame LastFrame { get; private set; }
         internal Stream RawStream => _stream;
         private long ContentLength => Math.Max(0, _stream.Length - _checksum.JournalBytes);
@@ -72,7 +75,7 @@ namespace LiteDB.Engine
             var physical = _position / PAGE_SIZE * WalChecksum.FrameSize;
             _stream.Position = physical;
             _allocation.Reserve(_stream, physical + WalChecksum.FrameSize);
-            _stream.Write(_frame, 0, WalChecksum.FrameSize);
+            WriteFrame(WalChecksum.FrameSize);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
         }
@@ -108,9 +111,23 @@ namespace LiteDB.Engine
             Array.Clear(_frame, WalChecksum.FrameSize, count - WalChecksum.FrameSize);
             _stream.Position = physical;
             _allocation.Reserve(_stream, aligned);
-            _stream.Write(_frame, 0, count);
+            WriteFrame(count);
             _checksum.Accept(_page, _position, frame);
             _position += PAGE_SIZE;
+        }
+
+        private void WriteFrame(int count)
+        {
+#if NET8_0_OR_GREATER
+            if (_stream.GetType() == typeof(FileStream) && ((FileStream)_stream).IsAsync &&
+                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Windows))
+            {
+                (_fileWrite ??= new WalFileWrite()).Write((FileStream)_stream, _frame, 0, count);
+                return;
+            }
+#endif
+            _stream.Write(_frame, 0, count);
         }
 
         private void SetFrameSlices()
@@ -158,7 +175,16 @@ namespace LiteDB.Engine
         internal void FlushToDisk() { Pad(); _stream.FlushToDisk(); }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _stream.Dispose();
+            if (disposing)
+            {
+                try { _stream.Dispose(); }
+                finally
+                {
+#if NET8_0_OR_GREATER
+                    _fileWrite?.Dispose();
+#endif
+                }
+            }
             base.Dispose(disposing);
         }
     }

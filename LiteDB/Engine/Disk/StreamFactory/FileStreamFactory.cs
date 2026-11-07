@@ -71,7 +71,7 @@ namespace LiteDB.Engine
             // handles permit independent operations; FileStream still waits for each
             // synchronous Write before its ticket can be captured. Keep sharing unchanged.
             // Shared handle leases retain their existing synchronous-handle contract.
-            if (_isLog && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            if (write && _isLog && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                 System.Runtime.InteropServices.OSPlatform.Windows)) fileOptions |= FileOptions.Asynchronous;
 #endif
 

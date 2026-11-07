@@ -6,8 +6,11 @@ var bytes = new byte[16384];
 new Random(42).NextBytes(bytes);
 for (var round = 0; round < 6; round++)
 foreach (var durable in new[] { false, true })
-foreach (var asyncHandle in round % 2 == 0 ? new[] { false, true } : new[] { true, false })
+foreach (var mode in round % 2 == 0 ? new[] { 0, 1, 2 } : new[] { 2, 1, 0 })
 {
+    var asyncHandle = mode != 0;
+    var nativeEvent = mode == 2;
+    using var writer = new LiteDB.Engine.WalFileWrite();
     var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wal");
     try
     {
@@ -27,7 +30,8 @@ foreach (var asyncHandle in round % 2 == 0 ? new[] { false, true } : new[] { tru
             _ = file.Length;
             length += Stopwatch.GetTimestamp() - stamp;
             stamp = Stopwatch.GetTimestamp();
-            file.Write(bytes);
+            if (nativeEvent) writer.Write(file, bytes, 0, bytes.Length);
+            else file.Write(bytes);
             write += Stopwatch.GetTimestamp() - stamp;
             stamp = Stopwatch.GetTimestamp();
             file.Flush(durable);
@@ -39,7 +43,7 @@ foreach (var asyncHandle in round % 2 == 0 ? new[] { false, true } : new[] { tru
         file.Position = 0;
         var check = new byte[bytes.Length];
         for (var i = 0; i < 5000; i++) { file.ReadExactly(check); if (!check.AsSpan().SequenceEqual(bytes)) throw new Exception("bytes differ"); }
-        results.Add(new { round, durable, asyncHandle, elapsed, write, length, flush, allocated, completed, frequency = Stopwatch.Frequency });
+        results.Add(new { round, durable, asyncHandle, nativeEvent, elapsed, write, length, flush, allocated, completed, frequency = Stopwatch.Frequency });
     }
     finally { File.Delete(path); }
 }
