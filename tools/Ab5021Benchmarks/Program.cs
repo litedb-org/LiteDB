@@ -73,4 +73,4 @@ public sealed class Document
 }
 
 internal sealed record Sample(string scenario, double milliseconds, int operations, long dataBytes, long directoryBytes,
-    int gen0, int gen1, int gen2, long allocatedBytes);
+    int gen0, int gen1, int gen2, long allocatedBytes, double cpuMilliseconds = 0, double gcPauseMilliseconds = 0);

@@ -1,0 +1,55 @@
+name: Phase 1 bulk CPU profile
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v6/wip-p1-bulk-cpu']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, framework: net8.0}
+          - {os: ubuntu-latest, framework: net8.0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build diagnostic harnesses and observe pinned v5 binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force artifacts_temp/p1-bulk-cpu | Out-Null
+          dotnet tool install --global dotnet-trace --version 8.0.547301
+          if ($LASTEXITCODE) { throw 'trace install failed' }
+          foreach ($version in @('V5', 'V6')) {
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $version" }
+          }
+          dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
+          if ($LASTEXITCODE) { throw 'decoder build failed' }
+          dotnet build tools/Ab5021Benchmarks/V5Probe/V5Probe.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:GitVersionEnabled=false --nologo
+          if ($LASTEXITCODE) { throw 'v5 probe build failed' }
+          dotnet 'tools/Ab5021Benchmarks/V5Probe/bin/Release/${{ matrix.framework }}/V5Probe.dll' 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/LiteDB.dll' 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/CheckpointProbe.dll' artifacts_temp/p1-bulk-cpu/v5-probe.json
+          if ($LASTEXITCODE) { throw 'v5 probe insertion failed' }
+      - name: Measure checkpoints and sampled stacks
+        run: python tools/Ab5021Benchmarks/checkpoint-profile.py '${{ matrix.framework }}' artifacts_temp/p1-bulk-cpu
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p1-bulk-cpu-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/p1-bulk-cpu/
+          if-no-files-found: error
+          retention-days: 14

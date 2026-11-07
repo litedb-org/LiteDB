@@ -97,14 +97,33 @@ namespace LiteDB.Engine
         /// </summary>
         private int TryCheckpoint(bool rationed, bool drain = false)
         {
+#if PROFILE
+            CheckpointProfile.Begin(rationed ? "auto" : "explicit-or-close");
+            var profileOutcome = "noop";
+            var profilePages = 0;
+#endif
             var stopBegun = false;
             var stopOwned = false;
-            try { return TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned); }
+            try
+            {
+                var result = TryCheckpointCore(rationed, drain, ref stopBegun, ref stopOwned);
+#if PROFILE
+                profilePages = result;
+                profileOutcome = result > 0 ? "completed" : "noop";
+#endif
+                return result;
+            }
             catch (Exception error)
             {
+#if PROFILE
+                profileOutcome = "failed";
+#endif
                 _disk.StopAfterCheckpointFailure(error, stopBegun, stopOwned);
                 throw;
             }
+#if PROFILE
+            finally { CheckpointProfile.End(profilePages, profileOutcome); }
+#endif
         }
 
         private int TryCheckpointCore(bool rationed, bool drain, ref bool stopBegun, ref bool stopOwned)
@@ -168,8 +187,14 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 if (!reclaim) Reachability.Sometimes("maintenance:checkpoint-during-active-readers");
 #endif
+#if PROFILE
+                CheckpointProfile.Mark("validate");
+#endif
                 var verifiedBody = this.ValidateCheckpoint();
 
+#if PROFILE
+                CheckpointProfile.Mark("select");
+#endif
                 var pages = new List<PagePosition>();
                 foreach (var entry in _index)
                 {
@@ -185,10 +210,22 @@ namespace LiteDB.Engine
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
+#if PROFILE
+                CheckpointProfile.Mark("retirement");
+#endif
                 var retirement = _disk.PrepareRetirement(obsolete);
                 // Retirement appends witness records, invalidating the earlier byte hash.
+#if PROFILE
+                CheckpointProfile.Mark("journal");
+#endif
                 _disk.SyncLogBeforeCheckpoint(retirement == null ? verifiedBody : null);
+#if PROFILE
+                CheckpointProfile.Mark("copy-and-data-sync");
+#endif
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
+#if PROFILE
+                CheckpointProfile.Mark("retire-and-reclaim");
+#endif
                 _backfillVersion = target;
 
                 if (!reclaim) _disk.CompletePartialCheckpoint(retirement);
@@ -205,7 +242,13 @@ namespace LiteDB.Engine
                     _disk.ClearSchemaCache();
                     _disk.Cache.Clear();
                     _disk.CheckpointStage("before-reclaim");
+#if PROFILE
+                    CheckpointProfile.Mark("salt-publication");
+#endif
                     _disk.RotateWalSalt();
+#if PROFILE
+                    CheckpointProfile.Mark("wal-truncate");
+#endif
 #if DEBUG || TESTING
                     _disk.TestCrashPoint("checkpoint-before-clear");
 #endif
@@ -221,6 +264,9 @@ namespace LiteDB.Engine
                     _currentReadVersion = 0;
                     _backfillVersion = 0;
                 }
+#if PROFILE
+                CheckpointProfile.Mark(reclaim ? "full" : "partial");
+#endif
                 return pages.Count;
             }
             catch (Exception error) when (writerEntered)
