@@ -128,6 +128,7 @@ namespace LiteDB
             if (pin != null)
             {
 #if DEBUG || TESTING
+                CoordinationStage?.Invoke("pin-sampled");
                 CoordinationStage?.Invoke("cached-pin");
 #endif
                 if (!(this.UsesMappedTenure && pin.IsIdle)) return null;
