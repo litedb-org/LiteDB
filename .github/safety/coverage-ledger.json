@@ -26,6 +26,17 @@
   ],
   "dispositions": [
     {
+      "id": "p2-rekey-hang-blame-capture",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1",
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing partition, runtime guard, test result and nonzero exit still determines CI failure; the 300-second session ceiling remains.",
+      "reason": "Collect a mini hang dump and active-test sequence after 240 seconds without a completed case, before the session ceiling destroys the evidence. A detected hang still fails the session; no skip, retry-to-green, filter or expected-result change is added. Upload nested collector outputs on failure as well as success."
+    },
+    {
       "id": "p3fx2-shared-retry-proof-guard-rename",
       "kind": "proof-guard-removed",
       "subjects": ["Issue_3094_SharedRetryWriterRelease"],

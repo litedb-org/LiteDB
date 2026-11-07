@@ -680,7 +680,8 @@
         "LiteDB/Client/Shared/SharedEngine.Calls.cs"
       ],
       "targets": [
-        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused"
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+        "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache"
       ],
       "doc": "docs/shared-mode-safety.md",
       "gate": "advisory",

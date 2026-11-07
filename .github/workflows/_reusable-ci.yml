@@ -214,8 +214,9 @@ jobs:
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
             LiteDB.Tests/TestResults/discovered-tests.txt
-            LiteDB.Tests/TestResults/**/*.dmp
             LiteDB.Tests/TestResults/**/Sequence_*.xml
+            LiteDB.Tests/TestResults/**/*.dmp
+            LiteDB.Tests/TestResults/**/vstest-diag-*.log
           if-no-files-found: warn
 
   build-macos:
@@ -302,8 +303,9 @@ jobs:
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
             LiteDB.Tests/TestResults/discovered-tests.txt
-            LiteDB.Tests/TestResults/**/*.dmp
             LiteDB.Tests/TestResults/**/Sequence_*.xml
+            LiteDB.Tests/TestResults/**/*.dmp
+            LiteDB.Tests/TestResults/**/vstest-diag-*.log
           if-no-files-found: warn
 
   build-windows:
@@ -472,8 +474,9 @@ jobs:
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
             LiteDB.Tests/TestResults/discovered-tests.txt
-            LiteDB.Tests/TestResults/**/*.dmp
             LiteDB.Tests/TestResults/**/Sequence_*.xml
+            LiteDB.Tests/TestResults/**/*.dmp
+            LiteDB.Tests/TestResults/**/vstest-diag-*.log
           if-no-files-found: warn
 
   test-windows-framework:
@@ -598,8 +601,9 @@ jobs:
             LiteDB.Tests/TestResults/*.trx
             LiteDB.Tests/TestResults/evidence-leg.json
             LiteDB.Tests/TestResults/discovered-tests.txt
-            LiteDB.Tests/TestResults/**/*.dmp
             LiteDB.Tests/TestResults/**/Sequence_*.xml
+            LiteDB.Tests/TestResults/**/*.dmp
+            LiteDB.Tests/TestResults/**/vstest-diag-*.log
           if-no-files-found: warn
 
   # Always-run oracle evidence (the Fuzz workflow is path-filtered and must never be required):
