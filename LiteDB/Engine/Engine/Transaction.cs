@@ -126,6 +126,13 @@ namespace LiteDB.Engine
 
                 return result;
             }
+            catch (TransactionWaitRefusedException ex) when (!isNew && ReferenceEquals(ex.RequestOwner, transaction.Lease.LockOwner))
+            {
+                // Snapshot lock admission refused before this statement could mutate.
+                // An escaping refusal from a nested callback belongs to another owner
+                // and follows the normal outer-statement rollback path below.
+                throw;
+            }
             catch(Exception ex)
             {
                 var context = TransactionContext.For(this);

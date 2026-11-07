@@ -24,6 +24,7 @@ namespace LiteDB.Engine
             this.ValidatePublicDispatch();
             _state.Validate();
             var context = new TransactionContext(this, (object)_host ?? _disk, _monitor.Owner);
+            using var budget = new TransactionWaitBudget(HandleTimeout);
             context.Transaction = _monitor.CreateTransaction(context.Lease);
             context.Transaction.ExplicitTransaction = true;
             return context;
@@ -35,6 +36,8 @@ namespace LiteDB.Engine
                 _monitor.GetTransactionsSnapshot().Contains(context.Transaction))
                 _monitor.ReleaseTransaction(context.Transaction);
         }
+
+        internal TimeSpan HandleTimeout => _header.Pragmas.Timeout;
 
         internal bool IsHandleReadOnly => _settings.ReadOnly || _settings.ReadOnlyStorage;
         internal Exception HandleUnavailableFailure()

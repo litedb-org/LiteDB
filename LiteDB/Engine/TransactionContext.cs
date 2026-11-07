@@ -9,6 +9,7 @@ namespace LiteDB.Engine
     {
         [ThreadStatic] private static TransactionContext _current;
         [ThreadStatic] private static Ticket _ticket;
+        [ThreadStatic] private static Binding _frames;
         private int _executing;
         internal readonly LiteEngine Engine;
         internal readonly object Host;
@@ -32,12 +33,21 @@ namespace LiteDB.Engine
         internal static TransactionContext For(TransactionMonitor monitor) =>
             ReferenceEquals(_current?.Facade, monitor.Owner) ? _current : null;
 
+        internal static bool IsExecutingOwner(object owner)
+        {
+            for (var frame = _frames; frame != null; frame = frame.PreviousFrame)
+                if (ReferenceEquals(frame.Context.Lease.LockOwner, owner)) return true;
+            return false;
+        }
+
         internal static bool IsThreadClear => _current == null && _ticket == null;
 
         internal T Execute<T>(Func<T> action)
         {
             if (Interlocked.CompareExchange(ref _executing, 1, 0) != 0)
                 throw new InvalidOperationException("A handle already has an executing operation.");
+            using var budget = new TransactionWaitBudget(Engine.HandleTimeout);
+            using var frame = Enter(this);
             var previous = _current;
             var previousTicket = _ticket;
             try
@@ -74,14 +84,18 @@ namespace LiteDB.Engine
 
         private sealed class Binding : IDisposable
         {
+            internal readonly Binding PreviousFrame = _frames;
+            internal readonly TransactionContext Context;
             private readonly TransactionContext _previous = _current;
             private readonly Ticket _previousTicket = _ticket;
             internal Binding(TransactionContext context)
             {
+                Context = context;
+                _frames = this;
                 _current = context;
                 _ticket = null;
             }
-            public void Dispose() { _current = _previous; _ticket = _previousTicket; }
+            public void Dispose() { _frames = PreviousFrame; _current = _previous; _ticket = _previousTicket; }
         }
 
         internal static DispatchScope Dispatch(LiteEngine engine) => new DispatchScope(engine);

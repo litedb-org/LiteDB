@@ -129,9 +129,13 @@ namespace LiteDB.Engine
 
         private bool Wait(TimeSpan timeout, Stopwatch elapsed)
         {
+            foreach (var owner in _readers.Keys)
+                if (TransactionContext.IsExecutingOwner(owner)) throw new TransactionWaitRefusedException(null);
             var remaining = timeout - elapsed.Elapsed;
+            var budget = TransactionWaitBudget.Remaining(timeout);
+            if (budget < remaining) remaining = budget;
             if (remaining <= TimeSpan.Zero) return false;
-            Monitor.Wait(_sync, remaining);
+            TransactionWaitBudget.Wait(_sync, remaining);
             ThrowIfDisposed();
             return true;
         }

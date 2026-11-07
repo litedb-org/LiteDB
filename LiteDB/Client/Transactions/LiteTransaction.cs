@@ -123,6 +123,7 @@ namespace LiteDB
         {
             try
             {
+                using var budget = new TransactionWaitBudget(_transaction.Engine.HandleTimeout);
                 using var binding = TransactionContext.Enter(_transaction);
                 try
                 {
@@ -136,7 +137,7 @@ namespace LiteDB
                 {
                     // Refusals before mutation leave the transaction usable. Any other statement
                     // failure, or one whose engine transaction was rolled back, ends the handle.
-                    if (!TransactionIntact || (!(error is TransactionCapabilityException) &&
+                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is TransactionWaitRefusedException) &&
                         !(_transaction.Engine.IsHandleReadOnly && error is System.IO.IOException))) Abort(error);
                     throw;
                 }

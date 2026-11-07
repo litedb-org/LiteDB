@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace LiteDB.Engine
@@ -15,6 +16,7 @@ namespace LiteDB.Engine
         private readonly object _lock = new object();
         private object _owner;
         private int _depth;
+        private readonly LinkedList<object> _waiters = new LinkedList<object>();
 #if DEBUG || TESTING
         internal Action BeforeWait;
 #endif
@@ -27,24 +29,35 @@ namespace LiteDB.Engine
             var started = Stopwatch.GetTimestamp();
             lock (_lock)
             {
-                while (_owner != null && !ReferenceEquals(_owner, owner))
+                if (ReferenceEquals(_owner, owner)) { _depth++; return true; }
+                var request = _waiters.AddLast(owner);
+                try
                 {
-                    // The other owner can make progress only after this thread returns: a legacy
-                    // transaction of this thread, or a handle executing this callback.
-                    if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
-                    var elapsed = (Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency;
-                    var remaining = timeout - TimeSpan.FromSeconds(elapsed);
-                    if (remaining <= TimeSpan.Zero) return false;
+                    while (_owner != null || !ReferenceEquals(_waiters.First, request))
+                    {
+                        if (TransactionContext.IsExecutingOwner(_owner)) throw new TransactionWaitRefusedException(owner);
+                        if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
+                        var remaining = timeout - TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
+                        remaining = Min(remaining, TransactionWaitBudget.Remaining(timeout));
+                        if (remaining <= TimeSpan.Zero) return false;
 #if DEBUG || TESTING
-                    BeforeWait?.Invoke();
+                        BeforeWait?.Invoke();
 #endif
-                    if (!Monitor.Wait(_lock, remaining)) return false;
+                        TransactionWaitBudget.Wait(_lock, remaining);
+                    }
+                    _owner = owner;
+                    _depth++;
+                    return true;
                 }
-                _owner = owner;
-                _depth++;
-                return true;
+                finally
+                {
+                    _waiters.Remove(request);
+                    Monitor.PulseAll(_lock);
+                }
             }
         }
+
+        private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
 
         public void Exit(object owner)
         {
