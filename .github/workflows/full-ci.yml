@@ -93,3 +93,29 @@ jobs:
         with:
           name: macos-qualification-${{ matrix.runner }}-${{ matrix.framework }}
           path: artifacts_temp/macos-qualification/
+
+  request-expiry-proof:
+    if: inputs.macos_qualification
+    name: Expired request real-revision proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Require the registered old revision to fail and this head to pass
+        shell: pwsh
+        env:
+          LITEDB_EXPECTED_RUNTIME_MAJOR: '8'
+          LITEDB_EXPECTED_ARCHITECTURE: x64
+        run: ./scripts/verify-shared-request-expiry.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: request-expiry-real-revision-proof
+          path: artifacts_temp/request-expiry-proof/
