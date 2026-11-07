@@ -93,6 +93,29 @@ class ReproMatrixTests(unittest.TestCase):
                   if "#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache" in ref}
         self.assertEqual(expected, actual)
 
+    def test_update_index_diff_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Multikey_updates_match_independent_model_and_reopen', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Collation_equivalent_and_changed_unique_keys_preserve_results', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Moving_index_keys_during_update_many_visits_each_document_once', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Unique_failure_rolls_back_data_and_all_index_changes', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Secondary_key_changes_coexist_with_vector_updates_and_reopen'}
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if ref.startswith("LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#")}
+        self.assertEqual(expected, actual)
+
+    def test_primary_key_delete_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Range_matches_old_projection_path_across_pages_rollback_and_reopen',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#String_bounds_use_execution_collation',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Live_readers_keep_their_snapshot_during_delete_and_page_reuse',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Unproven_shapes_use_existing_path',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteFault_Tests.cs#Every_delete_wal_write_failure_recovers_atomic_rows_and_indexes',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteFault_Tests.cs#Interrupted_confirmation_recovers_whole_delete_on_repeated_reopen',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Read_transform_retains_query_callback_semantics',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Same_thread_reader_retains_pre_write_snapshot',
+        }
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if ref.startswith("LiteDB.Tests/Engine/PrimaryKeyDelete")}
+        self.assertEqual(expected, actual)
+
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())

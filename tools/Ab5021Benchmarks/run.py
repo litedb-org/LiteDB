@@ -55,11 +55,21 @@ def summarize(output):
             baseline = [row["milliseconds"] for row in raw if row["scenario"] == scenario and row["config"] == "v5"]
             one_writer = [row["milliseconds"] for row in raw if row["scenario"] == "durable_insert_5k_1_writers"
                           and row["config"] == "dev-default"]
+            metrics = {}
+            samples = [row for row in raw if row["scenario"] == scenario and row["config"] == config]
+            for metric in ("gen0", "gen1", "gen2", "allocatedBytes"):
+                counters = [row.get(metric) for row in samples]
+                if all(value is None for value in counters):
+                    metrics[metric] = None  # Historical artifacts have no counters.
+                elif any(type(value) is not int or value < 0 for value in counters):
+                    raise ValueError(f"Invalid or incomplete {metric}: {scenario} {config}")
+                else:
+                    metrics[metric] = dict(median=statistics.median(counters), min=min(counters), max=max(counters))
             summary.append(dict(scenario=scenario, config=config, medianMs=statistics.median(values),
                                 minMs=min(values), maxMs=max(values),
                                 spreadPercent=(max(values) / min(values) - 1) * 100,
                                 ratio=None if scaling else statistics.median(values) / statistics.median(baseline),
-                                speedupVsOneWriter=statistics.median(one_writer) / statistics.median(values) if scaling else None))
+                                speedupVsOneWriter=statistics.median(one_writer) / statistics.median(values) if scaling else None, **metrics))
     (output / "summary.json").write_text(json.dumps(summary, indent=2))
     with (output / "summary.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(summary[0]))
@@ -92,6 +102,17 @@ def summarize(output):
         if row["scenario"].startswith("durable_insert_"):
             lines.append(f"| {row['scenario']} | {row['medianMs']:.2f} / {row['minMs']:.2f} | "
                          f"{5000000 / row['medianMs']:.1f} | {row['speedupVsOneWriter']:.3f} | {row['spreadPercent']:.1f}% |")
+    lines += ["", "### Timed GC and allocation (median [min, max])", "",
+              "Inherited garbage is collected before each timer; timed collections remain included.",
+              "Process-wide allocation counters include worker threads. Missing historical counters are N/A.", "",
+              "| Scenario | Config | Gen0 | Gen1 | Gen2 | Allocated bytes |",
+              "|---|---|---:|---:|---:|---:|"]
+    for row in summary:
+        def counter(metric):
+            value = row[metric]
+            return "N/A" if value is None else f"{value['median']:g} [{value['min']}, {value['max']}]"
+        lines.append(f"| {row['scenario']} | {row['config']} | " +
+                     " | ".join(counter(metric) for metric in ("gen0", "gen1", "gen2", "allocatedBytes")) + " |")
     markdown = "\n".join(lines) + "\n"
     (output / "summary.md").write_text(markdown, encoding="utf-8")
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
@@ -181,8 +202,14 @@ def main():
                 before_output = output / "before"
                 before_output.mkdir(exist_ok=True)
                 (before_output / result_path.name).write_text(json.dumps(shared, indent=2))
-    if not comparison:
-        summarize(output)
+    summarize(output)
+    if comparison:
+        candidate_sha = os.environ.get("BENCHMARK_CANDIDATE_SHA", "")
+        try:
+            os.environ["BENCHMARK_CANDIDATE_SHA"] = os.environ["BENCHMARK_BASELINE_SHA"]
+            summarize(output / "before")
+        finally:
+            os.environ["BENCHMARK_CANDIDATE_SHA"] = candidate_sha
 
 
 if __name__ == "__main__":

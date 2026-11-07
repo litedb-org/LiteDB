@@ -445,6 +445,32 @@ class BenchmarkGateTests(unittest.TestCase):
             self.assertIn("Lower bound | Upper bound", (self.output / "gate.md").read_text())
             self.assertIn(report["verdict"].upper(), (self.output / "gate.md").read_text())
 
+    def test_timed_counters_report_all_configs_and_scaling_without_changing_gate(self):
+        before = self.evaluate()
+        for path in self.output.glob("round-*.json"):
+            result = json.loads(path.read_text())
+            number = result["round"]
+            for sample in result["samples"]:
+                sample.update(gen0=number, gen1=number // 2, gen2=0, allocatedBytes=number * 1000)
+            path.write_text(json.dumps(result))
+        self.assertEqual(before, self.evaluate())
+        with patch.dict(os.environ, {"RUNNER_OS": "Linux"}), \
+                patch.object(sys, "argv", ["run.py", "net8.0"]), redirect_stdout(io.StringIO()):
+            RUNNER.summarize(self.output)
+        summary = json.loads((self.output / "summary.json").read_text())
+        for row in summary:
+            self.assertEqual(dict(median=3.5, min=1, max=6), row["gen0"])
+            self.assertEqual(dict(median=3500, min=1000, max=6000), row["allocatedBytes"])
+        self.assertIn("3500 [1000, 6000]", (self.output / "summary.md").read_text())
+        with (self.output / "samples.csv").open() as handle:
+            self.assertEqual("1000", next(csv.DictReader(handle))["allocatedBytes"])
+        for metric, invalid in (("gen0", -1), ("gen1", True), ("gen2", None), ("allocatedBytes", 1.5)):
+            original = self.path("v5", 1).read_text()
+            self.change("v5", 1, lambda r: r["samples"][0].update({metric: invalid}))
+            with patch.dict(os.environ, {"RUNNER_OS": "Linux"}), self.assertRaisesRegex(ValueError, metric):
+                RUNNER.summarize(self.output)
+            self.path("v5", 1).write_text(original)
+
     def test_runner_summary_and_alternating_order(self):
         orders = [RUNNER.execution_order(number) for number in range(1, 7)]
         for candidate in ("dev-default", "dev-os-cache"):
@@ -459,6 +485,7 @@ class BenchmarkGateTests(unittest.TestCase):
         for row in summary:
             self.assertEqual(100, row["medianMs"])
             self.assertEqual(100, row["minMs"])
+            self.assertIsNone(row["allocatedBytes"])
         self.assertIn("v6 scaling only", summary_path.read_text())
 
 

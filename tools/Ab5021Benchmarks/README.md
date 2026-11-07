@@ -97,6 +97,23 @@ integer id, unique secondary integer Key, unindexed integer Value, and a
 96-character hexadecimal payload. Collation is ordinal invariant; connection is
 Direct, unencrypted, with no initial size. OS caches are not cleared.
 
+Before **every scenario timer**, including warmup and durable writer scaling,
+the shared harness runs `GC.Collect()`, `GC.WaitForPendingFinalizers()`, then
+`GC.Collect()`. This is the default for v5.0.21, before and after alike. Earlier
+measurements inherited garbage from preceding verification/warmup/workloads;
+allocation savings could move a collection into the next scenario and create
+apparent regressions even in unchanged open/close code (A/A medians swung up to
+1.33x). Normalisation removes that inherited garbage; all collections triggered
+inside the timed region still count fully. This changes the measurement method,
+not thresholds, rounds, scenarios, workload checks or gate evaluation.
+
+Raw samples and JSON/CSV/Markdown summaries record timed gen0/1/2 collections
+and process-wide allocated bytes, including writer threads, as medians and
+observed minima/maxima. Counters bracket the timer and exclude normalisation,
+setup and verification. Allocation regressions therefore remain visible.
+Historical reports without counters show N/A; compare revisions using the same
+normalised harness, rather than treating old and new timings as interchangeable.
+
 Each round creates separate main, small-transaction and checkpoint databases.
 Main scenarios run in a fixed order with matching state. Main and small DBs
 retain CHECKPOINT=1000. Bulk insert includes BeginTrans, Insert(100k), Commit and

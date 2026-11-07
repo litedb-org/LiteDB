@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using LiteDB;
 
 namespace Ab5021Benchmarks;
@@ -207,9 +206,9 @@ internal sealed class Workload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
-        var watch = Stopwatch.StartNew();
+        var measurement = new ScenarioMeasurement();
         action();
-        watch.Stop();
+        measurement.Stop();
         if (!_record)
         {
             Console.WriteLine($"{_config} warmup finished {scenario}");
@@ -217,8 +216,9 @@ internal sealed class Workload
         }
         if (Selected != null && !Selected.Contains(scenario)) return;
         var totalBytes = Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length);
-        Samples.Add(new Sample(scenario, watch.Elapsed.TotalMilliseconds, operations, new FileInfo(path).Length, totalBytes));
-        Console.WriteLine($"{_config} {scenario}: {watch.Elapsed.TotalMilliseconds:F3} ms");
+        Samples.Add(new Sample(scenario, measurement.Milliseconds, operations, new FileInfo(path).Length, totalBytes,
+            measurement.Gen0, measurement.Gen1, measurement.Gen2, measurement.AllocatedBytes));
+        Console.WriteLine($"{_config} {scenario}: {measurement.Milliseconds:F3} ms");
     }
 
     private static void Require(bool value, string message)
