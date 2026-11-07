@@ -90,14 +90,46 @@ internal sealed class Workload
             Verify(col, _count / 10);
             db.Checkpoint();
         }
+        var diagnostics = _record && Environment.GetEnvironmentVariable("BENCHMARK_OPENCLOSE_DIAGNOSTICS") == "true";
+        var phases = diagnostics ? new List<(double Open, double Query, double Dispose)>(20) : null;
+        var gcBefore = diagnostics ? new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) } : null;
+        var allocatedBefore = diagnostics ? GC.GetTotalAllocatedBytes(false) : 0;
         Measure("open_close_20x", 20, path, () =>
         {
             for (var i = 0; i < 20; i++)
             {
-                using var db = Open(path);
-                Require(db.GetCollectionNames().Single() == "documents", "open collection");
+                if (!diagnostics)
+                {
+                    using var db = Open(path);
+                    Require(db.GetCollectionNames().Single() == "documents", "open collection");
+                    continue;
+                }
+                var start = Stopwatch.GetTimestamp();
+                var opened = Open(path);
+                var afterOpen = Stopwatch.GetTimestamp();
+                try { Require(opened.GetCollectionNames().Single() == "documents", "open collection"); }
+                finally
+                {
+                    var afterQuery = Stopwatch.GetTimestamp();
+                    opened.Dispose();
+                    var afterDispose = Stopwatch.GetTimestamp();
+                    var scale = 1000.0 / Stopwatch.Frequency;
+                    phases!.Add(((afterOpen - start) * scale, (afterQuery - afterOpen) * scale,
+                        (afterDispose - afterQuery) * scale));
+                }
             }
         });
+        if (diagnostics)
+        {
+            Console.WriteLine("OPEN_PHASES " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                config = _config,
+                openMs = phases!.Sum(p => p.Open), queryMs = phases.Sum(p => p.Query),
+                disposeMs = phases.Sum(p => p.Dispose),
+                gc = Enumerable.Range(0, 3).Select(g => GC.CollectionCount(g) - gcBefore![g]).ToArray(),
+                allocatedBytes = GC.GetTotalAllocatedBytes(false) - allocatedBefore
+            }));
+        }
         using (var db = Open(path)) Verify(db.GetCollection<Document>("documents"), _count / 10);
         if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
         if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
