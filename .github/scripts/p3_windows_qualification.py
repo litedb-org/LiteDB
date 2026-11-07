@@ -15,10 +15,12 @@ def classes(stress=False):
     selected = set()
     for path in (ROOT / 'LiteDB.Tests').rglob('*.cs'):
         source = path.read_text(encoding='utf-8-sig', errors='replace')
-        if not re.search(r'\[OneFile(?:Fact|Theory)\b|public class SharedOneFile\w*_Tests', source):
+        names = re.findall(r'public\s+(?:(?:sealed|partial)\s+)*class\s+(\w+_Tests)\b', source)
+        if not re.search(r'\[OneFile(?:Fact|Theory)\b', source) and not any(
+                name.startswith('SharedOneFile') for name in names):
             continue
         namespace = re.search(r'namespace\s+([\w.]+)', source).group(1)
-        for name in re.findall(r'public class (\w+_Tests)', source):
+        for name in names:
             if not stress or 'SharedWriterTenure' in name or 'Process' in name:
                 selected.add(namespace + '.' + name)
     selected.add('LiteDB.Internals.SharedPlatformWake_Tests')

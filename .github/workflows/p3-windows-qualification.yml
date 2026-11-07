@@ -30,29 +30,6 @@ jobs:
         with:
           name: windows-mapped-${{ matrix.framework }}-${{ matrix.shard }}
           path: artifacts_temp/windows-qualification
-  stress:
-    runs-on: windows-2025
-    timeout-minutes: 180
-    strategy:
-      fail-fast: false
-      matrix:
-        framework: [net8.0, net10.0]
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-      - run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
-      - name: Repeat tenure, native wake, coherence and process-death classes fifty times
-        run: python .github/scripts/p3_windows_qualification.py --framework ${{ matrix.framework }} --stress --repeat 50 --shard ${{ matrix.shard }} --shards 8
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: windows-stress-${{ matrix.framework }}-${{ matrix.shard }}
-          path: artifacts_temp/windows-qualification
   refusal:
     runs-on: windows-2025
     strategy:

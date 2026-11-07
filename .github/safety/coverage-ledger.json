@@ -681,11 +681,12 @@
       "kind": "ci-test-config-changed",
       "subjects": [
         ".github/workflows/p3-windows-qualification.yml",
-        ".github/scripts/p3_windows_qualification.py"
+        ".github/scripts/p3_windows_qualification.py",
+        ".github/workflows/p3-windows-stress.yml"
       ],
       "disposition": "strengthened",
       "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
-      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific."
+      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific. Full matrix and stress are independent workflows, retaining every original job command, runtime, shard, assertion, timeout and fifty-repeat bound. Three complete full-matrix runs plus one complete stress campaign qualify the exact final head; no test or job is conditionally skipped. Class discovery includes sealed/partial declarations."
     },
     {
       "id": "p3-windows-registry-platform-contracts",

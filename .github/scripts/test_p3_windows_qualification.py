@@ -28,7 +28,8 @@ class WindowsQualificationTests(unittest.TestCase):
         full = classes()
         stress = classes(True)
         for name in ['SharedOneFileBootstrap', 'SharedOneFileRekey', 'SharedOneFileRebuildPowerLoss',
-                     'SharedOneFileFinalClose', 'SharedOneFileMaintenance', 'SharedOneFileLock']:
+                     'SharedOneFileFinalClose', 'SharedOneFileMaintenance', 'SharedOneFileLock',
+                     'SharedOneFileTransactionOwnership']:
             self.assertIn('LiteDB.Internals.' + name + '_Tests', full)
         for name in ['SharedWriterTenure', 'SharedWriterTenureCoherenceBreadth', 'SharedWriterTenureProcess',
                      'SharedPlatformWake']:
