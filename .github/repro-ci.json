@@ -11,7 +11,12 @@
     "reason": "Fixed initialization cleanup regression is covered by file-backed failure/retry tests and stream ownership tests.",
     "tests": [
       "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
-      "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams"
+      "LiteDB.Tests/Internals/StreamOwnership_Tests.cs#DiskServiceCtor_Failure_DisposesWrappers_ButNotCallerStreams",
+      "LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_handle_preserves_exclusivity_truncation_and_disposal",
+      "LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_caller_file_stream_retains_buffering_until_flush",
+      "LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_completed_native_writes_preserve_offsets_bytes_and_reopen",
+      "LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_completed_native_write_reports_access_failure_without_mutating_file",
+      "LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#Wal_reopens_after_checkpoint_rebuild_and_disposal"
     ]
   },
   "Issue_3027_StreamDatabaseDispose": {
