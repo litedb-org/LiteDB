@@ -19,6 +19,10 @@ The existing participant token, writer tenure budget and native holder thread st
 in place. No new participant, child core or mutex holder pool is introduced.
 
 Lock ordering: path admission precedes Direct lifecycle/registry admission.
+Cold opening reserves the physical entry under the registry gate, constructs the
+core outside that gate (including recovery/upgrade replacement opens), then
+publishes it and wakes peers. Failed construction releases its admission and
+reservation before peers retry; same-file peers cannot construct a second core.
 Maintenance retains lifecycle serialization while waiting on transaction admission;
 the registry gate is released first. Transaction admission precedes WAL transaction
 ID allocation. Collection snapshots precede header/WAL publication. Existing header

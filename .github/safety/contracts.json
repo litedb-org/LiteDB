@@ -31,6 +31,7 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/DirectProcessHostLifecycle_Tests.cs#Cold_open_releases_registry_and_wakes_same_file_waiters_after_success_or_failure", "model": "exception", "proves": "Forced cold-open success/failure interleavings allow an unrelated host to open, serialize same-file peers and preserve the sentinel across fresh opens."},
         {"test": "LiteDB.Tests/Engine/OwnershipLease_Tests.cs#Monitor_handle_release_preserves_unrelated_legacy_slot_and_file_state", "model": "exception", "proves": "Independent handle admission/release on foreign threads preserves the legacy transaction registry entry and file-backed sentinel across reopening."},
         {"test": "LiteDB.Tests/Engine/OwnershipLease_Tests.cs#Collection_waiter_advances_only_after_final_owner_release", "proves": "Forced waiter/holder interleaving cannot advance until the exact owner releases its collection lock."},
         {"test": "LiteDB.Tests/Engine/OwnershipLease_Tests.cs#Shared_handle_survives_creator_exit_and_stale_cleanup_cannot_release_successor", "proves": "Logical Shared local ownership survives creator-thread death; delayed cleanup cannot release a successor generation."},
