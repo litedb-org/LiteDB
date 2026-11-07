@@ -649,6 +649,16 @@
       "disposition": "strengthened",
       "invariant": "Candidate retains all merged update/delete tests and index/vector fuzz; historical phase1 comparison executes the same nine update guards from the accepted update candidate.",
       "reason": "Restore the accepted update test tree only after all candidate tests and fuzz complete, alongside unchanged phase1 production source. The integrated delete guards reference a new internal helper absent from the historical production library and otherwise prevent baseline compilation. No candidate filter, assertions, rounds or runtime legs change; original baseline update guards remain byte-identical."
+    },
+    {
+      "id": "p1-bench-budget-windows-comparison",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
+      "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
     }
   ]
 }

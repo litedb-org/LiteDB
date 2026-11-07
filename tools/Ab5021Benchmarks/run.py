@@ -21,6 +21,16 @@ def rounds_for_os(operating_system):
     return GATE_CONFIG.get("roundsByOS", {}).get(operating_system, ROUNDS)
 
 
+def measurement_budgets(comparison, operating_system, slow_comparison=False):
+    # Windows rounds observed up to 482s: six rounds need 48.2 minutes.
+    # Cap the complete comparison at 55 minutes; retain the default 360s
+    # child deadline so more total measurement time cannot hide a child hang.
+    extended = comparison and (operating_system == "Windows" or slow_comparison)
+    child = 900 if comparison and slow_comparison else 360
+    total = 55 * 60 if extended else 23 * 60 if comparison else 24 * 60 if operating_system == "macOS" else 35 * 60
+    return child, total
+
+
 def execution_order(round_number):
     return CONFIGS if round_number % 2 else list(reversed(CONFIGS))
 
@@ -154,8 +164,9 @@ def main():
     start = time.monotonic()
     rounds = rounds_for_os(os.environ["RUNNER_OS"])
     slow_comparison = comparison and os.environ.get("BENCHMARK_SLOW_COMPARISON") == "true"
-    child_budget = 900 if slow_comparison else 360
-    budget = 55 * 60 if slow_comparison else 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
+    child_budget, budget = measurement_budgets(comparison, os.environ["RUNNER_OS"], slow_comparison)
+    metadata["measurementBudgetSeconds"] = budget
+    metadata["childBudgetSeconds"] = child_budget
     for round_number in range(1, rounds + 1):
         # Filtered to either A/B pair, this gives A,B,B,A,A,B,B,A,...
         order = comparison_order(round_number) if comparison else [("after", c) for c in execution_order(round_number)]
@@ -179,6 +190,7 @@ def main():
             identity = dict(round=round_number, config=config)
             if comparison:
                 identity["variant"] = variant
+            child_start = time.monotonic()
             try:
                 child = subprocess.run(command, env=child_env, text=True, stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT, timeout=min(child_budget, remaining))
@@ -187,12 +199,12 @@ def main():
                 if isinstance(partial, bytes):
                     partial = partial.decode(errors="replace")
                 (child_output / f"round-{round_number}-{config}.log").write_text(partial, encoding="utf-8")
-                metadata["order"].append(dict(identity, error="child timeout"))
+                metadata["order"].append(dict(identity, error="child timeout", elapsedSeconds=time.monotonic() - child_start))
                 (output / "environment.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
                 raise
             (child_output / f"round-{round_number}-{config}.log").write_text(child.stdout, encoding="utf-8")
             print(child.stdout, flush=True)
-            metadata["order"].append(dict(identity, exitCode=child.returncode))
+            metadata["order"].append(dict(identity, exitCode=child.returncode, elapsedSeconds=time.monotonic() - child_start))
             (output / "environment.json").write_text(json.dumps(metadata, indent=2))
             child.check_returncode()
             if comparison and variant == "v5":

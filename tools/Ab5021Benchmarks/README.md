@@ -66,7 +66,25 @@ max(after)/min(before) bounds. These bounds are not confidence intervals.
 `gate.csv` distinguishes after/v5, before/v5 and after/before rows; `gate.md`
 and the job log/summary include all three tables.
 
-Comparison jobs have a 23-minute measurement budget and 29-minute job timeout.
+Windows comparison jobs have a capped 55-minute measurement budget and a
+65-minute job timeout (including builds/artifact upload). Other comparison jobs
+retain 23/29 minutes unless `slow_comparison` explicitly selects 55/65 minutes.
+The default per-child timeout remains 360 seconds on every OS; the existing
+explicit slow mode retains 900 seconds. Both the child limit and remaining total
+budget bound every subprocess; incomplete measurements fail, with partial logs.
+Each child elapsed time and both budgets are recorded in `environment.json`.
+
+Budget evidence: runs 42367092376/42367095004 completed Windows comparisons using
+explicit slow mode, with complete rounds about 180–334 seconds. Run 42372017467
+attempts 1/2 used the 23-minute default and exhausted it: complete rounds were
+245–482 seconds; six at the observed maximum require 48.2 minutes. The 55-minute
+ceiling adds about 14% headroom without changing the 360-second child deadline
+(observed completed children were at most 215 seconds). Both revisions and v5
+slowed on these runners; earlier successful comparisons already used identical
+GC normalisation/counters. Timed durable inserts dominate default-child cost;
+these logs do not separate GC from other untimed setup/verification overhead.
+This is a measurement throughput budget, not evidence of a mapper regression.
+No rounds, scenarios, workload checks, thresholds or noise rules change.
 To keep targeted investigations within that budget, `comparison_scenarios` may
 select a comma-separated subset of the ordinary scenario names in `gate.json`.
 Subsets require `baseline_ref`: **all results are report-only and no gate verdict
