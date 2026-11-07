@@ -58,7 +58,12 @@ namespace LiteDB.Engine
                     // A failed safepoint discarded pages this transaction changed: never publish the rest.
                     if (transaction.WriteFailure != null)
                     {
-                        this.RollbackAndReleaseTransaction(transaction);
+                        try { this.RollbackAndReleaseTransaction(transaction); }
+                        finally
+                        {
+                            var context = TransactionContext.For(this);
+                            if (context != null) context.Outcome = LiteTransactionState.Failed;
+                        }
                         throw TransactionService.WriteFailed(transaction.WriteFailure);
                     }
 
@@ -123,6 +128,8 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
+                var context = TransactionContext.For(this);
+                if (context != null) context.Outcome = LiteTransactionState.Failed;
                 if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
                     // Constraint errors can also reveal a pending predecessor.
@@ -132,6 +139,7 @@ namespace LiteDB.Engine
                     {
                         try { this.RollbackAndReleaseTransaction(transaction); }
                         catch (Exception cleanup) { ex.Data["LiteDB.StatementRollback"] = cleanup; }
+                        finally { context.Outcome = LiteTransactionState.Failed; }
                     }
                     else this.RollbackAndReleaseTransaction(transaction);
 
@@ -150,9 +158,14 @@ namespace LiteDB.Engine
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
             var state = _state;
+            var context = TransactionContext.For(this);
+            if (context != null) context.Outcome = LiteTransactionState.Indeterminate;
             try
             {
                 transaction.Commit();
+                // Commit returns only after the current durable-prefix ticket is covered.
+                // Record that fact before cleanup can throw or dispose the service.
+                if (context != null) context.Outcome = LiteTransactionState.Committed;
                 _monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
@@ -187,9 +200,12 @@ namespace LiteDB.Engine
 
         private void RollbackAndReleaseTransaction(TransactionService transaction)
         {
+            var context = TransactionContext.For(this);
+            if (context != null) context.Outcome = LiteTransactionState.Failed;
             try
             {
                 transaction.Rollback();
+                if (context != null) context.Outcome = LiteTransactionState.RolledBack;
                 _monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)

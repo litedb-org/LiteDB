@@ -16,6 +16,7 @@ namespace LiteDB.Engine
         internal readonly TransactionLease Lease;
         internal TransactionService Transaction;
         internal bool Aborted;
+        internal volatile LiteTransactionState Outcome = LiteTransactionState.Active;
 
         internal TransactionContext(LiteEngine engine, object host, object facade)
         {

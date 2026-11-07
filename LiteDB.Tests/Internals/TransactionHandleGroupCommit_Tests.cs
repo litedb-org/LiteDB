@@ -64,6 +64,7 @@ namespace LiteDB.Tests.Internals
                     }
                     else handles[index].Invoke(e => e.Insert("rows", new[] { TransactionHandleProcessHost_Tests.Row(index + 1) }, BsonAutoId.Int32));
                     Assert.True(handles[index].Invoke(e => e.Commit()));
+                    Assert.Equal(LiteTransactionState.Committed, handles[index].Outcome);
                     Interlocked.Increment(ref acknowledged);
                     return null;
                 }
@@ -97,6 +98,7 @@ namespace LiteDB.Tests.Internals
                 else
                 {
                     Assert.All(tasks.Skip(failingSync - 1), task => Assert.IsAssignableFrom<IOException>(task.Result));
+                    Assert.All(handles.Skip(failingSync - 1), handle => Assert.Equal(LiteTransactionState.Indeterminate, handle.Outcome));
                     foreach (var engine in engines)
                         Assert.ThrowsAny<IOException>(() => engine.Insert("escape", new[] { TransactionHandleProcessHost_Tests.Row(99) }, BsonAutoId.Int32));
                 }

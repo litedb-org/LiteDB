@@ -101,6 +101,7 @@ namespace LiteDB.Tests.Engine
             Assert.Equal(3, Count(engine, "rows"));
             var failed = engine.BeginHandleTransaction();
             Assert.Throws<LiteException>(() => failed.Invoke(e => e.Insert("rows", new[] { Row(1) }, BsonAutoId.Int32)));
+            Assert.Equal(LiteTransactionState.Failed, failed.Outcome);
             Assert.Throws<InvalidOperationException>(() => failed.Invoke(e => e.Insert("escape", new[] { Row(4) }, BsonAutoId.Int32)));
             Assert.Equal(0, Count(engine, "escape"));
         }
@@ -119,6 +120,7 @@ namespace LiteDB.Tests.Engine
                 handle.Execute(() => { reader.Dispose(); return true; });
             }
             Assert.True(handle.Invoke(e => e.Commit()));
+            Assert.Equal(LiteTransactionState.Committed, handle.Outcome);
             Assert.Throws<InvalidOperationException>(() => handle.Invoke(e => e.Query("rows", new Query())));
             Assert.True(TransactionContext.IsThreadClear);
         }
@@ -134,6 +136,36 @@ namespace LiteDB.Tests.Engine
             Assert.Throws<NotSupportedException>(() => handle.Invoke(e => decorated.Update("rows", new[] { Row(1) })));
             Assert.True(handle.Invoke(e => e.Commit()));
             Assert.True(TransactionContext.IsThreadClear);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Known_completion_outcome_survives_cleanup_failure(bool commit)
+        {
+            using var file = new TempFile();
+            using (var engine = new LiteEngine(file.Filename))
+            {
+                engine.Insert("sentinel", new[] { Row(7) }, BsonAutoId.Int32);
+                var handle = engine.BeginHandleTransaction();
+                handle.Invoke(e => e.Insert("rows", new[] { Row(1) }, BsonAutoId.Int32));
+                var monitor = (TransactionMonitor)typeof(LiteEngine).GetField("_monitor",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(engine);
+                var failure = new InvalidOperationException("completion cleanup");
+                monitor.AfterTransactionExit = () => throw failure;
+                try
+                {
+                    Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => handle.Invoke(e => commit ? e.Commit() : e.Rollback())));
+                    Assert.Equal(commit ? LiteTransactionState.Committed : LiteTransactionState.RolledBack, handle.Outcome);
+                }
+                finally { monitor.AfterTransactionExit = null; }
+            }
+            for (var open = 0; open < 2; open++)
+            {
+                using var engine = new LiteEngine(file.Filename);
+                Assert.Equal(1, Count(engine, "sentinel"));
+                Assert.Equal(commit ? 1 : 0, Count(engine, "rows"));
+            }
         }
 
         [Fact]

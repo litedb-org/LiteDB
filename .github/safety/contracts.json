@@ -31,6 +31,7 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/TransactionHandleProcessHost_Tests.cs#Known_completion_outcome_survives_cleanup_failure", "model": "exception", "proves": "Known ticket-covered commit or successful rollback remains distinguishable after transaction-exit cleanup throws; two reopens preserve exact rows and an unrelated sentinel."},
         {"test": "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs#Handle_tickets_cover_captured_prefix_and_zero_frame_dependencies", "model": "exception", "proves": "Handle leader/follower and zero-frame dependencies acknowledge only the captured durable prefix; failed sync poisons all facades and repeated recovery preserves acknowledged rows and indexes."},
         {"test": "LiteDB.Tests/Engine/TransactionHandleInterleaving_Tests.cs#Forced_histories_preserve_independent_handles_and_reopen", "model": "exception", "proves": "Forced logical-owner lock contention preserves independent commit/rollback outcomes, plaintext/encrypted rows and indexed results through two reopens."},
         {"test": "LiteDB.Tests/Engine/DirectProcessHostLifecycle_Tests.cs#Cold_open_releases_registry_and_wakes_same_file_waiters_after_success_or_failure", "model": "exception", "proves": "Forced cold-open success/failure interleavings allow an unrelated host to open, serialize same-file peers and preserve the sentinel across fresh opens."},
