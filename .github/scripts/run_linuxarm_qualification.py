@@ -67,7 +67,7 @@ def main():
     major = args.framework[3:].split('.')[0]
     os.environ['LITEDB_EXPECTED_RUNTIME_MAJOR'] = major
     os.environ['LITEDB_EXPECTED_ARCHITECTURE'] = 'arm64'
-    os.environ['DOTNET_ROLL_FORWARD'] = 'Disable'
+    os.environ['DOTNET_ROLL_FORWARD'] = 'LatestPatch'
     assembly = root / f'LiteDB.Tests/bin/Release/{args.framework}/LiteDB.Tests.dll'
     base = ['dotnet', 'vstest', str(assembly), f'/Framework:.NETCoreApp,Version=v{major}.0',
             '/Platform:arm64']
