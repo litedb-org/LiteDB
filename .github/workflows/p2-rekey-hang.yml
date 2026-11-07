@@ -67,6 +67,15 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Iteration $iteration failed with exit $LASTEXITCODE" }
             "PASS $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
           }
+      - name: Analyze captured hang on matching architecture
+        if: failure() && matrix.arch != 'x86'
+        shell: pwsh
+        run: |
+          dotnet tool install dotnet-dump --tool-path ./dump-tools
+          $tool = if ($IsWindows) { './dump-tools/dotnet-dump.exe' } else { './dump-tools/dotnet-dump' }
+          Get-ChildItem LiteDB.Tests/TestResults -Filter '*hangdump.dmp' -Recurse | Select-Object -First 1 | ForEach-Object {
+            & $tool analyze $_.FullName -c 'clrthreads' -c 'clrstack -all' -c 'syncblk' -c 'exit' 2>&1 | Tee-Object LiteDB.Tests/TestResults/hang-stacks.txt
+          }
       - name: Upload all sequences, dumps, results and iteration counts
         if: always()
         uses: actions/upload-artifact@v4
