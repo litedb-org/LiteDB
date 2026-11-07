@@ -122,10 +122,16 @@ namespace LiteDB.Internals
                 var block = RemoteBlock(table.Authority);
                 var expiry = table.Authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
                 using var published = new ManualResetEventSlim();
+                using var resume = new ManualResetEventSlim();
                 Exception failure = null;
                 var waiter = new Thread(() =>
                 {
-                    SharedWriterRequests.RequestStage = stage => { if (stage == "request-published") published.Set(); };
+                    SharedWriterRequests.RequestStage = stage =>
+                    {
+                        if (stage != "request-published") return;
+                        published.Set();
+                        resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                    };
                     try { failure = Record.Exception(() => target.BeginTrans()); }
                     finally { SharedWriterRequests.RequestStage = null; }
                 }) { IsBackground = true };
@@ -135,12 +141,19 @@ namespace LiteDB.Internals
                     published.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     SpinWait.SpinUntil(() => table.Authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) > expiry,
                         TimeSpan.FromSeconds(5)).Should().BeTrue();
-                    target.Dispose();
+                    var closing = System.Threading.Tasks.Task.Run(() => target.Dispose());
+                    try
+                    {
+                        SpinWait.SpinUntil(() => Field<int>(target, "_disposed") != 0,
+                            TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    }
+                    finally { resume.Set(); }
+                    closing.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     failure.Should().BeOfType<ObjectDisposedException>();
                     table.Closed.Should().BeTrue();
                 }
-                finally { target.Dispose(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+                finally { resume.Set(); target.Dispose(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
                 older.Send("go"); older.Expect("waiting-main").GetAwaiter().GetResult(); older.Expect("ready").GetAwaiter().GetResult();
                 older.Send("close"); older.Expect("done").GetAwaiter().GetResult(); older.Finish().GetAwaiter().GetResult();
             }

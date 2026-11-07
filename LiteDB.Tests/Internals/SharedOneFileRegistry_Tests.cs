@@ -212,8 +212,11 @@ namespace LiteDB.Internals
                 File.CreateSymbolicLink(alias, Filename);
                 using var second = new SharedEngine(Settings(alias));
                 second.MappedReaderTable.Should().BeSameAs(first.MappedReaderTable);
-                using var distinct = new SharedEngine(Settings(Path.Combine(_directory, "Test.db")));
-                distinct.MappedReaderTable.Should().NotBeSameAs(first.MappedReaderTable);
+                var casePath = Path.Combine(_directory, "Test.db");
+                var aliasesExistingFile = File.Exists(casePath); // Probe the actual volume, including case-sensitive APFS.
+                using var distinct = new SharedEngine(Settings(casePath));
+                if (aliasesExistingFile) distinct.MappedReaderTable.Should().BeSameAs(first.MappedReaderTable);
+                else distinct.MappedReaderTable.Should().NotBeSameAs(first.MappedReaderTable);
                 File.WriteAllBytes(FileHelper.GetLogFile(alias), new byte[] { 1, 2, 3 });
                 Action badAlias = () => { using var bad = new SharedEngine(Settings(alias)); };
                 badAlias.Should().Throw<IOException>().WithMessage("*separate WAL*");
