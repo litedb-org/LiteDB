@@ -298,7 +298,12 @@ namespace LiteDB
                 CloseReadersAndRollback(onlyIfActive);
                 _transaction.Outcome = LiteTransactionState.RolledBack;
             }
-            catch (Exception error) { failure = error; _transaction.Outcome = LiteTransactionState.Failed; throw; }
+            catch (Exception error)
+            {
+                failure = error;
+                if (_transaction.Outcome == LiteTransactionState.Active) _transaction.Outcome = LiteTransactionState.Failed;
+                throw;
+            }
             finally { ReleaseResources(failure); }
         }
 

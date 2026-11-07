@@ -98,6 +98,38 @@ namespace LiteDB.Tests.Engine
             Assert.Throws<ArgumentNullException>(() => ((ILiteDatabase)null).BeginTransaction());
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Public_completion_preserves_known_outcome_when_cleanup_throws(bool commit)
+        {
+            using var file = new TempFile();
+            using (var engine = new LiteEngine(file.Filename))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 7 });
+                using var tx = db.BeginTransaction();
+                tx.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+                var monitor = (TransactionMonitor)typeof(LiteEngine).GetField("_monitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                var failure = new InvalidOperationException("completion cleanup");
+                monitor.AfterTransactionExit = () => throw failure;
+                try
+                {
+                    Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => { if (commit) tx.Commit(); else tx.Rollback(); }));
+                    Assert.Equal(commit ? LiteTransactionState.Committed : LiteTransactionState.RolledBack, tx.State);
+                    Assert.Throws<InvalidOperationException>(() => tx.GetCollection("escape"));
+                }
+                finally { monitor.AfterTransactionExit = null; }
+            }
+            for (var open = 0; open < 2; open++)
+            {
+                using var db = new LiteDatabase(file);
+                Assert.NotNull(db.GetCollection("sentinel").FindById(7));
+                Assert.Equal(commit ? 1 : 0, db.GetCollection("rows").Count());
+                Assert.False(db.CollectionExists("escape"));
+            }
+        }
+
         [Fact]
         public void Legacy_attributes_are_warning_only_on_both_client_contracts()
         {
