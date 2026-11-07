@@ -7,6 +7,9 @@ using var log = new TraceLog(etlx);
 if (log.EventsLost != 0) throw new Exception($"Trace lost {log.EventsLost} events; counts are incomplete");
 var rows = new List<object>();
 string scenario = null;
+double syncBegin = -1, syncMs = 0;
+string syncKind = null;
+var syncTimes = new Dictionary<string, double>();
 double begin = 0, gcPauseBegin = -1, gcPauseMs = 0;
 var runtimeEvents = new Dictionary<string, long>();
 var buckets = new Dictionary<string, long>();
@@ -36,6 +39,7 @@ foreach (var e in log.Events)
         {
             scenario = (string)e.PayloadValue(0);
             begin = e.TimeStampRelativeMSec;
+            syncBegin = -1; syncMs = 0; syncTimes.Clear();
             gcPauseBegin = -1; gcPauseMs = 0; runtimeEvents.Clear(); buckets.Clear();
             samples = missing = syncs = groups = commits = piggybacks = 0;
             inclusive.Clear(); exclusive.Clear(); sizes.Clear(); syncKinds.Clear();
@@ -45,7 +49,8 @@ foreach (var e in log.Events)
         else if ((int)e.ID == 2 && scenario != null)
         {
             rows.Add(new { scenario, elapsedMs = e.TimeStampRelativeMSec - begin, samples, missing,
-                syncs, groups, commits, piggybacks, gcPauseMs,
+                syncs, groups, commits, piggybacks, gcPauseMs, syncMs,
+                syncTimesMs = new Dictionary<string, double>(syncTimes),
                 runtimeEvents = new Dictionary<string, long>(runtimeEvents),
                 buckets = new Dictionary<string, long>(buckets),
                 attempts = new Dictionary<string, long>(attempts), outcomes = new Dictionary<string, long>(outcomes),
@@ -94,8 +99,16 @@ foreach (var e in log.Events)
             case 5:
                 var path = (string)e.PayloadValue(0);
                 var kind = path.StartsWith("directory:") ? "directory" : path.Contains("-log") ? "wal" : "data";
+                if (kind != "directory") { syncBegin = e.TimeStampRelativeMSec; syncKind = kind + ":" + phase; }
                 syncs++; Add(syncKinds, kind);
                 if (checkpointKind != null) Add(checkpointSyncs, kind + ":" + phase);
+                break;
+            case 6:
+                if (syncBegin < 0) throw new Exception("Unbalanced native sync");
+                var duration = e.TimeStampRelativeMSec - syncBegin;
+                syncMs += duration;
+                syncTimes[syncKind] = syncTimes.GetValueOrDefault(syncKind) + duration;
+                syncBegin = -1;
                 break;
         }
     }

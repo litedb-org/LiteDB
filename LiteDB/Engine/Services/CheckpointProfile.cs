@@ -13,6 +13,8 @@ namespace LiteDB.Engine
         [Event(3)] public void Outcome(int pages, string kind) { if (IsEnabled()) WriteEvent(3, pages, kind); }
         [Event(4)] public void Write(long bytes) { if (IsEnabled()) WriteEvent(4, bytes); }
         [Event(5)] public void Sync(string path) { if (IsEnabled()) WriteEvent(5, path); }
+        [Event(6)] public void SyncEnd() { if (IsEnabled()) WriteEvent(6); }
+        public static void NativeSyncEnd() => Log.SyncEnd();
         public static void Begin(string kind) => Log.Attempt(kind);
         public static void Mark(string phase) => Log.Phase(phase);
         public static void End(int pages, string kind) => Log.Outcome(pages, kind);

@@ -58,6 +58,7 @@ foreach (var call in flush.Body.Instructions.Where(i => i.Operand is MethodRefer
     var file = flush.Body.Variables.Single(v => v.VariableType.FullName == "System.IO.FileStream");
     var getter = new MethodReference("get_Name", module.TypeSystem.String, file.VariableType) { HasThis = true };
     Before(flush, call, Instruction.Create(OpCodes.Ldloc, file), Instruction.Create(OpCodes.Callvirt, getter), Instruction.Create(OpCodes.Call, Hook("NativeSync")));
+    flush.Body.GetILProcessor().InsertAfter(call, Instruction.Create(OpCodes.Call, Hook("NativeSyncEnd")));
     flush.Body.MaxStackSize += 2;
 }
 // Insertions can grow a short branch beyond its signed-byte displacement.

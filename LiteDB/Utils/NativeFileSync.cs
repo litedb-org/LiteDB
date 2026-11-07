@@ -44,6 +44,10 @@ namespace LiteDB
 #if PROFILE
             Engine.CheckpointProfile.NativeSync(stream.Name);
 #endif
+#if PROFILE
+            try
+            {
+#endif
 #if DEBUG || TESTING
             Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
@@ -75,6 +79,11 @@ namespace LiteDB
             stream.Flush(false);
             var errno = Sync(stream.SafeFileHandle, fsync, fcntl);
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
+        
+#if PROFILE
+            }
+            finally { Engine.CheckpointProfile.NativeSyncEnd(); }
+#endif
         }
 
         // Only exact FileStreams use this path. Their managed buffers have already
@@ -84,6 +93,10 @@ namespace LiteDB
         {
 #if PROFILE
             Engine.CheckpointProfile.NativeSync(path);
+#endif
+#if PROFILE
+            try
+            {
 #endif
 #if NET8_0_OR_GREATER
             if (_windows) RandomAccess.FlushToDisk(handle);
@@ -100,6 +113,11 @@ namespace LiteDB
 #endif
 #else
             throw new NotSupportedException();
+#endif
+        
+#if PROFILE
+            }
+            finally { Engine.CheckpointProfile.NativeSyncEnd(); }
 #endif
         }
 
