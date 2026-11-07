@@ -32,15 +32,16 @@ namespace LiteDB.Internals
         [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)]
         public async Task Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal(int cut)
         {
-            // offline-validated, offline-retired, offline-readers-retired,
-            // offline-complete are all reached by the child via CreationStage.
+            var stages = new[] { "offline-validated", "offline-retired", "offline-retired",
+                "offline-retired", "offline-retired", "offline-readers-retired",
+                "offline-retired", "offline-retired", "offline-complete" };
             Seed();
             var data = File.ReadAllBytes(Filename);
             var wal = FileHelper.GetLogFile(Filename);
             File.WriteAllBytes(wal, new byte[] { 23, 42, 97 }); // transition must never interpret WAL
             for (var attempt = 0; attempt < 2; attempt++)
             {
-                using var child = new MvccProcess("offline-upgrade-cut", Filename, null, (attempt == 0 ? cut : 1).ToString());
+                using var child = new MvccProcess("offline-upgrade-cut", Filename, null, (attempt == 0 ? cut + ":" + stages[cut - 1] : "1:offline-validated"));
                 await child.Expect("ready");
                 await child.Kill();
                 File.ReadAllBytes(Filename).Should().Equal(data);
@@ -110,9 +111,10 @@ namespace LiteDB.Internals
                 AssertSnapshot(before);
             }
             File.WriteAllText(Filename + "-shm", "unknown authority");
+            var unknown = Snapshot();
             Action open = () => { using var engine = new SharedEngine(Settings); };
             open.Should().Throw<IOException>();
-            File.ReadAllText(Filename + "-shm").Should().Be("unknown authority");
+            AssertSnapshot(unknown);
         }
 
         [OneFileFact]
@@ -132,6 +134,32 @@ namespace LiteDB.Internals
                 Upgrade();
                 File.ReadAllBytes(Filename).Should().Equal(data);
             }
+            Verify();
+        }
+
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
+        public void Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage(bool shmOnly)
+        {
+            Seed();
+            if (shmOnly)
+            {
+                foreach (var suffix in new[] { "-shared-live", "-shared-state", "-shared-disabled" }) File.Delete(Filename + suffix);
+                Directory.Delete(Filename + "-readers", true);
+            }
+            var data = File.ReadAllBytes(Filename);
+            var reached = false;
+            SharedMemoryAuthority.BootstrapStage = stage =>
+            {
+                if (stage != "before-storage") return;
+                reached = true;
+                File.ReadAllBytes(Filename).Should().Equal(data);
+                Directory.Exists(Filename + "-readers").Should().BeFalse();
+                File.Exists(Filename + "-shared-live").Should().BeFalse();
+            };
+            try { Verify(); }
+            finally { SharedMemoryAuthority.BootstrapStage = null; }
+            reached.Should().BeTrue();
             Verify();
         }
 
@@ -160,7 +188,7 @@ namespace LiteDB.Internals
             var after = Snapshot();
             after.Keys.Should().BeEquivalentTo(before.Keys);
             foreach (var item in before) after[item.Key].Should().Equal(item.Value);
-            Directory.Exists(Filename + "-readers").Should().BeTrue();
+            Directory.Exists(Filename + "-readers").Should().Be(before.Keys.Any(p => p.StartsWith(Filename + "-readers" + Path.DirectorySeparatorChar, StringComparison.Ordinal)));
         }
         private void Verify()
         {

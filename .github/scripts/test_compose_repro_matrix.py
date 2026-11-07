@@ -96,6 +96,7 @@ class ReproMatrixTests(unittest.TestCase):
     def test_offline_upgrade_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage",
             "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
             "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_subset_of_resurrected_ephemeral_entries_retires_repeatably",
             "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry",

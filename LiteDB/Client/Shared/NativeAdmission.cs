@@ -136,7 +136,8 @@ namespace LiteDB.Client.Shared
             lock (Gate)
             {
                 EnsureValid();
-                if (_entry.References > 2)
+                // Facade, transient registry probe, and initializing table.
+                if (_entry.References > 3)
                     throw new IOException("Offline coordination upgrade requires all other local facades closed.");
                 if (DatabaseFileIdentity.Windows) _entry.File.Unlock(DatabaseFileLock.Admission);
                 try { _entry.File.Lock(DatabaseFileLock.Admission, true); }

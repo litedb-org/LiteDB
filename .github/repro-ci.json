@@ -71,7 +71,8 @@
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_subset_of_resurrected_ephemeral_entries_retires_repeatably",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe",
-      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved"
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

@@ -16,11 +16,13 @@ internal static class SharedOfflineUpgradeHarness
         }
         if (mode != "offline-upgrade-cut") return false;
         var count = 0;
-        var cut = int.Parse(args[4]);
+        var boundary = args[4].Split(':');
+        var cut = int.Parse(boundary[0]);
         var reached = false;
         SharedCoordinationFile.CreationStage = (_, stage) =>
         {
             if (!stage.StartsWith("offline-", StringComparison.Ordinal) || ++count != cut) return;
+            if (stage != boundary[1]) throw new Exception("Wrong retirement stage: " + stage);
             reached = true;
             Console.WriteLine("ready");
             Console.ReadLine();
