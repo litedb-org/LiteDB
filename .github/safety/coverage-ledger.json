@@ -686,6 +686,16 @@
       "disposition": "strengthened",
       "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
       "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific."
+    },
+    {
+      "id": "p3-windows-registry-platform-contracts",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same physical files share one participant; distinct physical files remain independent; native admission stays enforced or opening refuses before mutation when native locking is disabled.",
+      "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
     }
   ]
 }

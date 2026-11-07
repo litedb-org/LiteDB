@@ -212,7 +212,14 @@ namespace LiteDB.Internals
                 File.CreateSymbolicLink(alias, Filename);
                 using var second = new SharedEngine(Settings(alias));
                 second.MappedReaderTable.Should().BeSameAs(first.MappedReaderTable);
-                using var distinct = new SharedEngine(Settings(Path.Combine(_directory, "Test.db")));
+                var casePath = Path.Combine(_directory, "Test.db");
+                var caseAliasesExistingFile = File.Exists(casePath);
+                using var caseVariant = new SharedEngine(Settings(casePath));
+                if (caseAliasesExistingFile)
+                    caseVariant.MappedReaderTable.Should().BeSameAs(first.MappedReaderTable);
+                else
+                    caseVariant.MappedReaderTable.Should().NotBeSameAs(first.MappedReaderTable);
+                using var distinct = new SharedEngine(Settings(Path.Combine(_directory, "distinct.db")));
                 distinct.MappedReaderTable.Should().NotBeSameAs(first.MappedReaderTable);
                 File.WriteAllBytes(FileHelper.GetLogFile(alias), new byte[] { 1, 2, 3 });
                 Action badAlias = () => { using var bad = new SharedEngine(Settings(alias)); };
@@ -229,6 +236,16 @@ namespace LiteDB.Internals
             AppContext.SetSwitch("System.IO.DisableFileLocking", true);
             try
             {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    // The runtime switch is Unix-only; Windows must still enforce
+                    // native admission even when callers set it.
+                    using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+                    using var probe = new DatabaseFileLock(Filename, true, false);
+                    probe.Conflicts(DatabaseFileLock.Admission).Should().BeTrue();
+                    Directory.GetFiles(_directory, "*-shm").Should().BeEmpty();
+                    return;
+                }
                 Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = Filename }); };
                 open.Should().Throw<PlatformNotSupportedException>();
                 Directory.GetFileSystemEntries(_directory).Should().BeEmpty();
