@@ -675,7 +675,8 @@
       "name": "refusal:shared-rebuild-with-open-readers",
       "kind": "refusal",
       "paths": [
-        "LiteDB/Client/Shared/SharedEngine.Maintenance.cs"
+        "LiteDB/Client/Shared/SharedEngine.Maintenance.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
       ],
       "targets": [
         "LiteDB.Tests/Internals/MvccSharedLifecycle_Tests.cs#RebuildRejectsLiveReadersAndSucceedsAfterTheyClose"
