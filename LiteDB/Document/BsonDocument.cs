@@ -16,9 +16,9 @@ namespace LiteDB
         {
         }
 
-        internal BsonDocument(int capacity)
-            : base(BsonType.Document, new Dictionary<string, BsonValue>(capacity, StringComparer.OrdinalIgnoreCase))
+        internal static BsonDocument WithCapacity(int capacity)
         {
+            return new BsonDocument(new Dictionary<string, BsonValue>(capacity, StringComparer.OrdinalIgnoreCase), true);
         }
 
         public BsonDocument(ConcurrentDictionary<string, BsonValue> dict)
