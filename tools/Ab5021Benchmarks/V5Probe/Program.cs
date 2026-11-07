@@ -70,6 +70,7 @@ foreach (var type in module.Types)
                 instruction.OpCode = opcodes[instruction.OpCode.Name[..^2]];
 var temporary = path + ".probe";
 assembly.Write(temporary);
+assembly.Dispose(); // Release the input handle before replacement on Windows.
 File.Move(temporary, path, true);
 File.WriteAllText(args[2], JsonSerializer.Serialize(new { originalHash, instrumentedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
     package = "LiteDB [5.0.21]", note = "Observation-only IL insertions; timings include instrumentation overhead" }, new JsonSerializerOptions { WriteIndented = true }));

@@ -4,6 +4,7 @@ using Microsoft.Diagnostics.Tracing.Etlx;
 // Offline trace decoding only. Samples are managed sampled-thread-time, not hardware CPU cycles.
 var etlx = TraceLog.CreateFromEventPipeDataFile(args[0]);
 using var log = new TraceLog(etlx);
+if (log.EventsLost != 0) throw new Exception($"Trace lost {log.EventsLost} events; counts are incomplete");
 var rows = new List<object>();
 string scenario = null;
 double begin = 0;

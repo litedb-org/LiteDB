@@ -37,3 +37,7 @@ for version, config in [('V5', 'v5'), ('V6', 'dev-os-cache'), ('V6', 'dev-defaul
         # Probe presence and page accounting are mandatory; a missing EventSource cannot look like zero work.
         assert sum(sum(r['attempts'].values()) for r in rows) > 0
         assert sum(r['dataWritten'] for r in rows) > 0
+        for row in measured:
+            assert sum(row['attempts'].values()) == sum(row['outcomes'].values()), row
+            headers = 0 if version == 'V5' else sum(v for k, v in row['outcomes'].items() if k.endswith(':full'))
+            assert row['dataWritten'] == (row['pagesCopied'] + headers) * 8192, row
