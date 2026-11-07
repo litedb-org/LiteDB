@@ -89,7 +89,7 @@ namespace LiteDB.Internals
             peerEngine.HasCachedSnapshot.Should().BeTrue();
             var cache = (SharedSnapshotCache)typeof(SharedEngine)
                 .GetField("_readCache", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(peerEngine);
-            using var start = new ManualResetEventSlim();
+            using var callback = new ManualResetEventSlim();
             using var locked = new ManualResetEventSlim();
             using var returned = new ManualResetEventSlim();
             var refusedWhileLocked = false;
@@ -97,19 +97,19 @@ namespace LiteDB.Internals
             // a snapshot. Bound the wait so the old query path fails without hanging CI.
             var worker = new Thread(() =>
             {
-                if (!start.Wait(TimeSpan.FromSeconds(10))) return;
                 lock (cache.Gate)
                 {
                     locked.Set();
-                    refusedWhileLocked = returned.Wait(TimeSpan.FromSeconds(5));
+                    refusedWhileLocked = callback.Wait(TimeSpan.FromSeconds(60)) &&
+                        returned.Wait(TimeSpan.FromSeconds(5));
                 }
             }) { IsBackground = true };
             worker.Start();
+            locked.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             NativeAdmission.ReplacementStage = (path, stage) =>
             {
                 if (path != settings.Filename || stage != "before-rekey") return;
-                start.Set();
-                locked.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                callback.Set();
                 try
                 {
                     Action read = () => peer.GetCollection("docs").Count();
@@ -121,7 +121,7 @@ namespace LiteDB.Internals
             finally
             {
                 NativeAdmission.ReplacementStage = null;
-                start.Set();
+                callback.Set();
                 returned.Set();
                 worker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
             }
