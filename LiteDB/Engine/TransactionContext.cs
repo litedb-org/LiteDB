@@ -40,13 +40,13 @@ namespace LiteDB.Engine
             return false;
         }
 
-        internal static bool IsThreadClear => _current == null && _ticket == null;
+        internal static bool IsThreadClear => _current == null && _ticket == null && _frames == null;
 
         internal T Execute<T>(Func<T> action)
         {
+            using var budget = new TransactionWaitBudget(Engine.HandleTimeout);
             if (Interlocked.CompareExchange(ref _executing, 1, 0) != 0)
                 throw new InvalidOperationException("A handle already has an executing operation.");
-            using var budget = new TransactionWaitBudget(Engine.HandleTimeout);
             using var frame = Enter(this);
             var previous = _current;
             var previousTicket = _ticket;
