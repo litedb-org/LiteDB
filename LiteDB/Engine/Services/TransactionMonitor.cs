@@ -196,7 +196,7 @@ namespace LiteDB.Engine
                 throw new ArgumentException("Handle lease must belong to this facade.", nameof(lease));
             EnsureWriteAllowed();
             if (_slot.Value != null && _slot.Value.State != TransactionState.Disposed)
-                throw new InvalidOperationException("Cannot mix a handle and a legacy transaction.");
+                throw LiteException.SameThreadTransaction();
             lease.Claim();
             _locker.EnterTransaction(lease.Admission);
             TransactionService transaction = null;

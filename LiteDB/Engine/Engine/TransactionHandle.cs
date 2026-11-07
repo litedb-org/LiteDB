@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace LiteDB.Engine
 {
@@ -27,6 +28,17 @@ namespace LiteDB.Engine
             context.Transaction.ExplicitTransaction = true;
             return context;
         }
+
+        internal bool IsHandleReadOnly => _settings.ReadOnly || _settings.ReadOnlyStorage;
+        internal Exception HandleUnavailableFailure()
+        {
+            try { _state.Validate(); _monitor.ValidateOwner(); return null; }
+            catch (Exception error) { return error; }
+        }
+        internal void ThrowIfHandleUnavailable() { _state.Validate(); _monitor.ValidateOwner(); }
+
+        internal string[] GetTransactionCollectionNames() => AutoReadTransaction(transaction =>
+            _header.GetCollections().Select(x => x.Key).Concat(transaction.Snapshots.Where(x => x.CollectionPage != null).Select(x => x.CollectionName)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
 
         private void ValidatePublicDispatch()
         {

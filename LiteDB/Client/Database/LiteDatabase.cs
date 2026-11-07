@@ -51,7 +51,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = connectionString.CreateEngine();
-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -79,7 +79,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -92,7 +92,7 @@ namespace LiteDB
             LiteDBPragmas.EnsurePreDevRiskAcknowledged();
 #endif
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine), ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
         }
 
@@ -156,16 +156,19 @@ namespace LiteDB
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         public bool BeginTrans() => _engine.BeginTrans();
 
         /// <summary>
         /// Commit the current thread transaction; throws if only other threads have explicit transactions.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         public bool Commit() => _engine.Commit();
 
         /// <summary>
         /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
         /// </summary>
+        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
         public bool Rollback() => _engine.Rollback();
 
         #endregion
@@ -396,6 +399,7 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
+            if (disposing) _transactionHandles.Close();
             if (disposing && _disposeOnClose)
             {
                 _engine.Dispose();

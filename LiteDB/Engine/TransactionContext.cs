@@ -70,6 +70,21 @@ namespace LiteDB.Engine
             finally { _current = previous; _ticket = previousTicket; }
         }
 
+        internal static IDisposable Enter(TransactionContext context) => new Binding(context);
+
+        private sealed class Binding : IDisposable
+        {
+            private readonly TransactionContext _previous = _current;
+            private readonly Ticket _previousTicket = _ticket;
+            internal Binding(TransactionContext context)
+            {
+                context.Engine.ValidateHandleContext(context);
+                _current = context;
+                _ticket = null;
+            }
+            public void Dispose() { _current = _previous; _ticket = _previousTicket; }
+        }
+
         internal static DispatchScope Dispatch(LiteEngine engine) => new DispatchScope(engine);
 
         internal static bool ConsumeDispatch(LiteEngine engine)
