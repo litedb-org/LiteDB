@@ -71,10 +71,12 @@ namespace LiteDB.Internals
             table.Authority.Map.Load(SharedMemoryLayout.RecoveryOwner).Should().NotBe(0);
             SharedMemoryReaderTable.Scan(table.Authority).Should().BeNull();
         }
-        internal void WriteIsFree()
+        internal void WriteIsFree() => WriteIsFree(false);
+
+        internal void WriteIsFree(bool abandonedOwner)
         {
             using var probe = new SharedRangeLocks(SharedMemoryAuthority.PathFor(Filename));
-            probe.EnterWrite();
+            probe.EnterWrite(abandonedOwner);
             probe.ExitWrite();
         }
         public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);

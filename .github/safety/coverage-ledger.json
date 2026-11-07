@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p3-integrated-windows-death-lock-observation",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFilePublicationFixture.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Killed-writer recovery must acquire the actual kernel WRITE range before checking repeated recovery, old snapshots and committed indexed state. A live or leaked lock still fails within five seconds.",
+      "reason": "P1 run 42421342736 Windows net10 open-end case at 076878880 failed the immediate WRITE probe after child process exit, which does not guarantee Windows has completed handle cleanup. Only the post-death warm-recovery caller now requests the existing EnterWrite abandoned-owner path: bounded five-second actual native-lock acquisition, identical to production recovery. Other fixture callers retain immediate checks; no state assertion, failure hook or timeout is removed."
+    },
+    {
       "id": "p3-integrated-mapped-handle-safety-partitions",
       "kind": "ci-test-config-changed",
       "subjects": [

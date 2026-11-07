@@ -53,7 +53,9 @@ namespace LiteDB.Internals
             }
             if (cut == "commit-version") valid.Should().BeFalse();
             await writer.Kill(sharedFilesRemainOpen: true);
-            files.WriteIsFree();
+            // Process exit can precede Windows kernel byte-lock cleanup. Require
+            // actual WRITE acquisition within the same bound as abandoned recovery.
+            files.WriteIsFree(abandonedOwner: true);
             for (var recovery = 0; recovery < 2; recovery++)
             {
                 db.Timeout.Should().BeGreaterThan(TimeSpan.Zero); // synced writable recovery, never cached metadata
