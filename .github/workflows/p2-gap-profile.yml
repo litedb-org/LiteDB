@@ -15,7 +15,6 @@ jobs:
         include:
           - {runner: ubuntu-24.04, framework: net8.0}
           - {runner: ubuntu-24.04, framework: net10.0}
-          - {runner: windows-2025, framework: net8.0}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -34,21 +33,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Build isolated diagnostic harnesses
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          dotnet tool install --global dotnet-trace --version 8.0.547301
-          if ($LASTEXITCODE) { throw 'trace install failed' }
-          foreach ($variant in @('before', 'after')) {
-            $candidate = (Resolve-Path "artifacts_temp/$variant/LiteDB/LiteDB.csproj").Path
-            dotnet build tools/Ab5021Benchmarks/V6/V6.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" -o "artifacts_temp/profile-bin-$variant" --nologo
-            if ($LASTEXITCODE) { throw "Build failed: $variant" }
-          }
-          dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
-          if ($LASTEXITCODE) { throw 'decoder build failed' }
-      - name: Collect sampled stacks and runtime events
-        run: python tools/Ab5021Benchmarks/p2-profile.py '${{ matrix.framework }}'
       - name: Count native syncs per Direct commit
         if: runner.os == 'Linux'
         run: |

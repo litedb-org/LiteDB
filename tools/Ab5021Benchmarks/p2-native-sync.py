@@ -41,8 +41,8 @@ for variant in ['before', 'after']:
    subprocess.run(['strace','-f','-yy','-s','200','-e','trace=fsync,fdatasync,syncfs,write','-o',str(trace),'dotnet',str(project / f'bin/Release/{framework}/Probe.dll'),config],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=120)
   counts = []; active = None
   for line in trace.read_text().splitlines():
-   if 'write(2' in line and 'COMMIT_BEGIN:' in line: active = 0
-   elif 'write(2' in line and 'COMMIT_END:' in line:
+   if 'write(' in line and 'COMMIT_BEGIN:' in line: active = 0
+   elif 'write(' in line and 'COMMIT_END:' in line:
     assert active is not None
     counts.append(active); active = None
    elif active is not None and any(x in line for x in ['fsync(', 'fdatasync(', 'syncfs(']): active += 1
