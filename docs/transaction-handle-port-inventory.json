@@ -9,7 +9,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Mapper_reentry_cannot_complete_or_escape_the_enclosing_operation",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Mapping_is_inside_the_same_handle_overlap_guard",
@@ -17,7 +17,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Mapping_is_inside_the_same_handle_overlap_guard",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Bound_indexes_queries_and_deferred_objects_preserve_their_owner",
@@ -25,7 +25,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Bound_indexes_queries_and_deferred_objects_preserve_their_owner",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Unsupported_external_query_output_does_not_abort_prior_writes",
@@ -33,7 +33,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Unsupported_external_query_output_does_not_abort_prior_writes",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Read_only_handles_query_and_complete_without_granting_writes",
@@ -41,7 +41,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Read_only_handles_query_and_complete_without_granting_writes",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleInclude_Tests.cs#Include_vector_scores_and_Into_keep_exact_handle_binding",
@@ -49,7 +49,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleInclude_Tests.cs#Include_vector_scores_and_Into_keep_exact_handle_binding",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Independent_direct_handles_overlap_and_preserve_each_others_commit_and_rollback",
@@ -57,7 +57,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Independent_direct_handles_overlap_and_preserve_each_others_commit_and_rollback",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Writable_handle_rejects_drop_and_rename_without_losing_prior_writes",
@@ -65,7 +65,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Writable_handle_rejects_drop_and_rename_without_losing_prior_writes",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Handle_metadata_queries_read_existing_collections_and_bound_uncommitted_indexes",
@@ -73,7 +73,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Handle_metadata_queries_read_existing_collections_and_bound_uncommitted_indexes",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Custom_engine_rejection_leaves_legacy_and_ordinary_operations_usable",
@@ -81,7 +81,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Custom_engine_rejection_leaves_legacy_and_ordinary_operations_usable",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Shared_legacy_owner_rejects_same_thread_handle_without_aborting_legacy_transaction",
@@ -89,7 +89,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleFeatureCoverage_Tests.cs#Shared_legacy_owner_rejects_same_thread_handle_without_aborting_legacy_transaction",
       "disposition": "Shared begin refusal asserted instead of admission until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Disposal_between_child_capture_and_admission_does_not_abort_writes",
@@ -97,7 +97,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Disposal_between_child_capture_and_admission_does_not_abort_writes",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Actual_reader_operation_and_disposal_failures_still_abort",
@@ -105,7 +105,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Actual_reader_operation_and_disposal_failures_still_abort",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Reader_dispose_overlapping_a_handle_call_still_unregisters",
@@ -113,7 +113,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Reader_dispose_overlapping_a_handle_call_still_unregisters",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Dispose",
@@ -121,7 +121,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Dispose",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleCommitPrecondition_Tests.cs#Open_cursor_commit_refusal_keeps_handle_active_and_completion_releases_locks",
@@ -129,7 +129,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandleCommitPrecondition_Tests.cs#Open_cursor_commit_refusal_keeps_handle_active_and_completion_releases_locks",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback",
@@ -137,7 +137,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Handles_and_ordinary_calls_do_not_enlist_in_each_other",
@@ -145,7 +145,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Handles_and_ordinary_calls_do_not_enlist_in_each_other",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Unbound_calls_inside_bound_input_do_not_join_and_statement_failure_is_terminal",
@@ -153,7 +153,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Unbound_calls_inside_bound_input_do_not_join_and_statement_failure_is_terminal",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Cursors_block_commit_and_bound_queries_never_escape_after_completion",
@@ -161,7 +161,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Cursors_block_commit_and_bound_queries_never_escape_after_completion",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Overlap_is_rejected_without_aborting_active_work_and_close_drains_it",
@@ -169,7 +169,7 @@
       "destination": "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Overlap_is_rejected_without_aborting_active_work_and_close_drains_it",
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
-      "hostedResult": "pending exact candidate CI"
+      "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     }
   ]
 }

@@ -752,6 +752,11 @@
           "fuzz": "compatibility",
           "model": "exception",
           "proves": "Plain/encrypted v4/v7 fixtures are upgraded with every publication phase interrupted and resumed, then extended with indexes, FileStorage, dirty WAL and read-only opens."
+        },
+        {
+          "script": "scripts/test-transaction-handle-compatibility.py",
+          "model": "exception",
+          "proves": "Precompiled old interface implementers and decorators load against candidate; legacy parity, warning-only CS0618 migration and synchronous Direct API compile/run checks."
         }
       ],
       "gaps": [
