@@ -37,12 +37,12 @@ jobs:
           if ($LASTEXITCODE) { throw 'diagnostic build' }
           dotnet build tools/Ab5021Benchmarks/V5/V5.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:ProfilingEnabled=true -o tools/Ab5021Benchmarks/DiagnosticV5 --nologo
           if ($LASTEXITCODE) { throw 'v5 diagnostic build' }
-          dotnet build tools/Ab5021Benchmarks/V5Probe/V5Probe.csproj -c Release --nologo
+          dotnet build tools/Ab5021Benchmarks/V5Probe/V5Probe.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' --nologo
           if ($LASTEXITCODE) { throw 'probe build' }
           dotnet build tools/Ab5021Benchmarks/CheckpointProbe/CheckpointProbe.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' --nologo
           if ($LASTEXITCODE) { throw 'observer build' }
           Copy-Item tools/Ab5021Benchmarks/CheckpointProbe/bin/Release/${{ matrix.framework }}/CheckpointProbe.dll tools/Ab5021Benchmarks/DiagnosticV5/
-          dotnet tools/Ab5021Benchmarks/V5Probe/bin/Release/net8.0/V5Probe.dll tools/Ab5021Benchmarks/DiagnosticV5/LiteDB.dll tools/Ab5021Benchmarks/DiagnosticV5/CheckpointProbe.dll tools/Ab5021Benchmarks/DiagnosticV5/identity.json
+          dotnet tools/Ab5021Benchmarks/V5Probe/bin/Release/${{ matrix.framework }}/V5Probe.dll tools/Ab5021Benchmarks/DiagnosticV5/LiteDB.dll tools/Ab5021Benchmarks/DiagnosticV5/CheckpointProbe.dll tools/Ab5021Benchmarks/DiagnosticV5/identity.json
           if ($LASTEXITCODE) { throw 'probe installation' }
       - name: Six interleaved GC-normalized rounds and real process-death recovery
         run: python tools/Ab5021Benchmarks/amortize.py '${{ matrix.framework }}' artifacts_temp/amortize
