@@ -132,7 +132,9 @@ def main():
         handle.write(environment_summary)
     start = time.monotonic()
     rounds = rounds_for_os(os.environ["RUNNER_OS"])
-    budget = 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
+    slow_comparison = comparison and os.environ.get("BENCHMARK_SLOW_COMPARISON") == "true"
+    child_budget = 900 if slow_comparison else 360
+    budget = 55 * 60 if slow_comparison else 23 * 60 if comparison else 24 * 60 if os.environ["RUNNER_OS"] == "macOS" else 35 * 60
     for round_number in range(1, rounds + 1):
         # Filtered to either A/B pair, this gives A,B,B,A,A,B,B,A,...
         order = comparison_order(round_number) if comparison else [("after", c) for c in execution_order(round_number)]
@@ -158,7 +160,7 @@ def main():
                 identity["variant"] = variant
             try:
                 child = subprocess.run(command, env=child_env, text=True, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT, timeout=min(360, remaining))
+                                       stderr=subprocess.STDOUT, timeout=min(child_budget, remaining))
             except subprocess.TimeoutExpired as error:
                 partial = error.stdout or b""
                 if isinstance(partial, bytes):
