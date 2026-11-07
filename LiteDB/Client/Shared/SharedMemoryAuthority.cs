@@ -264,13 +264,14 @@ namespace LiteDB.Client.Shared
         // ARM64 has the mapped ABI and futex implementation, but remains refused
         // until the complete Shared suites, including every futex race/failure
         // case, execute and pass on all hosted ARM64 runtime legs.
-        internal static bool IsPlatformQualified => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+        internal static bool IsPlatformQualified =>
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) &&
             RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
         private static void RequirePlatform(string path)
         {
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared is disabled pending complete hosted platform qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64 or Windows x64; other targets remain disabled pending hosted qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }

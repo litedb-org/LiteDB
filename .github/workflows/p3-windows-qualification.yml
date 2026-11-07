@@ -1,0 +1,86 @@
+name: P3 Windows mapped qualification
+on:
+  push:
+    branches: ['v6/p3-qual-windows']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mapped:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build test and process harness binaries
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Execute and require every selected mapped case without skips
+        run: python .github/scripts/p3_windows_qualification.py --framework ${{ matrix.framework }} --shard ${{ matrix.shard }} --shards 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-mapped-${{ matrix.framework }}-${{ matrix.shard }}
+          path: artifacts_temp/windows-qualification
+  stress:
+    runs-on: windows-2025
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Repeat tenure, native wake, coherence and process-death classes fifty times
+        run: python .github/scripts/p3_windows_qualification.py --framework ${{ matrix.framework }} --stress --repeat 50 --shard ${{ matrix.shard }} --shards 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-stress-${{ matrix.framework }}-${{ matrix.shard }}
+          path: artifacts_temp/windows-qualification
+  refusal:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net481]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install x86 runtime
+        if: matrix.framework == 'net8.0'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
+          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Channel 8.0 -Architecture x86 -InstallDir "$env:RUNNER_TEMP/dotnet-x86"
+
+      - name: Actual x86 or Framework refusal preserves database and WAL
+        shell: pwsh
+        run: |
+          $dotnet = if ('${{ matrix.framework }}' -eq 'net8.0') { "$env:RUNNER_TEMP/dotnet-x86/dotnet.exe" } else { 'dotnet' }
+          & $dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter FullyQualifiedName~SharedIntegrationSeam_Tests --logger 'trx;LogFileName=refusal.trx' --results-directory artifacts_temp/windows-refusal -- RunConfiguration.TargetPlatform=x86
+          if ($LASTEXITCODE) { throw 'Unsupported platform refusal failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-refusal-${{ matrix.framework }}
+          path: artifacts_temp/windows-refusal

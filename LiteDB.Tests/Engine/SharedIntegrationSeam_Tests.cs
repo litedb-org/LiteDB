@@ -40,7 +40,7 @@ namespace LiteDB.Tests.Engine
             var root = Path.GetTempPath();
 #if NET8_0_OR_GREATER
             qualified = (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
-                System.Runtime.InteropServices.OSPlatform.Linux) &&
+                System.Runtime.InteropServices.OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) &&
                 System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture ==
                     System.Runtime.InteropServices.Architecture.X64);
             SharedMemoryAuthority.IsPlatformQualified.Should().Be(qualified);
@@ -83,7 +83,7 @@ namespace LiteDB.Tests.Engine
                         Action open = () => { using var engine = new SharedEngine(settings); };
                         open.Should().Throw<PlatformNotSupportedException>().WithMessage(
 #if NET8_0_OR_GREATER
-                            "ABI-2 Shared is disabled pending complete hosted platform qualification.");
+                            "ABI-2 Shared requires .NET 8 or later on qualified Linux x64 or Windows x64; other targets remain disabled pending hosted qualification.");
 #else
                             "SharedOneFile requires .NET 8 or later.");
 #endif

@@ -675,6 +675,17 @@
       "disposition": "strengthened",
       "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
       "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
+    },
+    {
+      "id": "p3-windows-qualification-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-windows-qualification.yml",
+        ".github/scripts/p3_windows_qualification.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
+      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific."
     }
   ]
 }
