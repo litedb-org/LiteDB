@@ -50,7 +50,7 @@ namespace LiteDB.Tests.Engine
         /// <summary>Public members that deliberately skip the dispatch check.</summary>
         private static readonly Dictionary<string, string> Unguarded = new Dictionary<string, string>
         {
-            
+
         };
 
         [Fact]
