@@ -1778,6 +1778,54 @@
         }
       ],
       "gap": "Deterministic exception/interleaving and saved OS-cache image evidence; no device reset or power-loss guarantee on storage that rejects sync."
+    },
+    {
+      "family": "coordination-file",
+      "name": "offline-validated",
+      "protocol": "offline ABI-1 coordination retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+          "model": "process-death",
+          "proves": "Child reaches each removal boundary, is killed without disposal, and retry is interrupted again; data/WAL bytes remain identical."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "offline-retired",
+      "protocol": "offline ABI-1 coordination retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+          "model": "process-death",
+          "proves": "Child reaches each removal boundary, is killed without disposal, and retry is interrupted again; data/WAL bytes remain identical."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "offline-readers-retired",
+      "protocol": "offline ABI-1 coordination retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+          "model": "process-death",
+          "proves": "Child reaches each removal boundary, is killed without disposal, and retry is interrupted again; data/WAL bytes remain identical."
+        }
+      ]
+    },
+    {
+      "family": "coordination-file",
+      "name": "offline-complete",
+      "protocol": "offline ABI-1 coordination retirement",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+          "model": "process-death",
+          "proves": "Child reaches each removal boundary, is killed without disposal, and retry is interrupted again; data/WAL bytes remain identical."
+        }
+      ]
     }
   ],
   "injectors": [

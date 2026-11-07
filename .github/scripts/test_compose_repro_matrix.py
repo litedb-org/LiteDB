@@ -93,6 +93,18 @@ class ReproMatrixTests(unittest.TestCase):
                   if "#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache" in ref}
         self.assertEqual(expected, actual)
 
+    def test_offline_upgrade_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_subset_of_resurrected_ephemeral_entries_retires_repeatably",
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry",
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe",
+            "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved",
+        }
+        self.assertEqual(expected, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
+                                   if "/SharedOfflineUpgrade_Tests.cs#" in ref})
+
     def test_update_index_diff_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Multikey_updates_match_independent_model_and_reopen', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Collation_equivalent_and_changed_unique_keys_preserve_results', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Moving_index_keys_during_update_many_visits_each_document_once', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Unique_failure_rolls_back_data_and_all_index_changes', 'LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Secondary_key_changes_coexist_with_vector_updates_and_reopen'}

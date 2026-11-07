@@ -66,7 +66,12 @@
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close",
-      "LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot"
+      "LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_subset_of_resurrected_ephemeral_entries_retires_repeatably",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe",
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

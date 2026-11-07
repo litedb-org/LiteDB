@@ -23,12 +23,22 @@ namespace LiteDB.Client.Shared
             var abi1 = false;
             if (FileHelper.ExistsOrThrow(shm))
             {
+                RequireRegular(shm);
                 using var file = new FileStream(shm, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 abi1 = SharedCoordinationProtocol.Inspect(file, true, filename) != null;
             }
             if (paths.Count == 0 && !hasReaders && !abi1) return;
             if (settings.ReadOnly || settings.ReadOnlyStorage)
                 throw new IOException("Offline coordination upgrade requires a writable open with all processes closed.");
+            if (FileHelper.ExistsOrThrow(shm) && !abi1)
+            {
+                using var file = new FileStream(shm, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var magic = new byte[8];
+                var count = file.Read(magic, 0, magic.Length);
+                if (count != 0 && !magic.All(b => b == 0) &&
+                    !magic.SequenceEqual(System.Text.Encoding.ASCII.GetBytes("LDBSHM2\0")))
+                    throw new IOException("Unknown legacy coordination remnant preserved: " + shm);
+            }
             using var path = NativeAdmission.EnterPath(filename);
             using var exclusive = admission.ExclusiveOffline();
             // This also refuses participants that own DMS independently of admission.
@@ -41,14 +51,14 @@ namespace LiteDB.Client.Shared
                 // Preflight ALL files before the first removal. Unknown input is
                 // preserved in place and reported; neither recursive delete nor glob
                 // cleanup is allowed here.
-                Stage(filename, "offline-validated");
+                SharedCoordinationFile.Observe(filename, "offline-validated");
                 foreach (var candidate in paths.Where(p => !p.EndsWith("-shared-live", StringComparison.Ordinal)))
                     Retire(candidate);
                 foreach (var candidate in leases) Retire(candidate);
                 if (hasReaders)
                 {
                     Directory.Delete(readers, false);
-                    Stage(filename, "offline-readers-retired");
+                    SharedCoordinationFile.Observe(filename, "offline-readers-retired");
                 }
                 foreach (var candidate in paths.Where(p => p.EndsWith("-shared-live", StringComparison.Ordinal)))
                     Retire(candidate);
@@ -56,7 +66,7 @@ namespace LiteDB.Client.Shared
             // Admission stays exclusive across close/unlink. An ABI-2 envelope is
             // never removed; only a fully recognised ABI-1 status page is retired.
             if (abi1) Retire(shm);
-            Stage(filename, "offline-complete");
+            SharedCoordinationFile.Observe(filename, "offline-complete");
         }
 
         private static void Validate(IEnumerable<string> paths, string filename)
@@ -102,9 +112,8 @@ namespace LiteDB.Client.Shared
         private static void Retire(string path)
         {
             File.Delete(path);
-            Stage(path, "offline-retired");
+            SharedCoordinationFile.Observe(path, "offline-retired");
         }
-        private static void Stage(string path, string stage) => SharedCoordinationFile.Observe(path, stage);
     }
 }
 #endif
