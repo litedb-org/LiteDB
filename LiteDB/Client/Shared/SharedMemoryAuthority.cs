@@ -261,11 +261,14 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
-        // ARM64 has the mapped ABI and futex implementation, but remains refused
-        // until the complete Shared suites, including every futex race/failure
-        // case, execute and pass on all hosted ARM64 runtime legs.
-        internal static bool IsPlatformQualified => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        // Qualification branch: macOS must pass the hosted lifecycle/crash matrix.
+        // The mapped engine remains explicitly opt-in in EngineSettings.
+        internal static bool IsPlatformQualified =>
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                RuntimeInformation.ProcessArchitecture == Architecture.X64) ||
+            (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.X64));
 
         private static void RequirePlatform(string path)
         {

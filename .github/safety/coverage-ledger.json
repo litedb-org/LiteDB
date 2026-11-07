@@ -675,6 +675,17 @@
       "disposition": "strengthened",
       "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
       "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
+    },
+    {
+      "id": "p3-qual-macos-executed-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml",
+        "scripts/qualify-macos.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing full CI remains unchanged; additive macOS opt-in qualification executes every mapped class on native ARM64 and Intel net8/net10, rejects skipped or missing results and retains TRX.",
+      "reason": "Orchestrator instructed exact-head macOS qualification and 50-repeat stress. Linux futex ABI-only tests remain in the original full suite; the platform-neutral wake-edge theory is expanded to every qualified backend. No existing assertion, timeout or quarantine is weakened."
     }
   ]
 }
