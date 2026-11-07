@@ -41,7 +41,7 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark'))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ inputs.slow_comparison && inputs.baseline_ref && 65 || inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
+    timeout-minutes: ${{ inputs.baseline_ref && (inputs.slow_comparison || matrix.os == 'windows-latest') && 65 || inputs.baseline_ref && 29 || matrix.os == 'macos-latest' && 29 || 45 }}
     strategy:
       fail-fast: false
       matrix:
