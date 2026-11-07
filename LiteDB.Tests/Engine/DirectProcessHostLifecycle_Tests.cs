@@ -23,18 +23,21 @@ namespace LiteDB.Tests.Engine
             var filename = Path.Combine(_directory, "opening.db");
             using (var seed = new LiteDatabase(filename))
                 seed.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preserved" });
+            // Native admission canonicalizes Darwin /var aliases. Compare the
+            // hook's canonical identity while opening the original caller path.
+            var identity = DatabaseFileIdentity.CanonicalPath(filename);
             using var entered = new ManualResetEventSlim();
             using var release = new ManualResetEventSlim();
             using var waiting = new ManualResetEventSlim();
             var calls = 0;
             DirectProcessHost.BeforeHostConstruction = path =>
             {
-                if (path != filename || Interlocked.Increment(ref calls) != 1) return;
+                if (path != identity || Interlocked.Increment(ref calls) != 1) return;
                 entered.Set();
                 release.Wait(TimeSpan.FromSeconds(15)).Should().BeTrue();
                 if (fail) throw new IOException("cold open failed");
             };
-            DirectProcessHost.BeforeHostWait = path => { if (path == filename) waiting.Set(); };
+            DirectProcessHost.BeforeHostWait = path => { if (path == identity) waiting.Set(); };
             Task<LiteDatabase> first = null, peer = null;
             LiteDatabase opened = null, second = null;
             try
