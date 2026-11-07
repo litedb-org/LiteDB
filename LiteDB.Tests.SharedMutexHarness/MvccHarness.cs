@@ -83,6 +83,7 @@ internal static class MvccHarness
             case "insert-progress-ready":
                 Console.WriteLine("ready");
                 Console.ReadLine();
+                goto case "insert-progress";
             case "insert-progress":
             case "insert":
                 var start = int.Parse(args[4]);
