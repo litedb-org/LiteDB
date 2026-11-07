@@ -65,6 +65,16 @@ namespace LiteDB.Engine
             var fileShare = write ? FileShare.Read : FileShare.ReadWrite;
             var fileOptions = sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess;
 
+#if NET8_0_OR_GREATER
+            // Windows serializes every operation on a synchronous file object, including
+            // the group's FlushFileBuffers and a follower's Write/Length. Overlapped
+            // handles permit independent operations; FileStream still waits for each
+            // synchronous Write before its ticket can be captured. Keep sharing unchanged.
+            // Shared handle leases retain their existing synchronous-handle contract.
+            if (write && _isLog && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.Windows)) fileOptions |= FileOptions.Asynchronous;
+#endif
+
             var isNewFile = write && this.Exists() == false;
 
             FileStream stream;
