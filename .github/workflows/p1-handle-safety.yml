@@ -34,6 +34,12 @@ jobs:
             if ($LASTEXITCODE) { $failed = $true }
           }
           if ($failed) { throw 'At least one safety partition failed or did not complete' }
+      - name: Primary key range delete differential and fault recovery
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~PrimaryKeyDelete|FullyQualifiedName~DeleteMany|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~ReaderSnapshot' --logger 'trx;LogFileName=delete-safety.trx' --results-directory artifacts_temp/handle-safety
+          if ($LASTEXITCODE) { throw 'Delete safety failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
