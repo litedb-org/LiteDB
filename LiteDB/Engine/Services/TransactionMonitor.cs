@@ -60,7 +60,7 @@ namespace LiteDB.Engine
                 finally
                 {
                     if (ReferenceEquals(_slot.Value, transaction)) _slot.Value = null;
-                    _locker.ExitTransaction(transaction.OwnerThread);
+                    _locker.ExitTransaction(transaction.Lease.Admission);
                 }
             }
             _explicitAborted.Dispose();
@@ -127,15 +127,15 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = Thread.CurrentThread;
+                var owner = TransactionLease.Legacy(_owner);
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
                     // exclusive admission. Take our lease before reserving an ID.
-                    _locker.EnterTransaction();
+                    _locker.EnterTransaction(owner.Admission);
                     enteredTransaction = true;
                     this.ThrowIfDisposed();
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly, owner);
                     _transactions.Add(transaction);
 
                     this.ThrowIfDisposed();
@@ -150,7 +150,7 @@ namespace LiteDB.Engine
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction(owner);
+                        if (enteredTransaction) _locker.ExitTransaction(owner.Admission);
                     }
                     throw;
                 }
@@ -178,6 +178,34 @@ namespace LiteDB.Engine
             }
 
             return transaction;
+        }
+
+        internal TransactionService CreateTransaction(TransactionLease lease)
+        {
+            if (lease == null || lease.Kind != TransactionOwnerKind.Handle ||
+                !ReferenceEquals(lease.Facade, _owner))
+                throw new ArgumentException("Handle lease must belong to this facade.", nameof(lease));
+            EnsureWriteAllowed();
+            if (_slot.Value != null && _slot.Value.State != TransactionState.Disposed)
+                throw new InvalidOperationException("Cannot mix a handle and a legacy transaction.");
+            _locker.EnterTransaction(lease.Admission);
+            TransactionService transaction = null;
+            try
+            {
+                ThrowIfDisposed();
+                transaction = new TransactionService(_header, _locker, _disk, _walIndex,
+                    _transactionPageLimit, this, false, lease);
+                _transactions.Add(transaction);
+                ThrowIfDisposed();
+                return transaction;
+            }
+            catch
+            {
+                if (transaction != null) _transactions.Remove(transaction);
+                try { transaction?.Dispose(); }
+                finally { _locker.ExitTransaction(lease.Admission); }
+                throw;
+            }
         }
 
         /// <summary>
@@ -213,7 +241,7 @@ namespace LiteDB.Engine
                 {
                     // Rebuild may dispose the monitor and disk as soon as the transaction
                     // lease is released. Finish service cleanup before admitting it.
-                    if (!transaction.QueryOnly)
+                    if (!transaction.QueryOnly && transaction.Lease.Kind == TransactionOwnerKind.Legacy)
                     {
                         ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
                         _slot.Value = null;
@@ -224,7 +252,7 @@ namespace LiteDB.Engine
                 {
                     if (removed)
                     {
-                        _locker.ExitTransaction(transaction.OwnerThread);
+                        _locker.ExitTransaction(transaction.Lease.Admission);
 #if DEBUG || TESTING
                         AfterTransactionExit?.Invoke();
 #endif

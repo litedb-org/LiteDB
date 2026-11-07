@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         /// batch so physical recovery order never moves backwards.
         /// </summary>
         public uint TransactionID { get; set; }
+        internal object LockOwner { get; set; } = Thread.CurrentThread;
         internal bool DeferCommitSync { get; set; }
         // Covers both observed write snapshots and this transaction's confirmation.
         // Zero is valid only before any grouped append has been observed.

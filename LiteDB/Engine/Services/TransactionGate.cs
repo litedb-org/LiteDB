@@ -16,7 +16,7 @@ namespace LiteDB.Engine
         // A cursor can outlive its originating thread. Numeric managed IDs can
         // be recycled after that thread is collected, so retain its identity
         // until the last lease is released, including release on another thread.
-        private readonly Dictionary<Thread, int> _readers = new Dictionary<Thread, int>();
+        private readonly Dictionary<object, int> _readers = new Dictionary<object, int>(ReferenceOwnerComparer.Instance);
         private int _readerCount;
         private Thread _writer;
         private int _waitingWriters;
@@ -45,10 +45,18 @@ namespace LiteDB.Engine
             }
         }
 
-        public bool TryEnterReadLock(TimeSpan timeout)
+        public bool TryEnterReadLock(TimeSpan timeout) => TryEnterReadLock(timeout, Thread.CurrentThread);
+
+        internal bool HasReadLease(object owner)
         {
+            lock (_sync) return _readers.ContainsKey(owner);
+        }
+
+        internal bool TryEnterReadLock(TimeSpan timeout, object owner)
+        {
+            if (owner == null) throw new ArgumentNullException(nameof(owner));
             var elapsed = Stopwatch.StartNew();
-            var thread = Thread.CurrentThread;
+            var thread = owner;
             lock (_sync)
             {
                 ThrowIfDisposed();
@@ -63,7 +71,7 @@ namespace LiteDB.Engine
             }
         }
 
-        public void ExitReadLock(Thread owner)
+        public void ExitReadLock(object owner)
         {
             lock (_sync)
             {

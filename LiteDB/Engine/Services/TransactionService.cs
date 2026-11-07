@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -34,7 +34,8 @@ namespace LiteDB.Engine
 
         // expose (as read only)
         public int ThreadID => _ownerThread.ManagedThreadId;
-        internal object FacadeOwner => _monitor.Owner;
+        internal TransactionLease Lease { get; }
+        internal object FacadeOwner => Lease.Facade;
         internal Thread OwnerThread => _ownerThread;
         public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;
@@ -64,7 +65,7 @@ namespace LiteDB.Engine
         /// </summary>
         public volatile bool ExplicitTransaction = false;
 
-        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
+        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly, TransactionLease lease = null)
         {
             // retain instances
             _header = header;
@@ -72,6 +73,8 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _monitor = monitor;
+            Lease = lease ?? TransactionLease.Legacy(monitor.Owner);
+            _transPages.LockOwner = Lease.LockOwner;
 
             this.QueryOnly = queryOnly;
             this.MaxTransactionSize = maxTransactionSize;
