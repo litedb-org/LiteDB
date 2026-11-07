@@ -14,7 +14,7 @@ NS = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
 def classes(root, stress=False):
     selected = set()
     for path in (root / 'LiteDB.Tests').rglob('*.cs'):
-        source = path.read_text(encoding='utf-8-sig')
+        source = path.read_text(encoding='utf-8-sig', errors='replace')
         if not (re.search(r'\[(?:OneFile|LinuxFutex)(?:Fact|Theory)', source)
                 or path.stem.startswith(('SharedOneFile', 'SharedWriterTenure'))
                 or path.stem in ('SharedIntegrationSeam_Tests', 'SharedPlatformWake_Tests')):
