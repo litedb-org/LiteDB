@@ -308,7 +308,7 @@
         },
         {
           "test": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Callback_conflicting_independent_work_refuses_without_aborting_holder",
-          "model": "interleaving",
+          "model": "exception",
           "proves": "Executing handle callback refuses conflicting independent handle/ordinary writes before waiting, retains caught-refusal owner state and commits only outer rows."
         }
       ],
@@ -709,7 +709,7 @@
         },
         {
           "test": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Callback_conflicting_independent_work_refuses_without_aborting_holder",
-          "model": "interleaving",
+          "model": "exception",
           "proves": "Executing handle callback refuses conflicting independent handle/ordinary writes before waiting, retains caught-refusal owner state and commits only outer rows."
         }
       ],
