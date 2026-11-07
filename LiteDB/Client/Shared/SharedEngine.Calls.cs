@@ -66,6 +66,7 @@ namespace LiteDB
         private T Call<T>(Func<T> call)
         {
             this.ThrowIfTeardownReentry();
+            if (Volatile.Read(ref _disposed) == 0) _admission?.EnsureValid();
             var depth = this.AdmittedDepth();
             var frame = this.OwnershipFrame(this.CallRetains);
             try

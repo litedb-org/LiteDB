@@ -7,7 +7,8 @@ namespace LiteDB.Engine
 {
     internal sealed partial class HeaderJournal
     {
-        private static uint ComputeVerifiedBody(Stream stream, long length, byte[] header, WalChecksum expected)
+        internal static uint ComputeVerifiedBody(Stream stream, long length, byte[] header, WalChecksum expected,
+            ISet<uint> expectedTransactions = null)
         {
             if (WalPadding.TrailingBytes(length) != 0) throw new PageChecksumException(FileOrigin.Log, length);
             var salt = new byte[16];
@@ -23,10 +24,17 @@ namespace LiteDB.Engine
                 bytes => crc = Crc32C.Update(crc, bytes, 0, bytes.Length));
 
             var recovery = new WalRecovery();
-            foreach (var page in recovery.Read(frames)) { }
+            var confirmed = expectedTransactions == null ? null : new HashSet<uint>();
+            foreach (var page in recovery.Read(frames))
+            {
+                if (confirmed != null && page.ReadBool(BasePage.P_IS_CONFIRMED) &&
+                    !confirmed.Add(page.ReadUInt32(BasePage.P_TRANSACTION_ID)))
+                    throw new PageChecksumException(FileOrigin.Log, page.Position);
+            }
             recovery.RequireRetirement(checksums.Retirement);
             if (recovery.InvalidTail || recovery.Sequence != expected.Sequence ||
-                recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE)
+                recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE ||
+                (confirmed != null && !confirmed.SetEquals(expectedTransactions)))
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);
             var padding = new byte[length % WalChecksum.FrameSize];
             stream.Position = length - padding.Length;

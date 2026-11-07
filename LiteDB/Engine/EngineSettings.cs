@@ -57,6 +57,9 @@ namespace LiteDB.Engine
 
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
+        internal bool BypassDirectHost { get; set; }
+        internal bool SharedMode { get; set; }
+        internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
@@ -249,7 +252,7 @@ namespace LiteDB.Engine
                 var logName = FileHelper.GetLogFile(this.Filename);
 
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true,
-                    handles: this.SharedFileHandles);
+                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits);
             }
 
             return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);

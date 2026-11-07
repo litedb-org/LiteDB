@@ -82,6 +82,7 @@ namespace LiteDB.Client.Coordinated
             // Publish "starting" before the engine opens: opening can change the files.
             _signals = _page == null ? null : new CoordinatorSignals(_page);
             engineSettings.CoordinationSignals = _signals;
+            engineSettings.BypassDirectHost = true; // Coordinator owns its engine and snapshot protocol.
             try { _engine = new LiteEngine(engineSettings); }
             catch
             {

@@ -18,7 +18,7 @@ namespace LiteDB.Tests.Issues
             using var file = new TempFile();
             var settings = new EngineSettings { Filename = file.Filename };
             using var engine = new SharedEngine(settings);
-            var mutexName = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            var mutexName = SharedMutexNameFactory.Create(DatabaseFileIdentity.CanonicalPath(settings.Filename), settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);
 
             Exception ownerFailure = null;
@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Issues
             engine.SimulateOpenEngine = () =>
             {
                 if (attempts++ == 0) throw SharingViolation();
-                return new LiteEngine(settings);
+                return new LiteEngine(new EngineSettings { Filename = settings.Filename, SharedMode = true });
             };
 
             engine.Pragma(Pragmas.USER_VERSION).AsInt32.Should().Be(0);
@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Issues
             using var file = new TempFile();
             var settings = new EngineSettings { Filename = file.Filename };
             using var engine = new SharedEngine(settings);
-            var mutexName = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            var mutexName = SharedMutexNameFactory.Create(DatabaseFileIdentity.CanonicalPath(settings.Filename), settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);
             var owner = new Thread(() => mutex.WaitOne());
             owner.Start();

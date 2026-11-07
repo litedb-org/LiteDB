@@ -195,7 +195,7 @@ namespace LiteDB.Engine
         }
 
         internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums,
-            bool promotion = false, Action<Stream> sync = null)
+            bool promotion = false, Action<Stream> sync = null, uint? verifiedBody = null)
         {
             var bytes = new byte[Size];
             Buffer.BlockCopy(header, 0, bytes, 0, PAGE_SIZE);
@@ -206,7 +206,7 @@ namespace LiteDB.Engine
             descriptor.Write(length, P_POSITION);
             var transactionID = 0u;
             descriptor.Write(checksums.Enabled
-                ? ComputeVerifiedBody(stream, length, header, checksums)
+                ? verifiedBody ?? ComputeVerifiedBody(stream, length, header, checksums)
                 : ComputeBody(stream, length, out transactionID), P_BODY_CRC);
             if (header[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION)
             {

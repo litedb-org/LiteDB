@@ -5,9 +5,13 @@ namespace LiteDB.Engine
 {
     internal partial class WalIndexService
     {
-        private void ValidateCheckpoint()
+        private uint? ValidateCheckpoint()
         {
-            if (!_disk.ChecksumsEnabled) return;
+            if (!_disk.ChecksumsEnabled) return null;
+            // A reclaiming checkpoint holds header, index and WAL writer locks through
+            // journal publication. Hash and validate the exact same bytes in one pass.
+            // Other stream types retain their existing padding/encryption verification.
+            if (_disk.TryVerifyCheckpointBody(_confirmTransactions, out var body)) return body;
             var recovery = new WalRecovery();
             var confirmed = new HashSet<uint>();
             foreach (var page in recovery.Read(_disk.ReadFull(FileOrigin.Log)))
@@ -25,6 +29,7 @@ namespace LiteDB.Engine
                 Reachability.Sometimes("refusal:checkpoint-wal-verification-failed");
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);
             }
+            return null;
         }
     }
 }

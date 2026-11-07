@@ -26,6 +26,124 @@
   ],
   "dispositions": [
     {
+      "id": "shared-retry-completed-write-watchdog",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs"
+      ],
+      "disposition": "replaced",
+      "invariant": "A child writer must acquire ownership after retry commit, finish all twenty writes and release; a stalled child must fail. Ownership, release and cold-reopen data assertions remain unchanged.",
+      "reason": "Replace the five-second aggregate done comparison with ordered completed-write validation, the same five-second stall window and a two-minute hard cap. CI run 42244689681 captured continuing writes and FlushFileBuffers after the aggregate deadline. This is a liveness oracle rather than a disk throughput limit.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Stalled_child_fails_after_last_completed_write",
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Progressing_work_can_exceed_a_single_stall_window",
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Overall_cap_bounds_even_progressing_work"
+      ]
+    },
+    {
+      "id": "p1-cpu-delete-additive-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL/group/fault safety partitions execute unchanged; delete result, rollback, page cursor, snapshot and recovery safety receive additional hosted coverage.",
+      "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
+    },
+    {
+      "id": "p1-mapper-additive-safety-filter",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Retain all existing WAL, group commit, recovery and lifetime tests while verifying mapper contracts.",
+      "reason": "Adds the entire mapper namespace to the existing non-WAL safety partition; no prior selector or partition is removed."
+    },
+    {
+      "id": "p1-padding-noop-truncate-checksum-crash-4058733",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:4058733:111"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-checksum-crash-3163459",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "checksum-crash:3163459:201"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; interrupted transactions expose only complete protocol-permitted outcomes, including a second interrupted checksum recovery.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-noop-truncate-compact-crash-2937",
+      "kind": "corpus-repinned",
+      "subjects": [
+        "compact-crash:2937:64"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "Preserve complete acknowledged payloads, exact secondary-index results, unrelated data and byte-preserving read-only recovery; compact interruption exposes only whole original/new transactions with stable membership through checkpoint.",
+      "reason": "WalPadding.Pad skips equal-length SetLength, removing modeled before/after-truncate events and changing the number of recorded PRNG words. These stream-backed targets never use the combined FileStream write. Re-pin both input and trace hashes at unchanged seeds/counts after all target oracles completed; retain every old hash in previousHashes and the unchanged deterministic recovery guards. No oracle, expected-failure classification or actual persistent transition is removed.",
+      "decision": "docs/wal-padding-corpus-disposition.md"
+    },
+    {
+      "id": "p1-padding-compatibility-script",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-vector-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Prepends padding-create, released LiteDB 5.0.21 padding refusal, and padding-verify to the existing compatibility chain. Adds eight fixtures (plain/encrypted at 1, 127, 128 and 129 acknowledged commits); retains every existing compatibility invocation and assertion."
+    },
+    {
+      "id": "p1-padding-compatibility-current",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/VectorCompatibility/Current/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Adds padding-create and padding-verify dispatch to WalPaddingCompatibility. Captures aligned WAL-bearing plain/encrypted files before writer disposal at 1, 127, 128 and 129 commits, then checks every document payload through two recovery/checkpoint opens after legacy refusal. Existing dispatcher paths remain intact."
+    },
+    {
+      "id": "p1-padding-compatibility-legacy",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/VectorCompatibility/Legacy/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Released engines must refuse newer WAL-bearing files without changing data or WAL bytes; the current engine must recover every acknowledged document across padding alignment boundaries.",
+      "reason": "Adds padding dispatch for eight plain/encrypted WAL fixtures at 1, 127, 128 and 129 acknowledged commits. Reuses the existing Refuse oracle against actual LiteDB 5.0.21 for read, write, rebuild and upgrade; each refusal checks byte-identical data and WAL. Existing reclaim and other modes retain their checks."
+    },
+    {
+      "id": "p1-same-job-benchmark-comparison-budget",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Benchmark verdicts require complete measurement sets, unchanged owner thresholds and independently verified candidate identities; partial or subset measurements cannot pass the Phase 1 gate.",
+      "reason": "Optional baseline_ref adds same-job v5/before/after evidence with a 23-minute measurement budget and 29-minute job limit. Default jobs retain their existing rounds, timeouts, workloads and verdicts. Incomplete comparisons fail evidence validation; explicit scenario subsets are report-only. Synthetic comparison tests verify shared-v5 identity, separate before/after binaries, rotating order, bounds and subset verdict refusal. No product tests or safety assertions are removed."
+    },
+    {
+      "id": "p1-benchmark-range-verdicts-and-macos-rounds",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
+      "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6\u20137 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
+    },
+    {
       "id": "ci-split-engine-capacity",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -198,6 +316,66 @@
       "disposition": "strengthened",
       "invariant": "Existing CI tests, filters, timeouts and runtime legs remain intact; pinned legacy WAL files are also checked with the production assembly.",
       "reason": "Adds the six production compatibility scenarios and the Python harness timeout/cleanup guards to the existing compatibility job. No existing case or oracle changes."
+    },
+    {
+      "id": "p1-windows-slow-baseline-measurement-budget",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Complete same-job baseline/candidate/v5 comparison at unchanged operation counts, six rounds (ten macOS), correctness checks, identity validation and ratio/noise thresholds.",
+      "reason": "Optional workflow_dispatch slow_comparison extends only performance measurement deadlines for comparisons: phase1 Windows net8 baseline exceeded 360 seconds in round 1 after durable 4-writer workload. Default budgets and test timeouts stay unchanged; incomplete results still fail. This permits collecting every existing scenario instead of accepting partial rounds."
+    },
+    {
+      "id": "p1-handle-safety-complete-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
+      "reason": "The original combined session exceeded 300 seconds on Windows net8 and net10 with no assertion failures and varying completion counts. Three disjoint filters retain the exact original union, place group/lifecycle/native-sync cases first, and give each partition its own unchanged session budget. Every partition runs and any nonzero exit fails the job."
+    },
+    {
+      "id": "p1-handle-safety-vstest-predicate-syntax",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
+      "reason": "Express the same disjoint partition complement using VSTest supported !~ predicates. Every original case remains in exactly one partition, with unchanged assertions and session timeout."
+    },
+    {
+      "id": "p1-integrate-add-delete-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL safety partitions, assertions, timeouts and runtime legs remain exercised.",
+      "reason": "Integrates the additional primary-key delete differential, rollback, reader snapshot and WAL-failure recovery partition from the delete candidate. Every pre-existing partition remains unchanged; the added partition fails the job on any test failure."
+    },
+    {
+      "id": "p1-integrate-baseline-update-guard-tree",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-update-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Candidate retains all merged update/delete tests and index/vector fuzz; historical phase1 comparison executes the same nine update guards from the accepted update candidate.",
+      "reason": "Restore the accepted update test tree only after all candidate tests and fuzz complete, alongside unchanged phase1 production source. The integrated delete guards reference a new internal helper absent from the historical production library and otherwise prevent baseline compilation. No candidate filter, assertions, rounds or runtime legs change; original baseline update guards remain byte-identical."
+    },
+    {
+      "id": "p1-bench-budget-windows-comparison",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
+      "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
     }
   ]
 }

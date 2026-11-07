@@ -87,9 +87,10 @@ namespace LiteDB
         public const long MEMORY_CACHE_SIZE = 8L * 1024 * 1024;
 
         /// <summary>
-        /// Size, in pages, for the first and subsequent cache segments.
+        /// Segment sizes in pages: keep cold reads small before reaching the
+        /// original 136-page capacity and subsequent 128-page increments.
         /// </summary>
-        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 8, 128 };
+        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 8, 8, 16, 104, 128 };
 
         /// <summary>
         /// Define how many documents will be keep in memory until clear cache and remove support to orderby/groupby

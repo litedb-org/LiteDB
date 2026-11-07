@@ -22,7 +22,11 @@ namespace LiteDB.Engine
         internal static void Pad(Stream stream, long frameBytes, bool initialize = false)
         {
             var length = AlignedLength(frameBytes);
-            stream.SetLength(length);
+            // Appending a final frame may already have extended the physical
+            // stream through the aligned boundary. Avoid a second truncate in
+            // that case (SetLength is disproportionately expensive on APFS).
+            if (stream.Length != length) stream.SetLength(length);
+            else if (!initialize || length == frameBytes) return;
             if (initialize && length != frameBytes)
             {
                 // AesStream normalizes a read starting with zero ciphertext to

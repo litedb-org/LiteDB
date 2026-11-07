@@ -15,7 +15,7 @@ namespace LiteDB.Engine
     {
         private readonly TransactionRegistry _transactions = new TransactionRegistry();
         private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
-        private readonly ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
+        private ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -24,6 +24,47 @@ namespace LiteDB.Engine
 
         private readonly int _transactionPageLimit;
         private int _disposed;
+        private object _owner = new object();
+        internal object Owner => _owner;
+        internal void ValidateOwner() => this.ThrowIfDisposed();
+        internal TransactionMonitor CreateOwner()
+        {
+            var view = (TransactionMonitor)this.MemberwiseClone();
+            view._owner = new object();
+            view._explicitAborted = new ThreadLocal<bool>();
+            return view;
+        }
+
+        internal void CloseOwner()
+        {
+            Interlocked.Exchange(ref _disposed, 1);
+            _explicitAborted.Dispose();
+        }
+
+        internal void DisposeOwner()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            foreach (var transaction in _transactions.Snapshot())
+            {
+                if (!ReferenceEquals(transaction.FacadeOwner, _owner)) continue;
+                try
+                {
+                    if (transaction.State == TransactionState.Active)
+                    {
+                        if (transaction.OwnerThread != Thread.CurrentThread && transaction.Mode == LockMode.Write)
+                            throw new InvalidOperationException("Dispose a Direct facade's active write transaction on its owning thread.");
+                        if (transaction.OwnerThread == Thread.CurrentThread) transaction.Rollback();
+                    }
+                    this.RemoveTransaction(transaction, out _);
+                }
+                finally
+                {
+                    if (ReferenceEquals(_slot.Value, transaction)) _slot.Value = null;
+                    _locker.ExitTransaction(transaction.OwnerThread);
+                }
+            }
+            _explicitAborted.Dispose();
+        }
 
 #if TESTING
         internal Action BeforeTransactionRegistration { get; set; }
@@ -94,6 +135,16 @@ namespace LiteDB.Engine
             else
             {
                 isNew = false;
+                if (transaction != null && !ReferenceEquals(transaction.FacadeOwner, _owner))
+                {
+                    if (transaction.State == TransactionState.Disposed)
+                    {
+                        _slot.Value = null;
+                        return this.GetTransaction(create, queryOnly, out isNew);
+                    }
+                    if (create) throw new InvalidOperationException("Another Direct facade owns this thread's transaction. Complete it before using this facade on the same thread.");
+                    return null;
+                }
             }
 
             return transaction;

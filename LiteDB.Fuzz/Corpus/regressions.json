@@ -117,9 +117,9 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10.",
-      "inputHash": "76D03C6250BC2CAA506D5545F400D85F01FF55AA788998A35B12C21DD8C84921",
-      "traceHash": "A3F383F23429D97C7E24B9D1D59AB6941DCB3B4D48196F3C4EB098AA2826B1B7",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Re-pinned after equal-length padding stopped issuing redundant SetLength calls; modeled crash-event sampling changed. See docs/wal-padding-corpus-disposition.md.",
+      "inputHash": "0530C40379A2A21E5FB4C49B8EB705CDC9ABFBE57D702C5732E1F5D4BB6130B9",
+      "traceHash": "7D8C607DA6CAA9CCF56EAB76E43E941635E8D0FE13486230A79F0D074879F44C",
       "previousHashes": [
         {
           "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
@@ -140,6 +140,11 @@
           "inputHash": "AE8E6F188F9951560212CC7D182766450FC8316E32BFF89ED5295E33F0E6D49D",
           "traceHash": "DFBD2E090B670F57FF5AF1D30F1920FDBA98EE4FBFAD6F3D3ADED3A11099303B",
           "reason": "Before the final integrated stack used truthful legacy ordering metadata; fresh full-model runs and recorded-byte replays agree on .NET 8 and .NET 10."
+        },
+        {
+          "inputHash": "76D03C6250BC2CAA506D5545F400D85F01FF55AA788998A35B12C21DD8C84921",
+          "traceHash": "A3F383F23429D97C7E24B9D1D59AB6941DCB3B4D48196F3C4EB098AA2826B1B7",
+          "reason": "Equal-length WalPadding.Pad now skips SetLength (525b34397), removing modeled before/after-truncate events and changing random-word consumption; complete payload/index and repeated-recovery oracles passed before hash comparison. See docs/wal-padding-corpus-disposition.md."
         }
       ]
     },
@@ -147,9 +152,9 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10.",
-      "inputHash": "9B8F44BBE4E6A62D0A424BEE719F53E347F5216FD1F1BD583F43CEBF4B638499",
-      "traceHash": "ECD2CDDA0F28EF8D481B90AB98AE8E1397C4131C73B98DE9786B1CDC9E85C0D8",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Revalidated against truthful legacy ordering metadata on the final integrated stack; full-model runs and recorded-byte replays agree on .NET 8 and .NET 10. Re-pinned after equal-length padding stopped issuing redundant SetLength calls; modeled crash-event sampling changed. See docs/wal-padding-corpus-disposition.md.",
+      "inputHash": "5B7286BB4816D39C5B3FD7177B95D21819513F9F25569CA8DD0629288FF5B083",
+      "traceHash": "748A958FA18BDB3FB6E96E583511E7D8AC5513FBDDAD368D55B73CCD119CF07F",
       "previousHashes": [
         {
           "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
@@ -170,6 +175,11 @@
           "inputHash": "B79ABCA20757223A9DAF535A26CF8EFBEC45308D5D7991C353E6DD667B8CC122",
           "traceHash": "6FBC3BBEFF0B6B97B5B056B75829F7EB98BF3A630B9B25C5DA41614E7078C8F7",
           "reason": "Before the final integrated stack used truthful legacy ordering metadata; fresh full-model runs and recorded-byte replays agree on .NET 8 and .NET 10."
+        },
+        {
+          "inputHash": "9B8F44BBE4E6A62D0A424BEE719F53E347F5216FD1F1BD583F43CEBF4B638499",
+          "traceHash": "ECD2CDDA0F28EF8D481B90AB98AE8E1397C4131C73B98DE9786B1CDC9E85C0D8",
+          "reason": "Equal-length WalPadding.Pad now skips SetLength (525b34397), removing modeled before/after-truncate events and changing random-word consumption; complete payload/index and repeated-recovery oracles passed before hash comparison. See docs/wal-padding-corpus-disposition.md."
         }
       ]
     },
@@ -209,9 +219,9 @@
       "target": "compact-crash",
       "seed": 2937,
       "count": 64,
-      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication.",
-      "inputHash": "7017F28902BB833CFA10F818398BC6E7ABA13DB433AAE52F2EA1A894BA3A1542",
-      "traceHash": "A1F6C22B07E7407B79757E53E19C21AC44D11AD71F2CD9E338347DAC624FDC1D",
+      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication. Re-pinned after equal-length padding stopped issuing redundant SetLength calls; modeled crash-event sampling changed. See docs/wal-padding-corpus-disposition.md.",
+      "inputHash": "6231333351378CBB54F5BFE9BD53F55649C2A91C93AB1CBC99F7B5EF46D1193B",
+      "traceHash": "CE2D6A392DB9D85C6CA68CC83FF3E36F464162BD20C9329C77A8BE4BAAD6F4EC",
       "previousHashes": [
         {
           "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
@@ -222,6 +232,11 @@
           "inputHash": "1D2D2C5C8D10A422BEC9999300816BA759A3909537C43D7B1C4F3B5FC1F57F6D",
           "traceHash": "5CA3567E9D9C762727DD3EDAB5F757B13746AF89A0A5149C78F8E3F370C2AA73",
           "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
+        },
+        {
+          "inputHash": "7017F28902BB833CFA10F818398BC6E7ABA13DB433AAE52F2EA1A894BA3A1542",
+          "traceHash": "A1F6C22B07E7407B79757E53E19C21AC44D11AD71F2CD9E338347DAC624FDC1D",
+          "reason": "Equal-length WalPadding.Pad now skips SetLength (525b34397), removing modeled before/after-truncate events and changing random-word consumption; complete payload/index and repeated-recovery oracles passed before hash comparison. See docs/wal-padding-corpus-disposition.md."
         }
       ]
     },

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
+using Microsoft.Win32.SafeHandles;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -44,8 +46,8 @@ namespace LiteDB.Tests.Engine
         public void Peer_write_from_stream_callback_during_close_is_refused(Close close, bool encrypted)
         {
             this.Seed(this.Filename, encrypted);
-            var data = this.Track(new CallbackFile(this.Filename));
-            var log = this.Track(new CallbackFile(FileHelper.GetLogFile(this.Filename)));
+            var data = this.Track(CallbackFile.Open(this.Filename));
+            var log = this.Track(CallbackFile.Open(FileHelper.GetLogFile(this.Filename)));
             var outer = this.Track(new SharedEngine(new EngineSettings
             {
                 Filename = this.Filename,
@@ -142,9 +144,21 @@ namespace LiteDB.Tests.Engine
         {
             private Action _onWrite;
 
-            internal CallbackFile(string path)
+            private CallbackFile(string path)
                 : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete)
             {
+            }
+
+            private CallbackFile(SafeFileHandle handle) : base(handle, FileAccess.ReadWrite) { }
+
+            internal static CallbackFile Open(string path)
+            {
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return new CallbackFile(path);
+                // Darwin FileStream(path) adds a whole-file flock incompatible with
+                // native admission. Match the descriptor opening used by admission.
+                var handle = Client.Shared.DatabaseFileIdentity.Open(path, readOnly: false, create: true);
+                try { return new CallbackFile(handle); }
+                catch { handle.Dispose(); throw; }
             }
 
             internal void Arm(Action action) => Volatile.Write(ref _onWrite, action);

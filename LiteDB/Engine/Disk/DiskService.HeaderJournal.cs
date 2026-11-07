@@ -8,7 +8,8 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false,
+            uint? verifiedBody = null)
         {
             // Every caller overwrites existing data or its sole header. Commit
             // fallback may lose recent transactions, but a failed sync must never
@@ -29,20 +30,20 @@ namespace LiteDB.Engine
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
-            HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
+            HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier, verifiedBody);
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
             SyncLogDirectory();
         }
 
-        private void PrepareCheckpointHeader()
+        private void PrepareCheckpointHeader(uint? verifiedBody = null)
         {
             var header = new byte[PAGE_SIZE];
             var data = _dataPool.Writer.Value;
             data.Position = 0;
             data.ReadRequired(header, 0, header.Length);
             if (ChecksumsEnabled) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
-            BeginHeaderJournal(header);
+            BeginHeaderJournal(header, verifiedBody: verifiedBody);
         }
 
         private void RecoverHeaderJournal(ref byte[] header)

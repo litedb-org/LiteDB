@@ -301,7 +301,13 @@ namespace LiteDB.Engine
             {
                 var first = _segmentSizes[0];
                 var second = _segmentSizes[Math.Min(1, _segmentSizes.Length - 1)];
-                return checked(first + second);
+                // The ramp may use several small allocations before steady-size
+                // segments. Keep that ramp's total as the minimum budget, rather
+                // than lowering the budget when its allocations are subdivided.
+                var ramp = 0;
+                for (var i = 0; i < _segmentSizes.Length - 1; i++)
+                    ramp = checked(ramp + _segmentSizes[i]);
+                return Math.Max(checked(first + second), ramp);
             }
         }
 

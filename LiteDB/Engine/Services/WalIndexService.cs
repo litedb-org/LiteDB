@@ -61,7 +61,7 @@ namespace LiteDB.Engine
 
                 try
                 {
-                    return _currentReadVersion;
+                    return Math.Min(_currentReadVersion, _disk.CommitReadVersionLimit);
                 }
                 finally
                 {

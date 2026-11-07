@@ -11,24 +11,29 @@ namespace LiteDB.Engine
         /// <summary>
         /// Register all internal system collections avaiable by default
         /// </summary>
-        private void InitializeSystemCollections()
+        private Dictionary<string, SystemCollection> CreateSystemCollections()
         {
-            this.RegisterSystemCollection("$database", () => this.SysDatabase());
+            var collections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
+            void Add(string name, Func<IEnumerable<BsonDocument>> factory) => collections[name] = new SystemCollection(name, factory);
+            void Register(SystemCollection collection) => collections[collection.Name] = collection;
 
-            this.RegisterSystemCollection("$cols", () => this.SysCols());
-            this.RegisterSystemCollection("$indexes", () => this.SysIndexes());
+            Add("$database", () => this.SysDatabase());
 
-            this.RegisterSystemCollection("$sequences", () => this.SysSequences());
+            Add("$cols", () => this.SysCols());
+            Add("$indexes", () => this.SysIndexes());
 
-            this.RegisterSystemCollection("$transactions", () => this.SysTransactions());
-            this.RegisterSystemCollection("$snapshots", () => this.SysSnapshots());
-            this.RegisterSystemCollection("$open_cursors", () => this.SysOpenCursors());
+            Add("$sequences", () => this.SysSequences());
 
-            this.RegisterSystemCollection(new SysFile()); // use single $file(?) for all file formats
-            this.RegisterSystemCollection(new SysDump(_header, _monitor));
-            this.RegisterSystemCollection(new SysPageList(_header, _monitor));
+            Add("$transactions", () => this.SysTransactions());
+            Add("$snapshots", () => this.SysSnapshots());
+            Add("$open_cursors", () => this.SysOpenCursors());
 
-            this.RegisterSystemCollection(new SysQuery(this));
+            Register(new SysFile()); // use single $file(?) for all file formats
+            Register(new SysDump(_header, _monitor));
+            Register(new SysPageList(_header, _monitor));
+
+            Register(new SysQuery(this));
+            return collections;
         }
     }
 }

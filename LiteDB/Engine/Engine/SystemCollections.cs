@@ -11,7 +11,7 @@ namespace LiteDB.Engine
         /// </summary>
         internal SystemCollection GetSystemCollection(string name)
         {
-            if (_systemCollections.TryGetValue(name, out var sys))
+            if (_systemCollections.Value.TryGetValue(name, out var sys))
             {
                 return sys;
             }
@@ -27,7 +27,7 @@ namespace LiteDB.Engine
         {
             if (systemCollection == null) throw new ArgumentNullException(nameof(systemCollection));
 
-            _systemCollections[systemCollection.Name] = systemCollection;
+            _systemCollections.Value[systemCollection.Name] = systemCollection;
         }
 
         /// <summary>
@@ -39,7 +39,7 @@ namespace LiteDB.Engine
             if (collectionName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collectionName));
             if (factory == null) throw new ArgumentNullException(nameof(factory));
 
-            _systemCollections[collectionName] = new SystemCollection(collectionName, factory);
+            _systemCollections.Value[collectionName] = new SystemCollection(collectionName, factory);
         }
     }
 }

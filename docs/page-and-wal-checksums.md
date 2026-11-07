@@ -283,6 +283,29 @@ and encrypted medians of **30.24 → 32.89 ms**. The additional protection cost 
 
 ## Released-engine WAL length compatibility
 
+Automatic checkpoint uses the logical WAL page count, as in 5.0.21: after a
+transaction finishes, a positive `CHECKPOINT=N` requests maintenance only when
+the WAL contains **more than N pages**. The 64-byte checksum trailers, EOF
+alignment padding, encryption preamble and header journal do not count. The
+threshold multiplication uses 64-bit arithmetic, including for `int.MaxValue`.
+Explicit and close checkpoints retain their existing behavior. The volatile-WAL
+override for writable caller streams without a log still checkpoints every commit,
+including a single-page commit, independently of the persisted pragma.
+
+For serial transactions appending at most B logical pages each, when every
+requested checkpoint can reclaim, the trigger permits at most N+B logical pages
+before reclamation. Their frames occupy `(N+B)*8256` bytes, rounded up to 8192 bytes,
+plus a temporary 16384-byte header journal (and an encryption preamble if used).
+This is a conditional bound, not a hard disk quota: a large/in-flight transaction,
+concurrent writers, or snapshots/leases that prevent reclamation can exceed it.
+Existing reader backoff, retirement and slot reuse remain in force; `CHECKPOINT=0`
+continues to disable automatic and close checkpoints. No barrier is removed.
+
+[`AutomaticCheckpointCadence_Tests`](../LiteDB.Tests/Engine/AutomaticCheckpointCadence_Tests.cs)
+checks equality and first-excess-page behavior around the 128-frame alignment
+rollover and at the default threshold, large pragmas, plain/encrypted file-backed
+recovery, unchanged indexed rows and failure of the triggered checkpoint.
+
 LiteDB 5.0.21 rounds the physical WAL length down to an 8 KiB boundary before
 checking the database version, even for read-only open. Flushed checksummed WALs
 therefore retain less than 8 KiB of trailing padding. Logical pages still map to

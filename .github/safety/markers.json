@@ -9,6 +9,10 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "wal-before-ticket-completion": {
+      "gate": "advisory",
+      "reason": "GroupCommitUnsupported_Tests forces unsupported grouped sync and pauses tickets at completion; fuzz smoke does not force this capability downgrade and xUnit marker counts are not collected."
+    },
     "before-candidate-republish": {
       "gate": "advisory",
       "reason": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not."
@@ -35,6 +39,19 @@
     }
   },
   "markers": [
+    {
+      "name": "refusal:direct-attach-during-maintenance",
+      "kind": "refusal",
+      "paths": ["LiteDB/Client/Direct/DirectProcessHost.cs"],
+      "targets": [
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Replacement_identity_cannot_publish_a_second_core_before_maintenance_returns",
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release"
+      ],
+      "gate": "advisory",
+      "gateReason": "Forced xUnit schedules cover the native identity swap and a completed rebuild whose facade still owns maintenance; xUnit does not record markers and PR fuzz smoke does not force this window.",
+      "doc": "docs/direct-process-host.md",
+      "reason": "A Direct attach finds the same stable native admission entry throughout maintenance, including after physical identity replacement, and refuses before a second core can open."
+    },
     {
       "name": "maintenance:checkpoint-during-active-readers",
       "kind": "maintenance",
@@ -81,6 +98,19 @@
         "LiteDB.Tests/Internals/TransactionCleanupBoundary_Tests.cs#MonitorDispose_WithOneDamagedTransaction_CleansAllOtherTransactions"
       ],
       "reason": "An engine (Direct, or a Shared core) closes while a transaction is still registered in its monitor; detected per transaction in TransactionMonitor.Dispose."
+    },
+    {
+      "name": "maintenance:direct-finalizer-release-queued",
+      "kind": "maintenance",
+      "paths": [
+        "LiteDB/Client/Direct/DirectFacadeLifetime.cs"
+      ],
+      "targets": [
+        "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs#Abandoned_finalizer_release_does_not_block_the_finalizer_thread"
+      ],
+      "gate": "advisory",
+      "gateReason": "No deterministic PR smoke target forces GC/finalization of an undisposed Direct facade; DirectProcessHost_Tests.Abandoned_finalizer_release_does_not_block_the_finalizer_thread forces collection and pauses final close to prove finalizer progress and attach serialization. xUnit does not record markers.",
+      "reason": "An abandoned Direct facade publishes its final release to the normal-thread reaper so the finalizer cannot block on host admission or storage close."
     },
     {
       "name": "maintenance:close-during-foreign-transaction",

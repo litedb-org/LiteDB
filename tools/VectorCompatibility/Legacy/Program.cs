@@ -18,7 +18,12 @@ namespace VectorCompatibility.Legacy
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
-                if (args[0] == "reclaim")
+                if (args[0] == "padding")
+                {
+                    foreach (var count in new[] { 1, 127, 128, 129 })
+                        Refuse(Path.Combine(args[1], "padding-" + count + "-" + suffix), password);
+                }
+                else if (args[0] == "reclaim")
                 {
                     Refuse(Path.Combine(args[1], "reclaimed-" + suffix), password);
                 }

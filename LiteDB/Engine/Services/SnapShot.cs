@@ -85,7 +85,7 @@ namespace LiteDB.Engine
                 {
                     // Collection identity and WAL visibility must describe the same committed
                     // state. A commit that changes the map holds this lock through confirmation.
-                    _readVersion = _walIndex.PinSnapshot();
+                    _readVersion = _walIndex.PinSnapshot(mode == LockMode.Write ? _transPages : null);
                     collectionPageID = _header.GetCollectionPageID(_collectionName);
                 }
                 srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);

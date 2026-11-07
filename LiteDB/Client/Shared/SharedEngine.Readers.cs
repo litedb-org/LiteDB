@@ -9,6 +9,14 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
+        private volatile bool _releaseNativeAfterPin;
+
+        private void DeferNativeRelease()
+        {
+            _releaseNativeAfterPin = true;
+            _handles?.Dispose();
+        }
+
         // Leased streaming readers of this instance, per creating thread.
         private readonly Dictionary<int, int> _localReaders = new Dictionary<int, int>();
         // Holder of the mutex for the thread iterating a leased reader; null when none.
@@ -187,7 +195,11 @@ namespace LiteDB
                 this.CloseRetainedCore(engine);
                 _lastPinClose = close.Elapsed;
             }
-            if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                try { this.DisposeCoordination(); }
+                finally { if (_releaseNativeAfterPin) _admission?.Dispose(); }
+            }
         }
 
         /// <summary>

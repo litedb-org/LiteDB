@@ -16,6 +16,9 @@ def run(engine, *arguments):
 
 
 with tempfile.TemporaryDirectory(prefix="litedb-vector-compatibility-") as directory:
+    run("Current", "padding-create", directory)
+    run("Legacy", "padding", directory)
+    run("Current", "padding-verify", directory)
     run("Current", "reclaim-create", directory)
     run("Legacy", "reclaim", directory)
     run("Current", "reclaim-verify", directory)

@@ -1,4 +1,6 @@
 using LiteDB.Utils;
+using LiteDB.Client.Direct;
+using LiteDB.Client.Shared;
 
 using System;
 using System.Collections.Concurrent;
@@ -37,10 +39,14 @@ namespace LiteDB.Engine
         // The caller's settings, or the engine's own copy once it opened read-only on its own.
         private EngineSettings _settings;
 
+        private DirectProcessHost _host;
+        private DirectFacadeLifetime _lifetime;
+        private NativeAdmission _sharedAdmission;
+
         /// <summary>
         /// All system read-only collections for get metadata database information
         /// </summary>
-        private Dictionary<string, SystemCollection> _systemCollections;
+        private Lazy<Dictionary<string, SystemCollection>> _systemCollections;
 
         /// <summary>
         /// Sequence cache for collections last ID (for int/long numbers only)
@@ -72,8 +78,42 @@ namespace LiteDB.Engine
         /// </summary>
         public LiteEngine(EngineSettings settings)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            _settings = settings;
+            if (!settings.BypassDirectHost && !settings.SharedMode && NativeAdmission.IsFile(settings))
+            {
+                try
+                {
+                    _host = DirectProcessHost.Attach(settings.Clone());
+                    _settings = _host.Settings;
+                    try
+                    {
+                        this.CopyHostServices();
+                        _lifetime = new DirectFacadeLifetime(_host, _monitor);
+                    }
+                    catch
+                    {
+                        _host.Release(_monitor);
+                        _host = null;
+                        throw;
+                    }
+                }
+                catch (IOException error) when (settings.ReadOnly &&
+                    (error is FileNotFoundException || error is DirectoryNotFoundException))
+                {
+                    throw new LiteException(LiteException.FILE_NOT_FOUND, error,
+                        "File '{0}' does not exist and cannot be created in read-only mode.", settings.Filename);
+                }
+            }
+            else
+            {
+                _sharedAdmission = settings.SharedAdmission?.Retain();
+                this.OpenWithReadOnlyFallback(settings);
+            }
+        }
 
+        private void OpenWithReadOnlyFallback(EngineSettings settings)
+        {
             // A caller's stream that cannot be written is never repaired, migrated or checkpointed.
             if (!settings.ReadOnly && !settings.ReadOnlyStorage &&
                 (settings.DataStream?.CanWrite == false || settings.LogStream?.CanWrite == false))
@@ -88,7 +128,6 @@ namespace LiteDB.Engine
             }
             catch (ReadOnlyOpenRequiredException)
             {
-                // Opening storage that cannot be written would have changed it; nothing was written.
                 // Keep retry flags on an engine-owned copy, including explicit ReadOnlyStorage settings.
                 if (ReferenceEquals(_settings, settings)) _settings = settings.Clone();
                 _settings.ReadOnly = true;
@@ -105,7 +144,7 @@ namespace LiteDB.Engine
         {
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
-            _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
+            _systemCollections = new Lazy<Dictionary<string, SystemCollection>>(this.CreateSystemCollections);
             _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
             try
@@ -125,13 +164,13 @@ namespace LiteDB.Engine
 
                 // read page with no cache ref (has a own PageBuffer) - do not Release() support.
                 // An existing file's header was just read and validated by the disk service.
-                var buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
+                _header = _disk.TakeOpeningHeader() ?? new HeaderPage(_disk.ReadFull(FileOrigin.Data).First());
+                var buffer = _header.Buffer;
 
                 // if first byte are 1 this datafile are encrypted but has do defined password to open
                 if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // read header database page
-                _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
@@ -155,13 +194,13 @@ namespace LiteDB.Engine
                         _disk = _state.Disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
                         // read buffer header page again
-                        buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
+                        _header = _disk.TakeOpeningHeader() ?? new HeaderPage(_disk.ReadFull(FileOrigin.Data).First());
+                        buffer = _header.Buffer;
 
                         // if first byte are 1 this datafile are encrypted but has do defined password to open
                         if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                         // read header database page
-                        _header = new HeaderPage(buffer);
                         _disk.FileVersion = _header.FileVersion;
                     }
                 }
@@ -198,9 +237,6 @@ namespace LiteDB.Engine
 
                 this.MigrateIndexOrdering();
                 _disk.TrimTrailingPages();
-
-                // register system collections
-                this.InitializeSystemCollections();
 
                 LOG("initialization completed", "ENGINE");
 
@@ -259,6 +295,7 @@ namespace LiteDB.Engine
             // dispose lockers
             tc.Catch(() => _locker?.Dispose());
 
+            _sharedAdmission?.Dispose();
             return tc.Exceptions;
         }
 
@@ -317,6 +354,7 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
+            _sharedAdmission?.Dispose();
             return tc.Exceptions;
         }
 
@@ -344,6 +382,11 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            if (_host != null)
+            {
+                _monitor.ValidateOwner();
+                return _host.Maintain(() => _host.Engine.Checkpoint());
+            }
             _state.Validate();
             // Fail before a checkpoint journals the header into a caller's log it cannot finish.
             if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
@@ -367,7 +410,8 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
-            this.Close();
+            if (_host == null) this.Close();
+            else _lifetime?.Dispose();
         }
     }
 }
