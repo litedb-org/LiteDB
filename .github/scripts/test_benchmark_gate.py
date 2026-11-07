@@ -172,6 +172,50 @@ class BenchmarkGateTests(unittest.TestCase):
                                  [c for v, c in order if v == variant])
         self.assertTrue(all(p == {0, 1, 2} for p in positions.values()))
 
+    def test_measurement_budgets_keep_child_limit_and_absolute_caps(self):
+        for operating_system in ("Windows", "Linux", "macOS"):
+            with self.subTest(os=operating_system):
+                self.assertEqual((360, 3300 if operating_system == "Windows" else 1380),
+                                 RUNNER.measurement_budgets(True, operating_system))
+                self.assertEqual((900, 3300), RUNNER.measurement_budgets(True, operating_system, True))
+                self.assertEqual((360, 1440 if operating_system == "macOS" else 2100),
+                                 RUNNER.measurement_budgets(False, operating_system, True))
+
+    def test_windows_child_hang_fails_with_partial_log(self):
+        destination = self.output / "timeout"
+        def timeout(command, **kwargs):
+            self.assertEqual(360, kwargs["timeout"])
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"], output=b"stalled child")
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Windows",
+                                     "BENCHMARK_BASELINE_SHA": "c" * 40,
+                                     "BENCHMARK_HARNESS_SHA": "f" * 40,
+                                     "BENCHMARK_SCENARIOS": "", "BENCHMARK_SLOW_COMPARISON": "false"}), \
+                patch.object(sys, "argv", ["run.py", "net8.0", str(destination)]), \
+                patch.object(RUNNER.subprocess, "check_output", return_value="synthetic"), \
+                patch.object(RUNNER.subprocess, "run", side_effect=timeout), \
+                redirect_stdout(io.StringIO()), self.assertRaises(subprocess.TimeoutExpired):
+            RUNNER.main()
+        metadata = json.loads((destination / "environment.json").read_text())
+        self.assertEqual(3300, metadata["measurementBudgetSeconds"])
+        self.assertEqual("child timeout", metadata["order"][0]["error"])
+        self.assertEqual("stalled child", (destination / "round-1-v5.log").read_text())
+        self.assertFalse((destination / "summary.json").exists())
+
+    def test_windows_total_budget_exhaustion_starts_no_child(self):
+        destination = self.output / "exhausted"
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Windows",
+                                     "BENCHMARK_BASELINE_SHA": "c" * 40,
+                                     "BENCHMARK_HARNESS_SHA": "f" * 40,
+                                     "BENCHMARK_SCENARIOS": ""}), \
+                patch.object(sys, "argv", ["run.py", "net8.0", str(destination)]), \
+                patch.object(RUNNER.subprocess, "check_output", return_value="synthetic"), \
+                patch.object(RUNNER.subprocess, "run") as child, \
+                patch.object(RUNNER.time, "monotonic", side_effect=[0, 3301]), \
+                redirect_stdout(io.StringIO()), self.assertRaisesRegex(TimeoutError, "Measurement budget"):
+            RUNNER.main()
+        child.assert_not_called()
+        self.assertFalse((destination / "summary.json").exists())
+
     def test_runner_comparison_uses_separate_binaries_and_revision_metadata(self):
         scenario = "single_insert_5k_tx"
         calls = []

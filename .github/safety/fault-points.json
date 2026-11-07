@@ -1761,7 +1761,11 @@
       "name": "wal-before-ticket-completion",
       "protocol": "WAL group completion",
       "evidence": [
-        {"test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions", "model": "exception", "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."},
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions",
+          "model": "exception",
+          "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."
+        },
         {
           "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
           "model": "exception",
@@ -2267,5 +2271,23 @@
       "scope": "Inherited Phase 2 boundary; applies to Direct/legacy Shared. Phase 3 mapped directory sync modeling is registered separately."
     }
   ],
-  "inheritedObserverDescriptions": {"CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions."}
+  "inheritedObserverDescriptions": {
+    "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions."
+  },
+  "inheritedParentEntries": [
+    {
+      "source": "f4d424f84b09c8b21ba99af563e4aaad518fa9a9",
+      "reason": "Preserve the Phase 2 observer description verbatim; the active Phase 3 observer additionally documents the pin-sampled stage.",
+      "observers": {
+        "CoordinationStage": "Observes in-process Shared admission stages (opening, lease-published, admitted, expiring); lease-file persistence is listed under unhookedTransitions."
+      }
+    },
+    {
+      "source": "a3a615943c56893e2d69f1e1646386ca098a82a5",
+      "reason": "Preserve the Phase 3 observer description verbatim; the active platforms observer documents additional platform admission stages.",
+      "observers": {
+        "CoordinationStage": "Observes in-process Shared admission stages (opening, pin-sampled, lease-published, admitted, expiring); pin-sampled forces holder release in SharedWriterTenureCoordinatedAdmission_Tests.Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot; lease-file persistence is listed under unhookedTransitions."
+      }
+    }
+  ]
 }
