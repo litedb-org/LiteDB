@@ -7,7 +7,8 @@ New-Item -ItemType Directory -Force $output | Out-Null
 # Inventory comes from source, so newly added mapped classes enter automatically.
 $classes = @(Get-ChildItem LiteDB.Tests -Recurse -Filter '*Tests.cs' | Where-Object {
     (Get-Content $_.FullName -Raw) -match '\[OneFile(Fact|Theory)' -or
-    $_.BaseName -match '^(SharedPlatformWake|SharedMapped|SharedCoordinationUpgrade|DirectProcessHostRekey)_Tests$'
+    $_.BaseName -like 'SharedOneFile*' -or
+    $_.BaseName -match '^(SharedPlatformWake|SharedIntegrationSeam|DirectProcessHostRekey)_Tests$'
 } | Sort-Object BaseName)
 $inventory = @()
 $failed = $false
@@ -20,6 +21,11 @@ foreach ($file in $classes) {
     # Linux kernel syscall assertions have no Darwin equivalent. They remain in
     # the ordinary full CI matrix; retain their explicit eligibility inventory.
     $linuxOnly = @([regex]::Matches($source, '\[LinuxFutex(?:Fact|Theory)\][\s\S]*?public void (\w+)') | ForEach-Object { $_.Groups[1].Value })
+    if ($class -eq 'SharedOneFileLock_Tests') {
+        # This ordinary Fact returns before assertions on Darwin; inventory the
+        # Linux POSIX/OFD control explicitly rather than count a vacuous pass.
+        $linuxOnly += 'Linux_negative_control_POSIX_close_drops_lock_but_OFD_close_and_duplicate_do_not'
+    }
     $filter = "FullyQualifiedName~.$class."
     foreach ($method in $linuxOnly) { $filter += "&FullyQualifiedName!~.$method" }
     $inventory += [ordered]@{ class = $class; linuxOnly = $linuxOnly; repetitions = $repetitions }
@@ -41,6 +47,7 @@ foreach ($file in $classes) {
         }
     }
 }
-[ordered]@{ sha = (git rev-parse HEAD); framework = $Framework; architecture = $env:LITEDB_EXPECTED_ARCHITECTURE; classes = $inventory } |
+[ordered]@{ sha = (git rev-parse HEAD); framework = $Framework; architecture = $env:LITEDB_EXPECTED_ARCHITECTURE; classes = $inventory;
+    linuxOnlyClasses = @('SharedWriterTenureFutexProbe_Tests') } |
     ConvertTo-Json -Depth 8 | Set-Content (Join-Path $output 'inventory.json')
 if ($failed) { throw 'macOS qualification failed: missing, failed or skipped test results.' }
