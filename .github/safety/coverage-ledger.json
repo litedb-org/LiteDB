@@ -331,6 +331,16 @@
       "disposition": "strengthened",
       "invariant": "All existing WAL safety partitions, assertions, timeouts and runtime legs remain exercised.",
       "reason": "Integrates the additional primary-key delete differential, rollback, reader snapshot and WAL-failure recovery partition from the delete candidate. Every pre-existing partition remains unchanged; the added partition fails the job on any test failure."
+    },
+    {
+      "id": "p1-integrate-baseline-update-guard-tree",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-update-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Candidate retains all merged update/delete tests and index/vector fuzz; historical phase1 comparison executes the same nine update guards from the accepted update candidate.",
+      "reason": "Restore the accepted update test tree only after all candidate tests and fuzz complete, alongside unchanged phase1 production source. The integrated delete guards reference a new internal helper absent from the historical production library and otherwise prevent baseline compilation. No candidate filter, assertions, rounds or runtime legs change; original baseline update guards remain byte-identical."
     }
   ]
 }
