@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly WalFileAllocation _allocation = new WalFileAllocation();
         private long _position;
 #if NET8_0_OR_GREATER
+        private readonly bool _useNativeFileWrite;
         private WalFileWrite _fileWrite;
 #endif
         internal WalChecksum.Frame LastFrame { get; private set; }
@@ -22,10 +23,13 @@ namespace LiteDB.Engine
         private long ContentLength => Math.Max(0, _stream.Length - _checksum.JournalBytes);
         internal long TrailingBytes => _checksum.Enabled ? WalPadding.TrailingBytes(ContentLength) : ContentLength % PAGE_SIZE;
 
-        internal ChecksummedWalStream(Stream stream, WalChecksum checksum)
+        internal ChecksummedWalStream(Stream stream, WalChecksum checksum, bool useNativeFileWrite = false)
         {
             _stream = stream;
             _checksum = checksum;
+#if NET8_0_OR_GREATER
+            _useNativeFileWrite = useNativeFileWrite;
+#endif
             SetFrameSlices();
         }
 
@@ -119,7 +123,7 @@ namespace LiteDB.Engine
         private void WriteFrame(int count)
         {
 #if NET8_0_OR_GREATER
-            if (_stream.GetType() == typeof(FileStream) && ((FileStream)_stream).IsAsync &&
+            if (_useNativeFileWrite && _stream.GetType() == typeof(FileStream) && ((FileStream)_stream).IsAsync &&
                 System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows))
             {

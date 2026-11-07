@@ -48,6 +48,31 @@ namespace LiteDB.Tests.Internals
         }
 
         [Fact]
+        public void Wal_caller_file_stream_retains_buffering_until_flush()
+        {
+            using var file = new TempFile();
+            using var raw = new FileStream(file.Filename, FileMode.Create, FileAccess.ReadWrite,
+                FileShare.Read, 65536, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? FileOptions.Asynchronous : FileOptions.None);
+            var checksum = new WalChecksum();
+            checksum.Reset(new byte[16]);
+            using var writer = new ChecksummedWalStream(raw, checksum);
+            var page = new byte[8192];
+            var slice = new BufferSlice(page, 0, page.Length);
+            slice.Write(1u, BasePage.P_PAGE_ID);
+            slice.Write(1u, BasePage.P_TRANSACTION_ID);
+            slice[BasePage.P_PAGE_TYPE] = (byte)PageType.Data;
+            writer.Write(page, 0, page.Length);
+            new FileInfo(file.Filename).Length.Should().Be(0);
+            writer.Flush();
+            new FileInfo(file.Filename).Length.Should().Be(16384);
+            writer.Position = 0;
+            var actual = new byte[8192];
+            writer.Read(actual, 0, actual.Length).Should().Be(actual.Length);
+            actual.Should().Equal(page);
+        }
+
+        [Fact]
         public void Wal_completed_native_writes_preserve_offsets_bytes_and_reopen()
         {
             using var file = new TempFile();
