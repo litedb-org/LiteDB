@@ -19,6 +19,8 @@ stop unsafe continuation, and make detected corruption visible.
   ownership of their call or streamed result. A new blocking Shared acquisition
   path must check the thread's executing frames (`SharedCallFrames`) before it
   waits, so a callback cannot wait on ownership only its own return releases.
+  Check before taking snapshot-cache lifetime locks too: expiry can hold that
+  lock while closing native admission retained by the callback.
   Work outside a public call that can reach user code under the mutex (result
   disposal, pin and owner-exit cleanup, dispose checkpoints) needs a frame too.
   Refuse only for frames that execute; idle owners stay waitable (#3073).
