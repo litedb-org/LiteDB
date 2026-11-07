@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p3-integrated-mapped-handle-safety-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing coordinated, group commit, WAL, recovery, durability, rebuild, mapper and delete safety case remains selected on all six OS/runtime legs with the same five-minute session timeout.",
+      "reason": "Integrated Windows mapped qualification activates additional expensive crash/rebuild cases. Run 42421342736 Windows net8 aborted its broad final session after 649 passes and one existing skip at 300 seconds without an assertion failure. Partition WAL by Shared and the remaining selection by SharedOneFile then Rebuild using mutually exclusive positive/negative predicates. The union equals the previous filters, with no exclusions, timeout increases or changed assertions."
+    },
+    {
       "id": "shared-retry-completed-write-watchdog",
       "kind": "assertions-reduced",
       "subjects": [
