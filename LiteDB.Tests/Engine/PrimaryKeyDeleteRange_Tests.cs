@@ -14,6 +14,10 @@ namespace LiteDB.Tests.Engine
         [InlineData("<", 0, true)] [InlineData("<", 0, false)] [InlineData("<=", 0, true)] [InlineData("<=", 0, false)] [InlineData(">", 0, true)] [InlineData(">", 0, false)] [InlineData(">=", 0, true)] [InlineData(">=", 0, false)]
         [InlineData("<", 1, true)] [InlineData("<", 1, false)] [InlineData("<=", 1, true)] [InlineData("<=", 1, false)] [InlineData(">", 1, true)] [InlineData(">", 1, false)] [InlineData(">=", 1, true)] [InlineData(">=", 1, false)]
         [InlineData("<", 2, true)] [InlineData("<", 2, false)] [InlineData("<=", 2, true)] [InlineData("<=", 2, false)] [InlineData(">", 2, true)] [InlineData(">", 2, false)] [InlineData(">=", 2, true)] [InlineData(">=", 2, false)]
+        [InlineData("<", 3, true)] [InlineData("<", 3, false)]
+        [InlineData("<=", 3, true)] [InlineData("<=", 3, false)]
+        [InlineData(">", 3, true)] [InlineData(">", 3, false)]
+        [InlineData(">=", 3, true)] [InlineData(">=", 3, false)]
         public void Range_matches_old_projection_path_across_pages_rollback_and_reopen(string op, int kind, bool durable)
         {
             using var fastFile = new TempFile();
@@ -137,7 +141,7 @@ namespace LiteDB.Tests.Engine
         internal static LiteDatabase Open(string filename, Collation collation, bool durable = true) => new LiteDatabase(new LiteEngine(
             new EngineSettings { Filename = filename, Collation = collation, DurableCommits = durable, TransactionPageLimit = 4 }));
 
-        internal static BsonValue Id(int n, int kind) => kind == 0 ? new BsonValue(n) : kind == 1 ?
+        internal static BsonValue Id(int n, int kind) => kind == 0 || (kind == 3 && n <= 450) ? new BsonValue(n) : kind == 1 ?
             new BsonValue("K" + n.ToString("D5")) : new BsonDocument { ["part"] = "K", ["n"] = n };
 
         internal static BsonDocument Document(int n, int kind) => new BsonDocument
