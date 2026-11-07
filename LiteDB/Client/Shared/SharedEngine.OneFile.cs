@@ -12,7 +12,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             if (!NativeAdmission.IsFile(settings)) throw new NotSupportedException("SharedOneFile requires a physical database file.");
             if (!SharedMemoryAuthority.IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64 or Windows x64; other targets remain disabled pending hosted qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64/ARM64 or Windows x64; other targets remain disabled pending hosted qualification.");
 #else
             throw new PlatformNotSupportedException("SharedOneFile requires .NET 8 or later.");
 #endif
