@@ -34,8 +34,8 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-generations")
         {
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             ReleaseIdleWriter(engine);
+            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             var hits = engine.CoordinatedReadHits;
             using var oldest = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Oldest was not warm");
@@ -47,8 +47,8 @@ internal static class SharedOneFileWarmHarness
             Task.Run(() => peerDb.GetCollection("docs").Update(new BsonDocument
                 { ["_id"] = 1, ["value"] = value, ["payload"] = new string('x', 1024) })).GetAwaiter().GetResult();
             ReleaseIdleWriter(peer);
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             ReleaseIdleWriter(engine);
+            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             hits = engine.CoordinatedReadHits;
             using var current = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Current was not warm");
@@ -60,8 +60,8 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-reader")
         {
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             ReleaseIdleWriter(engine);
+            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
             var hits = engine.CoordinatedReadHits;
             using var reader = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits <= hits || !reader.Read()) throw new Exception("Reader did not admit warm");
@@ -137,8 +137,10 @@ internal static class SharedOneFileWarmHarness
 
     private static void ReleaseIdleWriter(SharedEngine engine)
     {
-        // These child modes require proven warm reader generations, with no
-        // concurrent writer-fence transition during the admission assertion.
+        // Drain setup writes before priming. A closing writable pin can force a
+        // protected fallback and reset cache demand during the fixed read count.
+        // The following reads must run after that transition, before strict warm
+        // reader/generation assertions; admission itself is never retried.
         var pin = engine.Pin;
         if (pin == null) return;
         pin.RequestRelease(force: false);
