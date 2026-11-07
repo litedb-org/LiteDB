@@ -272,7 +272,7 @@ namespace LiteDB.Client.Shared
         private static void RequirePlatform(string path)
         {
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64 or Windows x64; other targets remain disabled pending hosted qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64/ARM64 or Windows x64; other targets remain disabled pending hosted qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }
