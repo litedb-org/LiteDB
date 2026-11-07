@@ -37,7 +37,7 @@ namespace LiteDB.Internals
             }
             if (image == "legacy")
             {
-                using var data = ChecksumTestFiles.Copy(File.ReadAllBytes(files.Filename));
+                using var data = ChecksumTestFiles.Copy(MappedPlatformTestNative.ReadAllBytes(files.Filename));
                 using var log = new MemoryStream();
                 ChecksumTestFiles.MakeLegacy(data, log, password);
                 File.WriteAllBytes(files.Filename, data.ToArray());
@@ -124,7 +124,7 @@ namespace LiteDB.Internals
                             open.Should().Throw<IOException>();
                             hit.Should().BeTrue();
                             Fenced(table);
-                            File.ReadAllBytes(files.Log).Should().Equal(log);
+                            MappedPlatformTestNative.ReadAllBytes(files.Log).Should().Equal(log);
                             files.WriteIsFree();
                         }
                         finally { EngineState.SimulateProcessCrash = null; }

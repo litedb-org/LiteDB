@@ -1025,317 +1025,82 @@
         "LiteDB/Client/Shared/SharedWriter*.cs"
       ],
       "evidence": [
-        {
-          "test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Forced_pin_end_releases_live_transaction_and_stale_reader_cannot_end_successor",
-          "proves": "A forced legacy pin end releases the live owner's transaction lease, discards its uncommitted row and permits a fresh transaction; disposing the old reader cannot erase that successor's foreign-facade refusal."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Dead_pinned_owner_releases_refusal_lease_but_preserves_legacy_exit_diagnostic",
-          "proves": "Actual owner-thread exit closes a proven legacy pin, clears its refusal lease, admits same/other-thread peers and retains the legacy owner-exit diagnostic; exact cold indexed data excludes the aborted row."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Failed_input_returns_transaction_ownership_before_any_outer_completion",
-          "model": "exception",
-          "proves": "Legacy Shared returns the transaction lease and native hold after managed abort or Stop, pinned and unpinned; same-thread and other-thread peers progress without outer completion and two cold reopens retain exact indexed rows and sentinel."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Stopped_query_releases_transaction_at_initial_or_streamed_read",
-          "model": "exception",
-          "proves": "Initial and later ReadTransform I/O failures end legacy transaction ownership before read admission drains, including a retained pin, without leaking the aborted row or blocking peer writes."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/SameThreadMaintenance_Tests.cs#Foreign_maintenance_applies_code_141_and_preserves_the_owner",
-          "model": "exception",
-          "proves": "Foreign Direct and legacy Shared Checkpoint/Rebuild refuse with 141 while the same-thread owner can continue and roll back; two cold opens retain the exact committed payload. Mapped controls and no-transaction Direct multi-facade restrictions are retained in the same class."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileLockMap_Tests.cs#Admission_families_maintenance_and_all_slots_are_disjoint_from_mapped_requests",
-          "proves": "Direct marker at admission+2 and mapped family at +3 are distinct from legacy family, maintenance Admission/DMS, WRITE, all 65536 process lock bytes, four path domains and the bounded mapped request words; independent native descriptions additionally hold and release each boundary without aliasing."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/SameThreadTransactionCrosscheck_Tests.cs#Pragma_refusal_preserves_owner_transaction_and_header",
-          "proves": "Direct and legacy Shared foreign pragma writes, including a no-op value, throw 141; same-facade changed values still throw 126, owner rollback is intact and later header writes survive two cold opens. The mapped wrapper covers the same oracle on qualified mapped platforms."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
-          "model": "modeled-power-loss",
-          "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Rebuild_refuses_a_failed_storage_close_before_creating_a_replacement",
-          "model": "exception",
-          "proves": "A reached close-checkpoint failure refuses Rebuild before a guard or replacement backup is created; repeated independent recovery preserves all committed indexed data."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs#Checkpoint_backfills_with_an_idle_process_and_truncates_only_after_detach",
-          "proves": "Plain/encrypted checkpoints with an idle remote participant actually backfill while retaining the WAL, then truncate only after detach and preserve complete indexed payloads."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceOpening_Tests.cs#Legacy_WAL_conversion_requires_sole_DMS_even_with_no_active_snapshot",
-          "proves": "An idle read-only remote participant excludes legacy WAL conversion without changing data bytes; after detach, repeated conversion/open validates full indexed state."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Failed_final_checkpoint_does_not_publish_or_retire_stopped_storage",
-          "model": "exception",
-          "proves": "Each final-checkpoint data-write/flush failure fences before structural unwind, never clears/publishes recovery, and repeatedly recovers full committed data."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs#Closed_requires_completed_final_storage_and_native_release",
-          "proves": "Plain/encrypted final close pauses at exclusive DMS, slot clearance and DMS release; zero references never report completed teardown, and completed close preserves full indexed documents and the unrelated sentinel on cold reopen."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
-          "model": "process-death",
-          "proves": "Plain/encrypted death at all final-checkpoint page write/flush/WAL clear edges repeats and preserves complete indexed committed state."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Death_during_bounded_rollback_keeps_the_original_pair_recoverable",
-          "model": "process-death",
-          "proves": "Death at every bounded rollback edge, including source retraction and replacement republication, restores the original exact data/WAL and full indexed state twice."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot",
-          "proves": "Holder clears the sampled pin before its idle probe; admission falls back and reads a peer commit after partial checkpoint, retaining exact old payloads, fresh indexed writes and sentinel data through two cold reopens for plain/encrypted Auto/Legacy files."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Repeated_remote_partial_checkpoint_preserves_the_WAL_and_invalidates_stale_cache",
-          "proves": "Four remote partial checkpoints retain WAL incarnation and reject stale caches while a peer holds DMS, with exact payload/index and repeated cold oracles."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Tenure_release_between_cached_pin_check_and_use_observes_remote_partial_checkpoint",
-          "proves": "Four forced real-holder detachments between cached-admission pin check and use cannot throw or return stale data after remote partial checkpoint; exact payload/index/sentinel results and two cold reopens cover plain/encrypted Auto/Legacy storage."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Native_backend_opens_peer_handles_and_recreates_a_retired_authority",
-          "proves": "Native backends open peer handles while mapped Shared is disabled; Darwin probes require name absence before Prepare, presence afterwards and absence after retirement. Repeated disposal preserves the peer and a queued Darwin timer post drains before close. Linux executes only the futex-selection control; native evidence requires the corresponding hosted OS."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Mapped_rekey_drains_native_waiters_retires_the_old_name_and_accepts_new_peer_wakes",
-          "proves": "An in-flight native wait excludes handle replacement; after it drains, old Darwin/Windows names are absent and a replacement peer wakes the live map before timeout. Runs even when mapped Shared is refused; Linux executes the futex-selection control only."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs#Alone_rebuild_rekeys_mapping_and_preserves_complete_indexed_state",
-          "proves": "Plain/encrypted rebuilds rotate authority while preserving full indexed data and repeated reopen. Darwin retires the old name before envelope invalidation; the replacement native name is absent at both envelope stores and present after rekey, with the predecessor gone on Darwin/Windows."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Darwin_name_fits_native_limit_without_losing_authority_bits",
-          "proves": "Semaphore names fit Darwin's 31-byte limit and round-trip every authority bit for zero, all-one and mixed GUIDs, without separator or padding characters."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Wake_name_follows_envelope_publication_and_quiescent_replacement_retires_the_old_name",
-          "proves": "Both independently decoded envelopes precede wake preparation; quiescent capacity replacement retires the old authority namespace and preserves exact indexed data twice. Darwin probes its real native namespace; Linux exercises the envelope/replacement/data path only."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Each_failed_directory_sync_preserves_a_recoverable_pair",
-          "model": "exception",
-          "proves": "Each failed directory sync either restores the original pair or retains the complete replacement/recovery guard; repeated reopen validates payloads and indexes."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority",
-          "model": "process-death",
-          "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
-          "model": "process-death",
-          "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats",
-          "model": "process-death",
-          "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureAdmissionSafety_Tests.cs#Nested_calls_join_the_current_transaction_while_a_same_or_sibling_facade_waits_at_native_main",
-          "proves": "Nested Begin joins before a queued local reservation waiting at native main; nested writes/queries preserve exact cold rows and foreign facade callbacks refuse."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureAdmissionSafety_Tests.cs#Every_new_pinned_call_after_deferred_disposal_is_refused",
-          "proves": "New write/Begin/query/pragma calls refuse after deferred disposal while the originally admitted operation finishes and persists alone."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
-          "proves": "Linux procfs proves the holder sleeps at the mapped futex address during final disposal; native release precedes detach and stale release is harmless."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Remote_metadata_replacement_invalidates_retained_core_and_preserves_old_snapshot",
-          "proves": "Remote collection create/drop/rename and secondary index replacement invalidate the retained core while accepted old payloads survive; plain/encrypted and Auto/Legacy variants."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Repeated_remote_full_WAL_reset_does_not_reuse_a_stale_cached_read_version",
-          "proves": "Four proven full WAL resets between independent writer facades in the sole process cannot reuse stale cache contents; fresh writes and two cold exact indexed reopens qualify Auto/Legacy and encrypted representations."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureReacquisitionFault_Tests.cs#Reacquisition_IO_failure_releases_ownership_and_retry_preserves_remote_commits_and_old_snapshots",
-          "model": "exception",
-          "proves": "Injected failed/short page-read exceptions or a real failed WAL fsync after remote handoff release ownership; old snapshots and acknowledged commits survive repeated retry/reopen."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureHandoffCheckpoint_Tests.cs#Peer_attach_wake_does_not_checkpoint_the_outgoing_tenure",
-          "proves": "A real new-process mapped attach releases the outgoing core without entering checkpoint despite logical WAL above the 50-page close threshold under CHECKPOINT=1000; two cold reopens verify all documents, indexes and unrelated sentinel data."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureTerminalSafety_Tests.cs#Repeated_close_death_with_old_snapshots_and_pending_local_reservations_preserves_exact_commits",
-          "model": "process-death",
-          "proves": "Two child deaths at each retained close/publication/WRITE-release/main-release edge preserve accepted snapshots, pending local reservations, committed/indexed payloads and aborted-row exclusion."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Expired_live_request_reenters_after_the_already_published_successor",
-          "model": "process-death",
-          "proves": "A SIGSTOP/SIGCONT requester loses expired priority and takes a fresh ticket behind an already published child; both complete real writes."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Final_disposal_cancels_a_request_behind_a_continuously_renewed_older_remote_ticket",
-          "proves": "Final facade disposal cancels local request priority wait and closes the retained mapping while an older live child keeps renewing."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Alone_keeps_main_WRITE_and_the_same_core_across_transactions_and_idle",
-          "proves": "Automatic and explicit commits keep the same idle core with zero additional native WRITE acquisitions; main and WRITE remain held and cold payload/index/sentinel state is exact."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Request_without_main_wakes_holder_and_hands_off_at_transaction_boundary",
-          "proves": "A real requester publishes before main; commit and terminal stop during handoff close once, recover fenced state and preserve indexed committed data."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Dead_holder_with_a_waiting_requester_recovers_commits_and_discards_aborted_rows",
-          "model": "process-death",
-          "proves": "An accepted reader survives actual holder death while a requester waits; recovery preserves acknowledged rows and excludes the uncommitted row."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Three_contending_processes_each_make_progress_and_preserve_every_commit",
-          "proves": "Each of three processes completes 24 independently observed commits under per-worker deadlines, followed by exact cold payload and sentinel checks."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions",
-          "model": "exception",
-          "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache",
-          "model": "exception",
-          "proves": "Plain/encrypted rebuild callbacks refuse peer queries while another worker holds the snapshot-cache gate; a bounded five-second rendezvous fails the old cache-before-refusal path. Peer writes, full payloads, secondary indexes and sentinel survive rebuild and cold reopen."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_Shared_replacement_retains_native_entry_and_idle_peers_reopen_the_new_core",
-          "model": "exception",
-          "proves": "All four native replacement stages retain admission across two plain/encrypted legacy Shared rebuilds; callback peer operations refuse, idle peers reopen current storage, and mutual writes preserve full indexed payloads and sentinel through two cold reopens."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Mapped_Shared_refuses_every_file_replacement_entry_before_native_rekey",
-          "model": "exception",
-          "proves": "Mapped explicit rebuild and live/cold upgrade/auto-rebuild refuse before replacement; data/WAL bytes, native identity and participant sharing remain intact, with complete indexed payload and sentinel verification after repeated reopen.",
-          "scope": "Inherited Phase 2 expectation. In Phase 3 the same guard refuses rebuild with a sibling and incompatible live settings; supported cold modern options are no-op identity/data controls. Sole-participant actual replacement is covered by SharedOneFileMaintenance_Tests and SharedOneFileMaintenanceOpening_Tests."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedReaderCleanupMappedCycles_Tests.cs#Closed_waits_for_native_teardown_after_the_final_reference_is_removed",
-          "proves": "A forced final-release/cache-gate interleaving keeps Closed false while native admission still excludes Direct, then permits complete payload/index/sentinel verification after actual teardown."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedReaderCleanupMappedCycles_Tests.cs#Callback_request_cycle_releases_pages_generation_facade_and_native_participant",
-          "proves": "Mapped cold/warm request-transform cycles, including reader-only disposal, release exact generation and facade/native participation with zero pinned-page finalizations; paused reaper proves registration survives until cursor disposal; peer write/checkpoint/cold reopen preserves complete payloads, index answers and sentinel."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileWarmAmbient_Tests.cs#Default_timeout_process_timer_does_not_retain_original_facade_during_peer_stream",
-          "proves": "The actual 100 ms process timer, another facade and its live cached stream do not retain a departed facade through AsyncLocal; no-ambient and already-suppressed controls preserve all peer payloads and final native release."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileAdmission_Tests.cs#Shared_family_claim_allows_distinct_Shared_admission_but_excludes_read_only_Direct",
-          "model": "exception",
-          "proves": "Disjoint mapped-family and Unix read-only Direct marker bytes permit independent Shared native admissions while refusing incompatible Direct, with exact indexed payload/rollback/sentinel and byte-preserving cold checks."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileAdmission_Tests.cs#Shared_families_refuse_a_read_only_marker_before_Direct_publishes_admission",
-          "model": "exception",
-          "proves": "Both native Shared family routes publish admission before checking an already-published read-only Direct marker and fail closed in the forced interleaving without leaking native ownership."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs#Awakened_peer_legitimately_owns_WRITE_after_dead_pinned_holder_releases",
-          "proves": "An already-queued peer acquires WRITE after real pinned owner death; a controlled live peer hold excludes an independent raw probe, and after its commit WRITE is free with complete cold indexed state."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#Later_streamed_transform_disposal_waits_until_its_Read_returns",
-          "proves": "Ordinary and pinned disposal from a later retained ReadTransform defers core close until the callback returns, retains WRITE teardown authority with or without a sibling, then admits a peer and preserves repeated cold indexed state."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
-          "proves": "Production reuse, publication, WRITE and DMS death cuts execute twice and recover complete indexed committed and unrelated data."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileLiveDimensions_Tests.cs#Remote_live_stream_or_writer_is_never_resized_while_a_real_facade_attaches",
-          "proves": "Larger and smaller real remote requests retain the declared live stream/writer mapping without truncation."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReplacementReplay_Tests.cs#Retained_same_path_authority_never_overrides_replacement_DB_and_WAL",
-          "proves": "Plain/encrypted physical replacement, in-place DB/WAL restores and controlled identity collision always validate real storage despite old authority UUIDs."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReadOwnership_Tests.cs#Same_thread_foreign_transaction_refuses_every_cold_acquisition",
-          "proves": "Cold buffered, streaming, transformed and pinned-owner reads refuse before native self-wait; separate controls retain accepted committed snapshots and permit other-thread progress."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs#Old_local_lease_result_and_Stop_cannot_erase_a_successor_on_a_new_actual_Thread",
-          "proves": "Stale local lease, result and core Stop cleanup cannot erase a later transaction generation across actual Thread transfer."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state",
-          "proves": "Ordinary and pinned implicit abort, Stop, commit, rollback and terminal failure paths admit immediate peers and preserve cold indexed payloads."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileAbandonedWrite_Tests.cs#An_abandoned_named_mutex_hint_never_steals_a_live_native_writer",
-          "proves": "Even a reported named-mutex abandonment cannot bypass a held native WRITE lock; bounded refusal retains the live participant and release permits a real acquisition."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Two_process_writers_contend_then_successor_recovers_without_aborted_rows",
-          "model": "process-death",
-          "proves": "Two preattached processes contend at the native turnstile; commit, rollback and killed owners hand off to 20-write successors, with two exact cold indexed payload/sentinel checks."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive",
-          "model": "exception",
-          "proves": "Repeated false Begin, implicit duplicate abort, failed retry registration and commit/rollback release to another process while the original owner remains alive."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
-          "model": "process-death",
-          "proves": "Reuse-only death barriers assert no reset and actual marker reachability, repeat each death twice and preserve the same authority and complete indexed data through repeated protected recovery."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Quiescent_reuse_or_reset_is_discriminated_and_the_result_reuses_again",
-          "model": "corrupt-input",
-          "proves": "Matching header reuses; checksum, identity, valid alternate layout, process/generation capacity and requested size mismatches reset only at quiescence, then reuse without another reset."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Untrusted_namespace_unknown_layout_and_wrong_physical_size_refuse_without_reset",
-          "model": "corrupt-input",
-          "proves": "Unknown ABI, untrusted namespace and inconsistent physical size repeatedly refuse before storage validation with byte-identical data/authority; restoring trusted bytes permits protected recovery."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Remote_participant_prevents_capacity_change_until_its_process_exits",
-          "model": "process-death",
-          "proves": "An attached remote process fills the declared capacity; process/generation/size changes repeatedly refuse without mutation or validation, then succeed after owner death."
-        },
-        {
-          "test": "LiteDB.Tests/Engine/SharedIntegrationSeam_Tests.cs#Physical_file_opt_in_matches_qualification_and_refusal_preserves_storage",
-          "proves": "Ordinary Fact independently checks the product and attribute platform predicate, verifies two supported opens, or repeats unsupported platform/runtime refusal without changing database/WAL bytes or creating a mapping, followed by indexed cold validation."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#A_blocked_cleanup_cannot_block_the_finalizer_or_finalize_its_pinned_pages",
-          "proves": "GC finishes while cache Gate blocks abandoned-result cleanup; pins stay rooted until a normal thread releases the generation."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#Final_facade_disposal_between_admission_and_counting_cannot_unmap_a_published_record",
-          "proves": "Disposal before or after record publication refuses admission and releases the participant only after the admitting call leaves the cache gate."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs#New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations",
-          "model": "process-death",
-          "proves": "Each writer/recovery/failed-sync cut races a new public admission with two accepted warm generations; protected recovery preserves full old/current payloads and committed indexes."
-        },
-        {
-          "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs#Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active",
-          "model": "process-death",
-          "proves": "A live scanner retains its local generation across death and physical process-slot reuse of children holding two warm generations; replacement changes incarnation and repeated recovery preserves current data."
-        },
+        {"test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Forced_pin_end_releases_live_transaction_and_stale_reader_cannot_end_successor", "proves": "A forced legacy pin end releases the live owner's transaction lease, discards its uncommitted row and permits a fresh transaction; disposing the old reader cannot erase that successor's foreign-facade refusal."},
+        {"test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Dead_pinned_owner_releases_refusal_lease_but_preserves_legacy_exit_diagnostic", "proves": "Actual owner-thread exit closes a proven legacy pin, clears its refusal lease, admits same/other-thread peers and retains the legacy owner-exit diagnostic; exact cold indexed data excludes the aborted row."},
+        {"test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Failed_input_returns_transaction_ownership_before_any_outer_completion", "model": "exception", "proves": "Legacy Shared returns the transaction lease and native hold after managed abort or Stop, pinned and unpinned; same-thread and other-thread peers progress without outer completion and two cold reopens retain exact indexed rows and sentinel."},
+        {"test": "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Stopped_query_releases_transaction_at_initial_or_streamed_read", "model": "exception", "proves": "Initial and later ReadTransform I/O failures end legacy transaction ownership before read admission drains, including a retained pin, without leaking the aborted row or blocking peer writes."},
+        {"test": "LiteDB.Tests/Engine/SameThreadMaintenance_Tests.cs#Foreign_maintenance_applies_code_141_and_preserves_the_owner", "model": "exception", "proves": "Foreign Direct and legacy Shared Checkpoint/Rebuild refuse with 141 while the same-thread owner can continue and roll back; two cold opens retain the exact committed payload. Mapped controls and no-transaction Direct multi-facade restrictions are retained in the same class."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileLockMap_Tests.cs#Admission_families_maintenance_and_all_slots_are_disjoint_from_mapped_requests", "proves": "Direct marker at admission+2 and mapped family at +3 are distinct from legacy family, maintenance Admission/DMS, WRITE, all 65536 process lock bytes, four path domains and the bounded mapped request words; independent native descriptions additionally hold and release each boundary without aliasing."},
+        {"test": "LiteDB.Tests/Engine/SameThreadTransactionCrosscheck_Tests.cs#Pragma_refusal_preserves_owner_transaction_and_header", "proves": "Direct and legacy Shared foreign pragma writes, including a no-op value, throw 141; same-facade changed values still throw 126, owner rollback is intact and later header writes survive two cold opens. The mapped wrapper covers the same oracle on qualified mapped platforms."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes", "model": "modeled-power-loss", "proves": "Real guard/forward/rollback/recovery directory barriers generate every lost namespace operation image; fixed-point repeated recovery preserves committed payloads, indexed results and an unrelated indexed collection. Atomic same-directory rename and successful sync are assumptions; independent cleanup deletions also reorder."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Rebuild_refuses_a_failed_storage_close_before_creating_a_replacement", "model": "exception", "proves": "A reached close-checkpoint failure refuses Rebuild before a guard or replacement backup is created; repeated independent recovery preserves all committed indexed data."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs#Checkpoint_backfills_with_an_idle_process_and_truncates_only_after_detach", "proves": "Plain/encrypted checkpoints with an idle remote participant actually backfill while retaining the WAL, then truncate only after detach and preserve complete indexed payloads."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceOpening_Tests.cs#Legacy_WAL_conversion_requires_sole_DMS_even_with_no_active_snapshot", "proves": "An idle read-only remote participant excludes legacy WAL conversion without changing data bytes; after detach, repeated conversion/open validates full indexed state."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Failed_final_checkpoint_does_not_publish_or_retire_stopped_storage", "model": "exception", "proves": "Each final-checkpoint data-write/flush failure fences before structural unwind, never clears/publishes recovery, and repeatedly recovers full committed data."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs#Closed_requires_completed_final_storage_and_native_release", "proves": "Plain/encrypted final close pauses at exclusive DMS, slot clearance and DMS release; zero references never report completed teardown, and completed close preserves full indexed documents and the unrelated sentinel on cold reopen."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state", "model": "process-death", "proves": "Plain/encrypted death at all final-checkpoint page write/flush/WAL clear edges repeats and preserves complete indexed committed state."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Death_during_bounded_rollback_keeps_the_original_pair_recoverable", "model": "process-death", "proves": "Death at every bounded rollback edge, including source retraction and replacement republication, restores the original exact data/WAL and full indexed state twice."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot", "proves": "Holder clears the sampled pin before its idle probe; admission falls back and reads a peer commit after partial checkpoint, retaining exact old payloads, fresh indexed writes and sentinel data through two cold reopens for plain/encrypted Auto/Legacy files."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Repeated_remote_partial_checkpoint_preserves_the_WAL_and_invalidates_stale_cache", "proves": "Four remote partial checkpoints retain WAL incarnation and reject stale caches while a peer holds DMS, with exact payload/index and repeated cold oracles."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Tenure_release_between_cached_pin_check_and_use_observes_remote_partial_checkpoint", "proves": "Four forced real-holder detachments between cached-admission pin check and use cannot throw or return stale data after remote partial checkpoint; exact payload/index/sentinel results and two cold reopens cover plain/encrypted Auto/Legacy storage."},
+        {"test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Native_backend_opens_peer_handles_and_recreates_a_retired_authority", "proves": "Native backends open peer handles while mapped Shared is disabled; Darwin probes require name absence before Prepare, presence afterwards and absence after retirement. Repeated disposal preserves the peer and a queued Darwin timer post drains before close. Linux executes only the futex-selection control; native evidence requires the corresponding hosted OS."},
+        {"test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Mapped_rekey_drains_native_waiters_retires_the_old_name_and_accepts_new_peer_wakes", "proves": "An in-flight native wait excludes handle replacement; after it drains, old Darwin/Windows names are absent and a replacement peer wakes the live map before timeout. Runs even when mapped Shared is refused; Linux executes the futex-selection control only."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs#Alone_rebuild_rekeys_mapping_and_preserves_complete_indexed_state", "proves": "Plain/encrypted rebuilds rotate authority while preserving full indexed data and repeated reopen. Darwin retires the old name before envelope invalidation; the replacement native name is absent at both envelope stores and present after rekey, with the predecessor gone on Darwin/Windows."},
+        {"test": "LiteDB.Tests/Internals/SharedPlatformWake_Tests.cs#Darwin_name_fits_native_limit_without_losing_authority_bits", "proves": "Semaphore names fit Darwin's 31-byte limit and round-trip every authority bit for zero, all-one and mixed GUIDs, without separator or padding characters."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Wake_name_follows_envelope_publication_and_quiescent_replacement_retires_the_old_name", "proves": "Both independently decoded envelopes precede wake preparation; quiescent capacity replacement retires the old authority namespace and preserves exact indexed data twice. Darwin probes its real native namespace; Linux exercises the envelope/replacement/data path only."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Each_failed_directory_sync_preserves_a_recoverable_pair", "model": "exception", "proves": "Each failed directory sync either restores the original pair or retains the complete replacement/recovery guard; repeated reopen validates payloads and indexes."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority", "model": "process-death", "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated", "model": "process-death", "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats", "model": "process-death", "proves": "Repeated death and recovery at mapped maintenance/guard/final-close transitions preserve complete committed indexed data and unrelated sentinels."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureAdmissionSafety_Tests.cs#Nested_calls_join_the_current_transaction_while_a_same_or_sibling_facade_waits_at_native_main", "proves": "Nested Begin joins before a queued local reservation waiting at native main; nested writes/queries preserve exact cold rows and foreign facade callbacks refuse."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureAdmissionSafety_Tests.cs#Every_new_pinned_call_after_deferred_disposal_is_refused", "proves": "New write/Begin/query/pragma calls refuse after deferred disposal while the originally admitted operation finishes and persists alone."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall", "proves": "Linux procfs proves the holder sleeps at the mapped futex address during final disposal; native release precedes detach and stale release is harmless."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Remote_metadata_replacement_invalidates_retained_core_and_preserves_old_snapshot", "proves": "Remote collection create/drop/rename and secondary index replacement invalidate the retained core while accepted old payloads survive; plain/encrypted and Auto/Legacy variants."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureCoherenceBreadth_Tests.cs#Repeated_remote_full_WAL_reset_does_not_reuse_a_stale_cached_read_version", "proves": "Four proven full WAL resets between independent writer facades in the sole process cannot reuse stale cache contents; fresh writes and two cold exact indexed reopens qualify Auto/Legacy and encrypted representations."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureReacquisitionFault_Tests.cs#Reacquisition_IO_failure_releases_ownership_and_retry_preserves_remote_commits_and_old_snapshots", "model": "exception", "proves": "Injected failed/short page-read exceptions or a real failed WAL fsync after remote handoff release ownership; old snapshots and acknowledged commits survive repeated retry/reopen."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureHandoffCheckpoint_Tests.cs#Peer_attach_wake_does_not_checkpoint_the_outgoing_tenure", "proves": "A real new-process mapped attach releases the outgoing core without entering checkpoint despite logical WAL above the 50-page close threshold under CHECKPOINT=1000; two cold reopens verify all documents, indexes and unrelated sentinel data."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureTerminalSafety_Tests.cs#Repeated_close_death_with_old_snapshots_and_pending_local_reservations_preserves_exact_commits", "model": "process-death", "proves": "Two child deaths at each retained close/publication/WRITE-release/main-release edge preserve accepted snapshots, pending local reservations, committed/indexed payloads and aborted-row exclusion."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Expired_live_request_reenters_after_the_already_published_successor", "model": "process-death", "proves": "A SIGSTOP/SIGCONT requester loses expired priority and takes a fresh ticket behind an already published child; both complete real writes."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Final_disposal_cancels_a_request_behind_a_continuously_renewed_older_remote_ticket", "proves": "Final facade disposal cancels local request priority wait and closes the retained mapping while an older live child keeps renewing."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Alone_keeps_main_WRITE_and_the_same_core_across_transactions_and_idle", "proves": "Automatic and explicit commits keep the same idle core with zero additional native WRITE acquisitions; main and WRITE remain held and cold payload/index/sentinel state is exact."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Request_without_main_wakes_holder_and_hands_off_at_transaction_boundary", "proves": "A real requester publishes before main; commit and terminal stop during handoff close once, recover fenced state and preserve indexed committed data."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Dead_holder_with_a_waiting_requester_recovers_commits_and_discards_aborted_rows", "model": "process-death", "proves": "An accepted reader survives actual holder death while a requester waits; recovery preserves acknowledged rows and excludes the uncommitted row."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Three_contending_processes_each_make_progress_and_preserve_every_commit", "proves": "Each of three processes completes 24 independently observed commits under per-worker deadlines, followed by exact cold payload and sentinel checks."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions", "model": "exception", "proves": "Forced mapped leader/follower tickets and zero-frame/error/FOR UPDATE dependencies complete after unsupported sync without publishing a durable version; managed-flush/device failures stop the core, while exact payloads, indexes and sentinel survive saved OS-cache recovery and two cold reopens."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache", "model": "exception", "proves": "Plain/encrypted rebuild callbacks refuse peer queries while another worker holds the snapshot-cache gate; a bounded five-second rendezvous fails the old cache-before-refusal path. Peer writes, full payloads, secondary indexes and sentinel survive rebuild and cold reopen."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_Shared_replacement_retains_native_entry_and_idle_peers_reopen_the_new_core", "model": "exception", "proves": "All four native replacement stages retain admission across two plain/encrypted legacy Shared rebuilds; callback peer operations refuse, idle peers reopen current storage, and mutual writes preserve full indexed payloads and sentinel through two cold reopens."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Mapped_Shared_refuses_every_file_replacement_entry_before_native_rekey", "model": "exception", "proves": "Mapped explicit rebuild and live/cold upgrade/auto-rebuild refuse before replacement; data/WAL bytes, native identity and participant sharing remain intact, with complete indexed payload and sentinel verification after repeated reopen.", "scope": "Inherited Phase 2 expectation. In Phase 3 the same guard refuses rebuild with a sibling and incompatible live settings; supported cold modern options are no-op identity/data controls. Sole-participant actual replacement is covered by SharedOneFileMaintenance_Tests and SharedOneFileMaintenanceOpening_Tests."},
+        {"test": "LiteDB.Tests/Internals/SharedReaderCleanupMappedCycles_Tests.cs#Closed_waits_for_native_teardown_after_the_final_reference_is_removed", "proves": "A forced final-release/cache-gate interleaving keeps Closed false while native admission still excludes Direct, then permits complete payload/index/sentinel verification after actual teardown."},
+        {"test": "LiteDB.Tests/Internals/SharedReaderCleanupMappedCycles_Tests.cs#Callback_request_cycle_releases_pages_generation_facade_and_native_participant", "proves": "Mapped cold/warm request-transform cycles, including reader-only disposal, release exact generation and facade/native participation with zero pinned-page finalizations; paused reaper proves registration survives until cursor disposal; peer write/checkpoint/cold reopen preserves complete payloads, index answers and sentinel."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileWarmAmbient_Tests.cs#Default_timeout_process_timer_does_not_retain_original_facade_during_peer_stream", "proves": "The actual 100 ms process timer, another facade and its live cached stream do not retain a departed facade through AsyncLocal; no-ambient and already-suppressed controls preserve all peer payloads and final native release."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileAdmission_Tests.cs#Shared_family_claim_allows_distinct_Shared_admission_but_excludes_read_only_Direct", "model": "exception", "proves": "Disjoint mapped-family and Unix read-only Direct marker bytes permit independent Shared native admissions while refusing incompatible Direct, with exact indexed payload/rollback/sentinel and byte-preserving cold checks."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileAdmission_Tests.cs#Shared_families_refuse_a_read_only_marker_before_Direct_publishes_admission", "model": "exception", "proves": "Both native Shared family routes publish admission before checking an already-published read-only Direct marker and fail closed in the forced interleaving without leaking native ownership."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs#Awakened_peer_legitimately_owns_WRITE_after_dead_pinned_holder_releases", "proves": "An already-queued peer acquires WRITE after real pinned owner death; a controlled live peer hold excludes an independent raw probe, and after its commit WRITE is free with complete cold indexed state."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#Later_streamed_transform_disposal_waits_until_its_Read_returns", "proves": "Ordinary and pinned disposal from a later retained ReadTransform defers core close until the callback returns, retains WRITE teardown authority with or without a sibling, then admits a peer and preserves repeated cold indexed state."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff", "proves": "Production reuse, publication, WRITE and DMS death cuts execute twice and recover complete indexed committed and unrelated data."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileLiveDimensions_Tests.cs#Remote_live_stream_or_writer_is_never_resized_while_a_real_facade_attaches", "proves": "Larger and smaller real remote requests retain the declared live stream/writer mapping without truncation."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReplacementReplay_Tests.cs#Retained_same_path_authority_never_overrides_replacement_DB_and_WAL", "proves": "Plain/encrypted physical replacement, in-place DB/WAL restores and controlled identity collision always validate real storage despite old authority UUIDs."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReadOwnership_Tests.cs#Same_thread_foreign_transaction_refuses_every_cold_acquisition", "proves": "Cold buffered, streaming, transformed and pinned-owner reads refuse before native self-wait; separate controls retain accepted committed snapshots and permit other-thread progress."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs#Old_local_lease_result_and_Stop_cannot_erase_a_successor_on_a_new_actual_Thread", "proves": "Stale local lease, result and core Stop cleanup cannot erase a later transaction generation across actual Thread transfer."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state", "proves": "Ordinary and pinned implicit abort, Stop, commit, rollback and terminal failure paths admit immediate peers and preserve cold indexed payloads."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileAbandonedWrite_Tests.cs#An_abandoned_named_mutex_hint_never_steals_a_live_native_writer", "proves": "Even a reported named-mutex abandonment cannot bypass a held native WRITE lock; bounded refusal retains the live participant and release permits a real acquisition."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Two_process_writers_contend_then_successor_recovers_without_aborted_rows", "model": "process-death", "proves": "Two preattached processes contend at the native turnstile; commit, rollback and killed owners hand off to 20-write successors, with two exact cold indexed payload/sentinel checks."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive", "model": "exception", "proves": "Repeated false Begin, implicit duplicate abort, failed retry registration and commit/rollback release to another process while the original owner remains alive."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority", "model": "process-death", "proves": "Reuse-only death barriers assert no reset and actual marker reachability, repeat each death twice and preserve the same authority and complete indexed data through repeated protected recovery."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Quiescent_reuse_or_reset_is_discriminated_and_the_result_reuses_again", "model": "corrupt-input", "proves": "Matching header reuses; checksum, identity, valid alternate layout, process/generation capacity and requested size mismatches reset only at quiescence, then reuse without another reset."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Untrusted_namespace_unknown_layout_and_wrong_physical_size_refuse_without_reset", "model": "corrupt-input", "proves": "Unknown ABI, untrusted namespace and inconsistent physical size repeatedly refuse before storage validation with byte-identical data/authority; restoring trusted bytes permits protected recovery."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Remote_participant_prevents_capacity_change_until_its_process_exits", "model": "process-death", "proves": "An attached remote process fills the declared capacity; process/generation/size changes repeatedly refuse without mutation or validation, then succeed after owner death."},
+        {"test": "LiteDB.Tests/Engine/SharedIntegrationSeam_Tests.cs#Physical_file_opt_in_matches_qualification_and_refusal_preserves_storage", "proves": "Ordinary Fact independently checks the product and attribute platform predicate, verifies two supported opens, or repeats unsupported platform/runtime refusal without changing database/WAL bytes or creating a mapping, followed by indexed cold validation."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#A_blocked_cleanup_cannot_block_the_finalizer_or_finalize_its_pinned_pages", "proves": "GC finishes while cache Gate blocks abandoned-result cleanup; pins stay rooted until a normal thread releases the generation."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs#Final_facade_disposal_between_admission_and_counting_cannot_unmap_a_published_record", "proves": "Disposal before or after record publication refuses admission and releases the participant only after the admitting call leaves the cache gate."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs#New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations", "model": "process-death", "proves": "Each writer/recovery/failed-sync cut races a new public admission with two accepted warm generations; protected recovery preserves full old/current payloads and committed indexes."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs#Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active", "model": "process-death", "proves": "A live scanner retains its local generation across death and physical process-slot reuse of children holding two warm generations; replacement changes incarnation and repeated recovery preserves current data."},
+        {"test": "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs#Dms_slot_write_and_cross_thread_release_use_independent_descriptions", "proves": "A failed sole-participant DMS conversion preserves shared liveness, independent peers still exclude exclusive ownership, and the surviving participant converts its own shared range after peer disposal before downgrading and writing. Windows conversions run under bootstrap in production."},
+        {"test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal", "model": "process-death", "proves": "Every removal boundary and repeated interrupted recovery preserve exact database/WAL bytes and indexed cold state."},
+        {"test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_subset_of_resurrected_ephemeral_entries_retires_repeatably", "model": "modeled-power-loss", "proves": "All subsets of six removed coordination entries may resurrect independently; repeated retirement preserves database bytes."},
+        {"test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry", "model": "exception", "proves": "Read-only, injected network/unknown-volume and unknown remnant opens preserve every file."},
+        {"test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe", "model": "exception", "proves": "Live legacy admission excludes migration; sequential legacy and mapped opens retain indexed state."},
+        {"test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Transaction_budget_and_time_budget_are_independent_and_reset_when_alone", "proves": "Transaction and elapsed-time budgets independently end pressured tenure and both reset without pressure, including Windows where TickCount64 is too coarse for the one-millisecond budget."},
         {
           "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
           "model": "exception",

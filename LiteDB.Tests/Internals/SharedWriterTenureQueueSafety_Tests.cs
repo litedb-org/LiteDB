@@ -92,7 +92,13 @@ namespace LiteDB.Internals
                         SpinWait.SpinUntil(() => Environment.TickCount64 > expiry, TimeSpan.FromSeconds(5)).Should().BeTrue();
                         authority.Map.Store(SharedMemoryLayout.RequestSequence, long.MaxValue);
                     }
-                    SpinWait.SpinUntil(() => Field<Exception>(requests, "_failure") != null, TimeSpan.FromSeconds(5)).Should().BeTrue(
+                    // Renewal records the failure and withdraws the mapped priority under
+                    // _gate. Observe its completed transition as Enter does, rather
+                    // than racing a reflection read against the middle of Retire.
+                    SpinWait.SpinUntil(() =>
+                    {
+                        lock (gate) return Field<Exception>(requests, "_failure") != null;
+                    }, TimeSpan.FromSeconds(5)).Should().BeTrue(
                         "the actual timer must catch the exhausted sequence rather than crash the process");
                     authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest).Should().Be(0);
                     authority.Map.Load(authority.Block + SharedMemoryLayout.RequestExpiry).Should().Be(0);

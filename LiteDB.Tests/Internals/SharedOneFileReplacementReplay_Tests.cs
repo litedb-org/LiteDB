@@ -53,7 +53,7 @@ namespace LiteDB.Internals
                 // FileMode.Open preserves the actual native identity, even if all bytes differ.
                 using (var target = new FileStream(files.Filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
                 {
-                    var bytes = File.ReadAllBytes(backup.Filename);
+                    var bytes = MappedPlatformTestNative.ReadAllBytes(backup.Filename);
                     target.SetLength(bytes.Length);
                     target.Write(bytes, 0, bytes.Length);
                     target.Flush(true);
@@ -65,7 +65,7 @@ namespace LiteDB.Internals
             {
                 // Controlled native-inode-reuse input: an otherwise valid old UUID
                 // and namespace with the replacement's real physical identity hash.
-                var bytes = File.ReadAllBytes(files.Filename + "-shm");
+                var bytes = MappedPlatformTestNative.ReadAllBytes(files.Filename + "-shm");
                 var header = bytes.Take(256).ToArray();
                 Buffer.BlockCopy(SharedMemoryEnvelope.Hash(Identity(files.Settings)), 0, header, 80, 32);
                 Buffer.BlockCopy(SharedMemoryEnvelope.Hash(header.Take(224).ToArray()), 0, header, 224, 32);
@@ -95,17 +95,17 @@ namespace LiteDB.Internals
         {
             using var files = new SharedOneFilePublicationFixture(encrypted ? "secret" : null);
             using (var engine = new SharedEngine(files.Settings)) { }
-            var data = File.ReadAllBytes(files.Filename);
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
             // Replace with an invalid image of the same length, retaining the old authority.
             data[0] ^= 0x7f;
             File.WriteAllBytes(files.Filename, data);
-            var wal = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+            var wal = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 Action open = () => { using var engine = new SharedEngine(files.Settings); };
                 open.Should().Throw<Exception>();
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
                 files.WriteIsFree();
             }
         }

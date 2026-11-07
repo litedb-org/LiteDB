@@ -62,19 +62,19 @@ namespace LiteDB.Internals
         public async Task Legacy_WAL_conversion_requires_sole_DMS_even_with_no_active_snapshot(string password)
         {
             using var files = new SharedOneFilePublicationFixture(password);
-            using (var data = ChecksumTestFiles.Copy(File.ReadAllBytes(files.Filename)))
+            using (var data = ChecksumTestFiles.Copy(MappedPlatformTestNative.ReadAllBytes(files.Filename)))
             using (var log = new MemoryStream())
             {
                 ChecksumTestFiles.MakeLegacy(data, log, password);
                 File.WriteAllBytes(files.Filename, data.ToArray());
             }
-            var before = File.ReadAllBytes(files.Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(files.Filename);
             using (var peer = new MvccProcess("one-file-maintenance-legacy-reader", files.Filename, password))
             {
                 await peer.Expect("ready");
                 Action open = () => { using var engine = new SharedEngine(files.Settings); };
                 open.Should().Throw<LiteException>().WithMessage("*another mapped process*");
-                File.ReadAllBytes(files.Filename).Should().Equal(before);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(before);
                 await peer.Finish(release: true);
             }
             for (var repeat = 0; repeat < 2; repeat++)
@@ -91,14 +91,14 @@ namespace LiteDB.Internals
             using var peer = new MvccProcess("one-file-maintenance-peer", files.Filename, null);
             await peer.Expect("ready");
             MarkInvalid(files);
-            var data = File.ReadAllBytes(files.Filename);
-            var log = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+            var log = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
             var settings = files.Settings;
             settings.AutoRebuild = true;
             Action open = () => { using var engine = new SharedEngine(settings); };
             open.Should().Throw<InvalidOperationException>().WithMessage("*only participant*");
-            File.ReadAllBytes(files.Filename).Should().Equal(data);
-            (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
+            MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+            (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
             await peer.Finish(release: true);
             using var recovered = new SharedEngine(settings);
             using var db = new LiteDatabase(recovered, disposeOnClose: false);
@@ -111,7 +111,7 @@ namespace LiteDB.Internals
         {
             using var files = new SharedOneFilePublicationFixture();
             File.Copy("../../../Resources/" + resource, files.Filename, overwrite: true);
-            var before = File.ReadAllBytes(files.Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(files.Filename);
             var settings = files.Settings;
             settings.Password = password;
             settings.Upgrade = true;
@@ -126,7 +126,7 @@ namespace LiteDB.Internals
                 if (password == null) db.GetCollection("col1").Count().Should().Be(3);
                 engine.MappedReaderTable.Authority.Header.MatchesIdentity(engine.MappedReaderTable.Admission.Identity).Should().BeTrue();
             }
-            File.ReadAllBytes(FileHelper.GetSuffixFile(files.Filename, "-backup", false)).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(FileHelper.GetSuffixFile(files.Filename, "-backup", false)).Should().Equal(before);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 using var engine = new SharedEngine(settings);

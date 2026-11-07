@@ -1,0 +1,45 @@
+name: P3 Linux ARM64 qualification
+on:
+  workflow_dispatch:
+    inputs:
+      stress:
+        description: Also repeat the tenure matrix 50 times
+        type: boolean
+        default: false
+  push:
+    branches: [v6/wip-p3-qual-linuxarm]
+permissions:
+  contents: read
+jobs:
+  mapped:
+    name: ARM64 ${{ matrix.framework }} ${{ matrix.mode }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+        mode: ${{ fromJSON((github.event_name == 'push' || inputs.stress) && '["full","stress"]' || '["full"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build exact candidate with test hooks
+        run: |
+          git rev-parse HEAD | tee candidate-sha.txt
+          dotnet --info | tee dotnet-info.txt
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Execute and verify mapped qualification
+        run: python3 .github/scripts/run_linuxarm_qualification.py --framework '${{ matrix.framework }}' --mode '${{ matrix.mode }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linuxarm-${{ matrix.framework }}-${{ matrix.mode }}
+          path: |
+            candidate-sha.txt
+            dotnet-info.txt
+            artifacts_temp/linuxarm
+          if-no-files-found: error

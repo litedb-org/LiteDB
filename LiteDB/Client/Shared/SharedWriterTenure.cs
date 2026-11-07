@@ -1,5 +1,6 @@
 #if NET8_0_OR_GREATER
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace LiteDB.Client.Shared
@@ -33,8 +34,11 @@ namespace LiteDB.Client.Shared
         {
             lock (_gate)
             {
-                var now = Environment.TickCount64;
-                if (!_authority.Requests.HasPressure(now))
+                // TickCount64 can advance only every ~16 ms on Windows. The
+                // one-millisecond tenure budget needs the monotonic performance
+                // counter; request lease deadlines still use their own clock.
+                var now = Stopwatch.GetTimestamp();
+                if (!_authority.Requests.HasPressure(Environment.TickCount64))
                 {
                     _pressureAt = -1;
                     _transactions = 0;
@@ -42,7 +46,8 @@ namespace LiteDB.Client.Shared
                 }
                 if (_pressureAt < 0) _pressureAt = now;
                 if (boundary) _transactions++;
-                return _transactions >= _transactionBudget || now - _pressureAt >= _millisecondBudget;
+                return _transactions >= _transactionBudget ||
+                    Stopwatch.GetElapsedTime(_pressureAt, now).TotalMilliseconds >= _millisecondBudget;
             }
         }
         internal void Wait()

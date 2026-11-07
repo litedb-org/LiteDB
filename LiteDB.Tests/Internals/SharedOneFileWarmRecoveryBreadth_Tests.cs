@@ -48,7 +48,7 @@ namespace LiteDB.Internals
             SpinWait.SpinUntil(() => Field<int>(engine, "_mutexWaiters") != 0, TimeSpan.FromSeconds(5)).Should().BeTrue(
                 "a new admission at the cut must reject the old cache and enter protected recovery");
             engine.CoordinatedReadHits.Should().Be(before);
-            await child.Kill();
+            await child.Kill(sharedFilesRemainOpen: true);
             var expected = cut.StartsWith("wal-") || cut == "commit-version" || cut == "writer-end" || cut == "writer-uncertain" ? 2 : 1;
             (await pending)["value"].AsInt32.Should().Be(expected);
             for (var repeat = 0; repeat < 2; repeat++)
@@ -94,7 +94,7 @@ namespace LiteDB.Internals
                 firstVersions.Should().HaveCount(2).And.OnlyHaveUniqueItems();
                 table.LiveVersions().Should().BeEquivalentTo(firstVersions.Append(localVersion));
                 var reached = Volatile.Read(ref scans);
-                await first.Kill();
+                await first.Kill(sharedFilesRemainOpen: true);
                 table.LiveVersions().Should().Equal(localVersion);
                 using var second = new MvccProcess("one-file-warm-generations", files.Filename, null, "2");
                 await second.Expect("ready");
@@ -105,7 +105,7 @@ namespace LiteDB.Internals
                 secondVersions.Should().HaveCount(2).And.OnlyHaveUniqueItems();
                 table.LiveVersions().Should().BeEquivalentTo(secondVersions.Append(localVersion));
                 SpinWait.SpinUntil(() => Volatile.Read(ref scans) > reached + 10, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                await second.Kill();
+                await second.Kill(sharedFilesRemainOpen: true);
                 table.LiveVersions().Should().Equal(localVersion);
                 Rows(local).Should().BeEquivalentTo(Enumerable.Range(1, 160).Select(id => Row(id, 0)));
                 scannerStop.Cancel();

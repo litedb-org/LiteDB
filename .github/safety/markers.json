@@ -96,6 +96,22 @@
     "FinalCloseStage": {
       "gate": "advisory",
       "reason": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path."
+    },
+    "offline-validated": {
+      "gate": "advisory",
+      "reason": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants."
+    },
+    "offline-retired": {
+      "gate": "advisory",
+      "reason": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants."
+    },
+    "offline-readers-retired": {
+      "gate": "advisory",
+      "reason": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants."
+    },
+    "offline-complete": {
+      "gate": "advisory",
+      "reason": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants."
     }
   },
   "markers": [

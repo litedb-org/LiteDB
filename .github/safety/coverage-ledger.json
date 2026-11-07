@@ -106,6 +106,51 @@
       "reason": "Add ownership substrate, RuntimeLock, transaction admission, legacy 141, Direct process host, every SharedOneFile/SharedWriterTenure split suite and cursor/cleanup regression partitions. Collect each partition TRX and fail the job if any partition fails. No prior filter, test, timeout or matrix leg is removed or narrowed."
     },
     {
+      "id": "p3-integrated-windows-death-lock-observation",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFilePublicationFixture.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Killed-writer recovery must acquire the actual kernel WRITE range before checking repeated recovery, old snapshots and committed indexed state. A live or leaked lock still fails within five seconds.",
+      "reason": "P1 run 42421342736 Windows net10 open-end case at 076878880 failed the immediate WRITE probe after child process exit, which does not guarantee Windows has completed handle cleanup. Only the post-death warm-recovery caller now requests the existing EnterWrite abandoned-owner path: bounded five-second actual native-lock acquisition, identical to production recovery. Other fixture callers retain immediate checks; no state assertion, failure hook or timeout is removed."
+    },
+    {
+      "id": "p3-integrated-mapped-handle-safety-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing coordinated, group commit, WAL, recovery, durability, rebuild, mapper and delete safety case remains selected on all six OS/runtime legs with the same five-minute session timeout.",
+      "reason": "Integrated Windows mapped qualification activates additional expensive crash/rebuild cases. Run 42421342736 Windows net8 aborted its broad final session after 649 passes and one existing skip at 300 seconds without an assertion failure. Partition WAL by Shared and the remaining selection by SharedOneFile then Rebuild using mutually exclusive positive/negative predicates. The union equals the previous filters, with no exclusions, timeout increases or changed assertions."
+    },
+    {
+      "id": "shared-retry-completed-write-watchdog",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs"
+      ],
+      "disposition": "replaced",
+      "invariant": "A child writer must acquire ownership after retry commit, finish all twenty writes and release; a stalled child must fail. Ownership, release and cold-reopen data assertions remain unchanged.",
+      "reason": "Replace the five-second aggregate done comparison with ordered completed-write validation, the same five-second stall window and a two-minute hard cap. CI run 42244689681 captured continuing writes and FlushFileBuffers after the aggregate deadline. This is a liveness oracle rather than a disk throughput limit.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Stalled_child_fails_after_last_completed_write",
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Progressing_work_can_exceed_a_single_stall_window",
+        "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Overall_cap_bounds_even_progressing_work"
+      ]
+    },
+    {
+      "id": "p3-linuxarm-complete-mapped-qualification",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-linuxarm-qualification.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile and Linux futex class executes on Linux ARM64 net8 and net10 without skips, including process death and modeled power loss; default opt-in is unchanged.",
+      "reason": "Add dedicated hosted qualification with source-derived classes, discovery-to-TRX completeness, runtime/architecture and test-hook guards, per-class counts and a 50-iteration tenure/futex/coherence stress job. Existing CI partitions, timeouts, assertions and registries are preserved."
+    },
+    {
       "id": "p1-update-safety-isolated-baseline-harness",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -755,6 +800,28 @@
       "disposition": "strengthened",
       "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
       "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
+    },
+    {
+      "id": "p3-windows-qualification-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-windows-qualification.yml",
+        ".github/scripts/p3_windows_qualification.py",
+        ".github/workflows/p3-windows-stress.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
+      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific. Full matrix and stress are independent workflows, retaining every original job command, runtime, shard, assertion, timeout and fifty-repeat bound. Three complete full-matrix runs plus one complete stress campaign qualify the exact final head; no test or job is conditionally skipped. Class discovery includes sealed/partial declarations."
+    },
+    {
+      "id": "p3-windows-registry-platform-contracts",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same physical files share one participant; distinct physical files remain independent; native admission stays enforced or opening refuses before mutation when native locking is disabled.",
+      "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
     }
   ]
 }

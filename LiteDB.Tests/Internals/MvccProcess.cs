@@ -20,7 +20,7 @@ namespace LiteDB.Internals
         private readonly HashSet<string> _existingReaders;
         private readonly HashSet<string> _childReaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        internal MvccProcess(string mode, string filename, string password, string value = null, bool disableFileLocking = false, bool disableMappedReads = false)
+        internal MvccProcess(string mode, string filename, string password, string value = null, bool disableFileLocking = false, bool disableMappedReads = false, string testingHook = null)
         {
             _filename = filename;
             _existingReaders = new HashSet<string>(ReaderFiles(), StringComparer.OrdinalIgnoreCase);
@@ -47,6 +47,7 @@ namespace LiteDB.Internals
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "mvcc-probe", "SharedMutexHarness.dll"));
             foreach (var arg in new[] { "mvcc", mode, filename, password ?? "-" }) start.ArgumentList.Add(arg);
             if (value != null) start.ArgumentList.Add(value);
+            if (testingHook != null) start.ArgumentList.Add(testingHook);
             _process = Process.Start(start);
             _errors = _process.StandardError.ReadToEndAsync();
         }
@@ -101,7 +102,7 @@ namespace LiteDB.Internals
             // parent/peer survives. In those scenarios probe only the child's private leases.
             if (sharedFilesRemainOpen) return _childReaders.ToArray();
             var controls = new[] { _filename + "-shared-live", _filename + "-shared-state", _filename + "-shared-disabled" };
-            var paths = new List<string> { _filename, FileHelper.GetLogFile(_filename) };
+            var paths = new List<string> { _filename, FileHelper.GetLogFile(_filename), _filename + "-shm" };
             paths.AddRange(controls);
             paths.AddRange(ReaderFiles());
             foreach (var control in controls)

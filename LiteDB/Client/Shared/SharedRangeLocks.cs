@@ -10,7 +10,7 @@ namespace LiteDB.Client.Shared
         private readonly DatabaseFileLock _owner;
         private readonly DatabaseFileLock _probe;
         private readonly DatabaseFileLock _writer;
-        private bool _writing;
+        private bool _writing, _sharedDms;
 #if DEBUG || TESTING
         [ThreadStatic] internal static Action WriteRetry;
 #endif
@@ -36,12 +36,26 @@ namespace LiteDB.Client.Shared
         internal bool ExclusiveDms { get; private set; }
         internal bool TryExclusiveDms()
         {
-            if (!_owner.TryLock(SharedMemoryLayout.Dms, true)) return false;
-            ExclusiveDms = true;
-            return true;
+            if (ExclusiveDms) return true;
+            // Every production conversion owns bootstrap. Windows cannot upgrade
+            // a shared LockFileEx range in place: drop only our shared layer while
+            // bootstrap excludes new attach/reset/recovery, then restore it on
+            // contention or error. Existing peers keep their shared locks.
+            var restore = _sharedDms && DatabaseFileIdentity.Windows;
+            if (restore) _owner.Unlock(SharedMemoryLayout.Dms);
+            var acquired = false;
+            try
+            {
+                acquired = _owner.TryLock(SharedMemoryLayout.Dms, true);
+                if (!acquired) return false;
+                _sharedDms = false;
+                ExclusiveDms = true;
+                return true;
+            }
+            finally { if (restore && !acquired) _owner.Lock(SharedMemoryLayout.Dms, false); }
         }
-        internal void ShareDms() { _owner.Lock(SharedMemoryLayout.Dms, false); ExclusiveDms = false; }
-        internal void DowngradeDms() { _owner.Downgrade(SharedMemoryLayout.Dms); ExclusiveDms = false; }
+        internal void ShareDms() { _owner.Lock(SharedMemoryLayout.Dms, false); ExclusiveDms = false; _sharedDms = true; }
+        internal void DowngradeDms() { _owner.Downgrade(SharedMemoryLayout.Dms); ExclusiveDms = false; _sharedDms = true; }
         internal bool TryClaim(int slot) => _owner.TryLock(Slot(slot), true);
         internal void ReleaseSlot(int slot) => _owner.Unlock(Slot(slot));
         internal bool IsLive(int slot) => _probe.Conflicts(Slot(slot));

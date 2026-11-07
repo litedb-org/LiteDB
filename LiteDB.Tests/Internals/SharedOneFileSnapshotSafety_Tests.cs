@@ -37,7 +37,7 @@ namespace LiteDB.Internals
                         new BsonDocument { ["_id"] = id, ["value"] = value, ["payload"] = new string((char)('a' + value), 2048) }));
                     var version = core.ReadVersion;
                     leases.Add(facade.Register(version));
-                    var bytes = File.ReadAllBytes(log);
+                    var bytes = MappedPlatformTestNative.ReadAllBytes(log);
                     foreach (var position in core.GetWalIndex().SnapshotPositions(version))
                     {
                         var offset = position / Constants.PAGE_SIZE * WalChecksum.FrameSize;
@@ -47,7 +47,7 @@ namespace LiteDB.Internals
                 protectedFrames.Should().NotBeEmpty();
                 db.GetCollection("docs").UpdateMany("{ value: 4 }", "true");
                 db.Checkpoint();
-                var after = File.ReadAllBytes(log);
+                var after = MappedPlatformTestNative.ReadAllBytes(log);
                 foreach (var frame in protectedFrames)
                     after.Skip((int)frame.Key).Take(Constants.PAGE_SIZE).Should().Equal(frame.Value);
                 db.GetCollection("docs").FindAll().Should().HaveCount(64).And.OnlyContain(d => d["value"].AsInt32 == 4);

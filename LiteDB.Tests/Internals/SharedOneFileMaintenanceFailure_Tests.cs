@@ -93,8 +93,8 @@ namespace LiteDB.Internals
                 await install.Kill();
             }
             var marker = RebuildRecovery.GetMarkerFilename(files.Filename);
-            var valid = File.ReadAllBytes(marker);
-            var data = File.ReadAllBytes(files.Filename);
+            var valid = MappedPlatformTestNative.ReadAllBytes(marker);
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
             foreach (var corrupt in new[] { Array.Empty<byte>(), new byte[] { 1 }, Corrupt(valid) })
             {
                 File.WriteAllBytes(marker, corrupt);
@@ -102,8 +102,8 @@ namespace LiteDB.Internals
                 {
                     Action open = () => { using var engine = new SharedEngine(files.Settings); };
                     open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.REBUILD_INCOMPLETE);
-                    File.ReadAllBytes(marker).Should().Equal(corrupt);
-                    File.ReadAllBytes(files.Filename).Should().Equal(data);
+                    MappedPlatformTestNative.ReadAllBytes(marker).Should().Equal(corrupt);
+                    MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
                 }
             }
             File.WriteAllBytes(marker, valid);

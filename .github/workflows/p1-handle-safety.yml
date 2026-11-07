@@ -28,7 +28,17 @@ jobs:
           $core = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~WalHandleLifetime|FullyQualifiedName~NativeFileSync'
           $other = 'FullyQualifiedName!~GroupCommit&FullyQualifiedName!~WalHandleLifetime&FullyQualifiedName!~NativeFileSync'
           $coordinated = 'FullyQualifiedName~SharedWriterTenureCoordinatedAdmission_Tests|FullyQualifiedName~SharedWriterTenureCoherenceBreadth_Tests|FullyQualifiedName~SharedOneFileWarmReads_Tests'
-          $filters = @($coordinated, $core, "($all)&($other)&FullyQualifiedName~Wal", "($all)&($other)&FullyQualifiedName!~Wal")
+          # Keep the same selection in disjoint sessions under the unchanged
+          # five-minute runsettings limit now that mapped Windows cases execute.
+          $wal = "($all)&($other)&FullyQualifiedName~Wal"
+          $remaining = "($all)&($other)&FullyQualifiedName!~Wal"
+          $filters = @(
+            $coordinated, $core,
+            "($wal)&FullyQualifiedName~Shared", "($wal)&FullyQualifiedName!~Shared",
+            "($remaining)&FullyQualifiedName~SharedOneFile",
+            "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName~Rebuild",
+            "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName!~Rebuild"
+          )
           $failed = $false
           for ($i = 0; $i -lt $filters.Count; $i++) {
             dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=safety-$i.trx" --results-directory artifacts_temp/handle-safety
