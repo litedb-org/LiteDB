@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      openclose_collect:
+        description: 'Diagnostic only: collect before the open/close timer to separate inherited GC placement'
+        required: false
+        default: false
+        type: boolean
       openclose_diagnostics:
         description: 'Report per-open construction/query/disposal phases and GC counts (diagnostic only)'
         required: false
@@ -128,6 +133,7 @@ jobs:
           }
       - name: Interleaved configured-round A-B comparison
         env:
+          BENCHMARK_OPENCLOSE_COLLECT: ${{ inputs.openclose_collect }}
           BENCHMARK_OPENCLOSE_DIAGNOSTICS: ${{ inputs.openclose_diagnostics }}
           BENCHMARK_SLOW_COMPARISON: ${{ inputs.slow_comparison }}
           BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}

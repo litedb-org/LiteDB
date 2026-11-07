@@ -92,6 +92,12 @@ internal sealed class Workload
         }
         var diagnostics = _record && Environment.GetEnvironmentVariable("BENCHMARK_OPENCLOSE_DIAGNOSTICS") == "true";
         var phases = diagnostics ? new List<(double Open, double Query, double Dispose)>(20) : null;
+        if (diagnostics && Environment.GetEnvironmentVariable("BENCHMARK_OPENCLOSE_COLLECT") == "true")
+        {
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+        }
         var gcBefore = diagnostics ? new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) } : null;
         var allocatedBefore = diagnostics ? GC.GetTotalAllocatedBytes(false) : 0;
         Measure("open_close_20x", 20, path, () =>
