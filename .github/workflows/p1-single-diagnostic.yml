@@ -1,0 +1,35 @@
+name: P1 single writer handle diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v6/wip-p1-perf-group-single']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - shell: pwsh
+        run: |
+          dotnet run --project tools/WalHandleDiagnostic -c Release -f ${{ matrix.framework }} -p:GitVersionEnabled=false -- result.json
+          if ($LASTEXITCODE) { throw 'diagnostic failed' }
+          dotnet --info > environment.txt
+          git rev-parse HEAD >> environment.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: single-diagnostic-${{ matrix.framework }}
+          path: |
+            result.json
+            environment.txt
