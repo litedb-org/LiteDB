@@ -19,8 +19,8 @@ namespace LiteDB.Engine
             // empty thread slot is expected here and says nothing about the other threads.
             var abortedHere = _monitor.ConsumeExplicitAbort();
 
-            if (commit && transaction == null && !abortedHere && _monitor.Transactions.Any(candidate =>
-                ReferenceEquals(candidate.FacadeOwner, _monitor.Owner) && candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
+            if (TransactionContext.For(this) == null && commit && transaction == null && !abortedHere && _monitor.Transactions.Any(candidate =>
+                ReferenceEquals(candidate.FacadeOwner, _monitor.Owner) && candidate.Lease.Kind == TransactionOwnerKind.Legacy && candidate.ExplicitTransaction && candidate.State == TransactionState.Active &&
                 candidate.OwnerThread != Thread.CurrentThread))
             {
                 Reachability.Sometimes("refusal:explicit-commit-foreign-thread");

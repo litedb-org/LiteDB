@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<string> GetCollectionNames()
         {
+            this.ValidatePublicDispatch();
             return _header.GetCollections().Select(x => x.Key);
         }
 
@@ -21,6 +22,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool DropCollection(string name)
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
             _state.Validate();
@@ -52,6 +55,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool RenameCollection(string collection, string newName)
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (newName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(newName));
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -16,6 +16,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             _state.Validate();
 
             // Storage opened read-only because it cannot be written accepts explicit transactions,
@@ -41,6 +43,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: true);
@@ -73,6 +76,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Rollback()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: false);

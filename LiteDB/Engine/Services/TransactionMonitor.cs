@@ -111,6 +111,15 @@ namespace LiteDB.Engine
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
+            var context = TransactionContext.For(this);
+            if (context != null)
+            {
+                isNew = false;
+                var bound = context.Transaction;
+                if (bound == null || bound.State != TransactionState.Active)
+                    throw new InvalidOperationException("The handle transaction is no longer active.");
+                return bound;
+            }
             var transaction = _slot.Value;
 
             if (create && transaction == null)
@@ -268,6 +277,8 @@ namespace LiteDB.Engine
         /// </summary>
         public void MarkExplicitAbort()
         {
+            var context = TransactionContext.For(this);
+            if (context != null) { context.Aborted = true; return; }
             // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
             try
             {
@@ -283,6 +294,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool ConsumeExplicitAbort()
         {
+            var context = TransactionContext.For(this);
+            if (context != null) { var aborted = context.Aborted; context.Aborted = false; return aborted; }
             try
             {
                 var aborted = _explicitAborted.Value;
@@ -302,7 +315,7 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
-            return _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
+            return TransactionContext.For(this)?.Transaction ?? _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 
         /// <summary>

@@ -410,6 +410,8 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }

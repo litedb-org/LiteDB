@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -14,6 +14,7 @@ namespace LiteDB.Engine
         /// </summary>
         public IBsonDataReader Query(string collection, Query query)
         {
+            this.ValidatePublicDispatch();
             if (string.IsNullOrWhiteSpace(collection)) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
             _state.Validate();

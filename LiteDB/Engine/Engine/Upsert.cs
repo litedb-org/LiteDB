@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using static LiteDB.Constants;
 
@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
+            this.ValidatePublicDispatch();
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 
