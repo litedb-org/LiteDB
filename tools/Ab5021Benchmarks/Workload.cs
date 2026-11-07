@@ -207,7 +207,9 @@ internal sealed class Workload
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
         var measurement = new ScenarioMeasurement();
+        if (_record && ProfileMarkers.Enabled && (Selected == null || Selected.Contains(scenario))) ProfileMarkers.Log.Begin(scenario);
         action();
+        if (_record && ProfileMarkers.Enabled && (Selected == null || Selected.Contains(scenario))) ProfileMarkers.Log.End(scenario);
         measurement.Stop();
         if (!_record)
         {

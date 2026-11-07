@@ -1,0 +1,55 @@
+name: Phase 2 gap profile
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, framework: net8.0}
+          - {runner: ubuntu-24.04, framework: net10.0}
+          - {runner: windows-2025, framework: net8.0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: a981cc228e99037e5ea2513899c771b9bed28482
+          path: artifacts_temp/before
+      - uses: actions/checkout@v4
+        with:
+          ref: 36b77dd0d3c823b3b0a78baa9e37b27e3ae9011e
+          path: artifacts_temp/after
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build isolated diagnostic harnesses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet tool install --global dotnet-trace --version 8.0.547301
+          if ($LASTEXITCODE) { throw 'trace install failed' }
+          foreach ($variant in @('before', 'after')) {
+            $candidate = (Resolve-Path "artifacts_temp/$variant/LiteDB/LiteDB.csproj").Path
+            dotnet build tools/Ab5021Benchmarks/V6/V6.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" -o "artifacts_temp/profile-bin-$variant" --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $variant" }
+          }
+          dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
+          if ($LASTEXITCODE) { throw 'decoder build failed' }
+      - name: Collect sampled stacks and runtime events
+        run: python tools/Ab5021Benchmarks/p2-profile.py '${{ matrix.framework }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p2-gap-profile-${{ matrix.runner }}-${{ matrix.framework }}
+          path: artifacts_temp/p2-profile/
+          if-no-files-found: warn
