@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -45,6 +44,7 @@ internal static class Program
                 candidateCommit = Environment.GetEnvironmentVariable("BENCHMARK_CANDIDATE_SHA"),
                 durableWriterComparison = "v6 scaling only: v5 has no per-commit device-sync setting",
                 seed = 5021,
+                inheritedGcNormalization = "Collect/WaitForPendingFinalizers/Collect before every scenario timer",
                 checkpointPages = 1000,
                 samples = workload.Samples
             };
@@ -72,4 +72,5 @@ public sealed class Document
     public string Payload { get; set; } = "";
 }
 
-internal sealed record Sample(string scenario, double milliseconds, int operations, long dataBytes, long directoryBytes);
+internal sealed record Sample(string scenario, double milliseconds, int operations, long dataBytes, long directoryBytes,
+    int gen0, int gen1, int gen2, long allocatedBytes);

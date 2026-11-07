@@ -39,7 +39,9 @@
     {
       "id": "p3fx2-shared-retry-proof-guard-rename",
       "kind": "proof-guard-removed",
-      "subjects": ["Issue_3094_SharedRetryWriterRelease"],
+      "subjects": [
+        "Issue_3094_SharedRetryWriterRelease"
+      ],
       "disposition": "relocated",
       "invariant": "Transaction retry must release obsolete Shared writer ownership, preserve active transaction guards, and allow other threads and processes to progress after completion.",
       "reason": "Repair the stale permanentGuard reference left by d4713d40bf382baf87c3f18498e85feb5bc33fb7. P3-FX F2 renamed and strengthened the failed-registration test to require immediate release after implicit abort, rather than retain an already-ended transaction's hold. The existing p3fx-aborted-retry-releases-legacy-ownership disposition records that behavior correction; retry, rollback, peer progress and cold data/index/sentinel assertions remain. No test or known-bad proof pin changes here.",
@@ -50,16 +52,22 @@
     {
       "id": "p3fx-fork-ci-newcomer-acquisition-evidence",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Production performance evidence is CI-only, uses isolated before/after libraries, keeps durability modes and runtimes separate and verifies the resulting database independently; the ordinary benchmark gate remains exhaustive.",
       "reason": "Add a separately selected, fork-only Linux x64 job with a finite 20-minute job/15-minute process budget and error on missing evidence. Existing comparison, preattached tenure and open/close jobs remain available. The new input excludes the unrelated comparison job only when explicitly requested. Identical candidate timing programs measure fresh process attachments against df6b16f80 and the fixed candidate, with positive CHECKPOINT, real writer admission, raw p50/p99 samples and cold row/index/sentinel checks. Fake-worker unit tests validate ordering without running measurements locally.",
-      "coveredBy": [".github/scripts/test_shared_newcomer.py"]
+      "coveredBy": [
+        ".github/scripts/test_shared_newcomer.py"
+      ]
     },
     {
       "id": "p3fx-aborted-retry-releases-legacy-ownership",
       "kind": "test-removed",
-      "subjects": ["LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"],
+      "subjects": [
+        "LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"
+      ],
       "disposition": "replaced",
       "invariant": "A failed retry Begin must not create an extra native hold, discard a still-active transaction, or prevent another thread from making progress after completion.",
       "reason": "Renamed and strengthened the existing encrypted/plain, pinned/unpinned retry test for the corrected implicit-abort lifetime. It now requires zero obsolete transaction holds immediately after abort and after failed registration, installs the same registration fault on the reopened core, and retains successful retry, rollback, foreign-thread progress and exact cold data/index/sentinel checks. The old expectation of one hold after an already-ended inner transaction is the confirmed stale-ownership defect, not a supported active-transaction invariant.",
@@ -156,7 +164,9 @@
     {
       "id": "p3a-fork-only-writer-tenure-measurements",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Existing full CI and benchmark comparisons remain unchanged by default; Phase 3-A measurements run only on the fork in isolated production builds.",
       "reason": "Adds an opt-in Linux net8/net10 job comparing exact Phase 2 against the candidate, five alternating paired rounds, durable and nonsync small transactions and two-process alternating latency. A bounded job and required artifacts add evidence without reducing existing thresholds or tests."
@@ -177,7 +187,9 @@
     {
       "id": "p2i-fork-only-open-close-measurement",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Existing production benchmark gate scenarios and thresholds remain required by their original triggers; mapped startup evidence must identify both exact production libraries and verify retained data.",
       "reason": "Adds an explicit fork-only manual mode for baseline a878a10c6 versus the selected candidate, net8/net10 on Linux x64, five alternating pairs of 50 open/close cycles. Existing comparison selection is unchanged unless this new mode is explicitly requested; no safety test, matrix, timeout or threshold is removed or lowered."
@@ -258,7 +270,9 @@
     {
       "id": "p1-benchmark-range-verdicts-and-macos-rounds",
       "kind": "ci-test-config-changed",
-      "subjects": [".github/workflows/benchmark-gate.yml"],
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
       "disposition": "strengthened",
       "invariant": "Complete alternating A/B round sets and unchanged owner thresholds are required before judging performance; ambiguous high-spread measurements cannot pass.",
       "reason": "macOS increases from six to ten rounds with a 24-minute measurement budget and 29-minute job limit (the original hosted macOS jobs took 6\u20137 minutes). Partial sets still fail validation; Linux/Windows retain six rounds and their existing job limits. The old unconditional-noise expectation is replaced with clear range-bound pass/fail, ambiguous noise, threshold-boundary and fivefold-regression tests. No product tests, safety assertions or fault coverage change."
@@ -585,6 +599,36 @@
       "disposition": "strengthened",
       "invariant": "Every test selected by the existing three WAL/handle safety partitions still executes with unchanged assertions, session timeout and failure propagation.",
       "reason": "Prepends an additional partition for SharedWriterTenureCoordinatedAdmission_Tests, SharedWriterTenureCoherenceBreadth_Tests and SharedOneFileWarmReads_Tests. All three original filter expressions remain unchanged; no exclusion, skip, retry, timeout or expected-result change is introduced, and any partition failure still fails the job."
+    },
+    {
+      "id": "p1-cpu-delete-additive-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL/group/fault safety partitions execute unchanged; delete result, rollback, page cursor, snapshot and recovery safety receive additional hosted coverage.",
+      "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
+    },
+    {
+      "id": "p1-integrate-add-delete-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL safety partitions, assertions, timeouts and runtime legs remain exercised.",
+      "reason": "Integrates the additional primary-key delete differential, rollback, reader snapshot and WAL-failure recovery partition from the delete candidate. Every pre-existing partition remains unchanged; the added partition fails the job on any test failure."
+    },
+    {
+      "id": "p1-integrate-baseline-update-guard-tree",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-update-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Candidate retains all merged update/delete tests and index/vector fuzz; historical phase1 comparison executes the same nine update guards from the accepted update candidate.",
+      "reason": "Restore the accepted update test tree only after all candidate tests and fuzz complete, alongside unchanged phase1 production source. The integrated delete guards reference a new internal helper absent from the historical production library and otherwise prevent baseline compilation. No candidate filter, assertions, rounds or runtime legs change; original baseline update guards remain byte-identical."
     }
   ]
 }

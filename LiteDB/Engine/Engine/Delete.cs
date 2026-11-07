@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -70,6 +70,13 @@ namespace LiteDB.Engine
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
 
+            // Shared coordinated reads keep the established query/snapshot ownership path.
+            if (!_settings.SharedMode && !_settings.DurableCommits && _header.Pragmas.IndexesOrdered && _settings.ReadTransform == null && !collection.StartsWith("$") &&
+                PrimaryKeyDeleteRange.HasShape(predicate))
+            {
+                return this.DeleteRange(collection, predicate);
+            }
+
             // do optimization for when using "_id = value" key
             if (predicate != null &&
                 predicate.Type == BsonExpressionType.Equal && 
@@ -83,34 +90,71 @@ namespace LiteDB.Engine
             }
             else
             {
-                IEnumerable<BsonValue> getIds()
+                return this.DeleteManyViaQuery(collection, predicate);
+            }
+        }
+
+        private int DeleteManyViaQuery(string collection, BsonExpression predicate)
+        {
+            IEnumerable<BsonValue> getIds()
+            {
+                // this is intresting: if _id returns an document (like in FileStorage) you can't run direct _id
+                // field because "reader.Current" will return _id document - but not - { _id: [document] }
+                // create inner document to ensure _id will be a document
+                var query = new Query { Select = "{ i: _id }", ForUpdate = true };
+
+                if(predicate != null)
                 {
-                    // this is intresting: if _id returns an document (like in FileStorage) you can't run direct _id
-                    // field because "reader.Current" will return _id document - but not - { _id: [document] }
-                    // create inner document to ensure _id will be a document
-                    var query = new Query { Select = "{ i: _id }", ForUpdate = true };
+                    query.Where.Add(predicate);
+                }
 
-                    if(predicate != null)
+                using (var reader = this.Query(collection, query))
+                {
+                    while (reader.Read())
                     {
-                        query.Where.Add(predicate);
-                    }
+                        var value = reader.Current["i"];
 
-                    using (var reader = this.Query(collection, query))
-                    {
-                        while (reader.Read())
+                        if (value != BsonValue.Null)
                         {
-                            var value = reader.Current["i"];
-
-                            if (value != BsonValue.Null)
-                            {
-                                yield return value;
-                            }
+                            yield return value;
                         }
                     }
                 }
-
-                return this.Delete(collection, getIds());
             }
+
+            return this.Delete(collection, getIds());
+        }
+
+        private int DeleteRange(string collection, BsonExpression predicate)
+        {
+            return this.AutoTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
+                var page = snapshot.CollectionPage;
+                if (page == null) return 0;
+                // Evaluate bindings only after admission and collection lookup, just
+                // as the query path does (including its missing-collection behavior).
+                if (!PrimaryKeyDeleteRange.TryCreate(predicate, _header.Pragmas.Collation, out var range))
+                    return this.DeleteManyViaQuery(collection, predicate);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var vectors = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+                var count = 0;
+                foreach (var position in range.DeletePositions(indexer, page.PK))
+                {
+                    _state.Validate();
+                    var node = indexer.GetNode(position);
+                    foreach (var (_, metadata) in page.GetVectorIndexes())
+                    {
+                        vectors.Delete(metadata, node.DataBlock);
+                    }
+                    data.Delete(node.DataBlock);
+                    indexer.DeleteAll(position);
+                    transaction.Safepoint();
+                    count++;
+                }
+                return count;
+            });
         }
     }
 }
