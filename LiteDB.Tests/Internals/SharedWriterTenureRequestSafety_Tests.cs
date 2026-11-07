@@ -1,7 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -23,51 +23,43 @@ namespace LiteDB.Internals
             using var older = new MvccProcess("one-file-tenure-request", files.Filename, null);
             older.Expect("requested").GetAwaiter().GetResult();
             var block = RemoteBlock(authority);
-            using var sampled = new ManualResetEventSlim();
-            using var preempted = new ManualResetEventSlim();
+            // Observe a real renewal after our clock sample, then freeze its
+            // record before publishing the local ticket. A scheduler pause may
+            // otherwise expire the peer and legitimately move it behind us.
+            var sampledAt = Environment.TickCount64;
+            SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
+                sampledAt + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
+            SharedProcessSignals.Stop(older.ProcessId);
+            var stopped = true;
+            using var evaluated = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             var admitted = 0;
-            long localPublished = 0, remotePublished = 0, localSampled = 0, remoteSampled = 0;
-            long sampledAt = 0, renewedAt = 0, renewedExpiry = 0, renewedTicket = 0;
-            long admittedAt = 0, admittedLocal = 0, admittedRemote = 0, admittedExpiry = 0;
+            bool? staleSampleAdmitted = null;
             Exception failure = null;
             var waiter = new Thread(() =>
             {
                 var once = false;
                 SharedWriterRequests.RequestStage = stage =>
                 {
-                    if (stage == "request-published")
-                    {
-                        localPublished = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
-                        remotePublished = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
-                    }
-                    if (stage == "request-admitted")
-                    {
-                        admittedLocal = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
-                        admittedRemote = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
-                        admittedExpiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
-                        admittedAt = Environment.TickCount64;
-                        Interlocked.Increment(ref admitted);
-                    }
-                    if (stage != "request-sampled" || once) return;
+                    if (stage == "request-admitted") Interlocked.Increment(ref admitted);
+                    if (stage != "request-published" || once) return;
                     once = true;
-                    var now = sampledAt = Environment.TickCount64;
-                    localSampled = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
-                    remoteSampled = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
-                    sampled.Set();
-                    SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
-                        now + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                    renewedTicket = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
-                    renewedExpiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
-                    renewedAt = Environment.TickCount64;
-                    preempted.Set();
+                    authority.Map.Load(block + SharedMemoryLayout.TenureRequest).Should().BeGreaterThan(0)
+                        .And.BeLessThan(authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest));
+                    authority.Map.Load(block + SharedMemoryLayout.RequestExpiry).Should()
+                        .BeGreaterThan(sampledAt + SharedWriterRequests.ExpiryMilliseconds);
+                    // Evaluate the actual admission predicate with the stale
+                    // sample, without fabricating mapped bytes or clock values.
+                    var predicate = typeof(SharedWriterRequests).GetMethod("IsTurn", BindingFlags.Instance | BindingFlags.NonPublic);
+                    staleSampleAdmitted = (bool)predicate.Invoke(authority.Requests, new object[] { sampledAt });
+                    evaluated.Set();
+                    resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                 };
                 try
                 {
                     failure = Record.Exception(() =>
                     {
                         using var request = engine.MappedReaderTable.RequestWriter();
-                        resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                     });
                 }
                 finally { SharedWriterRequests.RequestStage = null; }
@@ -75,21 +67,27 @@ namespace LiteDB.Internals
             waiter.Start();
             try
             {
-                sampled.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                preempted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                Volatile.Read(ref admitted).Should().Be(0,
-                    "published local/remote={0}/{1}; sampled local/remote={2}/{3} at={4}; renewed ticket/expiry={5}/{6} at={7}; admitted local/remote/expiry={8}/{9}/{10} at={11}",
-                    localPublished, remotePublished, localSampled, remoteSampled, sampledAt,
-                    renewedTicket, renewedExpiry, renewedAt, admittedLocal, admittedRemote, admittedExpiry, admittedAt);
-                older.Send("go"); older.Expect("waiting-main").GetAwaiter().GetResult();
-                older.Expect("ready").GetAwaiter().GetResult();
-                SpinWait.SpinUntil(() => Volatile.Read(ref admitted) == 1, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                evaluated.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                staleSampleAdmitted.Should().BeFalse("a real renewal after the clock sample cannot erase an older ticket");
+                Volatile.Read(ref admitted).Should().Be(0);
+                SharedProcessSignals.Resume(older.ProcessId);
+                stopped = false;
+                older.Send("go");
+                // Both requests must make progress, including when the stopped
+                // peer's wall-clock lease expires before it can resume.
                 resume.Set();
+                older.Expect("waiting-main").GetAwaiter().GetResult();
+                older.Expect("ready").GetAwaiter().GetResult();
                 waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                Volatile.Read(ref admitted).Should().Be(1);
                 older.Send("write 910"); older.Expect("wrote 910").GetAwaiter().GetResult();
                 older.Send("close"); older.Expect("done").GetAwaiter().GetResult(); older.Finish().GetAwaiter().GetResult();
             }
-            finally { resume.Set(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+            finally
+            {
+                if (stopped) SharedProcessSignals.Resume(older.ProcessId);
+                resume.Set(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            }
             failure.Should().BeNull();
             engine.Dispose();
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);

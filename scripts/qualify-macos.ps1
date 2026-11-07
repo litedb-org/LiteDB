@@ -11,6 +11,7 @@ $classes = @(Get-ChildItem LiteDB.Tests -Recurse -Filter '*Tests.cs' | Where-Obj
     $_.BaseName -match '^(SharedPlatformWake|SharedIntegrationSeam|DirectProcessHostRekey)_Tests$'
 } | Sort-Object BaseName)
 $inventory = @()
+$batches = @()
 $failed = $false
 $stress = $env:QUALIFICATION_STRESS -eq 'true'
 $diagnostic = $env:REQUEST_SAFETY_DIAGNOSTIC -eq 'true'
@@ -31,19 +32,29 @@ foreach ($file in $classes) {
     $filter = "FullyQualifiedName~.$class."
     foreach ($method in $linuxOnly) { $filter += "&FullyQualifiedName!~.$method" }
     $inventory += [ordered]@{ class = $class; linuxOnly = $linuxOnly; repetitions = $repetitions }
+    $batches += [pscustomobject]@{ name = $class; filter = "($filter)"; classes = @($class) }
+}
+if ($stress -and !$diagnostic) {
+    # Repeat the complete stress set in fifty fresh test hosts. Each class must
+    # appear in each TRX; runtime/hook guards execute once per actual test host.
+    $batches = @([pscustomobject]@{ name = 'stress'; filter = ($batches.filter -join '|'); classes = @($inventory.class) })
+}
+foreach ($batch in $batches) {
     for ($repeat = 1; $repeat -le $repetitions; $repeat++) {
-        $name = "$class-$repeat.trx"
+        $name = "$($batch.name)-$repeat.trx"
         & dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $Framework --no-build --no-restore `
             -p:TestingEnabled=true --settings tests.runsettings `
-            --filter "($filter)|FullyQualifiedName~TestHost_Tests" --blame `
+            --filter "($($batch.filter))|FullyQualifiedName~TestHost_Tests" --blame `
             --logger "trx;LogFileName=$name" --results-directory $output
         if ($LASTEXITCODE -ne 0) { $failed = $true }
         $path = Join-Path $output $name
         if (!(Test-Path $path)) { $failed = $true; continue }
         [xml]$trx = Get-Content $path
         $results = @($trx.TestRun.Results.UnitTestResult | Where-Object { $_ -and $_.testName })
-        $actual = @($results | Where-Object { $_.testName -like "*$class.*" })
-        if (!$actual.Count -or @($results | Where-Object outcome -ne 'Passed').Count) { $failed = $true }
+        foreach ($class in $batch.classes) {
+            if (!@($results | Where-Object { $_.testName -like "*$class.*" }).Count) { $failed = $true }
+        }
+        if (@($results | Where-Object outcome -ne 'Passed').Count) { $failed = $true }
         foreach ($guard in @('RequestedRuntimeAndArchitecture_AreActuallyRunning', 'LoadedLibrary_ContainsTheRequiredEngineTestHooks')) {
             if (@($results | Where-Object { $_.testName.EndsWith($guard) -and $_.outcome -eq 'Passed' }).Count -ne 1) { $failed = $true }
         }
