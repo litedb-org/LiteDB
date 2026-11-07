@@ -254,7 +254,7 @@
       "knownBadRevision": "b4834a819a95efafe747bb4690899bf288b3fca1",
       "permanentGuard": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Expired_live_request_reenters_after_the_already_published_successor",
       "script": "scripts/verify-shared-request-expiry.ps1",
-      "scope": "Unpublished ABI-2 TESTING interleaving: actual expiry under the request gate, successor publication, and fresh-ticket recheck before admission; same committed test source on both real revisions.",
+      "scope": "Unpublished ABI-2 TESTING interleaving: actual expiry under the request gate, successor publication, and fresh-ticket recheck before admission; same current permanent test and deferred-start child harness overlaid identically on both real revisions; historical production source remains unmodified.",
       "gap": "No originating PR or published package contains this feature state; this is a scheduled real-revision unit proof, not a published-package ReproRunner proof or retirement claim."
     }
   ]

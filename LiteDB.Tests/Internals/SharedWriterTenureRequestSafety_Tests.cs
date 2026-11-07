@@ -190,6 +190,8 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture();
             using var engine = new SharedEngine(files.Settings);
             var authority = engine.MappedReaderTable.Authority;
+            using var successor = new MvccProcess("one-file-tenure-deferred-request", files.Filename, null);
+            successor.Expect("started").GetAwaiter().GetResult();
             using var sampled = new ManualResetEventSlim();
             using var resumeSample = new ManualResetEventSlim();
             using var evaluated = new ManualResetEventSlim();
@@ -225,7 +227,7 @@ namespace LiteDB.Internals
                     }
                 };
                 try { failure = Record.Exception(() => { using var request = engine.MappedReaderTable.RequestWriter(); }); }
-                finally { SharedWriterRequests.RequestStage = null; }
+                finally { SharedWriterRequests.RequestStage = null; evaluated.Set(); }
             }) { IsBackground = true };
             waiter.Start();
             try
@@ -235,7 +237,7 @@ namespace LiteDB.Internals
                 // timer cannot repair the caller's expired ticket for it.
                 var expiry = authority.Map.Load(authority.Block + SharedMemoryLayout.RequestExpiry);
                 SpinWait.SpinUntil(() => Environment.TickCount64 > expiry + 10, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                using var successor = new MvccProcess("one-file-tenure-request", files.Filename, null);
+                successor.Send("publish");
                 successor.Expect("requested").GetAwaiter().GetResult();
                 SharedProcessSignals.Stop(successor.ProcessId);
                 try
@@ -243,7 +245,8 @@ namespace LiteDB.Internals
                     var successorTicket = authority.Map.Load(RemoteBlock(authority) + SharedMemoryLayout.TenureRequest);
                     successorTicket.Should().BeGreaterThan(firstTicket);
                     resumeSample.Set();
-                    evaluated.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    evaluated.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue("worker failure={0}; samples={1}", failure, samples);
+                    failure.Should().BeNull("the forced expiry worker must reach its second sample without failing");
                     admittedBeforeRecheck.Should().Be(0, "a caller resumed after its own expiry must rejoin before advisory admission");
                     recheckedTicket.Should().BeGreaterThan(successorTicket);
                 }

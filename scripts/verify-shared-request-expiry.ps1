@@ -11,6 +11,7 @@ $before = Join-Path ([IO.Path]::GetTempPath()) ('litedb-expiry-proof-' + [Guid]:
 $method = 'Expired_live_request_reenters_after_the_already_published_successor'
 $class = 'SharedWriterTenureRequestSafety_Tests'
 $testSource = 'LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs'
+$harnessSource = 'LiteDB.Tests.SharedMutexHarness/SharedWriterTenureHarness.cs'
 $results = @()
 
 function Test-Revision([string]$checkout, [string]$variant, [bool]$knownBad) {
@@ -42,15 +43,27 @@ function Test-Revision([string]$checkout, [string]$variant, [bool]$knownBad) {
             throw 'Candidate did not pass the same regression and both host guards.'
         }
         return [ordered]@{ variant = $variant; revision = (git rev-parse HEAD); exitCode = $testExit;
-            targetOutcome = $target[0].outcome; passedGuards = 2; testSourceHash = (Get-FileHash $testSource -Algorithm SHA256).Hash }
+            targetOutcome = $target[0].outcome; passedGuards = 2; testSourceHash = (Get-FileHash $testSource -Algorithm SHA256).Hash;
+            harnessSourceHash = (Get-FileHash $harnessSource -Algorithm SHA256).Hash;
+            productSourceHash = (Get-FileHash LiteDB/Client/Shared/SharedWriterRequests.cs -Algorithm SHA256).Hash }
     } finally { Pop-Location }
 }
 
 try {
     & git worktree add --detach $before $entry.knownBadRevision
     if ($LASTEXITCODE -ne 0) { throw 'Cannot check out the registered real known-bad revision.' }
-    if ((Get-FileHash (Join-Path $before $testSource)).Hash -ne (Get-FileHash $testSource).Hash) {
-        throw 'Before/after must use identical permanent regression source.'
+    # Overlay only the current permanent test and its child harness on the real
+    # historical product. Both variants execute identical test-only source.
+    foreach ($source in @($testSource, $harnessSource)) {
+        Copy-Item (Join-Path $root $source) (Join-Path $before $source) -Force
+        if ((Get-FileHash (Join-Path $before $source)).Hash -ne (Get-FileHash $source).Hash) {
+            throw 'Before/after must use identical permanent regression/harness source.'
+        }
+    }
+    $product = 'LiteDB/Client/Shared/SharedWriterRequests.cs'
+    $historicalProduct = & git -C $before show ($entry.knownBadRevision + ':' + $product)
+    if ($LASTEXITCODE -ne 0 -or (($historicalProduct -join "`n") -ne ((Get-Content (Join-Path $before $product)) -join "`n"))) {
+        throw 'The historical product source must remain unmodified.'
     }
     $results += Test-Revision $before 'known-bad' $true
     $results += Test-Revision $root 'candidate' $false
