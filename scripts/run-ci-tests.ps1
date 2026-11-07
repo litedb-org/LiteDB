@@ -7,7 +7,8 @@ param(
     [string]$RuntimeDirectory,
     [switch]$PartitionSuite,
     [string]$VerifyPartitions,
-    [string]$DiscoveryFile
+    [string]$DiscoveryFile,
+    [ValidateRange(1, 299)][int]$HangTimeoutSeconds = 240
 )
 
 $ErrorActionPreference = 'Stop'
@@ -192,6 +193,10 @@ if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestH
 # session that simply exhausts its unchanged 300-second cumulative budget.
 if ($Filter -match 'Shared') {
     $arguments += '/Blame:CollectHangDump;TestTimeout=120s;HangDumpType=mini'
+}
+else {
+    # Other partitions also capture evidence before the unchanged session ceiling.
+    $arguments += "/Blame:CollectHangDump;TestTimeout=$($HangTimeoutSeconds)s;HangDumpType=mini"
 }
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 & dotnet @arguments

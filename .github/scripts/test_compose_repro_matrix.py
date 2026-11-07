@@ -84,6 +84,15 @@ class ReproMatrixTests(unittest.TestCase):
         }, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
            if ref.startswith("LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#")})
 
+    def test_rekey_callback_cache_gate_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {
+            "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache",
+        }
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if "#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache" in ref}
+        self.assertEqual(expected, actual)
+
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())
