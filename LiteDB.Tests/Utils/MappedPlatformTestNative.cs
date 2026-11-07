@@ -22,10 +22,15 @@ namespace LiteDB.Tests
         internal static int Signal(int processId, int signal)
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return kill(processId, signal);
-            using var process = Process.GetProcessById(processId);
-            if (signal == 19) return NtSuspendProcess(process.Handle);
-            if (signal == 18) return NtResumeProcess(process.Handle);
-            throw new ArgumentOutOfRangeException(nameof(signal));
+            Process process;
+            try { process = Process.GetProcessById(processId); }
+            catch (ArgumentException) { return 3; } // ESRCH, as kill returns for cleanup after exit
+            using (process)
+            {
+                if (signal == 19) return NtSuspendProcess(process.Handle);
+                if (signal == 18) return NtResumeProcess(process.Handle);
+                throw new ArgumentOutOfRangeException(nameof(signal));
+            }
         }
 
         internal static int Link(string original, string alias)

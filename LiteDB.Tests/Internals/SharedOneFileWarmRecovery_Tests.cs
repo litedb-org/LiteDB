@@ -52,7 +52,7 @@ namespace LiteDB.Internals
                 else status.Version.Should().Be(oldVersion);
             }
             if (cut == "commit-version") valid.Should().BeFalse();
-            await writer.Kill();
+            await writer.Kill(sharedFilesRemainOpen: true);
             files.WriteIsFree();
             for (var recovery = 0; recovery < 2; recovery++)
             {
@@ -81,7 +81,7 @@ namespace LiteDB.Internals
             engine.MappedReaderTable.LiveVersions().Should().NotBeEmpty();
             db.GetCollection("docs").Update(Row(1, 1)).Should().BeTrue();
             db.Checkpoint();
-            await child.Kill();
+            await child.Kill(sharedFilesRemainOpen: true);
             engine.MappedReaderTable.LiveVersions().Should().BeEmpty("dead mapped records are ignored only after kernel proof");
             for (var recovery = 0; recovery < 2; recovery++) { db.Checkpoint(); Verify(db, 1); }
         }

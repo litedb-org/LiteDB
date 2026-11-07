@@ -49,7 +49,7 @@ namespace LiteDB.Internals
                     tail.SetLength(size + 123);
                 using var successor = new MvccProcess("one-file-publication-hold", files.Filename, null, stage);
                 await successor.Expect("ready");
-                await successor.Kill();
+                await successor.Kill(sharedFilesRemainOpen: true);
                 files.WriteIsFree();
                 table.Authority.Header.Authority.Should().Be(authority, "DMS stayed alive; this is repair, not first-opener reset");
                 table.Authority.Incarnation.Should().Be(incarnation);
@@ -90,7 +90,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-mutation-cut", files.Filename, null, stage))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: stage == "slot-reused");
             }
             using var recovered = stage == "version-reset" ? new SharedEngine(files.Settings) : null;
             using var recoveredDb = recovered == null ? null : new LiteDatabase(recovered, disposeOnClose: false);
@@ -116,7 +116,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-commit-cut", files.Filename, null, stage))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             for (var repeat = 0; repeat < 2; repeat++)
             {

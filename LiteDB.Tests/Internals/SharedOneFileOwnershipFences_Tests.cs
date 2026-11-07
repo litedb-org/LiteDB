@@ -68,7 +68,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-publication-hold", files.Filename, null, "wal-before-durable-flush"))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             var table = engine.MappedReaderTable;
             var before = table.Authority.Map.Load(SharedMemoryLayout.CommittedVersion);

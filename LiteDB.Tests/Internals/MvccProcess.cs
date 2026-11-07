@@ -101,7 +101,7 @@ namespace LiteDB.Internals
             // parent/peer survives. In those scenarios probe only the child's private leases.
             if (sharedFilesRemainOpen) return _childReaders.ToArray();
             var controls = new[] { _filename + "-shared-live", _filename + "-shared-state", _filename + "-shared-disabled" };
-            var paths = new List<string> { _filename, FileHelper.GetLogFile(_filename) };
+            var paths = new List<string> { _filename, FileHelper.GetLogFile(_filename), _filename + "-shm" };
             paths.AddRange(controls);
             paths.AddRange(ReaderFiles());
             foreach (var control in controls)

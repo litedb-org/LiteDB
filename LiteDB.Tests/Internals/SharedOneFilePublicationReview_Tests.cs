@@ -83,7 +83,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-publication-hold", Filename, null, "wal-before-durable-flush"))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             var syncs = 0;
             var syncsAtOpen = -1;

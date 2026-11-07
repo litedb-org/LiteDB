@@ -75,7 +75,7 @@ namespace LiteDB.Internals
             MappedPlatformTestNative.Signal(first.ProcessId, 19).Should().Be(0);
             try { table.LiveVersions().Should().Equal(11); }
             finally { MappedPlatformTestNative.Signal(first.ProcessId, 18).Should().Be(0); }
-            await first.Kill();
+            await first.Kill(sharedFilesRemainOpen: true);
             table.LiveVersions().Should().BeEmpty();
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
             await second.Expect("ready");
