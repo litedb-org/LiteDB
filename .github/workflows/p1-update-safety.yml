@@ -1,0 +1,51 @@
+name: P1 update index safety
+on:
+  workflow_dispatch:
+  push:
+    branches: [v6/wip-p1-cpu-update]
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Candidate update, index, vector and rollback safety
+        shell: pwsh
+        run: |
+          git rev-parse HEAD | Tee-Object -FilePath candidate-sha.txt
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~UpdateIndexDiff_Tests|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~VectorIndex_Tests|FullyQualifiedName~Index_Tests|FullyQualifiedName~Update_Tests|FullyQualifiedName~WalPowerLoss_Tests' --logger 'trx;LogFileName=candidate.trx' --results-directory artifacts_temp/update-safety
+          if ($LASTEXITCODE) { throw 'Candidate safety failed' }
+      - name: Candidate index and vector fuzz against independent model
+        shell: pwsh
+        run: |
+          dotnet run --project LiteDB.Fuzz -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false -- --target index,vector --seed 202947 --count 100 --artifact-dir artifacts_temp/update-fuzz
+          if ($LASTEXITCODE) { throw 'Index/vector fuzz failed' }
+      - name: Same new guards against unchanged Phase 1 production source
+        shell: pwsh
+        run: |
+          git restore --source dac4520a6c0d811b80919a117ba8b88676f5a3ac --worktree -- LiteDB
+          if ($LASTEXITCODE) { throw 'Baseline source restore failed' }
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~UpdateIndexDiff_Tests' --logger 'trx;LogFileName=phase1.trx' --results-directory artifacts_temp/update-safety
+          if ($LASTEXITCODE) { throw 'Phase 1 differential guards failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: update-safety-${{ matrix.os }}-${{ matrix.framework }}
+          path: |
+            candidate-sha.txt
+            artifacts_temp/update-safety
+            artifacts_temp/update-fuzz
