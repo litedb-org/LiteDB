@@ -41,6 +41,16 @@
       ]
     },
     {
+      "id": "p3-linuxarm-complete-mapped-qualification",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-linuxarm-qualification.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile and Linux futex class executes on Linux ARM64 net8 and net10 without skips, including process death and modeled power loss; default opt-in is unchanged.",
+      "reason": "Add dedicated hosted qualification with source-derived classes, discovery-to-TRX completeness, runtime/architecture and test-hook guards, per-class counts and a 50-iteration tenure/futex/coherence stress job. Existing CI partitions, timeouts, assertions and registries are preserved."
+    },
+    {
       "id": "p1-update-safety-isolated-baseline-harness",
       "kind": "ci-test-config-changed",
       "subjects": [
