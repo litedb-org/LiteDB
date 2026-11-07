@@ -126,6 +126,7 @@ namespace LiteDB
                 using var binding = TransactionContext.Enter(_transaction);
                 try
                 {
+                    _transaction.Engine.ThrowIfHandleUnavailable();
                     var result = action();
                     DisposeDeferred();
                     return result;
@@ -226,6 +227,7 @@ namespace LiteDB
 
         public void Commit()
         {
+            Utils.Reachability.Sometimes("api:ILiteTransaction.Commit");
             Enter();
             try
             {
@@ -281,6 +283,7 @@ namespace LiteDB
 
         public void Rollback()
         {
+            Utils.Reachability.Sometimes("api:ILiteTransaction.Rollback");
             Enter();
             try { RollbackCore(); }
             finally { Exit(); }
@@ -351,11 +354,25 @@ namespace LiteDB
         }
 
         public ILiteCollection<T> GetCollection<T>(string name = null, BsonAutoId autoId = BsonAutoId.ObjectId) =>
-            Run(() => (ILiteCollection<T>)new TransactionCollection<T>(this, new LiteCollection<T>(name, autoId, _client)));
+            Run(() =>
+            {
+                Utils.Reachability.Sometimes("api:ILiteTransaction.GetCollection");
+                Utils.Reachability.Sometimes("api:ILiteTransaction.ILiteCollection");
+                return (ILiteCollection<T>)new TransactionCollection<T>(this, new LiteCollection<T>(name, autoId, _client));
+            });
         public ILiteCollection<BsonDocument> GetCollection(string name, BsonAutoId autoId = BsonAutoId.ObjectId) =>
             GetCollection<BsonDocument>(name ?? throw new ArgumentNullException(nameof(name)), autoId);
-        public IEnumerable<string> GetCollectionNames() => Run(() => Dispatch(() => _transaction.Engine.GetTransactionCollectionNames()));
-        public bool CollectionExists(string name) => GetCollectionNames().Contains(name, StringComparer.OrdinalIgnoreCase);
+        public IEnumerable<string> GetCollectionNames() => Run(() =>
+        {
+            Utils.Reachability.Sometimes("api:ILiteTransaction.GetCollectionNames");
+            return Dispatch(() => _transaction.Engine.GetTransactionCollectionNames());
+        });
+        public bool CollectionExists(string name)
+        {
+            Utils.Reachability.Sometimes("api:ILiteTransaction.CollectionExists");
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+            return GetCollectionNames().Contains(name, StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>An operation a transaction handle does not support, refused before mutation.</summary>

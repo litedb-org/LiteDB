@@ -157,7 +157,11 @@ namespace LiteDB
         /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
         [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
-        public bool BeginTrans() => _context.Engine.BeginTrans();
+        public bool BeginTrans()
+        {
+            Utils.Reachability.Sometimes("api:ILiteDatabase.Obsolete");
+            return _context.Engine.BeginTrans();
+        }
 
         /// <summary>
         /// Commit the current thread transaction; throws if only other threads have explicit transactions.

@@ -932,105 +932,113 @@
       "name": "api:ILiteDatabase.Obsolete",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Database/ILiteDatabase.cs"
+        "LiteDB/Client/Database/LiteDatabase.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.CollectionExists",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.Commit",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.GetCollection",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.GetCollectionNames",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.ILiteCollection",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransaction.Rollback",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:ILiteTransactionProvider.BeginTransaction",
       "kind": "api",
       "paths": [
-        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+        "LiteDB/Client/Database/LiteDatabase.Transactions.cs"
       ],
       "targets": [
         "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     },
     {
       "name": "api:LiteTransactionExtensions.BeginTransaction",
@@ -1043,7 +1051,8 @@
         "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
       ],
       "gate": "advisory",
-      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
+      "reason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations.",
+      "gateReason": "Phase 4 step 3 public contract is exercised by hosted deterministic Direct tests; integrated logical handle fuzz qualification remains step 8. Parser-derived Obsolete and ILiteCollection names represent attributes and generic return declarations."
     }
   ]
 }

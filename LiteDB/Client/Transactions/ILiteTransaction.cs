@@ -69,6 +69,7 @@ namespace LiteDB
         /// </summary>
         public static ILiteTransaction BeginTransaction(this ILiteDatabase database)
         {
+            Utils.Reachability.Sometimes("api:LiteTransactionExtensions.BeginTransaction");
             if (database == null) throw new ArgumentNullException(nameof(database));
             if (database is ILiteTransactionProvider provider) return provider.BeginTransaction();
             throw new NotSupportedException("This database provider does not support thread-independent transaction handles.");

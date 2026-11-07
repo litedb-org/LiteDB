@@ -78,7 +78,6 @@ namespace LiteDB.Engine
             private readonly Ticket _previousTicket = _ticket;
             internal Binding(TransactionContext context)
             {
-                context.Engine.ValidateHandleContext(context);
                 _current = context;
                 _ticket = null;
             }

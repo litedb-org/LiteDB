@@ -13,6 +13,7 @@ namespace LiteDB
         /// </summary>
         public ILiteTransaction BeginTransaction()
         {
+            Utils.Reachability.Sometimes("api:ILiteTransactionProvider.BeginTransaction");
             _transactionHandles.EnterPending();
             try
             {
