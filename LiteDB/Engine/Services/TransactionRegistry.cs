@@ -86,7 +86,8 @@ namespace LiteDB.Engine
             for (var i = 0; i < _slots.Length; i++)
             {
                 var transaction = Volatile.Read(ref _slots[i]);
-                if (transaction?.OwnerThread == thread) return transaction;
+                if (transaction != null && transaction.Lease.Kind == TransactionOwnerKind.Legacy &&
+                    ReferenceEquals(transaction.OwnerThread, thread)) return transaction;
             }
 
             return null;

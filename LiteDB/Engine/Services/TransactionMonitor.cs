@@ -188,6 +188,7 @@ namespace LiteDB.Engine
             EnsureWriteAllowed();
             if (_slot.Value != null && _slot.Value.State != TransactionState.Disposed)
                 throw new InvalidOperationException("Cannot mix a handle and a legacy transaction.");
+            lease.Claim();
             _locker.EnterTransaction(lease.Admission);
             TransactionService transaction = null;
             try

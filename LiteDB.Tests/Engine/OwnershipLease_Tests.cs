@@ -14,6 +14,8 @@ namespace LiteDB.Tests.Engine
         public async Task Collection_recursion_follows_identity_across_threads_and_wrong_release_preserves_owner()
         {
             var gate = new CollectionLock();
+            Action emptyRelease = () => gate.Exit(null);
+            emptyRelease.Should().Throw<SynchronizationLockException>();
             var owner = TransactionLease.Handle(new object());
             var peer = TransactionLease.Handle(owner.Facade);
             gate.TryEnter(owner, TimeSpan.Zero).Should().BeTrue();
@@ -110,6 +112,7 @@ namespace LiteDB.Tests.Engine
                 var handle = monitor.CreateTransaction(TransactionLease.Handle(monitor.Owner));
                 var second = monitor.CreateTransaction(TransactionLease.Handle(monitor.Owner));
                 handle.Lease.LockOwner.Should().NotBeSameAs(second.Lease.LockOwner);
+                monitor.GetThreadTransaction().Should().BeNull("logical handles must never enter legacy thread lookup");
                 db.BeginTrans().Should().BeTrue();
                 var legacy = monitor.GetThreadTransaction();
                 await Task.Run(() =>
@@ -145,6 +148,8 @@ namespace LiteDB.Tests.Engine
             var handle = peer.CreateTransaction(TransactionLease.Handle(peer.Owner));
             handle.Rollback();
             peer.ReleaseTransaction(handle);
+            Action reuse = () => peer.CreateTransaction(handle.Lease);
+            reuse.Should().Throw<InvalidOperationException>();
             monitor.Transactions.Should().BeEmpty();
             peer.CloseOwner();
         }

@@ -50,7 +50,7 @@ namespace LiteDB.Engine
         {
             lock (_lock)
             {
-                if (!ReferenceEquals(_owner, owner)) throw new SynchronizationLockException("Collection lock belongs to another transaction.");
+                if (owner == null || !ReferenceEquals(_owner, owner)) throw new SynchronizationLockException("Collection lock belongs to another transaction.");
                 if (--_depth != 0) return;
                 _owner = null;
                 Monitor.PulseAll(_lock);
