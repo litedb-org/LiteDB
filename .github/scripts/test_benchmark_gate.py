@@ -66,7 +66,7 @@ class BenchmarkGateTests(unittest.TestCase):
     def evaluate(self):
         return gate.evaluate(self.output, self.config, "Linux", "net8.0")
 
-    def row(self, report, scenario="single_insert_5k_tx", config="dev-os-cache"):
+    def row(self, report, scenario="bulk_insert_100k", config="dev-os-cache"):
         return next(row for row in report["results"] if row["scenario"] == scenario and row["config"] == config)
 
     def make_before(self):
@@ -87,7 +87,7 @@ class BenchmarkGateTests(unittest.TestCase):
     def test_comparison_bounds_and_before_gate_do_not_change_after_gate(self):
         self.make_before()
         self.config["maxSpreadPercent"] = 100
-        self.times("dev-os-cache", "single_insert_5k_tx", [80, 100, 100, 100, 100, 120])
+        self.times("dev-os-cache", "bulk_insert_100k", [80, 100, 100, 100, 100, 120])
         report = self.compare()
         self.assertEqual("pass", report["verdict"])
         self.assertEqual("fail", report["baselineGate"]["verdict"])
@@ -98,7 +98,10 @@ class BenchmarkGateTests(unittest.TestCase):
         self.assertEqual(0.4, row["ratioLowerBound"])
         self.assertEqual(0.6, row["ratioUpperBound"])
         self.assertIn("Same-job after/before", gate.markdown(report))
-        self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
+        comparison_table = gate.markdown(report).split("### Same-job after/before")[1]
+        for comparison in report["comparisons"]:
+            self.assertIn(f"| {comparison['scenario']} | {comparison['config']} |", comparison_table)
+        self.times("dev-os-cache", "bulk_insert_100k", [400] * 6)
         self.assertEqual("fail", self.compare()["verdict"])
 
     def test_comparison_rejects_missing_or_wrong_before_evidence(self):
@@ -226,7 +229,7 @@ class BenchmarkGateTests(unittest.TestCase):
         for version, warned in (("20261023.334.3", False), ("20261024.1", True)):
             reference.write_text(json.dumps(dict(runner=dict(ImageOS="ubuntu24", ImageVersion=version))))
             for values, expected in (([100] * 6, 0), ([400] * 6, 1), ([100] * 5 + [200], 2)):
-                self.times("dev-os-cache", "single_insert_5k_tx", values)
+                self.times("dev-os-cache", "bulk_insert_100k", values)
                 child = subprocess.run(command, capture_output=True, text=True)
                 self.assertEqual(expected, child.returncode, child.stderr)
                 self.assertEqual(warned, "WARNING: Comparing differing runner images" in child.stdout)
@@ -234,8 +237,41 @@ class BenchmarkGateTests(unittest.TestCase):
         self.assertEqual([], gate.image_warnings({}, current))
         self.assertTrue(gate.image_warnings(current, dict(imageName="ubuntu26", imageVersion=current["imageVersion"])))
 
+    def test_single_insert_os_cache_reports_ratio_and_checkpoint_cost(self):
+        scenario = "single_insert_5k_tx"
+        self.times("dev-os-cache", scenario, [400] * 6)
+        report = self.evaluate()
+        row = self.row(report, scenario)
+        self.assertEqual("pass", report["verdict"])
+        self.assertEqual("report-only", row["verdict"])
+        self.assertEqual(4, row["ratio"])
+        self.assertIsNone(row["maxRatio"])
+        self.assertIn("| single_insert_5k_tx | dev-os-cache | 4.000 |", gate.markdown(report))
+        self.assertIn("report-only: cost of crash-safe checkpoints (litedb-org/LiteDB#3134)",
+                      gate.markdown(report))
+        self.make_before()
+        comparison = self.compare()
+        self.assertEqual(0.5, self.row(dict(results=comparison["comparisons"]), scenario)["ratio"])
+        self.assertEqual(8, self.row(comparison["baselineGate"], scenario)["ratio"])
+        self.assertEqual("report-only", self.row(report, scenario, "dev-default")["verdict"])
+        # A missing measurement remains an evidence error even for report-only work.
+        self.change("dev-os-cache", 1, lambda r: r["samples"].pop(0))
+        with self.assertRaisesRegex(ValueError, "scenarios"):
+            self.evaluate()
+
+    def test_every_remaining_absolute_gate_retains_its_threshold(self):
+        for scenario, limit in (("bulk_insert_100k", 1.10), ("full_scan_3x100k", 1.10),
+                                ("update_10k_one_tx", 1.10), ("delete_10k_one_tx", 1.10),
+                                ("indexed_point_10k", 1.05)):
+            with self.subTest(scenario=scenario):
+                self.times("dev-os-cache", scenario, [limit * 100] * 6)
+                self.assertEqual("pass", self.row(self.evaluate(), scenario)["verdict"])
+                self.times("dev-os-cache", scenario, [limit * 100 + 0.001] * 6)
+                self.assertEqual("fail", self.row(self.evaluate(), scenario)["verdict"])
+                self.times("dev-os-cache", scenario, [100] * 6)
+
     def test_checked_in_limits_match_owner_brief(self):
-        expected = {"single_insert_5k_tx": 1.10, "bulk_insert_100k": 1.10,
+        expected = {"bulk_insert_100k": 1.10,
                     "full_scan_3x100k": 1.10, "update_10k_one_tx": 1.10,
                     "delete_10k_one_tx": 1.10, "indexed_point_10k": 1.05}
         actual = {name: rule["maxRatio"] for name, rule in CONFIG["scenarios"].items() if rule["maxRatio"] is not None}
@@ -244,7 +280,7 @@ class BenchmarkGateTests(unittest.TestCase):
         self.assertEqual(CONFIG["rounds"], RUNNER.ROUNDS)
 
     def test_threshold_is_inclusive_and_point_limit_is_stricter(self):
-        self.times("dev-os-cache", "single_insert_5k_tx", [110] * 6)
+        self.times("dev-os-cache", "bulk_insert_100k", [110] * 6)
         self.times("dev-os-cache", "indexed_point_10k", [105] * 6)
         self.assertEqual("pass", self.evaluate()["verdict"])
         self.times("dev-os-cache", "indexed_point_10k", [105.001] * 6)
@@ -257,8 +293,8 @@ class BenchmarkGateTests(unittest.TestCase):
         report = self.evaluate()
         self.assertEqual("pass", report["verdict"])
 
-    def test_stable_small_transaction_regression_fails(self):
-        self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
+    def test_stable_bulk_regression_fails(self):
+        self.times("dev-os-cache", "bulk_insert_100k", [400] * 6)
         report = self.evaluate()
         self.assertEqual("fail", report["verdict"])
         self.assertEqual(4, self.row(report)["ratio"])
@@ -266,7 +302,7 @@ class BenchmarkGateTests(unittest.TestCase):
 
     def test_uses_median_not_minimum(self):
         self.config["maxSpreadPercent"] = 100
-        self.times("dev-os-cache", "single_insert_5k_tx", [100, 112, 112, 112, 112, 112])
+        self.times("dev-os-cache", "bulk_insert_100k", [100, 112, 112, 112, 112, 112])
         row = self.row(self.evaluate())
         self.assertEqual("fail", row["verdict"])
         self.assertEqual(100, row["candidate"]["minMs"])
@@ -275,9 +311,9 @@ class BenchmarkGateTests(unittest.TestCase):
     def test_ambiguous_noise_in_either_side_requires_rerun(self):
         for config in ("v5", "dev-os-cache"):
             with self.subTest(config=config):
-                self.times("v5", "single_insert_5k_tx", [100] * 6)
-                self.times("dev-os-cache", "single_insert_5k_tx", [112] * 6)
-                self.times(config, "single_insert_5k_tx", [100, 100, 100, 100, 100, 200])
+                self.times("v5", "bulk_insert_100k", [100] * 6)
+                self.times("dev-os-cache", "bulk_insert_100k", [112] * 6)
+                self.times(config, "bulk_insert_100k", [100, 100, 100, 100, 100, 200])
                 report = self.evaluate()
                 self.assertEqual("noisy", report["verdict"])
                 self.assertEqual("noisy", self.row(report)["verdict"])
@@ -286,8 +322,8 @@ class BenchmarkGateTests(unittest.TestCase):
     def test_windows_fivefold_regression_survives_noisy_ranges(self):
         for ratio in (5.25, 5.95):
             with self.subTest(ratio=ratio):
-                self.times("v5", "single_insert_5k_tx", [80, 100, 100, 100, 100, 150])
-                self.times("dev-os-cache", "single_insert_5k_tx",
+                self.times("v5", "bulk_insert_100k", [80, 100, 100, 100, 100, 150])
+                self.times("dev-os-cache", "bulk_insert_100k",
                            [400, 100 * ratio, 100 * ratio, 100 * ratio, 100 * ratio, 800])
                 row = self.row(self.evaluate())
                 self.assertEqual("fail", row["verdict"])
@@ -311,7 +347,7 @@ class BenchmarkGateTests(unittest.TestCase):
                                  ([111] * 9 + [200], "fail"),
                                  ([100] * 9 + [200], "noisy"),
                                  ([110] * 9 + [200], "noisy")):
-            self.times("dev-os-cache", "single_insert_5k_tx", values)
+            self.times("dev-os-cache", "bulk_insert_100k", values)
             report = gate.evaluate(self.output, CONFIG, "macOS", "net8.0")
             self.assertEqual(expected, self.row(report)["verdict"])
             self.assertEqual(10, report["rounds"])
@@ -324,7 +360,7 @@ class BenchmarkGateTests(unittest.TestCase):
             gate.evaluate(self.output, CONFIG, "macOS", "net8.0")
 
     def test_lower_bound_equality_is_not_failure_when_noisy(self):
-        self.times("dev-os-cache", "single_insert_5k_tx", [110] * 5 + [200])
+        self.times("dev-os-cache", "bulk_insert_100k", [110] * 5 + [200])
         row = self.row(self.evaluate())
         self.assertEqual(1.10, row["ratioLowerBound"])
         self.assertEqual("noisy", row["verdict"])
@@ -344,13 +380,13 @@ class BenchmarkGateTests(unittest.TestCase):
                 gate.validate_config(config)
 
     def test_noise_limit_boundary(self):
-        self.times("dev-os-cache", "single_insert_5k_tx", [100] * 5 + [120])
+        self.times("dev-os-cache", "bulk_insert_100k", [100] * 5 + [120])
         self.assertEqual("pass", self.row(self.evaluate())["verdict"])
-        self.times("dev-os-cache", "single_insert_5k_tx", [100] * 5 + [120.001])
+        self.times("dev-os-cache", "bulk_insert_100k", [100] * 5 + [120.001])
         self.assertEqual("noisy", self.row(self.evaluate())["verdict"])
 
     def test_stable_failure_is_preserved_alongside_noise(self):
-        self.times("dev-os-cache", "single_insert_5k_tx", [400] * 6)
+        self.times("dev-os-cache", "bulk_insert_100k", [400] * 6)
         self.times("v5", "full_scan_3x100k", [100] * 5 + [50])
         report = self.evaluate()
         self.assertEqual("fail", report["verdict"])
@@ -433,13 +469,14 @@ class BenchmarkGateTests(unittest.TestCase):
         command = [sys.executable, str(ROOT / ".github/scripts/benchmark_gate.py"), str(self.output),
                    "--config", str(HARNESS / "gate.json"), "--os", "Linux", "--framework", "net8.0"]
         for values, expected in (([100] * 6, 0), ([400] * 6, 1), ([100] * 5 + [200], 2)):
-            self.times("dev-os-cache", "single_insert_5k_tx", values)
+            self.times("dev-os-cache", "bulk_insert_100k", values)
             child = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(expected, child.returncode, child.stderr)
             report = json.loads((self.output / "gate.json").read_text())
             self.assertEqual({0: "pass", 1: "fail", 2: "noisy"}[expected], report["verdict"])
             with (self.output / "gate.csv").open() as handle:
-                csv_row = next(csv.DictReader(handle))
+                csv_row = next(r for r in csv.DictReader(handle)
+                           if r["scenario"] == "bulk_insert_100k" and r["config"] == "dev-os-cache")
             self.assertEqual(self.row(report)["ratioLowerBound"], float(csv_row["ratioLowerBound"]))
             self.assertEqual(self.row(report)["ratioUpperBound"], float(csv_row["ratioUpperBound"]))
             self.assertIn("Lower bound | Upper bound", (self.output / "gate.md").read_text())

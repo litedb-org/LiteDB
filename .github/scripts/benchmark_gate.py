@@ -104,7 +104,8 @@ def evaluate(directory, config, operating_system, framework, expected_commit=Non
             lower = candidate["minMs"] / baseline["maxMs"]
             upper = candidate["maxMs"] / baseline["minMs"]
             limit = rule["maxRatio"] if name == config["candidate"] else None
-            verdict, reason = "report-only", "Outside the Phase 1 gate"
+            verdict, reason = "report-only", (rule.get("reportOnlyReason", "Outside the Phase 1 gate")
+                                               if name == config["candidate"] else "Outside the Phase 1 gate")
             if limit is not None:
                 if lower > limit:
                     verdict, reason = "fail", "min(B)/max(A) exceeds threshold despite spread"
@@ -194,7 +195,7 @@ def image_warnings(current, reference):
 
 def markdown(report):
     lines = [f"## Phase 1 benchmark gate: {report['verdict'].upper()} — {report['os']} / {report['framework']}",
-             "", "B/A uses medians. Durable default, checkpoint, open/close and v6 writer scaling are report-only.",
+             "", "B/A uses medians. OS-cache single insert vs 5.0.21, durable default, checkpoint, open/close and v6 writer scaling are report-only.",
              "Bounds are observed min(B)/max(A) to max(B)/min(A), not confidence intervals.",
              "", "| Scenario | Config | B/A | Lower bound | Upper bound | Limit | Verdict |",
              "|---|---|---:|---:|---:|---:|---|"]
@@ -203,7 +204,10 @@ def markdown(report):
         limit = str(row["maxRatio"]) if row["maxRatio"] is not None else "—"
         lower = f"{row['ratioLowerBound']:.3f}" if row["ratioLowerBound"] is not None else "—"
         upper = f"{row['ratioUpperBound']:.3f}" if row["ratioUpperBound"] is not None else "—"
-        lines.append(f"| {row['scenario']} | {row['config']} | {ratio} | {lower} | {upper} | {limit} | {row['verdict']} |")
+        verdict = (f"report-only: {row['reason']}" if row["verdict"] == "report-only"
+                   and row["reason"] != "Outside the Phase 1 gate" and row["ratio"] is not None
+                   else row["verdict"])
+        lines.append(f"| {row['scenario']} | {row['config']} | {ratio} | {lower} | {upper} | {limit} | {verdict} |")
     if report["rerunRequired"]:
         lines += ["", "NOISY: rerun this OS/runtime before drawing conclusions for noisy scenarios.",
                   "Stable failures remain failures; noisy scenarios are inconclusive, never passes."]
