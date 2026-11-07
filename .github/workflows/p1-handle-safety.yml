@@ -24,7 +24,7 @@ jobs:
       - name: Group commit, faults, WAL, recovery and lifetime
         shell: pwsh
         run: |
-          $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable'
+          $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable|FullyQualifiedName~LiteDB.Tests.Mapper'
           $core = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~WalHandleLifetime|FullyQualifiedName~NativeFileSync'
           $other = 'FullyQualifiedName!~GroupCommit&FullyQualifiedName!~WalHandleLifetime&FullyQualifiedName!~NativeFileSync'
           $filters = @($core, "($all)&($other)&FullyQualifiedName~Wal", "($all)&($other)&FullyQualifiedName!~Wal")
