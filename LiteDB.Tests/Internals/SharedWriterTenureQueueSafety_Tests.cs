@@ -20,15 +20,40 @@ namespace LiteDB.Internals
             {
                 var table = engine.MappedReaderTable;
                 var authority = table.Authority;
-                var head = table.RequestWriter();
+                using var head = table.RequestWriter();
                 var ticket = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                // Exercise a real expired-lease renewal before cancelling the middle call.
+                // A valid renewal may replace the ticket while the same head remains queued.
+                var gate = Field<object>(authority.Requests, "_gate");
+                lock (gate)
+                {
+                    var expiry = authority.Map.Load(authority.Block + SharedMemoryLayout.RequestExpiry);
+                    SpinWait.SpinUntil(() => Environment.TickCount64 > expiry, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                }
+                SpinWait.SpinUntil(() => authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest) > ticket,
+                    TimeSpan.FromSeconds(5)).Should().BeTrue();
                 var cancel = 0;
                 Exception middleFailure = null, lastFailure = null;
-                long lastTicket = 0;
-                var middle = new Thread(() => middleFailure = Record.Exception(() =>
+                long lastTicket = 0, cancellingTicket = 0, cancelledTicket = 0;
+                var middle = new Thread(() =>
                 {
-                    using var request = table.RequestWriter(() => Volatile.Read(ref cancel) != 0);
-                })) { IsBackground = true };
+                    // Hold the queue gate across cancellation cleanup so the timer cannot
+                    // renew between these two samples. Monitor.Wait inside Enter still
+                    // releases the gate while this call is queued behind the head.
+                    lock (gate)
+                    {
+                        middleFailure = Record.Exception(() =>
+                        {
+                            using var request = table.RequestWriter(() =>
+                            {
+                                if (Volatile.Read(ref cancel) == 0) return false;
+                                cancellingTicket = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                                return true;
+                            });
+                        });
+                        cancelledTicket = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                    }
+                }) { IsBackground = true };
                 var last = new Thread(() => lastFailure = Record.Exception(() =>
                 {
                     using var request = table.RequestWriter();
@@ -44,12 +69,13 @@ namespace LiteDB.Internals
                     middle.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     middleFailure.Should().BeOfType<ObjectDisposedException>();
                     authority.Requests.WaitingCount.Should().Be(2);
-                    authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest).Should().Be(ticket);
+                    cancellingTicket.Should().BeGreaterThan(ticket);
+                    cancelledTicket.Should().Be(cancellingTicket);
                 }
                 finally { Volatile.Write(ref cancel, 1); head.Dispose(); }
                 last.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 lastFailure.Should().BeNull();
-                lastTicket.Should().BeGreaterThan(ticket);
+                lastTicket.Should().BeGreaterThan(cancelledTicket);
                 authority.Requests.WaitingCount.Should().Be(0);
                 authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest).Should().Be(0);
                 engine.Update("docs", new[] { Row(1, 1) }).Should().Be(1);
