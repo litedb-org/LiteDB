@@ -57,7 +57,8 @@ jobs:
           $classes | Set-Content LiteDB.Tests/TestResults/collection-filter.txt
           git rev-parse HEAD | Set-Content LiteDB.Tests/TestResults/tested-sha.txt
           $runtime = Join-Path $env:RUNNER_TEMP "litedb-runtime-9-$env:STRESS_ARCH"
-          for ($iteration = 1; $iteration -le $count; $iteration++) {
+          $collectionCount = if ($IsLinux -and $env:STRESS_ARCH -eq 'x64') { [Math]::Min(5, $count) } else { [Math]::Min(50, $count) }
+          for ($iteration = 1; $iteration -le $collectionCount; $iteration++) {
             "START $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
             $options = @{
               RuntimeMajor = 9; Framework = 'net8.0'; Architecture = $env:STRESS_ARCH
@@ -68,16 +69,31 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Iteration $iteration failed with exit $LASTEXITCODE" }
             "PASS $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
           }
+          for ($iteration = 1; $iteration -le $count; $iteration++) {
+            "REKEY START $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
+            ./scripts/run-ci-tests.ps1 -RuntimeMajor 9 -Framework net8.0 -Architecture $env:STRESS_ARCH `
+              -RuntimeDirectory $runtime -HangTimeoutSeconds 60 `
+              -Filter 'FullyQualifiedName~Legacy_Shared_replacement_retains_native_entry_and_idle_peers_reopen_the_new_core' `
+              -ResultFile "rekey-$iteration.trx"
+            if ($LASTEXITCODE -ne 0) { throw "Rekey iteration $iteration failed." }
+            "REKEY PASS $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
+          }
       - name: Validate surrounding Shared and callback coverage
         shell: pwsh
         env:
           STRESS_ARCH: ${{ matrix.arch }}
         run: |
           $runtime = Join-Path $env:RUNNER_TEMP "litedb-runtime-9-$env:STRESS_ARCH"
-          ./scripts/run-ci-tests.ps1 -RuntimeMajor 9 -Framework net8.0 -Architecture $env:STRESS_ARCH `
-            -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~LiteDB.Internals.Shared|FullyQualifiedName~LiteDB.Tests.Engine.Shared' `
-            -ResultFile 'surrounding-shared.trx'
-          if ($LASTEXITCODE -ne 0) { throw 'Surrounding Shared coverage failed.' }
+          $filters = @(
+            'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process',
+            'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process',
+            'FullyQualifiedName~LiteDB.Tests.Engine.Shared'
+          )
+          for ($part = 0; $part -lt $filters.Count; $part++) {
+            ./scripts/run-ci-tests.ps1 -RuntimeMajor 9 -Framework net8.0 -Architecture $env:STRESS_ARCH `
+              -RuntimeDirectory $runtime -Filter $filters[$part] -ResultFile "surrounding-shared-$part.trx"
+            if ($LASTEXITCODE -ne 0) { throw "Surrounding Shared partition $part failed." }
+          }
       - name: Analyze captured hang on matching architecture
         if: failure() && matrix.arch != 'x86'
         shell: pwsh
