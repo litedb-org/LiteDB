@@ -341,6 +341,19 @@
       "disposition": "strengthened",
       "invariant": "Candidate retains all merged update/delete tests and index/vector fuzz; historical phase1 comparison executes the same nine update guards from the accepted update candidate.",
       "reason": "Restore the accepted update test tree only after all candidate tests and fuzz complete, alongside unchanged phase1 production source. The integrated delete guards reference a new internal helper absent from the historical production library and otherwise prevent baseline compilation. No candidate filter, assertions, rounds or runtime legs change; original baseline update guards remain byte-identical."
+    },
+    {
+      "id": "p1-checkpoint-amortize-scratch-experiment",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing product test suites and benchmark workload sizes, GC normalization, six rounds and thresholds remain unchanged; this scratch-only dispatch measures additional checkpoint policies without issuing a replacement gate pass.",
+      "reason": "Orchestrator instructed Windows/Linux net8/net10 at 1x/2x/4x, twice. Longer timeout includes seven configurations and real process-death recovery. Original workflow remains on phase1; no default or PR branch is modified.",
+      "coveredBy": [
+        "tools/Ab5021Benchmarks/amortize.py"
+      ]
     }
   ]
 }

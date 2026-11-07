@@ -35,6 +35,9 @@ def run(framework, output):
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=480)
             dest.with_suffix('.log').write_text(child.stdout)
             child.check_returncode()
+            result = json.loads(dest.read_text())
+            if result["profiling"] or result["checkpointPages"] != (1000 if config == "v5" else k*1000):
+                raise RuntimeError("Production identity/threshold mismatch")
     # Separate instrumented scenarios: never used as gate timings.
     for config, k in [('v5', 1), ('dev-os-cache', 1), ('dev-os-cache', 2), ('dev-os-cache', 4)]:
         dll = ROOT / ('DiagnosticV5' if config == 'v5' else 'Diagnostic') / ('V5.dll' if config == 'v5' else 'V6.dll')

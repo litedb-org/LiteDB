@@ -47,6 +47,7 @@ internal static class Program
                 durableWriterComparison = "v6 scaling only: v5 has no per-commit device-sync setting",
                 seed = 5021,
                 inheritedGcNormalization = "Collect/WaitForPendingFinalizers/Collect before every scenario timer",
+                profiling = assembly.GetType("LiteDB.Engine.CheckpointProfile") != null,
                 checkpointPages = Experiment.Pages,
                 diagnostics = Experiment.Results,
                 samples = workload.Samples

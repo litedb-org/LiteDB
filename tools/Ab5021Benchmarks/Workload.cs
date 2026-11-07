@@ -46,6 +46,7 @@ internal sealed class Workload
                 Require(db.BeginTrans(), "begin bulk");
                 Require(col.Insert(_documents) == _count, "bulk count");
                 Require(db.Commit(), "commit bulk");
+                Experiment.Committed(path);
             });
             Verify(col, 0);
             var random = new Random(5021);
@@ -78,6 +79,7 @@ internal sealed class Workload
                 Require(db.BeginTrans(), "begin update");
                 Require(col.Update(updates) == updates.Length, "update count");
                 Require(db.Commit(), "commit update");
+                Experiment.Committed(path);
             });
             Require(col.Find(Query.GTE("Value", 1000)).Count() == updates.Length, "updated values");
             Measure("delete_10k_one_tx", _count / 10, path, () =>
@@ -85,6 +87,7 @@ internal sealed class Workload
                 Require(db.BeginTrans(), "begin delete");
                 Require(col.DeleteMany(Query.LTE("_id", _count / 10)) == _count / 10, "delete count");
                 Require(db.Commit(), "commit delete");
+                Experiment.Committed(path);
             });
             Verify(col, _count / 10);
             db.Checkpoint();
@@ -216,11 +219,11 @@ internal sealed class Workload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
-        Experiment.Start(path, scenario);
+        if (_record) Experiment.Start(path, scenario);
         var measurement = new ScenarioMeasurement();
         action();
         measurement.Stop();
-        Experiment.Stop(path);
+        if (_record) Experiment.Stop(path);
         if (!_record)
         {
             Console.WriteLine($"{_config} warmup finished {scenario}");
