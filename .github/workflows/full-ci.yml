@@ -9,6 +9,10 @@ on:
         description: Run the complete mapped macOS qualification matrix only
         type: boolean
         default: false
+      request_safety_diagnostic:
+        description: Diagnose request safety only (never full qualification evidence)
+        type: boolean
+        default: false
       stress:
         description: Repeat tenure, wake, coherence and process-death coverage 50 times
         type: boolean
@@ -82,6 +86,7 @@ jobs:
           LITEDB_EXPECTED_RUNTIME_MAJOR: ${{ matrix.framework == 'net8.0' && '8' || '10' }}
           LITEDB_EXPECTED_ARCHITECTURE: ${{ matrix.runner == 'macos-15' && 'arm64' || 'x64' }}
           QUALIFICATION_STRESS: ${{ inputs.stress }}
+          REQUEST_SAFETY_DIAGNOSTIC: ${{ inputs.request_safety_diagnostic }}
         run: ./scripts/qualify-macos.ps1 -Framework '${{ matrix.framework }}'
       - uses: actions/upload-artifact@v4
         if: always()

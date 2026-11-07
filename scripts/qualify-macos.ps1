@@ -13,9 +13,11 @@ $classes = @(Get-ChildItem LiteDB.Tests -Recurse -Filter '*Tests.cs' | Where-Obj
 $inventory = @()
 $failed = $false
 $stress = $env:QUALIFICATION_STRESS -eq 'true'
-$repetitions = if ($stress) { 50 } else { 1 }
+$diagnostic = $env:REQUEST_SAFETY_DIAGNOSTIC -eq 'true'
+$repetitions = if ($stress -or $diagnostic) { 50 } else { 1 }
 foreach ($file in $classes) {
     $class = $file.BaseName
+    if ($diagnostic -and $class -ne 'SharedWriterTenureRequestSafety_Tests') { continue }
     if ($stress -and $class -notmatch 'Tenure|Wake|Coherence|Process') { continue }
     $source = Get-Content $file.FullName -Raw
     # Linux kernel syscall assertions have no Darwin equivalent. They remain in
@@ -47,7 +49,7 @@ foreach ($file in $classes) {
         }
     }
 }
-[ordered]@{ sha = (git rev-parse HEAD); framework = $Framework; architecture = $env:LITEDB_EXPECTED_ARCHITECTURE; classes = $inventory;
+[ordered]@{ mode = $(if ($diagnostic) { 'diagnostic' } elseif ($stress) { 'stress' } else { 'full' }); sha = (git rev-parse HEAD); framework = $Framework; architecture = $env:LITEDB_EXPECTED_ARCHITECTURE; classes = $inventory;
     linuxOnlyClasses = @('SharedWriterTenureFutexProbe_Tests') } |
     ConvertTo-Json -Depth 8 | Set-Content (Join-Path $output 'inventory.json')
 if ($failed) { throw 'macOS qualification failed: missing, failed or skipped test results.' }

@@ -27,19 +27,39 @@ namespace LiteDB.Internals
             using var preempted = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             var admitted = 0;
+            long localPublished = 0, remotePublished = 0, localSampled = 0, remoteSampled = 0;
+            long sampledAt = 0, renewedAt = 0, renewedExpiry = 0, renewedTicket = 0;
+            long admittedAt = 0, admittedLocal = 0, admittedRemote = 0, admittedExpiry = 0;
             Exception failure = null;
             var waiter = new Thread(() =>
             {
                 var once = false;
                 SharedWriterRequests.RequestStage = stage =>
                 {
-                    if (stage == "request-admitted") Interlocked.Increment(ref admitted);
+                    if (stage == "request-published")
+                    {
+                        localPublished = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                        remotePublished = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
+                    }
+                    if (stage == "request-admitted")
+                    {
+                        admittedLocal = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                        admittedRemote = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
+                        admittedExpiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
+                        admittedAt = Environment.TickCount64;
+                        Interlocked.Increment(ref admitted);
+                    }
                     if (stage != "request-sampled" || once) return;
                     once = true;
-                    var now = Environment.TickCount64;
+                    var now = sampledAt = Environment.TickCount64;
+                    localSampled = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                    remoteSampled = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
                     sampled.Set();
                     SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
                         now + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    renewedTicket = authority.Map.Load(block + SharedMemoryLayout.TenureRequest);
+                    renewedExpiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
+                    renewedAt = Environment.TickCount64;
                     preempted.Set();
                 };
                 try
@@ -57,7 +77,10 @@ namespace LiteDB.Internals
             {
                 sampled.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 preempted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                Volatile.Read(ref admitted).Should().Be(0);
+                Volatile.Read(ref admitted).Should().Be(0,
+                    "published local/remote={0}/{1}; sampled local/remote={2}/{3} at={4}; renewed ticket/expiry={5}/{6} at={7}; admitted local/remote/expiry={8}/{9}/{10} at={11}",
+                    localPublished, remotePublished, localSampled, remoteSampled, sampledAt,
+                    renewedTicket, renewedExpiry, renewedAt, admittedLocal, admittedRemote, admittedExpiry, admittedAt);
                 older.Send("go"); older.Expect("waiting-main").GetAwaiter().GetResult();
                 older.Expect("ready").GetAwaiter().GetResult();
                 SpinWait.SpinUntil(() => Volatile.Read(ref admitted) == 1, TimeSpan.FromSeconds(5)).Should().BeTrue();

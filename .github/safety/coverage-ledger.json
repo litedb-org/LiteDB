@@ -684,7 +684,7 @@
       ],
       "disposition": "strengthened",
       "invariant": "Existing full CI remains unchanged; additive macOS opt-in qualification executes every mapped class on native ARM64 and Intel net8/net10, rejects skipped or missing results and retains TRX.",
-      "reason": "Orchestrator instructed exact-head macOS qualification and 50-repeat stress. Linux futex ABI-only tests and the Linux POSIX/OFD negative control remain in the original full suite; the platform-neutral wake-edge theory is expanded to every qualified backend. Include ordinary OneFile admission/lock/map Facts and the integration seam, whose expected architecture set stays independent of the product predicate. No existing assertion, timeout or quarantine is weakened."
+      "reason": "Orchestrator instructed exact-head macOS qualification and 50-repeat stress. Linux futex ABI-only tests and the Linux POSIX/OFD negative control remain in the original full suite; the platform-neutral wake-edge theory is expanded to every qualified backend. Include ordinary OneFile admission/lock/map Facts and the integration seam, whose expected architecture set stays independent of the product predicate. A separately marked request-safety diagnostic repeats its unchanged assertions only for failure investigation; its one-class inventory cannot satisfy the84-class full or19-class stress audit. No existing assertion, timeout or quarantine is weakened."
     },
     {
       "id": "p3-qual-macos-portable-wake-edges",
