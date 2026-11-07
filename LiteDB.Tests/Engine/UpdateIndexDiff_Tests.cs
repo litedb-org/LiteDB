@@ -22,7 +22,7 @@ namespace LiteDB.Tests.Engine
             using (var db = new LiteDatabase(file.Filename))
             {
                 var rows = db.GetCollection("rows");
-                rows.EnsureIndex("Keys");
+                rows.EnsureIndex("Keys", "$.Keys[*]");
                 rows.EnsureIndex("Other");
                 for (var id = 1; id <= 24; id++)
                 {
@@ -91,7 +91,7 @@ namespace LiteDB.Tests.Engine
             {
                 var rows = db.GetCollection("rows");
                 rows.EnsureIndex("Other", true);
-                rows.EnsureIndex("Keys");
+                rows.EnsureIndex("Keys", "$.Keys[*]");
                 rows.Insert(new[] { Row(1, new[] { 1, 2 }), Row(2, new[] { 3, 4 }) });
                 if (explicitTransaction) db.BeginTrans();
                 var first = Row(1, new[] { 8, 9 });
@@ -172,7 +172,7 @@ namespace LiteDB.Tests.Engine
             for (var key = 0; key < 110; key++)
             {
                 var probe = key;
-                rows.Find(Query.EQ("Keys", probe)).Select(x => x["_id"].AsInt32)
+                rows.Find(BsonExpression.Create("$.Keys ANY = @0", probe)).Select(x => x["_id"].AsInt32)
                     .Should().BeEquivalentTo(expected.Where(x => x.Value.Contains(probe)).Select(x => x.Key));
             }
         }
