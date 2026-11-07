@@ -238,7 +238,14 @@ namespace LiteDB.Internals
                 var expiry = authority.Map.Load(authority.Block + SharedMemoryLayout.RequestExpiry);
                 SpinWait.SpinUntil(() => Environment.TickCount64 > expiry + 10, TimeSpan.FromSeconds(5)).Should().BeTrue();
                 successor.Send("publish");
-                successor.Expect("requested").GetAwaiter().GetResult();
+                // Timer callbacks can occupy pool threads waiting for this test's
+                // request gate. Observe actual mapped publication without needing
+                // a pipe continuation on that same pool to release the barrier.
+                SpinWait.SpinUntil(() => Enumerable.Range(0, authority.Header.Processes)
+                    .Where(slot => slot != authority.Slot)
+                    .Any(slot => authority.Map.Load(SharedMemoryLayout.Blocks + (long)slot * authority.Header.Stride) == 1 &&
+                        authority.Map.Load(SharedMemoryLayout.Blocks + (long)slot * authority.Header.Stride +
+                            SharedMemoryLayout.TenureRequest) > 0), TimeSpan.FromSeconds(5)).Should().BeTrue();
                 SharedProcessSignals.Stop(successor.ProcessId);
                 try
                 {
@@ -258,6 +265,7 @@ namespace LiteDB.Internals
                     waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                 }
                 failure.Should().BeNull();
+                successor.Expect("requested").GetAwaiter().GetResult();
                 successor.Expect("waiting-main").GetAwaiter().GetResult();
                 successor.Expect("ready").GetAwaiter().GetResult();
                 successor.Send("write 913"); successor.Expect("wrote 913").GetAwaiter().GetResult();
