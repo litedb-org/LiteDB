@@ -73,13 +73,15 @@ jobs:
           Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
           & "$env:RUNNER_TEMP/dotnet-install.ps1" -Channel 8.0 -Architecture x86 -InstallDir "$env:RUNNER_TEMP/dotnet-x86"
 
+      - name: Build refusal tests with SDK supporting all project targets
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
       - name: Actual x86 or Framework refusal preserves database and WAL
         shell: pwsh
         run: |
           $dotnet = if ('${{ matrix.framework }}' -eq 'net8.0') { "$env:RUNNER_TEMP/dotnet-x86/dotnet.exe" } else { 'dotnet' }
           $env:LITEDB_EXPECTED_ARCHITECTURE = 'X86'
           $env:LITEDB_EXPECTED_RUNTIME_MAJOR = if ('${{ matrix.framework }}' -eq 'net8.0') { '8' } else { '4' }
-          & $dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedIntegrationSeam_Tests|FullyQualifiedName~TestHost_Tests' --logger 'trx;LogFileName=refusal.trx' --results-directory artifacts_temp/windows-refusal -- RunConfiguration.TargetPlatform=x86
+          & $dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} --no-build -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedIntegrationSeam_Tests|FullyQualifiedName~TestHost_Tests' --logger 'trx;LogFileName=refusal.trx' --results-directory artifacts_temp/windows-refusal -- RunConfiguration.TargetPlatform=x86
           if ($LASTEXITCODE) { throw 'Unsupported platform refusal failed' }
       - uses: actions/upload-artifact@v4
         if: always()
