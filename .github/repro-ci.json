@@ -39,6 +39,7 @@
   "Issue_3071_SharedPeerCallback": {
     "reason": "Fixed Shared peer-callback self-wait is covered by the Shared peer callback tests on every route, plain and encrypted; the regression proof runs the historical comparison.",
     "tests": [
+      "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache",
       "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Peer_call_from_input_callback_is_refused_instead_of_waiting",
       "LiteDB.Tests/Engine/SharedPeerCallback_Tests.cs#Nested_write_through_same_connection_or_other_database_completes",
       "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",

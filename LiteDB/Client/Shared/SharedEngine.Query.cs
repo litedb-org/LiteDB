@@ -35,6 +35,9 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             if (reads && this.CanScope)
             {
+                // Refuse before taking the cache gate: its expiry worker may be
+                // closing native admission retained by the outer rebuild callback.
+                this.ThrowIfCallerRetainsOwnership();
                 var coordinated = this.TryQueryCoordinated(collection, query);
                 if (coordinated != null) return coordinated;
             }

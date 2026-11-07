@@ -64,7 +64,11 @@ namespace LiteDB.Internals
             }
             for (var repeat = 0; repeat < 2; repeat++)
             {
-                using var cold = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
+                peer.Dispose();
+            peerEngine.Dispose();
+            owner.Dispose();
+            engine.Dispose();
+            using var cold = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
                 Verify(cold, 0, 1, 2);
                 cold.Checkpoint();
             }
@@ -129,6 +133,10 @@ namespace LiteDB.Internals
             peer.GetCollection("docs").Insert(Row(1));
             Verify(owner, 0, 1);
             Verify(peer, 0, 1);
+            peer.Dispose();
+            peerEngine.Dispose();
+            owner.Dispose();
+            engine.Dispose();
             using var cold = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
             Verify(cold, 0, 1);
         }
