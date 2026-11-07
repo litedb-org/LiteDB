@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "p4-shared-safety-session-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/p1-handle-safety.yml"],
+      "disposition": "relocated",
+      "invariant": "Every SharedOneFile test, assertion, runtime/OS leg, failure status and 300-second test session ceiling remains in the targeted workflow.",
+      "reason": "The new aggregate SharedOneFile partition exceeded the existing session ceiling on Linux after 451 passing cases. Discover all SharedOneFile suite classes from their source files and execute each suite in its own session, with unique TRX files and accumulated failure reporting. No case is excluded; absence of discovered suites fails the workflow. Original pre-existing safety partitions remain unchanged."
+    },
+    {
       "id": "p4-ownership-substrate-safety-matrix",
       "kind": "ci-test-config-changed",
       "subjects": [".github/workflows/p1-handle-safety.yml"],

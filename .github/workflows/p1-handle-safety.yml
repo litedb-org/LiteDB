@@ -48,10 +48,16 @@ jobs:
           $filters = @(
             'FullyQualifiedName~OwnershipLease_Tests|FullyQualifiedName~RuntimeLock_Tests|FullyQualifiedName~Issue2991|FullyQualifiedName~Issue2814Admission|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~SameThread',
             'FullyQualifiedName~DirectProcessHost|FullyQualifiedName~DirectHostSafety|FullyQualifiedName~DirectHostAllocation|FullyQualifiedName~DirectHostGroupCommit',
-            'FullyQualifiedName~SharedOneFile',
             'FullyQualifiedName~SharedWriterTenure',
             'FullyQualifiedName~DocumentLookupCursor|FullyQualifiedName~MvccCursorModel|FullyQualifiedName~TransactionCleanup|FullyQualifiedName~TransactionCompletion|FullyQualifiedName~Issue1344SnapshotCursor|FullyQualifiedName~SharedRetryWriterRelease'
           )
+          # Every SharedOneFile suite gets the unchanged 300-second session budget.
+          # Aggregate mapped crash/recovery cases exceed that budget on Linux.
+          $sharedSuites = Get-ChildItem LiteDB.Tests/Internals/SharedOneFile*_Tests.cs | ForEach-Object {
+            [regex]::Matches((Get-Content $_.FullName -Raw), 'class\s+(SharedOneFile\w*_Tests)') | ForEach-Object { $_.Groups[1].Value }
+          } | Sort-Object -Unique
+          if (!$sharedSuites.Count) { throw 'No SharedOneFile safety suites discovered' }
+          foreach ($suite in $sharedSuites) { $filters += "FullyQualifiedName~$suite." }
           $failed = @()
           for ($i = 0; $i -lt $filters.Count; $i++) {
             dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=ownership-$i.trx" --results-directory artifacts_temp/handle-safety
