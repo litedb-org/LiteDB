@@ -12,6 +12,7 @@ string syncKind = null;
 var syncTimes = new Dictionary<string, double>();
 double begin = 0, gcPauseBegin = -1, gcPauseMs = 0;
 var runtimeEvents = new Dictionary<string, long>();
+var allocationTicks = new Dictionary<string, long>();
 var buckets = new Dictionary<string, long>();
 long samples = 0, missing = 0, syncs = 0, groups = 0, commits = 0, piggybacks = 0;
 var inclusive = new Dictionary<string, long>();
@@ -40,7 +41,7 @@ foreach (var e in log.Events)
             scenario = (string)e.PayloadValue(0);
             begin = e.TimeStampRelativeMSec;
             syncBegin = -1; syncMs = 0; syncTimes.Clear();
-            gcPauseBegin = -1; gcPauseMs = 0; runtimeEvents.Clear(); buckets.Clear();
+            gcPauseBegin = -1; gcPauseMs = 0; runtimeEvents.Clear(); buckets.Clear(); allocationTicks.Clear();
             samples = missing = syncs = groups = commits = piggybacks = 0;
             inclusive.Clear(); exclusive.Clear(); sizes.Clear(); syncKinds.Clear();
             attempts.Clear(); outcomes.Clear(); checkpointSyncs.Clear(); phases.Clear();
@@ -48,9 +49,11 @@ foreach (var e in log.Events)
         }
         else if ((int)e.ID == 2 && scenario != null)
         {
+            if (syncBegin >= 0 || checkpointKind != null) throw new Exception("Unbalanced scenario spans");
             rows.Add(new { scenario, elapsedMs = e.TimeStampRelativeMSec - begin, samples, missing,
                 syncs, groups, commits, piggybacks, gcPauseMs, syncMs,
                 syncTimesMs = new Dictionary<string, double>(syncTimes),
+                allocationTicks = new Dictionary<string, long>(allocationTicks),
                 runtimeEvents = new Dictionary<string, long>(runtimeEvents),
                 buckets = new Dictionary<string, long>(buckets),
                 attempts = new Dictionary<string, long>(attempts), outcomes = new Dictionary<string, long>(outcomes),
@@ -68,6 +71,16 @@ foreach (var e in log.Events)
     if (e.ProviderName == "Microsoft-Windows-DotNETRuntime")
     {
         Add(runtimeEvents, e.EventName);
+        if (e.EventName.StartsWith("GC/AllocationTick"))
+        {
+            var ti = Array.IndexOf(e.PayloadNames, "TypeName");
+            var ai = Array.IndexOf(e.PayloadNames, "AllocationAmount64");
+            if (ti >= 0 && ai >= 0)
+            {
+                var type = Convert.ToString(e.PayloadValue(ti)) ?? "unknown";
+                allocationTicks[type] = allocationTicks.GetValueOrDefault(type) + Convert.ToInt64(e.PayloadValue(ai));
+            }
+        }
         if (e.EventName.StartsWith("GC/SuspendEEStart")) gcPauseBegin = e.TimeStampRelativeMSec;
         if (e.EventName.StartsWith("GC/RestartEEStop") && gcPauseBegin >= 0)
         {

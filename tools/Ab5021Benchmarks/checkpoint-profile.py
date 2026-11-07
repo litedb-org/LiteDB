@@ -15,8 +15,8 @@ root = Path(__file__).resolve().parent
     sha=os.environ['GITHUB_SHA'], framework=framework,
     dotnet=subprocess.check_output(['dotnet', '--info'], text=True),
     note='PROFILE probes; v5 exact NuGet binary with observation IL probes. v5 commits are OS cache only; v6 default is durable.'), indent=2))
-for version, config in [('V5', 'v5'), ('V6', 'dev-os-cache')]:
-    for repeat in range(1, 6):
+for repeat in range(1, 6):
+    for version, config in ([('V5', 'v5'), ('V6', 'dev-os-cache')] if repeat % 2 else [('V6', 'dev-os-cache'), ('V5', 'v5')]):
         label = f'{config}-{repeat}'
         trace = out / f'{label}.nettrace'
         env = dict(os.environ, DOTNET_TieredCompilation='0', LITEDB_PROFILE='1',
