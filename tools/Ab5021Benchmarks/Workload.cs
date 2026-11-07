@@ -219,7 +219,8 @@ internal sealed class Workload
         if (Selected != null && !Selected.Contains(scenario)) return;
         var totalBytes = Directory.GetFiles(_root).Sum(file => new FileInfo(file).Length);
         Samples.Add(new Sample(scenario, measurement.Milliseconds, operations, new FileInfo(path).Length, totalBytes,
-            measurement.Gen0, measurement.Gen1, measurement.Gen2, measurement.AllocatedBytes));
+            measurement.Gen0, measurement.Gen1, measurement.Gen2, measurement.AllocatedBytes,
+            measurement.CpuMilliseconds, measurement.GcPauseMilliseconds));
         Console.WriteLine($"{_config} {scenario}: {measurement.Milliseconds:F3} ms");
     }
 

@@ -79,7 +79,7 @@ namespace LiteDB
             stream.Flush(false);
             var errno = Sync(stream.SafeFileHandle, fsync, fcntl);
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
-        
+
 #if PROFILE
             }
             finally { Engine.CheckpointProfile.NativeSyncEnd(); }
@@ -114,7 +114,7 @@ namespace LiteDB
 #else
             throw new NotSupportedException();
 #endif
-        
+
 #if PROFILE
             }
             finally { Engine.CheckpointProfile.NativeSyncEnd(); }

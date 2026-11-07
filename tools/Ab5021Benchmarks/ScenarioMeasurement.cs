@@ -5,6 +5,9 @@ namespace Ab5021Benchmarks;
 // Process-wide counters include allocations on durable writer threads.
 internal sealed class ScenarioMeasurement
 {
+    private readonly Process _process = Process.GetCurrentProcess();
+    private readonly TimeSpan _cpu;
+    private readonly TimeSpan _pause;
     private readonly Stopwatch _watch = new();
     private readonly int _gen0;
     private readonly int _gen1;
@@ -19,6 +22,8 @@ internal sealed class ScenarioMeasurement
         _gen0 = GC.CollectionCount(0);
         _gen1 = GC.CollectionCount(1);
         _gen2 = GC.CollectionCount(2);
+        _cpu = _process.TotalProcessorTime;
+        _pause = GC.GetTotalPauseDuration();
         _allocated = GC.GetTotalAllocatedBytes(precise: true);
         _watch.Start();
     }
@@ -26,12 +31,17 @@ internal sealed class ScenarioMeasurement
     public void Stop()
     {
         _watch.Stop();
+        CpuMilliseconds = (_process.TotalProcessorTime - _cpu).TotalMilliseconds;
+        GcPauseMilliseconds = (GC.GetTotalPauseDuration() - _pause).TotalMilliseconds;
+        _process.Dispose();
         AllocatedBytes = GC.GetTotalAllocatedBytes(precise: true) - _allocated;
         Gen0 = GC.CollectionCount(0) - _gen0;
         Gen1 = GC.CollectionCount(1) - _gen1;
         Gen2 = GC.CollectionCount(2) - _gen2;
     }
 
+    public double CpuMilliseconds { get; private set; }
+    public double GcPauseMilliseconds { get; private set; }
     public double Milliseconds => _watch.Elapsed.TotalMilliseconds;
     public int Gen0 { get; private set; }
     public int Gen1 { get; private set; }
