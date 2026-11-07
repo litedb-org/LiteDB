@@ -94,8 +94,10 @@ namespace LiteDB.Client.Shared
                 {
                     // Timer callbacks cannot surface failures on the application
                     // thread. Withdraw priority and let its waiting call report it.
-                    _failure = ex;
                     Retire();
+                    // Observing failure also promises that published priority is
+                    // gone; never expose a timer error ahead of its withdrawal.
+                    Volatile.Write(ref _failure, ex);
                 }
             }
         }
