@@ -67,7 +67,10 @@ namespace LiteDB.Engine
             var fileAccess = write ? FileAccess.ReadWrite : FileAccess.Read;
             // Cached shared handles let every shared process open, write and delete the
             // files; exclusive openers are still refused while a writable handle is open.
-            var cached = _handles != null && (!write || SharedFileHandles.CacheWriters);
+            // Mapped tenure already retains the writable core. Its WAL must be
+            // an exact FileStream for grouped device barriers and path diagnostics;
+            // the SafeFileHandle-based cache lease loses both capabilities.
+            var cached = _handles != null && (!write || (SharedFileHandles.CacheWriters && !_mappedShared));
             // Mapped admission and WRITE serialize writers independently of file
             // handles. Bootstrap/final-close cores have no facade handle cache,
             // but must coexist with idle cached handles and retained snapshots.
