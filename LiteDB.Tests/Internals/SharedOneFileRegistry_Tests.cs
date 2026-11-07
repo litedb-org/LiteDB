@@ -242,10 +242,10 @@ namespace LiteDB.Internals
             using (var seed = new LiteDatabase(Filename)) seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var alias = Path.Combine(_directory, "linked.db");
             MappedPlatformTestNative.Link(Filename, alias).Should().Be(0);
-            var before = File.ReadAllBytes(Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
             Action open = () => { using var engine = new SharedEngine(Settings(alias)); };
             open.Should().Throw<IOException>().WithMessage("*Hard-linked*");
-            File.ReadAllBytes(Filename).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
             File.Exists(alias + "-shm").Should().BeFalse();
             File.Delete(alias);
         }

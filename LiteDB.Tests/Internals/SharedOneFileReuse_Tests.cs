@@ -42,7 +42,7 @@ namespace LiteDB.Internals
             using (var map = Open(settings, native)) original = map.Header.Authority;
             if (mismatch == "checksum" || mismatch == "identity" || mismatch == "layout")
             {
-                var bytes = File.ReadAllBytes(Filename + "-shm");
+                var bytes = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm");
                 if (mismatch == "layout")
                 {
                     // A supported alternate stride/layout, rather than an unknown ABI.
@@ -91,7 +91,7 @@ namespace LiteDB.Internals
             var settings = Settings();
             using var native = NativeAdmission.Open(settings, true);
             using (var map = Open(settings, native)) { }
-            var pristine = File.ReadAllBytes(Filename + "-shm");
+            var pristine = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm");
             var changed = (byte[])pristine.Clone();
             if (mismatch == "physical-size") Array.Resize(ref changed, 8192);
             else
@@ -102,7 +102,7 @@ namespace LiteDB.Internals
                 WriteEnvelopes(changed, header);
             }
             File.WriteAllBytes(Filename + "-shm", changed);
-            var data = File.ReadAllBytes(Filename);
+            var data = MappedPlatformTestNative.ReadAllBytes(Filename);
             var resets = SharedMemoryAuthority.BootstrapResetCount;
             for (var repeat = 0; repeat < 2; repeat++)
             {
@@ -110,8 +110,8 @@ namespace LiteDB.Internals
                 Action fail = () => { using var map = SharedMemoryAuthority.Open(settings, native.Identity, () => validated = true); };
                 fail.Should().Throw<IOException>().WithMessage(message);
                 validated.Should().BeFalse();
-                File.ReadAllBytes(Filename + "-shm").Should().Equal(changed);
-                File.ReadAllBytes(Filename).Should().Equal(data);
+                MappedPlatformTestNative.ReadAllBytes(Filename + "-shm").Should().Equal(changed);
+                MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(data);
                 SharedMemoryAuthority.BootstrapResetCount.Should().Be(resets);
             }
             File.WriteAllBytes(Filename + "-shm", pristine);
@@ -168,7 +168,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-authority-hold", Filename, null))
             {
                 await child.Expect("ready");
-                var before = File.ReadAllBytes(Filename + "-shm");
+                var before = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm");
                 if (mismatch == "process-capacity") settings.SharedProcessCapacity = 2;
                 if (mismatch == "generation-capacity") settings.SharedGenerationCapacity = 512;
                 if (mismatch == "size") settings.SharedMemorySize = 2 * 1024 * 1024;
@@ -178,7 +178,7 @@ namespace LiteDB.Internals
                     Action attach = () => { using var map = SharedMemoryAuthority.Open(settings, native.Identity, () => validated = true); };
                     attach.Should().Throw<IOException>().WithMessage("*capacity*");
                     validated.Should().BeFalse();
-                    File.ReadAllBytes(Filename + "-shm").Should().Equal(before);
+                    MappedPlatformTestNative.ReadAllBytes(Filename + "-shm").Should().Equal(before);
                 }
                 await child.Kill(sharedFilesRemainOpen: true);
             }
@@ -199,7 +199,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-authority-hold", Filename, null, "2"))
             {
                 await child.Expect("ready");
-                var envelope = File.ReadAllBytes(Filename + "-shm").Take(256).ToArray();
+                var envelope = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm").Take(256).ToArray();
                 using (var existing = Open(settings, native))
                 {
                     existing.Header.Processes.Should().Be(2);

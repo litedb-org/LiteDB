@@ -67,7 +67,7 @@ namespace LiteDB.Internals
                     else
                     {
                         secondVersion = version;
-                        laterLog = File.ReadAllBytes(files.Log);
+                        laterLog = MappedPlatformTestNative.ReadAllBytes(files.Log);
                         secondCaptured.Set();
                         resumeSecond.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                         if (fail) throw new IOException("later prefix sync failed");
@@ -76,8 +76,8 @@ namespace LiteDB.Internals
                 if (stage == "wal-after-durable-flush")
                 {
                     if (Interlocked.Increment(ref barriers) != 1) return;
-                    durableData = File.ReadAllBytes(files.Filename);
-                    durableLog = File.ReadAllBytes(files.Log);
+                    durableData = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+                    durableLog = MappedPlatformTestNative.ReadAllBytes(files.Log);
                     firstSynced.Set();
                     resumeFirst.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                 }

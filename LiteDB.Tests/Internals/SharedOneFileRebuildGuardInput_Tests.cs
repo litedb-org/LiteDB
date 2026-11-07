@@ -82,7 +82,7 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture();
             await Interrupt(files);
             var marker = RebuildRecovery.GetMarkerFilename(files.Filename);
-            var valid = File.ReadAllBytes(marker);
+            var valid = MappedPlatformTestNative.ReadAllBytes(marker);
             var fields = RebuildGuardRecord.Decode(valid);
             switch (kind)
             {
@@ -119,7 +119,7 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture();
             await Interrupt(files, field == 0 || field == 5 ? "before-log-backup" :
                 field == 4 ? "before-temp-install" : "after-temp-install");
-            var fields = RebuildGuardRecord.Decode(File.ReadAllBytes(RebuildRecovery.GetMarkerFilename(files.Filename)));
+            var fields = RebuildGuardRecord.Decode(MappedPlatformTestNative.ReadAllBytes(RebuildRecovery.GetMarkerFilename(files.Filename)));
             // Exercise the candidate before publication as well as the live
             // replacement and the saved original data/WAL after publication.
             var path = field == 5 ? files.Log : fields[field == 0 ? 1 : field];
@@ -138,7 +138,7 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture();
             await Interrupt(files, field == 0 || field == 5 ? "before-log-backup" :
                 field == 4 ? "before-temp-install" : "after-temp-install");
-            var fields = RebuildGuardRecord.Decode(File.ReadAllBytes(RebuildRecovery.GetMarkerFilename(files.Filename)));
+            var fields = RebuildGuardRecord.Decode(MappedPlatformTestNative.ReadAllBytes(RebuildRecovery.GetMarkerFilename(files.Filename)));
             var path = field == 5 ? files.Log : fields[field == 0 ? 1 : field];
             var saved = path + ".saved";
             File.Move(path, saved);
@@ -166,7 +166,7 @@ namespace LiteDB.Internals
         {
             var directory = Path.GetDirectoryName(settings.Filename);
             var shmPath = settings.Filename + "-shm";
-            var shm = File.Exists(shmPath) ? File.ReadAllBytes(shmPath) : null;
+            var shm = File.Exists(shmPath) ? MappedPlatformTestNative.ReadAllBytes(shmPath) : null;
             var before = Directory.GetFiles(directory).Where(p => !p.EndsWith("-shm"))
                 .ToDictionary(p => p, File.ReadAllBytes);
             for (var repeat = 0; repeat < 2; repeat++)
@@ -181,10 +181,10 @@ namespace LiteDB.Internals
                 if (readOnly)
                 {
                     File.Exists(shmPath).Should().Be(shm != null);
-                    if (shm != null) File.ReadAllBytes(shmPath).SequenceEqual(shm).Should().BeTrue();
+                    if (shm != null) MappedPlatformTestNative.ReadAllBytes(shmPath).SequenceEqual(shm).Should().BeTrue();
                 }
                 Directory.GetFiles(directory).Where(p => !p.EndsWith("-shm")).Should().BeEquivalentTo(before.Keys);
-                foreach (var entry in before) File.ReadAllBytes(entry.Key).SequenceEqual(entry.Value).Should().BeTrue("guard refusal must preserve {0}", entry.Key);
+                foreach (var entry in before) MappedPlatformTestNative.ReadAllBytes(entry.Key).SequenceEqual(entry.Value).Should().BeTrue("guard refusal must preserve {0}", entry.Key);
             }
         }
 

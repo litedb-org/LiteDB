@@ -198,16 +198,16 @@ namespace LiteDB.Internals
             var map = engine.MappedReaderTable.Authority.Map;
             var offset = damageEnvelope ? 0 : SharedMemoryLayout.Control;
             var previous = map.Load(offset);
-            var data = File.ReadAllBytes(Filename);
+            var data = MappedPlatformTestNative.ReadAllBytes(Filename);
             var log = FileHelper.GetLogFile(Filename);
-            var wal = File.Exists(log) ? File.ReadAllBytes(log) : Array.Empty<byte>();
+            var wal = File.Exists(log) ? MappedPlatformTestNative.ReadAllBytes(log) : Array.Empty<byte>();
             map.Store(offset, 0);
             try
             {
                 Action write = () => db.GetCollection("docs").Update(Row(1));
                 write.Should().Throw<IOException>("unsupported live authority cannot authorize a writable tenure");
-                File.ReadAllBytes(Filename).Should().Equal(data);
-                (File.Exists(log) ? File.ReadAllBytes(log) : Array.Empty<byte>()).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(data);
+                (File.Exists(log) ? MappedPlatformTestNative.ReadAllBytes(log) : Array.Empty<byte>()).Should().Equal(wal);
             }
             finally { map.Store(offset, previous); }
             AssertRows(db, 0);

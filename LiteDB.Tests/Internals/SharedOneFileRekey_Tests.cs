@@ -153,8 +153,8 @@ namespace LiteDB.Internals
                 var table = engine.MappedReaderTable;
                 var key = table.Admission.RegistryKey;
                 var identity = table.Admission.Identity;
-                var data = File.ReadAllBytes(files.Filename);
-                var log = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+                var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+                var log = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
                 var rekey = 0;
                 NativeAdmission.ReplacementStage = (path, stage) => { if (path == files.Filename) rekey++; };
                 try
@@ -175,8 +175,8 @@ namespace LiteDB.Internals
                     if (operation == "rebuild") replace.Should().Throw<InvalidOperationException>().WithMessage("*only participant*");
                     else replace.Should().Throw<InvalidOperationException>();
                     rekey.Should().Be(0);
-                    File.ReadAllBytes(files.Filename).Should().Equal(data);
-                    (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
+                    MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                    (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
                     using var peer = new SharedEngine(files.Settings);
                     peer.MappedReaderTable.Should().BeSameAs(table);
                     table.Admission.RegistryKey.Should().BeSameAs(key);

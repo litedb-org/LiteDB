@@ -147,7 +147,7 @@ namespace LiteDB.Internals
             // Tear the actual physical record, including the full OS identity
             // encodings, rather than its shorter abstract inode-token encoding.
             device.Restore(pending);
-            var bytes = File.ReadAllBytes(marker + ".pending");
+            var bytes = MappedPlatformTestNative.ReadAllBytes(marker + ".pending");
             // Extend the existing byte crash device: all truncation/tear prefixes
             // of an unsynced pending write, including zero and a complete write.
             // A guard cannot tear after successful file sync; independently test
@@ -199,7 +199,7 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture(password);
             await SharedOneFileRebuildGuardInput_Tests.Interrupt(files);
             var marker = RebuildRecovery.GetMarkerFilename(files.Filename);
-            var valid = File.ReadAllBytes(marker);
+            var valid = MappedPlatformTestNative.ReadAllBytes(marker);
             for (var prefix = 0; prefix < valid.Length; prefix++)
             {
                 // Length metadata can survive while only a prefix of the bytes

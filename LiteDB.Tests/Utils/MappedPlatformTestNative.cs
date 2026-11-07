@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace LiteDB.Tests
@@ -10,6 +11,14 @@ namespace LiteDB.Tests
     // timers; handles are scoped here and are never inherited by child probes.
     internal static class MappedPlatformTestNative
     {
+        internal static byte[] ReadAllBytes(string path)
+        {
+            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var bytes = new MemoryStream();
+            file.CopyTo(bytes);
+            return bytes.ToArray();
+        }
+
         internal static int Signal(int processId, int signal)
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return kill(processId, signal);
