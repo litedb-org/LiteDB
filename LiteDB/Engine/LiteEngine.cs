@@ -51,7 +51,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Sequence cache for collections last ID (for int/long numbers only)
         /// </summary>
-        private ConcurrentDictionary<string, long> _sequences;
+        private ConcurrentDictionary<string, SequenceCounter> _sequences;
 
         #endregion
 
@@ -145,7 +145,7 @@ namespace LiteDB.Engine
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
             _systemCollections = new Lazy<Dictionary<string, SystemCollection>>(this.CreateSystemCollections);
-            _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            _sequences = new ConcurrentDictionary<string, SequenceCounter>(StringComparer.OrdinalIgnoreCase);
 
             try
             {

@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     {
         private IEnumerable<BsonDocument> SysSequences()
         {
-            var values = _sequences.ToArray();
+            var values = _sequences.ToArray().Select(x => new { x.Key, Value = x.Value.Value }).ToArray();
 
             foreach(var value in values)
             {

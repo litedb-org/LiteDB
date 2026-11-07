@@ -1,0 +1,12 @@
+{
+  "SequenceCounter": {
+    "reason": "Bulk sequence bookkeeping is covered by permanent atomic, rollback, shared-owner and recovery guards in ordinary CI.",
+    "tests": [
+      "LiteDB.Tests/Database/SequenceCounter_Tests.cs#AtomicCounter_MixedNumericHistory_MatchesOriginalAlgorithmBytes",
+      "LiteDB.Tests/Database/SequenceCounter_Tests.cs#AtomicCounter_ConcurrentMaxAndIncrement_PreserveHighWaterMark",
+      "LiteDB.Tests/Database/SequenceCounter_Tests.cs#NumericIds_RollbackFailureDropAndReopen_PreservePayloadsAndIndexes",
+      "LiteDB.Tests/Database/SequenceCounter_Tests.cs#SharedDirectFacades_ConcurrentAutoIds_AreUniqueAndSurviveReopen",
+      "LiteDB.Tests/Database/SequenceCounter_Tests.cs#LostWalSuffix_RepeatedRecovery_RebuildsSequenceFromCommittedIndex"
+    ]
+  }
+}

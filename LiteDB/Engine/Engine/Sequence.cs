@@ -14,27 +14,17 @@ namespace LiteDB.Engine
         /// </summary>
         private BsonValue GetSequence(Snapshot snapshot, BsonAutoId autoId)
         {
-            var next = _sequences.AddOrUpdate(snapshot.CollectionName, (s) =>
+            var counter = _sequences.GetOrAdd(snapshot.CollectionName, (s) =>
             {
                 var lastId = this.GetLastId(snapshot);
-
-                // emtpy collection, return 1
-                if (lastId.IsMinValue) return 1;
-
-                // if lastId is not number, throw exception
+                if (lastId.IsMinValue) return new SequenceCounter(0);
                 if (!lastId.IsNumber)
                 {
                     throw new LiteException(0, $"It's not possible use AutoId={autoId} because '{snapshot.CollectionName}' collection contains not only numbers in _id index ({lastId}).");
                 }
-
-                // return nextId
-                return lastId.AsInt64 + 1;
-            },
-            (s, value) =>
-            {
-                // update last value
-                return value + 1;
+                return new SequenceCounter(lastId.AsInt64);
             });
+            var next = counter.Next();
 
             return autoId == BsonAutoId.Int32 ?
                 new BsonValue((int)next) :
@@ -47,27 +37,14 @@ namespace LiteDB.Engine
         /// </summary>
         private void SetSequence(Snapshot snapshot, BsonValue newId)
         {
-            _sequences.AddOrUpdate(snapshot.CollectionName, (s) =>
+            var value = newId.AsInt64;
+            if (!_sequences.TryGetValue(snapshot.CollectionName, out var counter))
             {
                 var lastId = this.GetLastId(snapshot);
-
-                // create new collection based with max value between last _id index key or new passed _id
-                if (lastId.IsNumber)
-                {
-                    return Math.Max(lastId.AsInt64, newId.AsInt64);
-                }
-                else
-                {
-                    // if collection last _id is not an number (is empty collection or contains another data type _id)
-                    // use newId
-                    return newId.AsInt64;
-                }
-
-            }, (s, value) =>
-            {
-                // return max value between current sequence value vs new inserted value
-                return Math.Max(value, newId.AsInt64);
-            });
+                var initial = lastId.IsNumber ? Math.Max(lastId.AsInt64, value) : value;
+                counter = _sequences.GetOrAdd(snapshot.CollectionName, new SequenceCounter(initial));
+            }
+            counter.SetMax(value);
         }
 
         /// <summary>

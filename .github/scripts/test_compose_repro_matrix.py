@@ -99,6 +99,14 @@ class ReproMatrixTests(unittest.TestCase):
         actual = {ref for entry in policy.values() for ref in entry["tests"]
                   if ref.startswith("LiteDB.Tests/Engine/PrimaryKeyDelete")}
         self.assertEqual(expected, actual)
+    def test_sequence_counter_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/sequence-repro-ci.json").read_text())
+        expected = {'LiteDB.Tests/Database/SequenceCounter_Tests.cs#AtomicCounter_MixedNumericHistory_MatchesOriginalAlgorithmBytes', 'LiteDB.Tests/Database/SequenceCounter_Tests.cs#SharedDirectFacades_ConcurrentAutoIds_AreUniqueAndSurviveReopen', 'LiteDB.Tests/Database/SequenceCounter_Tests.cs#LostWalSuffix_RepeatedRecovery_RebuildsSequenceFromCommittedIndex', 'LiteDB.Tests/Database/SequenceCounter_Tests.cs#AtomicCounter_ConcurrentMaxAndIncrement_PreserveHighWaterMark', 'LiteDB.Tests/Database/SequenceCounter_Tests.cs#NumericIds_RollbackFailureDropAndReopen_PreservePayloadsAndIndexes'}
+        self.assertEqual(expected, set(policy["SequenceCounter"]["tests"]))
+        for reference in expected:
+            path, method = reference.split("#")
+            self.assertIn("public void " + method + "(", (ROOT / path).read_text())
+
     def test_mapper_capacity_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/mapper-repro-ci.json").read_text())
         expected = {
