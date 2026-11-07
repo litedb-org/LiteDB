@@ -54,13 +54,13 @@ namespace LiteDB.Internals
             var settings = files.Settings;
             settings.ReadOnly = true;
             settings.Upgrade = true;
-            var data = File.ReadAllBytes(files.Filename);
-            var wal = File.ReadAllBytes(files.Log);
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+            var wal = MappedPlatformTestNative.ReadAllBytes(files.Log);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 using (var db = new LiteDatabase(new SharedEngine(settings))) Verify(db, 11);
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                File.ReadAllBytes(files.Log).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                MappedPlatformTestNative.ReadAllBytes(files.Log).Should().Equal(wal);
                 File.Exists(RebuildRecovery.GetMarkerFilename(files.Filename)).Should().BeFalse();
             }
         }

@@ -37,7 +37,7 @@ namespace LiteDB.Internals
                 {
                     using var child = new MvccProcess("one-file-allocation-cut", files.Filename, password);
                     await child.Expect("ready");
-                    await child.Kill();
+                    await child.Kill(sharedFilesRemainOpen: true);
                     table.Authority.Map.Load(SharedMemoryLayout.WriterOwner).Should().NotBe(0, "the dead writer left an unfinished tenure");
                 }
                 else

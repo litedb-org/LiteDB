@@ -700,6 +700,28 @@
       "disposition": "strengthened",
       "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
       "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
+    },
+    {
+      "id": "p3-windows-qualification-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-windows-qualification.yml",
+        ".github/scripts/p3_windows_qualification.py",
+        ".github/workflows/p3-windows-stress.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
+      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific. Full matrix and stress are independent workflows, retaining every original job command, runtime, shard, assertion, timeout and fifty-repeat bound. Three complete full-matrix runs plus one complete stress campaign qualify the exact final head; no test or job is conditionally skipped. Class discovery includes sealed/partial declarations."
+    },
+    {
+      "id": "p3-windows-registry-platform-contracts",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same physical files share one participant; distinct physical files remain independent; native admission stays enforced or opening refuses before mutation when native locking is disabled.",
+      "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
     }
   ]
 }

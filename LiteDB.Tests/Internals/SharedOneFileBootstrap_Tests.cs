@@ -97,7 +97,7 @@ namespace LiteDB.Internals
             SharedMemoryAuthority.BootstrapStage = stage =>
             {
                 if (stage != "envelope-b" && stage != "before-storage") return;
-                var bytes = File.ReadAllBytes(SharedMemoryAuthority.PathFor(Filename));
+                var bytes = MappedPlatformTestNative.ReadAllBytes(SharedMemoryAuthority.PathFor(Filename));
                 var first = SharedMemoryEnvelope.Decode(bytes.Take(SharedMemoryLayout.EnvelopeBytes).ToArray(),
                     Filename, admission.Identity, quiescent: true);
                 var second = SharedMemoryEnvelope.Decode(bytes.Skip(SharedMemoryLayout.Page)
@@ -164,10 +164,10 @@ namespace LiteDB.Internals
             var changed = (byte[])original.Clone();
             changed[offset] ^= 4;
             live.Map.Write(0, changed);
-            var before = File.ReadAllBytes(Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
             Action attach = () => { using var other = Open(settings, admission); };
             attach.Should().Throw<IOException>();
-            File.ReadAllBytes(Filename).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
             live.Map.Read(0, 256).Should().Equal(changed);
             live.Map.Write(0, original);
             using var valid = Open(settings, admission);
@@ -180,7 +180,7 @@ namespace LiteDB.Internals
             var settings = Settings();
             using var admission = NativeAdmission.Open(settings, true);
             byte[] saved;
-            using (var authority = Open(settings, admission)) saved = File.ReadAllBytes(Filename + "-shm");
+            using (var authority = Open(settings, admission)) saved = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm");
             var other = Path.Combine(_directory, "other.db");
             File.Copy(Filename, other);
             File.WriteAllBytes(other + "-shm", saved);
@@ -190,7 +190,7 @@ namespace LiteDB.Internals
             Action attach = () => { using var authority = SharedMemoryAuthority.Open(copied, otherAdmission.Identity, () => validated = true); };
             attach.Should().Throw<IOException>().WithMessage("*identity/namespace*");
             validated.Should().BeFalse();
-            File.ReadAllBytes(other + "-shm").Should().Equal(saved);
+            MappedPlatformTestNative.ReadAllBytes(other + "-shm").Should().Equal(saved);
             // Same-path replay is always discarded under exclusive DMS, then independently validated.
             var calls = 0;
             using var reset = Open(settings, admission, () => { calls++; Validate(settings, admission); });
@@ -202,7 +202,7 @@ namespace LiteDB.Internals
         {
             var settings = Settings();
             using var admission = NativeAdmission.Open(settings, true);
-            var before = File.ReadAllBytes(Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 SharedMemoryAuthority.AllocateFile = (file, size) => 28; // modeled ENOSPC
@@ -220,7 +220,7 @@ namespace LiteDB.Internals
                 }
                 finally { SharedMemoryAuthority.MapFile = null; }
             }
-            File.ReadAllBytes(Filename).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
             using var recovered = Open(settings, admission);
         }
 

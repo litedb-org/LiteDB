@@ -45,7 +45,7 @@ namespace LiteDB.Internals
                     Directory.GetFiles(directory).Where(path => !path.EndsWith("-shm"))
                         .Should().BeEquivalentTo(before.Keys, "a read-only attempt must preserve recovery evidence");
                     foreach (var entry in before.Where(entry => File.Exists(entry.Key)))
-                        File.ReadAllBytes(entry.Key).SequenceEqual(entry.Value).Should().BeTrue(
+                        MappedPlatformTestNative.ReadAllBytes(entry.Key).SequenceEqual(entry.Value).Should().BeTrue(
                             "read-only access must preserve {0}", Path.GetFileName(entry.Key));
                 }
             }

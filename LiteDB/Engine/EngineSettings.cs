@@ -233,7 +233,7 @@ namespace LiteDB.Engine
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream,
-                    handles: this.SharedFileHandles);
+                    handles: this.SharedFileHandles, mappedShared: this.SharedOneFile && this.SharedMode);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");
@@ -270,7 +270,7 @@ namespace LiteDB.Engine
                 var logName = FileHelper.GetLogFile(this.Filename);
 
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true,
-                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits && !this.SharedMode);
+                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits && !this.SharedMode, mappedShared: this.SharedOneFile && this.SharedMode);
             }
 
             return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);

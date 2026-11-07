@@ -69,7 +69,7 @@ namespace LiteDB.Internals
                 stale.Expect("requested").GetAwaiter().GetResult();
                 if (expireAlive)
                 {
-                    kill(stale.ProcessId, 19).Should().Be(0, "SIGSTOP freezes a live requester's renewal timer");
+                    MappedPlatformTestNative.Signal(stale.ProcessId, 19).Should().Be(0, "SIGSTOP freezes a live requester's renewal timer");
                     Task.Delay(SharedWriterRequests.ExpiryMilliseconds * 3).GetAwaiter().GetResult();
                 }
                 else stale.Kill(sharedFilesRemainOpen: true).GetAwaiter().GetResult();
@@ -154,7 +154,6 @@ namespace LiteDB.Internals
         {
             while (reader.Read()) yield return reader.Current.AsDocument;
         }
-        [DllImport("libc", SetLastError = true)] private static extern int kill(int process, int signal);
     }
 }
 #endif

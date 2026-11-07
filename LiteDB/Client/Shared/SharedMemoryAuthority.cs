@@ -261,16 +261,18 @@ namespace LiteDB.Client.Shared
             Stage("closed");
         }
 
-        // Linux x64 and ARM64 share the ABI-2 mapped protocol. Keep other
-        // platforms refused until their complete hosted qualification passes.
-        internal static bool IsPlatformQualified => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
-             RuntimeInformation.ProcessArchitecture == Architecture.Arm64);
+        // Enable only platforms with complete hosted mapped-protocol qualification.
+        internal static bool IsPlatformQualified =>
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                RuntimeInformation.ProcessArchitecture == Architecture.X64);
 
         private static void RequirePlatform(string path)
         {
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared is disabled pending complete hosted platform qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64 or Windows x64; other targets remain disabled pending hosted qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }

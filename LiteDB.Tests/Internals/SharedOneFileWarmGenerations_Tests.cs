@@ -52,7 +52,7 @@ namespace LiteDB.Internals
                     streams.Add(await Task.Run(() => facade.Query("docs", new Query { Where = { "value = " + value }, Includes = { "$.ref" } })));
                     facade.CoordinatedReadHits.Should().Be(hits + 1);
                     snapshots.Add(table.ReadCache.Snapshot);
-                    var bytes = File.ReadAllBytes(files.Log);
+                    var bytes = MappedPlatformTestNative.ReadAllBytes(files.Log);
                     frames.Add(snapshots[generation].Engine.GetWalIndex().SnapshotPositions(snapshots[generation].Engine.ReadVersion)
                         .ToDictionary(p => p, p => Frame(bytes, p)));
                     frames[generation].Should().NotBeEmpty();
@@ -118,7 +118,7 @@ namespace LiteDB.Internals
         private static byte[] Frame(byte[] bytes, long position) => bytes.Skip(checked((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize))).Take(Constants.PAGE_SIZE).ToArray();
         private static void CheckFrames(SharedOneFilePublicationFixture files, params Dictionary<long, byte[]>[] generations)
         {
-            var bytes = File.ReadAllBytes(files.Log);
+            var bytes = MappedPlatformTestNative.ReadAllBytes(files.Log);
             foreach (var generation in generations)
                 foreach (var frame in generation) Frame(bytes, frame.Key).Should().Equal(frame.Value, "protected WAL position " + frame.Key);
         }
