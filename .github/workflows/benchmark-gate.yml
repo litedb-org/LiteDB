@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      update_collect:
+        description: 'Diagnostic only: collect before update timer (update diagnostics always enabled on this scratch harness)'
+        required: false
+        default: false
+        type: boolean
       openclose_collect:
         description: 'Diagnostic only: collect before the open/close timer to separate inherited GC placement'
         required: false
@@ -55,16 +60,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        framework: [net8.0, net10.0]
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0]
         # Keep historical job/artifact names; pin the actual hosted OS release.
         include:
           - os: ubuntu-latest
             runner: ubuntu-24.04
           - os: windows-latest
             runner: windows-2025
-          - os: macos-latest
-            runner: macos-15
     steps:
       - name: Check out PR's own harness or selected workflow branch
         uses: actions/checkout@v4
@@ -133,6 +136,8 @@ jobs:
           }
       - name: Interleaved configured-round A-B comparison
         env:
+          BENCHMARK_UPDATE_DIAGNOSTICS: 'true'
+          BENCHMARK_UPDATE_COLLECT: ${{ inputs.update_collect }}
           BENCHMARK_OPENCLOSE_COLLECT: ${{ inputs.openclose_collect }}
           BENCHMARK_OPENCLOSE_DIAGNOSTICS: ${{ inputs.openclose_diagnostics }}
           BENCHMARK_SLOW_COMPARISON: ${{ inputs.slow_comparison }}

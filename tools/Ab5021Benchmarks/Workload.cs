@@ -74,12 +74,30 @@ internal sealed class Workload
             {
                 Id = d.Id, Key = d.Key, Value = d.Value + 1000, Payload = d.Payload
             }).ToArray();
+            var updateDiagnostics = _record && Environment.GetEnvironmentVariable("BENCHMARK_UPDATE_DIAGNOSTICS") == "true";
+            if (updateDiagnostics && Environment.GetEnvironmentVariable("BENCHMARK_UPDATE_COLLECT") == "true")
+            {
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+            }
+            var updateGc = updateDiagnostics ? new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) } : null;
+            var updateAllocated = updateDiagnostics ? GC.GetTotalAllocatedBytes(false) : 0;
             Measure("update_10k_one_tx", updates.Length, path, () =>
             {
                 Require(db.BeginTrans(), "begin update");
                 Require(col.Update(updates) == updates.Length, "update count");
                 Require(db.Commit(), "commit update");
             });
+            if (updateDiagnostics)
+            {
+                Console.WriteLine("UPDATE_GC " + System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    config = _config,
+                    gc = Enumerable.Range(0, 3).Select(g => GC.CollectionCount(g) - updateGc![g]).ToArray(),
+                    allocatedBytes = GC.GetTotalAllocatedBytes(false) - updateAllocated
+                }));
+            }
             Require(col.Find(Query.GTE("Value", 1000)).Count() == updates.Length, "updated values");
             Measure("delete_10k_one_tx", _count / 10, path, () =>
             {
