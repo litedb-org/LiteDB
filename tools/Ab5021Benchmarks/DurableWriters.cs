@@ -67,10 +67,10 @@ internal sealed class DurableWriters
                 milliseconds = watch.Elapsed.TotalMilliseconds;
                 if (!errors.IsEmpty) throw new AggregateException(errors);
                 if (!_record) Console.WriteLine($"{_config} warmup finished {writers} durable writers");
-                Verify(db, separate ? writers : 1);
+                Verify(db, separate ? writers : 1, separate);
             }
             // Verification and graceful reopen are untimed. This is not a power-loss test.
-            using (var db = Open(path)) Verify(db, separate ? writers : 1);
+            using (var db = Open(path)) Verify(db, separate ? writers : 1, separate);
             if (_record)
             {
                 Console.WriteLine($"{_config} {scenario}: {milliseconds:F3} ms (v6 scaling only)");
@@ -94,9 +94,9 @@ internal sealed class DurableWriters
         return new LiteDatabase(connection);
     }
 
-    private void Verify(LiteDatabase db, int collections)
+    private void Verify(LiteDatabase db, int collections, bool separate)
     {
-        var all = Enumerable.Range(0, collections).Select(worker => db.GetCollection<Document>(collections > 1 ? "documents" + worker : "documents")).ToArray();
+        var all = Enumerable.Range(0, collections).Select(worker => db.GetCollection<Document>(separate ? "documents" + worker : "documents")).ToArray();
         var actual = all.SelectMany(collection => collection.FindAll()).OrderBy(document => document.Id).ToArray();
         if (actual.Length != _documents.Length) throw new InvalidOperationException("durable writer count");
         for (var index = 0; index < actual.Length; index++)
