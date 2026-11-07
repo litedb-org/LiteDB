@@ -222,6 +222,11 @@
         "LiteDB/Client/Database/LiteGrouping.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Multikey_updates_match_independent_model_and_reopen", "model": "exception", "proves": "Multikey updates match independent model and reopen; file-backed indexed results are checked against independent expected state and reopen."},
+        {"test": "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Collation_equivalent_and_changed_unique_keys_preserve_results", "model": "exception", "proves": "Collation equivalent and changed unique keys preserve results; file-backed indexed results are checked against independent expected state and reopen."},
+        {"test": "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Unique_failure_rolls_back_data_and_all_index_changes", "model": "exception", "proves": "Unique failure rolls back data and all index changes; file-backed indexed results are checked against independent expected state and reopen."},
+        {"test": "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Moving_index_keys_during_update_many_visits_each_document_once", "model": "exception", "proves": "Moving index keys during update many visits each document once; file-backed indexed results are checked against independent expected state and reopen."},
+        {"test": "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Secondary_key_changes_coexist_with_vector_updates_and_reopen", "model": "exception", "proves": "Secondary key changes coexist with vector updates and reopen; file-backed indexed results are checked against independent expected state and reopen."},
         {"test": "LiteDB.Tests/Query/RangeUnionOptimization_Tests.cs#Merged_ranges_match_unindexed_results_in_both_directions", "proves": "Merged index ranges return exactly the unindexed results in both directions."},
         {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
         {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},

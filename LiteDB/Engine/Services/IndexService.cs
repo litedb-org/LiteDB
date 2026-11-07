@@ -257,7 +257,7 @@ namespace LiteDB.Engine
             {
                 ENSURE(counter++ < maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
 
-                if (toDelete.Contains(node.Position))
+                if (toDelete != null && toDelete.Contains(node.Position))
                 {
                     this.DeleteSingleNode(node, indexes[node.Slot]);
 

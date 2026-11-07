@@ -4,7 +4,12 @@
     "tests": [
       "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint",
       "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Discard_Writable_Dirty_Pages",
-      "LiteDB.Tests/Issues/Issue2586_RollbackSafety_Tests.cs#RollbackAfterSafepoint_PreservesCommittedDataOnReopen"
+      "LiteDB.Tests/Issues/Issue2586_RollbackSafety_Tests.cs#RollbackAfterSafepoint_PreservesCommittedDataOnReopen",
+      "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Multikey_updates_match_independent_model_and_reopen",
+      "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Collation_equivalent_and_changed_unique_keys_preserve_results",
+      "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Unique_failure_rolls_back_data_and_all_index_changes",
+      "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Moving_index_keys_during_update_many_visits_each_document_once",
+      "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Secondary_key_changes_coexist_with_vector_updates_and_reopen"
     ]
   },
   "Issue_2614_DiskServiceDispose": {

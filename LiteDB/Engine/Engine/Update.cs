@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -122,49 +121,53 @@ namespace LiteDB.Engine
                 vectorService.Upsert(vectorIndex, metadata, doc, pkNode.DataBlock);
             }
             
-            // get all current non-pk index nodes from this data block (slot, key, nodePosition)
-            var oldKeys = indexer.GetNodeList(pkNode.NextNode)
-                .Select(x => new Tuple<byte, BsonValue, PageAddress>(x.Slot, x.Key, x.Position))
-                .ToArray();
-
-            // build a list of all new key index keys
-            var newKeys = new List<Tuple<byte, BsonValue, string>>();
-
-            foreach (var index in col.GetCollectionIndexes().Where(x => x.Name != "_id" && x.IndexType == 0))
+            // Snapshot values/addresses, never page-backed nodes: deletion can reuse their slots.
+            var oldKeys = new UpdateIndexKeys();
+            foreach (var node in indexer.GetNodeList(pkNode.NextNode))
             {
-                // getting all keys from expression over document
-                var keys = index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation);
+                oldKeys.Add(node.Slot, node.Key, node.Position, null);
+            }
+            var newKeys = new UpdateIndexKeys();
 
-                foreach (var key in keys)
+            foreach (var index in col.GetCollectionIndexes())
+            {
+                if (index.Name == "_id" || index.IndexType != 0) continue;
+
+                foreach (var key in index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation))
                 {
-                    newKeys.Add(new Tuple<byte, BsonValue, string>(index.Slot, key, index.Name));
+                    newKeys.Add(index.Slot, key, PageAddress.Empty, index.Name);
                 }
             }
 
-            if (oldKeys.Length == 0 && newKeys.Count == 0) return true;
-
-            // get a list of all nodes that are in oldKeys but not in newKeys (must delete)
-            var toDelete = new HashSet<PageAddress>(oldKeys
-                .Where(x => newKeys.Any(n => n.Item1 == x.Item1 && n.Item2 == x.Item2) == false)
-                .Select(x => x.Item3));
-
-            // get a list of all keys that are not in oldKeys (must insert)
-            var toInsert = newKeys
-                .Where(x => oldKeys.Any(o => o.Item1 == x.Item1 && o.Item2 == x.Item2) == false)
-                .ToArray();
-
-            // if nothing to change, just exit
-            if (toDelete.Count == 0 && toInsert.Length == 0) return true;
-
-            // delete nodes and return last keeped node in list
-            var last = indexer.DeleteList(pkNode.Position, toDelete);
-
-            // now, insert all new nodes
-            foreach(var elem in toInsert)
+            HashSet<PageAddress> toDelete = null;
+            for (var i = 0; i < oldKeys.Count; i++)
             {
-                var index = col.GetCollectionIndex(elem.Item3);
+                var old = oldKeys[i];
+                if (newKeys.Contains(old.Slot, old.Key)) continue;
+                if (toDelete == null) toDelete = new HashSet<PageAddress>();
+                toDelete.Add(old.Position);
+            }
 
-                last = indexer.AddNode(index, elem.Item2, pkNode.DataBlock, last);
+            // Keep the original membership comparison even for collation-equivalent
+            // keys. Expression evaluation and index ordering still use the collation.
+            var toInsert = new UpdateIndexKeys();
+            for (var i = 0; i < newKeys.Count; i++)
+            {
+                var key = newKeys[i];
+                if (!oldKeys.Contains(key.Slot, key.Key))
+                {
+                    toInsert.Add(key.Slot, key.Key, key.Position, key.Name);
+                }
+            }
+
+            if (toDelete == null && toInsert.Count == 0) return true;
+
+            // Delete before inserting, preserving unique-key checks and linked-list order.
+            var last = indexer.DeleteList(pkNode.Position, toDelete);
+            for (var i = 0; i < toInsert.Count; i++)
+            {
+                var key = toInsert[i];
+                last = indexer.AddNode(col.GetCollectionIndex(key.Name), key.Key, pkNode.DataBlock, last);
             }
 
             return true;
