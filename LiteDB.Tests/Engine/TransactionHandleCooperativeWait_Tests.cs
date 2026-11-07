@@ -78,6 +78,26 @@ namespace LiteDB.Tests.Engine
             Assert.Equal(1, db.GetCollection("rows").Count());
         }
 
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void Previously_created_handle_cannot_bypass_same_thread_legacy_owner(bool peer, bool conflict)
+        {
+            using var file = new TempFile();
+            using var a = new LiteDatabase(file);
+            using var b = peer ? new LiteDatabase(file) : null;
+            using var next = (b ?? a).BeginTransaction();
+            Assert.True(a.BeginTrans());
+            a.GetCollection("rows").Insert(Row(1));
+            Assert.Equal(141, Assert.Throws<LiteException>(() => next.GetCollection(conflict ? "rows" : "other").Insert(Row(2))).ErrorCode);
+            Assert.True(a.Commit());
+            Assert.Equal(1, a.GetCollection("rows").Count());
+            Assert.Equal(0, a.GetCollection("other").Count());
+            Assert.Equal(LiteTransactionState.Failed, next.State);
+        }
+
         internal static CollectionLock Collection(LiteEngine engine, string name)
         {
             var locks = (System.Collections.Concurrent.ConcurrentDictionary<string, CollectionLock>)typeof(LockService)

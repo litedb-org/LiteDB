@@ -35,9 +35,15 @@ namespace LiteDB.Tests.Engine
                 Assert.Throws<InvalidOperationException>(() => b.ValidateHandleContext(first));
                 Assert.True(a.BeginTrans());
                 a.Insert("legacy", new[] { Row(10) }, BsonAutoId.Int32);
-                first.Invoke(e => e.Insert("first", new[] { Row(1) }, BsonAutoId.Int32));
-                second.Invoke(e => e.Insert("second", new[] { Row(2) }, BsonAutoId.Int32));
-                peer.Invoke(e => e.Insert("peer", new[] { Row(3) }, BsonAutoId.Int32));
+                Assert.Equal(141, Assert.Throws<LiteException>(() => first.Invoke(e => e.Insert("first", new[] { Row(1) }, BsonAutoId.Int32))).ErrorCode);
+                Assert.Equal(141, Assert.Throws<LiteException>(() => second.Invoke(e => e.Insert("second", new[] { Row(2) }, BsonAutoId.Int32))).ErrorCode);
+                Assert.Equal(141, Assert.Throws<LiteException>(() => peer.Invoke(e => e.Insert("peer", new[] { Row(3) }, BsonAutoId.Int32))).ErrorCode);
+                TransactionHandle_Tests.OnThread(() =>
+                {
+                    first.Invoke(e => e.Insert("first", new[] { Row(1) }, BsonAutoId.Int32));
+                    second.Invoke(e => e.Insert("second", new[] { Row(2) }, BsonAutoId.Int32));
+                    peer.Invoke(e => e.Insert("peer", new[] { Row(3) }, BsonAutoId.Int32));
+                });
                 Assert.True(first.Invoke(e => e.Rollback()));
                 Assert.True(a.Commit());
                 Assert.True(second.Invoke(e => e.Commit()));

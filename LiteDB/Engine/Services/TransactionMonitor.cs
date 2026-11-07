@@ -104,7 +104,7 @@ namespace LiteDB.Engine
             this.ThrowIfDisposed();
             var transaction = _slot.Value;
             if (transaction != null && transaction.State != TransactionState.Disposed &&
-                !ReferenceEquals(transaction.FacadeOwner, _owner))
+                (!ReferenceEquals(transaction.FacadeOwner, _owner) || TransactionContext.For(this) != null))
                 throw LiteException.SameThreadTransaction();
         }
 

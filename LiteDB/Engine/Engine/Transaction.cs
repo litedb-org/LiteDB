@@ -114,6 +114,7 @@ namespace LiteDB.Engine
             if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
                 throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
 
+            if (write) _monitor.EnsureWriteAllowed();
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
