@@ -695,6 +695,17 @@
       "disposition": "strengthened",
       "invariant": "Wake at every sample/recheck/syscall/return edge retains the holder, preserves the committed row and releases WRITE on final detach.",
       "reason": "The theory uses only platform-neutral mapped wake hooks; expand from LinuxFutexTheory to OneFileTheory so all qualified native backends execute the same four forced interleavings. Linux syscall-specific tests remain unchanged."
+    },
+    {
+      "id": "p3-qual-macos-observed-child-suspension",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs",
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A stopped child retains all native ranges and snapshots; an expired live requester cannot reserve priority; process death releases ownership while committed data remains.",
+      "reason": "Signal return-code assertions move into SharedProcessSignals.Stop/Resume, which preserve the checks and additionally require waitpid WIFSTOPPED before tests inspect leases. Choose native Darwin SIGSTOP/SIGCONT rather than Linux numbers; expand the stopped-process native range control to Darwin. No liveness, ownership, data or error assertion is removed."
     }
   ]
 }

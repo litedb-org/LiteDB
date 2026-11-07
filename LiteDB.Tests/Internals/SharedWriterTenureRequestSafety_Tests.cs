@@ -84,6 +84,7 @@ namespace LiteDB.Internals
                 var authority = engine.MappedReaderTable.Authority;
                 var block = RemoteBlock(authority);
                 SharedProcessSignals.Stop(stale.ProcessId);
+                var stopped = true;
                 try
                 {
                     var expiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
@@ -92,6 +93,7 @@ namespace LiteDB.Internals
                     successor.Expect("requested").GetAwaiter().GetResult();
                     var sequence = authority.Map.Load(SharedMemoryLayout.RequestSequence);
                     SharedProcessSignals.Resume(stale.ProcessId);
+                    stopped = false;
                     SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.TenureRequest) > sequence,
                         TimeSpan.FromSeconds(5)).Should().BeTrue("resuming renewal takes a new ticket instead of resurrecting expired priority");
                     stale.Send("go"); successor.Send("go");
@@ -104,7 +106,7 @@ namespace LiteDB.Internals
                         peer.Send("close"); peer.Expect("done").GetAwaiter().GetResult(); peer.Finish().GetAwaiter().GetResult();
                     }
                 }
-                finally { SharedProcessSignals.Resume(stale.ProcessId); }
+                finally { if (stopped) SharedProcessSignals.Resume(stale.ProcessId); }
             }
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
             cold.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).OrderBy(id => id).Should().Equal(911, 912);
