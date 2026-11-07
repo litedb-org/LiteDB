@@ -19,8 +19,8 @@ namespace LiteDB.Engine
             if (query == null) throw new ArgumentNullException(nameof(query));
             _state.Validate();
             if (TransactionContext.For(this) != null &&
-                (collection.StartsWith("$") || query.Into != null))
-                throw new NotSupportedException("Handle queries require a user collection and cannot write external output.");
+                ((collection.StartsWith("$") && collection != "$cols" && collection != "$indexes") || query.Into?.StartsWith("$") == true))
+                throw new TransactionCapabilityException("Handle queries cannot access external input/output.");
 
             IEnumerable<BsonDocument> source = null;
 

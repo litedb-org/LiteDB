@@ -1,0 +1,90 @@
+name: Transaction handle compatibility
+
+# #3064: a consumer compiled against the PR base's production LiteDB.dll must run unchanged
+# against the head's DLL (old ILiteDatabase/ILiteEngine implementations, legacy transactions,
+# caller-owned engines), legacy outcomes must match, CS0618 must fail only warnings-as-errors
+# consumers that have no WarningsNotAsErrors exception, and the new API must build warning-free.
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: 'Parent branch or SHA'
+        required: false
+        default: 'dev'
+        type: string
+  pull_request:
+    paths:
+      - 'LiteDB/LiteDB.csproj'
+      - 'LiteDB/Client/Database/**'
+      - 'LiteDB/Client/Transactions/**'
+      - 'LiteDB/Client/Shared/**'
+      - 'LiteDB/Client/Coordinated/**'
+      - 'LiteDB/Engine/ILiteEngine.cs'
+      - 'LiteDB/Engine/LiteEngine.cs'
+      - 'LiteDB/Engine/Engine/Transaction*.cs'
+      - 'LiteDB/Engine/Services/Transaction*.cs'
+      - 'tools/TransactionHandleValidation/**'
+      - 'scripts/test-transaction-handle-compatibility.py'
+      - '.github/workflows/transaction-handle-compatibility.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: Compatibility (${{ matrix.os }}, ${{ matrix.framework }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          # On pull_request this is the merge commit, so it includes the current base.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: parent
+          ref: ${{ github.event.pull_request.base.sha || inputs.baseline_ref || 'dev' }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build production libraries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($variant in @('parent', 'candidate')) {
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
+            if ($LASTEXITCODE) { throw "Library build failed: $variant" }
+          }
+          New-Item -ItemType Directory evidence | Out-Null
+          git -C parent rev-parse HEAD | Out-File evidence/parent.txt
+          git -C candidate rev-parse HEAD | Out-File evidence/candidate.txt
+      - name: Precompiled consumer, legacy parity and CS0618 migration
+        shell: pwsh
+        run: |
+          $framework = '${{ matrix.framework }}'
+          python candidate/scripts/test-transaction-handle-compatibility.py --framework $framework `
+            --parent-dll "parent/LiteDB/bin/Release/$framework/LiteDB.dll" `
+            --candidate-dll "candidate/LiteDB/bin/Release/$framework/LiteDB.dll" `
+            --output evidence
+          if ($LASTEXITCODE) { throw 'Transaction handle compatibility failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transaction-handle-compatibility-${{ matrix.os }}-${{ matrix.framework }}
+          path: evidence
+          if-no-files-found: warn

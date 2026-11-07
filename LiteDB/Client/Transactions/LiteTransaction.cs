@@ -134,7 +134,7 @@ namespace LiteDB
                 {
                     // Refusals before mutation leave the transaction usable. Any other statement
                     // failure, or one whose engine transaction was rolled back, ends the handle.
-                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
+                    if (!TransactionIntact || (!(error is TransactionCapabilityException) &&
                         !(_transaction.Engine.IsHandleReadOnly && error is System.IO.IOException))) Abort(error);
                     throw;
                 }
@@ -170,14 +170,14 @@ namespace LiteDB
 
         private void Abort(Exception cause)
         {
-            if (_transaction.Outcome != LiteTransactionState.Active) return;
+            if (_transaction == null) return;
             _transaction.Outcome = LiteTransactionState.Failed;
             try
             {
                 CloseReadersAndRollback(onlyIfActive: true);
             }
             catch (Exception cleanup) { cause.Data["LiteDB.TransactionCleanupError"] = cleanup; }
-            finally { ReleaseResources(cause); }
+            finally { _transaction.Outcome = LiteTransactionState.Failed; ReleaseResources(cause); }
         }
 
         internal IBsonDataReader Query(string collection, Query query) => Dispatch(() =>

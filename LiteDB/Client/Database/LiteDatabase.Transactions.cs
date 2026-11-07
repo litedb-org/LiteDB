@@ -18,7 +18,7 @@ namespace LiteDB
             {
                 if (!(_engine is LiteEngine engine))
                     throw new NotSupportedException("BeginTransaction() currently supports Direct, memory and stream engines only; Shared and custom engines are not supported.");
-                var transaction = new LiteTransaction(engine, Mapper, _transactionHandles);
+                var transaction = TransactionContext.Unbound(() => new LiteTransaction(engine, Mapper, _transactionHandles));
                 _transactionHandles.Register(transaction);
                 return transaction;
             }
