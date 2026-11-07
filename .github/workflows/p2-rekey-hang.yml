@@ -68,6 +68,16 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Iteration $iteration failed with exit $LASTEXITCODE" }
             "PASS $iteration $(Get-Date -Format o)" | Tee-Object -FilePath LiteDB.Tests/TestResults/iterations.txt -Append
           }
+      - name: Validate surrounding Shared and callback coverage
+        shell: pwsh
+        env:
+          STRESS_ARCH: ${{ matrix.arch }}
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP "litedb-runtime-9-$env:STRESS_ARCH"
+          ./scripts/run-ci-tests.ps1 -RuntimeMajor 9 -Framework net8.0 -Architecture $env:STRESS_ARCH `
+            -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~LiteDB.Internals.Shared|FullyQualifiedName~LiteDB.Tests.Engine.Shared' `
+            -ResultFile 'surrounding-shared.trx'
+          if ($LASTEXITCODE -ne 0) { throw 'Surrounding Shared coverage failed.' }
       - name: Analyze captured hang on matching architecture
         if: failure() && matrix.arch != 'x86'
         shell: pwsh
