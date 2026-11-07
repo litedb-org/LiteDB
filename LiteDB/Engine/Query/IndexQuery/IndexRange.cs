@@ -138,6 +138,29 @@ namespace LiteDB.Engine
             }
         }
 
+        // Only the unique primary key may use this mutation cursor. Keep addresses,
+        // never borrowed nodes/pages, across deletion and transaction safepoints.
+        internal IEnumerable<PageAddress> DeletePositions(IndexService indexer, CollectionIndex index)
+        {
+            if (index.Slot != 0) throw new InvalidOperationException("Delete range requires the primary key.");
+            var node = _start.IsMinValue ? indexer.GetNode(index.Head) :
+                indexer.Find(index, _start, true, Query.Ascending, skipEqual: !_startEquals);
+            var position = node?.Position ?? PageAddress.Empty;
+            node = null;
+            while (!position.IsEmpty)
+            {
+                node = indexer.GetNode(position);
+                if (node.Key.IsMaxValue) yield break;
+                var comparison = node.Key.CompareTo(_end, indexer.Collation);
+                if (comparison > 0 || (comparison == 0 && !_endEquals)) yield break;
+                var next = node.GetNextPrev(0, Query.Ascending);
+                var emit = !node.Key.IsMinValue;
+                node = null;
+                if (emit) yield return position;
+                position = next;
+            }
+        }
+
         public override string ToString()
         {
             if (_start.IsMinValue && _endEquals == false)

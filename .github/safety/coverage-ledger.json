@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p1-cpu-delete-additive-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL/group/fault safety partitions execute unchanged; delete result, rollback, page cursor, snapshot and recovery safety receive additional hosted coverage.",
+      "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
+    },
+    {
       "id": "p1-padding-noop-truncate-checksum-crash-4058733",
       "kind": "corpus-repinned",
       "subjects": [
@@ -311,6 +321,16 @@
       "disposition": "strengthened",
       "invariant": "Execute every case in the original additive safety filter with unchanged 300-second per-session timeout, assertions and existing skip inventory.",
       "reason": "Express the same disjoint partition complement using VSTest supported !~ predicates. Every original case remains in exactly one partition, with unchanged assertions and session timeout."
+    },
+    {
+      "id": "p1-integrate-add-delete-safety",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing WAL safety partitions, assertions, timeouts and runtime legs remain exercised.",
+      "reason": "Integrates the additional primary-key delete differential, rollback, reader snapshot and WAL-failure recovery partition from the delete candidate. Every pre-existing partition remains unchanged; the added partition fails the job on any test failure."
     }
   ]
 }
