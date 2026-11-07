@@ -1,6 +1,8 @@
 name: Phase 2 gap profile
 on:
   workflow_dispatch:
+  push:
+    branches: [v6/wip-p2-bulk-gap]
 permissions:
   contents: read
 jobs:
