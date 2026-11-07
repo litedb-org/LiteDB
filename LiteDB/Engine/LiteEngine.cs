@@ -384,12 +384,13 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            // A fatal failure tears down the shared monitor; surface its cause before accessing it.
+            _state.Validate();
             if (_host != null)
             {
                 _monitor.EnsureWriteAllowed();
                 return _host.Maintain(() => _host.Engine.Checkpoint());
             }
-            _state.Validate();
             // Fail before a checkpoint journals the header into a caller's log it cannot finish.
             if (_settings.ReadOnlyStorage && !_settings.ReadOnly && _disk.GetFileLength(FileOrigin.Log) > 0)
                 throw new NotSupportedException("A stream of this database cannot be written, so its log cannot be checkpointed.");
