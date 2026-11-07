@@ -62,7 +62,7 @@ namespace LiteDB.Engine
 
             try
             {
-                var timeout = _getTimeout();
+                var timeout = TransactionWaitBudget.Timeout(_getTimeout());
                 if (_transaction.TryEnterReadLock(timeout, owner) == false)
                     throw LiteException.LockTimeout("transaction", timeout);
             }
@@ -96,7 +96,7 @@ namespace LiteDB.Engine
             // get collection lock from dictionary (or create new if it does not exist)
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            var timeout = _getTimeout();
+            var timeout = TransactionWaitBudget.Timeout(_getTimeout());
             if (collection.TryEnter(owner, timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
         }
 
@@ -128,7 +128,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             if (_transaction.CurrentReadCount > 0) Reachability.Sometimes("maintenance:rebuild-waits-for-active-transactions");
 #endif
-            var timeout = _getTimeout();
+            var timeout = TransactionWaitBudget.Timeout(_getTimeout());
             if (_transaction.TryEnterWriteLock(timeout) == false) throw LiteException.LockTimeout("exclusive", timeout);
 
 #if DEBUG || TESTING

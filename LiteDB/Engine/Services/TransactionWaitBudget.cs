@@ -22,6 +22,8 @@ namespace LiteDB.Engine
             _current = this;
         }
 
+        internal static TimeSpan Timeout(TimeSpan fallback) => _current?._budget._timeout ?? fallback;
+
         internal static TimeSpan Remaining(TimeSpan fallback)
         {
             var budget = _current?._budget;

@@ -15,11 +15,13 @@ namespace LiteDB.Tests.Engine
         internal static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id };
 
         [Theory]
-        [InlineData(false, false)]
-        [InlineData(false, true)]
-        [InlineData(true, false)]
-        [InlineData(true, true)]
-        public void Idle_handle_waits_even_on_creator_thread_and_foreign_completion_wakes_it(bool peer, bool ordinary)
+        [InlineData(false, "handle")]
+        [InlineData(false, "ordinary")]
+        [InlineData(false, "legacy")]
+        [InlineData(true, "handle")]
+        [InlineData(true, "ordinary")]
+        [InlineData(true, "legacy")]
+        public void Idle_handle_waits_even_on_creator_thread_and_foreign_completion_wakes_it(bool peer, string request)
         {
             using var file = new TempFile();
             using var engine = new LiteEngine(file.Filename);
@@ -39,7 +41,13 @@ namespace LiteDB.Tests.Engine
             });
             try
             {
-                if (ordinary) target.GetCollection("rows").Insert(Row(2));
+                if (request == "legacy")
+                {
+                    Assert.True(target.BeginTrans());
+                    target.GetCollection("rows").Insert(Row(2));
+                    Assert.True(target.Commit());
+                }
+                else if (request == "ordinary") target.GetCollection("rows").Insert(Row(2));
                 else
                 {
                     using var next = target.BeginTransaction();

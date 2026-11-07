@@ -13,6 +13,19 @@ namespace LiteDB.Tests.Engine
     public class TransactionHandleDeadline_Tests
     {
         [Fact]
+        public void Nested_stages_inherit_the_sampled_timeout_and_restore_thread_state()
+        {
+            var original = TimeSpan.FromSeconds(2);
+            using (new TransactionWaitBudget(original))
+            {
+                using (new TransactionWaitBudget(TimeSpan.FromSeconds(10)))
+                    Assert.Equal(original, TransactionWaitBudget.Timeout(TimeSpan.FromSeconds(1)));
+                Assert.Equal(original, TransactionWaitBudget.Timeout(TimeSpan.FromSeconds(1)));
+            }
+            Assert.Equal(TimeSpan.FromSeconds(1), TransactionWaitBudget.Timeout(TimeSpan.FromSeconds(1)));
+        }
+
+        [Fact]
         public void Forced_collection_stages_share_wait_budget_and_user_work_does_not_spend_it()
         {
             var first = new CollectionLock();
