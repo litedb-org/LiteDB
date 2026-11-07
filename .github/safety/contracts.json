@@ -133,6 +133,7 @@
         "LiteDB/Document/DataReader/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Same_thread_reader_retains_pre_write_snapshot", "proves": "Same-thread read snapshot retains all pre-delete rows through write upgrade and safepoints."},
         {"test": "LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Live_readers_keep_their_snapshot_during_delete_and_page_reuse", "model": "exception", "proves": "Guarded primary-key range delete differential rows/indexes, rollback, pinned reader or pre-cleanup WAL interruption with repeated file-backed recovery; see test assertions."},
 
         {"test": "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Replacement_identity_cannot_publish_a_second_core_before_maintenance_returns", "proves": "A completed core rebuild still under the real host maintenance lease refuses both same-thread and second-thread attachment; both variants fail at 45b85dc2e. After release both writers see each other's exact documents and two cold reopens preserve all acknowledged payloads, indexes and unrelated data."},

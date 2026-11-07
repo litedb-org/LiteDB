@@ -86,6 +86,8 @@ class ReproMatrixTests(unittest.TestCase):
             'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Unproven_shapes_use_existing_path',
             'LiteDB.Tests/Engine/PrimaryKeyDeleteFault_Tests.cs#Every_delete_wal_write_failure_recovers_atomic_rows_and_indexes',
             'LiteDB.Tests/Engine/PrimaryKeyDeleteFault_Tests.cs#Interrupted_confirmation_recovers_whole_delete_on_repeated_reopen',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Read_transform_retains_query_callback_semantics',
+            'LiteDB.Tests/Engine/PrimaryKeyDeleteRange_Tests.cs#Same_thread_reader_retains_pre_write_snapshot',
         }
         actual = {ref for entry in policy.values() for ref in entry["tests"]
                   if ref.startswith("LiteDB.Tests/Engine/PrimaryKeyDelete")}

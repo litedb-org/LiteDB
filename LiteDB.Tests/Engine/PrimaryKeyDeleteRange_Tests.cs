@@ -100,6 +100,36 @@ namespace LiteDB.Tests.Engine
             PrimaryKeyDeleteRange.TryCreate(expression, Collation.Default, out _).Should().BeFalse();
         }
 
+        [Fact]
+        public void Read_transform_retains_query_callback_semantics()
+        {
+            var calls = 0;
+            using var engine = new LiteEngine(new EngineSettings
+            {
+                DataStream = new MemoryStream(),
+                ReadTransform = (collection, value) => { calls++; return value; }
+            });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.GetCollection("docs").Insert(Enumerable.Range(1, 10).Select(n => Document(n, 0)));
+            db.GetCollection("docs").DeleteMany("_id <= 5").Should().Be(5);
+            calls.Should().BeGreaterThan(0);
+            db.GetCollection("docs").Count().Should().Be(5);
+        }
+
+        [Fact]
+        public void Same_thread_reader_retains_pre_write_snapshot()
+        {
+            using var file = new TempFile();
+            using var db = Open(file.Filename, Collation.Default);
+            Seed(db, 0);
+            using var cursor = db.GetCollection("docs").FindAll().GetEnumerator();
+            cursor.MoveNext().Should().BeTrue();
+            var ids = new System.Collections.Generic.List<int> { cursor.Current["n"].AsInt32 };
+            db.GetCollection("docs").DeleteMany("_id <= 450").Should().Be(450);
+            while (cursor.MoveNext()) ids.Add(cursor.Current["n"].AsInt32);
+            ids.Should().BeEquivalentTo(Enumerable.Range(1, 900));
+        }
+
         internal static LiteDatabase Open(string filename, Collation collation) => new LiteDatabase(new LiteEngine(
             new EngineSettings { Filename = filename, Collation = collation, TransactionPageLimit = 4 }));
 
