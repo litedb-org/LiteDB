@@ -41,6 +41,23 @@ jobs:
         run: |
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~PrimaryKeyDelete|FullyQualifiedName~DeleteMany|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~ReaderSnapshot' --logger 'trx;LogFileName=delete-safety.trx' --results-directory artifacts_temp/handle-safety
           if ($LASTEXITCODE) { throw 'Delete safety failed' }
+      - name: Phase 4 ownership, legacy admission and retained Shared tenure
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $filters = @(
+            'FullyQualifiedName~OwnershipLease_Tests|FullyQualifiedName~RuntimeLock_Tests|FullyQualifiedName~Issue2991|FullyQualifiedName~Issue2814Admission|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~SameThread',
+            'FullyQualifiedName~DirectProcessHost|FullyQualifiedName~DirectHostSafety|FullyQualifiedName~DirectHostAllocation|FullyQualifiedName~DirectHostGroupCommit',
+            'FullyQualifiedName~SharedOneFile',
+            'FullyQualifiedName~SharedWriterTenure',
+            'FullyQualifiedName~DocumentLookupCursor|FullyQualifiedName~MvccCursorModel|FullyQualifiedName~TransactionCleanup|FullyQualifiedName~TransactionCompletion|FullyQualifiedName~Issue1344SnapshotCursor|FullyQualifiedName~SharedRetryWriterRelease'
+          )
+          $failed = @()
+          for ($i = 0; $i -lt $filters.Count; $i++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=ownership-$i.trx" --results-directory artifacts_temp/handle-safety
+            if ($LASTEXITCODE) { $failed += $i }
+          }
+          if ($failed.Count) { throw "Ownership safety partitions failed: $failed" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

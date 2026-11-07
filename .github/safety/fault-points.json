@@ -2231,6 +2231,7 @@
     }
   ],
   "observers": {
+    "BeforeWait": "CollectionLock waiter observer, compiled only in DEBUG/TESTING; OwnershipLease_Tests.Collection_waiter_advances_only_after_final_owner_release forces a contended lock before exact-owner release.",
     "HandoffPublication": "Carries the existing thread-local PublicationStage injector from an operation to its retained holder teardown; no additional publication boundary.",
     "AtCrashPoint": "Per-engine delivery of the process-crash family's named points (CrashPoint also calls SimulateProcessCrash); each name is registered under hooks with its own evidence, so this delegate adds no boundary of its own.",
     "BeforeCreatePipe": "Interleaving hook before the coordinator creates its pipe; no persistent state changes at this point.",

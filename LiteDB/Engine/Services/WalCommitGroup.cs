@@ -35,6 +35,9 @@ namespace LiteDB.Engine
         // Caller holds the WAL writer monitor, before WAL-index publication.
         internal long Append(int previousVersion, int version)
         {
+#if DEBUG || TESTING
+            OwnershipAssertions.RequireHeld(_disk.WalWriterLock, "WAL append requires the writer monitor.");
+#endif
             if (_appended == _durable) Volatile.Write(ref _readVersionLimit, previousVersion);
             _appendedVersion = version;
             _pendingVersions.Add(version);

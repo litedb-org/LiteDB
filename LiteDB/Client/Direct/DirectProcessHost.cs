@@ -41,6 +41,9 @@ namespace LiteDB.Client.Direct
 
         internal static DirectProcessHost Attach(EngineSettings settings)
         {
+#if DEBUG || TESTING
+            OwnershipAssertions.RequireNotHeld(Gate, "Path admission must precede the host registry.");
+#endif
             NativeAdmission.Normalize(settings);
             // Existing files are fenced by native admission. Only creation needs
             // the path mutex, acquired BEFORE local gates (replacement uses that order).
@@ -153,6 +156,10 @@ namespace LiteDB.Client.Direct
 
         internal T Maintain<T>(Func<T> action)
         {
+#if DEBUG || TESTING
+            OwnershipAssertions.RequireNotHeld(Gate, "Maintenance path admission must precede the host registry.");
+            OwnershipAssertions.RequireNotHeld(_lifecycle, "Maintenance path admission must precede lifecycle admission.");
+#endif
             using var path = NativeAdmission.EnterPath(Settings.Filename);
             lock (_lifecycle)
             {

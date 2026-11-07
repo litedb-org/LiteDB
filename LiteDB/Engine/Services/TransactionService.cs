@@ -332,6 +332,9 @@ namespace LiteDB.Engine
             this.ReleaseCommitSnapshots();
             if (_transPages.CommitTicket != 0)
             {
+#if DEBUG || TESTING
+                OwnershipAssertions.BeforeTicketWait(_header, _disk.WalWriterLock, _snapshots.Count + _cursorSnapshots.Count);
+#endif
                 _disk.CompleteCommitTicket(_transPages.CommitTicket);
                 _disk.PublishDurableCommit(_walIndex.CurrentReadVersion);
             }

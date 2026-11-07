@@ -3,6 +3,7 @@
     "reason": "Fixed rollback regression is covered by the normal test suite.",
     "tests": [
       "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint",
+      "LiteDB.Tests/Engine/OwnershipLease_Tests.cs#Monitor_handle_release_preserves_unrelated_legacy_slot_and_file_state",
       "LiteDB.Tests/Engine/Transactions_Tests.cs#Transaction_Rollback_Should_Discard_Writable_Dirty_Pages",
       "LiteDB.Tests/Issues/Issue2586_RollbackSafety_Tests.cs#RollbackAfterSafepoint_PreservesCommittedDataOnReopen",
       "LiteDB.Tests/Engine/UpdateIndexDiff_Tests.cs#Multikey_updates_match_independent_model_and_reopen",

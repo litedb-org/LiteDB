@@ -51,9 +51,9 @@ namespace LiteDB.Engine
                 {
                     if (transaction.State == TransactionState.Active)
                     {
-                        if (transaction.OwnerThread != Thread.CurrentThread && transaction.Mode == LockMode.Write)
+                        if (transaction.Lease.Kind == TransactionOwnerKind.Legacy && transaction.OwnerThread != Thread.CurrentThread && transaction.Mode == LockMode.Write)
                             throw new InvalidOperationException("Dispose a Direct facade's active write transaction on its owning thread.");
-                        if (transaction.OwnerThread == Thread.CurrentThread) transaction.Rollback();
+                        if (transaction.Lease.Kind == TransactionOwnerKind.Handle || transaction.OwnerThread == Thread.CurrentThread) transaction.Rollback();
                     }
                     this.RemoveTransaction(transaction, out _);
                 }
