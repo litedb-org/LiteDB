@@ -14,7 +14,7 @@ NS = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
 def classes(stress=False):
     selected = set()
     for path in (ROOT / 'LiteDB.Tests').rglob('*.cs'):
-        source = path.read_text(encoding='utf-8-sig')
+        source = path.read_text(encoding='utf-8-sig', errors='replace')
         if not re.search(r'\[OneFile(?:Fact|Theory)\b|public class SharedOneFile\w*_Tests', source):
             continue
         namespace = re.search(r'namespace\s+([\w.]+)', source).group(1)
