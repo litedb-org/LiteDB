@@ -217,11 +217,11 @@ namespace LiteDB.Tests.Engine
             db.BeginTrans().Should().BeTrue();
             db.GetCollection("docs").Insert(Row(2000));
             db.Commit().Should().BeTrue();
-            using (var child = new LiteDB.Internals.MvccProcess("insert-ready", Filename, Password(encrypted), "3000"))
+            using (var child = new LiteDB.Internals.MvccProcess("insert-progress-ready", Filename, Password(encrypted), "3000"))
             {
                 child.Expect("ready").GetAwaiter().GetResult();
                 child.Send("continue");
-                child.ReadLine(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult().Should().Be("done");
+                LiteDB.Internals.RetryWriteWatchdog.Wait(child, 3000, 20).GetAwaiter().GetResult();
                 child.Finish().GetAwaiter().GetResult();
             }
             anchor?.Dispose();
