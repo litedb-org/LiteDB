@@ -21,7 +21,7 @@ for repeat in range(1, 6):
         trace = out / f'{label}.nettrace'
         env = dict(os.environ, DOTNET_TieredCompilation='0', LITEDB_PROFILE='1',
                    BENCHMARK_HARNESS_SHA=os.environ['GITHUB_SHA'], BENCHMARK_CANDIDATE_SHA=os.environ['GITHUB_SHA'],
-                   BENCHMARK_SCENARIOS='bulk_insert_100k,single_insert_5k_tx')
+                   BENCHMARK_SCENARIOS='bulk_insert_100k,open_close_20x,single_insert_5k_tx')
         dll = root / version / 'bin' / 'Release' / framework / f'{version}.dll'
         command = ['dotnet-trace', 'collect', '--profile', 'cpu-sampling', '--providers',
                    'LiteDB-ScenarioProfile:0xffffffffffffffff:4,LiteDB-CheckpointProfile:0xffffffffffffffff:4,Microsoft-Windows-DotNETRuntime:0x1:5',
@@ -32,7 +32,7 @@ for repeat in range(1, 6):
         subprocess.run(['dotnet', str(root / 'TraceReport/bin/Release/net8.0/TraceReport.dll'),
                         str(trace), str(out / f'{label}-frames.json')], check=True, timeout=600)
         rows = json.loads((out / f'{label}-frames.json').read_text())
-        measured = rows[-2:]
+        measured = rows[-len(env['BENCHMARK_SCENARIOS'].split(',')):]
         assert {r['scenario'] for r in measured} == set(env['BENCHMARK_SCENARIOS'].split(','))
         # Probe presence and page accounting are mandatory; a missing EventSource cannot look like zero work.
         assert sum(sum(r['attempts'].values()) for r in rows) > 0
