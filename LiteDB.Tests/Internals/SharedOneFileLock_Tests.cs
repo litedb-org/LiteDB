@@ -25,6 +25,7 @@ namespace LiteDB.Internals
             first.DowngradeDms();
             second.ShareDms();
             first.TryExclusiveDms().Should().BeFalse("a live peer still owns shared DMS");
+            second.TryExclusiveDms().Should().BeFalse("the first participant restored its shared range after failed conversion");
             using (var probe = new SharedRangeLocks(Filename))
                 probe.TryExclusiveDms().Should().BeFalse("failed conversion must restore our shared DMS");
             first.TryClaim(0).Should().BeTrue();
