@@ -43,4 +43,4 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.shared-hang-stress
     uses: ./.github/workflows/p2-rekey-hang.yml
     with:
-      iterations: ${{ inputs.iterations }}
+      iterations: ${{ format('{0}', inputs.iterations) }}

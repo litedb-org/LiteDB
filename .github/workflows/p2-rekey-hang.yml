@@ -5,8 +5,8 @@ on:
     inputs:
       iterations:
         description: Full collection repetitions per platform
-        type: number
-        default: 200
+        type: string
+        default: '200'
         required: true
 
 permissions:
