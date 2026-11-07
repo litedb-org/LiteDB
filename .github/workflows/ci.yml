@@ -9,6 +9,15 @@ on:
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
+    inputs:
+      shared-hang-stress:
+        description: Scratch-only Shared publication stress
+        type: boolean
+        default: false
+      iterations:
+        description: Stress repetitions per platform
+        type: number
+        default: 200
 
 concurrency:
   # GitHub replaces a pending group member even when cancel-in-progress is false.
@@ -18,7 +27,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    if: github.event.action != 'labeled' || github.event.label.name == 'full-ci'
+    if: ${{ !inputs.shared-hang-stress && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') }}
     uses: ./.github/workflows/_reusable-ci.yml
     with:
       tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
@@ -29,3 +38,9 @@ jobs:
     with:
       tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
     secrets: inherit
+
+  shared-hang-stress:
+    if: github.event_name == 'workflow_dispatch' && inputs.shared-hang-stress
+    uses: ./.github/workflows/p2-rekey-hang.yml
+    with:
+      iterations: ${{ inputs.iterations }}

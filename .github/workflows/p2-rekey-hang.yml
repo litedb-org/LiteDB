@@ -1,7 +1,7 @@
 name: Phase 2 Shared publication hang stress
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       iterations:
         description: Full collection repetitions per platform
