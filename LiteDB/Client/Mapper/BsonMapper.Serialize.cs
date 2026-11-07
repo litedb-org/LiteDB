@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using LiteDB.Utils;
 
@@ -271,9 +270,9 @@ namespace LiteDB
             if (obj is Delegate || obj is MemberInfo) return null;
 
             var t = obj.GetType();
-            var doc = new BsonDocument();
             var entity = this.GetEntityMapper(t);
             entity.WaitForInitialization();
+            var doc = new BsonDocument(entity.Members.Count + (type != t ? 1 : 0));
 
             // adding _type only where property Type is not same as object instance type
             if (type != t)
@@ -281,9 +280,10 @@ namespace LiteDB
                 doc["_type"] = SerializeTypeName(t);
             }
 
-            foreach (var member in entity.Members.Where(x => x.Getter != null))
+            // Member maps remain mutable: inspect each getter at the point of use.
+            foreach (var member in entity.Members)
             {
-                this.SerializeMember(doc, member, obj, depth);
+                if (member.Getter != null) this.SerializeMember(doc, member, obj, depth);
             }
 
             return doc;

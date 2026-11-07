@@ -1,0 +1,12 @@
+{
+  "MapperDocumentCapacity": {
+    "reason": "Mapper capacity optimization is covered by permanent differential and persistence guards in ordinary CI.",
+    "tests": [
+      "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mutable_members_omission_and_order_match_original_pipeline",
+      "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Custom_serializers_virtual_hooks_and_polymorphism_match_original_pipeline",
+      "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Dictionaries_and_metadata_match_original_pipeline",
+      "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Getter_failure_keeps_member_diagnostics",
+      "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mapped_bulk_documents_and_indexes_survive_rollback_and_reopen"
+    ]
+  }
+}

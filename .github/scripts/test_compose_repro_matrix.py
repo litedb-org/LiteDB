@@ -77,6 +77,22 @@ class ReproMatrixTests(unittest.TestCase):
                   if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
         self.assertEqual(expected, actual)
 
+    def test_mapper_capacity_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/mapper-repro-ci.json").read_text())
+        expected = {
+            'LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mutable_members_omission_and_order_match_original_pipeline',
+            'LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Custom_serializers_virtual_hooks_and_polymorphism_match_original_pipeline',
+            'LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Dictionaries_and_metadata_match_original_pipeline',
+            'LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Getter_failure_keeps_member_diagnostics',
+            'LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mapped_bulk_documents_and_indexes_survive_rollback_and_reopen',
+        }
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if ref.startswith("LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#")}
+        self.assertEqual(expected, actual)
+        for reference in expected:
+            path, method = reference.split("#")
+            self.assertIn("public void " + method + "(", (ROOT / path).read_text())
+
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())

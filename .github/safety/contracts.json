@@ -226,6 +226,11 @@
         {"fuzz": "query", "proves": "Generated queries compare indexed and unindexed plans against an independent model."},
         {"fuzz": "linq-cache", "proves": "Cached and direct LINQ translation are compared concurrently, including rebinding."},
         {"fuzz": "sql-dml", "proves": "Generated SQL statements are executed differentially against a full state model."},
+        {"test": "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mutable_members_omission_and_order_match_original_pipeline", "model": "exception", "proves": "Preserves mapper behavior against the original object pipeline, or indexed bulk persistence and rollback."},
+        {"test": "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Custom_serializers_virtual_hooks_and_polymorphism_match_original_pipeline", "model": "exception", "proves": "Preserves mapper behavior against the original object pipeline, or indexed bulk persistence and rollback."},
+        {"test": "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Dictionaries_and_metadata_match_original_pipeline", "model": "exception", "proves": "Preserves mapper behavior against the original object pipeline, or indexed bulk persistence and rollback."},
+        {"test": "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Getter_failure_keeps_member_diagnostics", "model": "exception", "proves": "Preserves mapper behavior against the original object pipeline, or indexed bulk persistence and rollback."},
+        {"test": "LiteDB.Tests/Mapper/MapperDocumentCapacity_Tests.cs#Mapped_bulk_documents_and_indexes_survive_rollback_and_reopen", "model": "exception", "proves": "Preserves mapper behavior against the original object pipeline, or indexed bulk persistence and rollback."},
         {"fuzz": "mapper", "proves": "The first serialization is compared with an independently constructed BSON tree."}
       ],
       "gaps": [

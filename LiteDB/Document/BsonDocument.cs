@@ -16,6 +16,11 @@ namespace LiteDB
         {
         }
 
+        internal BsonDocument(int capacity)
+            : base(BsonType.Document, new Dictionary<string, BsonValue>(capacity, StringComparer.OrdinalIgnoreCase))
+        {
+        }
+
         public BsonDocument(ConcurrentDictionary<string, BsonValue> dict)
             : this()
         {
