@@ -189,3 +189,44 @@ The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
 The [ownership transition protocol](shared-one-file-ownership.md) specifies local
 reservation/publication, native tenure, terminal cleanup, abandoned-owner handoff
 and deferred disposal, together with their discriminating safety tests and limits.
+
+## Offline coordination transition
+
+A writable `SharedOneFile=true` open automatically retires recognised ABI-1
+coordination remnants before mapped bootstrap. Close every process first. Native
+database admission is converted to exclusive ownership, and an existing `-shm`
+must also grant exclusive DMS. An idle legacy facade therefore excludes migration;
+PIDs, directory contents and timestamps never establish liveness. Native volume
+qualification rejects network and unknown filesystems before retirement. Read-only
+opens with legacy remnants refuse without changing them.
+
+The transition validates the complete present set before deleting anything:
+`-shared-state`, `-shared-disabled`, recognised reader lease/content files, the
+empty `-readers` directory, `-shared-live`, then an ABI-1 `-shm` status page
+(`LDBSHRD` protocol, exact size and canonical path binding). Unknown `-shm`
+formats are preserved; there is no guessed `LDBSHM1` layout. Unknown headers,
+capabilities, markers, reader names and symbolic links refuse in place.
+
+Every removal is independent and retryable. No journal or completion flag is
+needed: these files carry no durable database truth, and exclusive admission is
+re-established on every retry. Power loss may restore any subset of removed
+entries; each is validated independently rather than requiring its old partner.
+The data file and WAL are never written by retirement, and no rebuild occurs.
+Ordinary mapped bootstrap and storage recovery follow retirement and retain their
+existing recovery rules. A failed deletion stops the open; retry after correcting
+the I/O error. Unknown remnants require operator investigation, not forced cleanup.
+
+Legacy versions implementing native admission are refused while a mapped facade
+remains open. Once every mapped facade closes they may open sequentially and use
+the existing mutex protocol safely; a subsequent mapped open retires their new
+remnants again and independently recovers storage. This is not a permanent
+on-disk downgrade ban. Versions predating native admission remain outside the
+supported mixed-version deployment contract: stop and replace all such processes
+before rollout, as required by the existing Shared connection identity contract.
+
+`SharedOfflineUpgrade_Tests` covers all retirement cuts with process death, a
+second interruption during retry, independent resurrection of every subset of
+six ephemeral entries, preserved data/WAL bytes, indexed cold reads, live legacy
+and DMS refusal, unknown remnants, read-only and injected unsupported volumes.
+This models directory-entry loss/reordering for disposable files; it does not
+claim a physical device reset or qualification beyond the enabled mapped platform.

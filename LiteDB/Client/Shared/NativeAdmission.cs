@@ -129,6 +129,34 @@ namespace LiteDB.Client.Shared
                 throw new IOException("Incompatible Shared coordination ABI family; stop all participants before switching.");
         }
 
+        // The caller also owns the path mutex. Conversion proves absence of every
+        // remote Direct/Shared participant, including an idle legacy facade.
+        internal IDisposable ExclusiveOffline()
+        {
+            lock (Gate)
+            {
+                EnsureValid();
+                // Facade, transient registry probe, and initializing table.
+                if (_entry.References > 3)
+                    throw new IOException("Offline coordination upgrade requires all other local facades closed.");
+                if (DatabaseFileIdentity.Windows) _entry.File.Unlock(DatabaseFileLock.Admission);
+                try { _entry.File.Lock(DatabaseFileLock.Admission, true); }
+                catch
+                {
+                    if (DatabaseFileIdentity.Windows) _entry.File.Lock(DatabaseFileLock.Admission, false);
+                    throw;
+                }
+                return new OfflineLease(_entry.File);
+            }
+        }
+
+        private sealed class OfflineLease : IDisposable
+        {
+            private readonly DatabaseFileLock _file;
+            internal OfflineLease(DatabaseFileLock file) { _file = file; }
+            public void Dispose() { _file.Downgrade(DatabaseFileLock.Admission); }
+        }
+
         internal NativeAdmission Retain()
         {
             lock (Gate)

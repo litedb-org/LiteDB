@@ -91,11 +91,7 @@ namespace LiteDB.Client.Shared
             var admission = NativeAdmission.Open(captured, true);
             try
             {
-                // Offline migration is deliberately not automatic in slices 0–4.
-                // Never delete old/unknown files; the operator must stop old clients.
-                if (Directory.Exists(captured.Filename + "-readers") ||
-                    new[] { "-shared-live", "-shared-state", "-shared-disabled" }.Any(s => File.Exists(captured.Filename + s)))
-                    throw new IOException("Stop all ABI-1 participants and remove recognized legacy coordination offline before enabling SharedOneFile.");
+                SharedOfflineUpgrade.Run(captured, admission);
                 SharedMemoryReaderTable table = null;
                 SharedMemoryAuthority.Open(captured, admission.Identity, current =>
                 {
