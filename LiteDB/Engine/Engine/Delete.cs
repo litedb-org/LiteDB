@@ -70,6 +70,11 @@ namespace LiteDB.Engine
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
 
+            if (PrimaryKeyDeleteRange.TryCreate(predicate, _header.Pragmas.Collation, out var range))
+            {
+                return this.DeleteRange(collection, range);
+            }
+
             // do optimization for when using "_id = value" key
             if (predicate != null &&
                 predicate.Type == BsonExpressionType.Equal && 
@@ -111,6 +116,33 @@ namespace LiteDB.Engine
 
                 return this.Delete(collection, getIds());
             }
+        }
+        private int DeleteRange(string collection, IndexRange range)
+        {
+            return this.AutoTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
+                var page = snapshot.CollectionPage;
+                if (page == null) return 0;
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var vectors = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+                var count = 0;
+                foreach (var position in range.DeletePositions(indexer, page.PK))
+                {
+                    _state.Validate();
+                    var node = indexer.GetNode(position);
+                    foreach (var (_, metadata) in page.GetVectorIndexes())
+                    {
+                        vectors.Delete(metadata, node.DataBlock);
+                    }
+                    data.Delete(node.DataBlock);
+                    indexer.DeleteAll(position);
+                    transaction.Safepoint();
+                    count++;
+                }
+                return count;
+            });
         }
     }
 }
