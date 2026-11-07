@@ -20,6 +20,7 @@ namespace LiteDB.Engine
         private readonly bool _useAesStream;
         private readonly bool _isLog;
         private readonly bool _durableCommits;
+        private readonly bool _mappedShared;
         private readonly Action<string> _setHiddenAttribute;
         private readonly SharedFileHandles _handles;
 #if DEBUG || TESTING
@@ -35,7 +36,8 @@ namespace LiteDB.Engine
             Action<string> setHiddenAttribute = null,
             bool isLog = false,
             SharedFileHandles handles = null,
-            bool durableCommits = true)
+            bool durableCommits = true,
+            bool mappedShared = false)
         {
             _filename = filename;
             _password = password;
@@ -44,6 +46,7 @@ namespace LiteDB.Engine
             _useAesStream = useAesStream;
             _isLog = isLog;
             _durableCommits = durableCommits;
+            _mappedShared = mappedShared;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
             _handles = handles;
         }
@@ -65,7 +68,10 @@ namespace LiteDB.Engine
             // Cached shared handles let every shared process open, write and delete the
             // files; exclusive openers are still refused while a writable handle is open.
             var cached = _handles != null && (!write || SharedFileHandles.CacheWriters);
-            var fileShare = write ? FileShare.Read : FileShare.ReadWrite;
+            // Mapped admission and WRITE serialize writers independently of file
+            // handles. Bootstrap/final-close cores have no facade handle cache,
+            // but must coexist with idle cached handles and retained snapshots.
+            var fileShare = _mappedShared ? SharedFileHandles.Share : write ? FileShare.Read : FileShare.ReadWrite;
             var fileOptions = sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess;
 
 #if NET8_0_OR_GREATER
