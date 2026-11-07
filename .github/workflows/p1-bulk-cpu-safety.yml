@@ -1,6 +1,8 @@
 name: P1 bulk CPU safety
 on:
   workflow_dispatch:
+  push:
+    branches: [v6/p1-bulk-cpu]
 permissions:
   contents: read
 jobs:
