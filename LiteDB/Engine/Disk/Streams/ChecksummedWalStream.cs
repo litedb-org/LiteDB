@@ -123,7 +123,7 @@ namespace LiteDB.Engine
                 System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows))
             {
-                (_fileWrite ??= new WalFileWrite()).Write((FileStream)_stream, _frame, 0, count);
+                (_fileWrite ??= new WalFileWrite((FileStream)_stream)).Write(_frame, 0, count);
                 return;
             }
 #endif

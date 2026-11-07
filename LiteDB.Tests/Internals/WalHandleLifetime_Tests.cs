@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Internals
             var expected = new byte[32768];
             new Random(92).NextBytes(expected);
             using (var stream = (FileStream)factory.GetStream(true, false))
-            using (var writer = new WalFileWrite())
+            using (var writer = new WalFileWrite(stream))
             {
                 // Bind to FileStream's IOCP first; native writes must suppress packets
                 // whose OVERLAPPED belongs to our stack rather than the runtime.
@@ -64,15 +64,16 @@ namespace LiteDB.Tests.Internals
                 {
                     var offset = i % 2 * 16384;
                     stream.Position = offset;
-                    if (stream.IsAsync) writer.Write(stream, expected, offset, 16384);
+                    if (stream.IsAsync) writer.Write(expected, offset, 16384);
                     else stream.Write(expected, offset, 16384);
                     stream.Position.Should().Be(offset + 16384);
                     stream.Length.Should().Be(expected.Length);
                 }
                 stream.SetLength(16384);
                 stream.Position = 16384;
-                if (stream.IsAsync) writer.Write(stream, expected, 16384, 16384);
+                if (stream.IsAsync) writer.Write(expected, 16384, 16384);
                 else stream.Write(expected, 16384, 16384);
+                stream.Length.Should().Be(expected.Length);
                 NativeFileSync.FlushDevice(stream.SafeFileHandle, file.Filename);
                 using var reader = (FileStream)factory.GetStream(false, false);
                 reader.IsAsync.Should().BeFalse();
@@ -91,13 +92,14 @@ namespace LiteDB.Tests.Internals
             using var stream = new FileStream(file.Filename, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite, 8192, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                     ? FileOptions.Asynchronous : FileOptions.None);
-            using var writer = new WalFileWrite();
+            using var writer = new WalFileWrite(stream);
             Action write = () =>
             {
-                if (stream.IsAsync) writer.Write(stream, new byte[8192], 0, 8192);
+                if (stream.IsAsync) writer.Write(new byte[8192], 0, 8192);
                 else stream.Write(new byte[8192], 0, 8192);
             };
-            write.Should().Throw<Exception>();
+            if (stream.IsAsync) write.Should().Throw<IOException>().Which.HResult.Should().Be(unchecked((int)0x80070005));
+            else write.Should().Throw<NotSupportedException>();
             stream.Length.Should().Be(1);
             File.ReadAllBytes(file.Filename).Should().Equal(42);
         }

@@ -14,7 +14,18 @@ namespace LiteDB.Engine
     /// </summary>
     internal sealed class WalFileWrite : IDisposable
     {
-        private readonly EventWaitHandle _completion = new EventWaitHandle(false, EventResetMode.ManualReset);
+        private readonly FileStream _file;
+        private readonly Microsoft.Win32.SafeHandles.SafeFileHandle _handle;
+        private readonly EventWaitHandle _completion;
+
+        internal WalFileWrite(FileStream file)
+        {
+            _file = file;
+            // Flush the managed buffer once before direct writes. Writable handles
+            // query physical length; FileStream keeps its position independently.
+            _handle = file.SafeFileHandle;
+            _completion = new EventWaitHandle(false, EventResetMode.ManualReset);
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct Overlapped
@@ -32,12 +43,11 @@ namespace LiteDB.Engine
         private static extern bool GetOverlappedResult(IntPtr file, ref Overlapped overlapped,
             out uint transferred, bool wait);
 
-        internal unsafe void Write(FileStream file, byte[] buffer, int offset, int count)
+        internal unsafe void Write(byte[] buffer, int offset, int count)
         {
-            // SafeFileHandle exposure flushes any managed buffer and disables cached
-            // length assumptions. All engine frame writes are larger than that buffer.
-            var handle = file.SafeFileHandle;
-            var position = file.Position;
+            // Only full frames use this path; no managed writes may remain buffered.
+            var handle = _handle;
+            var position = _file.Position;
             var added = false;
             var eventAdded = false;
             var completion = _completion.SafeWaitHandle;
@@ -66,7 +76,7 @@ namespace LiteDB.Engine
                         throw Error(Marshal.GetLastWin32Error());
                     if (written != count) throw new IOException("Incomplete WAL file write.");
                 }
-                file.Position = checked(position + count);
+                _file.Position = checked(position + count);
             }
             finally
             {
@@ -75,8 +85,8 @@ namespace LiteDB.Engine
             }
         }
 
-        private static IOException Error(int error) => new IOException(
-            "WAL file write failed: " + new Win32Exception(error).Message,
+        private IOException Error(int error) => new IOException(
+            "WAL file write failed for '" + _file.Name + "': " + new Win32Exception(error).Message,
             unchecked((int)(0x80070000u | (uint)error)));
 
         public void Dispose() => _completion.Dispose();

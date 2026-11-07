@@ -10,12 +10,12 @@ foreach (var mode in round % 2 == 0 ? new[] { 0, 1, 2 } : new[] { 2, 1, 0 })
 {
     var asyncHandle = mode != 0;
     var nativeEvent = mode == 2;
-    using var writer = new LiteDB.Engine.WalFileWrite();
     var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".wal");
     try
     {
         using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read, 8192,
             FileOptions.RandomAccess | (asyncHandle ? FileOptions.Asynchronous : FileOptions.None));
+        using var writer = new LiteDB.Engine.WalFileWrite(file);
         // Warm runtime path and reuse the same extent in every mode.
         for (var i = 0; i < 100; i++) file.Write(bytes);
         file.Flush(true);
@@ -30,7 +30,7 @@ foreach (var mode in round % 2 == 0 ? new[] { 0, 1, 2 } : new[] { 2, 1, 0 })
             _ = file.Length;
             length += Stopwatch.GetTimestamp() - stamp;
             stamp = Stopwatch.GetTimestamp();
-            if (nativeEvent) writer.Write(file, bytes, 0, bytes.Length);
+            if (nativeEvent) writer.Write(bytes, 0, bytes.Length);
             else file.Write(bytes);
             write += Stopwatch.GetTimestamp() - stamp;
             stamp = Stopwatch.GetTimestamp();
