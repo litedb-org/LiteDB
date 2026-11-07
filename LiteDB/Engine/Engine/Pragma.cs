@@ -14,7 +14,6 @@ namespace LiteDB.Engine
         public BsonValue Pragma(string name)
         {
             this.ValidatePublicDispatch();
-            this.RefuseHandleMaintenance();
             _state.Validate();
             return _header.Pragmas.Get(name);
         }

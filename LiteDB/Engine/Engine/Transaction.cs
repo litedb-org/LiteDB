@@ -128,7 +128,12 @@ namespace LiteDB.Engine
                     // Constraint errors can also reveal a pending predecessor.
                     // Establish that dependency before returning the original error.
                     _disk.CompleteCommitTicket(transaction.Pages.CommitTicket);
-                    this.RollbackAndReleaseTransaction(transaction);
+                    if (transaction.Lease.Kind == TransactionOwnerKind.Handle)
+                    {
+                        try { this.RollbackAndReleaseTransaction(transaction); }
+                        catch (Exception cleanup) { ex.Data["LiteDB.StatementRollback"] = cleanup; }
+                    }
+                    else this.RollbackAndReleaseTransaction(transaction);
 
                     if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
                 }

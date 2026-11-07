@@ -18,6 +18,9 @@ namespace LiteDB.Engine
             if (string.IsNullOrWhiteSpace(collection)) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
             _state.Validate();
+            if (TransactionContext.For(this) != null &&
+                (collection.StartsWith("$") || query.Into != null))
+                throw new NotSupportedException("Handle queries require a user collection and cannot write external output.");
 
             IEnumerable<BsonDocument> source = null;
 

@@ -46,6 +46,7 @@ jobs:
         shell: pwsh
         run: |
           $filters = @(
+            'FullyQualifiedName~TransactionHandle',
             'FullyQualifiedName~OwnershipLease_Tests|FullyQualifiedName~RuntimeLock_Tests|FullyQualifiedName~Issue2991|FullyQualifiedName~Issue2814Admission|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~SameThread',
             'FullyQualifiedName~DirectProcessHost|FullyQualifiedName~DirectHostSafety|FullyQualifiedName~DirectHostAllocation|FullyQualifiedName~DirectHostGroupCommit',
             'FullyQualifiedName~SharedWriterTenure',

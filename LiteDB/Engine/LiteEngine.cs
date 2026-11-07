@@ -384,6 +384,8 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             // A fatal failure tears down the shared monitor; surface its cause before accessing it.
             _state.Validate();
             if (_host != null)

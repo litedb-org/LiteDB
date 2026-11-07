@@ -25,6 +25,7 @@
     }
   ],
   "dispositions": [
+    {"id": "p4-handle-context-dispatch-matrix", "kind": "ci-test-config-changed", "subjects": [".github/workflows/p1-handle-safety.yml"], "disposition": "strengthened", "invariant": "All existing targeted partitions and runtime/OS legs remain; engine handle dispatch, group tickets and ported progress tests execute in an additional partition.", "reason": "Add synchronous engine-level context safety qualification on six OS/runtime legs without changing existing tests or session limits."},
     {
       "id": "p4-shared-safety-session-partitions",
       "kind": "ci-test-config-changed",
