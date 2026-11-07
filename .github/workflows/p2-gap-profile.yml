@@ -49,6 +49,12 @@ jobs:
           if ($LASTEXITCODE) { throw 'decoder build failed' }
       - name: Collect sampled stacks and runtime events
         run: python tools/Ab5021Benchmarks/p2-profile.py '${{ matrix.framework }}'
+      - name: Count native syncs per Direct commit
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y strace
+          python tools/Ab5021Benchmarks/p2-native-sync.py '${{ matrix.framework }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
