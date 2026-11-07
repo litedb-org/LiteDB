@@ -11,18 +11,18 @@ namespace LiteDB.Tests.Engine
     public class PrimaryKeyDeleteRange_Tests
     {
         [Theory]
-        [InlineData("<", 0)] [InlineData("<=", 0)] [InlineData(">", 0)] [InlineData(">=", 0)]
-        [InlineData("<", 1)] [InlineData("<=", 1)] [InlineData(">", 1)] [InlineData(">=", 1)]
-        [InlineData("<", 2)] [InlineData("<=", 2)] [InlineData(">", 2)] [InlineData(">=", 2)]
-        public void Range_matches_old_projection_path_across_pages_rollback_and_reopen(string op, int kind)
+        [InlineData("<", 0, true)] [InlineData("<", 0, false)] [InlineData("<=", 0, true)] [InlineData("<=", 0, false)] [InlineData(">", 0, true)] [InlineData(">", 0, false)] [InlineData(">=", 0, true)] [InlineData(">=", 0, false)]
+        [InlineData("<", 1, true)] [InlineData("<", 1, false)] [InlineData("<=", 1, true)] [InlineData("<=", 1, false)] [InlineData(">", 1, true)] [InlineData(">", 1, false)] [InlineData(">=", 1, true)] [InlineData(">=", 1, false)]
+        [InlineData("<", 2, true)] [InlineData("<", 2, false)] [InlineData("<=", 2, true)] [InlineData("<=", 2, false)] [InlineData(">", 2, true)] [InlineData(">", 2, false)] [InlineData(">=", 2, true)] [InlineData(">=", 2, false)]
+        public void Range_matches_old_projection_path_across_pages_rollback_and_reopen(string op, int kind, bool durable)
         {
             using var fastFile = new TempFile();
             using var oldFile = new TempFile();
             var collation = new Collation("en-US/IgnoreCase");
             var predicate = BsonExpression.Create("_id " + op + " @0", Id(450, kind));
             PrimaryKeyDeleteRange.TryCreate(predicate, collation, out _).Should().Be(kind != 2);
-            using (var fast = Open(fastFile.Filename, collation))
-            using (var old = Open(oldFile.Filename, collation))
+            using (var fast = Open(fastFile.Filename, collation, durable))
+            using (var old = Open(oldFile.Filename, collation, durable))
             {
                 Seed(fast, kind); Seed(old, kind);
                 fast.BeginTrans(); old.BeginTrans();
@@ -35,8 +35,8 @@ namespace LiteDB.Tests.Engine
             }
             for (var i = 0; i < 2; i++)
             {
-                using var fast = Open(fastFile.Filename, collation);
-                using var old = Open(oldFile.Filename, collation);
+                using var fast = Open(fastFile.Filename, collation, durable);
+                using var old = Open(oldFile.Filename, collation, durable);
                 Bytes(fast).Should().Equal(Bytes(old));
                 AssertIndexes(fast);
                 fast.GetCollection("docs").Insert(Document(1001 + i, kind));
@@ -46,24 +46,27 @@ namespace LiteDB.Tests.Engine
         }
 
         [Theory]
-        [InlineData("en-US/IgnoreCase", "b")]
-        [InlineData("en-US/None", "B")]
-        public void String_bounds_use_execution_collation(string culture, string bound)
+        [InlineData("en-US/IgnoreCase", "b", true)]
+        [InlineData("en-US/IgnoreCase", "b", false)]
+        [InlineData("en-US/None", "B", true)]
+        [InlineData("en-US/None", "B", false)]
+        public void String_bounds_use_execution_collation(string culture, string bound, bool durable)
         {
             var collation = new Collation(culture);
-            using var fast = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = new MemoryStream(), Collation = collation }));
-            using var old = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = new MemoryStream(), Collation = collation }));
+            using var fast = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = new MemoryStream(), Collation = collation, DurableCommits = durable }));
+            using var old = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = new MemoryStream(), Collation = collation, DurableCommits = durable }));
             foreach (var db in new[] { fast, old })
                 db.GetCollection("docs").Insert(new[] { "a", "B", "c", "D" }.Select((id, i) =>
                     new BsonDocument { ["_id"] = id, ["n"] = i, ["keep"] = true }));
             DeleteAndCompare(fast, old, BsonExpression.Create("_id <= @0", bound));
         }
 
-        [Fact]
-        public void Live_readers_keep_their_snapshot_during_delete_and_page_reuse()
+        [Theory]
+        [InlineData(true)] [InlineData(false)]
+        public void Live_readers_keep_their_snapshot_during_delete_and_page_reuse(bool durable)
         {
             using var file = new TempFile();
-            using var db = Open(file.Filename, Collation.Default);
+            using var db = Open(file.Filename, Collation.Default, durable);
             Seed(db, 0);
             using var ready = new System.Threading.ManualResetEventSlim();
             using var done = new System.Threading.ManualResetEventSlim();
@@ -116,11 +119,12 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("docs").Count().Should().Be(5);
         }
 
-        [Fact]
-        public void Same_thread_reader_retains_pre_write_snapshot()
+        [Theory]
+        [InlineData(true)] [InlineData(false)]
+        public void Same_thread_reader_retains_pre_write_snapshot(bool durable)
         {
             using var file = new TempFile();
-            using var db = Open(file.Filename, Collation.Default);
+            using var db = Open(file.Filename, Collation.Default, durable);
             Seed(db, 0);
             using var cursor = db.GetCollection("docs").FindAll().GetEnumerator();
             cursor.MoveNext().Should().BeTrue();
@@ -130,8 +134,8 @@ namespace LiteDB.Tests.Engine
             ids.Should().BeEquivalentTo(Enumerable.Range(1, 900));
         }
 
-        internal static LiteDatabase Open(string filename, Collation collation) => new LiteDatabase(new LiteEngine(
-            new EngineSettings { Filename = filename, Collation = collation, TransactionPageLimit = 4 }));
+        internal static LiteDatabase Open(string filename, Collation collation, bool durable = true) => new LiteDatabase(new LiteEngine(
+            new EngineSettings { Filename = filename, Collation = collation, DurableCommits = durable, TransactionPageLimit = 4 }));
 
         internal static BsonValue Id(int n, int kind) => kind == 0 ? new BsonValue(n) : kind == 1 ?
             new BsonValue("K" + n.ToString("D5")) : new BsonDocument { ["part"] = "K", ["n"] = n };

@@ -11,19 +11,21 @@ namespace LiteDB.Tests.Engine
     public class PrimaryKeyDeleteFault_Tests
     {
         [Theory]
-        [InlineData(null)]
-        [InlineData("secret")]
-        public void Every_delete_wal_write_failure_recovers_atomic_rows_and_indexes(string password)
+        [InlineData(null, true)]
+        [InlineData(null, false)]
+        [InlineData("secret", true)]
+        [InlineData("secret", false)]
+        public void Every_delete_wal_write_failure_recovers_atomic_rows_and_indexes(string password, bool durable)
         {
-            var writes = Exercise(password, 0);
+            var writes = Exercise(password, 0, durable);
             writes.Should().BeGreaterThan(4, "the delete must cross safepoints and index/data pages");
-            for (var fault = 1; fault <= writes; fault++) Exercise(password, fault);
+            for (var fault = 1; fault <= writes; fault++) Exercise(password, fault, durable);
         }
 
-        private static int Exercise(string password, int failAt)
+        private static int Exercise(string password, int failAt, bool durable)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, Password = password, TransactionPageLimit = 4 };
+            var settings = new EngineSettings { Filename = file.Filename, Password = password, DurableCommits = durable, TransactionPageLimit = 4 };
             byte[] data = null, wal = null;
             var writes = 0;
             using (var engine = new LiteEngine(settings))
@@ -63,13 +65,15 @@ namespace LiteDB.Tests.Engine
         }
 
         [Theory]
-        [InlineData("wal-confirmation-before-write")]
-        [InlineData("wal-confirmation-after-write")]
-        public void Interrupted_confirmation_recovers_whole_delete_on_repeated_reopen(string phase)
+        [InlineData("wal-confirmation-before-write", true)]
+        [InlineData("wal-confirmation-before-write", false)]
+        [InlineData("wal-confirmation-after-write", true)]
+        [InlineData("wal-confirmation-after-write", false)]
+        public void Interrupted_confirmation_recovers_whole_delete_on_repeated_reopen(string phase, bool durable)
         {
             using var file = new TempFile();
             byte[] data = null, wal = null;
-            using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, TransactionPageLimit = 4 }))
+            using (var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, DurableCommits = durable, TransactionPageLimit = 4 }))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.CheckpointSize = 0;

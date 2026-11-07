@@ -70,7 +70,7 @@ namespace LiteDB.Engine
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
 
-            if (_header.Pragmas.IndexesOrdered && _settings.ReadTransform == null && !collection.StartsWith("$") &&
+            if (!_settings.DurableCommits && _header.Pragmas.IndexesOrdered && _settings.ReadTransform == null && !collection.StartsWith("$") &&
                 PrimaryKeyDeleteRange.HasShape(predicate))
             {
                 return this.DeleteRange(collection, predicate);
