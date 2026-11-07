@@ -60,8 +60,29 @@ foreach (var call in flush.Body.Instructions.Where(i => i.Operand is MethodRefer
     Before(flush, call, Instruction.Create(OpCodes.Ldloc, file), Instruction.Create(OpCodes.Callvirt, getter), Instruction.Create(OpCodes.Call, Hook("NativeSync")));
     flush.Body.MaxStackSize += 2;
 }
+// Insertions can grow a short branch beyond its signed-byte displacement.
+var opcodes = typeof(OpCodes).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+    .Where(f => f.FieldType == typeof(OpCode)).Select(f => (OpCode)f.GetValue(null)!).ToDictionary(o => o.Name);
+foreach (var type in module.Types)
+    foreach (var method in type.Methods.Where(m => m.HasBody))
+        foreach (var instruction in method.Body.Instructions)
+            if (instruction.OpCode.OperandType == OperandType.ShortInlineBrTarget)
+                instruction.OpCode = opcodes[instruction.OpCode.Name[..^2]];
 var temporary = path + ".probe";
 assembly.Write(temporary);
 File.Move(temporary, path, true);
-File.WriteAllText(args[2], JsonSerializer.Serialize(new { originalHash, instrumentedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))),
+File.WriteAllText(args[2], JsonSerializer.Serialize(new { originalHash, instrumentedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
     package = "LiteDB [5.0.21]", note = "Observation-only IL insertions; timings include instrumentation overhead" }, new JsonSerializerOptions { WriteIndented = true }));
+// Compile the observed methods without executing a workload; reject invalid probe IL.
+System.Reflection.Assembly.LoadFrom(Path.GetFullPath(args[1]));
+var observed = System.Reflection.Assembly.LoadFrom(path);
+foreach (var pair in new[] { ("LiteDB.Engine.WalIndexService", "TryCheckpoint"),
+    ("LiteDB.Engine.WalIndexService", "Checkpoint"), ("LiteDB.Engine.WalIndexService", "CheckpointInternal"),
+    ("LiteDB.Engine.DiskService", "WriteDataDisk"), ("LiteDB.StreamExtensions", "FlushToDisk") })
+{
+    var method = observed.GetType(pair.Item1)!.GetMethod(pair.Item2,
+        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)!;
+    System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(method.MethodHandle);
+}
+Console.WriteLine("Probe IL passed JIT validation; no workload executed.");

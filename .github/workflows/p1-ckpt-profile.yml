@@ -41,9 +41,9 @@ jobs:
           }
           dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false --nologo
           if ($LASTEXITCODE) { throw 'decoder build failed' }
-          dotnet build tools/Ab5021Benchmarks/V5Probe/V5Probe.csproj -c Release -p:GitVersionEnabled=false --nologo
+          dotnet build tools/Ab5021Benchmarks/V5Probe/V5Probe.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:GitVersionEnabled=false --nologo
           if ($LASTEXITCODE) { throw 'v5 probe build failed' }
-          dotnet tools/Ab5021Benchmarks/V5Probe/bin/Release/net8.0/V5Probe.dll 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/LiteDB.dll' 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/CheckpointProbe.dll' artifacts_temp/p1-ckpt/v5-probe.json
+          dotnet 'tools/Ab5021Benchmarks/V5Probe/bin/Release/${{ matrix.framework }}/V5Probe.dll' 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/LiteDB.dll' 'tools/Ab5021Benchmarks/V5/bin/Release/${{ matrix.framework }}/CheckpointProbe.dll' artifacts_temp/p1-ckpt/v5-probe.json
           if ($LASTEXITCODE) { throw 'v5 probe insertion failed' }
       - name: Measure checkpoints and sampled stacks
         run: python tools/Ab5021Benchmarks/checkpoint-profile.py '${{ matrix.framework }}' artifacts_temp/p1-ckpt
