@@ -7,6 +7,10 @@ namespace LiteDB
     {
         private readonly TransactionHandles _transactionHandles = new TransactionHandles();
 
+#if DEBUG || TESTING
+        internal TransactionHandles TransactionHandles => _transactionHandles;
+#endif
+
         /// <summary>
         /// Start an independent synchronous transaction. Use its bound collections; sequential
         /// thread handoff is supported. Disposing an active handle rolls back its changes.

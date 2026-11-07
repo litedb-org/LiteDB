@@ -127,6 +127,7 @@ namespace LiteDB
                 try
                 {
                     _transaction.Engine.ThrowIfHandleUnavailable();
+                    if (!TransactionIntact) throw new InvalidOperationException("The handle transaction has been lost.");
                     var result = action();
                     DisposeDeferred();
                     return result;
@@ -160,13 +161,22 @@ namespace LiteDB
 
         private void ReleaseResources(Exception cause = null)
         {
-            var handles = _handles;
-            _outcome = _transaction.Outcome;
-            _transaction = null;
-            _handles = null;
-            _client = null;
-            lock (_gate) _deferred = null;
-            handles.Completed(this);
+            try { _transaction.Engine.ReleaseDetachedHandleTransaction(_transaction); }
+            catch (Exception cleanup)
+            {
+                if (cause == null) throw;
+                cause.Data["LiteDB.TransactionReleaseError"] = cleanup;
+            }
+            finally
+            {
+                var handles = _handles;
+                _outcome = _transaction.Outcome;
+                _transaction = null;
+                _handles = null;
+                _client = null;
+                lock (_gate) _deferred = null;
+                handles.Completed(this);
+            }
         }
 
         private void Abort(Exception cause)
@@ -244,6 +254,11 @@ namespace LiteDB
                         _transaction.Outcome = LiteTransactionState.Failed;
                         _transaction.Engine.ThrowIfHandleUnavailable();
                     }
+                    if (!TransactionIntact)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        throw new InvalidOperationException("The handle transaction ended before commit; nothing was committed.");
+                    }
                     if (!Dispatch(() => _transaction.Engine.Commit()))
                     {
                         // The engine no longer holds this transaction (a peer stopped or closed the
@@ -270,6 +285,7 @@ namespace LiteDB
                         _transaction.Outcome = LiteTransactionState.Failed;
                         try { CloseReadersAndRollback(onlyIfActive: true); }
                         catch (Exception cleanup) { error.Data["LiteDB.TransactionCleanupError"] = cleanup; }
+                        finally { _transaction.Outcome = LiteTransactionState.Failed; }
                     }
                     else if (_transaction.Outcome == LiteTransactionState.Active)
                         _transaction.Outcome = LiteTransactionState.Indeterminate;

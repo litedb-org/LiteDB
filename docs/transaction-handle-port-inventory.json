@@ -170,6 +170,78 @@
       "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
       "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_stopped_reports_failed",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_stopped_reports_failed",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_refused_by_the_engine_without_a_stop_rolls_back_and_releases",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_refused_by_the_engine_without_a_stop_rolls_back_and_releases",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Bound_write_after_the_engine_lost_the_transaction_never_runs_automatically",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Bound_write_after_the_engine_lost_the_transaction_never_runs_automatically",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_racing_a_raw_engine_close_never_returns_while_active",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_racing_a_raw_engine_close_never_returns_while_active",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Begin_after_engine_dispose_reports_the_engine_disposal",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Begin_after_engine_dispose_reports_the_engine_disposal",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Begin_after_a_fatal_stop_reports_the_published_failure",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Begin_after_a_fatal_stop_reports_the_published_failure",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleRawEngine_Tests.cs#Uncaught_raw_reentry_aborts_statement_and_cannot_escape_to_autocommit",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleRawEngine_Tests.cs#Uncaught_raw_reentry_aborts_statement_and_cannot_escape_to_autocommit",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleRawEngine_Tests.cs#Raw_engine_reentry_from_mapping_or_bulk_input_cannot_complete_the_handle",
+      "sourceHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleRawEngine_Tests.cs#Raw_engine_reentry_from_mapping_or_bulk_input_cannot_complete_the_handle",
+      "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
+      "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
+      "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
     }
   ]
 }

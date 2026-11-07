@@ -29,6 +29,13 @@ namespace LiteDB.Engine
             return context;
         }
 
+        internal void ReleaseDetachedHandleTransaction(TransactionContext context)
+        {
+            if (context.Transaction?.State != TransactionState.Active &&
+                _monitor.GetTransactionsSnapshot().Contains(context.Transaction))
+                _monitor.ReleaseTransaction(context.Transaction);
+        }
+
         internal bool IsHandleReadOnly => _settings.ReadOnly || _settings.ReadOnlyStorage;
         internal Exception HandleUnavailableFailure()
         {

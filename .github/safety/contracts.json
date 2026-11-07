@@ -295,6 +295,11 @@
           "test": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Actual_reader_operation_and_disposal_failures_still_abort",
           "model": "exception",
           "proves": "Public bound reader failures abort the handle without automatic fallback; exact prior committed rows survive reopen."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
+          "model": "exception",
+          "proves": "Prepublication engine transaction loss reports Failed and releases public registration/admission without accepting later automatic writes; committed sentinel survives reopen."
         }
       ],
       "gaps": [
@@ -681,6 +686,11 @@
           "test": "LiteDB.Tests/Engine/TransactionHandleBoundDisposeRace_Tests.cs#Actual_reader_operation_and_disposal_failures_still_abort",
           "model": "exception",
           "proves": "Public bound reader failures abort the handle without automatic fallback; exact prior committed rows survive reopen."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
+          "model": "exception",
+          "proves": "Prepublication engine transaction loss reports Failed and releases public registration/admission without accepting later automatic writes; committed sentinel survives reopen."
         }
       ],
       "gaps": [
