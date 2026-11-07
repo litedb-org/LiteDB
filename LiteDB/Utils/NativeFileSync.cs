@@ -41,6 +41,9 @@ namespace LiteDB
 
         internal static void FlushToDisk(FileStream stream)
         {
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync(stream.Name);
+#endif
 #if DEBUG || TESTING
             Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
@@ -79,6 +82,9 @@ namespace LiteDB
         // only, allowing another writer to append while the device sync runs.
         internal static void FlushDevice(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string path)
         {
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync(path);
+#endif
 #if NET8_0_OR_GREATER
             if (_windows) RandomAccess.FlushToDisk(handle);
             else if (NativeLibc.TryGet(out var fsync, out var fcntl))
@@ -140,6 +146,9 @@ namespace LiteDB
             }
 #endif
             if (_windows) return;
+#if PROFILE
+            Engine.CheckpointProfile.NativeSync("directory:" + directory);
+#endif
             if (RuntimeSyncSimulated || !NativeLibc.TryGetDirectorySync(out var open, out var fsync, out var close))
                 throw FileSyncException.Unavailable(directory);
 

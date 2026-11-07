@@ -9,4 +9,7 @@
     <Compile Include="../*.cs" />
     <PackageReference Include="LiteDB" Version="[5.0.21]" />
   </ItemGroup>
+  <ItemGroup Condition="'$(ProfilingEnabled)' == 'true'">
+    <ProjectReference Include="../CheckpointProbe/CheckpointProbe.csproj" />
+  </ItemGroup>
 </Project>

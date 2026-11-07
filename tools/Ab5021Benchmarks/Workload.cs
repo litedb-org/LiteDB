@@ -207,9 +207,11 @@ internal sealed class Workload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         if (!_record) Console.WriteLine($"{_config} warmup starting {scenario}");
+        if (_record && ProfileMarkers.Enabled && (Selected == null || Selected.Contains(scenario))) ProfileMarkers.Log.Begin(scenario);
         var watch = Stopwatch.StartNew();
         action();
         watch.Stop();
+        if (_record && ProfileMarkers.Enabled && (Selected == null || Selected.Contains(scenario))) ProfileMarkers.Log.End(scenario);
         if (!_record)
         {
             Console.WriteLine($"{_config} warmup finished {scenario}");

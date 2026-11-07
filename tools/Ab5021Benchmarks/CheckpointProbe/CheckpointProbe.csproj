@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <DefineConstants>PROFILE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../LiteDB/Engine/Services/CheckpointProfile.cs" Link="CheckpointProfile.cs" />
+  </ItemGroup>
+</Project>
