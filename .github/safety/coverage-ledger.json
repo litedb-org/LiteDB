@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p1-update-safety-isolated-baseline-harness",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-update-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Candidate update/index/vector/rollback/WAL guards and independent-model fuzz run unchanged on all four OS/framework legs; historical UpdateIndexDiff guards run against the same pinned production source and guard revision.",
+      "reason": "Build the historical comparison in a separate worktree at the accepted guard revision, restoring the original baseline product there. All referenced test harness projects and build configuration now match that guard revision instead of compiling newer SharedOneFile harness code against an older library. Filters, assertions, failure checks, timeouts and matrix are unchanged; absolute results path retains baseline TRX alongside candidate artifacts."
+    },
+    {
       "id": "p2-rekey-hang-blame-capture",
       "kind": "ci-test-config-changed",
       "subjects": [
