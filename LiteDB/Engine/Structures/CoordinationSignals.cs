@@ -1,5 +1,14 @@
 namespace LiteDB.Engine
 {
+    /// <summary>Writable admission and terminal fencing for an owned mapped tenure.</summary>
+    internal interface IWriteAdmissionSignals : IBatchedCoordinationSignals
+    {
+        void ValidateWrite();
+        void FenceUncertain();
+        void Stopped(long tenure);
+        void BindState(EngineState state, long tenure);
+    }
+
     /// <summary>
     /// Cold snapshot installation is excluded for the entire WAL write batch.
     /// A single invalidation before its first overwrite therefore covers that batch.

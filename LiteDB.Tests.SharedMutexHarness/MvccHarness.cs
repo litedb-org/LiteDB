@@ -17,6 +17,7 @@ internal static class MvccHarness
         var filename = args[2];
         var password = args[3] == "-" ? null : args[3];
         if (AllocationHarness.TryRun(mode, filename, password, args)) return true;
+        if (SharedOneFileHarness.TryRun(mode, filename, args)) return true;
         if (DirectHostHarness.TryRun(mode, filename, password)) return true;
         if (mode == "group-review-kill") return GroupCommitReviewHarness.Run(filename, args[4]);
         if (SharedPolicyHarness.TryRun(mode, filename, password)) return true;
@@ -75,16 +76,24 @@ internal static class MvccHarness
                 collection.Update(Documents(int.Parse(args[4])));
                 Console.WriteLine("done");
                 break;
+            case "insert-ready":
+                Console.WriteLine("ready");
+                Console.ReadLine();
+                goto case "insert";
+            case "insert-progress-ready":
+                Console.WriteLine("ready");
+                Console.ReadLine();
+                goto case "insert-progress";
             case "insert-progress":
             case "insert":
                 var start = int.Parse(args[4]);
                 for (var i = start; i < start + 20; i++)
                 {
                     collection.Insert(new BsonDocument { ["_id"] = i });
-                    if (mode == "insert-progress") Console.WriteLine("write:" + i);
+                    if ((mode == "insert-progress" || mode == "insert-progress-ready")) Console.WriteLine("write:" + i);
 #if TESTING
                     // Per-child hook, after an acknowledged write; never affects another process.
-                    if (mode == "insert-progress" && args.Length > 5 && args[5] == "stall:" + i)
+                    if ((mode == "insert-progress" || mode == "insert-progress-ready") && args.Length > 5 && args[5] == "stall:" + i)
                         Thread.Sleep(Timeout.Infinite);
 #endif
                 }

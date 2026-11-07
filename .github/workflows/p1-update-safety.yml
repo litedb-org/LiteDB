@@ -37,14 +37,22 @@ jobs:
       - name: Same new guards against unchanged Phase 1 production source
         shell: pwsh
         run: |
-          git restore --source dac4520a6c0d811b80919a117ba8b88676f5a3ac --worktree -- LiteDB
-          if ($LASTEXITCODE) { throw 'Baseline source restore failed' }
-          # Use the original accepted update guard tree for the historical library;
-          # merged delete guards reference helpers that Phase 1 does not contain.
-          git restore --source 3a2131866b77cc4b96a0611083d2742770922c3b --worktree -- LiteDB.Tests
-          if ($LASTEXITCODE) { throw 'Baseline guard tree restore failed' }
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~UpdateIndexDiff_Tests' --logger 'trx;LogFileName=phase1.trx' --results-directory artifacts_temp/update-safety
-          if ($LASTEXITCODE) { throw 'Phase 1 differential guards failed' }
+          # Isolate the complete accepted guard tree, including referenced harness
+          # projects and build configuration, from the newer candidate tree.
+          $results = Join-Path $PWD 'artifacts_temp/update-safety'
+          $baseline = Join-Path $PWD 'artifacts_temp/update-baseline'
+          git worktree add --detach "$baseline" 3a2131866b77cc4b96a0611083d2742770922c3b
+          if ($LASTEXITCODE) { throw 'Baseline guard worktree creation failed' }
+          Push-Location $baseline
+          try {
+            git restore --source dac4520a6c0d811b80919a117ba8b88676f5a3ac --worktree -- LiteDB
+            if ($LASTEXITCODE) { throw 'Baseline source restore failed' }
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~UpdateIndexDiff_Tests' --logger 'trx;LogFileName=phase1.trx' --results-directory "$results"
+            if ($LASTEXITCODE) { throw 'Phase 1 differential guards failed' }
+          }
+          finally {
+            Pop-Location
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

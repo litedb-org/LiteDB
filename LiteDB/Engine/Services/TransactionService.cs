@@ -327,7 +327,11 @@ namespace LiteDB.Engine
             }
 
             this.ReleaseCommitSnapshots();
-            _disk.CompleteCommitTicket(_transPages.CommitTicket);
+            if (_transPages.CommitTicket != 0)
+            {
+                _disk.CompleteCommitTicket(_transPages.CommitTicket);
+                _disk.PublishDurableCommit(_walIndex.CurrentReadVersion);
+            }
             _state = TransactionState.Committed;
         }
 

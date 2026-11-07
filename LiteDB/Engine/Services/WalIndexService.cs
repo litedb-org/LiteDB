@@ -213,7 +213,15 @@ namespace LiteDB.Engine
             {
                 _indexLock.ExitWriteLock();
             }
-            _signals?.Committed(visible);
+            // A grouped writer has only appended the confirmation here. Its
+            // publication is deferred until TransactionService has waited for the
+            // covering durable ticket.  Non-grouped writes have already crossed
+            // their synchronous flush in WriteLogDisk.
+            if (_disk.CommitGroup == null)
+            {
+                if (_signals is IWriteAdmissionSignals) _disk.PublishDurableCommit(visible);
+                else _signals?.Committed(visible);
+            }
         }
 
         /// <summary>

@@ -333,8 +333,9 @@ namespace LiteDB.Client.Shared
 
     internal readonly struct SharedCoordinationStatus
     {
-        internal SharedCoordinationStatus(long version, long structural, long reuse, long resets, long identity)
-        { Version = version; Structural = structural; Reuse = reuse; Resets = resets; Identity = identity; }
+        internal SharedCoordinationStatus(long version, long structural, long reuse, long resets, long identity, long sequence = 0)
+        { Version = version; Structural = structural; Reuse = reuse; Resets = resets; Identity = identity; Sequence = sequence; }
+        internal long Sequence { get; }
         internal long Version { get; }
         internal long Structural { get; }
         internal long Reuse { get; }

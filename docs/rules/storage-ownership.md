@@ -19,6 +19,8 @@ stop unsafe continuation, and make detected corruption visible.
   ownership of their call or streamed result. A new blocking Shared acquisition
   path must check the thread's executing frames (`SharedCallFrames`) before it
   waits, so a callback cannot wait on ownership only its own return releases.
+  Check before taking snapshot-cache lifetime locks too: expiry can hold that
+  lock while closing native admission retained by the callback.
   Work outside a public call that can reach user code under the mutex (result
   disposal, pin and owner-exit cleanup, dispose checkpoints) needs a frame too.
   Refuse only for frames that execute; idle owners stay waitable (#3073).
@@ -82,3 +84,17 @@ Borrowed views cannot outlive the page/buffer that backs them. `byte[]` storage
 marshalled into structs may contain only unmanaged data; keep managed references
 in GC-visible storage. Do not remove cache lifetime synchronization as a mechanical
 performance tweak. See [memory lifecycle audit](../memory-lifecycle-audit.md).
+
+Abandonment cleanup roots must contain only callback-free resource state. A cursor,
+engine, settings object, caller stream or release delegate can indirectly refer to
+its escaping wrapper through request state; rooting that graph defeats the wrapper's
+finalizer. Root page storage and native lease files separately, and transfer built-in
+reader finalization to the cleanup owner before publishing the result. Keep cursor
+disposal before lease release, with a non-blocking publication-only finalizer and
+retryable normal-thread dispatch. See `SharedReaderCleanupCycles_Tests` alongside
+the existing abandoned-reader, blocked-release and dispatch-failure guards.
+
+Process-wide participants must not publish user callback targets through retained
+settings or cached cores. Preserve opening compatibility without strongly retaining
+those targets. Suppress ExecutionContext flow when starting Shared infrastructure
+timers or threads; their lifetime must not capture a caller's AsyncLocal state.

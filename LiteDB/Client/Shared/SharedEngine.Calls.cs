@@ -58,7 +58,8 @@ namespace LiteDB
             }
             finally
             {
-                CloseDatabase(use);
+                try { this.ReconcileMappedTransaction(); }
+                finally { CloseDatabase(use); }
             }
         });
 
@@ -77,6 +78,12 @@ namespace LiteDB
             {
                 frame.Dispose();
                 this.EndAdmissions(depth);
+                if (depth == 0 && ReferenceEquals(Volatile.Read(ref _disposeAfterCall), Thread.CurrentThread))
+                {
+                    Volatile.Write(ref _disposeAfterCall, null);
+                    this.WaitForAdmittedCalls();
+                    this.DisposeOwnedResources();
+                }
             }
         }
 
@@ -113,7 +120,8 @@ namespace LiteDB
             Func<bool> retains = use != null
                 ? () => ReferenceEquals(_pin, use)
                 : (Func<bool>)(() => _owner.Generation == generation);
-            return new SharedDataReader(reader, dispose, _mutexName, this, retains);
+            return new SharedDataReader(reader, dispose, _mutexName, this, retains,
+                () => this.ReadRetained(reader, use, generation));
         }
 
         /// <summary>
@@ -153,10 +161,50 @@ namespace LiteDB
             using (SharedCallFrames.Enter(_mutexName, this, HolderRetains, teardown: true))
             {
                 SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closing);
-                var errors = core.Close(checkpoint: checkpoint, final: final);
-                SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
-                return errors;
+                try
+                {
+                    var errors = core.Close(checkpoint: checkpoint, final: final);
+                    this.AtOwnershipStage("core-closed");
+                    SharedOwnershipEvents.Core(this, core, SharedOwnershipEvents.Closed);
+                    this.ExitMappedWriter(!core.StorageUncertain && (errors == null || errors.Count == 0));
+                    return errors;
+                }
+                catch
+                {
+                    // Leave an odd mapped fence for the next protected opener. A
+                    // partial close must never make its state look committed.
+                    this.ExitMappedWriter(false);
+                    throw;
+                }
             }
+        }
+
+        private void EnterMappedWriter(bool abandonedOwner = false)
+        {
+#if NET8_0_OR_GREATER
+            if (!_settings.SharedOneFile) return;
+            if (_mappedWriterHeld)
+            {
+                (_readers as SharedMemoryReaders)?.Table.ValidateWriter();
+                return;
+            }
+            if (!(_readers is SharedMemoryReaders mapped))
+                throw new InvalidOperationException("SharedOneFile has no mapped participant.");
+            mapped.Table.EnterWriter(abandonedOwner);
+            _mappedWriterHeld = true;
+#endif
+        }
+
+        private void ExitMappedWriter(bool publish)
+        {
+#if NET8_0_OR_GREATER
+            if (!_mappedWriterHeld) return;
+            try
+            {
+                if (_readers is SharedMemoryReaders mapped) mapped.Table.ExitWriter(publish);
+            }
+            finally { _mappedWriterHeld = false; }
+#endif
         }
 
         private void EndAdmissions(int depth)

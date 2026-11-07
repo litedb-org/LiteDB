@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -70,7 +70,8 @@ namespace LiteDB.Engine
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
 
-            if (!_settings.DurableCommits && _header.Pragmas.IndexesOrdered && _settings.ReadTransform == null && !collection.StartsWith("$") &&
+            // Shared coordinated reads keep the established query/snapshot ownership path.
+            if (!_settings.SharedMode && !_settings.DurableCommits && _header.Pragmas.IndexesOrdered && _settings.ReadTransform == null && !collection.StartsWith("$") &&
                 PrimaryKeyDeleteRange.HasShape(predicate))
             {
                 return this.DeleteRange(collection, predicate);

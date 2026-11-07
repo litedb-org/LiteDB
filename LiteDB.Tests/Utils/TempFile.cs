@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Tests
 {
@@ -9,7 +10,7 @@ namespace LiteDB.Tests
 
         public TempFile()
         {
-            var path = Path.GetTempPath();
+            var path = DatabaseFileIdentity.CanonicalPath(Path.GetTempPath());
             var name = "litedb-" + Guid.NewGuid().ToString("n") + ".db";
 
             this.Filename = Path.Combine(path, name);
@@ -18,7 +19,7 @@ namespace LiteDB.Tests
         public TempFile(string original)
         {
             var rnd = Guid.NewGuid().ToString("n");
-            var path = Path.GetTempPath();
+            var path = DatabaseFileIdentity.CanonicalPath(Path.GetTempPath());
             var name = $"litedb-{rnd}.db";
             var filename = Path.Combine(path, name);
 

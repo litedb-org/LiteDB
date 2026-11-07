@@ -18,7 +18,7 @@ namespace LiteDB
         }
 
         // Leased streaming readers of this instance, per creating thread.
-        private readonly Dictionary<int, int> _localReaders = new Dictionary<int, int>();
+        private readonly Dictionary<Thread, int> _localReaders = new Dictionary<Thread, int>();
         // Holder of the mutex for the thread iterating a leased reader; null when none.
         private volatile SharedMutexPin _pin;
         // Time the last pin took to close its engine; ending the next pin costs as much.
@@ -36,9 +36,9 @@ namespace LiteDB
         private TimeSpan PinHoldLimit => SharedMutexPin.HoldLimit;
 #endif
 
-        private int AddLocalReader()
+        private Thread AddLocalReader()
         {
-            var thread = Environment.CurrentManagedThreadId;
+            var thread = Thread.CurrentThread;
             lock (_localReaders)
             {
                 _localReaders.TryGetValue(thread, out var count);
@@ -47,7 +47,7 @@ namespace LiteDB
             return thread;
         }
 
-        private void RemoveLocalReader(int owner)
+        private void RemoveLocalReader(Thread owner)
         {
             lock (_localReaders)
             {
@@ -57,7 +57,7 @@ namespace LiteDB
 
             // Any thread may dispose the owner's last reader and so end its pin.
             var pin = _pin;
-            if (pin != null && pin.Owner.ManagedThreadId == owner)
+            if (pin != null && ReferenceEquals(pin.Owner, owner))
             {
                 pin.RequestRelease(force: false);
                 if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
@@ -66,7 +66,7 @@ namespace LiteDB
             this.CheckpointAfterLastReader();
         }
 
-        private bool HasLocalReaders(int thread)
+        private bool HasLocalReaders(Thread thread)
         {
             lock (_localReaders) return _localReaders.ContainsKey(thread);
         }
@@ -91,7 +91,8 @@ namespace LiteDB
             }
             finally
             {
-                this.CloseDatabase(use);
+                try { this.ReconcileMappedTransaction(); }
+                finally { this.CloseDatabase(use); }
             }
         });
 
@@ -100,7 +101,7 @@ namespace LiteDB
         /// replaced directly. A holder cannot acquire a mutex this thread owns.
         /// </summary>
         private bool CanPin() =>
-            !_transactionRunning && this.HasLocalReaders(Environment.CurrentManagedThreadId) && !_owner.IsOwnedByCurrentThread;
+            !_transactionRunning && this.HasLocalReaders(Thread.CurrentThread) && !_owner.IsOwnedByCurrentThread;
 
         /// <summary>
         /// Acquire the mutex on a holder thread and open the engine for this thread.
@@ -108,6 +109,7 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin StartPin()
         {
+            this.ThrowIfForeignLocalTransaction();
             this.ThrowIfCallerRetainsOwnership();
             this.RetireCoordinatedReads();
             var other = _pin;
@@ -165,7 +167,30 @@ namespace LiteDB
         /// </summary>
         private void ClosePin(SharedMutexPin pin, bool abandoned)
         {
-            using (this.OwnershipFrame(HolderRetains)) this.ClosePinEngine(pin, abandoned);
+            using (this.OwnershipFrame(HolderRetains))
+            try
+            {
+                lock (_useLock)
+                {
+                    // ReadTransform may run in a retained result after Query has
+                    // returned. Its admission must drain before forced/owner-exit
+                    // close, just like operations counted inside the pin itself.
+                    while (_retainedReads != 0) Monitor.Wait(_useLock);
+                    this.ClosePinEngine(pin, abandoned);
+                }
+            }
+            finally
+            {
+                if (Volatile.Read(ref _disposed) != 0 && _releaseNativeAfterPin)
+                {
+                    try { _readers.Dispose(); }
+                    finally
+                    {
+                        try { this.DisposeCoordination(); }
+                        finally { _admission?.Dispose(); }
+                    }
+                }
+            }
         }
 
         private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
@@ -173,32 +198,23 @@ namespace LiteDB
             if (ReferenceEquals(_pin, pin)) _pin = null;
             if (!pin.Counted) return;
 
-            if (abandoned)
+            try
             {
-                _databaseUsers = 0;
-                // An exited owner's transaction is reported to the next caller;
-                // a forced end (Dispose) discards a live one.
-                if (pin.Owner.IsAlive && ReferenceEquals(_transactionUse, pin))
+                if (abandoned) _databaseUsers = 0;
+                else _databaseUsers--;
+
+                if (_databaseUsers == 0 && (abandoned || !_transactionRunning) && _engine != null)
                 {
-                    _transactionUse = null;
-                    _transactionRunning = false;
-                    _transactionThreadId = 0;
+                    var engine = _engine;
+                    _engine = null;
+                    var close = Stopwatch.StartNew();
+                    this.CloseRetainedCore(engine, checkpoint: !abandoned);
+                    _lastPinClose = close.Elapsed;
                 }
             }
-            else _databaseUsers--;
-
-            if (_databaseUsers == 0 && (abandoned || !_transactionRunning) && _engine != null)
+            finally
             {
-                var engine = _engine;
-                _engine = null;
-                var close = Stopwatch.StartNew();
-                this.CloseRetainedCore(engine);
-                _lastPinClose = close.Elapsed;
-            }
-            if (Volatile.Read(ref _disposed) != 0)
-            {
-                try { this.DisposeCoordination(); }
-                finally { if (_releaseNativeAfterPin) _admission?.Dispose(); }
+                if (abandoned && _localTransactions != null) this.EndTransaction(releaseHold: false);
             }
         }
 
@@ -299,6 +315,7 @@ namespace LiteDB
 
         private static bool LogHasContent(string filename)
         {
+            SharedCoordinationDiagnostics.Operation();
             var log = new FileInfo(FileHelper.GetLogFile(filename));
             return log.Exists && log.Length > 0;
         }

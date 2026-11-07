@@ -86,4 +86,96 @@ for ignore in [False, True]:
     assert bool(failures) == ignore
     results['ignore-reuse' if ignore else 'refresh-correct'] = dict(
         schedules=len(orders), counterexamples=len(failures), example=failures[:1])
+# Bootstrap interleavings: DMS release on death does not make Ready durable.
+# Each surviving shared holder forbids resetting the authority generation.
+orders = []
+for cut in range(1, 4):
+    initializer = ['exclusive', 'ready', 'downgrade'][:cut] + ['death']
+    # A surviving peer is modeled separately below: once attached it holds DMS,
+    # so initializer death cannot remove that peer's shared lock.
+    for order in schedules(initializer, ['attach', 'reset', 'use']):
+        if order.index('exclusive') != 0:
+            continue
+        # Hold peer DMS until use: a reset after attach cannot be exclusive.
+        orders.append(order)
+# The death above must retain a live peer's shared ownership.
+def with_peer(order, mutant):
+    peer = False
+    generation = 0
+    ready = False
+    exclusive = False
+    holder = False
+    accepted = None
+    for event in order:
+        if event == 'exclusive':
+            exclusive, generation, ready = True, generation + 1, False
+        elif event == 'ready':
+            ready = True
+        elif event == 'downgrade':
+            exclusive, holder = False, True
+        elif event == 'attach' and not exclusive and holder and ready:
+            peer, accepted = True, generation
+        elif event == 'death':
+            exclusive, holder = False, False
+        elif event == 'reset' and (mutant or not (exclusive or holder or peer)):
+            generation, ready = generation + 1, False
+        elif event == 'use' and accepted is not None and (generation != accepted or not ready):
+            return False
+    return True
+for mutant in [False, True]:
+    failures = [order for order in orders if not with_peer(order, mutant)]
+    assert bool(failures) == mutant
+    results['bootstrap-reset-live' if mutant else 'bootstrap-correct'] = dict(
+        schedules=len(orders), counterexamples=len(failures), example=failures[:1])
+# Exact-version table versus an aggregate count/minimum. Duplicate releases and
+# irregular reuse must not erase a distinct surviving floor or a successor lease.
+exact_cases = 0
+aggregate_failures = 0
+stale_failures = 0
+for release_order in itertools.permutations(range(4)):
+    versions = [0, 4, 9, 4]
+    live = set(range(4))
+    for released in release_order:
+        live.remove(released)
+        expected = {versions[index] for index in live}
+        records = {version for version in versions if any(versions[index] == version for index in live)}
+        assert records == expected
+        if expected and {min(expected)} != expected:
+            aggregate_failures += 1
+        # Reusing a record with a new lease must survive double/stale completion.
+        successor = (released, 'next-incarnation')
+        completed = {(released, 'old-incarnation')}
+        assert successor not in completed
+        stale_failures += int(successor[0] == released)
+        exact_cases += 1
+assert aggregate_failures and stale_failures
+results['exact-version-release-reuse'] = dict(schedules=exact_cases, counterexamples=0,
+    aggregate_minimum_counterexamples=aggregate_failures, untagged_release_counterexamples=stale_failures)
+# ABI-2 status sampling: every field and the final sequence check can race a
+# publisher. A quiet status may advertise only a prefix whose sync completed.
+# Terminate the publisher at each store to model process death with live DMS.
+def mapped_status(order):
+    sequence, version, synced = 2, 0, 0
+    before, sampled = None, None
+    accepted = False
+    for event in order:
+        if event == 'begin': sequence += 1
+        elif event == 'sync': synced = 1
+        elif event == 'version': version = 1
+        elif event == 'end': sequence += 1
+        elif event == 'read-sequence': before = sequence
+        elif event == 'read-fields': sampled = version
+        elif event == 'recheck':
+            accepted = before == sequence and sequence % 2 == 0
+            if accepted and sampled > synced: return False
+    return True
+
+for mutant in [False, True]:
+    publisher = ['begin', 'version', 'end', 'sync'] if mutant else ['begin', 'sync', 'version', 'end']
+    orders = [order for cut in range(len(publisher) + 1)
+              for order in schedules(['read-sequence', 'read-fields', 'recheck'], publisher[:cut])]
+    failures = [order for order in orders if not mapped_status(order)]
+    assert bool(failures) == mutant
+    results['mapped-premature-version' if mutant else 'mapped-covered-prefix'] = dict(
+        schedules=len(orders), counterexamples=len(failures), example=failures[:1])
 print(json.dumps(results, indent=2))

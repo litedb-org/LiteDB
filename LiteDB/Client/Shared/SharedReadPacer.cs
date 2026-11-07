@@ -47,6 +47,8 @@ namespace LiteDB.Client.Shared
         { _reader = reader; _record = record; }
 
         public BsonValue this[string field] => _reader[field];
+        internal IBsonDataReader InnerReader => _reader;
+
         public string Collection => _reader.Collection;
         public BsonValue Current => _reader.Current;
         public bool HasValues => _reader.HasValues;
