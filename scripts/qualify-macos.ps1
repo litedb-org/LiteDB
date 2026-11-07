@@ -27,13 +27,13 @@ foreach ($file in $classes) {
         $name = "$class-$repeat.trx"
         & dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $Framework --no-build --no-restore `
             -p:TestingEnabled=true --settings tests.runsettings `
-            --filter "($filter)|FullyQualifiedName~TestHost_Tests" `
+            --filter "($filter)|FullyQualifiedName~TestHost_Tests" --blame `
             --logger "trx;LogFileName=$name" --results-directory $output
         if ($LASTEXITCODE -ne 0) { $failed = $true }
         $path = Join-Path $output $name
         if (!(Test-Path $path)) { $failed = $true; continue }
         [xml]$trx = Get-Content $path
-        $results = @($trx.TestRun.Results.UnitTestResult)
+        $results = @($trx.TestRun.Results.UnitTestResult | Where-Object { $_ -and $_.testName })
         $actual = @($results | Where-Object { $_.testName -like "*$class.*" })
         if (!$actual.Count -or @($results | Where-Object outcome -ne 'Passed').Count) { $failed = $true }
         foreach ($guard in @('RequestedRuntimeAndArchitecture_AreActuallyRunning', 'LoadedLibrary_ContainsTheRequiredEngineTestHooks')) {
