@@ -65,6 +65,33 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+        [Theory]
+        [InlineData("file")]
+        [InlineData("memory")]
+        [InlineData("stream")]
+        public void Bound_readers_and_deferred_enumerators_handoff_sequentially(string storage)
+        {
+            using var file = new TempFile();
+            using var data = new MemoryStream();
+            using var log = new MemoryStream();
+            using var db = storage == "stream" ? new LiteDatabase(data, logStream: log) : new LiteDatabase(storage == "memory" ? ":memory:" : file.Filename);
+            using var tx = db.BeginTransaction();
+            var rows = tx.GetCollection("rows");
+            rows.Insert(new[] { new BsonDocument { ["_id"] = 1 }, new BsonDocument { ["_id"] = 2 } });
+            using var reader = rows.Query().OrderBy("_id").ExecuteReader();
+            TransactionHandle_Tests.OnThread(() => { Assert.True(reader.Read()); Assert.Equal(1, reader.Current["_id"].AsInt32); });
+            TransactionHandle_Tests.OnThread(() => { Assert.True(reader.Read()); Assert.Equal(2, reader.Current["_id"].AsInt32); });
+            TransactionHandle_Tests.OnThread(reader.Dispose);
+            var deferred = rows.Query().OrderBy("_id").ToEnumerable();
+            using var iterator = deferred.GetEnumerator();
+            TransactionHandle_Tests.OnThread(() => { Assert.True(iterator.MoveNext()); Assert.Equal(1, iterator.Current["_id"].AsInt32); });
+            TransactionHandle_Tests.OnThread(() => { Assert.True(iterator.MoveNext()); Assert.Equal(2, iterator.Current["_id"].AsInt32); });
+            TransactionHandle_Tests.OnThread(iterator.Dispose);
+            TransactionHandle_Tests.OnThread(tx.Commit);
+            Assert.Equal(new[] { 1, 2 }, db.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x));
+            Assert.Throws<InvalidOperationException>(() => deferred.GetEnumerator());
+        }
+
         [Fact]
         public void Competing_handle_collection_write_obeys_timeout_and_preserves_holder()
         {
