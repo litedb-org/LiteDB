@@ -1,8 +1,13 @@
 name: P3 Linux ARM64 qualification
 on:
   workflow_dispatch:
+    inputs:
+      stress:
+        description: Also repeat the tenure matrix 50 times
+        type: boolean
+        default: false
   push:
-    branches: [v6/p3-qual-linuxarm, v6/wip-p3-qual-linuxarm]
+    branches: [v6/wip-p3-qual-linuxarm]
 permissions:
   contents: read
 jobs:
@@ -14,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         framework: [net8.0, net10.0]
-        mode: [full, stress]
+        mode: ${{ fromJSON((github.event_name == 'push' || inputs.stress) && '["full","stress"]' || '["full"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
