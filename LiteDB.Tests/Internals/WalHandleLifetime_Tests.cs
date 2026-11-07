@@ -22,36 +22,41 @@ namespace LiteDB.Tests.Internals
             // A factory, like DiskService, captures the setting at open, even when
             // its writer is created lazily after the caller changes the settings.
             settings.DurableCommits = !durable;
-            Microsoft.Win32.SafeHandles.SafeFileHandle handle;
-            using (var stream = (FileStream)factory.GetStream(true, false))
+            var logName = FileHelper.GetLogFile(file.Filename);
+            try
             {
-                stream.IsAsync.Should().Be(durable && RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
-                handle = stream.SafeFileHandle;
-                stream.Write(new byte[] { 1, 2, 3 }, 0, 3);
-                stream.Flush();
-                NativeFileSync.FlushDevice(handle, file.Filename);
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                Microsoft.Win32.SafeHandles.SafeFileHandle handle;
+                using (var stream = (FileStream)factory.GetStream(true, false))
                 {
-                    Action secondWriter = () => { using var other = new FileStream(file.Filename,
-                        FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite); };
-                    secondWriter.Should().Throw<IOException>();
+                    stream.IsAsync.Should().Be(durable && RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
+                    handle = stream.SafeFileHandle;
+                    stream.Write(new byte[] { 1, 2, 3 }, 0, 3);
+                    stream.Flush();
+                    NativeFileSync.FlushDevice(handle, logName);
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
+                        Action secondWriter = () => { using var other = new FileStream(logName,
+                            FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite); };
+                        secondWriter.Should().Throw<IOException>();
+                    }
+                    using (var reader = (FileStream)factory.GetStream(false, false))
+                    {
+                        reader.IsAsync.Should().BeFalse();
+                        reader.ReadByte().Should().Be(1);
+                    }
+                    stream.SetLength(0);
+                    stream.Length.Should().Be(0);
+                    stream.Position = 0;
+                    stream.WriteByte(42);
+                    stream.Flush();
+                    NativeFileSync.FlushDevice(handle, logName);
                 }
-                using (var reader = (FileStream)factory.GetStream(false, false))
-                {
-                    reader.IsAsync.Should().BeFalse();
-                    reader.ReadByte().Should().Be(1);
-                }
-                stream.SetLength(0);
-                stream.Length.Should().Be(0);
-                stream.Position = 0;
-                stream.WriteByte(42);
-                stream.Flush();
-                NativeFileSync.FlushDevice(handle, file.Filename);
+                handle.IsClosed.Should().BeTrue();
+                File.ReadAllBytes(logName).Should().Equal(42);
+                using (var exclusive = new FileStream(logName, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                    exclusive.Length.Should().Be(1);
             }
-            handle.IsClosed.Should().BeTrue();
-            File.ReadAllBytes(file.Filename).Should().Equal(42);
-            using (var exclusive = new FileStream(file.Filename, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-                exclusive.Length.Should().Be(1);
+            finally { File.Delete(logName); }
         }
 
         [Fact]
