@@ -26,6 +26,14 @@
   ],
   "dispositions": [
     {
+      "id": "p4-ownership-substrate-safety-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/p1-handle-safety.yml"],
+      "disposition": "strengthened",
+      "invariant": "Every existing WAL/group-commit, fault, recovery and delete-safety partition still runs with its original assertions, timeout and six OS/runtime matrix legs.",
+      "reason": "Add ownership substrate, RuntimeLock, transaction admission, legacy 141, Direct process host, every SharedOneFile/SharedWriterTenure split suite and cursor/cleanup regression partitions. Collect each partition TRX and fail the job if any partition fails. No prior filter, test, timeout or matrix leg is removed or narrowed."
+    },
+    {
       "id": "p1-update-safety-isolated-baseline-harness",
       "kind": "ci-test-config-changed",
       "subjects": [
