@@ -467,7 +467,7 @@ class BenchmarkGateTests(unittest.TestCase):
         for metric, invalid in (("gen0", -1), ("gen1", True), ("gen2", None), ("allocatedBytes", 1.5)):
             original = self.path("v5", 1).read_text()
             self.change("v5", 1, lambda r: r["samples"][0].update({metric: invalid}))
-            with self.assertRaisesRegex(ValueError, metric):
+            with patch.dict(os.environ, {"RUNNER_OS": "Linux"}), self.assertRaisesRegex(ValueError, metric):
                 RUNNER.summarize(self.output)
             self.path("v5", 1).write_text(original)
 
