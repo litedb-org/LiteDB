@@ -10,7 +10,7 @@
   "candidate": "dev-os-cache",
   "reportOnlyConfigs": ["dev-default"],
   "scenarios": {
-    "single_insert_5k_tx": {"operations": 5000, "maxRatio": 1.10},
+    "single_insert_5k_tx": {"operations": 5000, "maxRatio": null, "reportOnlyReason": "cost of crash-safe checkpoints (litedb-org/LiteDB#3134)"},
     "bulk_insert_100k": {"operations": 100000, "maxRatio": 1.10},
     "full_scan_3x100k": {"operations": 300000, "maxRatio": 1.10},
     "selective_scan_3x100k": {"operations": 300000, "maxRatio": null},

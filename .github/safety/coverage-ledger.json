@@ -80,6 +80,14 @@
       "reason": "Adds a separate delete-focused test step and TRX on every existing platform/runtime, including when the earlier WAL step failed. No existing filter, threshold, timeout or assertion is weakened."
     },
     {
+      "id": "p1-mapper-additive-safety-filter",
+      "kind": "ci-test-config-changed",
+      "subjects": [".github/workflows/p1-handle-safety.yml"],
+      "disposition": "strengthened",
+      "invariant": "Retain all existing WAL, group commit, recovery and lifetime tests while verifying mapper contracts.",
+      "reason": "Adds the entire mapper namespace to the existing non-WAL safety partition; no prior selector or partition is removed."
+    },
+    {
       "id": "p1-padding-noop-truncate-checksum-crash-4058733",
       "kind": "corpus-repinned",
       "subjects": [

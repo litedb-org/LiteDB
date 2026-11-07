@@ -157,12 +157,43 @@ Its default commit cannot serve as a durable A/B baseline.
 
 ## Gate and noise policy
 
-[`gate.json`](gate.json) records the owner-approved Phase 1 limits. For
-`dev-os-cache`, median candidate / median 5.0.21 must be ≤1.10 for single-document
-auto-commit, bulk insert, scan, update and delete; indexed point lookup must be
+[`gate.json`](gate.json) records the interim Phase 1 limits chosen by the
+orchestrator. For `dev-os-cache`, median candidate / median 5.0.21 must be ≤1.10
+for bulk insert, full scan, update and delete; indexed point lookup must be
 ≤1.05. Default durability, open/close and checkpoint are report-only; checkpoint
 is deferred to Phase 5. Durable multi-thread scaling is also report-only.
 There is no combined score across scenarios, hosts or runtimes.
+
+### Single insert vs 5.0.21: report-only
+
+Only `single_insert_5k_tx` in `dev-os-cache` (`DurableCommits=false`) is now
+report-only against 5.0.21, labelled **report-only: cost of crash-safe checkpoints
+(litedb-org/LiteDB#3134)**. Its complete rounds, ratio and observed bounds remain
+in JSON, CSV and Markdown. All other thresholds, round counts, noise rules and
+same-job after/before comparisons are unchanged. The latter already report ratios
+without a previous-revision no-regression verdict; single insert remains included.
+This changes performance acceptance only; the storage protocol is unchanged.
+
+Owner decision, 2026-11-07 (verbatim):
+
+> Report-only + document (Recommended) — Keep measuring single insert against 5.0.21, but report it separately, like durable default already is. Document it as the cost of crash-safe checkpoints. All other thresholds stay as they are.
+
+The condition was that the checkpoint-interval experiment did not close the gap.
+[Two hosted interval runs](https://github.com/litedb-org/LiteDB/actions/runs/42368356643)
+([repeat](https://github.com/litedb-org/LiteDB/actions/runs/42368358596)) found no
+1x/2x/4x interval with single-insert median ≤1.10x on Windows/Linux net8/net10.
+Those experiments included a final tail checkpoint and are distinct from gate timings.
+[Barrier diagnostics](https://github.com/litedb-org/LiteDB/actions/runs/42363523452)
+([follow-up](https://github.com/litedb-org/LiteDB/actions/runs/42364375360)) attributed
+~97.5–99.8% of the Windows elapsed gap and ~92.4–98.0% on Linux to the four required
+checkpoint file barriers: WAL padding, journal before overwrite, copied data before
+salt publication, and salt before WAL reuse. CPU counter deltas were ~2.8–3.3% on
+Windows and ~4.4–5.7% on Linux; GC pause deltas were ~−0.19–−0.01%.
+These overlapping signed counter deltas are observational, not an additive wall-time
+split or a universal minimum cost. No barrier was shown redundant.
+See [litedb-org/LiteDB#3134](https://github.com/litedb-org/LiteDB/issues/3134);
+[protocol option B is deferred to a later v6.x](https://github.com/litedb-org/LiteDB/issues/3134#issuecomment-6706638288).
+
 
 The operational noise cutoff remains `maxSpreadPercent=20`, using
 `100 × (max/min − 1)` independently for A and B. A gated scenario fails even
