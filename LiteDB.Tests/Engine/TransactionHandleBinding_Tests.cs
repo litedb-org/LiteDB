@@ -26,6 +26,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [InlineData(false)]
+        [InlineData(true)]
         public void Mapper_reentry_cannot_complete_or_escape_the_enclosing_operation(bool shared)
         {
             using var file = new TempFile();
@@ -80,6 +81,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [InlineData(false)]
+        [InlineData(true)]
         public void Bound_indexes_queries_and_deferred_objects_preserve_their_owner(bool shared)
         {
             using var file = new TempFile();
@@ -128,6 +130,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [InlineData(false)]
+        [InlineData(true)]
         public void Read_only_handles_query_and_complete_without_granting_writes(bool shared)
         {
             using var file = new TempFile();

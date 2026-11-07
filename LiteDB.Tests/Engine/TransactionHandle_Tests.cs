@@ -26,6 +26,8 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [InlineData(false, false)]
         [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
         public void Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback(bool shared, bool encrypted)
         {
             using var file = new TempFile();

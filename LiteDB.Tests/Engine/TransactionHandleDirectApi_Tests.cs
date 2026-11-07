@@ -114,11 +114,11 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Shared_is_disabled_and_non_provider_extension_has_no_side_effects()
+        public void Shared_is_supported_and_non_provider_extension_has_no_side_effects()
         {
             using var file = new TempFile();
             using var db = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared });
-            Assert.Contains("Shared", Assert.Throws<NotSupportedException>(() => db.BeginTransaction()).Message);
+            using (var tx = db.BeginTransaction()) tx.Rollback();
             ILiteDatabase provider = new NonProviderDatabase();
             Assert.Throws<NotSupportedException>(() => provider.BeginTransaction());
             Assert.Empty(((NonProviderDatabase)provider).Calls);

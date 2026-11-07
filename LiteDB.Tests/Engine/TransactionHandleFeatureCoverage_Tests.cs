@@ -53,6 +53,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [InlineData(false)]
+        [InlineData(true)]
         public void Writable_handle_rejects_drop_and_rename_without_losing_prior_writes(bool shared)
         {
             using var file = new TempFile();
@@ -75,6 +76,7 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [InlineData(false)]
+        [InlineData(true)]
         public void Handle_metadata_queries_read_existing_collections_and_bound_uncommitted_indexes(bool shared)
         {
             using var file = new TempFile();
@@ -121,9 +123,9 @@ namespace LiteDB.Tests.Engine
             {
                 Assert.True(db.BeginTrans());
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
-                Assert.Throws<NotSupportedException>(() => db.BeginTransaction());
+                Assert.Equal(141, Assert.Throws<LiteException>(() => db.BeginTransaction()).ErrorCode);
                 Assert.True(db.Commit());
-                Assert.Throws<NotSupportedException>(() => db.BeginTransaction());
+                using (var tx = db.BeginTransaction()) tx.Rollback();
                 Assert.NotNull(db.GetCollection("rows").FindById(1));
             }
             using var cold = new LiteDatabase(file);

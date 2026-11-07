@@ -11,7 +11,7 @@ namespace LiteDB.Engine
         [ThreadStatic] private static TransactionWaitBudget _current;
         private readonly TransactionWaitBudget _previous;
         private readonly TransactionWaitBudget _budget;
-        private readonly TimeSpan _timeout;
+        private TimeSpan _timeout;
         private TimeSpan _spent;
 
         internal TransactionWaitBudget(TimeSpan timeout)
@@ -37,6 +37,24 @@ namespace LiteDB.Engine
             var budget = _current?._budget;
             var started = Stopwatch.GetTimestamp();
             try { Monitor.Wait(gate, remaining); }
+            finally
+            {
+                if (budget != null)
+                    budget._spent += TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
+            }
+        }
+
+        internal static void Clamp(TimeSpan timeout)
+        {
+            var budget = _current?._budget;
+            if (budget != null && timeout < budget._timeout) budget._timeout = timeout;
+        }
+
+        internal static void Block(Action wait)
+        {
+            var budget = _current?._budget;
+            var started = Stopwatch.GetTimestamp();
+            try { wait(); }
             finally
             {
                 if (budget != null)

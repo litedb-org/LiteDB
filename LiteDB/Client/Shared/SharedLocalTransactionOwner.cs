@@ -44,9 +44,9 @@ namespace LiteDB.Client.Shared
                 {
                     // A native holder normally pulses on terminal cleanup. Recheck
                     // actual Thread identity if death precedes its cleanup callback.
-                    var remaining = timeout.HasValue ? timeout.Value - clock.Elapsed : TimeSpan.FromMilliseconds(100);
+                    var remaining = timeout.HasValue ? TransactionWaitBudget.Remaining(timeout.Value) : TimeSpan.FromMilliseconds(100);
                     if (remaining <= TimeSpan.Zero) throw LiteException.LockTimeout("Shared local transaction", timeout.Value);
-                    Monitor.Wait(_gate, remaining < TimeSpan.FromMilliseconds(100) ? remaining : TimeSpan.FromMilliseconds(100));
+                    TransactionWaitBudget.Wait(_gate, remaining < TimeSpan.FromMilliseconds(100) ? remaining : TimeSpan.FromMilliseconds(100));
                     ReleaseDeadOwnerLocked();
                     if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
                         _current.Identity.Kind == TransactionOwnerKind.Legacy && ReferenceEquals(_current.Thread, thread))

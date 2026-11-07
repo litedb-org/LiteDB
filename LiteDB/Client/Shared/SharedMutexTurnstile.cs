@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace LiteDB.Client.Shared
@@ -30,15 +32,25 @@ namespace LiteDB.Client.Shared
         /// Block until <paramref name="mutex"/> is owned, queued at the turnstile.
         /// Throws <see cref="AbandonedMutexException"/> as <see cref="WaitHandle.WaitOne()"/> does.
         /// </summary>
-        public void Wait(Mutex mutex)
+        public void Wait(Mutex mutex, TimeSpan? timeout = null)
         {
-            var queued = this.Enter();
+            var clock = Stopwatch.StartNew();
+            var queued = this.Enter(timeout);
             try
             {
 #if DEBUG || TESTING
                 this.BeforeMainWait?.Invoke();
 #endif
-                try { mutex.WaitOne(); }
+                try
+                {
+                    if (timeout.HasValue)
+                    {
+                        var remaining = timeout.Value - clock.Elapsed;
+                        if (!mutex.WaitOne(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero))
+                            throw LiteException.LockTimeout("Shared native writer", timeout.Value);
+                    }
+                    else mutex.WaitOne();
+                }
                 catch (AbandonedMutexException)
                 {
 #if DEBUG || TESTING
@@ -92,11 +104,13 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
-        private bool Enter()
+        private bool Enter(TimeSpan? timeout)
         {
             try
             {
-                return _turn.WaitOne();
+                if (!timeout.HasValue) return _turn.WaitOne();
+                if (!_turn.WaitOne(timeout.Value)) throw LiteException.LockTimeout("Shared turnstile", timeout.Value);
+                return true;
             }
             catch (AbandonedMutexException)
             {

@@ -54,6 +54,7 @@ namespace LiteDB
                 }
 #endif
                 _engine = opened;
+                System.Threading.Interlocked.Exchange(ref _handleTimeoutTicks, opened.HandleTimeout.Ticks);
             }
             catch
             {

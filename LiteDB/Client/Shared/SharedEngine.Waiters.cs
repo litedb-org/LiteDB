@@ -103,7 +103,12 @@ namespace LiteDB
         {
             lock (_waitersLock)
             {
-                while (_mutexWaiters > 0) Monitor.Wait(_waitersLock);
+                while (_mutexWaiters > 0)
+                {
+                    var remaining = Engine.TransactionWaitBudget.Remaining(System.TimeSpan.FromDays(20));
+                    if (remaining <= System.TimeSpan.Zero) throw LiteException.LockTimeout("Shared pin waiters", Engine.TransactionWaitBudget.Timeout(System.TimeSpan.FromSeconds(60)));
+                    Engine.TransactionWaitBudget.Wait(_waitersLock, remaining);
+                }
             }
         }
     }
