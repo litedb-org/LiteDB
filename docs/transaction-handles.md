@@ -40,6 +40,14 @@ warnings on both client declarations. Migrate to completion on the returned
 handle or narrowly suppress CS0618 for deliberately synchronous legacy code.
 A same-thread legacy owner blocks a new handle with error 141, including a peer
 Direct facade. Independent Direct handles begin immediately; competing collection
-writes wait under the existing TIMEOUT and fail with error 120. The unified
-multi-stage deadline and waiting protocol remains phase 4 step 4. There is no
+writes wait under the existing TIMEOUT and fail with error 120. Each synchronous
+handle call samples TIMEOUT once and shares its remaining allowance across
+admission and collection waits. Only blocking wait time consumes the allowance;
+application callbacks and commit durability are not execution time limits.
+Collection waiters advance in FIFO order, and timeout removes only that waiter.
+An idle handle can complete on another thread while its creator waits; the creator
+thread alone does not cause error 141. Conflicting work inside an executing
+handle callback is refused with InvalidOperationException before blocking.
+Direct retains native admission for the host lifetime, with no per-handle native
+writer stage; Shared native/pin waits remain step 5. There is no
 async API or ambient enlistment.

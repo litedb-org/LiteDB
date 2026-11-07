@@ -243,5 +243,393 @@
       "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
       "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
     }
+  ],
+  "waitProtocolStep": "P4-S4-WAITS",
+  "waitSourceDisposition": [
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsAbandoned_Tests.cs#Abandoned_main_mutex_or_turnstile_under_a_finite_budget_is_acquired",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsBudget_Tests.cs#Zero_and_tiny_budgets_never_time_out_on_an_uncontended_connection",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsBudget_Tests.cs#Parallel_writers_on_one_connection_blame_the_right_owner",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsBudget_Tests.cs#Timeout_behind_a_handle_being_admitted_names_that_handle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsDiagnostics_Tests.cs#Count_and_refusal_accounting",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsDiagnostics_Tests.cs#One_begin_records_one_wait_across_queue_and_native_stages",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsDiagnostics_Tests.cs#Pin_wait_excludes_engine_open",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsDiagnostics_Tests.cs#Recent_window_covers_waits_just_before_a_minute_boundary",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsInterruptedBegin_Tests.cs#Interrupted_begin_in_the_local_queue_or_native_wait_leaks_nothing",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLegacy_Tests.cs#Legacy_BeginTrans_waiter_times_out_without_side_effects",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLegacy_Tests.cs#Marker_of_a_collected_handle_causes_no_false_refusal",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLifetime_Tests.cs#An_observer_capturing_the_handle_does_not_keep_an_abandoned_handle_owning_the_mutex",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLifetime_Tests.cs#Grace_keeps_waiting_while_one_long_handle_operation_executes",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLifetime_Tests.cs#Self_wait_guard_covers_every_database_the_flow_holds_a_handle_for",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLifetime_Tests.cs#Owner_held_and_idle_times_start_when_ownership_is_acquired",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsLifetime_Tests.cs#Connection_string_round_trip_preserves_the_wait_options",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsOwnRelease_Tests.cs#A_bounded_wait_arriving_during_exited_owner_cleanup_stays_within_its_budget",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsOwnRelease_Tests.cs#Zero_budget_begin_after_this_connections_own_release_does_not_time_out",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsOwnRelease_Tests.cs#Zero_budget_writes_under_a_leased_reader_do_not_time_out_on_repin",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsOwnerExit_Tests.cs#Bounded_wait_behind_an_exited_owner_returns_within_its_budget",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsParsing_Tests.cs#Out_of_range_wait_values_are_rejected_at_parse",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsParsing_Tests.cs#In_range_wait_values_parse_and_reach_the_engine",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsParsing_Tests.cs#Slow_wait_threshold_rejects_zero_and_negative",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsStages_Tests.cs#Turnstile_stage_timeout_leaves_no_ownership",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuardsStages_Tests.cs#Local_queue_stage_timeout_leaves_no_ownership",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Timed_out_handle_cleans_admission_snapshots_registry_and_queue",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Ordinary_call_from_the_flow_holding_an_idle_handle_is_refused",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Second_handle_from_the_same_flow_is_refused_and_another_flow_waits_for_it",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#By_default_the_holding_flow_waits_for_a_handle_completed_elsewhere",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Idle_handle_waits_even_on_creator_thread_and_foreign_completion_wakes_it",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Grace_refuses_only_after_the_owning_handle_stayed_idle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Grace_keeps_waiting_while_another_thread_still_uses_the_handle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Other_flows_wait_for_the_handle_and_diagnostics_name_it",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Direct_mode_has_no_self_wait_to_refuse",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Idle_handle_waits_even_on_creator_thread_and_foreign_completion_wakes_it",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Writer_wait_times_out_without_side_effects_and_later_writes_succeed",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Timed_out_handle_cleans_admission_snapshots_registry_and_queue",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Begin_spends_one_timeout_on_the_local_queue_or_native_admission",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Admission_then_collection_use_one_budget_and_failed_begin_publishes_nothing",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Slow_waits_are_reported_off_the_waiting_thread_and_observer_failures_are_ignored",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/SharedWaitGuards_Tests.cs#Timeout_settings_validate_and_parse_from_connection_strings",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseCoordination_Tests.cs#Reused_wrapper_participates_in_coordination_only_during_its_handle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseDiscard_Tests.cs#Rebuild_changing_password_or_collation_discards_the_wrapper",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseDiscard_Tests.cs#Holder_settings_fingerprint_compares_every_reopened_setting",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseDiscard_Tests.cs#Failure_discards_the_wrapper_keeps_the_original_error_and_committed_rows",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Disposing_the_connection_disposes_the_cached_wrapper_and_refuses_a_late_return",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Idle_worker_roots_no_database_handle_read_policy_or_ambient_value",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Abandoned_active_handle_and_database_release_ownership_and_the_wrapper_is_not_cached",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuseWaits_Tests.cs#Begin_on_a_reused_wrapper_that_times_out_natively_records_its_whole_wait",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuse_Tests.cs#Sequential_handles_reuse_one_holder_thread_and_one_wrapper_with_fresh_cores",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuse_Tests.cs#Another_connection_writes_promptly_after_each_reused_handle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Idle_handle_waits_even_on_creator_thread_and_foreign_completion_wakes_it",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuse_Tests.cs#Timed_out_begin_caches_nothing_and_counts_one_timeout",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Timed_out_handle_cleans_admission_snapshots_registry_and_queue",
+      "disposition": "Direct obligation adapted to retained host/collection ownership; Shared portion awaits step 5",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuse_Tests.cs#Second_begin_of_the_flow_is_refused_only_while_the_reused_handle_is_active",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleReuse_Tests.cs#Busy_holders_of_several_databases_are_never_capped",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Jobs_run_in_a_clean_context_and_cannot_leak_into_later_jobs",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Busy_workers_are_never_capped_and_at_most_two_stay_idle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Completed_job_graph_and_ambient_value_are_collectible_while_the_worker_is_idle",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Dispatch_racing_idle_expiry_runs_exactly_once_on_another_worker",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Idle_worker_expires_and_counters_are_exact",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHolderScheduler_Tests.cs#Worker_with_leaked_thread_state_exits_instead_of_rejoining_the_pool",
+      "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
+      "destination": null,
+      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "hostedResult": "Pending exact-head CI; see step log, no Shared qualification claimed."
+    }
   ]
 }

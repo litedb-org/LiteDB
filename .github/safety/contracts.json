@@ -300,6 +300,16 @@
           "test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
           "model": "exception",
           "proves": "Prepublication engine transaction loss reports Failed and releases public registration/admission without accepting later automatic writes; committed sentinel survives reopen."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Timed_out_handle_cleans_admission_snapshots_registry_and_queue",
+          "model": "exception",
+          "proves": "Contended Direct handle timeout aborts its private writes, removes its queue/admission/registry leases, preserves holder and sentinel, and permits successor commit; two indexed reopens retain exact rows."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Callback_conflicting_independent_work_refuses_without_aborting_holder",
+          "model": "interleaving",
+          "proves": "Executing handle callback refuses conflicting independent handle/ordinary writes before waiting, retains caught-refusal owner state and commits only outer rows."
         }
       ],
       "gaps": [
@@ -691,6 +701,16 @@
           "test": "LiteDB.Tests/Engine/TransactionHandleEngineLoss_Tests.cs#Commit_after_the_engine_lost_the_transaction_fails_instead_of_returning",
           "model": "exception",
           "proves": "Prepublication engine transaction loss reports Failed and releases public registration/admission without accepting later automatic writes; committed sentinel survives reopen."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleDeadline_Tests.cs#Timed_out_handle_cleans_admission_snapshots_registry_and_queue",
+          "model": "exception",
+          "proves": "Contended Direct handle timeout aborts its private writes, removes its queue/admission/registry leases, preserves holder and sentinel, and permits successor commit; two indexed reopens retain exact rows."
+        },
+        {
+          "test": "LiteDB.Tests/Engine/TransactionHandleCooperativeWait_Tests.cs#Callback_conflicting_independent_work_refuses_without_aborting_holder",
+          "model": "interleaving",
+          "proves": "Executing handle callback refuses conflicting independent handle/ordinary writes before waiting, retains caught-refusal owner state and commits only outer rows."
         }
       ],
       "gaps": [
