@@ -121,7 +121,14 @@ namespace LiteDB
 
         private IBsonDataReader TryQueryCoordinated(string collection, Query query)
         {
-            if ((_coordination == null && MappedReads == null) || (_pin != null && !(this.UsesMappedTenure && _pin.IsIdle)) || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
+            // The holder can clear the volatile field during tenure handoff.
+            // Probe the same pin we tested; an ended pin refuses the fast path.
+            // The cache status/lease recheck below still authorizes every read.
+            var pin = _pin;
+#if DEBUG || TESTING
+            CoordinationStage?.Invoke("pin-sampled");
+#endif
+            if ((_coordination == null && MappedReads == null) || (pin != null && !(this.UsesMappedTenure && pin.IsIdle)) || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             bool yieldToWriter;
             int delay;
             lock (_snapshotGate)

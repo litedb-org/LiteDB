@@ -77,6 +77,13 @@ class ReproMatrixTests(unittest.TestCase):
                   if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
         self.assertEqual(expected, actual)
 
+    def test_coordinated_pin_admission_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        self.assertEqual({
+            "LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#Pin_handoff_after_admission_sample_reads_fresh_commits_and_preserves_old_snapshot",
+        }, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
+           if ref.startswith("LiteDB.Tests/Internals/SharedWriterTenureCoordinatedAdmission_Tests.cs#")})
+
     def test_manual_override_keeps_historical_reproductions_available(self):
         entries, skipped, _ = self.compose(self.inventory(), include_retired=True)
         platforms = json.loads((ROOT / ".github/os-matrix.json").read_text())

@@ -27,7 +27,8 @@ jobs:
           $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable'
           $core = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~WalHandleLifetime|FullyQualifiedName~NativeFileSync'
           $other = 'FullyQualifiedName!~GroupCommit&FullyQualifiedName!~WalHandleLifetime&FullyQualifiedName!~NativeFileSync'
-          $filters = @($core, "($all)&($other)&FullyQualifiedName~Wal", "($all)&($other)&FullyQualifiedName!~Wal")
+          $coordinated = 'FullyQualifiedName~SharedWriterTenureCoordinatedAdmission_Tests|FullyQualifiedName~SharedWriterTenureCoherenceBreadth_Tests|FullyQualifiedName~SharedOneFileWarmReads_Tests'
+          $filters = @($coordinated, $core, "($all)&($other)&FullyQualifiedName~Wal", "($all)&($other)&FullyQualifiedName!~Wal")
           $failed = $false
           for ($i = 0; $i -lt $filters.Count; $i++) {
             dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=safety-$i.trx" --results-directory artifacts_temp/handle-safety
