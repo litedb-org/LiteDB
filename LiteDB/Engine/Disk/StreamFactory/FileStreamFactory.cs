@@ -19,6 +19,7 @@ namespace LiteDB.Engine
         private readonly bool _hidden;
         private readonly bool _useAesStream;
         private readonly bool _isLog;
+        private readonly bool _durableCommits;
         private readonly Action<string> _setHiddenAttribute;
         private readonly SharedFileHandles _handles;
 #if DEBUG || TESTING
@@ -33,7 +34,8 @@ namespace LiteDB.Engine
             bool useAesStream = true,
             Action<string> setHiddenAttribute = null,
             bool isLog = false,
-            SharedFileHandles handles = null)
+            SharedFileHandles handles = null,
+            bool durableCommits = true)
         {
             _filename = filename;
             _password = password;
@@ -41,6 +43,7 @@ namespace LiteDB.Engine
             _hidden = hidden;
             _useAesStream = useAesStream;
             _isLog = isLog;
+            _durableCommits = durableCommits;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
             _handles = handles;
         }
@@ -70,8 +73,10 @@ namespace LiteDB.Engine
             // the group's FlushFileBuffers and a follower's Write/Length. Overlapped
             // handles permit independent operations; FileStream still waits for each
             // synchronous Write before its ticket can be captured. Keep sharing unchanged.
+            // Cache-only commits have no concurrent device barrier to overlap and use
+            // the cheaper synchronous writes. Durability is fixed for this open.
             // Shared handle leases retain their existing synchronous-handle contract.
-            if (write && _isLog && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            if (write && _isLog && _durableCommits && _handles == null && System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                 System.Runtime.InteropServices.OSPlatform.Windows)) fileOptions |= FileOptions.Asynchronous;
 #endif
 

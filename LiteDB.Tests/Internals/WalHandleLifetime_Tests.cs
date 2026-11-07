@@ -11,15 +11,21 @@ namespace LiteDB.Tests.Internals
 {
     public class WalHandleLifetime_Tests
     {
-        [Fact]
-        public void Wal_handle_preserves_exclusivity_truncation_and_disposal()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Wal_handle_preserves_exclusivity_truncation_and_disposal(bool durable)
         {
             using var file = new TempFile();
-            using var factory = new FileStreamFactory(file.Filename, null, false, false, isLog: true);
+            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = durable };
+            using var factory = settings.CreateLogFactory();
+            // A factory, like DiskService, captures the setting at open, even when
+            // its writer is created lazily after the caller changes the settings.
+            settings.DurableCommits = !durable;
             Microsoft.Win32.SafeHandles.SafeFileHandle handle;
             using (var stream = (FileStream)factory.GetStream(true, false))
             {
-                stream.IsAsync.Should().Be(RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
+                stream.IsAsync.Should().Be(durable && RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
                 handle = stream.SafeFileHandle;
                 stream.Write(new byte[] { 1, 2, 3 }, 0, 3);
                 stream.Flush();
@@ -30,8 +36,9 @@ namespace LiteDB.Tests.Internals
                         FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite); };
                     secondWriter.Should().Throw<IOException>();
                 }
-                using (var reader = factory.GetStream(false, false))
+                using (var reader = (FileStream)factory.GetStream(false, false))
                 {
+                    reader.IsAsync.Should().BeFalse();
                     reader.ReadByte().Should().Be(1);
                 }
                 stream.SetLength(0);
@@ -140,7 +147,8 @@ namespace LiteDB.Tests.Internals
             {
                 using var db = new LiteDatabase(new ConnectionString
                 {
-                    Filename = file.Filename, Password = encrypted ? "handle-test" : null
+                    Filename = file.Filename, Password = encrypted ? "handle-test" : null,
+                    DurableCommits = cycle % 2 == 0
                 });
                 db.CheckpointSize = 0;
                 var rows = db.GetCollection("rows");
