@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   stress:
@@ -92,3 +93,36 @@ jobs:
             LiteDB.Tests/bin/Release/net8.0/
             ${{ runner.temp }}/litedb-runtime-9-${{ matrix.arch }}/shared/Microsoft.NETCore.App/
           retention-days: 14
+
+  analyze-existing:
+    name: Analyze original dump (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64-net9, os: windows-latest }
+          - { name: linux-arm64-net9, os: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: p2-rekey-hang-${{ matrix.name }}
+          run-id: 42340434768
+          github-token: ${{ github.token }}
+          path: captured
+      - name: Analyze captured dump
+        shell: pwsh
+        run: |
+          dotnet tool install dotnet-dump --tool-path ./dump-tools
+          $tool = if ($IsWindows) { './dump-tools/dotnet-dump.exe' } else { './dump-tools/dotnet-dump' }
+          Get-ChildItem captured -Filter '*hangdump.dmp' -Recurse | Select-Object -First 1 | ForEach-Object {
+            & $tool analyze $_.FullName -c 'clrthreads' -c 'clrstack -all' -c 'syncblk' -c 'exit' 2>&1 | Tee-Object hang-stacks.txt
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: original-stacks-${{ matrix.name }}
+          path: hang-stacks.txt

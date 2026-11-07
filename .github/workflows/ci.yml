@@ -1,5 +1,9 @@
 name: CI
 
+permissions:
+  contents: read
+  actions: read
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
