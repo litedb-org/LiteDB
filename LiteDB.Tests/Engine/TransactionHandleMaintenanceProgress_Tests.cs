@@ -18,13 +18,18 @@ namespace LiteDB.Tests.Engine
             engine.Insert("sentinel", new[] { TransactionHandleProcessHost_Tests.Row(9) }, BsonAutoId.Int32);
             var first = engine.BeginHandleTransaction();
             first.Invoke(e => e.Insert("rows", new[] { TransactionHandleProcessHost_Tests.Row(1) }, BsonAutoId.Int32));
-            var locker = typeof(LiteEngine).GetField("_locker", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            var locker = (LockService)typeof(LiteEngine).GetField("_locker", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
             var gate = locker.GetType().GetField("_transaction", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(locker);
             var waiting = gate.GetType().GetField("_waitingWriters", BindingFlags.Instance | BindingFlags.NonPublic);
-            // Checkpoint is intentionally opportunistic: an empty WAL returns immediately,
-            // and a nonempty WAL waits only its bounded backfill interval. Rebuild uses
-            // full exclusive admission and therefore supplies a stable queued writer.
-            var maintenance = Task.Run(() => engine.Rebuild(new RebuildOptions()));
+            // Checkpoint's own backfill wait is deliberately short. Hold full exclusive
+            // maintenance admission before checkpointing so queue observation is stable
+            // and later handle admission uses the same services (rebuild replaces them).
+            var maintenance = Task.Run(() =>
+            {
+                locker.EnterExclusive();
+                try { return engine.Checkpoint(); }
+                finally { locker.ExitExclusive(); }
+            });
             Assert.True(SpinWait.SpinUntil(() => (int)waiting.GetValue(gate) > 0, TimeSpan.FromSeconds(5)));
             var next = Task.Run(() => engine.BeginHandleTransaction());
             Assert.False(next.IsCompleted);
