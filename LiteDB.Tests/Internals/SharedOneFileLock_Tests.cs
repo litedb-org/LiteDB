@@ -89,8 +89,12 @@ namespace LiteDB.Internals
             SpinWait.SpinUntil(() => !observer.IsLive(0), TimeSpan.FromSeconds(5))
                 .Should().BeTrue("the dead child's native slot must be released within five seconds");
             observer.IsLive(0).Should().BeFalse();
+            SpinWait.SpinUntil(observer.TryExclusiveDms, TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the dead child's native DMS range must also be released");
             observer.TryExclusiveDms().Should().BeTrue();
-            observer.EnterWrite();
+            // WRITE has an independent description; use production's bounded
+            // abandoned-owner acquisition rather than assuming slot release orders it.
+            observer.EnterWrite(abandonedOwner: true);
             _output.WriteLine($"LOCK_DEATH kill_to_clear_ms={killed.Elapsed.TotalMilliseconds:F3} initial_live={initiallyLive}");
         }
 #endif
