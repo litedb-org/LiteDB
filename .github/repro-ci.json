@@ -75,6 +75,7 @@
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage",
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_remnant_reader_blocks_upgrade_until_closed",
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_maintenance_and_cache_mismatch_remain_refused",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_volume_selection_uses_canonical_path",
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_preserves_legacy_remnants",
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_and_writable_facades_coexist",
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_native_tmpfs_preserves_indexed_data_and_legacy_protocol",
