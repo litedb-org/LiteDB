@@ -242,12 +242,12 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Connection_string_round_trips_the_switch()
         {
-            var on = new ConnectionString { SharedOneFile = false, Filename = "demo.db", RejectInvalidLocalTime = true };
+            var on = new ConnectionString { Filename = "demo.db", RejectInvalidLocalTime = true };
 
             on.ToString().Should().Be("Filename=\"demo.db\";Reject Invalid Local Time=True");
             new ConnectionString(on.ToString()).RejectInvalidLocalTime.Should().BeTrue();
             new ConnectionString("reject invalid local time=true").RejectInvalidLocalTime.Should().BeTrue();
-            new ConnectionString { SharedOneFile = false, Filename = "demo.db" }.ToString().Should().Be("demo.db");
+            new ConnectionString { Filename = "demo.db" }.ToString().Should().Be("demo.db");
         }
     }
 }
