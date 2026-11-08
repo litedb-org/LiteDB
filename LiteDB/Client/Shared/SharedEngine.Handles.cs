@@ -201,12 +201,14 @@ namespace LiteDB
                 // Detach logical identity before the final hold release, while
                 // the completing operation still excludes a successor.
 #if DEBUG || TESTING
+                LiteDB.Utils.Reachability.FaultPoint("handle-before-release");
                 EngineState.SimulateProcessCrash?.Invoke("handle-before-release");
 #endif
                 _pin.UnbindHandle(_identity);
                 try { _shared.CloseDatabase(_pin, hold: true); }
                 finally { Interlocked.Exchange(ref _local, null)?.Dispose(); }
 #if DEBUG || TESTING
+                LiteDB.Utils.Reachability.FaultPoint("handle-after-release");
                 EngineState.SimulateProcessCrash?.Invoke("handle-after-release");
 #endif
             }

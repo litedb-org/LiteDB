@@ -9,6 +9,8 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "handle-before-release": {"gate": "advisory", "reason": "TransactionHandleReviewSafety_Tests.Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer kills mapped/legacy Shared children at this cut, plain/encrypted; generic oracle smoke does not create Shared handles. Maintained process tests enforce the cut handshake, already-live survivor admission, payload/index recovery and durable acknowledgement."},
+    "handle-after-release": {"gate": "advisory", "reason": "TransactionHandleReviewSafety_Tests.Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer kills mapped/legacy Shared children at this cut, plain/encrypted; generic oracle smoke does not create Shared handles. Maintained process tests enforce the cut handshake, already-live survivor admission, payload/index recovery and durable acknowledgement."},
     "RequestStage": {
       "gate": "advisory",
       "reason": "Focused writer-tenure tests hit both request cuts with exceptions and process death/suspension. Default-mode fuzz does not enable the Linux x64 mapped opt-in; mapped whole-path qualification remains a later step."
