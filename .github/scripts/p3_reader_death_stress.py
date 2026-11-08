@@ -15,6 +15,13 @@ parser.add_argument('--runtime-major', required=True)
 args = parser.parse_args()
 output = Path('artifacts_temp/reader-death')
 output.mkdir(parents=True, exist_ok=True)
+# VSTest /Framework alone does not override an installed net8 runtime.
+# Pin the testhost configuration; child processes use that same actual runtime.
+config_path = Path(f'LiteDB.Tests/bin/Release/{args.framework}/LiteDB.Tests.runtimeconfig.json')
+config = json.loads(config_path.read_text(encoding='utf-8-sig'))
+config['runtimeOptions']['framework']['version'] = f'{args.runtime_major}.0.0'
+config['runtimeOptions']['rollForward'] = 'LatestPatch'
+config_path.write_text(json.dumps(config, indent=2))
 classes = ['LiteDB.Internals.SharedOneFileReaders_Tests',
            'LiteDB.Internals.SharedOneFileLock_Tests', 'LiteDB.Tests.Engine.TestHost_Tests']
 os.environ['LITEDB_EXPECTED_RUNTIME_MAJOR'] = args.runtime_major
