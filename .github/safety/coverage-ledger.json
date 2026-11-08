@@ -783,6 +783,16 @@
       "disposition": "strengthened",
       "invariant": "An actually renewed older request rejects a stale admission sample; both real requests eventually complete and the child write remains indexed and intact after cold reopen.",
       "reason": "Hosted diagnostic34f97d6b4 records remote ticket1 expiring and rejoining as3 behind local2, invalidating the old unconditional older-ticket premise. Observe actual renewal, prove SIGSTOP with waitpid before local publication, assert strictly older remote ticket and expiry beyond stale sample+100, and require the real IsTurn predicate to refuse that stale sample. Then resume both real RequestWriter calls and retain admission, child write, cold sentinel/index/payload checks. No retries, skips or fabricated bytes/clocks. The stale-sample predicate is forced independently of subsequent live admission, whose expiring priority may legally change. A focused negative control restoring the old sampled-clock upper bound fails this predicate assertion; the restored unmutated revision passes all3 class cases. Correct the RequestStage evidence prose to state this bounded predicate/progress proof rather than imply priority persists through later native admission. Further investigation proves a distinct real local-expiry defect: retain the original expired-child case and add a forced post-sample local-expiry/successor cut, with real-revision CI before/after evidence and a post-peer-scan local-expiry recheck in production. Prestart the child runtime before holding the10-second sampling barrier, then command actual publication only after local expiry; retain all waits, ordering, expiry, ticket, progress and cold-data checks. Worker termination signals the observer so it reports the actual worker exception. While the real gate deliberately blocks renewal callbacks, observe actual Ready/ticket publication with a bounded mapped scan instead of requiring an async pipe continuation on that blocked pool to release the barrier; retain the requested stdout assertion after gate release."
+    },
+    {
+      "id": "p3-integrate-macos-offline-admission-preservation",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All nine retirement cuts, repeated interruptions and all 64 subsets of six legacy ephemeral entries preserve database/WAL bytes and persistent admission ownership files.",
+      "reason": "Final-head macOS P1 net10 run42437670381 failed the exact-directory assertion because Darwin intentionally retains .litedb-admission. Snapshot exact preexisting root entries and files before seeding legacy state; require every entry and byte to survive, allow only the explicitly added WAL, and require exactly six newly seeded ephemeral files rather than misclassifying persistent admission as an ephemeral resurrection candidate. No cut, recovery retry, refusal, data assertion or timeout is removed."
     }
   ]
 }

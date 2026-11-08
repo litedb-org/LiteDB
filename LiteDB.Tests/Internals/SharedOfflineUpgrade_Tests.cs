@@ -35,6 +35,8 @@ namespace LiteDB.Internals
             var stages = new[] { "offline-validated", "offline-retired", "offline-retired",
                 "offline-retired", "offline-retired", "offline-readers-retired",
                 "offline-retired", "offline-retired", "offline-complete" };
+            var baselineEntries = Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName).ToArray();
+            var baselineFiles = Snapshot();
             Seed();
             var data = File.ReadAllBytes(Filename);
             var wal = FileHelper.GetLogFile(Filename);
@@ -48,7 +50,9 @@ namespace LiteDB.Internals
                 File.ReadAllBytes(wal).Should().Equal(23, 42, 97);
             }
             for (var repeat = 0; repeat < 3; repeat++) Upgrade();
-            Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName).Should().BeEquivalentTo("test.db", Path.GetFileName(wal));
+            Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName).Should()
+                .BeEquivalentTo(baselineEntries.Concat(new[] { Path.GetFileName(wal) }));
+            foreach (var item in baselineFiles) File.ReadAllBytes(item.Key).Should().Equal(item.Value);
             File.ReadAllBytes(Filename).Should().Equal(data);
             File.Delete(wal);
             for (var repeat = 0; repeat < 2; repeat++) Verify();
@@ -120,8 +124,11 @@ namespace LiteDB.Internals
         [OneFileFact]
         public void Every_subset_of_resurrected_ephemeral_entries_retires_repeatably()
         {
+            var baselineFiles = Snapshot();
+            var baselineEntries = Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName).ToArray();
             Seed();
-            var original = Snapshot().Where(p => p.Key != Filename).ToArray();
+            var original = Snapshot().Where(p => !baselineFiles.ContainsKey(p.Key)).ToArray();
+            original.Length.Should().Be(6, "only the six seeded legacy coordination entries can resurrect");
             var data = File.ReadAllBytes(Filename);
             // Model independently persisted directory deletions: every subset of
             // six original entries can reappear, including orphan page/content.
@@ -133,6 +140,8 @@ namespace LiteDB.Internals
                 Upgrade();
                 Upgrade();
                 File.ReadAllBytes(Filename).Should().Equal(data);
+                foreach (var item in baselineFiles) File.ReadAllBytes(item.Key).Should().Equal(item.Value);
+                Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName).Should().BeEquivalentTo(baselineEntries);
             }
             Verify();
         }
