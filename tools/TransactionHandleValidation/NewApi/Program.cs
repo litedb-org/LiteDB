@@ -33,9 +33,8 @@ try
     using (var db = new LiteDatabase(shared))
     using (var peer = new LiteDatabase(shared))
     {
-        try { db.BeginTransaction(); throw new Exception("Shared handles must remain disabled until step 5"); }
-        catch (NotSupportedException error) { Check(error.Message.Contains("Shared"), "Shared refusal diagnostic"); }
-        Check(peer.GetCollection("rows").Count() == 0, "Shared refusal wrote rows");
+        CommitAndRollBack(db, "shared-file");
+        Check(peer.GetCollection("rows").Count() == 1, "Shared peer lost the handle commit or retained rollback");
     }
 }
 finally
