@@ -25,6 +25,10 @@ on:
       - 'LiteDB/Engine/Services/Transaction*.cs'
       - 'tools/TransactionHandleValidation/**'
       - 'scripts/test-transaction-handle-compatibility.py'
+      - 'scripts/test-released-handle-binary.py'
+      - 'scripts/check-handle-inventory.py'
+      - 'docs/transaction-handles.md'
+      - 'docs/transaction-handles/**'
       - '.github/workflows/transaction-handle-compatibility.yml'
 
 permissions:
@@ -57,6 +61,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: phase3
+          fetch-depth: 0
           ref: 094e62cfc1eb6fc8c70bfe2eb4aa9f43baee2958
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
