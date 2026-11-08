@@ -8,6 +8,9 @@ namespace LiteDB
     {
         private static void ValidateOneFileSettings(EngineSettings settings)
         {
+            // Caller streams and temporary databases retain the legacy implementation.
+            if (!settings.SharedOneFileOverride.HasValue && !NativeAdmission.IsFile(settings))
+                settings.SharedOneFile = false;
             if (!settings.SharedOneFile) return;
 #if NET8_0_OR_GREATER
             if (!NativeAdmission.IsFile(settings)) throw new NotSupportedException("SharedOneFile requires a physical database file.");

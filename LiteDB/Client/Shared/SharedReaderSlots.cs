@@ -19,6 +19,7 @@ namespace LiteDB.Client.Shared
     /// Registering rewrites one slot in place, so a leased scan creates and deletes no file.
     /// The name prefix makes older lease parsers fail closed instead of reading a version.
     /// </summary>
+    // Legacy implementation is frozen for v6 fallback and opt-out; removed in v7.
     internal sealed class SharedReaderSlots : IDisposable
     {
         internal const string Prefix = "slots-";

@@ -54,7 +54,7 @@ internal static class DirectHostHarness
         try
         {
             using var database = new LiteDatabase(new ConnectionString { Filename = filename, Password = password,
-                Connection = shared ? ConnectionType.Shared : ConnectionType.Direct,
+                SharedOneFile = false, Connection = shared ? ConnectionType.Shared : ConnectionType.Direct,
                 ReadOnly = mode.Contains("readonly", StringComparison.Ordinal) });
             database.GetCollection("docs").FindAll().ToArray();
             if (refused) throw new InvalidOperationException("Conflicting open unexpectedly succeeded");
