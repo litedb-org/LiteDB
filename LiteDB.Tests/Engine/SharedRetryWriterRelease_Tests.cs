@@ -264,7 +264,8 @@ namespace LiteDB.Tests.Engine
         }
 
         private ConnectionString Connection(bool encrypted) => new ConnectionString
-        { SharedOneFile = false,
+        {
+            SharedOneFile = false,
             Filename = Filename, Password = Password(encrypted), Connection = ConnectionType.Shared
         };
 

@@ -29,7 +29,8 @@ namespace LiteDB.Tests.Engine
         private long LogLength => File.Exists(this.LogFilename) ? new FileInfo(this.LogFilename).Length : 0;
 
         private SharedEngine Open(string password, bool readOnly = false) => new SharedEngine(new EngineSettings
-        { SharedOneFile = false,
+        {
+            SharedOneFile = false,
             Filename = this.Filename,
             Password = password,
             ReadOnly = readOnly,

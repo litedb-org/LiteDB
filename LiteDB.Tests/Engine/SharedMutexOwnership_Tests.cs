@@ -36,7 +36,8 @@ namespace LiteDB.Tests.Engine
 
         /// <summary>No reader lease can be registered, so readers stream under the mutex, as before v13.</summary>
         private SharedEngine OpenUnleased() => new SharedEngine(new EngineSettings
-        { SharedOneFile = false,
+        {
+            SharedOneFile = false,
             Filename = this.Filename,
             SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
         });

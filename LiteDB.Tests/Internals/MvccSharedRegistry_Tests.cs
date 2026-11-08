@@ -83,7 +83,8 @@ namespace LiteDB.Internals
         {
             var calls = new Dictionary<int, int>();
             using var engine = new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = Filename,
                 ReadTransform = (_, value) =>
                 {
@@ -114,7 +115,8 @@ namespace LiteDB.Internals
             Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
 
             using var writer = new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = Filename,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("injected registry failure")
             });

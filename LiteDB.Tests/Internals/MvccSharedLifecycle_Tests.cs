@@ -66,7 +66,8 @@ namespace LiteDB.Internals
         public void QueryConstructionFailureReleasesEngineMutexAndLease()
         {
             using var engine = new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = Filename,
                 ReadTransform = (_, __) => throw new InvalidOperationException("transform failed")
             });

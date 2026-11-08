@@ -112,7 +112,7 @@ DMS boundaries; `ReplacementReplay` and `LiveDimensions` cover stale same-path
 metadata and live mapping lifetime. See the corresponding SharedOneFile test
 classes and the `shared-one-file` contract registry for executable evidence.
 
-This opt-in is qualified on modern runtimes for Windows x64/x86, macOS x64/arm64,
+The mapped default is qualified on modern runtimes for Windows x64, macOS x64/arm64,
 and Linux x64/arm64. These are exception, thread/process death, corrupt-input
 and forced-interleaving models. .NET Framework mapped execution remains refused;
 these tests do not establish device power loss or whole-path mapped power-loss

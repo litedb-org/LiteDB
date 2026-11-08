@@ -28,7 +28,8 @@ namespace LiteDB.Tests.Engine
             try
             {
                 using (var db = new LiteDatabase(new ConnectionString
-                { SharedOneFile = false,
+                {
+                    SharedOneFile = false,
                     Filename = path, Password = "old", Collation = collation, Connection = connection
                 }))
                 {

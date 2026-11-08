@@ -29,7 +29,8 @@ namespace LiteDB.Tests.Issues
             var password = encrypted ? "old-password" : null;
             Seed(password);
             using var db = new LiteDatabase(new ConnectionString
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = Filename, Password = password, Connection = ConnectionType.Shared
             });
             RebuildService.SimulateInstallFailure = phase =>
@@ -59,7 +60,8 @@ namespace LiteDB.Tests.Issues
                 Action reopen = () =>
                 {
                     using var fresh = new LiteDatabase(new ConnectionString
-                    { SharedOneFile = false,
+                    {
+                        SharedOneFile = false,
                         Filename = Filename, Password = password, Connection = connection,
                         ReadOnly = readOnly, Upgrade = true, AutoRebuild = true
                     });

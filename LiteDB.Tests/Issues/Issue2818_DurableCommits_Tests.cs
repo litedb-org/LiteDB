@@ -64,7 +64,8 @@ namespace LiteDB.Tests.Issues
             public LiteEngine Open(bool durableCommits, string password)
             {
                 return new LiteEngine(new EngineSettings
-                { SharedOneFile = false,
+                {
+                    SharedOneFile = false,
                     DataStream = Data, LogStream = Log, Password = password, DurableCommits = durableCommits
                 });
             }

@@ -21,7 +21,8 @@ namespace LiteDB.Tests.Engine
         private string Filename => Path.Combine(_directory, "test.db");
 
         private SharedEngine Open(bool autoRebuild = false) => new SharedEngine(new EngineSettings
-        { SharedOneFile = false,
+        {
+            SharedOneFile = false,
             Filename = this.Filename,
             AutoRebuild = autoRebuild
         });

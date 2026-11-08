@@ -69,7 +69,8 @@ namespace LiteDB.Tests.Engine
         protected SharedEngine OpenOuter(bool encrypted, Func<string, BsonValue, BsonValue> transform = null, bool unleased = false)
         {
             var settings = new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 Password = Password(encrypted),
                 ReadTransform = transform ?? ((_, value) => value)

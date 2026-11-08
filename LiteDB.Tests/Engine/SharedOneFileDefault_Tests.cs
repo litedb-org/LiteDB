@@ -73,7 +73,12 @@ namespace LiteDB.Tests.Engine
         private static void AssertFiles(string filename, bool mapped)
         {
             Directory.Exists(filename + "-readers").Should().Be(!mapped);
+            // Framework uses reader leases without the modern ABI-1 status pages.
+#if NET8_0_OR_GREATER
             Directory.GetFiles(Path.GetDirectoryName(filename), "test.db-shared-*").Should().HaveCount(mapped ? 0 : 2);
+#else
+            Directory.GetFiles(Path.GetDirectoryName(filename), "test.db-shared-*").Should().BeEmpty();
+#endif
             if (mapped) File.Exists(filename + "-shm").Should().BeTrue();
         }
 

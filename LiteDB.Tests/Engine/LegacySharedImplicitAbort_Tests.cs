@@ -60,7 +60,8 @@ namespace LiteDB.Tests.Engine
             var fail = false;
             var hits = 0;
             using (var engine = new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = file.Filename,
                 ReadTransform = (_, row) =>
                 {

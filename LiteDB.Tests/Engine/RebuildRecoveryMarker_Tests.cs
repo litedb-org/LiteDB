@@ -38,7 +38,8 @@ namespace LiteDB.Tests.Engine
                 Action open = () =>
                 {
                     using var engine = new LiteEngine(new EngineSettings
-                    { SharedOneFile = false,
+                    {
+                        SharedOneFile = false,
                         Filename = Filename, Upgrade = true, AutoRebuild = true
                     });
                 };

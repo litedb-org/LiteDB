@@ -42,7 +42,8 @@ namespace LiteDB.Tests.Engine
 
             // A read-only connection without reader leases streams under the mutex.
             using var reader = new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 ReadOnly = true,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")

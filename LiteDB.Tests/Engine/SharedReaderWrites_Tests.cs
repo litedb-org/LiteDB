@@ -153,7 +153,8 @@ namespace LiteDB.Tests.Engine
             }
 
             var settings = new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 ReadOnly = true,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")

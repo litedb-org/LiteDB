@@ -28,7 +28,8 @@ namespace LiteDB.Tests.Internals
             using var data = mode == "caller-file" ? File.Open(file.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite) : null;
             using var log = mode == "caller-file" ? File.Open(logFile.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite) : null;
             var settings = new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = file.Filename, Password = mode == "encrypted" ? "secret" : null,
                 DurableCommits = mode != "cache-only", DataStream = data, LogStream = log
             };

@@ -71,7 +71,8 @@ namespace LiteDB.Tests.Engine
             var data = this.Track(CallbackFile.Open(this.Filename));
             var log = this.Track(CallbackFile.Open(FileHelper.GetLogFile(this.Filename)));
             var outer = this.Track(new SharedEngine(new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = this.Filename, Password = Password(encrypted), DataStream = data, LogStream = log,
                 ReadTransform = (_, value) => value
             }));

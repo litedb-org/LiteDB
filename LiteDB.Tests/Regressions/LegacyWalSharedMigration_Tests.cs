@@ -52,7 +52,8 @@ namespace LiteDB.Tests.Regressions
             var originalData = data.ToArray();
             var originalLog = log.ToArray();
             var settings = new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 DataStream = data, LogStream = log,
                 SharedReaderVersions = liveLease ? () => new[] { 1 } : (Func<int[]>)(() => null)
             };
@@ -96,7 +97,8 @@ namespace LiteDB.Tests.Regressions
             var originalLog = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
 
             var settings = new EngineSettings
-            { SharedOneFile = false,
+            {
+                SharedOneFile = false,
                 Filename = file.Filename,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
             };
