@@ -1,0 +1,33 @@
+name: P3 reader death stress
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v6/wip-f-p3-readerdeath']
+permissions:
+  contents: read
+jobs:
+  stress:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, windows-2025]
+        framework: [net8.0, net9.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - name: Build selected framework and child harness
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TargetFrameworks=${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Repeat both complete classes 100 times with native release timings
+        run: python .github/scripts/p3_reader_death_stress.py --framework ${{ matrix.framework }} --repeat 100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reader-death-${{ matrix.runner }}-${{ matrix.framework }}
+          path: artifacts_temp/reader-death

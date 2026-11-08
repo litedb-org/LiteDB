@@ -25,7 +25,17 @@
     }
   ],
   "dispositions": [
-    {"id": "p3-darwin-bounded-allocation", "kind": "ci-test-config-changed", "subjects": [".github/workflows/p3-darwin-allocation.yml", ".github/scripts/darwin_allocation.py"], "disposition": "strengthened", "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.", "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."},
+    {
+      "id": "p3-darwin-bounded-allocation",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-darwin-allocation.yml",
+        ".github/scripts/darwin_allocation.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.",
+      "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."
+    },
     {
       "id": "p3-integrated-windows-death-lock-observation",
       "kind": "harness-changed",
@@ -836,6 +846,17 @@
       "disposition": "strengthened",
       "invariant": "Historical 5.0.21 WAL conversion refuses a held legacy reader lease with LOCK_TIMEOUT, preserves every source byte and converts completely after the lease closes.",
       "reason": "Select Shared One File=false for this legacy-drain-specific refusal and subsequent reopen after the qualified platform default changes. Preserve every error-code, directory/file-byte and committed-data assertion. New default offline retirement and native-family refusal are covered separately by SharedOneFileDefault and SharedOfflineUpgrade suites."
+    },
+    {
+      "id": "p3-reader-death-native-release-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Paused readers pin exact floors; the first scan after native slot release excludes dead readers without another participant or writer; all three ranges release and reused slots change incarnation.",
+      "reason": "Windows process exit may precede native byte-range cleanup. Bound only the production native slot predicate to five seconds, then retain immediate empty-floor/DMS/WRITE assertions. No retries of floor assertions or unrelated reclamation events. Initial floors and kill-to-clear timings are retained; both complete classes run100times on Windows2022/2025 x64 net8/9/10. Permanently locked slots or stale floors still fail."
     }
   ]
 }
