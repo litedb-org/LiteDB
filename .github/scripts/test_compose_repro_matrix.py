@@ -84,6 +84,13 @@ class ReproMatrixTests(unittest.TestCase):
                   if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
         self.assertEqual(expected, actual)
 
+    def test_deferred_reader_reconciliation_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        self.assertEqual({
+            "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#Transaction_reconciliation_waits_for_teardown_and_preserves_cold_state",
+        }, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
+           if ref.startswith("LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs#")})
+
     def test_coordinated_pin_admission_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         self.assertEqual({

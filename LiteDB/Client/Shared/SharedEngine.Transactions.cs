@@ -208,9 +208,24 @@ namespace LiteDB
         // operation returns, while its extra native use still protects teardown.
         private void ReconcileTransaction(bool waitForStopped = true)
         {
-            if (!_transactionRunning || _engine == null ||
-                (!_engine.StorageUncertain && _engine.HasActiveTransaction)) return;
-            this.EndTransaction(releaseHold: true, waitForStopped: waitForStopped);
+            SharedMutexPin use;
+            bool stopped;
+            lock (_useLock)
+            {
+                // A retained reader's Dispose can run after its Read triggered
+                // deferred teardown. Hold the same gate as core detachment, so
+                // checking the core and ending its transaction form one transition.
+                var engine = _engine;
+                if (!_transactionRunning || engine == null) return;
+                stopped = engine.StorageUncertain;
+                if (!stopped && engine.HasActiveTransaction) return;
+                use = _transactionUse;
+                this.EndTransaction(releaseHold: true, waitForStopped: false);
+            }
+            // Holder teardown takes _useLock. Never wait for it while owning that
+            // gate, or while the caller still owes the retained Read admission.
+            if (stopped && waitForStopped && use?.CanWaitFrom(Thread.CurrentThread) == true)
+                use.WaitReleased();
         }
 
         #endregion
