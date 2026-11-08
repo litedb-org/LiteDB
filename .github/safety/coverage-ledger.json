@@ -1046,6 +1046,20 @@
       "disposition": "strengthened",
       "invariant": "All existing selections and budgets remain; new handle model runs in smoke/nightly/all campaigns, full Intel runtime matrix and 50 complete wait/lifetime/process passes are added.",
       "reason": "Orchestrator instructed integrated exact-candidate hosted qualification; additions only, zero skipped stress cases accepted."
+    },
+    {
+      "id": "p4-hosted-dispatch-location",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml",
+        ".github/workflows/p4-qualification.yml"
+      ],
+      "disposition": "relocated",
+      "invariant": "Identical additional qualification jobs run from the registered Full CI workflow through an explicit handles_qualification dispatch flag.",
+      "reason": "GitHub dispatch must use a registered workflow; preserve the new 50-pass stress, six deterministic seeds and three full Intel runtime legs. Existing Full jobs unchanged.",
+      "coveredBy": [
+        ".github/workflows/full-ci.yml"
+      ]
     }
   ]
 }
