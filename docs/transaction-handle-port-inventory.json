@@ -1,5 +1,5 @@
 {
-  "step": "P4-S5-SHARED (qualification pending)",
+  "step": "P4-S6-LIFETIME (qualification pending)",
   "sourceApiHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
   "note": "Synchronous Direct and Shared handle integration. Exact-head hosted results remain pending; no platform qualification claimed by this inventory.",
   "tests": [
@@ -777,29 +777,29 @@
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Disposing_the_connection_disposes_the_cached_wrapper_and_refuses_a_late_return",
       "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
-      "destination": null,
-      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Close_drains_executing_call_invalidates_cursor_and_preserves_caller_engine",
+      "disposition": "Adapted to retained participant/core: no private child cache exists. Database close drains and rolls back; externally closed engines fence handles instead of allowing late child commits. GC oracle proves callback/ambient graph collection and actual native retirement.",
       "hostedResult": "Pending exact-head CI; step log and hosted artifacts record actual executions. Source-specific optional API/pool assertions are not claimed as enabled capabilities.",
-      "sharedPort": "Source pool/child-wrapper assertions are replaced by current participant/core lifetime; scheduler pool policy is not introduced. Lifecycle/hygiene breadth outside the named source reuse-process suite remains step 6.",
-      "sharedDestination": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state"
+      "sharedPort": "Current participant lifetime replaces source private-wrapper cache/pool counters; storage and ownership obligations execute in drain, abandonment and process-death tests.",
+      "sharedDestination": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Close_drains_executing_call_invalidates_cursor_and_preserves_caller_engine"
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Idle_worker_roots_no_database_handle_read_policy_or_ambient_value",
       "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
-      "destination": null,
-      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "disposition": "Adapted to retained participant/core: no private child cache exists. Database close drains and rolls back; externally closed engines fence handles instead of allowing late child commits. GC oracle proves callback/ambient graph collection and actual native retirement.",
       "hostedResult": "Pending exact-head CI; step log and hosted artifacts record actual executions. Source-specific optional API/pool assertions are not claimed as enabled capabilities.",
-      "sharedPort": "Source pool/child-wrapper assertions are replaced by current participant/core lifetime; scheduler pool policy is not introduced. Lifecycle/hygiene breadth outside the named source reuse-process suite remains step 6.",
-      "sharedDestination": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state"
+      "sharedPort": "Current participant lifetime replaces source private-wrapper cache/pool counters; storage and ownership obligations execute in drain, abandonment and process-death tests.",
+      "sharedDestination": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle"
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleReuseLifetime_Tests.cs#Abandoned_active_handle_and_database_release_ownership_and_the_wrapper_is_not_cached",
       "sourceHead": "a41df8463b56d6129b2e1a8766b7326d99a4c1ba",
-      "destination": null,
-      "disposition": "Shared-only holder/pool/native/pin/diagnostics/optional self-wait policy; no Direct holder thread or child wrapper exists. Shared/lifetime obligations retained for steps 5\u20136; optional flow heuristics/settings intentionally absent by design section 3.",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "disposition": "Adapted to retained participant/core: no private child cache exists. Database close drains and rolls back; externally closed engines fence handles instead of allowing late child commits. GC oracle proves callback/ambient graph collection and actual native retirement.",
       "hostedResult": "Pending exact-head CI; step log and hosted artifacts record actual executions. Source-specific optional API/pool assertions are not claimed as enabled capabilities.",
-      "sharedPort": "Source pool/child-wrapper assertions are replaced by current participant/core lifetime; scheduler pool policy is not introduced. Lifecycle/hygiene breadth outside the named source reuse-process suite remains step 6.",
-      "sharedDestination": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state"
+      "sharedPort": "Current participant lifetime replaces source private-wrapper cache/pool counters; storage and ownership obligations execute in drain, abandonment and process-death tests.",
+      "sharedDestination": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle"
     },
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleReuseWaits_Tests.cs#Begin_on_a_reused_wrapper_that_times_out_natively_records_its_whole_wait",

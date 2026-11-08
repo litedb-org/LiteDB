@@ -17,7 +17,7 @@ namespace LiteDB
         private readonly HashSet<LiteTransaction> _active = new HashSet<LiteTransaction>();
         private int _pending;
         private readonly CancellationTokenSource _begins = new CancellationTokenSource();
-        private bool _closed;
+        private volatile bool _closed;
 
 #if DEBUG || TESTING
         internal int ActiveCount { get { lock (_gate) return _active.Count; } }
@@ -25,7 +25,7 @@ namespace LiteDB
 
         internal void ThrowIfClosed()
         {
-            lock (_gate) if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));
+            if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));
         }
 
         /// <summary>Admit one begin; it must end with <see cref="Register"/> or <see cref="Abandon"/>.</summary>

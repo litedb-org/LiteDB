@@ -51,7 +51,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = connectionString.CreateEngine();
-            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine, _transactionHandles), resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -79,7 +79,7 @@ namespace LiteDB
 
             var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
-            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine, _transactionHandles), resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -92,7 +92,7 @@ namespace LiteDB
             LiteDBPragmas.EnsurePreDevRiskAcknowledged();
 #endif
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _context = new LiteDatabaseContext(new UnboundEngine(_engine), ResolveMapper(mapper));
+            _context = new LiteDatabaseContext(new UnboundEngine(_engine, _transactionHandles), ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
         }
 
@@ -348,7 +348,7 @@ namespace LiteDB
         /// </summary>
         public TimeSpan Timeout
         {
-            get => TimeSpan.FromSeconds(_engine.Pragma(Pragmas.TIMEOUT).AsInt32);
+            get => TimeSpan.FromSeconds(_context.Engine.Pragma(Pragmas.TIMEOUT).AsInt32);
             set => _context.Engine.Pragma(Pragmas.TIMEOUT, (int)value.TotalSeconds);
         }
 
@@ -385,7 +385,7 @@ namespace LiteDB
         /// </summary>
         public Collation Collation
         {
-            get => new Collation(_engine.Pragma(Pragmas.COLLATION).AsString);
+            get => new Collation(_context.Engine.Pragma(Pragmas.COLLATION).AsString);
         }
 
         #endregion

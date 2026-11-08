@@ -71,6 +71,7 @@ namespace LiteDB
             // Before any side effect: the handle stays usable from a non-impersonating thread.
             lock (_gate)
             {
+                _handles?.ThrowIfClosed();
                 // A sequential call that lands during close sees the close, not an overlap;
                 // reentry from the executing call's own callbacks is still reported as such.
                 if ((_closing || _disposed) && !ReferenceEquals(_executing, Thread.CurrentThread))

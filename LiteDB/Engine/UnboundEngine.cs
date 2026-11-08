@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using LiteDB.Engine;
 using LiteDB.Vector;
@@ -11,45 +12,51 @@ namespace LiteDB
     internal sealed class UnboundEngine : ILiteEngine
     {
         private readonly ILiteEngine _inner;
-        internal UnboundEngine(ILiteEngine inner) { _inner = inner; }
+        private readonly TransactionHandles _handles;
+        internal UnboundEngine(ILiteEngine inner, TransactionHandles handles = null) { _inner = inner; _handles = handles; }
+        private T Call<T>(Func<T> action)
+        {
+            _handles?.ThrowIfClosed();
+            return TransactionContext.Unbound(action);
+        }
         public int Checkpoint()
-        { return TransactionContext.Unbound(() => _inner.Checkpoint()); }
+        { return Call(() => _inner.Checkpoint()); }
         public long Rebuild(RebuildOptions options)
-        { return TransactionContext.Unbound(() => _inner.Rebuild(options)); }
+        { return Call(() => _inner.Rebuild(options)); }
         public bool BeginTrans()
-        { return TransactionContext.Unbound(() => _inner.BeginTrans()); }
+        { return Call(() => _inner.BeginTrans()); }
         public bool Commit()
-        { return TransactionContext.Unbound(() => _inner.Commit()); }
+        { return Call(() => _inner.Commit()); }
         public bool Rollback()
-        { return TransactionContext.Unbound(() => _inner.Rollback()); }
+        { return Call(() => _inner.Rollback()); }
         public IBsonDataReader Query(string collection, Query query)
-        { return new Reader(TransactionContext.Unbound(() => _inner.Query(collection, query))); }
+        { return new Reader(Call(() => _inner.Query(collection, query))); }
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
-        { return TransactionContext.Unbound(() => _inner.Insert(collection, docs, autoId)); }
+        { return Call(() => _inner.Insert(collection, docs, autoId)); }
         public int Update(string collection, IEnumerable<BsonDocument> docs)
-        { return TransactionContext.Unbound(() => _inner.Update(collection, docs)); }
+        { return Call(() => _inner.Update(collection, docs)); }
         public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate)
-        { return TransactionContext.Unbound(() => _inner.UpdateMany(collection, transform, predicate)); }
+        { return Call(() => _inner.UpdateMany(collection, transform, predicate)); }
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
-        { return TransactionContext.Unbound(() => _inner.Upsert(collection, docs, autoId)); }
+        { return Call(() => _inner.Upsert(collection, docs, autoId)); }
         public int Delete(string collection, IEnumerable<BsonValue> ids)
-        { return TransactionContext.Unbound(() => _inner.Delete(collection, ids)); }
+        { return Call(() => _inner.Delete(collection, ids)); }
         public int DeleteMany(string collection, BsonExpression predicate)
-        { return TransactionContext.Unbound(() => _inner.DeleteMany(collection, predicate)); }
+        { return Call(() => _inner.DeleteMany(collection, predicate)); }
         public bool DropCollection(string name)
-        { return TransactionContext.Unbound(() => _inner.DropCollection(name)); }
+        { return Call(() => _inner.DropCollection(name)); }
         public bool RenameCollection(string name, string newName)
-        { return TransactionContext.Unbound(() => _inner.RenameCollection(name, newName)); }
+        { return Call(() => _inner.RenameCollection(name, newName)); }
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
-        { return TransactionContext.Unbound(() => _inner.EnsureIndex(collection, name, expression, unique)); }
+        { return Call(() => _inner.EnsureIndex(collection, name, expression, unique)); }
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
-        { return TransactionContext.Unbound(() => _inner.EnsureVectorIndex(collection, name, expression, options)); }
+        { return Call(() => _inner.EnsureVectorIndex(collection, name, expression, options)); }
         public bool DropIndex(string collection, string name)
-        { return TransactionContext.Unbound(() => _inner.DropIndex(collection, name)); }
+        { return Call(() => _inner.DropIndex(collection, name)); }
         public BsonValue Pragma(string name)
-        { return TransactionContext.Unbound(() => _inner.Pragma(name)); }
+        { return Call(() => _inner.Pragma(name)); }
         public bool Pragma(string name, BsonValue value)
-        { return TransactionContext.Unbound(() => _inner.Pragma(name, value)); }
+        { return Call(() => _inner.Pragma(name, value)); }
         public void Dispose() => TransactionContext.Unbound(() => { _inner.Dispose(); return true; });
 
         private sealed class Reader : IBsonDataReader

@@ -117,6 +117,35 @@ namespace LiteDB.Internals
 
         [OneFileTheory]
         [InlineData(false)] [InlineData(true)]
+        public async Task Database_close_cancels_native_begin_without_releasing_remote_handle(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped });
+            var db = new LiteDatabase(engine);
+            _ = db.Timeout;
+            using var holder = new MvccProcess(mapped ? "handle-mapped" : "handle-legacy", file, null);
+            await holder.Expect("ready");
+            holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+            using var waiting = new ManualResetEventSlim();
+            var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            turnstile.BeforeMainWait = waiting.Set;
+            var begin = Task.Run(() => Record.Exception(() => db.BeginTransaction()));
+            Assert.True(waiting.Wait(TimeSpan.FromSeconds(10)), "The holder must reach the contested native wait.");
+            var close = Task.Run(db.Dispose);
+            Assert.Same(begin, await Task.WhenAny(begin, Task.Delay(TimeSpan.FromSeconds(5))));
+            Assert.IsType<ObjectDisposedException>(await begin);
+            Assert.Same(close, await Task.WhenAny(close, Task.Delay(TimeSpan.FromSeconds(10))));
+            await close;
+            Assert.Equal(0, db.TransactionHandles.ActiveCount);
+            turnstile.BeforeMainWait = null;
+            holder.Send("write"); await holder.Expect("written");
+            holder.Send("commit"); await holder.Expect("committed");
+            holder.Send("close"); await holder.Expect("done"); await holder.Finish();
+            Verify(file, true);
+        }
+
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
         public async Task Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped)
         {
             using var file = new TempFile(); Seed(file);

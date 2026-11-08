@@ -35,9 +35,11 @@ internal static class TransactionHandleHarness
             Console.WriteLine("done");
             return true;
         }
-        if (mode != "handle-mapped" && mode != "handle-legacy" && mode != "handle-readonly-mapped" && mode != "handle-readonly-legacy") return false;
-        using var engine = new SharedEngine(new EngineSettings
-        { Filename = filename, SharedOneFile = mode.EndsWith("mapped", StringComparison.Ordinal), ReadOnly = mode.Contains("readonly"), TransactionPageLimit = 1 });
+        if (mode != "handle-direct" && mode != "handle-mapped" && mode != "handle-legacy" && mode != "handle-readonly-mapped" && mode != "handle-readonly-legacy") return false;
+        using ILiteEngine engine = mode == "handle-direct"
+            ? new LiteEngine(new EngineSettings { Filename = filename, Password = password, TransactionPageLimit = 1 })
+            : new SharedEngine(new EngineSettings
+        { Filename = filename, Password = password, SharedOneFile = mode.EndsWith("mapped", StringComparison.Ordinal), ReadOnly = mode.Contains("readonly"), TransactionPageLimit = 1 });
         using var db = new LiteDatabase(engine, disposeOnClose: false);
         // Safely refresh persisted TIMEOUT before contention starts.
         _ = db.Timeout;
