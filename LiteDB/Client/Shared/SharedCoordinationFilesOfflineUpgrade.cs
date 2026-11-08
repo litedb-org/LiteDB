@@ -12,6 +12,20 @@ namespace LiteDB.Client.Shared
     // after power loss. No persistent completion marker is needed or trusted.
     internal static class SharedOfflineUpgrade
     {
+        // Inspection only: read-only default opens retain legacy coordination.
+        // Admission still claims that family before any storage/query access.
+        internal static bool HasLegacyRemnants(string filename)
+        {
+            if (Directory.Exists(filename + "-readers") ||
+                new[] { "-shared-state", "-shared-disabled", "-shared-live" }
+                    .Any(s => FileHelper.ExistsOrThrow(filename + s))) return true;
+            var shm = filename + "-shm";
+            if (!FileHelper.ExistsOrThrow(shm)) return false;
+            RequireRegular(shm);
+            using var file = new FileStream(shm, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return SharedCoordinationProtocol.Inspect(file, true, filename) != null;
+        }
+
         internal static void Run(EngineSettings settings, NativeAdmission admission)
         {
             var filename = settings.Filename;

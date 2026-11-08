@@ -1,5 +1,11 @@
 # Operating Shared mapped reads
 
+For the v6 default protocol, local-volume fallback, read-only legacy remnants,
+settings that local facades must match, and the sole-participant requirement for
+Rebuild/maintenance, see [Shared coordination deployment](shared-one-file-prototype.md).
+Stop and upgrade old executables before deployment; versions without native family
+admission cannot safely participate alongside current clients.
+
 On .NET 8+, repeated Shared queries can retain a read-only engine and use a small
 memory-mapped status page to avoid reopening under the database mutex. Writers
 publish changes to that page; cached readers briefly yield while a writer is

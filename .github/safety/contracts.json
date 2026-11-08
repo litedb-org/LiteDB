@@ -358,12 +358,21 @@
       ],
       "paths": [
         "LiteDB/Engine/Services/MappedRebuildRecovery.cs",
+        "LiteDB/Client/Shared/SharedProtocolDefaults.cs",
+        "LiteDB/Client/Shared/SharedEngine*.cs",
+        "LiteDB/Client/Shared/SharedParticipantRegistry.cs",
+        "LiteDB/Client/Shared/SharedCoordinationFilesOfflineUpgrade.cs",
         "LiteDB/Client/Shared/SharedMemory*.cs",
         "LiteDB/Client/Shared/SharedRangeLocks.cs",
         "LiteDB/Client/Shared/SharedWriter*.cs"
       ],
       "evidence": [
         {"test": "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs#Dms_slot_write_and_cross_thread_release_use_independent_descriptions", "proves": "A failed sole-participant DMS conversion preserves shared liveness, independent peers still exclude exclusive ownership, and the surviving participant converts its own shared range after peer disposal before downgrading and writing. Windows conversions run under bootstrap in production."},
+        {"test": "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_remnant_reader_blocks_upgrade_until_closed", "model": "exception", "proves": "Live read-only legacy admission excludes upgrade; mapped maintenance requires a sole participant and incompatible cache settings still refuse while preserving indexed data."},
+        {"test": "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_maintenance_and_cache_mismatch_remain_refused", "model": "exception", "proves": "Live read-only legacy admission excludes upgrade; mapped maintenance requires a sole participant and incompatible cache settings still refuse while preserving indexed data."},
+        {"test": "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_preserves_legacy_remnants", "model": "exception", "proves": "Default selection preserves indexed data on native tmpfs, read-only legacy bytes, and read-only access with overlapping writable facades in either local opening order."},
+        {"test": "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_and_writable_facades_coexist", "model": "exception", "proves": "Default selection preserves indexed data on native tmpfs, read-only legacy bytes, and read-only access with overlapping writable facades in either local opening order."},
+        {"test": "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_native_tmpfs_preserves_indexed_data_and_legacy_protocol", "model": "exception", "proves": "Default selection preserves indexed data on native tmpfs, read-only legacy bytes, and read-only access with overlapping writable facades in either local opening order."},
         {"test": "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data", "model": "exception", "proves": "Default/fallback and explicit legacy selection preserve indexed data; live mixed families refuse before storage mutation."},
         {"test": "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars", "model": "exception", "proves": "Default/fallback and explicit legacy selection preserve indexed data; live mixed families refuse before storage mutation."},
         {"test": "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably", "model": "exception", "proves": "Default/fallback and explicit legacy selection preserve indexed data; live mixed families refuse before storage mutation."},
