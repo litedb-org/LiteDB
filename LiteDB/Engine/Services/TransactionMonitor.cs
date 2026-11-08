@@ -31,8 +31,33 @@ namespace LiteDB.Engine
         {
             var view = (TransactionMonitor)this.MemberwiseClone();
             view._owner = new TransactionOwnerToken();
+            view._handleOperations = new HandleOperationRegistry();
             view._explicitAborted = new ThreadLocal<bool>();
             return view;
+        }
+
+        private HandleOperationRegistry _handleOperations = new HandleOperationRegistry();
+        internal void EnterHandleCall(HandleCallLifetime call) => _handleOperations.Enter(call);
+        internal void ExitHandleCall(HandleCallLifetime call) => _handleOperations.Exit(call);
+
+        internal void DrainHandleCalls()
+        {
+            _handleOperations.Refuse();
+            var handles = _transactions.Snapshot().Where(t => ReferenceEquals(t.FacadeOwner, _owner) &&
+                t.Lease.Kind == TransactionOwnerKind.Handle).ToArray();
+            foreach (var transaction in handles) transaction.Lease.Calls.Refuse();
+            // An executing writer can wait for an idle owner's collection. Refusal
+            // makes idle stay idle; release those owners before draining calls.
+            foreach (var transaction in handles.Where(t => !t.Lease.Calls.Running))
+            {
+                try
+                {
+                    if (transaction.State == TransactionState.Active) transaction.Rollback();
+                    this.RemoveTransaction(transaction, out _);
+                }
+                finally { _locker.ExitTransaction(transaction.Lease.Admission); }
+            }
+            _handleOperations.Drain();
         }
 
         internal void CloseOwner()

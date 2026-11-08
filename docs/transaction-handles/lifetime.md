@@ -26,3 +26,9 @@ refuses unsupported recursion/multiple Direct facades. Final native admission
 retirement follows resource cleanup. A process kill releases OS ownership;
 next open discards unconfirmed spilled WAL and retains committed indexed rows.
 This is a process-death contract, not a model of power loss.
+
+Closing a caller-owned Direct engine also refuses and drains its executing
+handle calls before storage release. Its detached operation registry outlives
+transaction unregistration during terminal cleanup, without retaining public
+handles. Idle handle locks are released before waiting for executing calls.
+A later call on a handle whose engine was closed fails and detaches that handle.

@@ -22,6 +22,8 @@ namespace LiteDB
         // Bound objects disposed while another call executes, released when that call returns.
         private List<Action> _deferred;
         private Thread _executing;
+        private HandleCallLifetime _storageCall;
+        private TransactionMonitor _storageMonitor;
         private bool _closing, _disposed;
         internal LiteTransaction(LiteEngine engine, BsonMapper mapper, TransactionHandles handles)
         {
@@ -81,12 +83,16 @@ namespace LiteDB
                     throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
                 _executing = Thread.CurrentThread;
             }
-            try { EnterShared(); }
+            try
+            {
+                EnterStorageCall();
+                EnterShared();
+            }
             catch (Exception error)
             {
                 try
                 {
-                    if (_shared != null)
+                    if (_transaction != null)
                     {
                         _transaction.Outcome = LiteTransactionState.Failed;
                         ReleaseResources(error);
@@ -94,6 +100,27 @@ namespace LiteDB
                 }
                 finally { Exit(); }
                 throw;
+            }
+        }
+
+        private void EnterStorageCall()
+        {
+            if (_transaction == null) return;
+            var monitor = _transaction.Engine.GetMonitor();
+            monitor.EnterHandleCall(_transaction.Lease.Calls);
+            _storageCall = _transaction.Lease.Calls;
+            _storageMonitor = monitor;
+        }
+
+        private bool EnterCleanupStorage()
+        {
+            try { EnterStorageCall(); return true; }
+            catch (Exception error) when (_transaction?.Engine.HandleUnavailableFailure() != null ||
+                _transaction?.Transaction?.State == TransactionState.Disposed)
+            {
+                Abort(error);
+                lock (_gate) _disposed = true;
+                return false;
             }
         }
 
@@ -108,7 +135,14 @@ namespace LiteDB
         private void Exit()
         {
             try { if (_sharedEntered) { _sharedEntered = false; var operation = _sharedOperation; _sharedOperation = null; operation.Exit(); } }
-            finally { ExitGuard(); }
+            finally
+            {
+                var call = _storageCall;
+                _storageCall = null;
+                if (call != null) _storageMonitor.ExitHandleCall(call);
+                _storageMonitor = null;
+                ExitGuard();
+            }
         }
 
         private void ExitGuard()
@@ -147,7 +181,7 @@ namespace LiteDB
                 if (_executing != null) { (_deferred ?? (_deferred = new List<Action>())).Add(release); return; }
                 _executing = Thread.CurrentThread;
             }
-            try { EnterShared(); } catch { Exit(); throw; }
+            try { EnterStorageCall(); EnterShared(); } catch { Exit(); throw; }
             RunCore(() => { release(); return true; });
         }
 
@@ -394,7 +428,8 @@ namespace LiteDB
             lock (_gate)
                 if (State != LiteTransactionState.Active) { _disposed = true; return; }
             if (!EnterCleanup()) return;
-            try { EnterShared(); DisposeCore(); }
+            try { if (EnterCleanupStorage()) { EnterShared(); DisposeCore(); } }
+            catch (Exception error) { Abort(error); throw; }
             finally { Exit(); }
         }
 
@@ -411,7 +446,8 @@ namespace LiteDB
                 if (_disposed) return;
                 _executing = Thread.CurrentThread;
             }
-            try { EnterShared(); DisposeCore(); }
+            try { if (EnterCleanupStorage()) { EnterShared(); DisposeCore(); } }
+            catch (Exception error) { Abort(error); throw; }
             finally { Exit(); }
         }
 

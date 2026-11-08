@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         internal long Generation { get; } = Interlocked.Increment(ref _generation);
         internal TransactionOwnerKind Kind { get; }
         internal Thread Thread { get; }
+        internal HandleCallLifetime Calls { get; }
         internal object Admission => Kind == TransactionOwnerKind.Legacy ? (object)Thread : this;
         internal object LockOwner => Admission;
 
@@ -25,6 +26,7 @@ namespace LiteDB.Engine
         {
             Facade = facade ?? throw new ArgumentNullException(nameof(facade));
             Kind = kind;
+            Calls = kind == TransactionOwnerKind.Handle ? new HandleCallLifetime() : null;
             Thread = kind == TransactionOwnerKind.Legacy ? System.Threading.Thread.CurrentThread : null;
         }
 

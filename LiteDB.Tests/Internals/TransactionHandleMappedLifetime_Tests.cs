@@ -13,6 +13,14 @@ namespace LiteDB.Internals
             TransactionHandleCloseMaintenance_Tests.Drain(2);
 
         [OneFileFact]
+        public void Close_cancels_mapped_local_begin_and_releases_idle_tenure() =>
+            TransactionHandleCloseMaintenance_Tests.LocalBegin(2);
+
+        [OneFileFact]
+        public void Raw_mapped_engine_close_drains_executing_handle() =>
+            TransactionHandleCloseMaintenance_Tests.RawClose(2);
+
+        [OneFileFact]
         public void Live_database_retains_mapped_handle_until_close() =>
             TransactionHandleCloseMaintenance_Tests.Retained(2);
     }

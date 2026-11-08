@@ -422,6 +422,7 @@ namespace LiteDB.Engine
 
         protected virtual void Dispose(bool disposing)
         {
+            if (disposing) _monitor?.DrainHandleCalls();
             if (_host == null) this.Close();
             else _lifetime?.Dispose();
         }

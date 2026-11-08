@@ -106,6 +106,105 @@ namespace LiteDB.Tests.Engine
             return new WeakReference(tx);
         }
 
+        [Theory]
+        [InlineData(1)]
+        public void Close_cancels_local_begin_and_rolls_back_idle_owner(int mode) => LocalBegin(mode);
+
+        internal static void LocalBegin(int mode)
+        {
+            using var file = new TempFile();
+            using var engine = Engine(file, mode);
+            var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using var idle = db.BeginTransaction();
+            idle.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+            var begin = Task.Run(() => Record.Exception(() => db.BeginTransaction()));
+            Assert.True(SpinWait.SpinUntil(() => Pending(db) == 1, TimeSpan.FromSeconds(5)));
+            var close = Task.Run(db.Dispose);
+            Assert.True(Task.WaitAll(new Task[] { begin, close }, TimeSpan.FromSeconds(5)));
+            Assert.IsType<ObjectDisposedException>(begin.Result);
+            Assert.Equal(LiteTransactionState.RolledBack, idle.State);
+            Assert.Equal(0, Pending(db));
+            using var peer = new LiteDatabase(engine, disposeOnClose: false);
+            using var next = peer.BeginTransaction();
+            Assert.Equal(new[] { 1 }, next.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
+            next.Commit();
+        }
+
+        [Fact]
+        public void Close_cancels_Direct_begin_behind_exclusive_admission_without_waiting_on_its_owner()
+        {
+            using var file = new TempFile();
+            using var engine = new LiteEngine(file.Filename);
+            var db = new LiteDatabase(engine, disposeOnClose: false);
+            var locker = (LockService)typeof(LiteEngine).GetField("_locker", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            using var exclusive = new ManualResetEventSlim();
+            using var entering = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            var owner = Task.Run(() =>
+            {
+                locker.EnterExclusive();
+                try { exclusive.Set(); Assert.True(release.Wait(TimeSpan.FromSeconds(15))); }
+                finally { locker.ExitExclusive(); }
+            });
+            Assert.True(exclusive.Wait(TimeSpan.FromSeconds(5)));
+            locker.BeforeTransactionAdmission = entering.Set;
+            var begin = Task.Run(() => Record.Exception(() => db.BeginTransaction()));
+            Assert.True(entering.Wait(TimeSpan.FromSeconds(5)));
+            var close = Task.Run(db.Dispose);
+            try
+            {
+                Assert.True(Task.WaitAll(new Task[] { begin, close }, TimeSpan.FromSeconds(5)));
+                Assert.IsType<ObjectDisposedException>(begin.Result);
+                Assert.Equal(0, Pending(db));
+                Assert.Equal(0, locker.TransactionsCount);
+                Assert.Empty(engine.GetMonitor().GetTransactionsSnapshot());
+            }
+            finally { release.Set(); }
+            Assert.True(owner.Wait(TimeSpan.FromSeconds(5)));
+            locker.BeforeTransactionAdmission = null;
+        }
+
+        [Theory]
+        [InlineData(0)] [InlineData(1)]
+        public void Raw_engine_close_waits_for_executing_handle_before_storage_release(int mode) => RawClose(mode);
+
+        internal static void RawClose(int mode)
+        {
+            using var file = new TempFile();
+            using var engine = Engine(file, mode);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using var tx = db.BeginTransaction();
+            var rows = tx.GetCollection("rows");
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            IEnumerable<BsonDocument> Input()
+            {
+                entered.Set();
+                Assert.True(release.Wait(TimeSpan.FromSeconds(10)));
+                yield return new BsonDocument { ["_id"] = 2 };
+            }
+            var write = Task.Run(() => Record.Exception(() => rows.Insert(Input())));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+            using var started = new ManualResetEventSlim();
+            var close = Task.Run(() => { started.Set(); engine.Dispose(); });
+            try
+            {
+                Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+                Assert.False(close.Wait(TimeSpan.FromMilliseconds(100)));
+            }
+            finally { release.Set(); }
+            Assert.True(Task.WaitAll(new Task[] { write, close }, TimeSpan.FromSeconds(10)));
+            Assert.Null(write.Result);
+            var failure = Record.Exception(tx.Commit);
+            Assert.NotNull(failure);
+            Assert.NotEqual(LiteTransactionState.Committed, tx.State);
+            tx.Dispose(); db.Dispose();
+            using var cold = new LiteDatabase(file);
+            Assert.Equal(new[] { 1 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
+        }
+
         [Fact]
         public void Begin_publication_after_close_rolls_back_without_returning_a_handle()
         {
