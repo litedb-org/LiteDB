@@ -124,7 +124,9 @@ retain that complete transaction even though the application received no acknowl
 An in-flight commit must recover atomically, with every index consistent; it cannot
 be classified as rolled back merely because the caller did not observe success.
 `LiteTransactionState.Indeterminate` represents this uncertainty when a surviving
-caller observes a commit failure after persistence may have occurred. A dead
+caller observes a commit failure after persistence may have occurred. `State` may
+also be `Indeterminate` while `Commit()` is still in flight; this does not signal
+completion or permit reuse of the handle. A dead
 process cannot report a state; resolve its operation by querying after recovery
 before retrying, using an application operation identifier to avoid duplication.
 

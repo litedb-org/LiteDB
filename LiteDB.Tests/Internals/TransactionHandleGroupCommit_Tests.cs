@@ -79,6 +79,8 @@ namespace LiteDB.Tests.Internals
                 tasks[2] = Start(2, true);
                 Wait(noopReady);
                 Assert.Equal(0, acknowledged);
+                Assert.All(handles, handle => Assert.Contains(handle.State, new[] { LiteTransactionState.Active, LiteTransactionState.Indeterminate }));
+                Assert.All(databases, db => Assert.Equal(1, db.TransactionHandles.ActiveCount));
                 Assert.Equal(1, TransactionHandleProcessHost_Tests.Count(engines[0], "rows"));
                 releaseFirst.Set();
                 if (failingSync != 1)
@@ -88,6 +90,13 @@ namespace LiteDB.Tests.Internals
                     Assert.Null(tasks[0].Result);
                     Assert.Equal(1, acknowledged);
                     Assert.False(tasks[2].IsCompleted);
+                    Assert.Equal(LiteTransactionState.Committed, handles[0].State);
+                    Assert.Equal(0, databases[0].TransactionHandles.ActiveCount);
+                    for (var follower = 1; follower < 3; follower++)
+                    {
+                        Assert.Contains(handles[follower].State, new[] { LiteTransactionState.Active, LiteTransactionState.Indeterminate });
+                        Assert.Equal(1, databases[follower].TransactionHandles.ActiveCount);
+                    }
                     Assert.Equal(2, TransactionHandleProcessHost_Tests.Count(engines[0], "rows"));
                     releaseSecond.Set();
                 }
@@ -95,6 +104,7 @@ namespace LiteDB.Tests.Internals
                 Assert.Equal(failingSync == 0 ? 3 : failingSync - 1, acknowledged);
                 Assert.Equal(failingSync == 1 ? 1 : 2, syncs);
                 Assert.All(databases, db => Assert.Equal(0, db.TransactionHandles.ActiveCount));
+                Assert.Empty(engines[0].HandleMonitor.Transactions);
                 if (failingSync == 0) Assert.All(tasks, task => Assert.Null(task.Result));
                 else
                 {
