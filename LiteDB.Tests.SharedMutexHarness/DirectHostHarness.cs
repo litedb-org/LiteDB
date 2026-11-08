@@ -13,7 +13,7 @@ internal static class DirectHostHarness
         if (mode == "direct-host-shared-admission-hold")
         {
             using var database = new LiteDatabase(new ConnectionString
-                { Filename = filename, Password = password, Connection = ConnectionType.Shared });
+                { Filename = filename, Password = password, Connection = ConnectionType.Shared, SharedOneFile = false });
             database.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "child" });
             database.GetCollection("docs").EnsureIndex("value");
             Console.WriteLine("ready");
@@ -41,7 +41,7 @@ internal static class DirectHostHarness
             {
                 try
                 {
-                    using var database = new LiteDatabase(new ConnectionString { Filename = filename, Password = password, Connection = connection });
+                    using var database = new LiteDatabase(new ConnectionString { Filename = filename, Password = password, Connection = connection, SharedOneFile = false });
                     throw new InvalidOperationException("Incomplete rebuild unexpectedly opened");
                 }
                 catch (LiteException error) when (error.ErrorCode == LiteException.REBUILD_INCOMPLETE) { }
