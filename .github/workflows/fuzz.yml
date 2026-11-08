@@ -92,6 +92,14 @@ jobs:
           id: macos-faults
           mode: faults
           targets: ''
+        - os: ubuntu-latest
+          id: linux-shared
+          mode: fuzz
+          targets: shared,shared-legacy
+        - os: windows-latest
+          id: windows-shared
+          mode: fuzz
+          targets: shared,shared-legacy
     env:
       LITEDB_HANDLE_CLOSE_ROUNDS: '120'
     steps:
