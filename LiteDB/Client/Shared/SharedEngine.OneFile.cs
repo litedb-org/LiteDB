@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 
@@ -6,12 +7,25 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
-        private static void ValidateOneFileSettings(EngineSettings settings)
+        private readonly bool _readOnlyLegacyFallback;
+
+        private static bool ValidateOneFileSettings(EngineSettings settings)
         {
             // Caller streams and temporary databases retain the legacy implementation.
             if (!settings.SharedOneFileOverride.HasValue && !NativeAdmission.IsFile(settings))
                 settings.SharedOneFile = false;
-            if (!settings.SharedOneFile) return;
+            var legacyReadOnly = false;
+#if NET8_0_OR_GREATER
+            if (!settings.SharedOneFileOverride.HasValue)
+            {
+                var filename = Path.GetFullPath(settings.Filename);
+                legacyReadOnly = (settings.ReadOnly || settings.ReadOnlyStorage) &&
+                    SharedOfflineUpgrade.HasLegacyRemnants(filename);
+                if (SharedCoordinationPolicy.VolumeFailure(filename) != null || legacyReadOnly)
+                    settings.SharedOneFile = false;
+            }
+#endif
+            if (!settings.SharedOneFile) return legacyReadOnly;
 #if NET8_0_OR_GREATER
             if (!NativeAdmission.IsFile(settings)) throw new NotSupportedException("SharedOneFile requires a physical database file.");
             if (!SharedMemoryAuthority.IsPlatformQualified)
@@ -19,6 +33,7 @@ namespace LiteDB
 #else
             throw new PlatformNotSupportedException("SharedOneFile requires .NET 8 or later.");
 #endif
+            return false;
         }
 
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER

@@ -1854,6 +1854,17 @@
   ],
   "injectors": [
     {
+      "name": "DarwinTruncated",
+      "protocol": "ABI-2 disposable Darwin authority extent reset under exclusive DMS",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes",
+          "model": "exception",
+          "proves": "On Darwin two reached exceptions after ftruncate(0) leave zero length, release all authority ownership, preserve DB bytes and recover indexed data twice. Native bounded APFS process-death coverage is additionally registered in contracts.json."
+        }
+      ]
+    },
+    {
       "name": "DispatchOverride",
       "protocol": "abandoned Shared reader cleanup dispatch",
       "evidence": [
@@ -2242,6 +2253,11 @@
           "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
           "model": "exception",
           "proves": "A forced unexpected native wait errno drains the real active operation before releasing main and WRITE; cold indexed data survives."
+        },
+        {
+          "fuzz": "shared-wake",
+          "model": "exception",
+          "proves": "Linux smoke invokes the real futex wait, requires injection for success/EINTR/EAGAIN/timeout/EIO, checks error disposition, unrelated bytes and subsequent wake progress."
         }
       ]
     },

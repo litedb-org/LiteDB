@@ -1,19 +1,27 @@
 using System;
 using System.IO;
+using System.Diagnostics;
+using System.Threading;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Tests;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LiteDB.Internals
 {
     public class SharedOneFileLock_Tests : IDisposable
     {
         private readonly string _directory = Path.Combine(DatabaseFileIdentity.CanonicalPath(Path.GetTempPath()), "litedb-one-lock-" + Guid.NewGuid().ToString("N"));
+        private readonly ITestOutputHelper _output;
         private string Filename => Path.Combine(_directory, "test-shm");
-        public SharedOneFileLock_Tests() => Directory.CreateDirectory(_directory);
+        public SharedOneFileLock_Tests(ITestOutputHelper output)
+        {
+            _output = output;
+            Directory.CreateDirectory(_directory);
+        }
 
         [Fact]
         public async Task Dms_slot_write_and_cross_thread_release_use_independent_descriptions()
@@ -74,10 +82,20 @@ namespace LiteDB.Internals
                 }
                 finally { SharedProcessSignals.Resume(child.ProcessId); } // SIGCONT
             }
+            var killed = Stopwatch.StartNew();
             await child.Kill(sharedFilesRemainOpen: true);
+            var initiallyLive = observer.IsLive(0);
+            // Native process exit is not a kernel byte-range-release barrier.
+            SpinWait.SpinUntil(() => !observer.IsLive(0), TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the dead child's native slot must be released within five seconds");
             observer.IsLive(0).Should().BeFalse();
+            SpinWait.SpinUntil(observer.TryExclusiveDms, TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the dead child's native DMS range must also be released");
             observer.TryExclusiveDms().Should().BeTrue();
-            observer.EnterWrite();
+            // WRITE has an independent description; use production's bounded
+            // abandoned-owner acquisition rather than assuming slot release orders it.
+            observer.EnterWrite(abandonedOwner: true);
+            _output.WriteLine($"LOCK_DEATH kill_to_clear_ms={killed.Elapsed.TotalMilliseconds:F3} initial_live={initiallyLive}");
         }
 #endif
 

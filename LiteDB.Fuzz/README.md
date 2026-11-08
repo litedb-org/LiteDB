@@ -356,3 +356,11 @@ retry. The latest data/WAL images are saved before recovery checks. Keeping this
 target separate preserves the existing retirement corpus input and trace hashes.
 
 `transaction-handle` checks retired-thread commit, rollback and facade abandonment against an independent full-state/index model on Direct and default/legacy Shared, including encrypted files and repeated cold reopen. Direct turns interleave two handles on peer facades with independent commit/rollback outcomes.
+The `shared` workload uses the default protocol. Its two WAL-clear cuts admit
+peers after the crash worker exits because mapped truncation requires exclusive
+mapping ownership; all other cuts keep concurrent admission. `shared-legacy`
+explicitly selects `SharedOneFile=false` and retains concurrent admission at every
+cut. Both require the exact durable crash marker and compare cold recovered rows
+with acknowledged ledgers. `shared-wake` exercises Linux futex return dispositions
+(success, EINTR, EAGAIN, timeout and EIO), requiring the injection hook, preserved
+unrelated control bytes and a successful subsequent wake.

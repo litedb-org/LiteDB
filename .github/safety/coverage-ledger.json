@@ -25,7 +25,24 @@
     }
   ],
   "dispositions": [
-    {"id": "p4-review-public-dispatch-and-portable-legacy", "kind": "harness-changed", "subjects": ["LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs"], "disposition": "strengthened", "invariant": "Retain every raw engine classification, group prefix/failure schedule and legacy/mapped lifecycle/process case. Public wrappers now drive dispatch and group lifecycle. Ordinary legacy theories execute on CLR 4 and x86; qualified mapped theories remain.", "reason": "Review F1 reproduced 44 raw reader callback authorization failures on c22de98cb production with the public regression; fixed dispatch passes all 44. Internal Execute previously bypassed the defective public reader wrapper. Mixed OneFileTheory excluded legacy on fallback targets; portable child launch now asserts actual CLR major and pointer width.", "coveredBy": ["LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs"]},
+    {
+      "id": "p4-review-public-dispatch-and-portable-legacy",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Retain every raw engine classification, group prefix/failure schedule and legacy/mapped lifecycle/process case. Public wrappers now drive dispatch and group lifecycle. Ordinary legacy theories execute on CLR 4 and x86; qualified mapped theories remain.",
+      "reason": "Review F1 reproduced 44 raw reader callback authorization failures on c22de98cb production with the public regression; fixed dispatch passes all 44. Internal Execute previously bypassed the defective public reader wrapper. Mixed OneFileTheory excluded legacy on fallback targets; portable child launch now asserts actual CLR major and pointer width.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs"
+      ]
+    },
     {
       "id": "p4-warm-child-owner-release-barrier",
       "kind": "harness-changed",
@@ -1108,6 +1125,76 @@
       "coveredBy": [
         "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
         "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs"
+      ]
+    },
+    {
+      "id": "p3-darwin-bounded-allocation",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-darwin-allocation.yml",
+        ".github/scripts/darwin_allocation.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.",
+      "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."
+    },
+    {
+      "id": "shared-one-file-linux-prototype",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedOneFilePhase1_Tests.Retry_releases_obsolete_writer_holds_and_preserves_peer_callback_isolation",
+        "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Interrupted_native_allocation_retries_without_changing_database_bytes",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Connection_string_round_trips_configurable_size_and_capacity",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Empty_and_zero_partial_initialization_reset_but_declared_wrong_length_refuses",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Every_bootstrap_process_death_boundary_recovers_after_repeated_death",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.First_opener_chooses_capacity_later_openers_map_declared_size_and_only_quiescence_changes_it",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Replay_or_copied_path_cannot_authorize_another_database",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Successful_bootstrap_visits_all_registered_boundaries_and_invalid_settings_execute_nothing",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Torn_ephemeral_checksums_reset_only_without_surviving_participants",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Unknown_abi_capabilities_identity_and_damaged_live_headers_refuse_without_mutation",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.All_256_exact_generations_version_zero_duplicates_churn_and_off_thread_double_release",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Generation_capacity_fails_before_stateful_query_callback_executes",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Malformed_live_record_and_slot_identity_return_unknown_not_an_empty_floor_set",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.New_and_legacy_shared_protocols_cannot_mix_locally",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Paused_reader_stays_live_killed_records_disappear_and_slot_reuse_changes_incarnation",
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint",
+        "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Include_keeps_referenced_collection_at_its_exact_admitted_generation",
+        "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation"
+      ],
+      "disposition": "intentional-change",
+      "decision": "docs/shared-one-file-prototype.md",
+      "invariant": "Only qualified Linux x64 may enable ABI-2 mappings. Native range tests remain enabled on all targets; existing default-mode tests are unchanged.",
+      "reason": "The new ABI-2 prototype is dormant and explicitly refuses unqualified mapped platforms. These new tests execute on Linux; Windows/macOS/ARM qualification remains a blocking gap, not a passing claim."
+    },
+    {
+      "id": "p3-reader-death-native-release-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Paused readers pin exact floors; the first scan after native slot release excludes dead readers without another participant or writer; all three ranges release and reused slots change incarnation.",
+      "reason": "Windows process exit may precede native byte-range cleanup. Bound only the production native slot predicate to five seconds, then retain immediate empty-floor/DMS/WRITE assertions. No retries of floor assertions or unrelated reclamation events. Initial floors and kill-to-clear timings are retained; both complete classes run100times on Windows2022/2025 x64 net8/9/10. Permanently locked slots or stale floors still fail."
+    },
+    {
+      "id": "f-p3-fuzz-explicit-shared-protocols",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing targets, seeds, step counts, crash proofs and legacy per-operation mutex assertions remain; mapped clear cuts use exclusive admission required for truncation.",
+      "reason": "The default transition changes mutex tenure and requires exclusive mapping ownership for WAL clear. Preserve all-cut concurrent legacy workloads with explicit opt-out and test default close/reopen separately. Add mapped futex fault workload rather than removing unreachable markers.",
+      "coveredBy": [
+        "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedWakeFuzzer.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
       ]
     }
   ]

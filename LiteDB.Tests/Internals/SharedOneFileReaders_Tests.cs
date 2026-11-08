@@ -1,6 +1,8 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Linq;
@@ -11,6 +13,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using Xunit.Abstractions;
 using LiteDB.Tests;
 
 namespace LiteDB.Internals
@@ -18,8 +21,13 @@ namespace LiteDB.Internals
     public class SharedOneFileReaders_Tests : IDisposable
     {
         private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-readers-" + Guid.NewGuid().ToString("N"));
+        private readonly ITestOutputHelper _output;
         private string Filename => Path.Combine(_directory, "test.db");
-        public SharedOneFileReaders_Tests() => Directory.CreateDirectory(_directory);
+        public SharedOneFileReaders_Tests(ITestOutputHelper output)
+        {
+            _output = output;
+            Directory.CreateDirectory(_directory);
+        }
         private EngineSettings Settings(int generations = 256) => new EngineSettings
         { Filename = Filename, SharedOneFile = true, SharedGenerationCapacity = generations };
 
@@ -77,14 +85,19 @@ namespace LiteDB.Internals
             SharedProcessSignals.Stop(first.ProcessId);
             try { table.LiveVersions().Should().Equal(11); }
             finally { SharedProcessSignals.Resume(first.ProcessId); }
+            var killed = Stopwatch.StartNew();
             await first.Kill(sharedFilesRemainOpen: true);
-            // Process exit can precede native handle cleanup on Windows. Shared
-            // mapped files stay open in the parent, so an exclusive-file probe
-            // cannot establish that this child's slot lock has actually drained.
-            var killedSlot = int.Parse(firstIdentity.Split(':')[0]);
-            SpinWait.SpinUntil(() => !table.Authority.Locks.IsLive(killedSlot), TimeSpan.FromSeconds(5))
-                .Should().BeTrue("a killed reader must release its actual native slot within the existing file-release budget");
-            table.LiveVersions().Should().BeEmpty();
+            var initialFloors = table.LiveVersions();
+            var slot = int.Parse(firstIdentity.Split(':')[0]);
+            var initiallyLive = table.Authority.Locks.IsLive(slot);
+            // Process exit can precede Windows kernel handle/byte-range cleanup.
+            // Wait for the SAME native slot predicate used by every production scan.
+            // No writer, reopen, new participant or mapped-byte reset may help reclaim it.
+            SpinWait.SpinUntil(() => !table.Authority.Locks.IsLive(slot), TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the dead child's native slot must be released within five seconds");
+            var releasedMs = killed.Elapsed.TotalMilliseconds;
+            table.LiveVersions().Should().BeEmpty("the first scan after native release must exclude the dead floor");
+            _output.WriteLine($"READER_DEATH kill_to_clear_ms={killed.Elapsed.TotalMilliseconds:F3} native_release_ms={releasedMs:F3} initial_live={initiallyLive} initial_floors={string.Join(",", initialFloors ?? new[] { -1 })}");
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
             await second.Expect("ready");
             var secondIdentity = await second.ReadLine(TimeSpan.FromSeconds(5));

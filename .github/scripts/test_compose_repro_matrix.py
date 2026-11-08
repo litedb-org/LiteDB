@@ -116,7 +116,7 @@ class ReproMatrixTests(unittest.TestCase):
 
     def test_default_protocol_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
-        expected = {'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data', 'LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably'}
+        expected = {'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_volume_selection_uses_canonical_path', 'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_maintenance_and_cache_mismatch_remain_refused', 'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_remnant_reader_blocks_upgrade_until_closed', 'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_preserves_legacy_remnants', 'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_and_writable_facades_coexist', 'LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_native_tmpfs_preserves_indexed_data_and_legacy_protocol', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data', 'LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably'}
         self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"]
                                    if "/SharedOneFileDefault" in ref})
 
@@ -218,6 +218,12 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual(["ubuntu-24.04"], [e["os"] for e in entries])
                 self.assertEqual([], skipped)
                 self.assertNotIn("Unknown", summary)
+
+    def test_darwin_allocation_guard_is_in_inventory(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {"LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes"}
+        self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"]
+                                   if "#Interrupted_native_allocation_" in ref})
 
     def test_constraints_never_expand_platform_support(self):
         entries, skipped, _ = self.compose([

@@ -135,7 +135,14 @@
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_External_engine_close_fences_late_completion_and_detaches_the_failed_handle",
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers",
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
-      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses"
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses",
+      "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_remnant_reader_blocks_upgrade_until_closed",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_maintenance_and_cache_mismatch_remain_refused",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_volume_selection_uses_canonical_path",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_preserves_legacy_remnants",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_read_only_and_writable_facades_coexist",
+      "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_native_tmpfs_preserves_indexed_data_and_legacy_protocol"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {
