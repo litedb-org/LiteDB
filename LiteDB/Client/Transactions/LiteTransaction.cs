@@ -106,7 +106,7 @@ namespace LiteDB
         private void EnterStorageCall()
         {
             if (_transaction == null) return;
-            var monitor = _transaction.Engine.GetMonitor();
+            var monitor = _transaction.Engine.HandleMonitor;
             monitor.EnterHandleCall(_transaction.Lease.Calls);
             _storageCall = _transaction.Lease.Calls;
             _storageMonitor = monitor;

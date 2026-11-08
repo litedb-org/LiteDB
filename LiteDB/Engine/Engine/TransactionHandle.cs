@@ -37,6 +37,8 @@ namespace LiteDB.Engine
                 _monitor.ReleaseTransaction(context.Transaction);
         }
 
+        internal TransactionMonitor HandleMonitor => _monitor;
+
         internal TimeSpan HandleTimeout => _header.Pragmas.Timeout;
 
         internal bool IsHandleReadOnly => _settings.ReadOnly || _settings.ReadOnlyStorage;
