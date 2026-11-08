@@ -5,7 +5,7 @@ using LiteDB.Tests.Mapper;
 
 namespace LiteDB.Fuzz.Targets;
 
-internal sealed class SharedProcessFuzzer : IFuzzTarget
+internal class SharedProcessFuzzer : IFuzzTarget
 {
     private const int OuterCrashBoundaries = 12;
     private static readonly string[] InternalCrashPoints =
@@ -20,7 +20,9 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
     };
     private static int CrashBoundaryCount => OuterCrashBoundaries + InternalCrashPoints.Length;
 
-    public string Name => "shared";
+    private readonly bool _legacy;
+    internal SharedProcessFuzzer(bool legacy = false) => _legacy = legacy;
+    public virtual string Name => "shared";
     public string Description => "Real child-process shared-mode transactions, checkpoints, reopen, and owner death.";
 
     public async Task RunAsync(FuzzContext context)
@@ -38,7 +40,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 File.Delete(oldLedger);
             File.Delete(database);
             File.Delete(Path.ChangeExtension(database, null) + "-log.db");
-            using (var seed = Open(database))
+            using (var seed = Open(database, _legacy))
                 seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "control" });
 
             var workerCount = 2 + Math.Abs((context.Seed + rounds) % 3);
@@ -50,7 +52,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 var crashAt = worker == 0 ? (rounds - 1) % CrashBoundaryCount + 1 : -1;
                 if (crashAt > 0) context.ObserveNovelty("shared-crash-boundary", crashAt, workerCount);
                 var process = Process.Start(StartInfo(database, ledger, worker,
-                    context.Seed + rounds * 397 + worker, operations, crashAt))
+                    context.Seed + rounds * 397 + worker, operations, crashAt, _legacy))
                     ?? throw new InvalidOperationException("Failed to start shared-mode child process.");
                 processes.Add((process, ledger, worker == 0, worker));
                 // Native PIDs are useful diagnostics, but change on every replay and
@@ -58,17 +60,16 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 File.AppendAllText(Path.Combine(context.DirectoryPath, "processes.jsonl"),
                     System.Text.Json.JsonSerializer.Serialize(new { round = rounds, worker, process.Id }) + Environment.NewLine);
                 context.Trace("spawn", new { round = rounds, worker, crashAt });
+                // Mapped WAL truncation requires exclusive mapping ownership. Starting
+                // peers first makes clear hooks unreachable even while WRITE is held.
+                // Other cuts retain the original concurrent admission schedule.
+                if (worker == 0 && !_legacy && RequiresExclusiveCheckpointStart(crashAt))
+                    await WaitForExit(process);
             }
 
             foreach (var child in processes)
             {
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-                try { await child.Process.WaitForExitAsync(timeout.Token); }
-                catch (OperationCanceledException)
-                {
-                    child.Process.Kill(entireProcessTree: true);
-                    throw new FuzzFailureException($"Shared worker {child.Process.Id} hung for 90 seconds.");
-                }
+                await WaitForExit(child.Process);
                 var output = await child.Process.StandardOutput.ReadToEndAsync();
                 var error = await child.Process.StandardError.ReadToEndAsync();
                 context.Trace("child-exit", new { round = rounds, worker = child.Worker, child.Process.ExitCode, output, error });
@@ -102,7 +103,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 }
             }
 
-            using var verify = Open(database);
+            using var verify = Open(database, _legacy);
             var actual = verify.GetCollection("rows").FindAll().ToArray();
             context.Check(actual.Any(row => row["_id"].AsInt32 == 1 && row["value"].AsString == "control"),
                 "Owner death lost the control transaction.");
@@ -148,7 +149,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 Environment.FailFast($"Deterministic internal process death at {phase}");
             };
         }
-        using var db = Open(options.Database, out var engine);
+        using var db = Open(options.Database, options.Child == "shared-legacy", out var engine);
         using var checkpointScope = SharedCheckpointCrashScope.Create(engine, crashPoint);
         var rows = db.GetCollection("rows");
         if (options.CrashAt > 0)
@@ -224,25 +225,41 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
         }
     }
 
-    private static LiteDatabase Open(string database) => Open(database, out _);
+    internal static bool RequiresExclusiveCheckpointStart(int position) =>
+        position == 25 || position == 26; // checkpoint-before-clear / checkpoint-after-clear
 
-    private static LiteDatabase Open(string database, out SharedEngine engine)
+    private static async Task WaitForExit(Process process)
     {
-        engine = new SharedEngine(new Engine.EngineSettings
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw new FuzzFailureException($"Shared worker {process.Id} hung for 90 seconds.");
+        }
+    }
+
+    private static LiteDatabase Open(string database, bool legacy) => Open(database, legacy, out _);
+
+    private static LiteDatabase Open(string database, bool legacy, out SharedEngine engine)
+    {
+        var settings = new Engine.EngineSettings
         {
             Filename = database, DurableCommits = true, TransactionPageLimit = 4
-        });
+        };
+        if (legacy) settings.SharedOneFile = false;
+        engine = new SharedEngine(settings);
         return new LiteDatabase(engine);
     }
 
-    private static ProcessStartInfo StartInfo(string database, string ledger, int worker, int seed, int count, int crashAt)
+    internal static ProcessStartInfo StartInfo(string database, string ledger, int worker, int seed, int count, int crashAt, bool legacy = false)
     {
         var start = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
         };
         start.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
-        Add("--child", "shared"); Add("--database", database); Add("--ledger", ledger);
+        Add("--child", legacy ? "shared-legacy" : "shared"); Add("--database", database); Add("--ledger", ledger);
         Add("--worker-id", worker.ToString()); Add("--seed", seed.ToString()); Add("--count", count.ToString());
         Add("--crash-at", crashAt.ToString());
         return start;

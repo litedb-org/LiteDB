@@ -1094,6 +1094,20 @@
         ".github/scripts/test_ci_partition_capacity.py",
         ".github/scripts/fixtures/p4-intel-shared-capacity.json"
       ]
+    },
+    {
+      "id": "p4-default-shared-clear-fuzz-admission",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All original shared and fault targets, seeds, steps, hook markers, acknowledged-state oracles and timeouts remain. Mapped clear cuts require actual exclusive mapping admission; legacy Shared retains concurrent peer admission for every cut.",
+      "reason": "Current1c0 Linux core smoke failed deterministically at shared round25: default mapped peers hold mappings, preventing WAL truncate and making checkpoint-before-clear unreachable. Delay peer admission only for the two mapped clear cuts until the crash child exits, retain its exact durable marker and cold recovery checks, and add explicit shared-legacy target to smoke/nightly matrices. New hosted four-case child-process guards require both clear markers, index agreement and two cold reopens on default/legacy paths. No missing hook is accepted as a pass.",
+      "coveredBy": [
+        "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs"
+      ]
     }
   ]
 }

@@ -82,7 +82,7 @@ jobs:
         include:
           - name: linux-core-utc
             os: ubuntu-latest
-            targets: query,transaction,transaction-handle,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
+            targets: query,transaction,transaction-handle,wal,page,shared,shared-legacy,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
             seed: 2947
             timezone: UTC
             culture: en_US.UTF-8
@@ -106,7 +106,7 @@ jobs:
             count: 30
           - name: windows-persistence
             os: windows-latest
-            targets: wal,shared,power-loss,recovery,read-only,storage-failure,rebuild-transition
+            targets: wal,shared,shared-legacy,power-loss,recovery,read-only,storage-failure,rebuild-transition
             seed: 252947
             timezone: UTC
             culture: en_US.UTF-8
@@ -270,7 +270,7 @@ jobs:
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
+            targets: wal,shared,shared-legacy,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
             seedOffset: 1500000
             framework: net10.0
     env:
