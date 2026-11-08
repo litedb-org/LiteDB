@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Engine
                     // Also prove writable fallback after the cold indexed read. ABI-1
                     // creates its status pages on writer participation, not the first read.
                     WriteAndRead(db);
-                    AssertFiles(filename, SharedProtocolDefaults.OneFile);
+                    AssertFiles(filename, QualifiedPlatform);
                 }
             });
         }
@@ -60,7 +60,7 @@ namespace LiteDB.Tests.Engine
                     using var engine = connectionString ? null : new SharedEngine(settings);
                     using var db = connectionString ? new LiteDatabase(connection) : new LiteDatabase(engine, disposeOnClose: false);
                     WriteAndRead(db);
-                    AssertFiles(filename, !legacy && SharedProtocolDefaults.OneFile);
+                    AssertFiles(filename, !legacy && QualifiedPlatform);
                 }
             });
         }
@@ -85,11 +85,23 @@ namespace LiteDB.Tests.Engine
             if (mapped) File.Exists(filename + "-shm").Should().BeTrue();
         }
 
+        private static bool QualifiedPlatform
+        {
+            get
+            {
+#if NET8_0_OR_GREATER
+                return SharedMemoryAuthority.IsPlatformQualified;
+#else
+                return false;
+#endif
+            }
+        }
+
         private static void WithFile(Action<string> action)
         {
             var root = Path.GetTempPath();
 #if NET8_0_OR_GREATER
-            if (SharedProtocolDefaults.OneFile) root = SharedMappedDirectory.Root;
+            if (QualifiedPlatform) root = SharedMappedDirectory.Root;
 #endif
             var directory = Path.Combine(root, "shared-default-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
