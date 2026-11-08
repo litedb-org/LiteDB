@@ -62,6 +62,7 @@ internal static class SharedOneFileWarmHarness
             using var reader = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits <= hits || !reader.Read()) throw new Exception("Reader did not admit warm");
             Console.WriteLine("ready");
+            Console.WriteLine(engine.MappedReaderTable.Authority.Slot);
             Console.ReadLine();
             return true;
         }

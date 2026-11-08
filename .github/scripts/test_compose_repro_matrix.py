@@ -84,6 +84,13 @@ class ReproMatrixTests(unittest.TestCase):
                   if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
         self.assertEqual(expected, actual)
 
+    def test_warm_reader_native_death_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        self.assertEqual({
+            "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#Killed_warm_reader_releases_kernel_liveness_and_its_generation_can_be_reclaimed",
+        }, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
+           if ref.startswith("LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#")})
+
     def test_deferred_reader_reconciliation_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         self.assertEqual({
