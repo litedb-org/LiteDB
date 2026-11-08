@@ -51,14 +51,16 @@ def child(mode, path, cut='none', kill=False):
         print(transcript.decode(errors='replace'), flush=True)
 
 
-def constrain(mount, allocated):
+def constrain(mount, allocated, sparse=False):
     physical = allocated.stat().st_blocks * 512
-    assert allocated.stat().st_size == SIZE and physical >= SIZE, (allocated, physical)
+    assert allocated.stat().st_size == SIZE, (allocated, physical)
+    assert (0 < physical < SIZE) if sparse else physical >= SIZE, physical
     # Real writes (not truncate/preallocation) consume APFS blocks. Leave enough
     # metadata headroom, but less than one extra complete authority.
     with (mount / 'filler').open('wb', buffering=0) as filler:
         block = os.urandom(1024 * 1024)
-        while shutil.disk_usage(mount).free > 24 * 1024 * 1024:
+        target_free = max(24 * 1024 * 1024, SIZE - physical + 16 * 1024 * 1024)
+        while shutil.disk_usage(mount).free > target_free:
             filler.write(block)
         os.fsync(filler.fileno())
     free = shutil.disk_usage(mount).free
@@ -68,9 +70,10 @@ def constrain(mount, allocated):
 
 def scenario(kind, mount):
     path = mount / ('direct.bin' if kind == 'direct' else 'test.db')
-    if kind == 'direct':
-        child('direct-seed', path)
-        constrain(mount, path)
+    if kind.startswith('direct'):
+        sparse = kind == 'direct-sparse'
+        child('direct-seed', path, 'sparse' if sparse else 'none')
+        constrain(mount, path, sparse=sparse)
         child('direct-repeat', path)
         # The inode is disposable coordination, never DB/WAL data. Reservation
         # may discard its contents; it must restore length and physical coverage.
@@ -104,7 +107,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     report = {'sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'platform': platform.platform(), 'tests': {}}
-    for kind in ['direct', 'reset']:
+    for kind in ['direct', 'direct-sparse', 'reset']:
         with tempfile.TemporaryDirectory(prefix='litedb-apfs-') as directory:
             image = Path(directory) / 'bounded.dmg'
             mount = Path(directory) / 'mount'

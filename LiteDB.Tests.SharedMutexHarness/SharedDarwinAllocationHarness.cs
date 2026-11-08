@@ -18,7 +18,9 @@ internal static class SharedDarwinAllocationHarness
             using var file = new FileStream(filename, FileMode.Create, FileAccess.ReadWrite);
             var bytes = new byte[1024 * 1024];
             new Random(731).NextBytes(bytes);
-            for (var offset = 0L; offset < Size; offset += bytes.Length) file.Write(bytes);
+            var populated = args[4] == "sparse" ? Size / 2 : Size;
+            for (var offset = 0L; offset < populated; offset += bytes.Length) file.Write(bytes);
+            file.SetLength(Size);
             file.Flush(true);
             return true;
         }
@@ -30,6 +32,15 @@ internal static class SharedDarwinAllocationHarness
                 var error = SharedPlatformAllocation.Allocate(file, Size);
                 Console.WriteLine($"Allocate repeat={repeat} length={file.Length} errno={error}");
                 if (error != 0) throw new IOException($"Repeated allocation failed: errno={error}");
+                // Populate while the reserving handle is still open. APFS can
+                // release unwritten preallocation on close; stat after close
+                // alone does not establish that the reservation was usable.
+                file.Position = 0;
+                var bytes = new byte[1024 * 1024];
+                new Random(731 + repeat).NextBytes(bytes);
+                for (var offset = 0L; offset < Size; offset += bytes.Length) file.Write(bytes);
+                file.Flush(true);
+                if (file.Length != Size) throw new Exception("Reservation changed target length");
             }
             return true;
         }
