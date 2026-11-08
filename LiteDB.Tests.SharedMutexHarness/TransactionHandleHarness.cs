@@ -54,8 +54,15 @@ internal static class TransactionHandleHarness
                     catch (LiteException error) when (error.ErrorCode == 120) { Console.WriteLine("timeout"); }
                     break;
                 case "write":
-                    tx.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2, ["value"] = 20,
-                        ["payload"] = new string('x', 50000) });
+                    var logPath = FileHelper.GetLogFile(filename);
+                    var before = System.IO.File.Exists(logPath) ? new System.IO.FileInfo(logPath).Length : 0;
+                    var rows = tx.GetCollection("rows");
+                    rows.Insert(new BsonDocument { ["_id"] = 2, ["value"] = 20, ["payload"] = new string('x', 50000) });
+                    // The next document's safepoint spills row 2 without committing it.
+                    rows.Insert(new BsonDocument { ["_id"] = 0 });
+                    rows.Delete(0);
+                    if (new System.IO.FileInfo(logPath).Length <= before)
+                        throw new InvalidOperationException("The open handle did not spill uncommitted WAL frames.");
                     Console.WriteLine("written"); break;
                 case "commit": tx.Commit(); Console.WriteLine("committed"); break;
                 case "close": tx?.Dispose(); Console.WriteLine("done"); return true;
