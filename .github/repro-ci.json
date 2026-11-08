@@ -90,6 +90,7 @@
       "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Raw_engine_close_waits_for_executing_handle_before_storage_release",
       "LiteDB.Tests/Internals/TransactionHandleMappedLifetime_Tests.cs#Close_cancels_mapped_local_begin_and_releases_idle_tenure",
       "LiteDB.Tests/Internals/TransactionHandleMappedLifetime_Tests.cs#Raw_mapped_engine_close_drains_executing_handle",
+      "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Raw_Direct_close_releases_idle_owner_before_draining_blocked_writer",
       "LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits",
       "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Completed_undisposed_handle_releases_everything_it_owned",
       "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion",

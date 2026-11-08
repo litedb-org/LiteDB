@@ -238,18 +238,24 @@ namespace LiteDB
 
         private void ReleaseResources(Exception cause = null)
         {
+            var failure = cause;
             try { _transaction.Engine.ReleaseDetachedHandleTransaction(_transaction); }
             catch (Exception cleanup)
             {
-                if (cause == null) throw;
-                cause.Data["LiteDB.TransactionReleaseError"] = cleanup;
+                if (failure == null) failure = cleanup;
+                else failure.Data["LiteDB.TransactionReleaseError"] = cleanup;
+            }
+            var handles = _handles;
+            var shared = _shared;
+            _shared = null;
+            try { shared?.Dispose(); }
+            catch (Exception cleanup)
+            {
+                if (failure == null) failure = cleanup;
+                else failure.Data["LiteDB.SharedHandleCleanup"] = cleanup;
             }
             finally
             {
-                var handles = _handles;
-                var shared = _shared;
-                _shared = null;
-                shared?.Dispose();
                 _outcome = _transaction.Outcome;
                 _transaction = null;
                 _handles = null;
@@ -257,6 +263,7 @@ namespace LiteDB
                 lock (_gate) _deferred = null;
                 handles.Completed(this);
             }
+            if (cause == null && failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         private void Abort(Exception cause)

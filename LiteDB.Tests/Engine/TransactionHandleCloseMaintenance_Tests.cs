@@ -165,6 +165,34 @@ namespace LiteDB.Tests.Engine
             locker.BeforeTransactionAdmission = null;
         }
 
+        [Fact]
+        public void Raw_Direct_close_releases_idle_owner_before_draining_blocked_writer()
+        {
+            using var file = new TempFile();
+            using var engine = new LiteEngine(file.Filename);
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            using var idle = db.BeginTransaction();
+            idle.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+            using var executing = db.BeginTransaction();
+            var rows = executing.GetCollection("rows");
+            var locker = (LockService)typeof(LiteEngine).GetField("_locker", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            var collections = (System.Collections.Concurrent.ConcurrentDictionary<string, CollectionLock>)typeof(LockService)
+                .GetField("_collections", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(locker);
+            using var waiting = new ManualResetEventSlim();
+            collections["rows"].BeforeWait = waiting.Set;
+            var write = Task.Run(() => rows.Insert(new BsonDocument { ["_id"] = 3 }));
+            Assert.True(waiting.Wait(TimeSpan.FromSeconds(5)));
+            var close = Task.Run(engine.Dispose);
+            Assert.True(Task.WaitAll(new Task[] { write, close }, TimeSpan.FromSeconds(10)));
+            db.Dispose();
+            Assert.Equal(LiteTransactionState.Failed, idle.State);
+            Assert.Equal(LiteTransactionState.Failed, executing.State);
+            Assert.Equal(0, db.TransactionHandles.ActiveCount);
+            using var cold = new LiteDatabase(file);
+            Assert.Equal(new[] { 1 }, cold.GetCollection("rows").FindAll().Select(x => x["_id"].AsInt32));
+        }
+
         [Theory]
         [InlineData(0)] [InlineData(1)]
         public void Raw_engine_close_waits_for_executing_handle_before_storage_release(int mode) => RawClose(mode);

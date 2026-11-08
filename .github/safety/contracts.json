@@ -31,6 +31,7 @@
         "LiteDB/Client/Storage/**"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Raw_Direct_close_releases_idle_owner_before_draining_blocked_writer", "model": "exception", "proves": "Actual collection-lock waiter progresses when raw host close rolls back the idle handle first, then drains its executing writer; only the committed row survives cold reopen."},
         {"test": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Close_drains_executing_call_invalidates_cursor_and_preserves_caller_engine", "model": "exception", "proves": "Forced close/GC/process-kill schedules preserve committed rows, indexed queries, bound-reader lifetime and native admission retirement."},
         {"test": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Live_database_retains_abandoned_handle_until_explicit_close", "model": "exception", "proves": "Forced close/GC/process-kill schedules preserve committed rows, indexed queries, bound-reader lifetime and native admission retirement."},
         {"test": "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Close_cancels_local_begin_and_rolls_back_idle_owner", "model": "exception", "proves": "Forced close/GC/process-kill schedules preserve committed rows, indexed queries, bound-reader lifetime and native admission retirement."},
