@@ -69,6 +69,9 @@ internal static class TransactionHandleHarness
                     if (new System.IO.FileInfo(logPath).Length <= before)
                         throw new InvalidOperationException("The open handle did not spill uncommitted WAL frames.");
                     Console.WriteLine("written"); break;
+                case "recover-write":
+                    tx.GetCollection("recovered").Insert(new BsonDocument { ["_id"] = 7 });
+                    Console.WriteLine("recovery-written"); break;
                 case "compete":
                     var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
                     turnstile.BeforeMainWait = () => Console.WriteLine("waiting");

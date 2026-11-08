@@ -28,15 +28,30 @@ namespace LiteDB.Internals
 #endif
             }
         }
-        public static IEnumerable<object[]> Cuts => Modes.SelectMany(mode => new[] {
-            "wal-confirmation-before-write", "wal-confirmation-after-write", "wal-before-durable-flush",
-            "wal-after-durable-flush", "wal-before-index-confirmation", "wal-after-index-confirmation",
-            "handle-before-release", "handle-after-release", "ack"
-        }.Select(cut => new object[] { mode[0], mode[1], cut }));
+        // Confirmation can survive process death in the OS cache even before fsync.
+        // Index publication can precede the covering group sync, so its cuts are in flight.
+        private static readonly Dictionary<string, string> CommitCuts = new Dictionary<string, string>
+        {
+            ["wal-confirmation-before-write"] = "absent",
+            ["wal-confirmation-after-write"] = "atomic",
+            ["wal-before-durable-flush"] = "atomic",
+            ["wal-after-durable-flush"] = "present",
+            ["wal-before-index-confirmation"] = "atomic",
+            ["wal-after-index-confirmation"] = "atomic",
+            ["handle-before-release"] = "present",
+            ["handle-after-release"] = "present",
+            ["ack"] = "present"
+        };
+        public static IEnumerable<object[]> Cuts => Modes.SelectMany(mode => CommitCuts.Select(cut =>
+            new object[] { mode[0], mode[1], cut.Key,
+                // Legacy and encrypted paths flush before index publication; mapped plain
+                // commits publish the index before waiting for their covering group ticket.
+                cut.Key.EndsWith("index-confirmation", StringComparison.Ordinal) &&
+                    (!(bool)mode[0] || mode[1] != null) ? "present" : cut.Value }));
 
         [Theory]
         [MemberData(nameof(Cuts))]
-        public async Task Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer(bool mapped, string password, string cut)
+        public async Task Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer(bool mapped, string password, string cut, string expected)
         {
             using var file = new TempFile();
             Seed(file, password);
@@ -52,6 +67,7 @@ namespace LiteDB.Internals
                 await child.Kill();
                 // An already-live facade must recover writer admission, not just a cold process.
                 survivor.Send("begin"); await survivor.Expect("attempting"); await survivor.Expect("begun");
+                survivor.Send("recover-write"); await survivor.Expect("recovery-written");
                 survivor.Send("commit"); await survivor.Expect("committed");
                 survivor.Send("close"); await survivor.Expect("done"); await survivor.Finish();
             }
@@ -61,9 +77,11 @@ namespace LiteDB.Internals
                 var rows = db.GetCollection("rows");
                 Assert.NotNull(rows.FindById(1));
                 Assert.NotNull(db.GetCollection("sentinel").FindById(9));
+                Assert.NotNull(db.GetCollection("recovered").FindById(7));
                 var pending = rows.FindById(2);
-                if (cut == "wal-confirmation-before-write") Assert.Null(pending);
-                if (cut == "ack" || cut.StartsWith("handle-")) Assert.NotNull(pending);
+                if (expected == "absent") Assert.Null(pending);
+                else if (expected == "present") Assert.NotNull(pending);
+                else Assert.Equal("atomic", expected);
                 if (pending != null)
                 {
                     Assert.Equal(20, pending["value"].AsInt32);

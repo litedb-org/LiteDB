@@ -117,6 +117,27 @@ refused. An unreachable database/handle graph can be cleaned by a reaper, with n
 GC timing guarantee. Explicitly dispose caller-owned streams and databases as
 required by their ownership contracts. See [lifetime details](transaction-handles/lifetime.md).
 
+With durable commits enabled, a returned `Commit()` acknowledges the entire transaction:
+recovery must retain its documents and indexes. A process can die after the WAL
+confirmation becomes durable but before `Commit()` returns. Recovery may then
+retain that complete transaction even though the application received no acknowledgement.
+An in-flight commit must recover atomically, with every index consistent; it cannot
+be classified as rolled back merely because the caller did not observe success.
+`LiteTransactionState.Indeterminate` represents this uncertainty when a surviving
+caller observes a commit failure after persistence may have occurred. A dead
+process cannot report a state; resolve its operation by querying after recovery
+before retrying, using an application operation identifier to avoid duplication.
+
+Unconfirmed work, including spilled pages from a handle that never starts commit,
+must be absent after recovery. For process death, a written WAL confirmation can
+survive in the OS cache even before the durable-flush call: cuts after confirmation
+but before a completed barrier permit either complete presence or complete absence.
+Cuts before confirmation require absence; cuts after a successful covering durable
+flush require presence, even before application acknowledgement. Process death
+keeps OS caches and is distinct from modeled power loss. In Shared mode, recovery
+must also release the dead handle's tenure so an already-live peer can acquire a
+handle, write, and commit. See the maintained [commit-cut matrix](../LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs).
+
 To migrate from `BeginTrans()`, replace the boolean begin with a `using` handle,
 get every transactional collection from that handle, and call its `Commit()` or
 `Rollback()`. Dispose without commit to roll back. Do not call database `Commit()`
