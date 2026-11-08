@@ -71,11 +71,11 @@ namespace LiteDB.Internals
             {
                 await holder.Expect("ready");
                 holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
-                var before = System.IO.File.ReadAllBytes(file);
+                var before = ReadSharedBytes(file);
                 // Exclusive Direct admission is required before replacing or rekeying
                 // Shared storage. It must refuse while the handle retains admission.
                 Assert.ThrowsAny<Exception>(() => { using var exclusive = new LiteDatabase(file); exclusive.Rebuild(new RebuildOptions { Password = "changed" }); });
-                Assert.Equal(before, System.IO.File.ReadAllBytes(file));
+                Assert.Equal(before, ReadSharedBytes(file));
                 holder.Send("commit"); await holder.Expect("committed");
                 holder.Send("close"); await holder.Expect("done"); await holder.Finish();
             }
@@ -137,6 +137,15 @@ namespace LiteDB.Internals
                 next.Commit();
             }
             Verify(file, false);
+        }
+
+        private static byte[] ReadSharedBytes(string filename)
+        {
+            using var source = new System.IO.FileStream(filename, System.IO.FileMode.Open,
+                System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+            using var copy = new System.IO.MemoryStream();
+            source.CopyTo(copy);
+            return copy.ToArray();
         }
 
         private static void Seed(string file)

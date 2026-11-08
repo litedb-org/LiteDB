@@ -45,7 +45,7 @@ internal static class SharedFollowupHarness
             var turn = typeof(SharedEngine).GetField("_turnstile", Private)!.GetValue(engine)!;
             var mutex = (Mutex)typeof(SharedEngine).GetField("_mutex", Private)!.GetValue(engine)!;
             turn.GetType().GetProperty("BeforeMainWait", Private)!.SetValue(turn, (Action)(() => Console.WriteLine("ready")));
-            try { turn.GetType().GetMethod("Wait")!.Invoke(turn, new object[] { mutex }); }
+            try { turn.GetType().GetMethod("Wait")!.Invoke(turn, new object?[] { mutex, null }); }
             catch (TargetInvocationException ex) when (ex.InnerException is AbandonedMutexException) { }
             mutex.ReleaseMutex();
         }
