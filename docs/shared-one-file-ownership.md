@@ -7,8 +7,9 @@ before checking the Unix read-only Direct marker at admission + 2. Only then do
 they claim their family byte (+ 1 legacy, + 3 mapped) and probe the opposite
 family. This permits compatible Shared peers while excluding Direct and mixed
 Shared families. The mapped family must never occupy the read-only marker byte.
-Stop all participants before changing experimental protocol versions; no live
-upgrade or coordination-file migration is implied by this merge.
+Stop all participants before switching protocol families. The first writable
+default open can retire recognised offline legacy sidecars; see
+[default and upgrade rules](shared-one-file-prototype.md).
 
 The Direct host registry and its per-host lifecycle gate own Direct facade
 cleanup, maintenance and final storage close. Mapped Shared keeps its separate
@@ -234,7 +235,8 @@ attach can already be requesting main. Under bootstrap, an atomic DMS conversion
 must establish that this process is the only participant, including not-yet-Ready
 attachers. More than one local facade or any retained reader generation also
 refuses. Admission remains exclusive through replacement and rekey; a peer must
-close before retrying. `SharedOneFile` remains opt-in, default false.
+close before retrying. `SharedOneFile` defaults to true on qualified targets; explicit false opts out
+to frozen legacy coordination, removed in v7.
 
 Ordinary `Checkpoint()` keeps its existing partial backfill behavior with peers.
 Only the engine's existing WAL truncation branch tries bootstrap and exclusive

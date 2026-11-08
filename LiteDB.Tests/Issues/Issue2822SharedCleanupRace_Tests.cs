@@ -18,7 +18,7 @@ namespace LiteDB.Tests.Issues
             using var proceed = new ManualResetEventSlim();
             using var completing = new ManualResetEventSlim();
             using var completed = new ManualResetEventSlim();
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
             using (var database = new LiteDatabase(engine))
             {
                 database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });

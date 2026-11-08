@@ -51,7 +51,7 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             Seed(file.Filename);
             var request = new Request();
-            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = request.Transform });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, ReadTransform = request.Transform });
             using var reader = engine.Query("docs", Query.All());
             request.Reader = reader;
             Collect();
@@ -85,7 +85,7 @@ namespace LiteDB.Tests.Engine
         private static WeakReference[] Abandon(string filename, bool warm, bool cycle, bool disposeReader)
         {
             var request = new Request();
-            var engine = new SharedEngine(new EngineSettings { Filename = filename, ReadTransform = request.Transform });
+            var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename, ReadTransform = request.Transform });
             if (warm)
             {
                 using var previous = engine.Query("docs", Query.All());
@@ -102,7 +102,7 @@ namespace LiteDB.Tests.Engine
 
         internal static void VerifyAfterPeerWrite(string filename)
         {
-            using (var peer = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared }))
+            using (var peer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, Connection = ConnectionType.Shared }))
             {
                 peer.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "peer" });
                 peer.Checkpoint();

@@ -12,7 +12,7 @@ namespace LiteDB.Tests.Issues
         public void Delete_preserves_the_shared_engine_borrowed_from_a_reader(bool existingFile)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared });
             var rows = db.GetCollection("rows");
             rows.Insert(new BsonDocument { ["_id"] = 1 });
             rows.Insert(new BsonDocument { ["_id"] = 2 });
@@ -41,7 +41,7 @@ namespace LiteDB.Tests.Issues
         public void Borrowed_transaction_transfers_engine_ownership_when_reader_closes_first(bool rollback)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared });
             var rows = db.GetCollection("rows");
             rows.Insert(new BsonDocument { ["_id"] = 1 });
             rows.Insert(new BsonDocument { ["_id"] = 2 });

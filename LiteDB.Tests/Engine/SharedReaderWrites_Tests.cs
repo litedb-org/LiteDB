@@ -31,7 +31,7 @@ namespace LiteDB.Tests.Engine
             new BsonDocument { ["_id"] = id, ["value"] = value, ["payload"] = new string('p', 200) };
 
         private SharedEngine Open(string password = null, bool readOnly = false) =>
-            new SharedEngine(new EngineSettings { Filename = this.Filename, Password = password, ReadOnly = readOnly })
+            new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename, Password = password, ReadOnly = readOnly })
             {
                 // Counted opens must not depend on how fast the machine runs the loop.
                 PinIdleLimit = TimeSpan.FromMinutes(10),
@@ -153,7 +153,7 @@ namespace LiteDB.Tests.Engine
             }
 
             var settings = new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = this.Filename,
                 ReadOnly = true,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
@@ -190,7 +190,7 @@ namespace LiteDB.Tests.Engine
             info.SetAccessControl(security);
             try
             {
-                using var db = new LiteDatabase($"Filename={this.Filename};Connection=shared;ReadOnly=true");
+                using var db = new LiteDatabase($"Filename={this.Filename};Connection=shared;Shared One File=false;ReadOnly=true");
                 db.GetCollection("docs").FindAll().Count().Should().Be(Count);
             }
             finally
@@ -207,7 +207,7 @@ namespace LiteDB.Tests.Engine
         {
             var copy = Path.Combine(_directory, "copy-" + Guid.NewGuid().ToString("N") + ".db");
             File.Copy(this.Filename, copy);
-            using var db = new LiteDatabase(new ConnectionString { Filename = copy, Password = password, ReadOnly = true });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = copy, Password = password, ReadOnly = true });
             return db.GetCollection("docs").Count(Query.EQ("value", value));
         }
 

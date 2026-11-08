@@ -53,7 +53,7 @@ namespace LiteDB.Tests.Engine
         public void A_failed_build_leaves_no_partial_replacement_behind()
         {
             using var file = new TempFile();
-            using (var seed = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = "secret" }))
+            using (var seed = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Password = "secret" }))
             {
                 seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "old" });
             }
@@ -65,14 +65,14 @@ namespace LiteDB.Tests.Engine
             Directory.CreateDirectory(tempLog);
             try
             {
-                var settings = new EngineSettings { Filename = file.Filename, Password = "secret" };
+                var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename, Password = "secret" };
                 var failure = Record.Exception(() => new RebuildService(settings).Rebuild(new RebuildOptions { RemovePassword = true }));
 
                 failure.Should().NotBeNull();
                 File.Exists(temp).Should().BeFalse("it would be a partial, unencrypted copy of the database");
                 File.Exists(RebuildRecovery.GetMarkerFilename(file.Filename)).Should().BeFalse();
 
-                using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = "secret" });
+                using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Password = "secret" });
                 db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("old");
             }
             finally
@@ -117,7 +117,7 @@ namespace LiteDB.Tests.Engine
             var tempFile = FileHelper.GetSuffixFile(file.Filename, "-temp", false);
             File.Exists(logFile).Should().BeTrue();
 
-            var settings = new EngineSettings { Filename = file.Filename };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename };
             Exception failure;
             using (File.Open(file.Filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {

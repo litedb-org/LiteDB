@@ -21,7 +21,7 @@ namespace LiteDB.Tests.Issues
                 setup.GetCollection("jobs").EnsureIndex("status");
             }
             var before = File.ReadAllBytes(file.Filename);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true, Connection = mode }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, ReadOnly = true, Connection = mode }))
             {
                 var col = db.GetCollection("jobs");
                 col.FindById(1)["status"].AsString.Should().Be("created");

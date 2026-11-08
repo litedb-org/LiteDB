@@ -34,7 +34,7 @@ namespace LiteDB.Internals
             try
             {
                 using var db = new LiteDatabase(new ConnectionString
-                {
+                { SharedOneFile = false,
                     Filename = file.Filename, Password = password, Connection = ConnectionType.Shared
                 });
                 // Recovery happens in this operation's short-lived engine.
@@ -49,7 +49,7 @@ namespace LiteDB.Internals
                 later["recoveryDiscardedWalBytes"].Should().Be(report["recoveryDiscardedWalBytes"]);
                 later["recoveryInvalidWalTail"].Should().Be(report["recoveryInvalidWalTail"]);
                 using var independent = new LiteDatabase(new ConnectionString
-                {
+                { SharedOneFile = false,
                     Filename = file.Filename, Password = password, Connection = ConnectionType.Shared
                 });
                 independent.GetCollection("$database").FindAll().Single()["recoveryDiscardedWalBytes"].AsInt64.Should().Be(0);

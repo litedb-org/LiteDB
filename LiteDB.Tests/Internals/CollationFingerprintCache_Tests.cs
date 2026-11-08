@@ -76,7 +76,7 @@ namespace LiteDB.Tests.Internals
             PageChecksum.Write(new BufferSlice(changed, 0, Constants.PAGE_SIZE));
 
             using var shared = new LiteDatabase(new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, Connection = ConnectionType.Shared, ReadOnly = readOnly
             });
             shared.GetCollection("rows").FindById("a")["value"].AsInt32.Should().Be(42);
@@ -107,7 +107,7 @@ namespace LiteDB.Tests.Internals
             var keys = new[] { "a", "A", "ä", "ae", "i", "I", "ı", "İ", "ss", "ß" };
             var collation = new Collation(name);
             using (var seed = new LiteDatabase(new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, Password = password, Collation = collation
             }))
             {
@@ -118,7 +118,7 @@ namespace LiteDB.Tests.Internals
 
             var before = File.ReadAllBytes(file.Filename);
             using (var shared = new LiteDatabase(new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, Password = password, Connection = ConnectionType.Shared, ReadOnly = true
             }))
             {

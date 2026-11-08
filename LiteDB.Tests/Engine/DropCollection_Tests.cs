@@ -230,7 +230,7 @@ namespace LiteDB.Tests.Engine
 
             using (var db = DatabaseFactory.Create(
                 TestDatabaseType.Disk,
-                $"Filename={file.Filename};Connection=Shared"))
+                $"Filename={file.Filename};Connection=Shared;Shared One File=false"))
             {
                 var collection = db.GetCollection<VectorDocument>("docs");
                 var options = new VectorIndexOptions(dimensions, VectorDistanceMetric.Cosine);

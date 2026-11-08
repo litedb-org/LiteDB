@@ -17,7 +17,7 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var database = new LiteDatabase(engine))
                 {
                     var rows = database.GetCollection("rows");
@@ -58,7 +58,7 @@ namespace LiteDB.Tests.Engine
                 using (var seed = new LiteDatabase(file))
                     seed.GetCollection("rows").InsertBulk(Enumerable.Range(0, 200).Select(id =>
                         new BsonDocument { ["_id"] = id, ["key"] = (199 - id).ToString("D3") + new string('s', 100) }));
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file })
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var database = new LiteDatabase(engine))
                 {
@@ -95,8 +95,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var peer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var peer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var database = new LiteDatabase(engine))
                 {
                     var peerRows = peer.GetCollection("rows");

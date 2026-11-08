@@ -10,6 +10,29 @@ thread-independent transaction handles for coordinated cross-thread completion.
 Reads keep their existing behavior, and legacy transactions remain thread-bound
 across `await` continuations.
 
+## Shared coordination default (v6 migration note)
+
+In v6, physical-file Shared connections default to one-file ABI-2 coordination
+on qualified .NET 8+ Linux x64/ARM64, Windows x64, and macOS ARM64/x64.
+x86, .NET Framework, and other unqualified targets automatically use legacy
+sidecars. Caller streams, memory and temporary databases retain legacy coordination.
+Set `Shared One File=false` in the connection string, or
+`EngineSettings.SharedOneFile = false`, to explicitly use legacy on any platform.
+Explicit `true` still requires a qualified platform and a physical database file.
+The legacy implementation is frozen for v6 and will be removed in v7.
+
+Stop all participants before switching protocols. Native data admission claims
+separate family bytes and refuses mixed current-v6 opens in either order with
+an admission error, even for idle facades. Unmodified older executables do not
+implement this handshake: stop and upgrade every executable before deployment;
+concurrent use with those versions is unsupported.
+
+The first writable default open retires recognised legacy sidecars only while
+offline admission and DMS prove no live participants. This does not rebuild the
+database. Unknown remnants and read-only opens requiring retirement fail without
+mutating database/WAL bytes. Interrupted retirement is retryable; ephemeral
+entries may reappear after power loss and are revalidated on the next open.
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only

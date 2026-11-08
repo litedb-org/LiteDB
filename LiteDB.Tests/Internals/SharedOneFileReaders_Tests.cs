@@ -180,7 +180,7 @@ namespace LiteDB.Internals
         public void New_and_legacy_shared_protocols_cannot_mix_locally()
         {
             using var engine = new SharedEngine(Settings());
-            Action old = () => { using var legacy = new SharedEngine(new EngineSettings { Filename = Filename }); };
+            Action old = () => { using var legacy = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename }); };
             old.Should().Throw<IOException>().WithMessage("*admission*");
         }
 

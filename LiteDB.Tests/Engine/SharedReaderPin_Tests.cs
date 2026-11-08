@@ -44,7 +44,7 @@ namespace LiteDB.Tests.Engine
         /// </summary>
         private SharedEngine Open(bool expire = false)
         {
-            var engine = new SharedEngine(new EngineSettings { Filename = this.Filename });
+            var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename });
             if (!expire)
             {
                 engine.PinIdleLimit = Forever;

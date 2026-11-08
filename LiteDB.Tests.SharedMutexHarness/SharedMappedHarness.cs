@@ -29,7 +29,7 @@ internal static class SharedMappedHarness
                     throw new IOException("A control-file creation child must be killed by its parent");
                 }));
         }
-        using var engine = new SharedEngine(new EngineSettings { Filename = filename, Password = password });
+        using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename, Password = password });
         typeof(SharedEngine).GetProperty("CoordinatedIdleLimit", Private)!.SetValue(engine, TimeSpan.FromMinutes(1));
         using var database = new LiteDatabase(engine, disposeOnClose: false);
         var rows = database.GetCollection("docs");

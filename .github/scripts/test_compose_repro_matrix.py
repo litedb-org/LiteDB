@@ -93,6 +93,12 @@ class ReproMatrixTests(unittest.TestCase):
                   if "#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache" in ref}
         self.assertEqual(expected, actual)
 
+    def test_default_protocol_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data', 'LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders', 'LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably'}
+        self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"]
+                                   if "/SharedOneFileDefault" in ref})
+
     def test_offline_upgrade_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {

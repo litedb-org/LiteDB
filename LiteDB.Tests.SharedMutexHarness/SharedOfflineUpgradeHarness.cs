@@ -8,12 +8,12 @@ internal static class SharedOfflineUpgradeHarness
     {
         if (mode.StartsWith("default-family-", System.StringComparison.Ordinal))
         {
-            var settings = new EngineSettings { Filename = filename };
-            if (mode.Contains("legacy")) settings.SharedOneFile = false;
+            var familySettings = new EngineSettings { Filename = filename };
+            if (mode.Contains("legacy")) familySettings.SharedOneFile = false;
             var refused = mode.EndsWith("refused", System.StringComparison.Ordinal);
             try
             {
-                using var engine = new SharedEngine(settings);
+                using var engine = new SharedEngine(familySettings);
                 if (refused) throw new System.Exception("Mixed family unexpectedly admitted");
                 System.Console.WriteLine("ready");
                 System.Console.ReadLine();

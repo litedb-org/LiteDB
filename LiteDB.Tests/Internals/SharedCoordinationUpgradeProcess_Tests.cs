@@ -66,7 +66,7 @@ namespace LiteDB.Internals
             using (var holder = new MvccProcess("mapped-legacy-holder", Filename, password))
             {
                 await holder.Expect("ready");
-                using (var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password }))
                 using (var database = new LiteDatabase(engine))
                 {
                     for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
@@ -122,7 +122,7 @@ namespace LiteDB.Internals
             // Replay a coherent saved pair at the same path after every handle is gone.
             File.WriteAllBytes(Filename + "-shared-live", oldLive);
             File.WriteAllBytes(Filename + "-shared-state", oldPage);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password }))
             using (var database = new LiteDatabase(engine))
             {
                 for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(7);
@@ -151,7 +151,7 @@ namespace LiteDB.Internals
 
         private void VerifyMapped(string password, int value)
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password });
             using var database = new LiteDatabase(engine);
             for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(value);
             Authority(engine).Should().NotBeNull();
@@ -160,7 +160,7 @@ namespace LiteDB.Internals
 
         private void VerifyCold(string password, int revision)
         {
-            using var database = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password });
+            using var database = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password });
             foreach (var name in new[] { "docs", "cold" })
             {
                 var collection = database.GetCollection(name);

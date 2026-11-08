@@ -21,7 +21,7 @@ namespace LiteDB.Internals
         [Fact]
         public void SmallResultCompletesWithoutLease_AndKeepsItsSnapshot()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(3, 0), BsonAutoId.Int32);
             using var reader = engine.Query("docs", new Query());
             new SharedReaderRegistry(Filename).LiveVersions().Should().BeEmpty();
@@ -36,7 +36,7 @@ namespace LiteDB.Internals
         [Fact]
         public void EmptyResultHasNoValues()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(1, 0), BsonAutoId.Int32);
             using var reader = engine.Query("missing", new Query());
             reader.HasValues.Should().BeFalse();
@@ -59,7 +59,7 @@ namespace LiteDB.Internals
         [Fact]
         public void LargeResultStreamsFromLeasedSnapshot_AndRegistryIsRemovedAfterwards()
         {
-            using (var engine = new SharedEngine(new EngineSettings { Filename = Filename }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename }))
             {
                 engine.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
                 using (var reader = engine.Query("docs", new Query()))
@@ -83,7 +83,7 @@ namespace LiteDB.Internals
         {
             var calls = new Dictionary<int, int>();
             using var engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = Filename,
                 ReadTransform = (_, value) =>
                 {
@@ -106,15 +106,15 @@ namespace LiteDB.Internals
         [Fact]
         public void UnreadableRegistrySkipsCheckpointWhileExternalReaderIsLive()
         {
-            using var setup = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var setup = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             setup.Pragma(Pragmas.CHECKPOINT, 0);
             setup.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
-            using var readerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var readerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             using var reader = readerEngine.Query("docs", new Query());
             Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
 
             using var writer = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = Filename,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("injected registry failure")
             });
@@ -155,8 +155,8 @@ namespace LiteDB.Internals
         [Fact]
         public void ReadersOfOneConnectionAtDifferentVersionsEachKeepTheirFrames()
         {
-            using var readers = new SharedEngine(new EngineSettings { Filename = Filename });
-            using var writer = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var readers = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
+            using var writer = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             writer.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
             using var oldest = readers.Query("docs", new Query());
             writer.Update("docs", Documents(STREAMED_DOCUMENTS, 1));

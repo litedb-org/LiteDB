@@ -23,7 +23,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename });
             var finalized = 0;
             PageBuffer.FinalizedInUse = _ => Interlocked.Increment(ref finalized);
             var reaper = (Timer)Field(typeof(SharedReaderCleanup), "Reaper").GetValue(null);
@@ -69,7 +69,7 @@ namespace LiteDB.Tests.Engine
             }
 
             engine.Dispose();
-            using (var peer = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared }))
+            using (var peer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared }))
             {
                 peer.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "peer" });
                 peer.Checkpoint();

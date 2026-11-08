@@ -28,7 +28,7 @@ namespace LiteDB.Internals
         private static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         private SharedEngine OpenShared(string password = null) =>
-            new SharedEngine(new EngineSettings { Filename = this.Filename, Password = password });
+            new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename, Password = password });
 
         [Fact]
         public void Ntfs_volumes_report_posix_delete_and_keep_the_cache()
@@ -143,7 +143,7 @@ namespace LiteDB.Internals
         {
             if (!IsWindows) return;
             await MvccProcess.Run("seed", this.Filename, null);
-            using var engine = new SharedEngine(new EngineSettings { Filename = this.Filename, TransactionPageLimit = 1 });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename, TransactionPageLimit = 1 });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             var docs = db.GetCollection("docs");
             docs.FindAll().Should().OnlyContain(doc => doc["value"].AsInt32 == 0);

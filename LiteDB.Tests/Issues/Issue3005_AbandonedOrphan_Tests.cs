@@ -119,7 +119,7 @@ namespace LiteDB.Tests.Issues
         }
 
         private static EngineSettings Settings(string filename, string password) =>
-            new EngineSettings { Filename = filename, Password = password };
+            new EngineSettings { SharedOneFile = false, Filename = filename, Password = password };
 
         private static BsonDocument[] Rows(int value) => Enumerable.Range(0, RowCount).Select(id =>
             new BsonDocument { ["_id"] = id, ["value"] = value, ["payload"] = new string('x', 3000) }).ToArray();

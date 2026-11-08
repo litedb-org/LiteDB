@@ -45,7 +45,7 @@ namespace LiteDB.Tests.Engine
             var burners = Setting("LITEDB_PIN_PROBE_BURNERS", 0);
             var filename = Path.Combine(_directory, waiter + ".db");
 
-            using var engine = new SharedEngine(new EngineSettings { Filename = filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename });
             engine.Insert("docs", Enumerable.Range(1, 200).Select(id => Doc(id, 0)), BsonAutoId.Int32);
 
             using var stop = new CancellationTokenSource();
@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Engine
             {
                 try
                 {
-                    using var other = waiter.EndsWith("instance") ? new SharedEngine(new EngineSettings { Filename = filename }) : null;
+                    using var other = waiter.EndsWith("instance") ? new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename }) : null;
                     var target = other ?? engine;
                     var id = 0;
                     while (!stop.IsCancellationRequested)

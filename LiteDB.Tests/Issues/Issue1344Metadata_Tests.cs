@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Issues
         public void Metadata_update_preserves_a_concurrent_uploads_content(ConnectionType mode)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = mode });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = mode });
             using (var source = new MemoryStream(new byte[] { 1, 2 })) db.FileStorage.Upload("target", "old", source);
             var bytes = Enumerable.Range(0, LiteFileStream<string>.MAX_CHUNK_SIZE + 17).Select(i => (byte)i).ToArray();
             using var entered = new ManualResetEventSlim();

@@ -20,10 +20,10 @@ namespace LiteDB.Internals
         [InlineData(true)]
         public void SameSharedEngineSupportsOldAndNewReadersWithAutomaticCheckpoints(bool readOnly)
         {
-            using var writer = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var writer = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             writer.Pragma(Pragmas.CHECKPOINT, 1);
             writer.Insert("docs", Documents(0), BsonAutoId.Int32);
-            using var readerEngine = new SharedEngine(new EngineSettings { Filename = Filename, ReadOnly = readOnly });
+            using var readerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, ReadOnly = readOnly });
             using var old = readerEngine.Query("docs", new Query());
             for (var i = 1; i <= 10; i++)
             {
@@ -40,7 +40,7 @@ namespace LiteDB.Internals
         [Fact]
         public void ExplicitTransactionsAndRepeatedBeginBalanceMutexOwnership()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             engine.BeginTrans().Should().BeTrue();
             engine.BeginTrans().Should().BeFalse();
@@ -52,7 +52,7 @@ namespace LiteDB.Internals
             engine.Commit().Should().BeTrue();
             MvccCheckpoint_Tests.RunThread(() =>
             {
-                using var other = new SharedEngine(new EngineSettings { Filename = Filename });
+                using var other = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
                 other.Update("docs", Documents(2));
             });
             engine.BeginTrans().Should().BeTrue();
@@ -66,7 +66,7 @@ namespace LiteDB.Internals
         public void QueryConstructionFailureReleasesEngineMutexAndLease()
         {
             using var engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = Filename,
                 ReadTransform = (_, __) => throw new InvalidOperationException("transform failed")
             });
@@ -75,7 +75,7 @@ namespace LiteDB.Internals
             query.Should().Throw<InvalidOperationException>().WithMessage("transform failed");
             MvccCheckpoint_Tests.RunThread(() =>
             {
-                using var other = new SharedEngine(new EngineSettings { Filename = Filename });
+                using var other = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
                 other.Update("docs", Documents(1));
                 other.Checkpoint();
             });
@@ -85,7 +85,7 @@ namespace LiteDB.Internals
         [Fact]
         public void RebuildRejectsLiveReadersAndSucceedsAfterTheyClose()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             using var reader = engine.Query("docs", new Query());
             Action rebuild = () => engine.Rebuild(new RebuildOptions());
@@ -100,7 +100,7 @@ namespace LiteDB.Internals
         [InlineData("secret")]
         public void TwoSortingReadersUseIndependentTemporaryStorage(string password)
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password });
             engine.Insert("docs", Documents(0, 2048, 900), BsonAutoId.Int32);
             Query Sorted()
             {

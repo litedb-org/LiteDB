@@ -25,7 +25,7 @@ namespace LiteDB.Internals
             using var data = new SyncFile(file.Filename);
             using var log = new SyncFile(file.Filename + "-wal");
             using var engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, DataStream = data, LogStream = log,
                 Password = password, DurableCommits = durable
             });
@@ -62,7 +62,7 @@ namespace LiteDB.Internals
             using var data = new SyncFile(file.Filename);
             using var log = new SyncFile(file.Filename + "-wal");
             var settings = new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, DataStream = data, LogStream = log, Password = password
             };
             using var engine = new SharedEngine(settings);

@@ -15,7 +15,7 @@ namespace LiteDB.Tests.Engine
         public void Timer_cleanup_errors_do_not_escape_or_leave_a_reusable_snapshot()
         {
             using var file = new MappedTestFile();
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file })
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var database = new LiteDatabase(engine))
             {
@@ -68,7 +68,7 @@ namespace LiteDB.Tests.Engine
         public void Failed_open_publication_closes_the_engine_and_preserves_the_original_error(bool recovering)
         {
             using var file = new MappedTestFile();
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
             using (var database = new LiteDatabase(engine))
             {
                 database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 19 });

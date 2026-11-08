@@ -28,7 +28,7 @@ namespace LiteDB.Tests.Engine
                     Directory.CreateDirectory(SharedCoordinationPage.DisabledPath(file));
                 }
                 using (var engine = new SharedEngine(new EngineSettings
-                    { Filename = file, SharedMutexNameStrategy = SharedMutexNameStrategy.Sha1Hash }))
+                    { SharedOneFile = false, Filename = file, SharedMutexNameStrategy = SharedMutexNameStrategy.Sha1Hash }))
                 using (var database = new LiteDatabase(engine))
                 {
                     database.CheckpointSize = 0;
@@ -54,7 +54,7 @@ namespace LiteDB.Tests.Engine
             {
                 using (var seed = new LiteDatabase(file))
                     seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
-                using (var database = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
+                using (var database = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
                 {
                     database.GetCollection("rows").FindById(1)["_id"].AsInt32.Should().Be(1);
                     File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeFalse();
@@ -70,8 +70,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var reader = new LiteDatabase(engine))
                 {
                     var rows = writer.GetCollection("rows");
@@ -108,8 +108,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var reader = new LiteDatabase(engine))
                 using (var registry = new SharedReaderRegistry(file))
                 {
@@ -141,7 +141,7 @@ namespace LiteDB.Tests.Engine
                 var foreign = new byte[] { 17, 33, 51 };
                 var page = SharedCoordinationPage.PagePath(file);
                 File.WriteAllBytes(page, foreign);
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var database = new LiteDatabase(engine))
                 {
                     database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 71 });

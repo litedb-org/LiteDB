@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Engine
         {
             WithDatabase((file, peer, database, view) =>
             {
-                using var writer = new SharedEngine(new EngineSettings { Filename = file });
+                using var writer = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file });
                 using var target = new LiteDatabase(writer);
                 var observed = false;
                 writer.CoordinationStage = stage =>
@@ -71,7 +71,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new MappedTestFile();
             int expected;
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file })
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var database = new LiteDatabase(engine))
             {

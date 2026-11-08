@@ -31,7 +31,7 @@ namespace LiteDB.Internals
             using var data = new DeviceFile(source.Filename);
             using var log = new DeviceFile(source.Filename + "-wal");
             using var shared = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = source.Filename, DataStream = data, LogStream = log,
                 Password = password, CompactStorage = storage, TransactionPageLimit = 1
             });
@@ -95,7 +95,7 @@ namespace LiteDB.Internals
                 for (var attempt = 0; attempt < 2; attempt++)
                 {
                     using var db = new LiteDatabase(new ConnectionString
-                    {
+                    { SharedOneFile = false,
                         Filename = recovered.Filename, Connection = ConnectionType.Shared,
                         Password = password, CompactStorage = storage
                     });

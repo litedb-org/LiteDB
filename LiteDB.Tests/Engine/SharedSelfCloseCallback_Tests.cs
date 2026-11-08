@@ -71,7 +71,7 @@ namespace LiteDB.Tests.Engine
             var data = this.Track(CallbackFile.Open(this.Filename));
             var log = this.Track(CallbackFile.Open(FileHelper.GetLogFile(this.Filename)));
             var outer = this.Track(new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = this.Filename, Password = Password(encrypted), DataStream = data, LogStream = log,
                 ReadTransform = (_, value) => value
             }));
@@ -83,7 +83,7 @@ namespace LiteDB.Tests.Engine
             if (otherDatabase)
             {
                 this.Seed(this.OtherFilename, encrypted);
-                other = this.Track(new SharedEngine(new EngineSettings { Filename = this.OtherFilename, Password = Password(encrypted) }));
+                other = this.Track(new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.OtherFilename, Password = Password(encrypted) }));
             }
             var called = 0;
             var probes = 0;
@@ -225,7 +225,7 @@ namespace LiteDB.Tests.Engine
         private static void VerifyExact(string filename, bool encrypted, int[] ids, Func<int, bool> big)
         {
             VerifyCold(filename, encrypted, ids);
-            using var cold = new LiteDatabase(new ConnectionString { Filename = filename, Password = Password(encrypted) });
+            using var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, Password = Password(encrypted) });
             foreach (var id in ids)
             {
                 var row = cold.GetCollection("rows").Query().Where(Query.EQ("value", id)).ToDocuments().Single();

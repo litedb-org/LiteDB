@@ -11,7 +11,7 @@ internal static class SharedSafetyHarness
         {
             Directory.SetCurrentDirectory(Path.GetDirectoryName(filename)!);
             using var engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = Path.GetFileName(filename), Password = password
             });
             using var database = new LiteDatabase(engine, disposeOnClose: false);

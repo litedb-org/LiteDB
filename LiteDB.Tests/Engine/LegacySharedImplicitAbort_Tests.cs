@@ -20,7 +20,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, ReadTransform = (_, row) => row }))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peer = Open(file.Filename))
             {
@@ -60,7 +60,7 @@ namespace LiteDB.Tests.Engine
             var fail = false;
             var hits = 0;
             using (var engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename,
                 ReadTransform = (_, row) =>
                 {
@@ -105,7 +105,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, ReadTransform = (_, row) => row }))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peer = Open(file.Filename))
             {
@@ -134,7 +134,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename, ReadTransform = (_, row) => row }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, ReadTransform = (_, row) => row }))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peer = Open(file.Filename))
             {
@@ -177,7 +177,7 @@ namespace LiteDB.Tests.Engine
         }
 
         private static LiteDatabase Open(string path) => new LiteDatabase(new ConnectionString
-        { Filename = path, Connection = ConnectionType.Shared });
+        { SharedOneFile = false, Filename = path, Connection = ConnectionType.Shared });
 
         private static BsonDocument Row(int id) => new BsonDocument { ["_id"] = id, ["value"] = id };
 

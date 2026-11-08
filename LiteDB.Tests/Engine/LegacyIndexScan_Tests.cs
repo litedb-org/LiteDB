@@ -64,13 +64,13 @@ namespace LiteDB.Tests.Engine
             using var legacy = LegacyIndexFixtures.Extract("indexes", password);
             using var migrated = LegacyIndexFixtures.Extract("indexes", password);
             var before = File.ReadAllBytes(legacy.Filename);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = migrated.Filename, Password = password }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = migrated.Filename, Password = password }))
                 db.Checkpoint();
 
             var cs = Connection(legacy.Filename, password, legacyIndexScan: true);
             cs.Connection = connection == "shared" ? ConnectionType.Shared : ConnectionType.Direct;
             using (var scan = new LiteDatabase(cs))
-            using (var seek = new LiteDatabase(new ConnectionString { Filename = migrated.Filename, Password = password, ReadOnly = true }))
+            using (var seek = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = migrated.Filename, Password = password, ReadOnly = true }))
             {
                 foreach (var name in new[] { "people", "numbers" })
                     ShouldAnswerAlike(scan.GetCollection(name), seek.GetCollection(name));
@@ -173,7 +173,7 @@ namespace LiteDB.Tests.Engine
         }
 
         private static ConnectionString Connection(string file, string password, bool legacyIndexScan) =>
-            new ConnectionString { Filename = file, Password = password, ReadOnly = true, LegacyIndexScan = legacyIndexScan };
+            new ConnectionString { SharedOneFile = false, Filename = file, Password = password, ReadOnly = true, LegacyIndexScan = legacyIndexScan };
 
         private static void MarkLegacy(string file) =>
             IndexMigration_Tests.RewriteHeaders(file, null, header =>

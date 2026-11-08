@@ -52,7 +52,7 @@ namespace LiteDB.Tests.Regressions
             var originalData = data.ToArray();
             var originalLog = log.ToArray();
             var settings = new EngineSettings
-            {
+            { SharedOneFile = false,
                 DataStream = data, LogStream = log,
                 SharedReaderVersions = liveLease ? () => new[] { 1 } : (Func<int[]>)(() => null)
             };
@@ -77,7 +77,7 @@ namespace LiteDB.Tests.Regressions
             using var data = Entry("crash.db");
             using var log = Entry("crash-log.db");
             var stages = new System.Collections.Generic.List<string>();
-            var settings = new EngineSettings { DataStream = data, LogStream = log, SharedReaderVersions = () => new[] { 1 } };
+            var settings = new EngineSettings { SharedOneFile = false, DataStream = data, LogStream = log, SharedReaderVersions = () => new[] { 1 } };
             settings.CheckpointStage = stage => stages.Add(stage);
 
             Action open = () => new LiteEngine(settings).Dispose();
@@ -96,7 +96,7 @@ namespace LiteDB.Tests.Regressions
             var originalLog = File.ReadAllBytes(FileHelper.GetLogFile(file.Filename));
 
             var settings = new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
             };
@@ -113,7 +113,7 @@ namespace LiteDB.Tests.Regressions
             File.ReadAllBytes(file.Filename).Should().Equal(originalData);
             File.ReadAllBytes(FileHelper.GetLogFile(file.Filename)).Should().Equal(originalLog);
 
-            using var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+            using var db = new LiteDatabase($"Filename={file.Filename};Connection=shared;Shared One File=false");
             var docs = db.GetCollection("docs").FindAll().ToList();
             docs.Should().HaveCount(101);
             docs.Count(x => x["value"].AsInt32 == 7).Should().Be(21);
@@ -121,7 +121,7 @@ namespace LiteDB.Tests.Regressions
 
         private static (int updated, int count) Recover(MemoryStream data, MemoryStream log)
         {
-            using var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log });
+            using var engine = new LiteEngine(new EngineSettings { SharedOneFile = false, DataStream = data, LogStream = log });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             var docs = db.GetCollection("docs").FindAll().ToList();
             return (docs.Count(x => x["value"].AsInt32 == 7), docs.Count);

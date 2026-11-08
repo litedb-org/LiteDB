@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             var connection = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, Password = password, Connection = connectionType,
                 CompactStorage = CompactStorageMode.Compact
             };

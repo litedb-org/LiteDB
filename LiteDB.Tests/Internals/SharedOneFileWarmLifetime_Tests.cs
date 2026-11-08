@@ -167,7 +167,7 @@ namespace LiteDB.Internals
         public void Default_Shared_cold_abandonment_also_releases_the_preexisting_dev_page_leak()
         {
             using var files = new SharedOneFilePublicationFixture();
-            using var engine = new SharedEngine(new EngineSettings { Filename = files.Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = files.Filename });
             var finalized = 0;
             PageBuffer.FinalizedInUse = _ => Interlocked.Increment(ref finalized);
             try

@@ -30,7 +30,7 @@ namespace LiteDB.Tests.Issues
 
         internal static LiteDatabase Open(bool reject, string filename = ":memory:", ConnectionType connection = ConnectionType.Direct)
         {
-            var connectionString = new ConnectionString { Filename = filename, Connection = connection, RejectInvalidLocalTime = reject };
+            var connectionString = new ConnectionString { SharedOneFile = false, Filename = filename, Connection = connection, RejectInvalidLocalTime = reject };
 
             return new LiteDatabase(connectionString.CreateEngine(settings => settings.LocalTimeZone = DstZone));
         }
@@ -242,12 +242,12 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Connection_string_round_trips_the_switch()
         {
-            var on = new ConnectionString { Filename = "demo.db", RejectInvalidLocalTime = true };
+            var on = new ConnectionString { SharedOneFile = false, Filename = "demo.db", RejectInvalidLocalTime = true };
 
             on.ToString().Should().Be("Filename=\"demo.db\";Reject Invalid Local Time=True");
             new ConnectionString(on.ToString()).RejectInvalidLocalTime.Should().BeTrue();
             new ConnectionString("reject invalid local time=true").RejectInvalidLocalTime.Should().BeTrue();
-            new ConnectionString { Filename = "demo.db" }.ToString().Should().Be("demo.db");
+            new ConnectionString { SharedOneFile = false, Filename = "demo.db" }.ToString().Should().Be("demo.db");
         }
     }
 }

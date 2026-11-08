@@ -28,7 +28,7 @@ namespace LiteDB.Tests.Internals
             using var data = mode == "caller-file" ? File.Open(file.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite) : null;
             using var log = mode == "caller-file" ? File.Open(logFile.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite) : null;
             var settings = new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = file.Filename, Password = mode == "encrypted" ? "secret" : null,
                 DurableCommits = mode != "cache-only", DataStream = data, LogStream = log
             };
@@ -59,7 +59,7 @@ namespace LiteDB.Tests.Internals
         {
             using var file = new TempFile();
             var logPath = NativeFileSyncCollection.LogPath(file.Filename);
-            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, TransactionPageLimit = 1 });
+            using var engine = new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, TransactionPageLimit = 1 });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");

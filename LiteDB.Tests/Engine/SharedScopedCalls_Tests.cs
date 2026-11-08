@@ -21,7 +21,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void A_reader_opened_by_a_lazy_write_can_outlive_the_call_and_close_off_thread()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             engine.MutexOwner.HasHolderThread.Should().BeFalse("array writes are scoped");
             IBsonDataReader escaped = null;
@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Failed_lease_after_a_successful_probe_retries_before_execution_and_preserves_off_thread_disposal()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             using (var warmup = engine.Query("docs", new Query { Limit = 1 })) warmup.Read().Should().BeTrue();
             var registry = (SharedReaderRegistry)typeof(SharedEngine).GetField("_readers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Failed_registration_followed_only_by_small_reads_does_not_disable_checkpoints()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             engine.Insert("docs", Documents(0), BsonAutoId.Int32);
             using (var warmup = engine.Query("docs", new Query { Limit = 1 })) warmup.Read().Should().BeTrue();
             var registry = (SharedReaderRegistry)typeof(SharedEngine).GetField("_readers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
@@ -84,7 +84,7 @@ namespace LiteDB.Tests.Engine
             };
             using (var small = engine.Query("docs", new Query { Limit = 1 })) small.Read().Should().BeTrue();
             failed.Should().BeTrue();
-            using var peerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var peerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename });
             using var peer = new LiteDatabase(peerEngine, disposeOnClose: false);
             peer.CheckpointSize = 0;
             peer.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
@@ -101,7 +101,7 @@ namespace LiteDB.Tests.Engine
             SharedEngine engine = null;
             var entered = false;
             using (engine = new SharedEngine(new EngineSettings
-            {
+            { SharedOneFile = false,
                 Filename = Filename,
                 ReadTransform = (_, value) =>
                 {

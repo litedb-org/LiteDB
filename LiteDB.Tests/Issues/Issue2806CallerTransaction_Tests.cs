@@ -54,7 +54,7 @@ namespace LiteDB.Tests.Issues
         {
             using var file = new TempFile();
             var original = Pattern(620000);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection }))
             {
                 var docs = db.GetCollection("docs");
                 if (replacesFile) db.FileStorage.Upload("asset", "old.bin", new MemoryStream(original));

@@ -23,7 +23,7 @@ namespace LiteDB.Tests.Engine
             var passed = false;
             try
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var database = new LiteDatabase(engine, disposeOnClose: false))
                 using (var ready = new ManualResetEventSlim())
@@ -64,7 +64,7 @@ namespace LiteDB.Tests.Engine
                     using (var registry = new LiteDB.Client.Shared.SharedReaderRegistry(file))
                         registry.LiveVersions().Should().BeEmpty("disposal must leave no lease behind");
                 }
-                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                using (var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password }))
                 {
                     var rows = cold.GetCollection("rows").Find(Query.EQ("value", 7)).OrderBy(row => row["_id"].AsInt32).ToArray();
                     rows.Select(row => row["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 64));
@@ -88,11 +88,11 @@ namespace LiteDB.Tests.Engine
                 { ["_id"] = id, ["value"] = value, ["payload"] = new string('x', 3000) };
             try
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1), ForceCoordinatedYield = true })
                 using (var reader = new LiteDatabase(engine))
                 using (var writer = new LiteDatabase(new ConnectionString
-                    { Filename = file, Password = password, Connection = ConnectionType.Shared }))
+                    { SharedOneFile = false, Filename = file, Password = password, Connection = ConnectionType.Shared }))
                 {
                     writer.CheckpointSize = 0;
                     var rows = writer.GetCollection("rows");
@@ -120,7 +120,7 @@ namespace LiteDB.Tests.Engine
                     registry.LiveVersions().Should().BeEmpty();
                     writer.Checkpoint();
                 }
-                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                using (var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password }))
                 {
                     var rows = cold.GetCollection("rows").Find(Query.EQ("value", 7)).OrderBy(row => row["_id"].AsInt32).ToArray();
                     rows.Select(row => row["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 64));
@@ -146,11 +146,11 @@ namespace LiteDB.Tests.Engine
                 { ["_id"] = id, ["value"] = value, ["payload"] = new string('x', 3000) };
             try
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var database = new LiteDatabase(engine, disposeOnClose: false))
                 using (var writer = new LiteDatabase(new ConnectionString
-                    { Filename = file, Password = password, Connection = ConnectionType.Shared }))
+                    { SharedOneFile = false, Filename = file, Password = password, Connection = ConnectionType.Shared }))
                 using (var ready = new ManualResetEventSlim())
                 using (var resume = new ManualResetEventSlim())
                 {
@@ -185,7 +185,7 @@ namespace LiteDB.Tests.Engine
                     }
                     finally { resume.Set(); reading.Wait(TimeSpan.FromSeconds(10)); }
                 }
-                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                using (var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password }))
                 {
                     var rows = cold.GetCollection("rows").Find(Query.EQ("value", 7)).OrderBy(row => row["_id"].AsInt32).ToArray();
                     rows.Length.Should().Be(64);

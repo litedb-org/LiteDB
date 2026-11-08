@@ -54,7 +54,7 @@ namespace LiteDB.Tests.Engine
             var expected = -1;
             try
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password }))
                 using (var db = new LiteDatabase(engine, disposeOnClose: false))
                 {
                     db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 0 });
@@ -67,7 +67,7 @@ namespace LiteDB.Tests.Engine
                     test(engine, db, () => (view.ReadInt64(SharedCoordinationProtocol.WriterHintOffset) & 1) != 0);
                     expected = db.GetCollection("rows").FindById(1)["value"].AsInt32;
                 }
-                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                using (var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password }))
                 {
                     cold.GetCollection("rows").Count().Should().Be(1);
                     cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(expected);

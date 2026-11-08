@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -58,7 +58,7 @@ namespace LiteDB.Tests.Database
             empty.ToStringWithPassword().Should().BeEmpty();
 
             var onlyfile = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = @"c:\only file\demo.db",
             };
 
@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Database
             onlyfile.ToStringWithPassword().Should().Be(@"c:\only file\demo.db");
 
             var protectedConnection = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = "demo.db",
                 Password = "secret",
             };
@@ -80,7 +80,7 @@ namespace LiteDB.Tests.Database
         public void ConnectionString_ToStringWithPassword_Serializes_All_Settings()
         {
             var full = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = """c:\only;file"d"emo.db""",
                 Connection = ConnectionType.Shared,
                 Password = "john-doe\\ ",
@@ -101,9 +101,9 @@ namespace LiteDB.Tests.Database
             var collation = full.Collation.ToString();
 
             serialized.Should().Be(
-                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password="john-doe\ ";InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Shared One File=false;Password="john-doe\ ";InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
             full.ToString().Should().Be(
-                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password=********;InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Shared One File=false;Password=********;InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
 
             var parsed = new ConnectionString(serialized);
 
@@ -129,7 +129,7 @@ namespace LiteDB.Tests.Database
         public void ConnectionString_ToStringWithPassword_Preserves_Filename_Edge_Cases(string filename)
         {
             var original = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = filename,
                 ReadOnly = true,
             };
@@ -143,7 +143,7 @@ namespace LiteDB.Tests.Database
         public void ConnectionString_ToStringWithPassword_Preserves_Backslashes_And_Quotes()
         {
             var original = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = "demo.db",
                 Password = "secret\\\"tail\\",
             };
@@ -157,7 +157,7 @@ namespace LiteDB.Tests.Database
         public void ConnectionString_ToStringWithPassword_Preserves_Explicit_Empty_Password()
         {
             var original = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = "demo.db",
                 Password = string.Empty,
             };
@@ -173,7 +173,7 @@ namespace LiteDB.Tests.Database
         public void ConnectionString_ToStringWithPassword_Quotes_Ambiguous_Filename()
         {
             var fileWithSpecials = new ConnectionString
-            {
+            { SharedOneFile = false,
                 Filename = @"c:\only file\d""e=mo.db",
             };
 

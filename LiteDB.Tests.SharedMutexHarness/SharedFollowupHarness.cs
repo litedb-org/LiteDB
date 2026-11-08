@@ -9,7 +9,7 @@ internal static class SharedFollowupHarness
     internal static bool TryRun(string mode, string filename, string? password)
     {
         if (!mode.StartsWith("followup-", StringComparison.Ordinal)) return false;
-        using var engine = new SharedEngine(new EngineSettings { Filename = filename, Password = password });
+        using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename, Password = password });
         if (mode == "followup-generations")
         {
             var readers = new Dictionary<int, IBsonDataReader>();

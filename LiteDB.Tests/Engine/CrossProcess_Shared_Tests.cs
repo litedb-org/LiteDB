@@ -167,7 +167,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
         // Initialize the database in the main process
         using (var db = new LiteDatabase(new ConnectionString
-        {
+        { SharedOneFile = false,
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
@@ -189,7 +189,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
         // Verify all documents were written
         using (var db = new LiteDatabase(new ConnectionString
-        {
+        { SharedOneFile = false,
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
@@ -229,7 +229,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
         // Initialize collection
         using (var db = new LiteDatabase(new ConnectionString
-        {
+        { SharedOneFile = false,
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
@@ -252,7 +252,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
         // Verify all documents were inserted
         using (var db = new LiteDatabase(new ConnectionString
-        {
+        { SharedOneFile = false,
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
@@ -278,7 +278,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 progress.Progress("opening connection", 0);
                 using var db = new LiteDatabase(new ConnectionString
-                {
+                { SharedOneFile = false,
                     Filename = _dbPath,
                     Connection = ConnectionType.Shared
                 });
@@ -335,7 +335,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 progress.Progress("opening connection", 0);
                 using var db = new LiteDatabase(new ConnectionString
-                {
+                { SharedOneFile = false,
                     Filename = _dbPath,
                     Connection = ConnectionType.Shared
                 });

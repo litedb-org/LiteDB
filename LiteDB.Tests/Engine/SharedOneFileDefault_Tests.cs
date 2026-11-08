@@ -74,7 +74,7 @@ namespace LiteDB.Tests.Engine
         {
             Directory.Exists(filename + "-readers").Should().Be(!mapped);
             Directory.GetFiles(Path.GetDirectoryName(filename), "test.db-shared-*").Should().HaveCount(mapped ? 0 : 2);
-            File.Exists(filename + "-shm").Should().BeTrue();
+            if (mapped) File.Exists(filename + "-shm").Should().BeTrue();
         }
 
         private static void WithFile(Action<string> action)

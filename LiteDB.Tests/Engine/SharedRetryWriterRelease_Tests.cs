@@ -57,7 +57,7 @@ namespace LiteDB.Tests.Engine
         {
             Seed(encrypted);
             using var protection = new OwnershipMonitor();
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -97,7 +97,7 @@ namespace LiteDB.Tests.Engine
         public void Failed_retry_after_implicit_abort_leaves_no_transaction_ownership(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -148,7 +148,7 @@ namespace LiteDB.Tests.Engine
         public void Ordinary_transaction_keeps_guards_and_releases_on_completion(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -174,7 +174,7 @@ namespace LiteDB.Tests.Engine
         public void Retry_retains_same_connection_recursion_and_peer_callback_guard(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var peer = new LiteDatabase(Connection(encrypted));
             using var anchor = Pin(engine, pinned);
@@ -208,7 +208,7 @@ namespace LiteDB.Tests.Engine
         public void Child_process_can_write_after_retry_commit(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -264,7 +264,7 @@ namespace LiteDB.Tests.Engine
         }
 
         private ConnectionString Connection(bool encrypted) => new ConnectionString
-        {
+        { SharedOneFile = false,
             Filename = Filename, Password = Password(encrypted), Connection = ConnectionType.Shared
         };
 
@@ -273,7 +273,7 @@ namespace LiteDB.Tests.Engine
 
         private void Seed(bool encrypted)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = Password(encrypted) });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             db.GetCollection("docs").Insert(Enumerable.Range(1, 150).Select(Row));
             db.GetCollection("docs").EnsureIndex("value");
             db.GetCollection("sentinel").Insert(Row(42));
@@ -281,7 +281,7 @@ namespace LiteDB.Tests.Engine
 
         private void Verify(bool encrypted, params int[] ids)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = Password(encrypted) });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             var rows = db.GetCollection("docs");
             rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(ids);
             foreach (var id in ids)
