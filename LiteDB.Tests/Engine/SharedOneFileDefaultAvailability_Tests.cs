@@ -81,6 +81,69 @@ namespace LiteDB.Tests.Engine
         }
 #endif
 
+        [Fact]
+        public void Default_remnant_reader_blocks_upgrade_until_closed()
+        {
+            WithFile(filename =>
+            {
+                using (var seed = Open(filename, false, false)) Seed(seed);
+                using (var reader = Open(filename, true))
+                {
+                    Read(reader);
+                    var data = File.ReadAllBytes(filename);
+                    if (QualifiedPlatform)
+                    {
+                        Action upgrade = () => { using var writer = Open(filename, false); };
+                        upgrade.Should().Throw<IOException>().WithMessage("*Database admission refused*Incompatible local Direct/Shared access*");
+                        File.ReadAllBytes(filename).Should().Equal(data);
+                    }
+                    Read(reader);
+                }
+                using (var writer = Open(filename, false)) { Read(writer); Seed(writer); }
+            });
+        }
+
+        [Fact]
+        public void Default_maintenance_and_cache_mismatch_remain_refused()
+        {
+            WithFile(filename =>
+            {
+                using (var first = Open(filename, false))
+                {
+                    Seed(first);
+                    using (var second = Open(filename, false))
+                    {
+                        if (QualifiedPlatform)
+                        {
+                            Action rebuild = () => first.Rebuild();
+                            rebuild.Should().Throw<InvalidOperationException>().WithMessage("*only participant*");
+                            Action mismatch = () =>
+                            {
+                                using var db = new LiteDatabase(new SharedEngine(new EngineSettings { Filename = filename, CacheSize = 1234 }));
+                            };
+                            mismatch.Should().Throw<InvalidOperationException>().WithMessage("*Incompatible Shared*");
+                        }
+                        Read(second);
+                    }
+                    first.Rebuild();
+                    Read(first);
+                }
+                using (var db = Open(filename, false)) Read(db);
+            });
+        }
+
+        private static bool QualifiedPlatform
+        {
+            get
+            {
+#if NET8_0_OR_GREATER
+                return SharedMemoryAuthority.IsPlatformQualified;
+#else
+                return false;
+#endif
+            }
+        }
+
         private static LiteDatabase Open(string filename, bool readOnly, bool? oneFile = null, bool connectionString = false)
         {
             var connection = new ConnectionString { Filename = filename, Connection = ConnectionType.Shared, ReadOnly = readOnly };

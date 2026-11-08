@@ -51,6 +51,9 @@ namespace LiteDB
         private void EnsureCoordination(bool allowCreate = true, bool writing = false)
         {
             if (_settings.SharedOneFile) return; // ABI 2 uses the participant authority.
+            // Keep default legacy-remnant reads under main plus reader leases.
+            // Attaching ABI-1 status would rewrite the remnants during a read-only open.
+            if (_readOnlyLegacyFallback) return;
             if (_coordination != null) return;
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {
