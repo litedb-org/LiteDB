@@ -1166,6 +1166,21 @@
         "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs",
         "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
       ]
+    },
+    {
+      "id": "p5-migration-documentation-snippets",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-transaction-handle-compatibility.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "The original complete transaction-handles.md program still compiles with warnings as errors and executes with the same success marker and timeout. All binary, parity, obsolete-warning and new-API checks remain.",
+      "reason": "Add both complete migration-v6.md examples to the existing runner, each compiled warning-free and executed on every compatibility OS/runtime leg. Exact block counts prevent silently omitting examples.",
+      "coveredBy": [
+        "docs/transaction-handles.md",
+        "docs/migration-v6.md",
+        ".github/workflows/transaction-handle-compatibility.yml"
+      ]
     }
   ]
 }
