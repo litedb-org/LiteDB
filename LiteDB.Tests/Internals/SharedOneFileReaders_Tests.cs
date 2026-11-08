@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -76,6 +77,12 @@ namespace LiteDB.Internals
             try { table.LiveVersions().Should().Equal(11); }
             finally { MappedPlatformTestNative.Signal(first.ProcessId, 18).Should().Be(0); }
             await first.Kill(sharedFilesRemainOpen: true);
+            // Process exit can precede native handle cleanup on Windows. Shared
+            // mapped files stay open in the parent, so an exclusive-file probe
+            // cannot establish that this child's slot lock has actually drained.
+            var killedSlot = int.Parse(firstIdentity.Split(':')[0]);
+            SpinWait.SpinUntil(() => !table.Authority.Locks.IsLive(killedSlot), TimeSpan.FromSeconds(5))
+                .Should().BeTrue("a killed reader must release its actual native slot within the existing file-release budget");
             table.LiveVersions().Should().BeEmpty();
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
             await second.Expect("ready");

@@ -26,6 +26,16 @@
   ],
   "dispositions": [
     {
+      "id": "p4-mapped-reader-native-death-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Paused readers remain live; killed reader records disappear after their real native slot lock releases; reuse preserves the slot and changes its incarnation. Every original assertion and platform case remains.",
+      "reason": "Windows-2022 x64 net9 full CI observed a retained version immediately after WaitForExit while the native slot still conflicted. Shared-file kill mode has no private mapped-reader file to probe. Assert bounded actual native slot release using the existing five-second Windows file-release allowance before the unchanged immediate empty-floor assertion. No forced record clearing, PID-death inference, test skip, session-limit change or product reclamation change."
+    },
+    {
       "id": "p4-shared-p1-job-partitions",
       "kind": "ci-test-config-changed",
       "subjects": [
