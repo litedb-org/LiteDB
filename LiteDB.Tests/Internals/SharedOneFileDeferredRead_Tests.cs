@@ -40,11 +40,11 @@ namespace LiteDB.Internals
                     SpinWait.SpinUntil(() => done.IsSet ||
                         (cleanup.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(5)).Should().BeTrue();
                     done.IsSet.Should().BeFalse("reader reconciliation must wait for the core teardown gate");
-                    engine.Dispose();
                 }
             }
             finally { cleanup.Join(TimeSpan.FromSeconds(10)).Should().BeTrue(); }
             failure.Should().BeNull();
+            engine.Dispose();
             files.WriteIsFree();
             for (var repeat = 0; repeat < 2; repeat++)
             {
