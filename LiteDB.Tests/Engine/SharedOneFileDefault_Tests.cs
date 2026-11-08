@@ -40,6 +40,9 @@ namespace LiteDB.Tests.Engine
                     using var engine = new SharedEngine(new EngineSettings { Filename = filename });
                     using var db = new LiteDatabase(engine, disposeOnClose: false);
                     db.GetCollection("docs").FindOne(Query.EQ("value", "accepted"))["_id"].Should().Be(1);
+                    // Also prove writable fallback after the cold indexed read. ABI-1
+                    // creates its status pages on writer participation, not the first read.
+                    WriteAndRead(db);
                     AssertFiles(filename, SharedProtocolDefaults.OneFile);
                 }
             });
