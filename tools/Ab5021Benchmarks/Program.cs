@@ -24,9 +24,21 @@ internal static class Program
         {
             // Every measured child gets the same untimed, scaled workload first.
             // Tiered compilation is disabled by the orchestrator for optimized first JITs.
-            new Workload(config, Path.Combine(root, "warmup"), 2000, 100, false).Run();
-            var workload = new Workload(config, Path.Combine(root, "measured"), 100000, 5000, true);
-            workload.Run();
+            List<Sample> samples;
+            if (Environment.GetEnvironmentVariable("BENCHMARK_SHARED_ONLY") == "true")
+            {
+                new SharedWorkload(config, Path.Combine(root, "warmup"), false).Run();
+                var shared = new SharedWorkload(config, Path.Combine(root, "measured"), true);
+                shared.Run();
+                samples = shared.Samples;
+            }
+            else
+            {
+                new Workload(config, Path.Combine(root, "warmup"), 2000, 100, false).Run();
+                var workload = new Workload(config, Path.Combine(root, "measured"), 100000, 5000, true);
+                workload.Run();
+                samples = workload.Samples;
+            }
             var assembly = typeof(LiteDatabase).Assembly;
             var result = new
             {
@@ -46,7 +58,7 @@ internal static class Program
                 seed = 5021,
                 inheritedGcNormalization = "Collect/WaitForPendingFinalizers/Collect before every scenario timer",
                 checkpointPages = 1000,
-                samples = workload.Samples
+                samples
             };
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
             File.WriteAllText(output, System.Text.Json.JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));

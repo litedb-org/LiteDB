@@ -281,3 +281,18 @@ regression rejection, median calculations, both sides of noise, report-only
 scenarios, incomplete/malformed evidence, identity checks, process ordering,
 summaries, and machine-readable CLI output. Run the repository C# size check on
 the staged diff as well.
+
+### Phase 5 report-only Shared measurement
+
+Dispatch `benchmark-gate.yml` on `v6/wip-p5-bench` with `p5_shared_only=true`
+and the full `candidate_ref`. This runs only the additional six-leg Shared job;
+normal gate scenarios, thresholds and repetitions are unchanged. Identical sources
+measure v5 Shared and candidate Shared with its asserted one-file default, both
+OS-cache and durable settings. A warmed, uncontended single-process workload
+measures 20 open/close cycles (including collection-name validation), 1,000
+individual point reads, 1,000 inserts within an explicit transaction, and its
+separate commit. Every child verifies full contents after reopen. The commit
+sample is one commit of 1,000 documents; it is not 1,000 separate commits.
+GC normalization and process-wide timed counters match the existing harness.
+Results are report-only; they do not establish concurrent/multiprocess throughput
+or equivalent durability to v5, which has no device-sync setting per commit.

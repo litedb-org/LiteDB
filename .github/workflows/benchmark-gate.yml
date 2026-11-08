@@ -3,6 +3,10 @@ name: Phase 1 benchmark gate
 on:
   workflow_dispatch:
     inputs:
+      p5_shared_only:
+        description: Report-only Shared vs v5 on all OS/runtime legs
+        type: boolean
+        default: false
       shared_newcomer_only:
         description: 'Only run fork-only Linux x64 newcomer attach-to-writer-acquire p50/p99'
         required: false
@@ -51,7 +55,7 @@ permissions:
 jobs:
   compare:
     if: >-
-      inputs.shared_newcomer_only != true && inputs.shared_tenure_only != true && inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
+      inputs.p5_shared_only != true && inputs.shared_newcomer_only != true && inputs.shared_tenure_only != true && inputs.shared_open_close_only != true && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.repository == 'JKamsker/LiteDB') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')))
     name: Benchmark (${{ matrix.os }}, ${{ matrix.framework }})
@@ -354,3 +358,97 @@ jobs:
           path: evidence/
           if-no-files-found: error
           retention-days: 30
+
+  p5-shared:
+    if: inputs.p5_shared_only == true
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        framework: [net8.0, net10.0]
+        include:
+          - os: ubuntu-latest
+            runner: ubuntu-24.04
+          - os: windows-latest
+            runner: windows-2025
+          - os: macos-latest
+            runner: macos-15
+    steps:
+      - name: Check out PR's own harness or selected workflow branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out candidate production library separately
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
+          path: artifacts_temp/candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out before production library separately
+        if: inputs.baseline_ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.candidate_repository || github.repository }}
+          ref: ${{ inputs.baseline_ref }}
+          path: artifacts_temp/before
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build identical production harnesses
+        env:
+          BASELINE_REF: ${{ inputs.baseline_ref }}
+          BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
+          BENCHMARK_SHARED_ONLY: 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BENCHMARK_SCENARIOS -and -not $env:BASELINE_REF) {
+            throw 'Scenario subsets require baseline_ref; gate runs must measure all scenarios'
+          }
+          if ($env:BASELINE_REF) {
+            $before = (Resolve-Path 'artifacts_temp/before/LiteDB/LiteDB.csproj').Path
+            $beforeSha = git -C artifacts_temp/before rev-parse HEAD
+            if ($LASTEXITCODE) { throw 'Cannot identify before revision' }
+            "BENCHMARK_BASELINE_SHA=$beforeSha" >> $env:GITHUB_ENV
+            New-Item -ItemType Directory -Force tools/Ab5021Benchmarks/V6Before | Out-Null
+            Copy-Item tools/Ab5021Benchmarks/V6/V6.csproj tools/Ab5021Benchmarks/V6Before/V6.csproj
+            dotnet build tools/Ab5021Benchmarks/V6Before/V6.csproj -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$before" -o tools/Ab5021Benchmarks/V6Before --nologo
+            if ($LASTEXITCODE) { throw 'Build failed: before' }
+          }
+          $candidate = (Resolve-Path 'artifacts_temp/candidate/LiteDB/LiteDB.csproj').Path
+          $candidateSha = git -C artifacts_temp/candidate rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify candidate' }
+          "BENCHMARK_CANDIDATE_SHA=$candidateSha" >> $env:GITHUB_ENV
+          $harnessSha = git rev-parse HEAD
+          if ($LASTEXITCODE) { throw 'Cannot identify harness' }
+          "BENCHMARK_HARNESS_SHA=$harnessSha" >> $env:GITHUB_ENV
+          foreach ($version in @('V5', 'V6')) {
+            dotnet build "tools/Ab5021Benchmarks/$version/$version.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$candidate" --nologo
+            if ($LASTEXITCODE) { throw "Build failed: $version" }
+          }
+      - name: Interleaved configured-round A-B comparison
+        env:
+          BENCHMARK_SLOW_COMPARISON: ${{ inputs.slow_comparison }}
+          BENCHMARK_SCENARIOS: ${{ inputs.comparison_scenarios }}
+          BENCHMARK_SHARED_ONLY: 'true'
+        run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts_temp/ab-5021/
+          if-no-files-found: error
