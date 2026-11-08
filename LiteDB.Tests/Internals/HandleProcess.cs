@@ -39,8 +39,14 @@ namespace LiteDB.Internals
             _errors = _process.StandardError.ReadToEndAsync();
         }
         internal void Send(string command) => _process.StandardInput.WriteLine(command);
+        private bool _runtimeChecked;
         internal async Task Expect(string expected)
         {
+            if (!_runtimeChecked)
+            {
+                _runtimeChecked = true;
+                await Expect("runtime:" + Environment.Version.Major + ":" + IntPtr.Size);
+            }
             var read = _process.StandardOutput.ReadLineAsync();
             Assert.Same(read, await Task.WhenAny(read, Task.Delay(20000)));
             var line = await read;

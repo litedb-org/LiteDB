@@ -86,20 +86,24 @@ namespace LiteDB.Internals
             using var db = new LiteDatabase(engine);
             using var peer = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, password);
             await peer.Expect("ready");
+            var locals = Enumerable.Range(0, 2).Select(_ => new LiteDatabase(new SharedEngine(
+                new EngineSettings { Filename = file, Password = password, SharedOneFile = mapped }))).ToArray();
             using var holder = db.BeginTransaction();
             peer.Send("compete"); await peer.Expect("waiting");
             var completed = 0;
+            var overtakes = 0;
             using var stop = new CancellationTokenSource();
             using var started = new CountdownEvent(2);
             var stream = Enumerable.Range(0, 2).Select(worker => Task.Factory.StartNew(() =>
             {
-                using var local = new LiteDatabase(new SharedEngine(new EngineSettings { Filename = file, Password = password, SharedOneFile = mapped }));
+                using var local = locals[worker];
                 started.Signal();
                 while (!stop.IsCancellationRequested)
                 {
                     using var tx = local.BeginTransaction();
                     tx.GetCollection("stream" + worker).Insert(new BsonDocument { ["n"] = completed });
                     tx.Commit();
+                    if (!File.Exists(file.Filename + ".peer-admitted")) Interlocked.Increment(ref overtakes);
                     Interlocked.Increment(ref completed);
                 }
             }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
@@ -108,6 +112,9 @@ namespace LiteDB.Internals
                 Assert.True(started.Wait(10000));
                 holder.Commit();
                 await peer.Expect("progress");
+#if NET8_0_OR_GREATER
+                if (mapped) Assert.InRange(overtakes, 0, LiteDB.Client.Shared.SharedWriterTenure.TransactionBudget);
+#endif
                 // Keep competing until both local callers have completed real work too.
                 Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref completed) >= 2, 10000));
             }
@@ -123,6 +130,7 @@ namespace LiteDB.Internals
             Assert.NotNull(verify.GetCollection("peer").FindById(1));
             Assert.Equal(completed, verify.GetCollection("stream0").Count() + verify.GetCollection("stream1").Count());
             verify.Commit();
+            File.Delete(file.Filename + ".peer-admitted");
         }
 
         [Theory]
@@ -138,6 +146,8 @@ namespace LiteDB.Internals
                 using var tx = db.BeginTransaction();
                 var bound = tx.GetCollection("rows");
                 var deferred = bound.Query().ToEnumerable();
+                using var reader = bound.Query().ExecuteReader();
+                Assert.True(reader.Read());
                 foreach (var facade in new[] { db, peer })
                 {
                     var checkpoint = await Task.Run(() => Assert.Throws<LiteException>(() => facade.Checkpoint()));
@@ -146,9 +156,11 @@ namespace LiteDB.Internals
                     Assert.Equal(120, rebuild.ErrorCode);
                     Assert.Equal(10, bound.FindById(1)["value"].AsInt32);
                 }
-                tx.Commit();
+                reader.Dispose();
+                await Task.Run(tx.Commit);
                 Assert.Throws<InvalidOperationException>(() => deferred.ToArray());
                 peer.Checkpoint();
+                db.Dispose(); // Mapped rekey requires the only remaining participant.
                 peer.Rebuild(new RebuildOptions { Password = "changed" });
             }
             for (var pass = 0; pass < 2; pass++)

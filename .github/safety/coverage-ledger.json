@@ -25,6 +25,7 @@
     }
   ],
   "dispositions": [
+    {"id": "p4-review-public-dispatch-and-portable-legacy", "kind": "harness-changed", "subjects": ["LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs", "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs"], "disposition": "strengthened", "invariant": "Retain every raw engine classification, group prefix/failure schedule and legacy/mapped lifecycle/process case. Public wrappers now drive dispatch and group lifecycle. Ordinary legacy theories execute on CLR 4 and x86; qualified mapped theories remain.", "reason": "Review F1 reproduced 44 raw reader callback authorization failures on c22de98cb production with the public regression; fixed dispatch passes all 44. Internal Execute previously bypassed the defective public reader wrapper. Mixed OneFileTheory excluded legacy on fallback targets; portable child launch now asserts actual CLR major and pointer width.", "coveredBy": ["LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs"]},
     {
       "id": "p4-warm-child-owner-release-barrier",
       "kind": "harness-changed",

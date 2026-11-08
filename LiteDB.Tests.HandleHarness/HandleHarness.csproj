@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net462;net481;net8.0</TargetFrameworks>
+    <Prefer32Bit>false</Prefer32Bit>
     <LangVersion>latest</LangVersion>
     <AssemblyName>SharedMutexHarness</AssemblyName>
     <DefineConstants>$(DefineConstants);TESTING</DefineConstants>

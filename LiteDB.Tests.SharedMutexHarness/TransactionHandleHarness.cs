@@ -74,6 +74,7 @@ internal static class TransactionHandleHarness
                     turnstile.BeforeMainWait = () => Console.WriteLine("waiting");
                     using (var peer = db.BeginTransaction())
                     {
+                        File.WriteAllText(filename + ".peer-admitted", "admitted");
                         peer.GetCollection("peer").Insert(new BsonDocument { ["_id"] = 1 });
                         peer.Commit();
                     }
