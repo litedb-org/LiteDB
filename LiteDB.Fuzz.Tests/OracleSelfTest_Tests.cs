@@ -28,7 +28,7 @@ public sealed class OracleSelfTest_Tests : IDisposable
         direct.Dispose();
         Assert.True(context.ConnectionClean(direct).Clean);
 
-        var shared = new LiteDatabase($"Filename={Path.Combine(_root, "shared.db")};Connection=shared");
+        using var shared = new LiteDatabase($"Filename={Path.Combine(_root, "shared.db")};Connection=shared;Shared One File=false");
         Assert.True(shared.BeginTrans());
         shared.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
         var owned = Assert.Throws<FuzzFailureException>(() => context.ConnectionClean(shared, "transaction still open"));
