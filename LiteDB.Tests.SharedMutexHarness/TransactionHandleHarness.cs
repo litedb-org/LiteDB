@@ -1,10 +1,21 @@
 using LiteDB;
+using LiteDB.Client.Shared;
+using System.Reflection;
 using LiteDB.Engine;
 
 internal static class TransactionHandleHarness
 {
     internal static bool TryRun(string mode, string filename, string password, string[] args)
     {
+        if (mode == "handle-turnstile-mapped" || mode == "handle-turnstile-legacy")
+        {
+            using var owner = new SharedEngine(new EngineSettings { Filename = filename, SharedOneFile = mode.EndsWith("mapped", StringComparison.Ordinal) });
+            var name = (string)typeof(SharedEngine).GetField("_mutexName", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
+            using var turn = SharedMutexFactory.Create(name + ".Turn");
+            turn.WaitOne(); Console.WriteLine("held");
+            Console.ReadLine(); turn.ReleaseMutex(); Console.WriteLine("done");
+            return true;
+        }
         if (mode == "handle-reuse-mapped" || mode == "handle-reuse-legacy")
         {
             using var core = new SharedEngine(new EngineSettings { Filename = filename, Password = password, SharedOneFile = mode == "handle-reuse-mapped" });

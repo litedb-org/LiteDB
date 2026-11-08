@@ -11,7 +11,24 @@ namespace LiteDB
         private long _handleTimeoutTicks = TimeSpan.TicksPerMinute;
 
         // Safe observations only: never read a dirty header to bootstrap admission.
-        private TimeSpan SharedHandleTimeout => TimeSpan.FromTicks(Interlocked.Read(ref _handleTimeoutTicks));
+        private TimeSpan SharedHandleTimeout
+        {
+            get
+            {
+#if NET8_0_OR_GREATER
+                if (_readers is SharedMemoryReaders mapped) return mapped.Table.HandleTimeout;
+#endif
+                return TimeSpan.FromTicks(Interlocked.Read(ref _handleTimeoutTicks));
+            }
+        }
+
+        private void ObserveHandleTimeout(TimeSpan timeout)
+        {
+            Interlocked.Exchange(ref _handleTimeoutTicks, timeout.Ticks);
+#if NET8_0_OR_GREATER
+            if (_readers is SharedMemoryReaders mapped) mapped.Table.HandleTimeout = timeout;
+#endif
+        }
 
         internal SharedHandleLease BeginHandle()
         {
@@ -34,7 +51,7 @@ namespace LiteDB
                     var retained = _pin;
                     pin = retained?.IsIdle == true && this.TryEnterPin(retained) ? retained : this.StartPin();
                     var timeout = _engine.HandleTimeout;
-                    Interlocked.Exchange(ref _handleTimeoutTicks, timeout.Ticks);
+                    this.ObserveHandleTimeout(timeout);
                     TransactionWaitBudget.Clamp(timeout);
                     var context = _engine.BeginHandleTransaction();
                     pin.BindHandle(identity);
@@ -116,7 +133,11 @@ namespace LiteDB
             {
                 _shared.ThrowIfTeardownReentry();
                 _depth = _shared.AdmittedDepth();
-                if (!_pin.TryEnter(_identity)) throw new InvalidOperationException("The Shared handle tenure ended.");
+                if (!_pin.TryEnter(_identity))
+                {
+                    _pin.WaitReleased();
+                    throw new InvalidOperationException("The Shared handle tenure ended.");
+                }
                 try
                 {
                     _shared._admission?.EnsureValid();
@@ -136,7 +157,15 @@ namespace LiteDB
                     }
                     _frame = _shared.OwnershipFrame(_shared.CallRetains);
                 }
-                catch { _shared.EndAdmissions(_depth); _pin.Exit(false); throw; }
+                catch (Exception error)
+                {
+                    _shared.EndAdmissions(_depth);
+                    _pin.RequestRelease(force: true);
+                    _pin.Exit(false);
+                    try { _pin.WaitReleased(); }
+                    catch (Exception cleanup) { error.Data["LiteDB.SharedHandleCleanup"] = cleanup; }
+                    throw;
+                }
             }
 
             internal void Exit()

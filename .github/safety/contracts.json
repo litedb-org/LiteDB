@@ -1025,6 +1025,9 @@
         "LiteDB/Client/Shared/SharedWriter*.cs"
       ],
       "evidence": [
+        {"test": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Turnstile_deadline_releases_partial_request_and_next_handle_progresses", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},
+        {"test": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#External_engine_close_fences_late_completion_and_detaches_the_failed_handle", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},
+        {"test": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},
         {"test": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Interrupted_begin_retires_only_its_native_request_and_successor_progresses", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},
         {"test": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},
         {"test": "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Ordinary_and_legacy_waiters_timeout_without_borrowing_handle_then_progress", "proves": "Shared handle waiting, callback refusal and participant reuse preserve ownership, indexed committed rows and subsequent progress."},

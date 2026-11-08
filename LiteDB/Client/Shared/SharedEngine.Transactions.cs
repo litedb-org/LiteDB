@@ -110,7 +110,9 @@ namespace LiteDB
                 try
                 {
                     this.AtOwnershipStage(commit ? "before-commit" : "before-rollback");
-                    return commit ? _engine.Commit() : _engine.Rollback();
+                    var result = commit ? _engine.Commit() : _engine.Rollback();
+                    this.ObserveHandleTimeout(_engine.HandleTimeout);
+                    return result;
                 }
                 catch
                 {

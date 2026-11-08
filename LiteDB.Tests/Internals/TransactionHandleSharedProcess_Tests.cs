@@ -115,6 +115,30 @@ namespace LiteDB.Internals
             Verify(file, true);
         }
 
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
+        public async Task Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped }))
+            using (var db = new LiteDatabase(engine))
+            {
+                _ = db.Timeout;
+                using (var blocker = new MvccProcess(mapped ? "handle-turnstile-mapped" : "handle-turnstile-legacy", file, null))
+                {
+                    await blocker.Expect("held");
+                    var error = await Task.Run(() => Assert.Throws<LiteException>(() => db.BeginTransaction()));
+                    Assert.Equal(120, error.ErrorCode);
+                    Assert.Equal(0, db.TransactionHandles.ActiveCount);
+                    blocker.Send("release"); await blocker.Expect("done"); await blocker.Finish();
+                }
+                using var next = db.BeginTransaction();
+                Assert.NotNull(next.GetCollection("rows").FindById(1));
+                next.Commit();
+            }
+            Verify(file, false);
+        }
+
         private static void Seed(string file)
         {
             using var db = new LiteDatabase(file);

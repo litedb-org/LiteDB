@@ -80,7 +80,19 @@ namespace LiteDB
                 _executing = Thread.CurrentThread;
             }
             try { EnterShared(); }
-            catch { Exit(); throw; }
+            catch (Exception error)
+            {
+                try
+                {
+                    if (_shared != null)
+                    {
+                        _transaction.Outcome = LiteTransactionState.Failed;
+                        ReleaseResources(error);
+                    }
+                }
+                finally { Exit(); }
+                throw;
+            }
         }
 
         private void EnterShared()

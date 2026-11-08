@@ -92,7 +92,7 @@ namespace LiteDB
                 if (_mappedWriterHeld) this.EnterMappedWriter();
                 this.StartWriterPressure();
                 var result = write();
-                if (!_engine.HasActiveTransaction) Interlocked.Exchange(ref _handleTimeoutTicks, _engine.HandleTimeout.Ticks);
+                if (!_engine.HasActiveTransaction) this.ObserveHandleTimeout(_engine.HandleTimeout);
                 return result;
             }
             finally

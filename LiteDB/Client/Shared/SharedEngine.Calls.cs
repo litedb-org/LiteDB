@@ -55,7 +55,7 @@ namespace LiteDB
             try
             {
                 var result = Query();
-                if (!_engine.HasActiveTransaction) Interlocked.Exchange(ref _handleTimeoutTicks, _engine.HandleTimeout.Ticks);
+                if (!_engine.HasActiveTransaction) this.ObserveHandleTimeout(_engine.HandleTimeout);
                 return result;
             }
             finally

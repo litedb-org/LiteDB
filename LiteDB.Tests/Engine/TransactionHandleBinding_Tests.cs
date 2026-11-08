@@ -52,11 +52,12 @@ namespace LiteDB.Tests.Engine
             reopened.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3 });
         }
 
-        [Fact]
-        public async Task Mapping_is_inside_the_same_handle_overlap_guard()
+        [Theory]
+        [InlineData(false)] [InlineData(true)]
+        public async Task Mapping_is_inside_the_same_handle_overlap_guard(bool shared)
         {
             using var file = new TempFile();
-            using var db = Open(file, false);
+            using var db = Open(file, shared);
             using var tx = db.BeginTransaction();
             using var entered = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
@@ -111,11 +112,12 @@ namespace LiteDB.Tests.Engine
             Assert.Equal(0, reopened.GetCollection<Entity>("rows").Count());
         }
 
-        [Fact]
-        public void Unsupported_external_query_output_does_not_abort_prior_writes()
+        [Theory]
+        [InlineData(false)] [InlineData(true)]
+        public void Unsupported_external_query_output_does_not_abort_prior_writes(bool shared)
         {
             using var file = new TempFile();
-            using var db = Open(file, false);
+            using var db = Open(file, shared);
             using var tx = db.BeginTransaction();
             var rows = tx.GetCollection("rows");
             rows.Insert(new BsonDocument { ["_id"] = 1 });
