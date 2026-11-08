@@ -4,15 +4,30 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      macos_qualification:
+        description: Run the complete mapped macOS qualification matrix only
+        type: boolean
+        default: false
+      request_safety_diagnostic:
+        description: Diagnose request safety only (never full qualification evidence)
+        type: boolean
+        default: false
+      stress:
+        description: Repeat tenure, wake, coherence and process-death coverage 50 times
+        type: boolean
+        default: false
 
 jobs:
   ci-checks:
+    if: ${{ !inputs.macos_qualification }}
     uses: ./.github/workflows/_reusable-ci.yml
     with:
       tier: full
     secrets: inherit
 
   reprorunner:
+    if: ${{ !inputs.macos_qualification }}
     uses: ./.github/workflows/reprorunner.yml
     with:
       tier: full
@@ -45,3 +60,62 @@ jobs:
             } else {
               await github.rest.issues.create({ ...context.repo, title, body });
             }
+
+  macos-qualification:
+    if: inputs.macos_qualification
+    name: Mapped macOS (${{ matrix.runner }} ${{ matrix.framework }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build test hooks and child harness
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Run every mapped class and require complete TRX
+        shell: pwsh
+        env:
+          LITEDB_EXPECTED_RUNTIME_MAJOR: ${{ matrix.framework == 'net8.0' && '8' || '10' }}
+          LITEDB_EXPECTED_ARCHITECTURE: ${{ matrix.runner == 'macos-15' && 'arm64' || 'x64' }}
+          QUALIFICATION_STRESS: ${{ inputs.stress }}
+          REQUEST_SAFETY_DIAGNOSTIC: ${{ inputs.request_safety_diagnostic }}
+        run: ./scripts/qualify-macos.ps1 -Framework '${{ matrix.framework }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-qualification-${{ matrix.runner }}-${{ matrix.framework }}
+          path: artifacts_temp/macos-qualification/
+
+  request-expiry-proof:
+    if: inputs.macos_qualification
+    name: Expired request real-revision proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Require the registered old revision to fail and this head to pass
+        shell: pwsh
+        env:
+          LITEDB_EXPECTED_RUNTIME_MAJOR: '8'
+          LITEDB_EXPECTED_ARCHITECTURE: x64
+        run: ./scripts/verify-shared-request-expiry.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: request-expiry-real-revision-proof
+          path: artifacts_temp/request-expiry-proof/

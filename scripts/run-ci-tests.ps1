@@ -85,7 +85,10 @@ if ($PartitionSuite) {
         'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process&FullyQualifiedName!~LiteDB.Internals.SharedMappedProcess&FullyQualifiedName!~LiteDB.Internals.SharedCoordinationUpgradeProcess'
         # The old shared session exhausted 300 s while still completing cases.
         # Keep process-death matrices and tenure reviews independently bounded.
-        'shared-maintenance-crash' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process'
+        'shared-maintenance-crash-death' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName~Every_maintenance_death_preserves_committed_pair_and_repeats'
+        'shared-maintenance-crash-recovery' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName~Recovery_can_itself_die_and_be_repeated'
+        # Complement retains rollback and any future theories; no cases disappear.
+        'shared-maintenance-crash' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName!~Every_maintenance_death_preserves_committed_pair_and_repeats&FullyQualifiedName!~Recovery_can_itself_die_and_be_repeated'
         'shared-final-close' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileFinalClose&FullyQualifiedName!~Process'
         'shared-rebuild' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileRebuild&FullyQualifiedName!~Process'
         'shared-writer-tenure' = 'FullyQualifiedName~LiteDB.Internals.SharedWriterTenure&FullyQualifiedName!~Process'

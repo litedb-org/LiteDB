@@ -263,3 +263,11 @@ per-test inactivity timeout** and mini dumps. The unchanged 300-second session
 limit still catches cumulative exhaustion. Sequence XML and dump files are
 uploaded with each leg's TRX artifacts, including failures, so a genuinely stalled
 operation has diagnostic evidence instead of only an unnamed host abort.
+
+The mapped macOS integration also exceeded the 300-second session limit on Intel
+.NET 8 in `SharedOneFileMaintenanceCrash_Tests`: 57 results passed before the
+abort, with no failed assertion and 13 expected results missing. Its 68 selected
+cases now use separate death (42), repeated recovery (14), and rollback (12)
+sessions. Full CI uses a complement for rollback and future theories; macOS
+qualification discovers the existing theory methods and runs guards in every
+session. All crash cuts, per-case repetitions and the 300-second limit remain.

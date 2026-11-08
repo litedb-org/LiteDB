@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -79,7 +80,7 @@ namespace LiteDB.Internals
             {
                 if (path != files.Log || !unsupported) return 0;
                 hits++;
-                return 95;
+                return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? 45 : 95;
             };
             try
             {

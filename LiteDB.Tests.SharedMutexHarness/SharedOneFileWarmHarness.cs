@@ -45,6 +45,7 @@ internal static class SharedOneFileWarmHarness
             var value = args.Length > 4 ? int.Parse(args[4]) : 1;
             Task.Run(() => peerDb.GetCollection("docs").Update(new BsonDocument
                 { ["_id"] = 1, ["value"] = value, ["payload"] = new string('x', 1024) })).GetAwaiter().GetResult();
+            ReleaseIdleWriter(peer);
             Warm(engine, db);
             hits = engine.CoordinatedReadHits;
             using var current = engine.Query("docs", new Query());
@@ -134,10 +135,23 @@ internal static class SharedOneFileWarmHarness
 
     private static void Warm(SharedEngine engine, LiteDatabase db)
     {
+        ReleaseIdleWriter(engine);
         for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
         // Match the parent warm fixture: returning the last protected query
         // precedes its holder releasing native ownership. Measure warm admission
         // only after that actual release, with every warm-hit guard unchanged.
         engine.MutexOwner.WaitForRelease();
+    }
+
+    private static void ReleaseIdleWriter(SharedEngine engine)
+    {
+        // Drain setup writes before priming. A closing writable pin can force a
+        // protected fallback and reset cache demand during the fixed read count.
+        // The following reads must run after that transition, before strict warm
+        // reader/generation assertions; admission itself is never retried.
+        var pin = engine.Pin;
+        if (pin == null) return;
+        pin.RequestRelease(force: false);
+        pin.WaitReleased();
     }
 }

@@ -182,6 +182,13 @@ namespace LiteDB.Internals
                 }
                 await child.Kill(sharedFilesRemainOpen: true);
             }
+            // Windows can signal process exit before closing its file objects.
+            // Establish actual DMS and slot release before asserting quiescent reset;
+            // the surviving native admission prevents an exclusive-file probe.
+            using (var released = new SharedRangeLocks(Filename + "-shm"))
+                System.Threading.SpinWait.SpinUntil(
+                    () => released.TryExclusiveDms() && !released.IsLive(0), TimeSpan.FromSeconds(5))
+                    .Should().BeTrue("the killed participant must release its kernel DMS and slot locks");
             using var resized = Open(settings, native);
             resized.Header.Size.Should().Be(SharedMemoryEnvelope.Create(settings, native.Identity).Size);
             resized.Header.Processes.Should().Be(settings.SharedProcessCapacity);

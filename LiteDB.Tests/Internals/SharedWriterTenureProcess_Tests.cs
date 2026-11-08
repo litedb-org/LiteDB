@@ -69,7 +69,7 @@ namespace LiteDB.Internals
                 stale.Expect("requested").GetAwaiter().GetResult();
                 if (expireAlive)
                 {
-                    MappedPlatformTestNative.Signal(stale.ProcessId, 19).Should().Be(0, "SIGSTOP freezes a live requester's renewal timer");
+                    SharedProcessSignals.Stop(stale.ProcessId);
                     Task.Delay(SharedWriterRequests.ExpiryMilliseconds * 3).GetAwaiter().GetResult();
                 }
                 else stale.Kill(sharedFilesRemainOpen: true).GetAwaiter().GetResult();

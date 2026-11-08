@@ -6,6 +6,14 @@ internal static class SharedWriterTenureHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (mode == "one-file-tenure-deferred-request")
+        {
+            // Finish runtime/process startup before the parent enters its bounded
+            // expiry interleaving; publication itself still occurs only on go.
+            Console.WriteLine("started");
+            if (Console.ReadLine() != "publish") throw new InvalidOperationException("Expected deferred publication.");
+            mode = "one-file-tenure-request";
+        }
         if (mode != "one-file-tenure" && mode != "one-file-tenure-request") return false;
         var observed = false;
         if (mode == "one-file-tenure-request") SharedWriterRequests.RequestStage = stage =>
