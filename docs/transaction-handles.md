@@ -149,3 +149,8 @@ cold facade starts with 60 seconds, then clamps to a smaller safely learned
 value; remote pragma changes require safe refresh. Application callbacks and
 commit durability are not bounded execution time. Collection waiter timeout
 removes only that FIFO waiter.
+
+For custom engines compiled against v5.0.21, see the [known pre-existing vector
+interface ABI break](release-notes.md#known-pre-existing-custom-engine-abi-break).
+They require recompilation; this predates handles. The compatibility package
+separately verifies unchanged released client callers and current-dev decorators.

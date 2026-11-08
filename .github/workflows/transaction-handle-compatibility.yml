@@ -54,6 +54,11 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha || inputs.baseline_ref || 'dev' }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: phase3
+          ref: 094e62cfc1eb6fc8c70bfe2eb4aa9f43baee2958
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -68,13 +73,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($variant in @('parent', 'candidate')) {
+          foreach ($variant in @('parent', 'phase3', 'candidate')) {
             dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' '-p:TargetFrameworks=${{ matrix.framework }}' -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
           }
           New-Item -ItemType Directory evidence | Out-Null
           git -C parent rev-parse HEAD | Out-File evidence/parent.txt
           git -C candidate rev-parse HEAD | Out-File evidence/candidate.txt
+          git -C phase3 rev-parse HEAD | Out-File evidence/phase3.txt
       - name: Precompiled consumer, legacy parity and CS0618 migration
         shell: pwsh
         run: |
@@ -84,13 +90,15 @@ jobs:
             --candidate-dll "candidate/LiteDB/bin/Release/$framework/LiteDB.dll" `
             --output evidence
           if ($LASTEXITCODE) { throw 'Transaction handle compatibility failed' }
-      - name: Released 5.0.21 precompiled decorator
+      - name: Released 5.0.21 callers and documented engine limitation
         if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           $framework = '${{ matrix.framework }}'
           python candidate/scripts/test-released-handle-binary.py --framework $framework `
-            --candidate-dll "candidate/LiteDB/bin/Release/$framework/LiteDB.dll" --output evidence/released-5.0.21
+            --candidate-dll "candidate/LiteDB/bin/Release/$framework/LiteDB.dll" `
+            --dev-dll "parent/LiteDB/bin/Release/$framework/LiteDB.dll" `
+            --phase3-dll "phase3/LiteDB/bin/Release/$framework/LiteDB.dll" --output evidence/released-5.0.21
           if ($LASTEXITCODE) { throw 'Released binary compatibility failed' }
       - uses: actions/upload-artifact@v4
         if: always()

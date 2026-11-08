@@ -50,3 +50,17 @@ for net8.0 and net10.0, using the PR base as the parent.
 The oracle was tested with temporary mutants, none committed. An extra abstract member on
 `ILiteEngine` or `ILiteDatabase` fails `candidate-binary` with `TypeLoadException`. A legacy
 `Rollback()` that always returns true fails the parity comparison.
+
+The Phase 4 package also records exact parent/candidate ILiteDatabase and
+ILiteEngine member snapshots, checks CS0618 at all six facade call sites and no
+others, and compiles/runs the actual C# fence in docs/transaction-handles.md.
+`check-handle-inventory.py` validates all 64 source suite dispositions.
+
+`test-released-handle-binary.py` compiles a consumer against NuGet 5.0.21 once.
+It requires unchanged ILiteDatabase/ILiteCollection/legacy transaction caller
+behavior with the released, dev, Phase 3 and Phase 4 DLLs. A separate decorator
+probe explicitly asserts the documented TypeLoadException for EnsureVectorIndex
+on all three newer assemblies, after proving the same decorator works with the
+released DLL. This vector interface break was introduced by dev commit
+66ec615a1b03058a84e2841caf0a72b2a4a2ae1d, before Phase 4. Current-dev decorators
+must still load and run unchanged against Phase 4.

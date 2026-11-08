@@ -973,6 +973,17 @@
       "disposition": "strengthened",
       "invariant": "Existing precompiled current-dev consumer and parity remain. Add released 5.0.21 decorator, exact interface snapshots and six legacy call-site CS0618 warnings; actual documentation is compiled and run. Warm fixtures drain setup writer before priming and retain post-read release barrier.",
       "reason": "Orchestrator instructed Phase3 integration and compatibility migration package. No old test removed or skipped. Both parent safety evidence sets retained; qualification prose adopts Phase3 platform coverage. The released decorator probe deliberately fails on a real ABI incompatibility instead of crediting current-dev-only results."
+    },
+    {
+      "id": "p4-s7-released-engine-abi-scope",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-released-handle-binary.py",
+        "scripts/test-transaction-handle-compatibility.py"
+      ],
+      "disposition": "replaced",
+      "invariant": "Released client callers must pass unchanged across release/dev/Phase3/Phase4. Current-dev decorators must pass on Phase4. A separate released decorator test requires original success and exact documented TypeLoadException/EnsureVectorIndex failure on every newer variant.",
+      "reason": "Explicit orchestrator steering: pre-existing dev vector ABI addition66ec615a is out of scope, not a step blocker. Preserve current interface; document required recompilation. Prior1b9 real failure is retained. No claim that old engine implementers are binary compatible."
     }
   ]
 }

@@ -47,7 +47,7 @@ class Runner:
             code, text = "timeout", f"{error.stdout or ''}{error.stderr or ''}\ntimed out after {timeout}s"
         log = self.output / (name + ".log")
         log.write_text(text, encoding="utf-8")
-        problems = [] if code == expected else [f"exit {code}, expected {expected}"]
+        problems = [] if (code != 0 if expected == "nonzero" else code == expected) else [f"exit {code}, expected {expected}"]
         problems += [f"missing {item!r}" for item in contains if item not in text]
         problems += [f"unexpected {item!r}" for item in absent if re.search(item, text)]
         self.results.append({"name": name, "command": [str(part) for part in command], "expected": expected,

@@ -11,6 +11,9 @@ Console.WriteLine($"version={library.GetName().Version}");
 
 switch (scenario)
 {
+    case "callers":
+        ReleasedCallers.Run();
+        return 0;
     case "surface":
         ApiSurface.Print();
         return 0;

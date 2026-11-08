@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a genuine 5.0.21 consumer/decorator unchanged against the candidate."""
+"""Verify released client callers and the documented pre-existing engine ABI limit."""
 import argparse
 import importlib.util
 import json
@@ -15,6 +15,8 @@ spec.loader.exec_module(compat)
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate-dll", type=Path, required=True)
+    parser.add_argument("--dev-dll", type=Path, required=True)
+    parser.add_argument("--phase3-dll", type=Path, required=True)
     parser.add_argument("--framework", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -35,16 +37,35 @@ def main():
             project.write_text(re.sub(r'<Reference Include="LiteDB">.*?</Reference>',
                                       '<PackageReference Include="LiteDB" Version="5.0.21" />',
                                       project.read_text(), flags=re.S))
-            original, swapped = root / "original", root / "swapped"
+            original = root / "original"
             runner.run("build-released-consumer", compat.build_command(project, args.candidate_dll.resolve(),
                        args.framework, original), contains=("Build succeeded",))
-            shutil.copytree(original, swapped)
-            shutil.copy2(args.candidate_dll, swapped / "LiteDB.dll")
-            for name, folder in [("released", original), ("candidate", swapped)]:
-                result = runner.run(name + "-binary", ["dotnet", str(folder / "TransactionHandleValidation.dll"), "binary"],
-                                    contains=(compat.BINARY_PASS,))
-                if name == "candidate" and compat.sha256(compat.loaded_library(result)) != manifest["candidate_sha256"]:
-                    raise RuntimeError("Candidate library hash mismatch")
+            runner.run("released-decorator", ["dotnet", str(original / "TransactionHandleValidation.dll"), "binary"],
+                       contains=(compat.BINARY_PASS,))
+            variants = {"released": original / "LiteDB.dll", "dev": args.dev_dll,
+                        "phase3": args.phase3_dll, "phase4": args.candidate_dll}
+            transcripts = {}
+            manifest["libraries"] = {}
+            for name, library in variants.items():
+                folder = root / name
+                shutil.copytree(original, folder)
+                shutil.copy2(library, folder / "LiteDB.dll")
+                manifest["libraries"][name] = compat.sha256(library)
+                fixture = ["dotnet", str(folder / "TransactionHandleValidation.dll")]
+                result = runner.run(name + "-callers", [*fixture, "callers"],
+                                    contains=("PASS released client callers",))
+                if compat.sha256(compat.loaded_library(result)) != compat.sha256(library):
+                    raise RuntimeError(name + " library hash mismatch")
+                transcripts[name] = [line for line in result.splitlines() if line.startswith("caller:")]
+                if name != "released":
+                    result = runner.run(name + "-documented-decorator-limitation", [*fixture, "binary"],
+                                        expected="nonzero", contains=("System.TypeLoadException", "EnsureVectorIndex", "LegacyEngineDecorator"))
+                    if compat.sha256(compat.loaded_library(result)) != compat.sha256(library):
+                        raise RuntimeError(name + " limitation probe loaded the wrong DLL")
+            if not transcripts["released"] or any(rows != transcripts["released"] for rows in transcripts.values()):
+                raise RuntimeError("Released caller behavior differs across variants")
+            manifest["caller_transcripts"] = transcripts
+            manifest["documented_limitation"] = "v5.0.21 ILiteEngine implementers require recompilation since dev commit66ec615a1b03058a84e2841caf0a72b2a4a2ae1d"
             manifest["status"] = "pass"
     except RuntimeError as error:
         manifest["error"] = str(error)
