@@ -1,5 +1,8 @@
 # Release notes
 
+See the consolidated [5.x to v6 migration guide](migration-v6.md) for defaults,
+offline Shared rollout, transaction handles, breaking changes and troubleshooting.
+
 ## v6 synchronous transaction handles
 
 Use the [transaction handle migration guide](transaction-handles.md) for bound

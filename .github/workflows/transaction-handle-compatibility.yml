@@ -28,6 +28,7 @@ on:
       - 'scripts/test-released-handle-binary.py'
       - 'scripts/check-handle-inventory.py'
       - 'docs/transaction-handles.md'
+      - 'docs/migration-v6.md'
       - 'docs/transaction-handles/**'
       - '.github/workflows/transaction-handle-compatibility.yml'
 

@@ -46,6 +46,8 @@ New UI to manage and visualize your database:
 
 ## Documentation
 
+Upgrading from 5.x? Read the [v6 migration guide](docs/migration-v6.md) before opening existing files writable.
+
 Visit [the Wiki](https://github.com/mbdavid/LiteDB/wiki) for full documentation. For simplified chinese version, [check here](https://github.com/lidanger/LiteDB.wiki_Translation_zh-cn).
 
 ## LiteDB Community

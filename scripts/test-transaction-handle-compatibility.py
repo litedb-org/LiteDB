@@ -144,16 +144,20 @@ def check(runner, args, root):
                              root / "targeted-out", *strict, "-p:WarningsNotAsErrors=CS0618"),
                contains=("Build succeeded", "warning CS0618"), absent=(r"error CS",))
 
-    documentation = (SOURCE.parent.parent / "docs" / "transaction-handles.md").read_text(encoding="utf-8")
-    snippets = re.findall(r"```csharp\n(.*?)```", documentation, re.S)
-    if len(snippets) != 1:
-        raise RuntimeError("Expected one complete executable documentation example")
-    doc_project = copy_source(root, "doc-example") / "NewApi" / "NewApiConsumer.csproj"
-    (doc_project.parent / "Program.cs").write_text(snippets[0], encoding="utf-8")
-    runner.run("documentation-build", build_command(doc_project, candidate_dll, framework, root / "doc-out", *strict),
-               contains=("Build succeeded",), absent=(r"warning CS\d+", r"error CS\d+"))
-    runner.run("documentation-run", ["dotnet", str(root / "doc-out" / "NewApiConsumer.dll")],
-               contains=("PASS documentation examples",), timeout=120)
+    for document, expected_count in (("transaction-handles.md", 1), ("migration-v6.md", 2)):
+        documentation = (SOURCE.parent.parent / "docs" / document).read_text(encoding="utf-8")
+        snippets = re.findall(r"```csharp\n(.*?)```", documentation, re.S)
+        if len(snippets) != expected_count:
+            raise RuntimeError(f"Expected {expected_count} complete executable examples in {document}")
+        for index, snippet in enumerate(snippets, 1):
+            name = f"documentation-{Path(document).stem}-{index}"
+            doc_project = copy_source(root, name) / "NewApi" / "NewApiConsumer.csproj"
+            (doc_project.parent / "Program.cs").write_text(snippet, encoding="utf-8")
+            output = root / (name + "-out")
+            runner.run(name + "-build", build_command(doc_project, candidate_dll, framework, output, *strict),
+                       contains=("Build succeeded",), absent=(r"warning CS\d+", r"error CS\d+"))
+            runner.run(name + "-run", ["dotnet", str(output / "NewApiConsumer.dll")],
+                       contains=("PASS documentation examples",), timeout=120)
 
     warning_project = copy_source(root, "exact-warnings") / "NewApi" / "NewApiConsumer.csproj"
     calls = [f"{receiver}.{method}();" for receiver in ("concrete", "database")
