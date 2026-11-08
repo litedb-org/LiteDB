@@ -26,6 +26,20 @@
   ],
   "dispositions": [
     {
+      "id": "p4-warm-child-owner-release-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All three original warm-up reads, exact warm-hit guards, old/current generation checks, process-death and slot-incarnation assertions, independent scanner concurrency and session limits remain unchanged.",
+      "reason": "Windows net8 WAL safety failed the child Oldest-was-not-warm setup guard before entering its crash scenario. Unlike the existing parent Warm fixture, the child did not wait for the asynchronous protected-query holder to release ownership before measuring cached admission. Use the same actual MutexOwner.WaitForRelease barrier after the existing three warm-up reads in all child warm-reader roles. No retry, extra warm-up reads, fallback acceptance, scanner pause or product cache change.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs"
+      ]
+    },
+    {
       "id": "p4-mapped-reader-native-death-barrier",
       "kind": "harness-changed",
       "subjects": [

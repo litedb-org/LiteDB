@@ -34,7 +34,7 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-generations")
         {
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             var hits = engine.CoordinatedReadHits;
             using var oldest = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Oldest was not warm");
@@ -45,7 +45,7 @@ internal static class SharedOneFileWarmHarness
             var value = args.Length > 4 ? int.Parse(args[4]) : 1;
             Task.Run(() => peerDb.GetCollection("docs").Update(new BsonDocument
                 { ["_id"] = 1, ["value"] = value, ["payload"] = new string('x', 1024) })).GetAwaiter().GetResult();
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             hits = engine.CoordinatedReadHits;
             using var current = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Current was not warm");
@@ -57,7 +57,7 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-reader")
         {
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             var hits = engine.CoordinatedReadHits;
             using var reader = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits <= hits || !reader.Read()) throw new Exception("Reader did not admit warm");
@@ -129,5 +129,14 @@ internal static class SharedOneFileWarmHarness
             finally { SharedMemoryReaderTable.PublicationStage = null; EngineState.SimulateProcessCrash = null; }
         }
         return true;
+    }
+
+    private static void Warm(SharedEngine engine, LiteDatabase db)
+    {
+        for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+        // Match the parent warm fixture: returning the last protected query
+        // precedes its holder releasing native ownership. Measure warm admission
+        // only after that actual release, with every warm-hit guard unchanged.
+        engine.MutexOwner.WaitForRelease();
     }
 }
