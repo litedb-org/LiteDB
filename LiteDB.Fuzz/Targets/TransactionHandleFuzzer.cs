@@ -74,7 +74,7 @@ internal sealed class TransactionHandleFuzzer : IFuzzTarget
                 context.Check(db.GetCollection("sentinel").FindById(9) != null, "Unrelated sentinel lost.");
             }
         }
-        DatabaseIntegrityVerifier.Verify(context, file);
+        DatabaseIntegrityVerifier.Verify(context, file, settings.Password);
         context.Metrics["commits"] = outcomes[0];
         context.Metrics["rollbacks"] = outcomes[1];
         context.Metrics["abandonments"] = outcomes[2];
