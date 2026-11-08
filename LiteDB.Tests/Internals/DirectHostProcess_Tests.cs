@@ -114,7 +114,7 @@ namespace LiteDB.Internals
             }
             for (var attempt = 0; attempt < 2; attempt++)
             {
-                using var recovered = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password });
+                using var recovered = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password });
                 recovered.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("acknowledged");
                 Assert.Null(recovered.GetCollection("docs").FindById(2));
                 recovered.GetCollection("docs").FindOne(Query.EQ("value", "acknowledged"))["_id"].AsInt32.Should().Be(1);

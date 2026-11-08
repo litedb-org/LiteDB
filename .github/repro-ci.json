@@ -79,6 +79,7 @@
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage",
+<<<<<<< HEAD
       "LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#Completed_handle_does_not_root_abandoned_session_and_active_handle",
       "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Close_drains_executing_call_invalidates_cursor_and_preserves_caller_engine",
       "LiteDB.Tests/Engine/TransactionHandleCloseMaintenance_Tests.cs#Live_database_retains_abandoned_handle_until_explicit_close",
@@ -113,6 +114,12 @@
       "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_private_storage_cannot_claim_persistent_handle_commits",
       "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_caller_stream_refusal_precedes_storage_mutation",
       "LiteDB.Tests/Internals/TransactionHandleSharedIdentity_Tests.cs#Caller_identity_policy_precedes_admission_and_preserves_the_existing_handle"
+=======
+      "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data",
+      "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars",
+      "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably",
+      "LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders"
+>>>>>>> 0f2b18478
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

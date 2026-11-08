@@ -71,8 +71,15 @@ namespace LiteDB.Engine
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
-        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
-        public bool SharedOneFile { get; set; }
+        /// <summary>Use one-file Shared coordination on qualified platforms by default.
+        /// Automatic selection is evaluated when a Shared connection captures these settings.
+        /// Set false to use legacy sidecars (removed in v7). Explicit true requires a qualified physical file.</summary>
+        public bool SharedOneFile
+        {
+            get => SharedOneFileOverride ?? (this.SharedMode && LiteDB.Client.Shared.SharedProtocolDefaults.OneFile);
+            set => SharedOneFileOverride = value;
+        }
+        internal bool? SharedOneFileOverride { get; set; }
         /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
         public long SharedMemorySize { get; set; }
         /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>

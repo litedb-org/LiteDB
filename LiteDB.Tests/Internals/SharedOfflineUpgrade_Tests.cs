@@ -75,7 +75,7 @@ namespace LiteDB.Internals
             using (var mapped = new SharedEngine(Settings))
                 await MvccProcess.Run("direct-host-shared-refused", Filename, null);
             // Native family locks allow sequential legacy reuse after mapped close.
-            using (var legacy = new SharedEngine(new EngineSettings { Filename = Filename }))
+            using (var legacy = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = false }))
             using (var db = new LiteDatabase(legacy, disposeOnClose: false)) db.GetCollection("docs").Count().Should().Be(64);
             Verify();
         }

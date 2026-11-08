@@ -28,6 +28,7 @@ namespace LiteDB.Internals
             using var log = new SyncFile(file.Filename + "-wal") { Failure = new UnauthorizedAccessException("sync unsupported") };
             using var engine = new SharedEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = file.Filename, DataStream = data, LogStream = log,
                 CompactStorage = CompactStorageMode.Legacy, TransactionPageLimit = 1
             });
@@ -75,6 +76,7 @@ namespace LiteDB.Internals
             using var logCopy = new MemoryStream(written);
             using var recovered = new LiteDatabase(new LiteEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 DataStream = dataCopy, LogStream = logCopy, CompactStorage = CompactStorageMode.Legacy
             }));
             recovered.GetCollection("cold").FindAll().Should().HaveCount(DocumentCount)

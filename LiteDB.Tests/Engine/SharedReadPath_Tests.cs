@@ -22,6 +22,7 @@ namespace LiteDB.Tests.Engine
 
         private SharedEngine Open(bool autoRebuild = false) => new SharedEngine(new EngineSettings
         {
+            SharedOneFile = false,
             Filename = this.Filename,
             AutoRebuild = autoRebuild
         });
@@ -31,7 +32,7 @@ namespace LiteDB.Tests.Engine
 
         private void Seed()
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = this.Filename });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename });
             db.GetCollection("docs").InsertBulk(Enumerable.Range(1, Rows).Select(id => Doc(id)));
         }
 
@@ -89,7 +90,7 @@ namespace LiteDB.Tests.Engine
         [InlineData(101, true)]
         public void A_result_at_the_value_budget_is_buffered_and_one_past_it_streams_from_the_same_snapshot(int count, bool leased)
         {
-            using (var db = new LiteDatabase(new ConnectionString { Filename = this.Filename }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename }))
                 db.GetCollection("docs").InsertBulk(Enumerable.Range(1, count).Select(id => new BsonDocument { ["_id"] = id }));
 
             using var engine = this.Open();
@@ -114,7 +115,7 @@ namespace LiteDB.Tests.Engine
             }
             fitting.Should().BeLessThan(docs.Length);
 
-            using (var db = new LiteDatabase(new ConnectionString { Filename = this.Filename }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename }))
             {
                 db.GetCollection("below").InsertBulk(docs.Take(fitting));
                 db.GetCollection("above").InsertBulk(docs.Take(fitting + 1));
@@ -150,7 +151,7 @@ namespace LiteDB.Tests.Engine
         public void A_legacy_file_read_first_is_migrated_by_the_writable_open()
         {
             using var file = LegacyIndexFixtures.Extract("stale", null);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file.Filename }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename }))
             {
                 // A read-only open refuses a file that awaits index migration; the read
                 // then takes the writable path, which migrates before reading.

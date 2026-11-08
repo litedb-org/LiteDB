@@ -21,8 +21,8 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             Seed(file.Filename);
-            using var blocked = new SharedEngine(new EngineSettings { Filename = file.Filename });
-            using var other = new SharedEngine(new EngineSettings { Filename = file.Filename });
+            using var blocked = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename });
+            using var other = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename });
             using var entered = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             using var finished = new ManualResetEventSlim();
@@ -111,7 +111,7 @@ namespace LiteDB.Tests.Engine
 
             blocked.Dispose();
             other.Dispose();
-            using (var writer = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared }))
+            using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared }))
             {
                 writer.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1 });
                 writer.Checkpoint();

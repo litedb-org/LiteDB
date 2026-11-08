@@ -30,6 +30,7 @@ namespace LiteDB.Tests.Engine
 
         private SharedEngine Open(string password, bool readOnly = false) => new SharedEngine(new EngineSettings
         {
+            SharedOneFile = false,
             Filename = this.Filename,
             Password = password,
             ReadOnly = readOnly,
@@ -47,7 +48,7 @@ namespace LiteDB.Tests.Engine
 
         private void AssertDatabase(string password, int count)
         {
-            using (var db = new LiteDatabase(new ConnectionString { Filename = this.Filename, Password = password }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename, Password = password }))
             {
                 db.GetCollection("docs").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(Enumerable.Range(1, count));
             }
@@ -198,7 +199,7 @@ namespace LiteDB.Tests.Engine
                 File.Copy(this.LogFilename, FileHelper.GetLogFile(image));
             }
 
-            using (var db = new LiteDatabase(new ConnectionString { Filename = image, Password = password }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = image, Password = password }))
             {
                 db.GetCollection("docs").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(Enumerable.Range(1, 5));
             }

@@ -8,6 +8,7 @@ using LiteDB.Utils;
 namespace LiteDB.Client.Shared
 {
     /// <summary>Publish complete ephemeral control files under the database mutex.</summary>
+    // Legacy implementation is frozen for v6 fallback and opt-out; removed in v7.
     internal static class SharedCoordinationFile
     {
 #if DEBUG || TESTING

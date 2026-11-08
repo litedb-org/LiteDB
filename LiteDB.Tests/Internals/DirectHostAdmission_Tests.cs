@@ -44,7 +44,7 @@ namespace LiteDB.Internals
         [InlineData(true)]
         public void Native_admission_coexists_with_managed_streams_without_losing_exclusion(bool shared)
         {
-            var settings = new EngineSettings { Filename = Filename };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = Filename };
             using (var admission = NativeAdmission.Open(settings, shared))
             {
                 var expected = Enumerable.Range(0, 257).Select(i => (byte)i).ToArray();
@@ -72,7 +72,7 @@ namespace LiteDB.Internals
         [InlineData(ConnectionType.Shared, "secret")]
         public void New_database_open_write_rollback_and_read_only_reopen_preserve_payloads_and_indexes(ConnectionType connection, string password)
         {
-            var settings = new ConnectionString { Filename = Filename, Password = password, Connection = connection };
+            var settings = new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password, Connection = connection };
             using (var first = new LiteDatabase(settings))
             using (var second = new LiteDatabase(settings))
             {
@@ -108,7 +108,7 @@ namespace LiteDB.Internals
             {
                 await child.Expect("ready");
                 using (var peer = new LiteDatabase(new ConnectionString
-                    { Filename = Filename, Password = password, Connection = ConnectionType.Shared }))
+                    { SharedOneFile = false, Filename = Filename, Password = password, Connection = ConnectionType.Shared }))
                 {
                     peer.GetCollection("docs").FindOne(Query.EQ("value", "child"))["_id"].AsInt32.Should().Be(1);
                     peer.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 2, ["value"] = "peer" });
@@ -118,7 +118,7 @@ namespace LiteDB.Internals
                 await child.Expect("done");
                 await child.Finish();
             }
-            using var reopened = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password });
+            using var reopened = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password });
             reopened.GetCollection("docs").Count().Should().Be(2);
             reopened.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("child");
             reopened.GetCollection("docs").FindOne(Query.EQ("value", "peer"))["_id"].AsInt32.Should().Be(2);

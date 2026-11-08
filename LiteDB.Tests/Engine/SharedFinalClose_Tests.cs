@@ -32,10 +32,10 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void A_writer_closing_while_a_read_only_connection_owns_the_mutex_still_checkpoints()
         {
-            using (var seed = new LiteDatabase(new ConnectionString { Filename = this.Filename, Connection = ConnectionType.Direct }))
+            using (var seed = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename, Connection = ConnectionType.Direct }))
                 seed.GetCollection("docs").Insert(Enumerable.Range(1, 200).Select(i => new BsonDocument { ["_id"] = i, ["p"] = new string('p', 200) }));
 
-            var writer = new SharedEngine(new EngineSettings { Filename = this.Filename });
+            var writer = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename });
             writer.Update("docs", new[] { new BsonDocument { ["_id"] = 1, ["p"] = "changed" } }).Should().Be(1);
             var log = FileHelper.GetLogFile(this.Filename);
             new FileInfo(log).Length.Should().BeGreaterThan(0, "a small write leaves its WAL to the final close");
@@ -43,6 +43,7 @@ namespace LiteDB.Tests.Engine
             // A read-only connection without reader leases streams under the mutex.
             using var reader = new SharedEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 ReadOnly = true,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
@@ -58,7 +59,7 @@ namespace LiteDB.Tests.Engine
             reader.Dispose();
 
             (File.Exists(log) && new FileInfo(log).Length > 0).Should().BeFalse("the data file alone is the database after every connection closed");
-            using var check = new LiteDatabase(new ConnectionString { Filename = this.Filename, Connection = ConnectionType.Direct });
+            using var check = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename, Connection = ConnectionType.Direct });
             check.GetCollection("docs").FindById(1)["p"].AsString.Should().Be("changed");
         }
     }

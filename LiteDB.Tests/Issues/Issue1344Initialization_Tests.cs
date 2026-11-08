@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Issues
         public void Concurrent_first_uploads_initialize_storage_without_releasing_lock_order(ConnectionType mode)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = mode });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = mode });
             db.Timeout = TimeSpan.FromSeconds(3);
             using var entered = new ManualResetEventSlim();
             using var release = new ManualResetEventSlim();

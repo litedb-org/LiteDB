@@ -39,7 +39,7 @@ namespace LiteDB.Tests.Safety.Tests
         {
             using (var file = new TempFile())
             {
-                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared;Shared One File=false");
                 var owner = UseHolder(db);
                 db.Dispose();
                 // The leak: the holder takes the OS mutex for nobody, so its idle rule never lets it exit.
@@ -67,7 +67,7 @@ namespace LiteDB.Tests.Safety.Tests
         {
             using (var file = new TempFile())
             {
-                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared;Shared One File=false");
                 var owner = UseHolder(db);
                 db.Dispose();
                 // Calls racing Dispose acquire and release the mutex before their admission refuses them; these
@@ -87,7 +87,7 @@ namespace LiteDB.Tests.Safety.Tests
         {
             using (var file = new TempFile())
             {
-                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared");
+                var db = new LiteDatabase($"Filename={file.Filename};Connection=shared;Shared One File=false");
                 var owner = UseHolder(db);
                 db.Dispose();
                 var sender = Sender(owner, TimeSpan.FromSeconds(6));
@@ -127,7 +127,7 @@ namespace LiteDB.Tests.Safety.Tests
 
         private static SharedMutexOwner DisposedOwner(string path)
         {
-            var db = new LiteDatabase($"Filename={path};Connection=shared");
+            var db = new LiteDatabase($"Filename={path};Connection=shared;Shared One File=false");
             var owner = UseHolder(db);
             db.Dispose();
             return owner;

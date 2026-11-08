@@ -16,7 +16,7 @@ namespace LiteDB.Tests.Issues
         public void Open_retries_a_transient_sharing_failure_after_mutex_owner_death()
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename };
             using var engine = new SharedEngine(settings);
             var mutexName = SharedMutexNameFactory.Create(DatabaseFileIdentity.CanonicalPath(settings.Filename), settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);
@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Issues
             engine.SimulateOpenEngine = () =>
             {
                 if (attempts++ == 0) throw SharingViolation();
-                return new LiteEngine(new EngineSettings { Filename = settings.Filename, SharedMode = true });
+                return new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = settings.Filename, SharedMode = true });
             };
 
             engine.Pragma(Pragmas.USER_VERSION).AsInt32.Should().Be(0);
@@ -46,7 +46,7 @@ namespace LiteDB.Tests.Issues
         public void Ordinary_open_failure_is_not_retried()
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename };
             using var engine = new SharedEngine(settings);
             var attempts = 0;
             engine.SimulateOpenEngine = () =>
@@ -64,7 +64,7 @@ namespace LiteDB.Tests.Issues
         public void Abandoned_owner_does_not_retry_an_unrelated_io_failure()
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename };
             using var engine = new SharedEngine(settings);
             var mutexName = SharedMutexNameFactory.Create(DatabaseFileIdentity.CanonicalPath(settings.Filename), settings.SharedMutexNameStrategy);
             using var mutex = SharedMutexFactory.Create(mutexName);

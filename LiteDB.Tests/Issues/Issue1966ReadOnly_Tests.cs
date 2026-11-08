@@ -14,7 +14,7 @@ namespace LiteDB.Tests.Issues
             using var file = new TempFile();
             using (var setup = new LiteDatabase(file.Filename))
                 setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
-            var engine = new LiteEngine(new EngineSettings { Filename = file.Filename, ReadOnly = true });
+            var engine = new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename, ReadOnly = true });
             engine.Dispose();
             var scalar = Assert.Throws<LiteException>(() => engine.EnsureIndex("rows", "value", "$.value", false));
             var vector = Assert.Throws<LiteException>(() => engine.EnsureVectorIndex("rows", "vector", "$.embedding", new VectorIndexOptions(2)));
@@ -33,7 +33,7 @@ namespace LiteDB.Tests.Issues
                 setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 4 });
             }
             var before = File.ReadAllBytes(file.Filename);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true, Connection = mode }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, ReadOnly = true, Connection = mode }))
             {
                 var rows = db.GetCollection("rows");
                 for (var i = 0; i < 2; i++)
@@ -59,7 +59,7 @@ namespace LiteDB.Tests.Issues
                 rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 4 });
             }
             var before = File.ReadAllBytes(file.Filename);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true, Connection = mode }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, ReadOnly = true, Connection = mode }))
             {
                 var rows = db.GetCollection("rows");
                 Assert.False(rows.EnsureIndex("value"));
@@ -81,7 +81,7 @@ namespace LiteDB.Tests.Issues
                 rows.EnsureIndex("scalar", "$.embedding");
                 rows.EnsureIndex("vector", "$.embedding", new VectorIndexOptions(2));
             }
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, ReadOnly = true }))
             {
                 var rows = db.GetCollection("rows");
                 Assert.False(rows.EnsureIndex("vector", "$.embedding", new VectorIndexOptions(2)));

@@ -25,8 +25,8 @@ namespace LiteDB.Tests.Engine
             try
             {
                 using (var writer = new LiteDatabase(new ConnectionString
-                    { Filename = file, Password = password, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+                    { SharedOneFile = false, Filename = file, Password = password, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 using (var finished = new ManualResetEventSlim())
@@ -70,7 +70,7 @@ namespace LiteDB.Tests.Engine
                     writer.Checkpoint();
                     Validate(reader, rollback ? 0 : 7);
                 }
-                using (var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                using (var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password }))
                     Validate(cold, rollback ? 0 : 7);
                 success = true;
             }

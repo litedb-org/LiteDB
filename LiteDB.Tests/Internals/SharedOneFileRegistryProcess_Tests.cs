@@ -25,7 +25,7 @@ namespace LiteDB.Internals
                 await MvccProcess.Run("direct-host-direct-refused", Filename, null);
                 await MvccProcess.Run("direct-host-shared-refused", Filename, null);
             }
-            using (var legacy = new SharedEngine(new EngineSettings { Filename = Filename }))
+            using (var legacy = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = false }))
                 await MvccProcess.Run("one-file-facade-refused", Filename, null);
             await MvccProcess.Run("one-file-facade-open", Filename, null);
         }

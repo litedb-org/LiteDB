@@ -49,7 +49,7 @@ namespace LiteDB.Tests.Engine
             var random = new Random(seed);
             var names = new[] { "a", "b" };
             var model = names.ToDictionary(n => n, _ => new Dictionary<int, BsonDocument>());
-            Func<SharedEngine> open = () => new SharedEngine(new EngineSettings { Filename = Filename, Password = password });
+            Func<SharedEngine> open = () => new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password });
             var engines = new[] { open(), open(), open() };
             var held = new List<Held>();
             var generation = 1;
@@ -144,7 +144,7 @@ namespace LiteDB.Tests.Engine
             // Reopen (direct), compare, checkpoint, reopen again.
             for (var pass = 0; pass < 2; pass++)
             {
-                using var engine = new LiteEngine(new EngineSettings { Filename = Filename, Password = password });
+                using var engine = new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password });
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 foreach (var name in names)
                 {

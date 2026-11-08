@@ -34,6 +34,7 @@ namespace LiteDB.Tests.Engine
         {
             var engine = new SharedEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 Password = password,
                 CheckpointStage = stage =>

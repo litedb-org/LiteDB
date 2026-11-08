@@ -11,6 +11,7 @@ internal static class SharedStorageHarness
         var revision = int.Parse(options[1]);
         using var engine = new SharedEngine(new EngineSettings
         {
+            SharedOneFile = false,
             Filename = filename, Password = password, CompactStorage = storage,
             TransactionPageLimit = 1, CacheSize = 8192,
             ReadOnly = mode == "storage-readonly" || mode == "storage-reject"

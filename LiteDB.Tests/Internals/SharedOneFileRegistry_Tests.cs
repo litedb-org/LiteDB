@@ -240,13 +240,13 @@ namespace LiteDB.Internals
                 {
                     // The runtime switch is Unix-only; Windows must still enforce
                     // native admission even when callers set it.
-                    using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+                    using var engine = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = false });
                     using var probe = new DatabaseFileLock(Filename, true, false);
                     probe.Conflicts(DatabaseFileLock.Admission).Should().BeTrue();
                     Directory.GetFiles(_directory, "*-shm").Should().BeEmpty();
                     return;
                 }
-                Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = Filename }); };
+                Action open = () => { using var engine = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = false }); };
                 open.Should().Throw<PlatformNotSupportedException>();
                 Directory.GetFileSystemEntries(_directory).Should().BeEmpty();
             }

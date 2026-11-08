@@ -15,10 +15,10 @@ namespace LiteDB.Tests.Engine
         public void Protected_fallback_reads_do_not_revoke_peers_but_a_later_write_does()
         {
             using (var file = new MappedTestFile())
-            using (var peerEngine = new SharedEngine(new EngineSettings { Filename = file })
+            using (var peerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var peer = new LiteDatabase(peerEngine))
-            using (var fallback = new SharedEngine(new EngineSettings { Filename = file })
+            using (var fallback = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinationArchitectureOverride = Architecture.Arm })
             using (var database = new LiteDatabase(fallback))
             {
@@ -54,10 +54,10 @@ namespace LiteDB.Tests.Engine
                         new BsonDocument { ["_id"] = id, ["value"] = "original", ["payload"] = new string('p', 1000) }));
                     seed.GetCollection("rows").EnsureIndex("value");
                 }
-                using (var readerEngine = new SharedEngine(new EngineSettings { Filename = file })
+                using (var readerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(readerEngine))
-                using (var fallback = new SharedEngine(new EngineSettings { Filename = file })
+                using (var fallback = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                     { CoordinationArchitectureOverride = Architecture.Arm })
                 using (var writer = new LiteDatabase(fallback))
                 {

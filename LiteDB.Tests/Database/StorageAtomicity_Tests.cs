@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Database
         {
             using var file = new TempFile();
             var original = Enumerable.Range(0, 620000).Select(i => (byte)(i * 17)).ToArray();
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection, Password = password }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection, Password = password }))
             {
                 var storage = db.GetStorage<int>();
                 storage.Upload(7, "old.bin", new MemoryStream(original), new BsonDocument { ["version"] = 1 });
@@ -75,7 +75,7 @@ namespace LiteDB.Tests.Database
                 workerError.Should().BeNull();
                 workerLength.Should().Be(original.Length);
             }
-            using var reopened = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
+            using var reopened = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Password = password });
             using var download = new MemoryStream();
             reopened.GetStorage<int>().Download(7, download);
             download.ToArray().Should().Equal(original);
@@ -87,7 +87,7 @@ namespace LiteDB.Tests.Database
         public void Successful_upload_does_not_commit_a_callers_transaction(ConnectionType connection)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection });
             db.BeginTrans();
             db.GetCollection("caller").Insert(new BsonDocument { ["_id"] = 1 });
             db.FileStorage.Upload("asset", "new.bin", new MemoryStream(new byte[300000]));

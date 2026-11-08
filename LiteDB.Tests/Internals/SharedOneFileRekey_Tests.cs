@@ -22,7 +22,7 @@ namespace LiteDB.Internals
         public void Legacy_Shared_replacement_retains_native_entry_and_idle_peers_reopen_the_new_core(string password)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, Password = password };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename, Password = password };
             using (var engine = new SharedEngine(settings))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peerEngine = new SharedEngine(settings))
@@ -76,7 +76,7 @@ namespace LiteDB.Internals
         public void Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache(string password)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, Password = password };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename, Password = password };
             using var engine = new SharedEngine(settings);
             using var owner = new LiteDatabase(engine, disposeOnClose: false);
             using var peerEngine = new SharedEngine(settings);

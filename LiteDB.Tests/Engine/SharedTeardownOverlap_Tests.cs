@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Engine
         private string Seed(int round)
         {
             var file = Path.Combine(_directory, $"db{round}.db");
-            using var seed = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Direct });
+            using var seed = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Direct });
             seed.GetCollection("docs").Insert(Enumerable.Range(1, 200).Select(id => Doc(id, 0)));
             return file;
         }
@@ -83,7 +83,7 @@ namespace LiteDB.Tests.Engine
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void WaiterAdmittedDuringDispose(string file, out Exception waiterError)
         {
-            var engine = new SharedEngine(new EngineSettings { Filename = file });
+            var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file });
             engine.PinIdleLimit = Forever;
             engine.PinHoldLimit = Forever;
             var reader = engine.Query("docs", new Query());
@@ -126,7 +126,7 @@ namespace LiteDB.Tests.Engine
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void DisposeDuringLoops(string file)
         {
-            var engine = new SharedEngine(new EngineSettings { Filename = file });
+            var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file });
             using var stop = new ManualResetEventSlim();
             var errors = new List<Exception>();
             var threads = Enumerable.Range(0, 3).Select(t => new Thread(() =>
