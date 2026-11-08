@@ -144,6 +144,34 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+#if NET8_0_OR_GREATER
+        [Fact]
+        public void Default_volume_selection_uses_canonical_path()
+        {
+            if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux)) return;
+            var directory = Path.Combine("/dev/shm", "litedb-alias-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                WithFile(filename =>
+                {
+                    var alias = Path.Combine(Path.GetDirectoryName(filename), "alias");
+                    Directory.CreateSymbolicLink(alias, directory);
+                    try
+                    {
+                        var actual = Path.Combine(directory, "test.db");
+                        using (var seed = Open(actual, false, false)) Seed(seed);
+                        using (var db = Open(Path.Combine(alias, "test.db"), false)) { Read(db); Seed(db); }
+                        using (var db = Open(actual, false)) Read(db);
+                        File.Exists(actual + "-shm").Should().BeFalse();
+                    }
+                    finally { Directory.Delete(alias); }
+                });
+            }
+            finally { WindowsFileRelease.DeleteDirectory(directory); }
+        }
+#endif
+
         private static LiteDatabase Open(string filename, bool readOnly, bool? oneFile = null, bool connectionString = false)
         {
             var connection = new ConnectionString { Filename = filename, Connection = ConnectionType.Shared, ReadOnly = readOnly };
