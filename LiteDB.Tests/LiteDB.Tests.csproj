@@ -84,7 +84,7 @@
     <ProjectReference Include="../LiteDB.Tests.HandleHarness/HandleHarness.csproj" ReferenceOutputAssembly="false"
       AdditionalProperties="TestingEnabled=true" SetTargetFramework="TargetFramework=net8.0" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'" />
   </ItemGroup>
-  <Target Name="CopyHandleProbe" AfterTargets="Build">
+  <Target Name="CopyHandleProbe" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
     <PropertyGroup><HandleProbeFramework Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">$(TargetFramework)</HandleProbeFramework>
       <HandleProbeFramework Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'">net8.0</HandleProbeFramework></PropertyGroup>
     <ItemGroup><HandleProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.HandleHarness/bin/$(Configuration)/$(HandleProbeFramework)/*" /></ItemGroup>
