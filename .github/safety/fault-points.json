@@ -11,6 +11,7 @@
     "capability": "The hook simulates a platform capability (for example unsupported sync), not a failure."
   },
   "hooks": [
+    {"name": "DarwinTruncated", "protocol": "ABI-2 disposable Darwin authority extent reset under exclusive DMS", "evidence": [{"script": ".github/scripts/darwin_allocation.py", "model": "process-death", "proves": "Native bounded APFS child acknowledges actual ftruncate(0), dies twice at that boundary, then resets and validates indexed committed data and unrelated sentinel.", "via": ["LiteDB.Tests.SharedMutexHarness/SharedDarwinAllocationHarness.cs"]}]},
     {
       "family": "checkpoint-stage",
       "name": "after-reclaim",

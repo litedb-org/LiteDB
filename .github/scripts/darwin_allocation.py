@@ -2,7 +2,6 @@
 
 No synthetic ENOSPC or allocator hook: every reservation calls the product P/Invoke.
 """
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -71,17 +70,18 @@ def scenario(kind, mount):
     path = mount / ('direct.bin' if kind == 'direct' else 'test.db')
     if kind == 'direct':
         child('direct-seed', path)
-        before = hashlib.sha256(path.read_bytes()).hexdigest()
         constrain(mount, path)
         child('direct-repeat', path)
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == before
+        # The inode is disposable coordination, never DB/WAL data. Reservation
+        # may discard its contents; it must restore length and physical coverage.
+        assert path.stat().st_size == SIZE and path.stat().st_blocks * 512 >= SIZE
     else:
         child('seed', path, 'claimed', kill=True)
         constrain(mount, Path(str(path) + '-shm'))
         # First demonstrate the actual same-size capacity reset independently of
         # the interrupted-retry cases, then force reset again by invalidation.
         child('reset', path)
-        for cut in ['invalidated', 'allocated', 'mapped', 'envelope-b']:
+        for cut in ['invalidated', 'darwin-truncated', 'allocated', 'mapped', 'envelope-b']:
             # Zero only disposable envelopes under quiescence to force reset;
             # retain all physical extents and the unchanged logical length.
             with Path(str(path) + '-shm').open('r+b', buffering=0) as file:

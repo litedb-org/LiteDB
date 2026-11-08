@@ -56,6 +56,7 @@ internal static class SharedDarwinAllocationHarness
             Console.Out.Flush();
             Console.ReadLine();
         };
+        SharedPlatformAllocation.DarwinTruncated = () => SharedMemoryAuthority.BootstrapStage("darwin-truncated");
         try
         {
             using var authority = SharedMemoryAuthority.Open(settings, admission.Identity, () =>
@@ -71,7 +72,11 @@ internal static class SharedDarwinAllocationHarness
             });
             if (authority.Map.Load(SharedMemoryLayout.Control) != 1) throw new Exception("Not Ready");
         }
-        finally { SharedMemoryAuthority.BootstrapStage = null; }
+        finally
+        {
+            SharedMemoryAuthority.BootstrapStage = null;
+            SharedPlatformAllocation.DarwinTruncated = null;
+        }
         Console.WriteLine("validated");
         return true;
     }

@@ -20,6 +20,9 @@ namespace LiteDB.Client.Shared
         private const int ErrorInvalidFunction = 1;
         private const int ErrorInvalidParameter = 87;
         private const int ErrorNotSupported = 50;
+#if DEBUG || TESTING
+        [ThreadStatic] internal static Action DarwinTruncated;
+#endif
 
         internal static int Allocate(FileStream file, long length)
         {
@@ -57,6 +60,15 @@ namespace LiteDB.Client.Shared
 
         private static int AllocateDarwin(FileStream file, long length)
         {
+            // This allocator owns only the disposable authority inode. The caller
+            // holds exclusive DMS and has invalidated both envelopes. Darwin's
+            // physical-EOF reservation adds Length to existing allocation (even
+            // with sparse ranges), so discard all old extents before reserving.
+            // A crash here leaves an empty authority that bootstrap can retry.
+            if (ftruncate(file.SafeFileHandle, 0) != 0) return Marshal.GetLastWin32Error();
+#if DEBUG || TESTING
+            DarwinTruncated?.Invoke();
+#endif
             var store = new DarwinFStore
             {
                 Flags = F_ALLOCATECONTIG,
