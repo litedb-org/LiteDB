@@ -983,7 +983,12 @@
       ],
       "disposition": "replaced",
       "invariant": "Released client callers must pass unchanged across release/dev/Phase3/Phase4. Current-dev decorators must pass on Phase4. A separate released decorator test requires original success and exact documented TypeLoadException/EnsureVectorIndex failure on every newer variant.",
-      "reason": "Explicit orchestrator steering: pre-existing dev vector ABI addition66ec615a is out of scope, not a step blocker. Preserve current interface; document required recompilation. Prior1b9 real failure is retained. No claim that old engine implementers are binary compatible."
+      "reason": "Explicit orchestrator steering: pre-existing dev vector ABI addition66ec615a is out of scope, not a step blocker. Preserve current interface; document required recompilation. Prior1b9 real failure is retained. No claim that old engine implementers are binary compatible.",
+      "coveredBy": [
+        "scripts/test-released-handle-binary.py",
+        "tools/TransactionHandleValidation/ReleasedCallers.cs",
+        ".github/workflows/transaction-handle-compatibility.yml"
+      ]
     },
     {
       "id": "p4-s7-wal-session-capacity",
@@ -993,7 +998,12 @@
       ],
       "disposition": "replaced",
       "invariant": "Exactly the same WAL safety selection executes in disjoint sessions with all assertions and unchanged 300-second session / 30-minute job limits. No tests excluded.",
-      "reason": "Exact6db Windows net10 WAL job128686430905 session safety3 aborted after300seconds with338passed and continuing AllocationWalFailure progress; not a test assertion failure or a green session. Split existing non-Shared WAL selection by WalCombinedPowerLoss_Tests or WalSlotReuse_Tests vs their exact complement. Prior green6aec same job128651858140 has395cases; exact name-set audit shows14+381 disjoint union395. Those two suites consumed155.85seconds in the aborted session. Logs/TRX retained; no flake claim or timeout increase."
+      "reason": "Exact6db Windows net10 WAL job128686430905 session safety3 aborted after300seconds with338passed and continuing AllocationWalFailure progress; not a test assertion failure or a green session. Split existing non-Shared WAL selection by WalCombinedPowerLoss_Tests or WalSlotReuse_Tests vs their exact complement. Prior green6aec same job128651858140 has395cases; exact name-set audit shows14+381 disjoint union395. Those two suites consumed155.85seconds in the aborted session. Logs/TRX retained; no flake claim or timeout increase.",
+      "coveredBy": [
+        ".github/workflows/p1-handle-safety.yml",
+        "LiteDB.Tests/Internals/WalCombinedPowerLoss_Tests.cs",
+        "LiteDB.Tests/Internals/WalSlotReuse_Tests.cs"
+      ]
     }
   ]
 }
