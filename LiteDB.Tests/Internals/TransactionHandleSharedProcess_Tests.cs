@@ -1,6 +1,8 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -13,19 +15,20 @@ namespace LiteDB.Internals
     public class TransactionHandleSharedProcess_Tests
     {
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
-        public async Task Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped)
+        [InlineData(false, false)] [InlineData(true, false)]
+        [InlineData(false, true)] [InlineData(true, true)]
+        public async Task Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped, bool readOnly)
         {
             using var file = new TempFile();
             Seed(file);
             var mode = mapped ? "handle-mapped" : "handle-legacy";
-            using (var holder = new MvccProcess(mode, file, null))
+            using (var holder = new MvccProcess(readOnly ? (mapped ? "handle-readonly-mapped" : "handle-readonly-legacy") : mode, file, null))
             using (var waiter = new MvccProcess(mode, file, null))
             {
                 await holder.Expect("ready"); await waiter.Expect("ready");
                 holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
                 waiter.Send("begin"); await waiter.Expect("attempting"); await waiter.Expect("timeout");
-                holder.Send("write"); await holder.Expect("written");
+                if (!readOnly) { holder.Send("write"); await holder.Expect("written"); }
                 holder.Send("commit"); await holder.Expect("committed");
                 waiter.Send("begin"); await waiter.Expect("attempting"); await waiter.Expect("begun");
                 waiter.Send("commit"); await waiter.Expect("committed");
@@ -33,7 +36,7 @@ namespace LiteDB.Internals
                 await holder.Expect("done"); await waiter.Expect("done");
                 await holder.Finish(); await waiter.Finish();
             }
-            Verify(file, true);
+            Verify(file, !readOnly);
         }
 
         [OneFileTheory]
@@ -77,6 +80,39 @@ namespace LiteDB.Internals
                 holder.Send("close"); await holder.Expect("done"); await holder.Finish();
             }
             Verify(file, false);
+        }
+
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
+        public async Task Interrupted_begin_retires_only_its_native_request_and_successor_progresses(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped }))
+            using (var db = new LiteDatabase(engine))
+            using (var holder = new MvccProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
+            using (var waiting = new ManualResetEventSlim())
+            {
+                _ = db.Timeout;
+                await holder.Expect("ready");
+                holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+                var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                turnstile.BeforeMainWait = waiting.Set;
+                Exception failure = null;
+                var caller = new Thread(() => { try { db.BeginTransaction().Dispose(); } catch (Exception error) { failure = error; } });
+                caller.Start();
+                Assert.True(waiting.Wait(TimeSpan.FromSeconds(10)), "The background holder must reach the actual native wait.");
+                caller.Interrupt();
+                Assert.True(caller.Join(TimeSpan.FromSeconds(5)));
+                Assert.IsType<ThreadInterruptedException>(failure);
+                turnstile.BeforeMainWait = null;
+                holder.Send("write"); await holder.Expect("written");
+                holder.Send("commit"); await holder.Expect("committed");
+                holder.Send("close"); await holder.Expect("done"); await holder.Finish();
+                using var next = db.BeginTransaction();
+                Assert.NotNull(next.GetCollection("rows").FindById(2));
+                next.Rollback();
+            }
+            Verify(file, true);
         }
 
         private static void Seed(string file)

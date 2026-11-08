@@ -86,7 +86,11 @@
       "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes",
       "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_excludes_file_replacement_and_rekey_without_mutation",
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
-      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses"
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses",
+      "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state",
+      "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Ordinary_and_legacy_waiters_timeout_without_borrowing_handle_then_progress",
+      "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Executing_callback_cannot_wait_for_its_own_handle_and_prior_writes_survive",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Interrupted_begin_retires_only_its_native_request_and_successor_progresses"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

@@ -44,7 +44,11 @@ namespace LiteDB.Tests.Engine
         {
             try
             {
-                using var stream = new System.IO.FileStream(file, System.IO.FileMode.Open, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None);
+                using (var stream = new System.IO.FileStream(file, System.IO.FileMode.Open, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None)) { }
+                // This target also retains OFD/native admission after storage handles
+                // close. Collection of short weak references precedes queued cleanup;
+                // prove that Direct admission has retired as well as FileShare.None.
+                using var probe = new LiteDatabase(file);
                 return false;
             }
             catch (System.IO.IOException) { return true; }

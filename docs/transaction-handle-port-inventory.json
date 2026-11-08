@@ -322,6 +322,38 @@
       "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
       "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
       "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Ordinary_and_legacy_waiters_timeout_without_borrowing_handle_then_progress",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Ordinary_and_legacy_waiters_timeout_without_borrowing_handle_then_progress",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Executing_callback_cannot_wait_for_its_own_handle_and_prior_writes_survive",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs#Executing_callback_cannot_wait_for_its_own_handle_and_prior_writes_survive",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Interrupted_begin_retires_only_its_native_request_and_successor_progresses",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Interrupted_begin_retires_only_its_native_request_and_successor_progresses",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
     }
   ],
   "waitProtocolStep": "P4-S4-WAITS",

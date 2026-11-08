@@ -98,11 +98,19 @@ namespace LiteDB
             private IDisposable _frame;
             private int _depth;
             private bool _released;
+#if NET8_0_OR_GREATER
+            private readonly long _tenure;
+#endif
             internal readonly TransactionContext Context;
 
             internal SharedHandleLease(SharedEngine shared, SharedMutexPin pin, TransactionLease identity,
                 SharedLocalTransactionOwner.Lease local, TransactionContext context)
-            { _shared = shared; _pin = pin; _identity = identity; _local = local; Context = context; }
+            {
+                _shared = shared; _pin = pin; _identity = identity; _local = local; Context = context;
+#if NET8_0_OR_GREATER
+                _tenure = (shared._readers as SharedMemoryReaders)?.Table.WriterTenure ?? 0;
+#endif
+            }
 
             internal void Enter()
             {
@@ -118,7 +126,14 @@ namespace LiteDB
                         if (!ReferenceEquals(_shared._pin, _pin) || !ReferenceEquals(_shared._engine, Context.Engine))
                             throw new InvalidOperationException("Stale Shared handle generation.");
                     }
-                    if (_shared._mappedWriterHeld) _shared.EnterMappedWriter();
+                    if (_shared._mappedWriterHeld)
+                    {
+                        _shared.EnterMappedWriter();
+#if NET8_0_OR_GREATER
+                        if ((_shared._readers as SharedMemoryReaders)?.Table.WriterTenure != _tenure)
+                            throw new InvalidOperationException("Stale mapped handle tenure.");
+#endif
+                    }
                     _frame = _shared.OwnershipFrame(_shared.CallRetains);
                 }
                 catch { _shared.EndAdmissions(_depth); _pin.Exit(false); throw; }
