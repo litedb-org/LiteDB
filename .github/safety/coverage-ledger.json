@@ -857,6 +857,23 @@
       "disposition": "strengthened",
       "invariant": "Paused readers pin exact floors; the first scan after native slot release excludes dead readers without another participant or writer; all three ranges release and reused slots change incarnation.",
       "reason": "Windows process exit may precede native byte-range cleanup. Bound only the production native slot predicate to five seconds, then retain immediate empty-floor/DMS/WRITE assertions. No retries of floor assertions or unrelated reclamation events. Initial floors and kill-to-clear timings are retained; both complete classes run100times on Windows2022/2025 x64 net8/9/10. Permanently locked slots or stale floors still fail."
+    },
+    {
+      "id": "f-p3-fuzz-explicit-shared-protocols",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing targets, seeds, step counts, crash proofs and legacy per-operation mutex assertions remain; mapped clear cuts use exclusive admission required for truncation.",
+      "reason": "The default transition changes mutex tenure and requires exclusive mapping ownership for WAL clear. Preserve all-cut concurrent legacy workloads with explicit opt-out and test default close/reopen separately. Add mapped futex fault workload rather than removing unreachable markers.",
+      "coveredBy": [
+        "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedWakeFuzzer.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ]
     }
   ]
 }

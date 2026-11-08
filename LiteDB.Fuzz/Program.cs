@@ -7,7 +7,7 @@ internal static class Program
     private static readonly IFuzzTarget[] Targets =
     {
         new QueryFuzzer(), new LinqCacheFuzzer(), new TransactionFuzzer(), new WalFuzzer(),
-        new PageFuzzer(), new IndexFuzzer(), new SharedProcessFuzzer(), new BsonFuzzer(),
+        new PageFuzzer(), new IndexFuzzer(), new SharedProcessFuzzer(), new LegacySharedProcessFuzzer(), new SharedWakeFuzzer(), new BsonFuzzer(),
         new ParserFuzzer(), new MapperFuzzer(), new StorageFuzzer(), new RebuildFuzzer(),
         new VectorFuzzer(), new SortFuzzer(), new ValueFuzzer(), new IntegrityFuzzer(),
         new SnapshotFuzzer(), new ThreadedSnapshotFuzzer(), new ConcurrentFuzzer(),
@@ -31,7 +31,7 @@ internal static class Program
         catch (Exception error) { Console.Error.WriteLine(error.Message); PrintHelp(); return 2; }
 
         if (options.Child == "verify-checkpointed") return CheckpointedFileVerifier.Run(options);
-        if (options.Child == "shared") return SharedProcessFuzzer.RunChild(options);
+        if (options.Child == "shared" || options.Child == "shared-legacy") return SharedProcessFuzzer.RunChild(options);
         if (options.Child == "snapshot-writer") return SnapshotWriterProcess.RunChild(options);
         if (options.Child == "snapshot-reader") return SnapshotFuzzer.RunChild(options);
         if (options.List)

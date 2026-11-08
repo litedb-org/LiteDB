@@ -348,3 +348,12 @@ including two torn recovery attempts. Full payload/index and untouched-data
 oracles also check read-only byte preservation and successful root/WAL removal on
 retry. The latest data/WAL images are saved before recovery checks. Keeping this
 target separate preserves the existing retirement corpus input and trace hashes.
+
+The `shared` workload uses the default protocol. Its two WAL-clear cuts admit
+peers after the crash worker exits because mapped truncation requires exclusive
+mapping ownership; all other cuts keep concurrent admission. `shared-legacy`
+explicitly selects `SharedOneFile=false` and retains concurrent admission at every
+cut. Both require the exact durable crash marker and compare cold recovered rows
+with acknowledged ledgers. `shared-wake` exercises Linux futex return dispositions
+(success, EINTR, EAGAIN, timeout and EIO), requiring the injection hook, preserved
+unrelated control bytes and a successful subsequent wake.
