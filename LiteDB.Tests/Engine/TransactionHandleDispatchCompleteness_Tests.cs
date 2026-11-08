@@ -71,50 +71,85 @@ namespace LiteDB.Tests.Engine
         public void Every_classified_entry_refuses_raw_handle_callback_reentry()
         {
             using var engine = new LiteEngine();
-            var context = engine.BeginHandleTransaction();
-            foreach (var entry in Guarded)
-                context.Execute(() =>
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            using var transaction = db.BeginTransaction();
+            var callbacks = 0;
+            IEnumerable<BsonDocument> Input()
+            {
+                foreach (var entry in Guarded)
                 {
                     Assert.Throws<InvalidOperationException>(() => entry.Value(engine));
-                    return true;
-                });
-            Assert.True(context.Invoke(e => e.Rollback()));
+                    callbacks++;
+                }
+                yield return Escape(1);
+            }
+            transaction.GetCollection("rows").Insert(Input());
+            Assert.Equal(Guarded.Count, callbacks);
+            transaction.Rollback();
+            Assert.Empty(db.GetCollection("rows").FindAll());
             Assert.True(TransactionContext.IsThreadClear);
         }
 
-        [Fact]
-        public void Every_classified_entry_refuses_raw_read_transform_reentry()
+        public static IEnumerable<object[]> ReaderEntries => Guarded.Keys.SelectMany(key =>
+            new[] { new object[] { key, false }, new object[] { key, true } });
+
+        [Theory]
+        [MemberData(nameof(ReaderEntries))]
+        public void Every_classified_entry_refuses_raw_read_transform_reentry(string entry, bool enumerable)
         {
+            using var file = new TempFile();
             LiteEngine engine = null;
-            Action<LiteEngine> attempt = null;
+            var armed = false;
             var callbacks = 0;
             using (engine = new LiteEngine(new EngineSettings
             {
-                DataStream = new System.IO.MemoryStream(),
+                Filename = file,
                 ReadTransform = (collection, value) =>
                 {
-                    if (attempt != null)
+                    if (armed && collection == "victim" && value["_id"].AsInt32 >= 2)
                     {
                         callbacks++;
-                        Assert.Throws<InvalidOperationException>(() => attempt(engine));
+                        Assert.Throws<InvalidOperationException>(() => Guarded[entry](engine));
                     }
                     return value;
                 }
             }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
-                engine.Insert("victim", new[] { Escape(1), Escape(2) }, BsonAutoId.Int32);
-                var context = engine.BeginHandleTransaction();
-                foreach (var entry in Guarded)
+                db.GetCollection("victim").Insert(new[] { Escape(1), Escape(2), Escape(3) });
+                db.GetCollection("victim").EnsureIndex("value");
+                using var transaction = db.BeginTransaction();
+                armed = true;
+                var query = transaction.GetCollection("victim").Query();
+                if (enumerable) Assert.Equal(3, query.ToEnumerable().Count());
+                else
                 {
-                    attempt = entry.Value;
-                    using var reader = context.Invoke(e => e.Query("victim", new Query()));
-                    context.Execute(() => { while (reader.Read()) { } reader.Dispose(); return true; });
+                    using var reader = query.ExecuteReader();
+                    var count = 0;
+                    while (reader.Read()) count++;
+                    Assert.Equal(3, count);
                 }
-                attempt = null;
-                Assert.True(callbacks >= Guarded.Count);
-                Assert.True(context.Invoke(e => e.Rollback()));
-                Assert.True(TransactionContext.IsThreadClear);
+                armed = false;
+                Assert.Equal(2, callbacks);
+                Assert.Equal(LiteTransactionState.Active, transaction.State);
+                transaction.GetCollection("legitimate").Insert(Escape(9));
+                transaction.Commit();
+                using var rollback = db.BeginTransaction();
+                rollback.GetCollection("escape").Insert(Escape(10));
+                rollback.Rollback();
             }
+            for (var pass = 0; pass < 2; pass++)
+            {
+                using var cold = new LiteDatabase(file);
+                Assert.Empty(cold.GetCollection("escape").FindAll());
+                Assert.Equal(new[] { 1001, 1002, 1003 }, cold.GetCollection("victim").FindAll().Select(d => d["value"].AsInt32));
+                Assert.Equal(3, cold.GetCollection("victim").Count(Query.GTE("value", 1001)));
+                Assert.NotNull(cold.GetCollection("legitimate").FindById(9));
+                Assert.Equal(0, cold.UserVersion);
+                Assert.True(cold.GetCollection("victim").DropIndex("value"));
+                cold.GetCollection("victim").EnsureIndex("value");
+            }
+            Assert.True(TransactionContext.IsThreadClear);
         }
 
         private static string Signature(MemberInfo member)
