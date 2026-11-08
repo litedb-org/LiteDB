@@ -1004,6 +1004,16 @@
         "LiteDB.Tests/Internals/WalCombinedPowerLoss_Tests.cs",
         "LiteDB.Tests/Internals/WalSlotReuse_Tests.cs"
       ]
+    },
+    {
+      "id": "p4-s7-recovery-cut-native-release",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Each killed successor must release actual native WRITE before unchanged same-authority, accepted snapshot, repeated-recovery, indexed payload and sentinel checks. A lock still retained after existing5second abandoned-owner bound fails.",
+      "reason": "Exact37b Windows net10 ownership job128692231686 failed open-structural-repaired after Kill returned but before native byte-lock cleanup. RecoveryCuts used immediate WriteIsFree(false), while existing WarmRecovery process-death tests correctly use WriteIsFree(abandonedOwner:true). Apply the identical production abandoned-owner acquisition bound to this actual killed-process probe. No test removed, skip, assertion removal or timeout increase."
     }
   ]
 }
