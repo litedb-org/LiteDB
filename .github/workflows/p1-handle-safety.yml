@@ -14,6 +14,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         framework: [net8.0, net10.0]
+        # Keep each complete selection within the unchanged job/session limits.
+        partition: [wal, ownership]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -22,6 +24,7 @@ jobs:
             8.0.x
             10.0.x
       - name: Group commit, faults, WAL, recovery and lifetime
+        if: matrix.partition == 'wal'
         shell: pwsh
         run: |
           $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable|FullyQualifiedName~LiteDB.Tests.Mapper'
@@ -46,13 +49,13 @@ jobs:
           }
           if ($failed) { throw 'At least one safety partition failed or did not complete' }
       - name: Primary key range delete differential and fault recovery
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.partition == 'wal' }}
         shell: pwsh
         run: |
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~PrimaryKeyDelete|FullyQualifiedName~DeleteMany|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~ReaderSnapshot' --logger 'trx;LogFileName=delete-safety.trx' --results-directory artifacts_temp/handle-safety
           if ($LASTEXITCODE) { throw 'Delete safety failed' }
       - name: Phase 4 ownership, legacy admission and retained Shared tenure
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.partition == 'ownership' }}
         shell: pwsh
         run: |
           $filters = @(
@@ -78,5 +81,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: handle-safety-${{ matrix.os }}-${{ matrix.framework }}
+          name: handle-safety-${{ matrix.os }}-${{ matrix.framework }}-${{ matrix.partition }}
           path: artifacts_temp/handle-safety

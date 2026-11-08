@@ -26,6 +26,21 @@
   ],
   "dispositions": [
     {
+      "id": "p4-shared-p1-job-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "relocated",
+      "invariant": "Every pre-existing WAL/recovery/delete and Phase 4 ownership/SharedOneFile command, assertion, failure check, OS/framework combination, 30-minute job limit and 300-second session ceiling remains.",
+      "reason": "Exact-head Windows net8/net10 jobs reached the 30-minute aggregate job ceiling while all completed sessions passed and ownership cases were still executing. Run the unchanged WAL/delete and ownership scripts in independent matrix partitions, with distinct artifacts. This allows all evidence to complete without excluding cases or extending test liveness deadlines.",
+      "coveredBy": [
+        ".github/workflows/p1-handle-safety.yml",
+        "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs"
+      ]
+    },
+    {
       "id": "p4-handle-context-dispatch-matrix",
       "kind": "ci-test-config-changed",
       "subjects": [
