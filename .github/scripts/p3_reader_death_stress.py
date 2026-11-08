@@ -11,23 +11,23 @@ from p3_windows_qualification import audit
 parser = argparse.ArgumentParser()
 parser.add_argument('--framework', required=True)
 parser.add_argument('--repeat', type=int, default=100)
+parser.add_argument('--runtime-major', required=True)
 args = parser.parse_args()
 output = Path('artifacts_temp/reader-death')
 output.mkdir(parents=True, exist_ok=True)
 classes = ['LiteDB.Internals.SharedOneFileReaders_Tests',
            'LiteDB.Internals.SharedOneFileLock_Tests', 'LiteDB.Tests.Engine.TestHost_Tests']
-os.environ['LITEDB_EXPECTED_RUNTIME_MAJOR'] = args.framework[3:].split('.')[0]
+os.environ['LITEDB_EXPECTED_RUNTIME_MAJOR'] = args.runtime_major
 os.environ['LITEDB_EXPECTED_ARCHITECTURE'] = 'X64'
-report = dict(sha=os.environ.get('GITHUB_SHA'), framework=args.framework,
+report = dict(sha=os.environ.get('GITHUB_SHA'), framework=args.framework, runtimeMajor=args.runtime_major,
               runner=os.environ.get('RUNNER_OS'), runs=[], errors=[])
 for repeat in range(args.repeat):
     trx = output / f'{repeat}.trx'
-    command = ['dotnet', 'test', 'LiteDB.Tests/LiteDB.Tests.csproj', '-c', 'Release',
-               '-f', args.framework, '--no-build', '-p:TestingEnabled=true',
-               '-p:TargetFrameworks=' + args.framework,
-               '--settings', 'tests.runsettings', '--filter',
+    command = ['dotnet', 'vstest', f'LiteDB.Tests/bin/Release/{args.framework}/LiteDB.Tests.dll',
+               f'/Framework:.NETCoreApp,Version=v{args.runtime_major}.0', '/Platform:x64',
+               '/Settings:tests.runsettings', '/TestCaseFilter:' +
                '|'.join('FullyQualifiedName~' + name + '.' for name in classes),
-               '--logger', f'trx;LogFileName={trx.name}', '--results-directory', str(output)]
+               f'/Logger:trx;LogFileName={trx.name}', '/ResultsDirectory:' + str(output)]
     with (output / f'{repeat}.log').open('w') as log:
         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
     try:
