@@ -1,7 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -23,10 +23,18 @@ namespace LiteDB.Internals
             using var older = new MvccProcess("one-file-tenure-request", files.Filename, null);
             older.Expect("requested").GetAwaiter().GetResult();
             var block = RemoteBlock(authority);
-            using var sampled = new ManualResetEventSlim();
-            using var preempted = new ManualResetEventSlim();
+            // Observe a real renewal after our clock sample, then freeze its
+            // record before publishing the local ticket. A scheduler pause may
+            // otherwise expire the peer and legitimately move it behind us.
+            var sampledAt = Environment.TickCount64;
+            SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
+                sampledAt + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
+            SharedProcessSignals.Stop(older.ProcessId);
+            var stopped = true;
+            using var evaluated = new ManualResetEventSlim();
             using var resume = new ManualResetEventSlim();
             var admitted = 0;
+            bool? staleSampleAdmitted = null;
             Exception failure = null;
             var waiter = new Thread(() =>
             {
@@ -34,20 +42,24 @@ namespace LiteDB.Internals
                 SharedWriterRequests.RequestStage = stage =>
                 {
                     if (stage == "request-admitted") Interlocked.Increment(ref admitted);
-                    if (stage != "request-sampled" || once) return;
+                    if (stage != "request-published" || once) return;
                     once = true;
-                    var now = Environment.TickCount64;
-                    sampled.Set();
-                    SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
-                        now + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                    preempted.Set();
+                    authority.Map.Load(block + SharedMemoryLayout.TenureRequest).Should().BeGreaterThan(0)
+                        .And.BeLessThan(authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest));
+                    authority.Map.Load(block + SharedMemoryLayout.RequestExpiry).Should()
+                        .BeGreaterThan(sampledAt + SharedWriterRequests.ExpiryMilliseconds);
+                    // Evaluate the actual admission predicate with the stale
+                    // sample, without fabricating mapped bytes or clock values.
+                    var predicate = typeof(SharedWriterRequests).GetMethod("IsTurn", BindingFlags.Instance | BindingFlags.NonPublic);
+                    staleSampleAdmitted = (bool)predicate.Invoke(authority.Requests, new object[] { sampledAt });
+                    evaluated.Set();
+                    resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                 };
                 try
                 {
                     failure = Record.Exception(() =>
                     {
                         using var request = engine.MappedReaderTable.RequestWriter();
-                        resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
                     });
                 }
                 finally { SharedWriterRequests.RequestStage = null; }
@@ -55,18 +67,27 @@ namespace LiteDB.Internals
             waiter.Start();
             try
             {
-                sampled.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                preempted.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                evaluated.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                staleSampleAdmitted.Should().BeFalse("a real renewal after the clock sample cannot erase an older ticket");
                 Volatile.Read(ref admitted).Should().Be(0);
-                older.Send("go"); older.Expect("waiting-main").GetAwaiter().GetResult();
-                older.Expect("ready").GetAwaiter().GetResult();
-                SpinWait.SpinUntil(() => Volatile.Read(ref admitted) == 1, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                SharedProcessSignals.Resume(older.ProcessId);
+                stopped = false;
+                older.Send("go");
+                // Both requests must make progress, including when the stopped
+                // peer's wall-clock lease expires before it can resume.
                 resume.Set();
+                older.Expect("waiting-main").GetAwaiter().GetResult();
+                older.Expect("ready").GetAwaiter().GetResult();
                 waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                Volatile.Read(ref admitted).Should().Be(1);
                 older.Send("write 910"); older.Expect("wrote 910").GetAwaiter().GetResult();
                 older.Send("close"); older.Expect("done").GetAwaiter().GetResult(); older.Finish().GetAwaiter().GetResult();
             }
-            finally { resume.Set(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+            finally
+            {
+                if (stopped) SharedProcessSignals.Resume(older.ProcessId);
+                resume.Set(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            }
             failure.Should().BeNull();
             engine.Dispose();
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
@@ -76,6 +97,7 @@ namespace LiteDB.Internals
         [OneFileFact]
         public void Expired_live_request_reenters_after_the_already_published_successor()
         {
+            ExpiredSampleRejoinsAfterSuccessor();
             using var files = new SharedOneFilePublicationFixture();
             using (var engine = new SharedEngine(files.Settings))
             using (var stale = new MvccProcess("one-file-tenure-request", files.Filename, null))
@@ -83,7 +105,8 @@ namespace LiteDB.Internals
                 stale.Expect("requested").GetAwaiter().GetResult();
                 var authority = engine.MappedReaderTable.Authority;
                 var block = RemoteBlock(authority);
-                MappedPlatformTestNative.Signal(stale.ProcessId, 19).Should().Be(0);
+                SharedProcessSignals.Stop(stale.ProcessId);
+                var stopped = true;
                 try
                 {
                     var expiry = authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
@@ -91,7 +114,8 @@ namespace LiteDB.Internals
                     using var successor = new MvccProcess("one-file-tenure-request", files.Filename, null);
                     successor.Expect("requested").GetAwaiter().GetResult();
                     var sequence = authority.Map.Load(SharedMemoryLayout.RequestSequence);
-                    MappedPlatformTestNative.Signal(stale.ProcessId, 18).Should().Be(0);
+                    SharedProcessSignals.Resume(stale.ProcessId);
+                    stopped = false;
                     SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.TenureRequest) > sequence,
                         TimeSpan.FromSeconds(5)).Should().BeTrue("resuming renewal takes a new ticket instead of resurrecting expired priority");
                     stale.Send("go"); successor.Send("go");
@@ -104,7 +128,7 @@ namespace LiteDB.Internals
                         peer.Send("close"); peer.Expect("done").GetAwaiter().GetResult(); peer.Finish().GetAwaiter().GetResult();
                     }
                 }
-                finally { MappedPlatformTestNative.Signal(stale.ProcessId, 18); }
+                finally { if (stopped) SharedProcessSignals.Resume(stale.ProcessId); }
             }
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
             cold.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).OrderBy(id => id).Should().Equal(911, 912);
@@ -122,10 +146,16 @@ namespace LiteDB.Internals
                 var block = RemoteBlock(table.Authority);
                 var expiry = table.Authority.Map.Load(block + SharedMemoryLayout.RequestExpiry);
                 using var published = new ManualResetEventSlim();
+                using var resume = new ManualResetEventSlim();
                 Exception failure = null;
                 var waiter = new Thread(() =>
                 {
-                    SharedWriterRequests.RequestStage = stage => { if (stage == "request-published") published.Set(); };
+                    SharedWriterRequests.RequestStage = stage =>
+                    {
+                        if (stage != "request-published") return;
+                        published.Set();
+                        resume.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                    };
                     try { failure = Record.Exception(() => target.BeginTrans()); }
                     finally { SharedWriterRequests.RequestStage = null; }
                 }) { IsBackground = true };
@@ -135,17 +165,116 @@ namespace LiteDB.Internals
                     published.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     SpinWait.SpinUntil(() => table.Authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) > expiry,
                         TimeSpan.FromSeconds(5)).Should().BeTrue();
-                    target.Dispose();
+                    var closing = System.Threading.Tasks.Task.Run(() => target.Dispose());
+                    try
+                    {
+                        SpinWait.SpinUntil(() => Field<int>(target, "_disposed") != 0,
+                            TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    }
+                    finally { resume.Set(); }
+                    closing.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
                     failure.Should().BeOfType<ObjectDisposedException>();
                     table.Closed.Should().BeTrue();
                 }
-                finally { target.Dispose(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+                finally { resume.Set(); target.Dispose(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
                 older.Send("go"); older.Expect("waiting-main").GetAwaiter().GetResult(); older.Expect("ready").GetAwaiter().GetResult();
                 older.Send("close"); older.Expect("done").GetAwaiter().GetResult(); older.Finish().GetAwaiter().GetResult();
             }
             files.WriteIsFree();
             using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
+        }
+
+        private static void ExpiredSampleRejoinsAfterSuccessor()
+        {
+            using var files = new SharedOneFilePublicationFixture();
+            using var engine = new SharedEngine(files.Settings);
+            var authority = engine.MappedReaderTable.Authority;
+            using var successor = new MvccProcess("one-file-tenure-deferred-request", files.Filename, null);
+            successor.Expect("started").GetAwaiter().GetResult();
+            using var sampled = new ManualResetEventSlim();
+            using var resumeSample = new ManualResetEventSlim();
+            using var evaluated = new ManualResetEventSlim();
+            using var finish = new ManualResetEventSlim();
+            var samples = 0;
+            var admittedBeforeRecheck = 0;
+            long firstTicket = 0, recheckedTicket = 0;
+            Exception failure = null;
+            var waiter = new Thread(() =>
+            {
+                SharedWriterRequests.RequestStage = stage =>
+                {
+                    if (stage == "request-sampled")
+                    {
+                        if (++samples == 1)
+                        {
+                            firstTicket = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                            sampled.Set();
+                            resumeSample.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                        }
+                        else
+                        {
+                            recheckedTicket = authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest);
+                            evaluated.Set();
+                            finish.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                        }
+                    }
+                    if (stage == "request-admitted" && samples == 1)
+                    {
+                        admittedBeforeRecheck = 1;
+                        evaluated.Set();
+                        finish.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                    }
+                };
+                try { failure = Record.Exception(() => { using var request = engine.MappedReaderTable.RequestWriter(); }); }
+                finally { SharedWriterRequests.RequestStage = null; evaluated.Set(); }
+            }) { IsBackground = true };
+            waiter.Start();
+            try
+            {
+                sampled.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                // request-sampled holds the real queue gate, so the renewal
+                // timer cannot repair the caller's expired ticket for it.
+                var expiry = authority.Map.Load(authority.Block + SharedMemoryLayout.RequestExpiry);
+                SpinWait.SpinUntil(() => Environment.TickCount64 > expiry + 10, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                successor.Send("publish");
+                // Timer callbacks can occupy pool threads waiting for this test's
+                // request gate. Observe actual mapped publication without needing
+                // a pipe continuation on that same pool to release the barrier.
+                SpinWait.SpinUntil(() => Enumerable.Range(0, authority.Header.Processes)
+                    .Where(slot => slot != authority.Slot)
+                    .Any(slot => authority.Map.Load(SharedMemoryLayout.Blocks + (long)slot * authority.Header.Stride) == 1 &&
+                        authority.Map.Load(SharedMemoryLayout.Blocks + (long)slot * authority.Header.Stride +
+                            SharedMemoryLayout.TenureRequest) > 0), TimeSpan.FromSeconds(5)).Should().BeTrue();
+                SharedProcessSignals.Stop(successor.ProcessId);
+                try
+                {
+                    var successorTicket = authority.Map.Load(RemoteBlock(authority) + SharedMemoryLayout.TenureRequest);
+                    successorTicket.Should().BeGreaterThan(firstTicket);
+                    resumeSample.Set();
+                    evaluated.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue("worker failure={0}; samples={1}", failure, samples);
+                    failure.Should().BeNull("the forced expiry worker must reach its second sample without failing");
+                    admittedBeforeRecheck.Should().Be(0, "a caller resumed after its own expiry must rejoin before advisory admission");
+                    recheckedTicket.Should().BeGreaterThan(successorTicket);
+                }
+                finally
+                {
+                    SharedProcessSignals.Resume(successor.ProcessId);
+                    successor.Send("go");
+                    resumeSample.Set(); finish.Set();
+                    waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                }
+                failure.Should().BeNull();
+                successor.Expect("requested").GetAwaiter().GetResult();
+                successor.Expect("waiting-main").GetAwaiter().GetResult();
+                successor.Expect("ready").GetAwaiter().GetResult();
+                successor.Send("write 913"); successor.Expect("wrote 913").GetAwaiter().GetResult();
+                successor.Send("close"); successor.Expect("done").GetAwaiter().GetResult(); successor.Finish().GetAwaiter().GetResult();
+            }
+            finally { resumeSample.Set(); finish.Set(); waiter.Join(TimeSpan.FromSeconds(5)).Should().BeTrue(); }
+            engine.Dispose();
+            using var cold = new LiteDatabase(files.Filename); Verify(cold, 0);
+            cold.GetCollection("tenure").Find(Query.EQ("value", 913)).Single()["payload"].AsString.Should().Be(new string('t', 256));
         }
 
         private static long RemoteBlock(SharedMemoryAuthority authority) => Enumerable.Range(0, authority.Header.Processes)

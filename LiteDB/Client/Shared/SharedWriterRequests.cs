@@ -51,7 +51,11 @@ namespace LiteDB.Client.Shared
                         Refresh();
                         var now = Environment.TickCount64;
                         Stage("request-sampled");
-                        if (IsTurn(now)) break;
+                        // The peer scan can be preempted past our own expiry
+                        // while this gate prevents timer renewal. Rejoin with a
+                        // fresh ticket instead of admitting expired priority.
+                        if (IsTurn(now) && _authority.Map.Load(_authority.Block + SharedMemoryLayout.RequestExpiry) >
+                            Environment.TickCount64) break;
                     }
                     Thread.Sleep(1);
                 }

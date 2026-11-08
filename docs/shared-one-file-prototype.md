@@ -79,10 +79,17 @@ The participant captures no facade callbacks or facade token. Initialization is
 per physical identity; unrelated identities never wait behind its entry gate.
 Closing the last facade/result retires that exact entry without erasing a successor.
 
-Qualification is currently Linux x64/.NET 8+ on the mapped local-volume allowlist.
-Other mapped platforms explicitly refuse opt-in; their prototype tests report a
-capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
-Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
+The ABI-2 platform guard admits Linux x64 and macOS ARM64/x64 on .NET 8+ and the
+mapped local-volume allowlist. Defaults retain ABI 1. Windows, Linux ARM64 and
+Framework mapped opens still refuse opt-in; native range tests remain enabled.
+The manual Full CI `macos_qualification` mode runs all mapped classes on native
+`macos-15` ARM64 and `macos-15-intel` x64 with net8/net10, retaining a source
+inventory and TRX and rejecting skipped or missing results. Linux-only syscall
+cases are inventoried separately. macOS qualification
+requires three consecutive full matrices and a 50-repeat tenure/wake/coherence/
+process stress matrix on the exact final head. This evidence is bounded to the
+hosted macOS 15/APFS configurations, not older kernels, other filesystems or
+physical device power loss. The map
 starts with committed-version unknown and fast-admission disabled. Slice 5
 publishes writer/recovery/structural/reuse/reset identities. Slice 6 enables mapped warm
 admission only after protected validation and a covering durable sync.
@@ -184,7 +191,7 @@ excludes local monitor contention, deliberate Sleep/Yield pacing, direct native
 open/turnstile seams, storage I/O and helper-thread work. A zero value establishes
 that those selected seams were avoided; it does not establish zero syscalls for
 a whole query. Cold and contended controls are in `SharedOneFileWarmCounter_Tests`.
-The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
+The mapped platform guard and the bounded macOS qualification gate are described above; ABI 2 remains opt-in.
 
 The [ownership transition protocol](shared-one-file-ownership.md) specifies local
 reservation/publication, native tenure, terminal cleanup, abandoned-owner handoff

@@ -162,7 +162,9 @@ never to the number of local callers. Its transitions are:
    expiry, then wakes holders. One timer renews this request every 25 ms. Younger
    local calls cannot borrow its ticket or pass its native admission.
 3. **Admitted:** after observing no older unexpired Ready process request, the
-   head enters the native turnstile/main wait. The advisory record stays alive
+   head rechecks its own expiry after the peer scan; an expired head refreshes
+   and retries with a fresh ticket. A still-live head enters the native
+   turnstile/main wait. The advisory record stays alive
    until that native acquisition returns; only main plus real WRITE permit storage.
 4. **Retired:** successful acquisition, refusal, exception or cancellation removes
    this node and clears its record, independently of outstanding local callers.

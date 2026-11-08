@@ -62,9 +62,9 @@ namespace LiteDB.Internals
             using var child = new MvccProcess("one-file-lock-hold", Filename, null);
             await child.Expect("ready");
             using var observer = new SharedRangeLocks(Filename);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                kill(child.ProcessId, 19).Should().Be(0); // SIGSTOP
+                SharedProcessSignals.Stop(child.ProcessId);
                 try
                 {
                     observer.IsLive(0).Should().BeTrue();
@@ -72,7 +72,7 @@ namespace LiteDB.Internals
                     Action write = observer.EnterWrite;
                     write.Should().Throw<IOException>();
                 }
-                finally { kill(child.ProcessId, 18).Should().Be(0); } // SIGCONT
+                finally { SharedProcessSignals.Resume(child.ProcessId); } // SIGCONT
             }
             await child.Kill(sharedFilesRemainOpen: true);
             observer.IsLive(0).Should().BeFalse();
@@ -108,7 +108,6 @@ namespace LiteDB.Internals
         }
 
         [DllImport("libc", SetLastError = true)] private static extern int dup(int descriptor);
-        [DllImport("libc", SetLastError = true)] private static extern int kill(int process, int signal);
         public void Dispose() => Directory.Delete(_directory, true);
     }
 }

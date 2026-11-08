@@ -124,15 +124,20 @@ namespace LiteDB.Internals
             using var remote = new MvccProcess("one-file-tenure-request", files.Filename, null);
             remote.Expect("requested").GetAwaiter().GetResult();
             var block = FindRemoteBlock(authority);
+            // Model a stale IsTurn clock sample using a real renewal, then freeze
+            // that record before publishing our later ticket. Otherwise an expired
+            // peer can legitimately rejoin behind us during this test's wait.
+            var sampled = Environment.TickCount64;
+            SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
+                sampled + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
+            SharedProcessSignals.Stop(remote.ProcessId);
             bool? admitted = null;
             SharedWriterRequests.RequestStage = stage =>
             {
                 if (stage != "request-published") return;
-                var sampled = Environment.TickCount64;
-                // Model preemption after IsTurn's caller samples now, using real
-                // peer renewals rather than injected/fabricated expiry records.
-                SpinWait.SpinUntil(() => authority.Map.Load(block + SharedMemoryLayout.RequestExpiry) >
-                    sampled + SharedWriterRequests.ExpiryMilliseconds, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                authority.Map.Load(block + SharedMemoryLayout.TenureRequest).Should().BeGreaterThan(0)
+                    .And.BeLessThan(authority.Map.Load(authority.Block + SharedMemoryLayout.TenureRequest));
+                authority.Map.Load(block + SharedMemoryLayout.RequestExpiry).Should().BeGreaterThan(sampled);
                 var predicate = typeof(SharedWriterRequests).GetMethod("IsTurn", BindingFlags.Instance | BindingFlags.NonPublic);
                 admitted = (bool)predicate.Invoke(authority.Requests, new object[] { sampled });
                 throw new IOException("release review request");
@@ -142,7 +147,7 @@ namespace LiteDB.Internals
                 ((Action)(() => { using var request = engine.MappedReaderTable.RequestWriter(); }))
                     .Should().Throw<IOException>().WithMessage("release review request");
             }
-            finally { SharedWriterRequests.RequestStage = null; }
+            finally { SharedWriterRequests.RequestStage = null; SharedProcessSignals.Resume(remote.ProcessId); }
             remote.Send("go"); remote.Expect("waiting-main").GetAwaiter().GetResult();
             remote.Expect("ready").GetAwaiter().GetResult();
             remote.Send("close"); remote.Expect("done").GetAwaiter().GetResult();

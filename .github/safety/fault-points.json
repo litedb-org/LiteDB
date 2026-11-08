@@ -2192,7 +2192,15 @@
         {
           "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Renewal_after_a_preempted_clock_sample_preserves_end_to_end_remote_priority",
           "model": "interleaving",
-          "proves": "A real remote renewal after the sampled clock preserves priority until native admission and both callers make progress."
+          "proves": "An actually renewed remote record is OS-stopped before local publication; its strictly older ticket and expiry beyond the stale sample force the real admission predicate to refuse that sample. Both real request calls subsequently complete and the child write survives cold indexed-data verification. This separates the forced predicate decision from subsequent live admission, where expiry may change priority."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Expired_live_request_reenters_after_the_already_published_successor",
+          "model": "interleaving",
+          "proves": "ExpiredSampleRejoinsAfterSuccessor pauses the local request at request-sampled under its renewal gate, proves real expiry and a published successor, then requires re-ticketing before admission and preserves cold indexed data.",
+          "via": [
+            "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs"
+          ]
         }
       ],
       "gap": "Linux x64 only; no Windows/macOS or device reset qualification."

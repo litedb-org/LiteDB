@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -72,9 +73,9 @@ namespace LiteDB.Internals
             var table = SharedMemoryReaderTable.Open(Settings());
             using var local = new SharedMemoryReaders(table);
             table.LiveVersions().Should().Equal(11);
-            MappedPlatformTestNative.Signal(first.ProcessId, 19).Should().Be(0);
+            SharedProcessSignals.Stop(first.ProcessId);
             try { table.LiveVersions().Should().Equal(11); }
-            finally { MappedPlatformTestNative.Signal(first.ProcessId, 18).Should().Be(0); }
+            finally { SharedProcessSignals.Resume(first.ProcessId); }
             await first.Kill(sharedFilesRemainOpen: true);
             table.LiveVersions().Should().BeEmpty();
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
@@ -131,8 +132,23 @@ namespace LiteDB.Internals
             finally { foreach (var reader in readers) reader.Dispose(); }
             db.Checkpoint();
             var logName = Path.GetFileName(FileHelper.GetLogFile(Filename));
-            Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName)
+            Directory.GetFiles(_directory).Select(Path.GetFileName)
                 .Should().OnlyContain(name => name == "test.db" || name == logName || name == "test.db-shm");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                var admission = Path.Combine(_directory, ".litedb-admission");
+                Directory.GetDirectories(_directory).Should().Equal(admission);
+                var locks = Directory.GetFiles(admission);
+                locks.Should().NotBeEmpty();
+                foreach (var path in locks)
+                {
+                    Path.GetExtension(path).Should().Be(".lock");
+                    new FileInfo(path).Length.Should().Be(0);
+                    File.GetAttributes(path).Should().NotHaveFlag(FileAttributes.ReparsePoint);
+                }
+                Directory.GetDirectories(admission).Should().BeEmpty();
+            }
+            else Directory.GetDirectories(_directory).Should().BeEmpty();
             if (warm)
             {
                 var before = engine.CoordinatedReadHits;

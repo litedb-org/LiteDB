@@ -14,7 +14,7 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedWriterTenureWakeSafety_Tests
     {
-        [LinuxFutexTheory]
+        [OneFileTheory]
         [InlineData("sampled")] [InlineData("rechecked")] [InlineData("syscall")] [InlineData("returned")]
         public void Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach(string cut)
         {

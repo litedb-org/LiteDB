@@ -742,6 +742,47 @@
       "disposition": "strengthened",
       "invariant": "Same physical files share one participant; distinct physical files remain independent; native admission stays enforced or opening refuses before mutation when native locking is disabled.",
       "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
+    },
+    {
+      "id": "p3-qual-macos-executed-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing full CI remains unchanged; additive macOS opt-in qualification executes every mapped class on native ARM64 and Intel net8/net10, rejects skipped or missing results and retains TRX.",
+      "reason": "Orchestrator instructed exact-head macOS qualification and 50-repeat stress. Linux futex ABI-only tests and the Linux POSIX/OFD negative control remain in the original full suite; the platform-neutral wake-edge theory is expanded to every qualified backend. Include ordinary OneFile admission/lock/map Facts and the integration seam, whose expected architecture set stays independent of the product predicate. Stress repeats the entire19-class set in50 fresh test hosts, with both guards per host, every class required in each TRX and unchanged300-second session limit; selected case counts and repetitions are unchanged. A separately marked request-safety diagnostic repeats its assertions only for failure investigation; its one-class inventory cannot satisfy the84-class full or19-class stress audit. An additional guarded Linux TESTING comparison consumes the unpublished proof registration: real b4834a819 must fail specifically at expired local-ticket admission, then the candidate passes identical permanent test/harness source; overlay only that test and harness on the real historical revision and verify its production source stays unmodified; its known-bad TRX never counts as candidate qualification. No existing assertion, timeout or quarantine is weakened."
+    },
+    {
+      "id": "p3-qual-macos-portable-wake-edges",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Wake at every sample/recheck/syscall/return edge retains the holder, preserves the committed row and releases WRITE on final detach.",
+      "reason": "The theory uses only platform-neutral mapped wake hooks; expand from LinuxFutexTheory to OneFileTheory so all qualified native backends execute the same four forced interleavings. Linux syscall-specific tests remain unchanged."
+    },
+    {
+      "id": "p3-qual-macos-observed-child-suspension",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs",
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A stopped child retains all native ranges and snapshots; an expired live requester cannot reserve priority; process death releases ownership while committed data remains.",
+      "reason": "Signal return-code assertions move into SharedProcessSignals.Stop/Resume, which preserve the checks and additionally require waitpid WIFSTOPPED before tests inspect leases. Choose native Darwin SIGSTOP/SIGCONT rather than Linux numbers; expand the stopped-process native range control to Darwin. No liveness, ownership, data or error assertion is removed."
+    },
+    {
+      "id": "p3-qual-macos-stale-sample-fixture",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "An actually renewed older request rejects a stale admission sample; both real requests eventually complete and the child write remains indexed and intact after cold reopen.",
+      "reason": "Hosted diagnostic34f97d6b4 records remote ticket1 expiring and rejoining as3 behind local2, invalidating the old unconditional older-ticket premise. Observe actual renewal, prove SIGSTOP with waitpid before local publication, assert strictly older remote ticket and expiry beyond stale sample+100, and require the real IsTurn predicate to refuse that stale sample. Then resume both real RequestWriter calls and retain admission, child write, cold sentinel/index/payload checks. No retries, skips or fabricated bytes/clocks. The stale-sample predicate is forced independently of subsequent live admission, whose expiring priority may legally change. A focused negative control restoring the old sampled-clock upper bound fails this predicate assertion; the restored unmutated revision passes all3 class cases. Correct the RequestStage evidence prose to state this bounded predicate/progress proof rather than imply priority persists through later native admission. Further investigation proves a distinct real local-expiry defect: retain the original expired-child case and add a forced post-sample local-expiry/successor cut, with real-revision CI before/after evidence and a post-peer-scan local-expiry recheck in production. Prestart the child runtime before holding the10-second sampling barrier, then command actual publication only after local expiry; retain all waits, ordering, expiry, ticket, progress and cold-data checks. Worker termination signals the observer so it reports the actual worker exception. While the real gate deliberately blocks renewal callbacks, observe actual Ready/ticket publication with a bounded mapped scan instead of requiring an async pipe continuation on that blocked pool to release the barrier; retain the requested stdout assertion after gate release."
     }
   ]
 }
