@@ -82,7 +82,7 @@ jobs:
         include:
           - name: linux-core-utc
             os: ubuntu-latest
-            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
+            targets: query,transaction,transaction-handle,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
             seed: 2947
             timezone: UTC
             culture: en_US.UTF-8
@@ -266,7 +266,7 @@ jobs:
       matrix:
         include:
           - shard: correctness
-            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
+            targets: query,linq-cache,transaction,transaction-handle,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
             seedOffset: 500000
             framework: net8.0
           - shard: persistence

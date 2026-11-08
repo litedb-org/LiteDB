@@ -256,6 +256,11 @@
           "proves": "Held descriptor barriers with same/different-collection writers, partial checkpoint, exact reader prefixes and acknowledgement sets; either failed barrier stops all pending waiters before another sync."
         },
         {
+          "fuzz": "transaction-handle",
+          "model": "exception",
+          "proves": "Retired-thread commit/rollback and facade-abandonment match independent full-state and indexed scalar oracle across Direct/default/legacy Shared, encrypted and plaintext, with two cold reopens."
+        },
+        {
           "fuzz": "power-loss",
           "model": "modeled-power-loss",
           "proves": "Each operation's acknowledgment is recorded outside the engine; after a cut only the in-flight operation may resolve to old or new, and complete documents and FileStorage bytes are compared."

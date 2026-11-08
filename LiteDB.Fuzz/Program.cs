@@ -6,7 +6,7 @@ internal static class Program
 {
     private static readonly IFuzzTarget[] Targets =
     {
-        new QueryFuzzer(), new LinqCacheFuzzer(), new TransactionFuzzer(), new WalFuzzer(),
+        new QueryFuzzer(), new LinqCacheFuzzer(), new TransactionFuzzer(), new TransactionHandleFuzzer(), new WalFuzzer(),
         new PageFuzzer(), new IndexFuzzer(), new SharedProcessFuzzer(), new BsonFuzzer(),
         new ParserFuzzer(), new MapperFuzzer(), new StorageFuzzer(), new RebuildFuzzer(),
         new VectorFuzzer(), new SortFuzzer(), new ValueFuzzer(), new IntegrityFuzzer(),
