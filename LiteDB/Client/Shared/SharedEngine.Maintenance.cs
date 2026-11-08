@@ -24,7 +24,9 @@ namespace LiteDB
                     _handles?.CloseIdle();
                     try
                     {
-                        var result = _engine.Rebuild(options);
+                        long result;
+                        try { result = _engine.Rebuild(options); }
+                        finally { this.ObserveRebuiltSettings(); }
 #if NET8_0_OR_GREATER
                         if (_readers is LiteDB.Client.Shared.SharedMemoryReaders mapped)
                             mapped.Table.Replaced(_engine.ReadVersion);

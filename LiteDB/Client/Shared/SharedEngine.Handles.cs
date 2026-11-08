@@ -8,6 +8,7 @@ namespace LiteDB
     public partial class SharedEngine
     {
         private SharedHandleLease _handleLease;
+        private EngineSettings _retainedCoreSettings;
         private long _handleTimeoutTicks = TimeSpan.TicksPerMinute;
 
         // Safe observations only: never read a dirty header to bootstrap admission.
@@ -91,7 +92,16 @@ namespace LiteDB
                 settings.SharedMaintenance = () => table.Maintain(settings);
             }
 #endif
-            return settings;
+            return _retainedCoreSettings = settings;
+        }
+
+        private void ObserveRebuiltSettings()
+        {
+            // The core settings intentionally contain no strong facade callback.
+            // Rebuild mutates those settings even when rollback leaves a new file
+            // live; publish them before the outer maintenance scope rekeys it.
+            _settings.Password = _retainedCoreSettings.Password;
+            _settings.Collation = _retainedCoreSettings.Collation;
         }
 
         // Holder infrastructure must not keep an abandoned facade (and callback
