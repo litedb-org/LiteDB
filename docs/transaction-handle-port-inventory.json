@@ -386,6 +386,30 @@
       "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
       "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
       "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_private_storage_cannot_claim_persistent_handle_commits",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_private_storage_cannot_claim_persistent_handle_commits",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_caller_stream_refusal_precedes_storage_mutation",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_caller_stream_refusal_precedes_storage_mutation",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedIdentity_Tests.cs#Caller_identity_policy_precedes_admission_and_preserves_the_existing_handle",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedIdentity_Tests.cs#Caller_identity_policy_precedes_admission_and_preserves_the_existing_handle",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
     }
   ],
   "waitProtocolStep": "P4-S4-WAITS",

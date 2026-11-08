@@ -67,6 +67,7 @@ namespace LiteDB
 
         private void Enter(bool terminalAllowed = false)
         {
+            if (_shared != null) Client.Shared.TransactionHolderContext.Validate();
             // Before any side effect: the handle stays usable from a non-impersonating thread.
             lock (_gate)
             {
@@ -373,6 +374,7 @@ namespace LiteDB
         // Normal overlapping/reentrant user operations remain invalid.
         private bool EnterCleanup()
         {
+            if (_shared != null) Client.Shared.TransactionHolderContext.Validate();
             lock (_gate)
             {
                 if (_disposed || State != LiteTransactionState.Active) return false;

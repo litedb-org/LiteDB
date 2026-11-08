@@ -34,6 +34,9 @@ namespace LiteDB
 
         internal SharedHandleLease BeginHandle()
         {
+            if (!NativeAdmission.IsFile(_settings))
+                throw new NotSupportedException("Shared transaction handles require filename-backed storage without caller streams.");
+            TransactionHolderContext.Validate();
             using var budget = new TransactionWaitBudget(SharedHandleTimeout);
             return this.Call(() =>
             {

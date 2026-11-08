@@ -94,7 +94,10 @@
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers",
       "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Turnstile_deadline_releases_partial_request_and_next_handle_progresses",
       "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#External_engine_close_fences_late_completion_and_detaches_the_failed_handle",
-      "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle"
+      "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_private_storage_cannot_claim_persistent_handle_commits",
+      "LiteDB.Tests/Engine/TransactionHandleSharedStorage_Tests.cs#Shared_caller_stream_refusal_precedes_storage_mutation",
+      "LiteDB.Tests/Internals/TransactionHandleSharedIdentity_Tests.cs#Caller_identity_policy_precedes_admission_and_preserves_the_existing_handle"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

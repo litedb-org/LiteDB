@@ -36,7 +36,9 @@ third-party decorator. Shared uses the existing holder, participant and retained
 writer ownership for its whole lifetime, including a read-only handle. This can
 block writers in other processes until commit, rollback or disposal. The native
 mutex stays on its holder thread; sequential handle operations can change threads
-without releasing the transaction hold. Creator-thread exit does not abandon it.
+without releasing the transaction hold. Creator-thread exit does not abandon it. Shared handles refuse private storage,
+caller streams and Windows thread impersonation before admission. An identity
+refusal leaves an existing handle active for use after reverting impersonation.
 
 Legacy `BeginTrans`, `Commit` and `Rollback` remain thread-bound and issue CS0618
 warnings on both client declarations. Migrate to completion on the returned
