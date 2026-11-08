@@ -803,6 +803,17 @@
       "disposition": "strengthened",
       "invariant": "Windows full/stress qualification executes every portable mapped case without skips; Linux futex syscall cases remain in Linux full and ARM64 matrices.",
       "reason": "Mac qualification expands a wake-edge theory to OneFileTheory, causing Windows discovery to correctly include its mixed portable/Linux-futex class. Run42440188749 net8 shard6 reported4portable passes and4LinuxFutexFact skips. Record those source-attributed Linux-only methods explicitly in Windows inventory and exclude only them from the Windows filter, retaining strict audit rejection of any eligible skipped, failed, missing or empty result. New unit tests pin the four kernel-specific exclusions, retain the portable theory in both full/stress sets, and require no exclusions for request safety. No test attributes, Linux workflow, session limit or repetition count changes."
+    },
+    {
+      "id": "p3-integrate-macos-maintenance-session-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/qualify-macos.ps1",
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every maintenance death, interrupted recovery and rollback case runs with unchanged per-case two repetitions and300-second test-host session limit, and every CI-discovered test belongs to exactly one full-suite partition.",
+      "reason": "Run42440646177 Intelnet8 MaintenanceCrash session aborted after300s with57Passed/0Failed,13missing expected results and290.893s completed durations. Split Mac qualification into three existing theory sessions (42death,14recovery,12rollback selected cases), with runtime/hook guards per session. Full CI uses disjoint death/recovery/complement sessions, retaining rollback and future cases. Case-set conservation is checked against the prior complete qualification TRX; ordinary full CI retains its exact-discovery partition verification. No tests, repetitions, crash cuts, recovery/data assertions, timeout or matrix leg removed."
     }
   ]
 }

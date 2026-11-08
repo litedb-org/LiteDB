@@ -32,7 +32,16 @@ foreach ($file in $classes) {
     $filter = "FullyQualifiedName~.$class."
     foreach ($method in $linuxOnly) { $filter += "&FullyQualifiedName!~.$method" }
     $inventory += [ordered]@{ class = $class; linuxOnly = $linuxOnly; repetitions = $repetitions }
-    $batches += [pscustomobject]@{ name = $class; filter = "($filter)"; classes = @($class) }
+    if ($class -eq 'SharedOneFileMaintenanceCrash_Tests') {
+        # This class exceeded the unchanged 300-second session budget on Intel.
+        # Keep every theory/case/recovery repetition, with guards in each session.
+        $methods = @([regex]::Matches($source, 'public async Task (\w+)\(') | ForEach-Object { $_.Groups[1].Value })
+        foreach ($method in $methods) {
+            $batches += [pscustomobject]@{ name = "$class-$method"; filter = "($filter&FullyQualifiedName~.$method)"; classes = @($class) }
+        }
+    } else {
+        $batches += [pscustomobject]@{ name = $class; filter = "($filter)"; classes = @($class) }
+    }
 }
 if ($stress -and !$diagnostic) {
     # Repeat the complete stress set in fifty fresh test hosts. Each class must
