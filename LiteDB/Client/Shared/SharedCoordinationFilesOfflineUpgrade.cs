@@ -41,6 +41,11 @@ namespace LiteDB.Client.Shared
             }
             using var path = NativeAdmission.EnterPath(filename);
             using var exclusive = admission.ExclusiveOffline();
+            // Darwin opens a persistent admission inode for DMS locking. Refuse
+            // unknown remnants before creating it, then revalidate under DMS so
+            // an independent participant cannot invalidate the deletion preflight.
+            Validate(paths, filename);
+            if (hasReaders) ReaderFiles(readers);
             // This also refuses participants that own DMS independently of admission.
             // No coordination file is created merely to prove quiescence.
             using (var dms = FileHelper.ExistsOrThrow(shm) ? new DatabaseFileLock(shm, false, false) : null)

@@ -96,7 +96,11 @@ namespace LiteDB.Internals
             try
             {
                 Action open = () => { using var engine = new SharedEngine(settings); };
-                open.Should().Throw<IOException>();
+                for (var attempt = 0; attempt < 2; attempt++)
+                {
+                    open.Should().Throw<IOException>();
+                    AssertSnapshot(before);
+                }
             }
             finally { DatabaseFileIdentity.UnsupportedVolume = null; }
             AssertSnapshot(before);
