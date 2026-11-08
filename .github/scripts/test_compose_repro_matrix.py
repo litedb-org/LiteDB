@@ -198,6 +198,12 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual([], skipped)
                 self.assertNotIn("Unknown", summary)
 
+    def test_darwin_allocation_guard_is_in_inventory(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {"LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes"}
+        self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"]
+                                   if "#Interrupted_native_allocation_" in ref})
+
     def test_constraints_never_expand_platform_support(self):
         entries, skipped, _ = self.compose([
             {"name": "Linux", "supports": ["linux"], "os": {"includePlatforms": ["windows"]}}

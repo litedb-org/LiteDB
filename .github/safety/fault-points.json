@@ -1829,7 +1829,7 @@
     }
   ],
   "injectors": [
-    {"name": "DarwinTruncated", "protocol": "ABI-2 disposable Darwin authority extent reset under exclusive DMS", "evidence": [{"script": ".github/scripts/darwin_allocation.py", "model": "process-death", "proves": "Native bounded APFS child acknowledges actual ftruncate(0), dies twice at that boundary, then resets and validates indexed committed data and unrelated sentinel.", "via": ["LiteDB.Tests.SharedMutexHarness/SharedDarwinAllocationHarness.cs"]}]},
+    {"name": "DarwinTruncated", "protocol": "ABI-2 disposable Darwin authority extent reset under exclusive DMS", "evidence": [{"test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes", "model": "exception", "proves": "On Darwin two reached exceptions after ftruncate(0) leave zero length, release all authority ownership, preserve DB bytes and recover indexed data twice. Native bounded APFS process-death coverage is additionally registered in contracts.json."}]},
     {
       "name": "DispatchOverride",
       "protocol": "abandoned Shared reader cleanup dispatch",

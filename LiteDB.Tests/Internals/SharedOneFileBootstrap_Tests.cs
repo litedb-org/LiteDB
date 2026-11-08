@@ -198,6 +198,36 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Interrupted_native_allocation_retries_without_changing_database_bytes()
+        {
+            var settings = Settings();
+            using var admission = NativeAdmission.Open(settings, true);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.OSX))
+            {
+                for (var repeat = 0; repeat < 2; repeat++)
+                {
+                    SharedPlatformAllocation.DarwinTruncated = () => throw new IOException("truncated authority");
+                    try
+                    {
+                        Action open = () => { using var authority = Open(settings, admission); };
+                        open.Should().Throw<IOException>().WithMessage("truncated authority");
+                        new FileInfo(Filename + "-shm").Length.Should().Be(0);
+                    }
+                    finally { SharedPlatformAllocation.DarwinTruncated = null; }
+                }
+            }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var authority = Open(settings, admission);
+                authority.Map.Load(SharedMemoryLayout.Control).Should().Be(1);
+                Validate(settings, admission);
+            }
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
+        }
+
+        [OneFileFact]
         public void Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap()
         {
             var settings = Settings();

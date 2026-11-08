@@ -63,6 +63,7 @@
   "SharedSelfTeardownRelease": {
     "reason": "The dedicated Regression proof workflow verifies the published package and corrected source; the permanent same-connection teardown guards also run in ordinary suites.",
     "tests": [
+      "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close",
