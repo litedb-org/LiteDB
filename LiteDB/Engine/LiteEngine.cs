@@ -40,6 +40,7 @@ namespace LiteDB.Engine
         private EngineSettings _settings;
 
         private DirectProcessHost _host;
+        private readonly Func<string, BsonValue, BsonValue> _directReadTransform;
         private DirectFacadeLifetime _lifetime;
         private NativeAdmission _sharedAdmission;
 
@@ -84,6 +85,7 @@ namespace LiteDB.Engine
             {
                 try
                 {
+                    _directReadTransform = settings.ReadTransform;
                     _host = DirectProcessHost.Attach(settings.Clone());
                     _settings = _host.Settings;
                     try

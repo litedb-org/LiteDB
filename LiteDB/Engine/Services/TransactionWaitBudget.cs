@@ -36,7 +36,14 @@ namespace LiteDB.Engine
         {
             var budget = _current?._budget;
             var started = Stopwatch.GetTimestamp();
-            try { Monitor.Wait(gate, remaining); }
+            try
+            {
+                TransactionBeginScope.Check();
+                if (TransactionBeginScope.Token.CanBeCanceled && remaining > TimeSpan.FromMilliseconds(20))
+                    remaining = TimeSpan.FromMilliseconds(20);
+                Monitor.Wait(gate, remaining);
+                TransactionBeginScope.Check();
+            }
             finally
             {
                 if (budget != null)
@@ -48,6 +55,7 @@ namespace LiteDB.Engine
         {
             while (true)
             {
+                TransactionBeginScope.Check();
                 var remaining = Remaining(TimeSpan.FromDays(20));
                 var acquired = false;
                 Block(() => acquired = gate.Wait(remaining < poll ? remaining : poll));
@@ -68,7 +76,7 @@ namespace LiteDB.Engine
         {
             var budget = _current?._budget;
             var started = Stopwatch.GetTimestamp();
-            try { wait(); }
+            try { TransactionBeginScope.Check(); wait(); }
             finally
             {
                 if (budget != null)

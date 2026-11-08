@@ -33,6 +33,7 @@ namespace LiteDB.Client.Direct
         private DirectProcessHost(EngineSettings settings, NativeAdmission admission)
         {
             Settings = settings;
+            Settings.ReadTransform = DirectReadTransform.Wrap(settings.ReadTransform);
             _admission = admission;
             _registryKey = admission.RegistryKey;
             Settings.BypassDirectHost = true;

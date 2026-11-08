@@ -8,9 +8,10 @@ namespace LiteDB.Tests.Engine
 {
     public class TransactionHandleAbandonment_Tests
     {
-        // Shared only: its holder thread owns native writer ownership that finalization must release.
-        // An abandoned Direct engine has no holder; it is the existing unclosed-database case.
+        // Both the process host and Shared native holder must allow facade graph collection.
         [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
         [InlineData(true, false)]
         [InlineData(true, true)]
         public void Completed_handle_does_not_root_abandoned_session_and_active_handle(bool shared, bool promote)

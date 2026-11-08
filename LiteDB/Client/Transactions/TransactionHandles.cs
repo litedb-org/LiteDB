@@ -16,6 +16,7 @@ namespace LiteDB
         private readonly object _gate = new object();
         private readonly HashSet<LiteTransaction> _active = new HashSet<LiteTransaction>();
         private int _pending;
+        private readonly CancellationTokenSource _begins = new CancellationTokenSource();
         private bool _closed;
 
 #if DEBUG || TESTING
@@ -28,12 +29,13 @@ namespace LiteDB
         }
 
         /// <summary>Admit one begin; it must end with <see cref="Register"/> or <see cref="Abandon"/>.</summary>
-        internal void EnterPending()
+        internal Engine.TransactionBeginScope EnterPending()
         {
             lock (_gate)
             {
                 if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));
                 _pending++;
+                return new Engine.TransactionBeginScope(_begins.Token);
             }
         }
 
@@ -47,13 +49,15 @@ namespace LiteDB
         }
 
         /// <summary>Publish an admitted handle. A closing database rolls it back like the others.</summary>
-        internal void Register(LiteTransaction transaction)
+        internal bool Register(LiteTransaction transaction)
         {
             lock (_gate)
             {
+                if (_closed) return false;
                 _pending--;
                 _active.Add(transaction);
                 Monitor.PulseAll(_gate);
+                return true;
             }
         }
 
@@ -79,6 +83,7 @@ namespace LiteDB
         {
             this.ThrowIfClosingFromHandleCall();
             lock (_gate) _closed = true;
+            _begins.Cancel();
 
             List<Exception> errors = null;
             while (true)

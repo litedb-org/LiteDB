@@ -18,7 +18,7 @@ namespace LiteDB
         public ILiteTransaction BeginTransaction()
         {
             Utils.Reachability.Sometimes("api:ILiteTransactionProvider.BeginTransaction");
-            _transactionHandles.EnterPending();
+            using var begin = _transactionHandles.EnterPending();
             try
             {
                 var transaction = TransactionContext.Unbound(() =>
@@ -27,7 +27,11 @@ namespace LiteDB
                     if (_engine is SharedEngine shared) return new LiteTransaction(shared, Mapper, _transactionHandles);
                     throw new NotSupportedException("This custom engine does not support transaction handles.");
                 });
-                _transactionHandles.Register(transaction);
+                if (!_transactionHandles.Register(transaction))
+                {
+                    transaction.Dispose();
+                    throw new ObjectDisposedException(nameof(LiteDatabase));
+                }
                 return transaction;
             }
             catch { _transactionHandles.Abandon(); throw; }

@@ -68,6 +68,7 @@ namespace LiteDB.Client.Shared
 
         private static void RefuseCancelled(Func<bool> cancelled)
         {
+            TransactionBeginScope.Check();
             if (cancelled?.Invoke() == true) throw new ObjectDisposedException("SharedEngine");
         }
 

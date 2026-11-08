@@ -66,7 +66,7 @@ namespace LiteDB.Engine
                 if (_transaction.TryEnterReadLock(timeout, owner) == false)
                     throw LiteException.LockTimeout("transaction", timeout);
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException) when (!TransactionBeginScope.Token.IsCancellationRequested)
             {
                 // Rebuild can dispose the old admission gate while a new operation
                 // is queued behind its exclusive lease. Expose the engine contract,

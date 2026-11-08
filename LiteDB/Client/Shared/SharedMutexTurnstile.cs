@@ -32,10 +32,10 @@ namespace LiteDB.Client.Shared
         /// Block until <paramref name="mutex"/> is owned, queued at the turnstile.
         /// Throws <see cref="AbandonedMutexException"/> as <see cref="WaitHandle.WaitOne()"/> does.
         /// </summary>
-        public void Wait(Mutex mutex, TimeSpan? timeout = null)
+        public void Wait(Mutex mutex, TimeSpan? timeout = null, CancellationToken cancellation = default)
         {
             var clock = Stopwatch.StartNew();
-            var queued = this.Enter(timeout);
+            var queued = this.Enter(timeout, cancellation);
             try
             {
 #if DEBUG || TESTING
@@ -46,7 +46,7 @@ namespace LiteDB.Client.Shared
                     if (timeout.HasValue)
                     {
                         var remaining = timeout.Value - clock.Elapsed;
-                        if (!mutex.WaitOne(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero))
+                        if (!WaitNative(mutex, remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero, cancellation))
                             throw LiteException.LockTimeout("Shared native writer", timeout.Value);
                     }
                     else mutex.WaitOne();
@@ -104,12 +104,27 @@ namespace LiteDB.Client.Shared
             return false;
         }
 
-        private bool Enter(TimeSpan? timeout)
+        private static bool WaitNative(Mutex mutex, TimeSpan timeout, CancellationToken cancellation)
+        {
+            if (!cancellation.CanBeCanceled) return mutex.WaitOne(timeout);
+            var clock = Stopwatch.StartNew();
+            while (true)
+            {
+                Engine.TransactionBeginScope.Check(cancellation);
+                var remaining = timeout - clock.Elapsed;
+                if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+                if (mutex.WaitOne(remaining < TimeSpan.FromMilliseconds(20) ? remaining : TimeSpan.FromMilliseconds(20)))
+                    return true;
+                if (clock.Elapsed >= timeout) return false;
+            }
+        }
+
+        private bool Enter(TimeSpan? timeout, CancellationToken cancellation)
         {
             try
             {
                 if (!timeout.HasValue) return _turn.WaitOne();
-                if (!_turn.WaitOne(timeout.Value)) throw LiteException.LockTimeout("Shared turnstile", timeout.Value);
+                if (!WaitNative(_turn, timeout.Value, cancellation)) throw LiteException.LockTimeout("Shared turnstile", timeout.Value);
                 return true;
             }
             catch (AbandonedMutexException)

@@ -57,6 +57,7 @@ namespace LiteDB.Client.Shared
         private object _handle;
         private object _retainedCore;
         internal void RetainCore(object core) => _retainedCore = core;
+        private readonly CancellationToken _beginCancellation = TransactionBeginScope.Token;
         private readonly TimeSpan _waitTimeout = TransactionWaitBudget.Remaining(TimeSpan.FromDays(20));
         private TimeSpan _lastUse;
         private TimeSpan _readyAt;
@@ -119,6 +120,7 @@ namespace LiteDB.Client.Shared
             {
                 pin.Exit(hold: false);
                 pin.RequestRelease(force: true);
+                pin._released.Wait();
                 throw;
             }
             if (pin._error != null)
@@ -142,6 +144,7 @@ namespace LiteDB.Client.Shared
             {
                 pin.Exit(hold: false);
                 pin.RequestRelease(force: true);
+                pin._released.Wait();
                 throw;
             }
             if (pin._error != null)
@@ -288,7 +291,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _turnstile.Wait(_mutex, _waitTimeout); }
+                try { _turnstile.Wait(_mutex, _waitTimeout, _beginCancellation); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)
