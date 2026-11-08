@@ -72,10 +72,11 @@ namespace LiteDB.Engine
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>Use one-file Shared coordination on qualified platforms by default.
+        /// Automatic selection is evaluated when a Shared connection captures these settings.
         /// Set false to use legacy sidecars (removed in v7). Explicit true requires a qualified physical file.</summary>
         public bool SharedOneFile
         {
-            get => SharedOneFileOverride ?? LiteDB.Client.Shared.SharedProtocolDefaults.OneFile;
+            get => SharedOneFileOverride ?? (this.SharedMode && LiteDB.Client.Shared.SharedProtocolDefaults.OneFile);
             set => SharedOneFileOverride = value;
         }
         internal bool? SharedOneFileOverride { get; set; }

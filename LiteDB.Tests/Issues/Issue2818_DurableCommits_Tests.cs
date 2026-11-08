@@ -353,13 +353,13 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Connection_string_round_trips_the_switch_and_omits_the_default()
         {
-            var off = new ConnectionString { SharedOneFile = false, Filename = "demo.db", DurableCommits = false };
+            var off = new ConnectionString { Filename = "demo.db", DurableCommits = false };
 
             off.ToString().Should().Be("Filename=\"demo.db\";Durable Commits=False");
             new ConnectionString(off.ToString()).DurableCommits.Should().BeFalse();
             new ConnectionString("filename=demo.db;durable commits=true").DurableCommits.Should().BeTrue();
             new ConnectionString("filename=demo.db").DurableCommits.Should().BeTrue();
-            new ConnectionString { SharedOneFile = false, Filename = "demo.db" }.ToString().Should().Be("demo.db");
+            new ConnectionString { Filename = "demo.db" }.ToString().Should().Be("demo.db");
         }
 
         private static ILiteCollection<BsonDocument> WarmUp(LiteDatabase db)
