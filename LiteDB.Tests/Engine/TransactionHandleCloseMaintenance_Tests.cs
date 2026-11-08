@@ -53,7 +53,7 @@ namespace LiteDB.Tests.Engine
                 Assert.True(SpinWait.SpinUntil(() => Closing(db), TimeSpan.FromSeconds(5)));
                 Assert.False(close.IsCompleted);
                 Assert.Throws<ObjectDisposedException>(() => db.BeginTransaction());
-                Assert.Throws<ObjectDisposedException>(() => db.GetCollection("rows").Count());
+                Assert.Equal(LiteException.ENGINE_DISPOSED, Assert.Throws<LiteException>(() => db.GetCollection("rows").Count()).ErrorCode);
             }
             finally { release.Set(); }
             Assert.True(Task.WaitAll(new Task[] { write, close }, TimeSpan.FromSeconds(15)));

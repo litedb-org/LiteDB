@@ -23,6 +23,8 @@ namespace LiteDB
         internal int ActiveCount { get { lock (_gate) return _active.Count; } }
 #endif
 
+        internal bool IsClosed => _closed;
+
         internal void ThrowIfClosed()
         {
             if (_closed) throw new ObjectDisposedException(nameof(LiteDatabase));

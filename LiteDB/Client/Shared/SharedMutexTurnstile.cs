@@ -32,7 +32,9 @@ namespace LiteDB.Client.Shared
         /// Block until <paramref name="mutex"/> is owned, queued at the turnstile.
         /// Throws <see cref="AbandonedMutexException"/> as <see cref="WaitHandle.WaitOne()"/> does.
         /// </summary>
-        public void Wait(Mutex mutex, TimeSpan? timeout = null, CancellationToken cancellation = default)
+        public void Wait(Mutex mutex, TimeSpan? timeout = null) => WaitCancellable(mutex, timeout, CancellationToken.None);
+
+        internal void WaitCancellable(Mutex mutex, TimeSpan? timeout, CancellationToken cancellation)
         {
             var clock = Stopwatch.StartNew();
             var queued = this.Enter(timeout, cancellation);

@@ -16,7 +16,7 @@ namespace LiteDB
         internal UnboundEngine(ILiteEngine inner, TransactionHandles handles = null) { _inner = inner; _handles = handles; }
         private T Call<T>(Func<T> action)
         {
-            _handles?.ThrowIfClosed();
+            if (_handles?.IsClosed == true) throw LiteException.EngineDisposed();
             return TransactionContext.Unbound(action);
         }
         public int Checkpoint()

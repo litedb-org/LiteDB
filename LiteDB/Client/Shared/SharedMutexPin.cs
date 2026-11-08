@@ -291,7 +291,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _turnstile.Wait(_mutex, _waitTimeout, _beginCancellation); }
+                try { _turnstile.WaitCancellable(_mutex, _waitTimeout, _beginCancellation); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)
