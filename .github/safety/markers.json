@@ -9,6 +9,10 @@
     "situation": "the situation a fuzz target exists to reach"
   },
   "faultPointGates": {
+    "DarwinTruncated": {
+      "gate": "advisory",
+      "reason": "The permanent bootstrap exception test and CI-only bounded APFS driver reach this native Darwin truncation boundary, including repeated acknowledged process death. Generic Linux oracle smoke cannot execute Darwin syscalls; the native workflow and full macOS mapped matrix are required evidence."
+    },
     "RequestStage": {
       "gate": "advisory",
       "reason": "Focused writer-tenure tests hit both request cuts with exceptions and process death/suspension. Default-mode fuzz does not enable the Linux x64 mapped opt-in; mapped whole-path qualification remains a later step."
