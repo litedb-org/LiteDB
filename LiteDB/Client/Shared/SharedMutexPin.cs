@@ -55,6 +55,8 @@ namespace LiteDB.Client.Shared
         private int _operations = 1;
         private int _holds;
         private object _handle;
+        private object _retainedCore;
+        internal void RetainCore(object core) => _retainedCore = core;
         private readonly TimeSpan _waitTimeout = TransactionWaitBudget.Remaining(TimeSpan.FromDays(20));
         private TimeSpan _lastUse;
         private TimeSpan _readyAt;
@@ -112,7 +114,13 @@ namespace LiteDB.Client.Shared
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             SharedBackground.Start(holder);
-            TransactionWaitBudget.Block(() => pin._acquired.Wait());
+            try { TransactionWaitBudget.Block(() => pin._acquired.Wait()); }
+            catch
+            {
+                pin.Exit(hold: false);
+                pin.RequestRelease(force: true);
+                throw;
+            }
             if (pin._error != null)
             {
                 holder.Join();
@@ -129,7 +137,13 @@ namespace LiteDB.Client.Shared
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB mapped writer holder" };
             try { holder.Start(); }
             catch { tenure.Dispose(); throw; }
-            TransactionWaitBudget.Block(() => pin._acquired.Wait());
+            try { TransactionWaitBudget.Block(() => pin._acquired.Wait()); }
+            catch
+            {
+                pin.Exit(hold: false);
+                pin.RequestRelease(force: true);
+                throw;
+            }
             if (pin._error != null)
             {
                 holder.Join();
@@ -309,6 +323,7 @@ namespace LiteDB.Client.Shared
             }
             try { _close(this, abandoned); }
             catch (Exception ex) { error = error ?? ex; }
+            _retainedCore = null;
             SharedOwnershipEvents.Release(_mutex);
             try { _mutex.ReleaseMutex(); }
             catch (Exception ex) { error = error ?? ex; }

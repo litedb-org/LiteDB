@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using System.Diagnostics;
+using System.Collections.Generic;
 using LiteDB.Engine;
 
 namespace LiteDB.Client.Shared
@@ -16,6 +16,7 @@ namespace LiteDB.Client.Shared
     {
         private readonly object _gate = new object();
         private Lease _current;
+        private readonly LinkedList<object> _queue = new LinkedList<object>();
         private long _generation;
 
         internal readonly TransactionOwnerToken Token = new TransactionOwnerToken();
@@ -30,7 +31,8 @@ namespace LiteDB.Client.Shared
             if (identity == null) throw new ArgumentNullException(nameof(identity));
             var facade = identity.Facade;
             var thread = Thread.CurrentThread;
-            var clock = Stopwatch.StartNew();
+            using var budget = new TransactionWaitBudget(timeout ?? TimeSpan.FromDays(20));
+            timeout = TransactionWaitBudget.Timeout(timeout ?? TimeSpan.FromDays(20));
             lock (_gate)
             {
                 ReleaseDeadOwnerLocked();
@@ -40,7 +42,10 @@ namespace LiteDB.Client.Shared
                     throw LiteException.SameThreadTransaction();
                 }
 
-                while (_current != null)
+                var request = _queue.AddLast(new object());
+                try
+                {
+                while (_current != null || !ReferenceEquals(_queue.First, request))
                 {
                     // A native holder normally pulses on terminal cleanup. Recheck
                     // actual Thread identity if death precedes its cleanup callback.
@@ -56,6 +61,12 @@ namespace LiteDB.Client.Shared
                 }
 
                 return _current = new Lease(this, identity, ++_generation);
+                }
+                finally
+                {
+                    _queue.Remove(request);
+                    Monitor.PulseAll(_gate);
+                }
             }
         }
 

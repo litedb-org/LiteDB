@@ -64,6 +64,13 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual(len(retired), len(skipped))
                 self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
 
+    def test_shared_handle_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {'LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_excludes_file_replacement_and_rekey_without_mutation', 'LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder', 'LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion', 'LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses', 'LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits', 'LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes', 'LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Handles_work_on_memory_and_temporary_storage', 'LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion', 'LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#Completed_handle_does_not_root_abandoned_session_and_active_handle', 'LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Completed_undisposed_handle_releases_everything_it_owned'}
+        prefixes = ('LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#', 'LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#', 'LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#', 'LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#', 'LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#')
+        self.assertEqual(expected, {ref for ref in policy["SharedSelfTeardownRelease"]["tests"]
+                                    if ref.startswith(prefixes)})
+
     def test_wal_handle_replacement_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {

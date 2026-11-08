@@ -21,6 +21,7 @@ namespace LiteDB.Client.Shared
             internal bool Shared, OneFile;
             internal volatile bool Faulted;
             internal int References;
+            internal readonly SharedLocalTransactionOwner HandleAdmissions = new SharedLocalTransactionOwner();
         }
 
         private NativeAdmission(Entry entry) { _entry = entry; }

@@ -69,13 +69,13 @@ namespace LiteDB
                 {
                     if (System.Threading.Volatile.Read(ref _disposed) != 0)
                         throw new ObjectDisposedException(nameof(SharedEngine));
-                    return SharedMutexPin.AcquireTenure(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin,
+                    return SharedMutexPin.AcquireTenure(_mutex, _turnstile, this.WeakPinWaiters(), this.WeakPinClose(),
                         new SharedWriterTenure(table));
                 }
             }
 #endif
             using (this.RequestMappedTurn())
-                return SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                return SharedMutexPin.Acquire(_mutex, _turnstile, this.WeakPinWaiters(), this.WeakPinClose(), this.PinIdleLimit, this.PinHoldLimit);
         }
 
         private bool IsDisposed() => System.Threading.Volatile.Read(ref _disposed) != 0;

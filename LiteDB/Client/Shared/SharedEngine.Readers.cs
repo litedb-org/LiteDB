@@ -91,7 +91,9 @@ namespace LiteDB
                 // write, just like OpenDatabase's ordinary ownership path.
                 if (_mappedWriterHeld) this.EnterMappedWriter();
                 this.StartWriterPressure();
-                return write();
+                var result = write();
+                if (!_engine.HasActiveTransaction) Interlocked.Exchange(ref _handleTimeoutTicks, _engine.HandleTimeout.Ticks);
+                return result;
             }
             finally
             {
@@ -158,6 +160,7 @@ namespace LiteDB
                 var open = Stopwatch.StartNew();
                 if (_engine == null) this.OpenEngine(pin.RecoveredAbandonedOwner, writing: true);
                 _databaseUsers++;
+                pin.RetainCore(_engine);
                 pin.MarkReady(open.Elapsed + _lastPinClose);
                 lock (_useLock)
                 {
@@ -213,6 +216,7 @@ namespace LiteDB
 
         private void ClosePinEngine(SharedMutexPin pin, bool abandoned)
         {
+            if (abandoned) _handleLease?.Dispose();
             if (ReferenceEquals(_pin, pin)) _pin = null;
             if (!pin.Counted) return;
 

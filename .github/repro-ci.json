@@ -76,7 +76,17 @@
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Refusal_preserves_every_byte_and_directory_entry",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Live_legacy_peer_refuses_then_offline_upgrade_and_new_legacy_open_are_safe",
       "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Dms_owner_excludes_retirement_and_unknown_shm_is_preserved",
-      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage"
+      "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Writable_mapped_open_retires_full_or_shm_only_legacy_state_before_storage",
+      "LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#Completed_handle_does_not_root_abandoned_session_and_active_handle",
+      "LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits",
+      "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Completed_undisposed_handle_releases_everything_it_owned",
+      "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion",
+      "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Handles_work_on_memory_and_temporary_storage",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_excludes_file_replacement_and_rekey_without_mutation",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

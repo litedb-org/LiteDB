@@ -29,7 +29,7 @@ namespace LiteDB.Client.Shared
             abandoned = false;
             try
             {
-                if (block) _turnstile.Wait(_mutex);
+                if (block) Engine.TransactionWaitBudget.Block(() => _turnstile.Wait(_mutex, Engine.TransactionWaitBudget.Remaining(TimeSpan.FromDays(20))));
                 else if (!_turnstile.TryWait(_mutex)) return false;
             }
             catch (AbandonedMutexException) { abandoned = true; }

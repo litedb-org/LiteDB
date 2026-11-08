@@ -44,6 +44,20 @@ namespace LiteDB.Engine
             }
         }
 
+        internal static void EnterSharedOwner(SemaphoreSlim gate, TimeSpan poll, Action checkExitedOwner)
+        {
+            while (true)
+            {
+                var remaining = Remaining(TimeSpan.FromDays(20));
+                var acquired = false;
+                Block(() => acquired = gate.Wait(remaining < poll ? remaining : poll));
+                if (acquired) return;
+                if (remaining <= TimeSpan.Zero)
+                    throw LiteException.LockTimeout("Shared local owner", Timeout(TimeSpan.FromSeconds(60)));
+                checkExitedOwner();
+            }
+        }
+
         internal static void Clamp(TimeSpan timeout)
         {
             var budget = _current?._budget;

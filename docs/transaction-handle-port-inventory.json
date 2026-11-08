@@ -1,13 +1,13 @@
 {
-  "step": "P4-S3-DIRECT-API",
+  "step": "P4-S5-SHARED (qualification pending)",
   "sourceApiHead": "5e2f5c2451abf0d1a28d255ea30efd74ef54b4ff",
-  "note": "3118 source binding suites were consolidated/expanded by 3119; Direct cases ported from that head. Existing step-2 internal suites retained unchanged. Shared, cooperative waiting and close/reaper suites are steps 4\u20136; no Shared support is claimed. No ReproRunner case was added, so its exact inventory is unchanged.",
+  "note": "Synchronous Direct and Shared handle integration. Exact-head hosted results remain pending; no platform qualification claimed by this inventory.",
   "tests": [
     {
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Mapper_reentry_cannot_complete_or_escape_the_enclosing_operation",
       "sourceHead": "2dd36114c54c9e0361418cdba859f3d6ae8fcb08",
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Mapper_reentry_cannot_complete_or_escape_the_enclosing_operation",
-      "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
+      "disposition": "Direct and legacy Shared rows enabled, original binding assertions retained.",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
       "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
@@ -23,7 +23,7 @@
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Bound_indexes_queries_and_deferred_objects_preserve_their_owner",
       "sourceHead": "2dd36114c54c9e0361418cdba859f3d6ae8fcb08",
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Bound_indexes_queries_and_deferred_objects_preserve_their_owner",
-      "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
+      "disposition": "Direct and legacy Shared rows enabled, original binding assertions retained.",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
       "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
@@ -39,7 +39,7 @@
       "source": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Read_only_handles_query_and_complete_without_granting_writes",
       "sourceHead": "2dd36114c54c9e0361418cdba859f3d6ae8fcb08",
       "destination": "LiteDB.Tests/Engine/TransactionHandleBinding_Tests.cs#Read_only_handles_query_and_complete_without_granting_writes",
-      "disposition": "Direct assertions ported; Shared theory rows remain disabled with public Shared API until step 5",
+      "disposition": "Direct and legacy Shared rows enabled, original binding assertions retained.",
       "invariant": "Retain all Direct public binding, ownership, rollback and lifetime assertions",
       "hostedResult": "Exact-head standard and targeted safety workflow artifacts are authoritative; step log records candidate SHA and run URLs."
     },
@@ -242,6 +242,86 @@
       "disposition": "Ported public cases; logical lease replaces historical Explicit/Slot fields and raw reentry uses current InvalidOperationException contract.",
       "invariant": "Engine-loss refuses commit before publication and prevents automatic fallback; raw callbacks cannot complete or escape bound ownership.",
       "hostedResult": "Exact-head standard and targeted safety artifacts; step log records SHA/run URLs."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#Completed_handle_does_not_root_abandoned_session_and_active_handle",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleAbandonment_Tests.cs#Completed_handle_does_not_root_abandoned_session_and_active_handle",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCloseRace_Tests.cs#Close_racing_handles_keeps_exactly_the_acknowledged_commits",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Completed_undisposed_handle_releases_everything_it_owned",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Completed_undisposed_handle_releases_everything_it_owned",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Maintenance_respects_a_lease_taken_on_another_thread_and_runs_after_completion",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Handles_work_on_memory_and_temporary_storage",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Engine/TransactionHandleCompletion_Tests.cs#Handles_work_on_memory_and_temporary_storage",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_excludes_file_replacement_and_rekey_without_mutation",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Open_handle_excludes_file_replacement_and_rekey_without_mutation",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses",
+      "disposition": "Ported source Completion/CloseRace/Abandonment assertions; new mapped/legacy process/tenure obligations adapted to existing participant/core.",
+      "invariant": "Retain native ownership while the handle is active, detach terminal leases exactly once, preserve committed indexed data.",
+      "hostedResult": "Pending; step log is authoritative."
     }
   ],
   "waitProtocolStep": "P4-S4-WAITS",
