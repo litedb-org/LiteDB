@@ -793,6 +793,16 @@
       "disposition": "strengthened",
       "invariant": "All nine retirement cuts, repeated interruptions and all 64 subsets of six legacy ephemeral entries preserve database/WAL bytes and persistent admission ownership files.",
       "reason": "Final-head macOS P1 net10 run42437670381 failed the exact-directory assertion because Darwin intentionally retains .litedb-admission. Snapshot exact preexisting root entries and files before seeding legacy state; require every entry and byte to survive, allow only the explicitly added WAL, and require exactly six newly seeded ephemeral files rather than misclassifying persistent admission as an ephemeral resurrection candidate. No cut, recovery retry, refusal, data assertion or timeout is removed."
+    },
+    {
+      "id": "p3-integrate-windows-mixed-wake-inventory",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/scripts/p3_windows_qualification.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Windows full/stress qualification executes every portable mapped case without skips; Linux futex syscall cases remain in Linux full and ARM64 matrices.",
+      "reason": "Mac qualification expands a wake-edge theory to OneFileTheory, causing Windows discovery to correctly include its mixed portable/Linux-futex class. Run42440188749 net8 shard6 reported4portable passes and4LinuxFutexFact skips. Record those source-attributed Linux-only methods explicitly in Windows inventory and exclude only them from the Windows filter, retaining strict audit rejection of any eligible skipped, failed, missing or empty result. New unit tests pin the four kernel-specific exclusions, retain the portable theory in both full/stress sets, and require no exclusions for request safety. No test attributes, Linux workflow, session limit or repetition count changes."
     }
   ]
 }

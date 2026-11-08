@@ -30,6 +30,25 @@ def classes(stress=False):
     return sorted(selected)
 
 
+def linux_only_methods(name):
+    """Inventory kernel-specific cases separately from portable methods in a class."""
+    for path in (ROOT / 'LiteDB.Tests').rglob('*.cs'):
+        source = path.read_text(encoding='utf-8-sig', errors='replace')
+        namespace = re.search(r'namespace\s+([\w.]+)', source)
+        if namespace is None or namespace.group(1) != name.rsplit('.', 1)[0]:
+            continue
+        if not re.search(r'public\s+(?:(?:sealed|partial)\s+)*class\s+' + re.escape(name.rsplit('.', 1)[1]) + r'\b', source):
+            continue
+        methods = re.findall(r'\[LinuxFutex(?:Fact|Theory)\][\s\S]*?public\s+(?:async\s+)?(?:void|Task)\s+(\w+)', source)
+        return sorted(methods)
+    return []
+
+
+def qualification_filter(name):
+    return f'FullyQualifiedName~{name}.' + ''.join(
+        f'&FullyQualifiedName!~{name}.{method}' for method in linux_only_methods(name))
+
+
 def audit(path, expected):
     tree = ET.parse(path)
     definitions = {t.attrib['id']: t.find('t:TestMethod', NS).attrib['className'].split(',')[0]
@@ -63,13 +82,14 @@ def main():
     os.environ['LITEDB_EXPECTED_ARCHITECTURE'] = 'X64'
     selected = classes(args.stress)[args.shard::args.shards]
     report = {'sha': os.environ.get('GITHUB_SHA'), 'framework': args.framework,
-              'classes': selected, 'runs': [], 'errors': []}
+              'classes': selected, 'linuxOnlyMethods': {name: linux_only_methods(name) for name in selected},
+              'runs': [], 'errors': []}
     for repeat in range(args.repeat):
         for name in selected:
             trx = output / f'{name}-{repeat}.trx'
             command = ['dotnet', 'test', 'LiteDB.Tests/LiteDB.Tests.csproj', '-c', 'Release',
                        '-f', args.framework, '--no-build', '-p:TestingEnabled=true',
-                       '--settings', 'tests.runsettings', '--filter', f'FullyQualifiedName~{name}.',
+                       '--settings', 'tests.runsettings', '--filter', qualification_filter(name),
                        '--logger', f'trx;LogFileName={trx.name}', '--results-directory', str(output)]
             result = subprocess.run(command, cwd=ROOT)
             try:
