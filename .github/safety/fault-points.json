@@ -1826,6 +1826,30 @@
           "proves": "Child reaches each removal boundary, is killed without disposal, and retry is interrupted again; data/WAL bytes remain identical."
         }
       ]
+    },
+    {
+      "family": "process-crash",
+      "name": "handle-before-release",
+      "protocol": "Shared handle logical hold release",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer",
+          "model": "process-death",
+          "proves": "Killed Shared handle completion releases native tenure; already-live survivor and two cold opens preserve atomic payloads, indexes and acknowledged rows."
+        }
+      ]
+    },
+    {
+      "family": "process-crash",
+      "name": "handle-after-release",
+      "protocol": "Shared handle logical hold release",
+      "evidence": [
+        {
+          "test": "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer",
+          "model": "process-death",
+          "proves": "Killed Shared handle completion releases native tenure; already-live survivor and two cold opens preserve atomic payloads, indexes and acknowledged rows."
+        }
+      ]
     }
   ],
   "injectors": [

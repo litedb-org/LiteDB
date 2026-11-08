@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,8 +11,14 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class TransactionHandleSharedTenure_Tests
     {
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public void Mapped_External_engine_close_fences_late_completion_and_detaches_the_failed_handle(bool mapped) => External_engine_close_fences_late_completion_and_detaches_the_failed_handle(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public void External_engine_close_fences_late_completion_and_detaches_the_failed_handle(bool mapped)
         {
             using var file = new TempFile();
@@ -31,8 +36,14 @@ namespace LiteDB.Internals
             Assert.Null(cold.GetCollection("rows").FindById(1));
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public void Mapped_Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers(bool mapped) => Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public void Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers(bool mapped)
         {
             using var file = new TempFile();
@@ -83,9 +94,16 @@ namespace LiteDB.Internals
             }
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false, false)] [InlineData(true, false)]
-        [InlineData(false, true)] [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void Mapped_Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion(bool mapped, bool readOnly) => Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion(mapped, readOnly);
+#endif
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
         public void Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion(bool mapped, bool readOnly)
         {
             using var file = new TempFile();
@@ -110,8 +128,14 @@ namespace LiteDB.Internals
             Assert.Equal(readOnly ? 1 : 2, cold.GetCollection("rows").Count());
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses(bool mapped) => Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses(bool mapped)
         {
             using var file = new TempFile();
@@ -138,4 +162,3 @@ namespace LiteDB.Internals
         }
     }
 }
-#endif

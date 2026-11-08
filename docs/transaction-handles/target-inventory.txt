@@ -131,3 +131,6 @@ LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs
 LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs
 LiteDB.Tests/Internals/TransactionHandleSharedWaitGuards_Tests.cs
 LiteDB.Tests/Issues/Issue1344SnapshotCursor_Tests.cs
+LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs
+LiteDB.Tests/Internals/HandleProcess.cs
+LiteDB.Tests.HandleHarness/Program.cs

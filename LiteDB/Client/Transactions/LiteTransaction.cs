@@ -232,6 +232,7 @@ namespace LiteDB
                 if (!ReferenceEquals(_executing, Thread.CurrentThread))
                     throw new InvalidOperationException("A bound engine call requires its transaction operation.");
             using var binding = TransactionContext.Enter(_transaction);
+            if (!authorizeEngine) return action();
             using var dispatch = TransactionContext.Dispatch(_transaction.Engine);
             return action();
         }

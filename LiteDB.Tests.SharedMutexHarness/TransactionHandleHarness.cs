@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Linq;
 using LiteDB;
 using LiteDB.Client.Shared;
 using System.Reflection;
@@ -66,9 +69,31 @@ internal static class TransactionHandleHarness
                     if (new System.IO.FileInfo(logPath).Length <= before)
                         throw new InvalidOperationException("The open handle did not spill uncommitted WAL frames.");
                     Console.WriteLine("written"); break;
+                case "compete":
+                    var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                    turnstile.BeforeMainWait = () => Console.WriteLine("waiting");
+                    using (var peer = db.BeginTransaction())
+                    {
+                        peer.GetCollection("peer").Insert(new BsonDocument { ["_id"] = 1 });
+                        peer.Commit();
+                    }
+                    Console.WriteLine("progress"); break;
                 case "commit": tx.Commit(); Console.WriteLine("committed"); break;
+                default:
+                    if (!command.StartsWith("cut:", StringComparison.Ordinal)) throw new InvalidOperationException(command);
+                    var cut = command.Substring(4);
+                    Action reached = () => { Console.WriteLine("cut"); Console.ReadLine(); };
+                    EngineState.SimulateProcessCrash = phase => { if (phase == cut) reached(); };
+                    tx.Commit();
+                    if (cut == "ack")
+                    {
+                        using (var ledger = new FileStream(filename + ".ack", FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                        { ledger.WriteByte(1); ledger.Flush(true); }
+                        reached();
+                    }
+                    throw new InvalidOperationException("Unreached cut " + cut);
                 case "close": tx?.Dispose(); Console.WriteLine("done"); return true;
-                default: throw new InvalidOperationException(command);
+
             }
         }
         return true;

@@ -30,7 +30,8 @@ namespace LiteDB.Tests.Internals
                 seed.Checkpoint();
             }
             var engines = Enumerable.Range(0, 3).Select(_ => new LiteEngine(file.Filename)).ToArray();
-            var handles = engines.Select(e => e.BeginHandleTransaction()).ToArray();
+            var databases = engines.Select(e => new LiteDatabase(e, disposeOnClose: false)).ToArray();
+            var handles = databases.Select(db => db.BeginTransaction()).ToArray();
             using var firstSync = new ManualResetEventSlim();
             using var secondSync = new ManualResetEventSlim();
             using var releaseFirst = new ManualResetEventSlim();
@@ -58,13 +59,12 @@ namespace LiteDB.Tests.Internals
                 {
                     if (noop)
                     {
-                        Assert.Equal(0, handles[index].Invoke(e => e.Delete("rows", new BsonValue[] { 99 })));
-                        Assert.True(handles[index].Transaction.Pages.CommitTicket > 0);
+                        Assert.False(handles[index].GetCollection("rows").Delete(99));
                         noopReady.Set();
                     }
-                    else handles[index].Invoke(e => e.Insert("rows", new[] { TransactionHandleProcessHost_Tests.Row(index + 1) }, BsonAutoId.Int32));
-                    Assert.True(handles[index].Invoke(e => e.Commit()));
-                    Assert.Equal(LiteTransactionState.Committed, handles[index].Outcome);
+                    else handles[index].GetCollection("rows").Insert(TransactionHandleProcessHost_Tests.Row(index + 1));
+                    handles[index].Commit();
+                    Assert.Equal(LiteTransactionState.Committed, handles[index].State);
                     Interlocked.Increment(ref acknowledged);
                     return null;
                 }
@@ -94,11 +94,12 @@ namespace LiteDB.Tests.Internals
                 await Complete(Task.WhenAll(tasks));
                 Assert.Equal(failingSync == 0 ? 3 : failingSync - 1, acknowledged);
                 Assert.Equal(failingSync == 1 ? 1 : 2, syncs);
+                Assert.All(databases, db => Assert.Equal(0, db.TransactionHandles.ActiveCount));
                 if (failingSync == 0) Assert.All(tasks, task => Assert.Null(task.Result));
                 else
                 {
                     Assert.All(tasks.Skip(failingSync - 1), task => Assert.IsAssignableFrom<IOException>(task.Result));
-                    Assert.All(handles.Skip(failingSync - 1), handle => Assert.Equal(LiteTransactionState.Indeterminate, handle.Outcome));
+                    Assert.All(handles.Skip(failingSync - 1), handle => Assert.Equal(LiteTransactionState.Indeterminate, handle.State));
                     foreach (var engine in engines)
                         Assert.ThrowsAny<IOException>(() => engine.Insert("escape", new[] { TransactionHandleProcessHost_Tests.Row(99) }, BsonAutoId.Int32));
                 }
@@ -111,6 +112,8 @@ namespace LiteDB.Tests.Internals
                 {
                     EngineState.SimulateProcessCrash = null;
                     NativeFileSync.SimulateErrno = null;
+                    foreach (var handle in handles) handle.Dispose();
+                    foreach (var db in databases) db.Dispose();
                     foreach (var engine in engines) engine.Dispose();
                 }
             }

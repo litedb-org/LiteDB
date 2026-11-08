@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net462;net481;net8.0;net10.0</TargetFrameworks>
@@ -78,6 +78,19 @@
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../LiteDB.Tests.HandleHarness/HandleHarness.csproj" ReferenceOutputAssembly="false"
+      AdditionalProperties="TestingEnabled=true" SetTargetFramework="TargetFramework=$(TargetFramework)" Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'" />
+    <ProjectReference Include="../LiteDB.Tests.HandleHarness/HandleHarness.csproj" ReferenceOutputAssembly="false"
+      AdditionalProperties="TestingEnabled=true" SetTargetFramework="TargetFramework=net8.0" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'" />
+  </ItemGroup>
+  <Target Name="CopyHandleProbe" AfterTargets="Build">
+    <PropertyGroup><HandleProbeFramework Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">$(TargetFramework)</HandleProbeFramework>
+      <HandleProbeFramework Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'">net8.0</HandleProbeFramework></PropertyGroup>
+    <ItemGroup><HandleProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.HandleHarness/bin/$(Configuration)/$(HandleProbeFramework)/*" /></ItemGroup>
+    <Error Condition="'@(HandleProbeFiles)' == ''" Text="Handle probe output missing" />
+    <Copy SourceFiles="@(HandleProbeFiles)" DestinationFolder="$(OutDir)handle-probe" SkipUnchangedFiles="true" />
+  </Target>
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net10.0'">
     <ProjectReference Include="..\LiteDB.Tests.SharedMutexHarness\SharedMutexHarness.csproj"
                       ReferenceOutputAssembly="false" AdditionalProperties="TestingEnabled=true" />

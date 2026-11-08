@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -11,8 +10,14 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class TransactionHandleSharedAbandonment_Tests
     {
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public void Mapped_Holder_context_does_not_root_abandoned_facade_or_open_handle(bool mapped) => Holder_context_does_not_root_abandoned_facade_or_open_handle(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public void Holder_context_does_not_root_abandoned_facade_or_open_handle(bool mapped)
         {
             using var file = new TempFile();
@@ -60,4 +65,3 @@ namespace LiteDB.Internals
         }
     }
 }
-#endif

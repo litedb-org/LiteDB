@@ -116,7 +116,26 @@
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data",
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars",
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably",
-      "LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders"
+      "LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders",
+      "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs#Every_classified_entry_refuses_raw_handle_callback_reentry",
+      "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs#Every_classified_entry_refuses_raw_read_transform_reentry",
+      "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs#Every_public_engine_member_is_classified",
+      "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs#Handle_tickets_cover_captured_prefix_and_zero_frame_dependencies",
+      "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs#Mapped_Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state",
+      "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Actual_shared_maintenance_waits_for_handle_then_rekeys_successfully",
+      "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer",
+      "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Sustained_successor_handles_cannot_starve_pending_process",
+      "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Mapped_Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Database_close_cancels_native_begin_without_releasing_remote_handle",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Interrupted_begin_retires_only_its_native_request_and_successor_progresses",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Open_handle_excludes_file_replacement_and_rekey_without_mutation",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes",
+      "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs#Mapped_Turnstile_deadline_releases_partial_request_and_next_handle_progresses",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_External_engine_close_fences_late_completion_and_detaches_the_failed_handle",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Failed_spill_discards_the_core_releases_the_handle_and_next_generation_recovers",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Retained_pin_survives_creator_exit_and_releases_once_after_foreign_completion",
+      "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs#Mapped_Waiting_handle_times_out_without_stealing_live_generation_and_then_reuses"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

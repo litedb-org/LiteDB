@@ -200,9 +200,15 @@ namespace LiteDB
                 if (ReferenceEquals(_shared._handleLease, this)) _shared._handleLease = null;
                 // Detach logical identity before the final hold release, while
                 // the completing operation still excludes a successor.
+#if DEBUG || TESTING
+                EngineState.SimulateProcessCrash?.Invoke("handle-before-release");
+#endif
                 _pin.UnbindHandle(_identity);
                 try { _shared.CloseDatabase(_pin, hold: true); }
                 finally { Interlocked.Exchange(ref _local, null)?.Dispose(); }
+#if DEBUG || TESTING
+                EngineState.SimulateProcessCrash?.Invoke("handle-after-release");
+#endif
             }
         }
     }

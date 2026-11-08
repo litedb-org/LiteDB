@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Linq;
 using System.Reflection;
@@ -14,16 +13,23 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class TransactionHandleSharedProcess_Tests
     {
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false, false)] [InlineData(true, false)]
-        [InlineData(false, true)] [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public Task Mapped_Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped, bool readOnly) => Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(mapped, readOnly);
+#endif
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
         public async Task Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped, bool readOnly)
         {
             using var file = new TempFile();
             Seed(file);
             var mode = mapped ? "handle-mapped" : "handle-legacy";
-            using (var holder = new MvccProcess(readOnly ? (mapped ? "handle-readonly-mapped" : "handle-readonly-legacy") : mode, file, null))
-            using (var waiter = new MvccProcess(mode, file, null))
+            using (var holder = new HandleProcess(readOnly ? (mapped ? "handle-readonly-mapped" : "handle-readonly-legacy") : mode, file, null))
+            using (var waiter = new HandleProcess(mode, file, null))
             {
                 await holder.Expect("ready"); await waiter.Expect("ready");
                 holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
@@ -39,20 +45,26 @@ namespace LiteDB.Internals
             Verify(file, !readOnly);
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(bool mapped) => Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(bool mapped)
         {
             using var file = new TempFile(); Seed(file);
             var mode = mapped ? "handle-mapped" : "handle-legacy";
-            using (var holder = new MvccProcess(mode, file, null))
+            using (var holder = new HandleProcess(mode, file, null))
             {
                 await holder.Expect("ready");
                 holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
                 holder.Send("write"); await holder.Expect("written");
                 await holder.Kill();
             }
-            using (var survivor = new MvccProcess(mode, file, null))
+            using (var survivor = new HandleProcess(mode, file, null))
             {
                 await survivor.Expect("ready");
                 survivor.Send("begin"); await survivor.Expect("attempting"); await survivor.Expect("begun");
@@ -62,12 +74,18 @@ namespace LiteDB.Internals
             Verify(file, false);
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Open_handle_excludes_file_replacement_and_rekey_without_mutation(bool mapped) => Open_handle_excludes_file_replacement_and_rekey_without_mutation(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Open_handle_excludes_file_replacement_and_rekey_without_mutation(bool mapped)
         {
             using var file = new TempFile(); Seed(file);
-            using (var holder = new MvccProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
+            using (var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
             {
                 await holder.Expect("ready");
                 holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
@@ -82,14 +100,20 @@ namespace LiteDB.Internals
             Verify(file, false);
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Interrupted_begin_retires_only_its_native_request_and_successor_progresses(bool mapped) => Interrupted_begin_retires_only_its_native_request_and_successor_progresses(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Interrupted_begin_retires_only_its_native_request_and_successor_progresses(bool mapped)
         {
             using var file = new TempFile(); Seed(file);
             using (var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped }))
             using (var db = new LiteDatabase(engine))
-            using (var holder = new MvccProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
+            using (var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
             using (var waiting = new ManualResetEventSlim())
             {
                 _ = db.Timeout;
@@ -115,15 +139,21 @@ namespace LiteDB.Internals
             Verify(file, true);
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Database_close_cancels_native_begin_without_releasing_remote_handle(bool mapped) => Database_close_cancels_native_begin_without_releasing_remote_handle(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Database_close_cancels_native_begin_without_releasing_remote_handle(bool mapped)
         {
             using var file = new TempFile(); Seed(file);
             using var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped });
             var db = new LiteDatabase(engine);
             _ = db.Timeout;
-            using var holder = new MvccProcess(mapped ? "handle-mapped" : "handle-legacy", file, null);
+            using var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null);
             await holder.Expect("ready");
             holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
             using var waiting = new ManualResetEventSlim();
@@ -144,8 +174,14 @@ namespace LiteDB.Internals
             Verify(file, true);
         }
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false)] [InlineData(true)]
+        [InlineData(true)]
+        public Task Mapped_Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped) => Turnstile_deadline_releases_partial_request_and_next_handle_progresses(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
         public async Task Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped)
         {
             using var file = new TempFile(); Seed(file);
@@ -153,7 +189,7 @@ namespace LiteDB.Internals
             using (var db = new LiteDatabase(engine))
             {
                 _ = db.Timeout;
-                using (var blocker = new MvccProcess(mapped ? "handle-turnstile-mapped" : "handle-turnstile-legacy", file, null))
+                using (var blocker = new HandleProcess(mapped ? "handle-turnstile-mapped" : "handle-turnstile-legacy", file, null))
                 {
                     await blocker.Expect("held");
                     var error = await Task.Run(() => Assert.Throws<LiteException>(() => db.BeginTransaction()));
@@ -198,4 +234,3 @@ namespace LiteDB.Internals
         }
     }
 }
-#endif

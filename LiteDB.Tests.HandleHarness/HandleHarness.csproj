@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net462;net481;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SharedMutexHarness</AssemblyName>
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../LiteDB/LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
+    <Compile Include="../LiteDB.Tests.SharedMutexHarness/TransactionHandleHarness.cs" Link="TransactionHandleHarness.cs" />
+  </ItemGroup>
+</Project>

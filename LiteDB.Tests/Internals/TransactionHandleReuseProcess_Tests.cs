@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Linq;
 using System.Threading;
@@ -17,9 +16,16 @@ namespace LiteDB.Tests.Internals
     {
         private const int Rows = 64;
 
+#if NET8_0_OR_GREATER
         [OneFileTheory]
-        [InlineData(false, null)] [InlineData(false, "secret")]
-        [InlineData(true, null)] [InlineData(true, "secret")]
+        [InlineData(true, null)]
+        [InlineData(true, "secret")]
+        public Task Mapped_Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state(bool mapped, string password) => Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state(mapped, password);
+#endif
+
+        [Theory]
+        [InlineData(false, null)]
+        [InlineData(false, "secret")]
         public async Task Another_process_writes_within_its_bound_and_reused_handles_never_read_stale_state(bool mapped, string password)
         {
             using var file = new TempFile();
@@ -43,7 +49,7 @@ namespace LiteDB.Tests.Internals
                 {
                     // The peer's Shared connection waits at most 1 s for writer ownership. It commits,
                     // replaces the index and checkpoints, so the data file itself changed meanwhile.
-                    await MvccProcess.Run(mapped ? "handle-reuse-mapped" : "handle-reuse-legacy", file, password, round.ToString());
+                    await HandleProcess.Run(mapped ? "handle-reuse-mapped" : "handle-reuse-legacy", file, password, round.ToString());
                     using (var tx = db.BeginTransaction())
                     {
                         Assert.NotSame(previousCore, ((LiteTransaction)tx).Storage);
@@ -82,4 +88,3 @@ namespace LiteDB.Tests.Internals
         }
     }
 }
-#endif
