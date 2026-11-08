@@ -1040,7 +1040,7 @@
       "kind": "ci-test-config-changed",
       "subjects": [
         ".github/workflows/fuzz.yml",
-        ".github/workflows/p4-qualification.yml",
+        ".github/workflows/full-ci.yml",
         "scripts/qualify-handles.ps1"
       ],
       "disposition": "strengthened",

@@ -348,3 +348,5 @@ including two torn recovery attempts. Full payload/index and untouched-data
 oracles also check read-only byte preservation and successful root/WAL removal on
 retry. The latest data/WAL images are saved before recovery checks. Keeping this
 target separate preserves the existing retirement corpus input and trace hashes.
+
+`transaction-handle` checks retired-thread commit, rollback and facade abandonment against an independent full-state/index model on Direct and default/legacy Shared, including encrypted files and repeated cold reopen. Direct turns interleave two handles on peer facades with independent commit/rollback outcomes.
