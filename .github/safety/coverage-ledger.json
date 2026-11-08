@@ -25,6 +25,7 @@
     }
   ],
   "dispositions": [
+    {"id": "p3-darwin-bounded-allocation", "kind": "ci-test-config-changed", "subjects": [".github/workflows/p3-darwin-allocation.yml", ".github/scripts/darwin_allocation.py"], "disposition": "strengthened", "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.", "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."},
     {
       "id": "p3-integrated-windows-death-lock-observation",
       "kind": "harness-changed",
