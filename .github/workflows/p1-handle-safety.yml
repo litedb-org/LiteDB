@@ -35,9 +35,13 @@ jobs:
           # five-minute runsettings limit now that mapped Windows cases execute.
           $wal = "($all)&($other)&FullyQualifiedName~Wal"
           $remaining = "($all)&($other)&FullyQualifiedName!~Wal"
+          $nonSharedWal = "($wal)&FullyQualifiedName!~Shared"
+          $heavyWal = 'FullyQualifiedName~WalCombinedPowerLoss_Tests|FullyQualifiedName~WalSlotReuse_Tests'
           $filters = @(
             $coordinated, $core,
-            "($wal)&FullyQualifiedName~Shared", "($wal)&FullyQualifiedName!~Shared",
+            "($wal)&FullyQualifiedName~Shared",
+            "($nonSharedWal)&($heavyWal)",
+            "($nonSharedWal)&FullyQualifiedName!~WalCombinedPowerLoss_Tests&FullyQualifiedName!~WalSlotReuse_Tests",
             "($remaining)&FullyQualifiedName~SharedOneFile",
             "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName~Rebuild",
             "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName!~Rebuild"
