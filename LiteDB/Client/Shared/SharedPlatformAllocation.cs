@@ -67,6 +67,7 @@ namespace LiteDB.Client.Shared
             // A crash here leaves an empty authority that bootstrap can retry.
             if (ftruncate(file.SafeFileHandle, 0) != 0) return Marshal.GetLastWin32Error();
 #if DEBUG || TESTING
+            LiteDB.Utils.Reachability.FaultPoint("DarwinTruncated");
             DarwinTruncated?.Invoke();
 #endif
             var store = new DarwinFStore
