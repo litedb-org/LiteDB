@@ -177,6 +177,9 @@ jobs:
           $framework = if (${{ matrix.runtime }} -eq 10) { 'net10.0' } else { 'net8.0' }
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $framework -p:TestingEnabled=true -p:GitVersionEnabled=false
           if ($LASTEXITCODE) { throw 'Build failed' }
+          @{ sha = (git rev-parse HEAD); framework = $framework; sdk = (dotnet --version);
+             librarySha256 = (Get-FileHash "LiteDB/bin/Release/$framework/LiteDB.dll" -Algorithm SHA256).Hash } |
+            ConvertTo-Json | Set-Content LiteDB.Tests/bin/Release/build-evidence.json
       - name: Full suite with runtime and architecture guards
         shell: pwsh
         run: |
@@ -186,7 +189,11 @@ jobs:
         if: always()
         with:
           name: p4-intel-full-${{ matrix.runtime }}
-          path: LiteDB.Tests/TestResults/
+          path: |
+            LiteDB.Tests/TestResults/
+            LiteDB.Tests/bin/Release/
+            LiteDB.Tests.SharedMutexHarness/bin/Release/
+            LiteDB/bin/Release/
   handle-fuzz:
     if: inputs.handles_qualification
     name: Handle model seeds (${{ matrix.seed }})

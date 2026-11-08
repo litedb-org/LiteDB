@@ -1060,6 +1060,26 @@
       "coveredBy": [
         ".github/workflows/full-ci.yml"
       ]
+    },
+    {
+      "id": "p4-default-checkpoint-scope",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Original four native-mutex release assertions remain on explicit legacy Shared; four new default cases require scope exclusion and final-close release plus two durable reopens.",
+      "reason": "Exact7f2 hosted determinism job128732641262 failed two cases on each runtime8/10 because ordinary default mapped tenure legitimately retains the native mutex after commit. Focused local known-bad7f2 reproduces2failed/2passed. Preserve legacy per-operation release obligation and test default tenure separately; no production change or skipped case."
+    },
+    {
+      "id": "p4-intel-build-evidence",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Added Intel full suite records source build SHA and library hash and retains test binaries alongside runtime-guarded results.",
+      "reason": "Improve exact candidate artifact provenance without changing test selection or budgets."
     }
   ]
 }
