@@ -135,7 +135,7 @@ namespace LiteDB.Client.Shared
         {
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, IdleLimit, HoldLimit) { _tenure = tenure };
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB mapped writer holder" };
-            try { holder.Start(); }
+            try { SharedBackground.Start(holder); }
             catch { tenure.Dispose(); throw; }
             try { TransactionWaitBudget.Block(() => pin._acquired.Wait()); }
             catch

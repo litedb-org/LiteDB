@@ -378,6 +378,14 @@
       "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
       "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
       "hostedResult": "Pending exact-head CI."
+    },
+    {
+      "source": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "sourceHead": "a41df8463",
+      "destination": "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs#Holder_context_does_not_root_abandoned_facade_or_open_handle",
+      "disposition": "Adapted to current participant/tenure and existing TIMEOUT; no child wrapper or optional flow heuristic.",
+      "invariant": "Owner preservation, deadline cleanup, no stale reuse, indexed cold reopen.",
+      "hostedResult": "Pending exact-head CI."
     }
   ],
   "waitProtocolStep": "P4-S4-WAITS",

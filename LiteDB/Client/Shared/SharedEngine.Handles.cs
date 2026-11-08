@@ -16,7 +16,8 @@ namespace LiteDB
             get
             {
 #if NET8_0_OR_GREATER
-                if (_readers is SharedMemoryReaders mapped) return mapped.Table.HandleTimeout;
+                var table = (_readers as SharedMemoryReaders)?.Table;
+                if (table != null) return table.HandleTimeout;
 #endif
                 return TimeSpan.FromTicks(Interlocked.Read(ref _handleTimeoutTicks));
             }
@@ -26,7 +27,8 @@ namespace LiteDB
         {
             Interlocked.Exchange(ref _handleTimeoutTicks, timeout.Ticks);
 #if NET8_0_OR_GREATER
-            if (_readers is SharedMemoryReaders mapped) mapped.Table.HandleTimeout = timeout;
+            var table = (_readers as SharedMemoryReaders)?.Table;
+            if (table != null) table.HandleTimeout = timeout;
 #endif
         }
 
