@@ -1080,6 +1080,20 @@
       "disposition": "strengthened",
       "invariant": "Added Intel full suite records source build SHA and library hash and retains test binaries alongside runtime-guarded results.",
       "reason": "Improve exact candidate artifact provenance without changing test selection or budgets."
+    },
+    {
+      "id": "p4-integrated-intel-shared-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "relocated",
+      "invariant": "All current and future shared tests remain in exactly one complete-suite partition, with runtime/hooks guards in every session and the unchanged 300-second session ceiling. No assertion, cut, case or runtime/OS leg is removed.",
+      "reason": "Exact candidate9cbc Full CI42484774610 Intel net8 exhausted the cumulative shared-session budget after260 passing cases; the last case completed0.17seconds before abort. Completed Intel net9 same-head shared work totaled291.166seconds, leaving insufficient capacity. Split warm, maintenance, recovery and reader work into disjoint sessions plus a future-proof complement. Retained partial/full timing fixtures fail the180-second capacity guard before and pass after; fresh exact-head hosted qualification remains required.",
+      "coveredBy": [
+        ".github/scripts/test_ci_partition_capacity.py",
+        ".github/scripts/fixtures/p4-intel-shared-capacity.json"
+      ]
     }
   ]
 }
