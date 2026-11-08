@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Internals
         public void Wal_handle_preserves_exclusivity_truncation_and_disposal(bool durable, bool shared)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = durable, SharedMode = shared };
+            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = durable, SharedMode = shared, SharedOneFile = false };
             using var factory = settings.CreateLogFactory();
             // A factory, like DiskService, captures the setting at open, even when
             // its writer is created lazily after the caller changes the settings.
