@@ -1,67 +1,151 @@
 # Synchronous transaction handles
 
-`LiteDatabase.BeginTransaction()` returns an `ILiteTransaction` with independent
-ownership. Use `transaction.GetCollection<T>()` (or the BSON overload) for every
-participating operation. Ordinary database collections and SQL keep their own
-transactions, including calls from mapping/input callbacks.
+Use `BeginTransaction()` on a `LiteDatabase` or an `ILiteDatabase` whose provider
+implements `ILiteTransactionProvider`. It returns an independent `ILiteTransaction`.
+Existing `ILiteDatabase` implementations and engine decorators do not acquire this
+capability automatically; unsupported providers throw `NotSupportedException`
+before starting a transaction. Legacy `BeginTrans`, database `Commit` and database
+`Rollback` remain callable, with CS0618 warnings on the database API.
+
+Get collections and queries from the handle. Ordinary database collections never
+enlist in it. Use one handle sequentially: another `Thread` can take over after the
+previous call returns, including completion after the creator thread exits.
+Overlapping and callback reentrant calls are rejected. Close bound readers before
+commit; bound objects cannot be reused after completion or disposal.
+
+The following complete program is extracted, compiled with warnings as errors and
+executed by the transaction-handle compatibility workflow on .NET 8 and 10.
 
 ```csharp
-using (var transaction = database.BeginTransaction())
+using System;
+using System.IO;
+using System.Threading;
+using LiteDB;
+
+var directory = Path.Combine(Path.GetTempPath(), "litedb-handle-doc-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(directory);
+try
 {
-    transaction.GetCollection("items").Insert(new BsonDocument { ["_id"] = 1 });
-    transaction.Commit();
+    using var db = new LiteDatabase(Path.Combine(directory, "direct.db"));
+    db.Timeout = TimeSpan.FromSeconds(1);
+    using (var transaction = db.BeginTransaction())
+    {
+        var rows = transaction.GetCollection("rows");
+        rows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "committed" });
+        Exception failure = null;
+        // Join establishes sequential ownership transfer and transports worker failure.
+        var worker = new Thread(() =>
+        {
+            try { transaction.Commit(); }
+            catch (Exception error) { failure = error; }
+        });
+        worker.Start();
+        worker.Join();
+        if (failure != null) throw failure;
+    }
+#pragma warning disable CS0618 // Narrow bridge for the legacy migration example.
+    db.BeginTrans();
+    using (var sameFile = new LiteDatabase(Path.Combine(directory, "direct.db")))
+    {
+        try
+        {
+            using var forbidden = sameFile.BeginTransaction();
+            throw new Exception("Expected 141 behind this thread's legacy owner");
+        }
+        catch (LiteException error) when (error.ErrorCode == 141) { }
+    }
+    db.Rollback();
+#pragma warning restore CS0618
+    using (var abandonedWork = db.BeginTransaction())
+        abandonedWork.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+    if (db.GetCollection("rows").Count() != 1) throw new Exception("Dispose must roll back");
+
+    var connection = $"Filename={Path.Combine(directory, "shared.db")};Connection=Shared";
+    using var shared = new LiteDatabase(connection);
+    using var peer = new LiteDatabase(connection);
+    peer.Timeout = TimeSpan.FromSeconds(1);
+    using (var reader = shared.BeginTransaction())
+    {
+        _ = reader.GetCollection("rows").Count();
+        // Even a read-only Shared handle reserves the writer until completion.
+        try
+        {
+            using var blocked = peer.BeginTransaction();
+            throw new Exception("Expected TIMEOUT behind the held writer");
+        }
+        catch (LiteException error) when (error.ErrorCode == 120) { }
+        reader.Rollback();
+    }
+    using (var successor = peer.BeginTransaction()) successor.Commit();
+    Console.WriteLine("PASS documentation examples");
+}
+finally
+{
+    Directory.Delete(directory, true);
 }
 ```
 
-Direct files, memory, temporary storage, caller streams and filename Shared databases support sequential
-handoff to another thread, including after the creator exits. One handle cannot
-execute overlapping or reentrant operations. Close bound readers before commit;
-that refusal leaves the handle active. Dispose rolls back an active handle.
-Completed handles and their collections, queries and deferred results reject reuse.
-Statement failures end the handle; they cannot silently start an automatic transaction.
-Outcome remains observable after disposal, including Failed and Indeterminate.
-Committed reflects the configured durability contract (`DurableCommits=false`
-retains its documented weaker guarantee).
+`TIMEOUT` is the database timeout pragma (`Timeout` in C#). Each synchronous call samples one
+budget across local admission, native ownership and later nested lock waits;
+user work does not consume wait time. An idle handle may be completed elsewhere
+while another caller waits. Two handles on the same thread follow this waiting
+rule and can receive error 120. Do not wait for yourself when no other thread can
+complete the holder. No async API or ambient transaction flow is provided.
 
-Typed/BSON CRUD, indexes, vector queries, Include, deferred queries/readers and
-collection metadata are bound. SQL, file storage, drop/rename, maintenance and
-pragma mutation are outside the handle surface. Only `$cols` and `$indexes`
-metadata inputs are supported among system collections; external input/output is
-refused before side effects. Read-only handles support reads and completion.
+Legacy transactions remain bound to their thread. Error 141
+(`LiteException.SAME_THREAD_TRANSACTION`) refuses a conflicting same-thread
+legacy-owner operation immediately. In particular, if facade A owns a legacy
+transaction, `B.BeginTransaction()` for the same database on that thread throws
+141 (Q1), rather than waiting. Finish the legacy transaction on its owning thread
+before using that peer. Executing callbacks cannot wait for ownership on which
+they themselves depend.
 
-`ILiteDatabase` and `ILiteEngine` retain their member sets. The extension on
-`ILiteDatabase` requires the optional `ILiteTransactionProvider`. Custom engines
-and decorators are refused before admission; the database never unwraps a
-third-party decorator. Shared uses the existing holder, participant and retained core. Every handle reserves
-writer ownership for its whole lifetime, including a read-only handle. This can
-block writers in other processes until commit, rollback or disposal. The native
-mutex stays on its holder thread; sequential handle operations can change threads
-without releasing the transaction hold. Creator-thread exit does not abandon it. Shared handles refuse private storage,
-caller streams and Windows thread impersonation before admission. An identity
-refusal leaves an existing handle active for use after reverting impersonation.
+Shared handles reserve writer ownership for their entire active lifetime, even
+when they only read (Q2). Thread handoff retains the reservation. Other writers
+wait according to TIMEOUT; retained process-host or mapped-reader infrastructure
+does not make an active handle preemptible. Keep transactions short and dispose
+them deterministically.
 
-Legacy `BeginTrans`, `Commit` and `Rollback` remain thread-bound and issue CS0618
-warnings on both client declarations. Migrate to completion on the returned
-handle or narrowly suppress CS0618 for deliberately synchronous legacy code.
-A same-thread legacy owner blocks a new handle with error 141, including a peer
-Direct facade. Independent Direct handles begin immediately; competing collection
-writes wait under the existing TIMEOUT and fail with error 120. Each synchronous
-handle call samples TIMEOUT once and shares its remaining allowance across
-admission and collection waits. Only blocking wait time consumes the allowance;
-application callbacks and commit durability are not execution time limits.
-Collection waiters advance in FIFO order, and timeout removes only that waiter.
-An idle handle can complete on another thread while its creator waits; the creator
-thread alone does not cause error 141. Conflicting work inside an executing
-handle callback is refused with InvalidOperationException before blocking.
-Direct retains native admission for the host lifetime. Shared applies the same
-sampled wait allowance to local admission, mapped requests, pin and native waits.
-An open handle is one tenure unit: pressure never preempts its transaction or
-counts statements as separate completions. The existing 8-completion / 1 ms
-pressure budget is checked when the handle releases its final hold, before a
-successor transaction can reuse a tenure due to yield. A waiter can time out while
-an idle handle stays active; callers must arrange completion on another thread.
-Shared samples the last safely observed TIMEOUT. Mapped startup captures it during
-protected validation (whose separate 5-second bound remains unchanged). A legacy
-cold facade starts with 60 seconds, then clamps to a smaller safely learned timeout;
-a remote pragma change applies only after a safe refresh. There is no
-async API or ambient enlistment.
+Disposing an active handle rolls back. Commit/rollback set the outcome; disposal
+does not change a known committed outcome into rollback. An uncertain commit can
+report `Indeterminate`; establish the outcome by reading after recovery before
+retrying business operations. Dropping a reference or ending the creator thread
+does not release a handle retained by a live database. Closing the database
+refuses new begins, cancels pending acquisition, rolls back idle handles and
+drains executing calls/readers. Closing from its own executing callback is
+refused. An unreachable database/handle graph can be cleaned by a reaper, with no
+GC timing guarantee. Explicitly dispose caller-owned streams and databases as
+required by their ownership contracts. See [lifetime details](transaction-handles/lifetime.md).
+
+To migrate from `BeginTrans()`, replace the boolean begin with a `using` handle,
+get every transactional collection from that handle, and call its `Commit()` or
+`Rollback()`. Dispose without commit to roll back. Do not call database `Commit()`
+to complete a handle. Existing code can temporarily use
+`<WarningsNotAsErrors>CS0618</WarningsNotAsErrors>` when treating other warnings as
+errors. Custom providers must explicitly implement the optional capability;
+transparent legacy decorators continue to use the legacy transaction API.
+
+The [source inventory disposition](transaction-handles/source-inventory.md)
+records the source-port scope and remaining evidence boundaries.
+
+Supported storage and operation boundaries remain explicit: Direct files, memory,
+temporary storage and caller streams support handles; filename Shared handles
+refuse private storage and caller streams before admission. Windows thread
+impersonation is refused before Shared admission or use, leaving an existing
+handle usable after reverting identity. Typed/BSON CRUD, indexes, vector queries,
+Include, deferred readers and collection metadata are bound. SQL, file storage,
+drop/rename, maintenance and pragma mutation remain outside the handle surface.
+Only `$cols` and `$indexes` are supported system collection inputs. Statement
+errors terminate the handle; they cannot fall back to an automatic transaction.
+Commit reflects the configured durability contract, including the weaker
+`DurableCommits=false` guarantee.
+
+Direct retains native admission for the process-host lifetime. Shared retains the
+existing holder, participant and core; its 8-completion / 1 ms pressure budget is
+checked after the final logical hold releases. Pressure never preempts an active
+handle. Shared samples the last safely observed TIMEOUT. Mapped startup learns it
+under protected validation, whose separate 5-second bound is unchanged. A legacy
+cold facade starts with 60 seconds, then clamps to a smaller safely learned
+value; remote pragma changes require safe refresh. Application callbacks and
+commit durability are not bounded execution time. Collection waiter timeout
+removes only that FIFO waiter.

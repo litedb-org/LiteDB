@@ -96,7 +96,7 @@ def check(runner, args, root):
         (binaries["candidate"] / stale).unlink(missing_ok=True)
     shutil.copy2(candidate_dll, binaries["candidate"] / "LiteDB.dll")
 
-    transcripts, parent_api = {}, None
+    transcripts, surfaces, parent_api = {}, {}, None
     for version, directory in binaries.items():
         fixture = str(directory / "TransactionHandleValidation.dll")
         # The candidate must have the handle API; a parent that already has it (after #3064
@@ -108,8 +108,16 @@ def check(runner, args, root):
         library = loaded_library(text)
         if library is None or sha256(library) != hashes[version]:
             raise RuntimeError(f"{version}-binary loaded {library}, not the {version} DLL")
+        surface = runner.run(f"{version}-surface", ["dotnet", fixture, "surface"])
+        surfaces[version] = [line for line in surface.splitlines() if line.startswith("surface:")]
+        (runner.output / f"surface-{version}.txt").write_text("\n".join(surfaces[version]) + "\n")
         text = runner.run(f"{version}-parity", ["dotnet", fixture, "parity"], timeout=300)
         transcripts[version] = [line for line in text.splitlines() if line.startswith("parity:")]
+
+    if not surfaces["parent"] or surfaces["parent"] != surfaces["candidate"]:
+        raise RuntimeError("ILiteDatabase/ILiteEngine surface changed; see surface snapshots")
+    runner.run("exact-obsolete-declarations", ["dotnet", str(binaries["candidate"] / "TransactionHandleValidation.dll"), "obsolete"],
+               contains=("PASS exact obsolete declarations",))
 
     (runner.output / "parity-parent.txt").write_text("\n".join(transcripts["parent"]) + "\n", encoding="utf-8")
     (runner.output / "parity-candidate.txt").write_text("\n".join(transcripts["candidate"]) + "\n", encoding="utf-8")
@@ -135,6 +143,30 @@ def check(runner, args, root):
                build_command(copy_source(root, "targeted") / consumer.name, candidate_dll, framework,
                              root / "targeted-out", *strict, "-p:WarningsNotAsErrors=CS0618"),
                contains=("Build succeeded", "warning CS0618"), absent=(r"error CS",))
+
+    documentation = (SOURCE.parent.parent / "docs" / "transaction-handles.md").read_text(encoding="utf-8")
+    snippets = re.findall(r"```csharp\n(.*?)```", documentation, re.S)
+    if len(snippets) != 1:
+        raise RuntimeError("Expected one complete executable documentation example")
+    doc_project = copy_source(root, "doc-example") / "NewApi" / "NewApiConsumer.csproj"
+    (doc_project.parent / "Program.cs").write_text(snippets[0], encoding="utf-8")
+    runner.run("documentation-build", build_command(doc_project, candidate_dll, framework, root / "doc-out", *strict),
+               contains=("Build succeeded",), absent=(r"warning CS\d+", r"error CS\d+"))
+    runner.run("documentation-run", ["dotnet", str(root / "doc-out" / "NewApiConsumer.dll")],
+               contains=("PASS documentation examples",), timeout=120)
+
+    warning_project = copy_source(root, "exact-warnings") / "NewApi" / "NewApiConsumer.csproj"
+    calls = [f"{receiver}.{method}();" for receiver in ("concrete", "database")
+             for method in ("BeginTrans", "Commit", "Rollback")]
+    (warning_project.parent / "Program.cs").write_text(
+        'using LiteDB;\nusing var concrete = new LiteDatabase(":memory:");\nILiteDatabase database = concrete;\n'
+        + "\n".join(calls) + "\n", encoding="utf-8")
+    warnings = runner.run("exact-compile-warnings",
+        build_command(warning_project, candidate_dll, framework, root / "exact-warnings-out"),
+        contains=("Build succeeded",))
+    actual = set(int(line) for line in re.findall(r"Program.cs\((\d+),\d+\): warning CS0618", warnings))
+    if actual != set(range(4, 10)) or re.search(r"warning (?!CS0618)\w+", warnings):
+        raise RuntimeError(f"Expected CS0618 exactly at six legacy call sites, got {sorted(actual)}")
 
     new_api = copy_source(root, "new-api") / "NewApi" / "NewApiConsumer.csproj"
     runner.run("new-api-warnings-as-errors",

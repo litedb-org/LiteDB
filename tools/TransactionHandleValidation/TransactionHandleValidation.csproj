@@ -13,6 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="ApiSurface.cs" />
     <Compile Include="LegacyParity.cs" />
     <Compile Include="MockDatabase.cs" />
     <Compile Include="LegacyEngineDecorator.cs" />

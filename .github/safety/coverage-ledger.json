@@ -959,6 +959,20 @@
       "disposition": "strengthened",
       "invariant": "Every maintenance death, interrupted recovery and rollback case runs with unchanged per-case two repetitions and300-second test-host session limit, and every CI-discovered test belongs to exactly one full-suite partition.",
       "reason": "Run42440646177 Intelnet8 MaintenanceCrash session aborted after300s with57Passed/0Failed,13missing expected results and290.893s completed durations. Split Mac qualification into three existing theory sessions (42death,14recovery,12rollback selected cases), with runtime/hook guards per session. Full CI uses disjoint death/recovery/complement sessions, retaining rollback and future cases. Case-set conservation is checked against the prior complete qualification TRX; ordinary full CI retains its exact-discovery partition verification. No tests, repetitions, crash cuts, recovery/data assertions, timeout or matrix leg removed."
+    },
+    {
+      "id": "p4-s7-compatibility-package",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-transaction-handle-compatibility.py",
+        "tools/TransactionHandleValidation/Program.cs",
+        "tools/TransactionHandleValidation/TransactionHandleValidation.csproj",
+        ".github/workflows/transaction-handle-compatibility.yml",
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing precompiled current-dev consumer and parity remain. Add released 5.0.21 decorator, exact interface snapshots and six legacy call-site CS0618 warnings; actual documentation is compiled and run. Warm fixtures drain setup writer before priming and retain post-read release barrier.",
+      "reason": "Orchestrator instructed Phase3 integration and compatibility migration package. No old test removed or skipped. Both parent safety evidence sets retained; qualification prose adopts Phase3 platform coverage. The released decorator probe deliberately fails on a real ABI incompatibility instead of crediting current-dev-only results."
     }
   ]
 }

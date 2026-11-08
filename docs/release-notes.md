@@ -1,12 +1,18 @@
 # Release notes
 
+## v6 synchronous transaction handles
+
+Use the [transaction handle migration guide](transaction-handles.md) for bound
+collections, sequential thread handoff, TIMEOUT and error 141, Shared writer
+reservations, disposal, and migration from BeginTrans.
+
 ## Same-thread transaction writes (Phase 5 migration note)
 
 When one `LiteDatabase` has a legacy explicit transaction open, a write through
 another facade for the same file on that transaction's thread now fails
 immediately with `LiteException.SAME_THREAD_TRANSACTION`. Finish the transaction
-on its owning thread before using the peer facade. Phase 4 will introduce
-thread-independent transaction handles for coordinated cross-thread completion.
+on its owning thread before using the peer facade. Use the [synchronous transaction handle API](transaction-handles.md) for
+coordinated cross-thread completion.
 Reads keep their existing behavior, and legacy transactions remain thread-bound
 across `await` continuations.
 

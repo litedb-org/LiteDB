@@ -11,6 +11,12 @@ Console.WriteLine($"version={library.GetName().Version}");
 
 switch (scenario)
 {
+    case "surface":
+        ApiSurface.Print();
+        return 0;
+    case "obsolete":
+        ApiSurface.CheckObsolete();
+        return 0;
     case "binary":
         Binary();
         Console.WriteLine("PASS precompiled old ILiteDatabase implementation and legacy consumer");
