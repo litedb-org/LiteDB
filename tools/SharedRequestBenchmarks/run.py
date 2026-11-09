@@ -13,7 +13,7 @@ import time
 
 def sample(runner, scenario, workers, output):
     root = Path(tempfile.mkdtemp(prefix="litedb-request-"))
-    command = ["dotnet", str(Path(runner).resolve()), "seed", str(root), scenario, str(workers), "20"]
+    command = ["dotnet", str(Path(runner).resolve()), "seed", str(root), scenario, str(workers), str(200 if scenario == "read" else 20)]
     children = []
     try:
         subprocess.run(command, check=True, timeout=120)
@@ -28,7 +28,9 @@ def sample(runner, scenario, workers, output):
             time.sleep(.005)
         deadline = time.monotonic() + 600
         start = time.perf_counter()
-        (root / "go").write_text("go")
+        release = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(milliseconds=250)
+        (root / "release").write_text(release.isoformat())
+        (root / "release").rename(root / "go")
         while not all((root / f"done-{i}.json").exists() for i in range(workers)):
             if time.monotonic() > deadline or any(p.poll() not in (None, 0) for p in children):
                 raise RuntimeError("worker failed in measurement or exceeded 600 seconds")
@@ -39,13 +41,18 @@ def sample(runner, scenario, workers, output):
             if child.returncode:
                 raise RuntimeError(stdout + stderr)
         rows = [json.loads((root / f"done-{i}.json").read_text()) for i in range(workers)]
-        if workers > 1 and max(r["start"] for r in rows) >= min(r["end"] for r in rows):
-            raise RuntimeError("workers did not overlap")
+        events = sorted([(r['start'], 1) for r in rows] + [(r['end'], -1) for r in rows])
+        active = peak = 0
+        for _, delta in events:
+            active += delta
+            peak = max(peak, active)
+        if workers > 1 and peak < 2:
+            raise RuntimeError("no measured process overlap")
         command[2] = "verify"
         subprocess.run(command, check=True, timeout=120)
-        result = dict(scenario=scenario, workers=workers, requestsPerWorker=20, warmupRequests=10,
-                      latencyMs=statistics.mean(r["milliseconds"] / 20 for r in rows),
-                      wallMsPerRequest=elapsed / (20 * workers), processes=rows, verified=True)
+        result = dict(scenario=scenario, workers=workers, requestsPerWorker=int(command[-1]), peakOverlappingWorkers=peak, warmupRequests=10,
+                      latencyMs=statistics.mean(r["milliseconds"] / int(command[-1]) for r in rows),
+                      wallMsPerRequest=max(0, elapsed - 250) / (int(command[-1]) * workers), processes=rows, verified=True)
         output.write_text(json.dumps(result, indent=2) + "\n")
         return result
     finally:

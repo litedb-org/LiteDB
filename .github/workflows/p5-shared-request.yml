@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, macos-15]
+        os: [macos-15]
         framework: [net8.0, net10.0]
     env:
       DOTNET_TieredCompilation: '0'

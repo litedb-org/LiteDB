@@ -50,6 +50,9 @@ else if (mode == "worker")
         if (barrier.Elapsed.TotalSeconds > 120) throw new TimeoutException("start barrier");
         Thread.Sleep(1);
     }
+    var release = DateTime.Parse(File.ReadAllText(Path.Combine(root, "go")), null,
+        System.Globalization.DateTimeStyles.RoundtripKind);
+    while (DateTime.UtcNow < release) Thread.SpinWait(100);
     var start = DateTime.UtcNow;
     var clock = Stopwatch.StartNew();
     for (var i = 0; i < requests; i++) Request(path, i);
