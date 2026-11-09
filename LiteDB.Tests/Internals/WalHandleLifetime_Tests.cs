@@ -12,12 +12,14 @@ namespace LiteDB.Tests.Internals
     public class WalHandleLifetime_Tests
     {
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Wal_handle_preserves_exclusivity_truncation_and_disposal(bool durable)
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public void Wal_handle_preserves_exclusivity_truncation_and_disposal(bool durable, bool shared)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = durable };
+            var settings = new EngineSettings { Filename = file.Filename, DurableCommits = durable, SharedMode = shared };
             using var factory = settings.CreateLogFactory();
             // A factory, like DiskService, captures the setting at open, even when
             // its writer is created lazily after the caller changes the settings.
@@ -28,7 +30,7 @@ namespace LiteDB.Tests.Internals
                 Microsoft.Win32.SafeHandles.SafeFileHandle handle;
                 using (var stream = (FileStream)factory.GetStream(true, false))
                 {
-                    stream.IsAsync.Should().Be(durable && RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
+                    stream.IsAsync.Should().Be(durable && !shared && RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
                     handle = stream.SafeFileHandle;
                     stream.Write(new byte[] { 1, 2, 3 }, 0, 3);
                     stream.Flush();

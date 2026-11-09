@@ -122,7 +122,10 @@ a shared lock. Windows read-only Direct also takes an exclusive LockFileEx lock
 using GENERIC_READ only. Unix read-only Direct first takes a shared read-only
 Direct marker at admission + 2, then a shared admission lock, then probes for
 other admissions through its own descriptor (OFD_GETLK ignores its own locks).
-Shared publishes its admission before probing the marker. A racing incompatible
+Both legacy and mapped Shared publish admission before probing the marker,
+then claim their family byte (admission + 1 for legacy, + 3 for mapped) before
+checking the opposite family. Neither family claim overlaps the read-only marker.
+A racing incompatible
 pair therefore cannot both succeed. Distinct read-only Direct processes also
 refuse one another; compatible local facades reuse their host's admission.
 Linux OFD read locks work with O_RDONLY and never require database write access.
@@ -153,8 +156,9 @@ facade; new attachment is refused until owners release and a fresh engine opens.
 Read-only metadata getters can still read the live host after their facade is
 disposed; transaction operations and maintenance reject that disposed owner.
 
-The experimental coordinator continues its existing admission protocol; it is
-not converted into the Direct pool. Old LiteDB binaries do not participate in
+The experimental coordinator shares this native admission layer, but retains its
+own participant registry, mapping and result leases outside the Direct pool.
+Its internal cores bypass Direct host attachment. Old LiteDB binaries do not participate in
 this native protocol. Unix advisory locks do not exclude arbitrary applications
 that ignore them. Windows/macOS runtime execution and device/power-cut testing
 must be supplied separately from the Linux process tests.

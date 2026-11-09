@@ -15,6 +15,15 @@ namespace LiteDB
         private readonly Dictionary<string, string> _values;
         private int? _transactionPageLimit;
 
+        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
+        public bool SharedOneFile { get; set; }
+        /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
+        public long SharedMemorySize { get; set; }
+        /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>
+        public int SharedProcessCapacity { get; set; } = 256;
+        /// <summary>Distinct snapshot generations per process chosen at initialization (default 256).</summary>
+        public int SharedGenerationCapacity { get; set; } = 256;
+
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when
         /// beneficial and lazily promotes existing v11 databases to v12.
@@ -183,6 +192,10 @@ namespace LiteDB
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
+            this.SharedOneFile = _values.GetValue("shared one file", this.SharedOneFile);
+            this.SharedMemorySize = _values.GetFileSize("shared memory size", this.SharedMemorySize);
+            this.SharedProcessCapacity = _values.GetValue("shared process capacity", this.SharedProcessCapacity);
+            this.SharedGenerationCapacity = _values.GetValue("shared generation capacity", this.SharedGenerationCapacity);
             this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
         }
 
@@ -213,7 +226,11 @@ namespace LiteDB
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
-                firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase);
+                firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("shared one file", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("shared memory size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("shared process capacity", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("shared generation capacity", StringComparison.OrdinalIgnoreCase);
         }
 
         private static CompactStorageMode ParseCompactStorage(string value)
@@ -289,6 +306,10 @@ namespace LiteDB
                 AutoRebuild = this.AutoRebuild,
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
                 DurableCommits = this.DurableCommits,
+                SharedOneFile = this.SharedOneFile,
+                SharedMemorySize = this.SharedMemorySize,
+                SharedProcessCapacity = this.SharedProcessCapacity,
+                SharedGenerationCapacity = this.SharedGenerationCapacity,
             };
 
             engineSettingsAction?.Invoke(settings);
@@ -329,163 +350,7 @@ namespace LiteDB
         public string ToString(bool includePlaintextPassword) =>
             BuildConnectionString(includePlaintextPassword);
 
-        private string BuildConnectionString(bool includePlaintextPassword)
-        {
-            var bld = new StringBuilder();
-
-            if (!string.IsNullOrEmpty(Filename))
-            {
-                bld.Append("Filename=");
-                AppendQuotedString(bld, Filename);
-                bld.Append(';');
-            }
-
-            var fileNameLength = bld.Length;
-
-            if (IndexMigrationLimitSize.HasValue)
-                bld.Append("index migration limit size=").AppendFormat(CultureInfo.InvariantCulture, "{0:D}", IndexMigrationLimitSize.Value).Append(';');
-
-            if (Connection != ConnectionType.Direct)
-            {
-                bld.Append("Connection=")
-                    .Append(Connection)
-                    .Append(';');
-            }
-
-            if (Password != null)
-            {
-                bld.Append("Password=");
-                if (includePlaintextPassword)
-                {
-                    AppendQuotedString(bld, Password);
-                }
-                else
-                {
-                    bld.Append('*', 8);
-                }
-
-                bld.Append(';');
-            }
-
-            if (InitialSize != 0)
-            {
-                bld.Append("InitialSize=")
-                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", InitialSize)
-                    .Append(';');
-            }
-
-            if (ReadOnly)
-            {
-                bld.Append("ReadOnly=")
-                    .Append(ReadOnly)
-                    .Append(';');
-            }
-
-            if (LegacyIndexScan)
-            {
-                bld.Append("legacy index scan=true;");
-            }
-
-            if (Collation != null)
-            {
-                bld.Append("Collation=")
-                    .Append(Collation)
-                    .Append(';');
-            }
-
-            if (Upgrade)
-            {
-                bld.Append("Upgrade=")
-                    .Append(Upgrade)
-                    .Append(';');
-            }
-
-            if (AutoRebuild)
-            {
-                bld.Append("Auto-Rebuild=")
-                    .Append(AutoRebuild)
-                    .Append(';');
-            }
-
-            if (RejectInvalidLocalTime)
-            {
-                bld.Append("Reject Invalid Local Time=")
-                    .Append(RejectInvalidLocalTime)
-                    .Append(';');
-            }
-
-            if (CompactStorage != CompactStorageMode.Auto)
-            {
-                bld.Append("Compact Storage=")
-                    .Append(CompactStorage)
-                    .Append(';');
-            }
-
-            if (DurableCommits == false)
-            {
-                bld.Append("Durable Commits=")
-                    .Append(DurableCommits)
-                    .Append(';');
-            }
-
-            if (MemoryProfile != MemoryProfile.Balanced)
-            {
-                bld.Append("Memory Profile=")
-                    .Append(MemoryProfile)
-                    .Append(';');
-            }
-
-            if (CacheSize != 0)
-            {
-                bld.Append("Cache Size=")
-                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", CacheSize)
-                    .Append(';');
-            }
-
-            if (_transactionPageLimit.HasValue)
-            {
-                bld.Append("Transaction Pages=")
-                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", _transactionPageLimit.Value)
-                    .Append(';');
-            }
-
-            if (bld.Length == fileNameLength &&
-                !string.IsNullOrEmpty(Filename) &&
-                Filename == Filename.Trim() &&
-                !Filename.Contains("="))
-            {
-                return Filename;
-            }
-
-            if (bld.Length > 0)
-            {
-                bld.Length--; // ;
-            }
-
-            return bld.ToString();
-        }
-
-        private static void AppendQuotedString(StringBuilder target, string str)
-        {
-            target.Append('"');
-
-            var backslashCount = 0;
-
-            foreach (var chr in str ?? string.Empty)
-            {
-                if (chr == '\\')
-                {
-                    backslashCount++;
-                    continue;
-                }
-
-                target.Append('\\', chr == '"' ? backslashCount * 2 + 1 : backslashCount);
-                target.Append(chr);
-                backslashCount = 0;
-            }
-
-            target.Append('\\', backslashCount * 2);
-            target.Append('"');
-        }
+        private string BuildConnectionString(bool includePlaintextPassword) =>
+            ConnectionStringRendering.Build(this, includePlaintextPassword, _transactionPageLimit.HasValue);
     }
 }

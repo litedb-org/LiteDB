@@ -7,7 +7,8 @@ param(
     [string]$RuntimeDirectory,
     [switch]$PartitionSuite,
     [string]$VerifyPartitions,
-    [string]$DiscoveryFile
+    [string]$DiscoveryFile,
+    [ValidateRange(1, 299)][int]$HangTimeoutSeconds = 240
 )
 
 $ErrorActionPreference = 'Stop'
@@ -179,6 +180,8 @@ $arguments = @(
     'vstest', $assembly,
     "/Framework:.NETCoreApp,Version=v$RuntimeMajor.0", "/Platform:$Architecture",
     "/Settings:$(Join-Path $repoRoot 'tests.runsettings')", "/ResultsDirectory:$results",
+    # Capture the active sequence and dump before the unchanged 300s session limit.
+    "/Blame:CollectHangDump;TestTimeout=$($HangTimeoutSeconds)s;HangDumpType=mini",
     "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=minimal'
 )
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }

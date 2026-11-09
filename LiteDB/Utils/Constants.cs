@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 
 using System;
 using System.Diagnostics;
@@ -6,6 +6,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
+#if DEBUG || TESTING
+[assembly: InternalsVisibleTo("SharedMutexHarness")]
+#endif
 #if DEBUG || TESTING
 [assembly: InternalsVisibleTo("LiteDB.Fuzz")]
 [assembly: InternalsVisibleTo("ConsoleApp1")]

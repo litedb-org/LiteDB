@@ -23,6 +23,8 @@ namespace LiteDB
             _current = prefix.Count > 0 ? prefix[0] : reader.Current;
         }
 
+        internal IBsonDataReader InnerReader => _reader;
+
         public string Collection => _reader.Collection;
 
         public bool HasValues => true;

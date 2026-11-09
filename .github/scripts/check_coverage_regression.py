@@ -185,7 +185,7 @@ def fuzz_findings(base, head):
 def registry_findings(base, head):
     findings = []
     for path, kind, entries, key in (
-            (FAULT_POINTS, "fault-evidence-removed", "hooks", lambda item: f"{item['family']}:{item['name']}"),
+            (FAULT_POINTS, "fault-evidence-removed", "hooks", lambda item: f"{item.get('family', 'unclassified')}:{item['name']}"),
             (FAULT_POINTS, "fault-evidence-removed", "injectors", lambda item: f"injector:{item['name']}"),
             (CONTRACTS, "contract-evidence-removed", "contracts", lambda item: item["id"])):
         old = {key(item): item for item in base.read_json(path, {}).get(entries, [])}

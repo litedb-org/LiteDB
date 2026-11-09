@@ -15,7 +15,7 @@ namespace LiteDB.Client.Shared
     /// A registry keeps one lease file for all its readers (<see cref="SharedReaderSlots"/>);
     /// a lease file named after a single version is still understood.
     /// </summary>
-    internal sealed class SharedReaderRegistry : IDisposable
+    internal sealed class SharedReaderRegistry : ISharedReaderRegistry
     {
         private static readonly int[] _none = new int[0];
         private readonly string _directory;
@@ -42,7 +42,7 @@ namespace LiteDB.Client.Shared
         /// Dispose, never while open), so a closed lease no longer has to be proven dead,
         /// deleted and its directory recreated by the next registration.
         /// </summary>
-        internal IDisposable Register(int version)
+        public IDisposable Register(int version)
         {
             // An open slot file already proved the registry usable.
             lock (_gate) if (_slots != null && !_disposed) return _slots.Lease(version);
@@ -60,7 +60,7 @@ namespace LiteDB.Client.Shared
         /// that the registry is readable first; checkpoints' scans still fail closed if the
         /// directory cannot be read.
         /// </summary>
-        internal IDisposable RegisterUnscanned(int version)
+        public IDisposable RegisterUnscanned(int version)
         {
             lock (_gate)
             {
@@ -69,6 +69,9 @@ namespace LiteDB.Client.Shared
                 return _slots.Lease(version);
             }
         }
+
+        // The exact library-created FileStreams have no route to user state.
+        internal System.IO.FileStream[] LeaseFiles { get { lock (_gate) return _slots?.LeaseFiles; } }
 
         /// <summary>Close the slot file once its last lease ends.</summary>
         public void Dispose()
@@ -86,14 +89,14 @@ namespace LiteDB.Client.Shared
         /// created it. The caller owns the mutex; this probe may create the registry files.
         /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/>.
         /// </summary>
-        internal void Probe(int version)
+        public void Probe(int version)
         {
             var existed = Directory.Exists(_directory);
             using (this.Register(version)) { }
             if (!existed) this.TryRemoveDirectory();
         }
 
-        internal int? OldestVersion()
+        public int? OldestVersion()
         {
             var versions = this.LiveVersions();
             // Unknown means a reader may exist. Version zero is only used by
@@ -107,7 +110,7 @@ namespace LiteDB.Client.Shared
         /// Snapshot versions of every live reader. Dead leases are removed, and
         /// the directory with them once it is empty.
         /// </summary>
-        internal int[] LiveVersions()
+        public int[] LiveVersions()
         {
             string[] paths;
             try

@@ -64,6 +64,18 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual(len(retired), len(skipped))
                 self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
 
+    def test_shared_request_admission_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        prefix = "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#"
+        expected = {prefix + name for name in (
+            "Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits",
+            "Shared_Dms_waits_for_real_process_lock_release",
+            "Dms_timeout_refuses_admission_and_remains_retryable",
+        )}
+        self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"] if ref.startswith(prefix)})
+        self.assertIn("LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs#Native_errors_preserve_deadline_refusal_and_real_lock_retry",
+                      policy["SharedSelfTeardownRelease"]["tests"])
+
     def test_wal_handle_replacement_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {
@@ -75,6 +87,15 @@ class ReproMatrixTests(unittest.TestCase):
         }
         actual = {ref for entry in policy.values() for ref in entry["tests"]
                   if ref.startswith("LiteDB.Tests/Internals/WalHandleLifetime_Tests.cs#")}
+        self.assertEqual(expected, actual)
+
+    def test_rekey_callback_cache_gate_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        expected = {
+            "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache",
+        }
+        actual = {ref for entry in policy.values() for ref in entry["tests"]
+                  if "#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache" in ref}
         self.assertEqual(expected, actual)
 
     def test_update_index_diff_inventory_is_complete(self):

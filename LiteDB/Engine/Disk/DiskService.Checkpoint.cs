@@ -16,6 +16,21 @@ namespace LiteDB.Engine
 #endif
         }
 
+        // Recovered confirmations may exist only in the dead writer's OS cache.
+        // Establish both the file and its name before quiet mapped publication.
+        internal void SyncSharedRecovery()
+        {
+            _state.Validate();
+            if (this.GetFileLength(FileOrigin.Log) == 0) return;
+            var stream = _writer.Value;
+            lock (stream)
+            {
+                this.FlushLogToDisk(stream);
+                if (!_logSyncProven || _logFlushDegraded || _logDirectoryUnsyncable || !_logDirectorySynced)
+                    throw new IOException("Shared mapped recovery requires a verifiable WAL and directory sync.");
+            }
+        }
+
         internal void FlushLog()
         {
             if (this.GetFileLength(FileOrigin.Log) == 0) return;
