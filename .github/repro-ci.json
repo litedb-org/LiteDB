@@ -145,7 +145,8 @@
       "LiteDB.Tests/Engine/SharedOneFileDefaultAvailability_Tests.cs#Default_native_tmpfs_preserves_indexed_data_and_legacy_protocol",
       "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits",
       "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Shared_Dms_waits_for_real_process_lock_release",
-      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Dms_timeout_refuses_admission_and_remains_retryable"
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Dms_timeout_refuses_admission_and_remains_retryable",
+      "LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs#Native_errors_preserve_deadline_refusal_and_real_lock_retry"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {
