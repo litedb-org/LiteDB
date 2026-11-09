@@ -17,7 +17,7 @@ namespace LiteDB.Engine
 
         internal static string GetMarkerFilename(string filename) => FileHelper.GetSuffixFile(filename, "-rebuild", false);
 
-        internal static void EnsureAvailable(EngineSettings settings)
+        internal static void EnsureAvailable(EngineSettings settings, string canonicalFilename = null)
         {
             if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return;
@@ -25,7 +25,7 @@ namespace LiteDB.Engine
             // Guard lookup, exact-path validation and bootstrap must share the
             // same namespace, even before admission or while the live name is absent.
             string filename;
-            try { filename = LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(settings.Filename); }
+            try { filename = canonicalFilename ?? LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(settings.Filename); }
             catch (DirectoryNotFoundException) { return; } // no guard can exist in an absent parent
             var marker = GetMarkerFilename(filename);
             try
