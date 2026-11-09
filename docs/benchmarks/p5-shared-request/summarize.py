@@ -25,6 +25,8 @@ for file in files:
     identity = (first['os'], first['architecture'], first['framework'])
     assert identity not in identities, identity
     identities.add(identity)
+    assert first['framework'] in ('.NETCoreApp,Version=v8.0', '.NETCoreApp,Version=v10.0')
+    assert any(name in first['os'] for name in ('Windows', 'Linux', 'Darwin'))
     os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if first['architecture'] == 'Arm64' else 'Linux x64'
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
@@ -35,6 +37,8 @@ for file in files:
             assert (process['os'], process['architecture'], process['framework']) == identity
             assert process['candidateCommit'] == CANDIDATE and process['harnessCommit'] == HARNESS
             assert process['tieredCompilation'] == '0' and process['requests'] == 100
+            version = '8' if 'v8.0' in process['framework'] else '10'
+            assert process['runtime'].startswith(f'.NET {version}.')
             assert process['milliseconds'] > 0
             binaries[row['variant']].add(process['assemblySha256'])
     assert all(len(hashes) == 1 for hashes in binaries.values())
