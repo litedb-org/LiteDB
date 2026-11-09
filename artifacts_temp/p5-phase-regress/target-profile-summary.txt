@@ -1,0 +1,71 @@
+42544497136/research-profile-canonical-r1-ubuntu-latest-net10.0/after-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=811.1709; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  15.475% 125.5295 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+  15.359% 124.5897 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   6.143% 49.8302 System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   2.180% 17.6848 System.Private.CoreLib!System.Threading.Monitor.Enter(class System.Object,bool&)
+42544497136/research-profile-canonical-r1-ubuntu-latest-net10.0/before-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=741.3346; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+   6.345% 47.0392 System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   4.999% 37.0600 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   3.627% 26.8891 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+   2.716% 20.1361 System.Private.CoreLib!System.Threading.Monitor.Enter(class System.Object,bool&)
+42544497136/research-profile-canonical-r1-windows-latest-net10.0/after-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=4450.2530; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  25.514% 1135.4411 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+  24.935% 1109.6753 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   1.019% 45.3671 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   0.268% 11.9109 System.Private.CoreLib.il!System.Threading.Monitor.Enter(class System.Object,bool&)
+42544497136/research-profile-canonical-r1-windows-latest-net10.0/before-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=3858.3986; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+   7.096% 273.7886 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+   4.716% 181.9788 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   1.075% 41.4908 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   0.207% 7.9931 System.Private.CoreLib.il!System.Threading.Monitor.Enter(class System.Object,bool&)
+42544497136/research-profile-fifo-r1-ubuntu-latest-net10.0/after-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=60514.7911; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  93.069% 56320.6891 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  67.373% 40770.8135 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  60.537% 36633.7406 LiteDB!LiteDB.Engine.TransactionWaitBudget.Wait(class System.Object,value class System.TimeSpan)
+  53.973% 32661.6059 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+  20.571% 12448.5685 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  15.265% 9237.3903 System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   1.349% 816.6194 System.Private.CoreLib!System.Threading.Monitor.PulseAll(class System.Object)
+   1.011% 611.7979 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+   0.088% 53.3173 System.Private.CoreLib!System.Threading.Monitor.Enter(class System.Object,bool&)
+   0.002% 1.1498 System.Private.CoreLib!System.Threading.Lock.TryEnterSlow(int32,value class ThreadId)
+42544497136/research-profile-fifo-r1-ubuntu-latest-net10.0/before-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=55254.1866; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  92.433% 51073.2555 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  36.380% 20101.3577 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+  33.230% 18361.0263 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  28.927% 15983.5909 System.Private.CoreLib!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+  18.764% 10368.0221 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+   0.913% 504.5216 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+   0.781% 431.2729 System.Private.CoreLib!System.Threading.Monitor.PulseAll(class System.Object)
+   0.071% 39.2846 System.Private.CoreLib!System.Threading.Monitor.Enter(class System.Object,bool&)
+42547323587/research-profile-fifo-net8-r1-ubuntu-latest-net8.0/after-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=59241.8664; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  93.030% 55112.8078 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  70.543% 41790.8426 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  63.666% 37717.0686 LiteDB!LiteDB.Engine.TransactionWaitBudget.Wait(class System.Object,value class System.TimeSpan)
+  56.876% 33694.6842 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+  18.270% 10823.3562 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+   0.119% 70.5482 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+42547323587/research-profile-fifo-net8-r1-ubuntu-latest-net8.0/before-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=52999.1012; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  92.143% 48835.1604 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  60.990% 32323.9211 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  43.733% 23178.1709 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+  26.468% 14027.8922 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+   0.156% 82.6230 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+42547323587/research-profile-substrate-net8-r1-ubuntu-latest-net8.0/after-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=40346.6221; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  53.738% 21681.5617 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  37.405% 15091.7952 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  16.225% 6546.3616 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+   0.046% 18.6766 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+42547323587/research-profile-substrate-net8-r1-ubuntu-latest-net8.0/before-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=47448.6821; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  61.776% 29312.0282 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  18.820% 8929.8925 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
