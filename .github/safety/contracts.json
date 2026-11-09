@@ -560,6 +560,11 @@
           "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Assembly_unloading_releases_idle_admission_before_its_timer",
           "model": "exception",
           "proves": "A collectible assembly's 60-second idle participant refuses native Direct admission before unload and releases it synchronously on unloading."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Rebuild_releases_protected_cached_storage_before_replacement",
+          "model": "exception",
+          "proves": "A child with mapped fast reads disabled retains a protected read engine, releases that storage before rebuild replacement, and preserves indexed payloads through two cold reopens."
         }
       ],
       "gaps": [
