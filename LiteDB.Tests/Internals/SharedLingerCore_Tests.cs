@@ -316,7 +316,16 @@ namespace LiteDB.Internals
                 }
             }
             LiteDatabase.ReleaseIdle(Filename);
-            if (replace) File.ReadAllBytes(Filename).Should().Equal(expected);
+            if (replace)
+            {
+                File.ReadAllBytes(Filename).Should().Equal(expected);
+                for (var repeat = 0; repeat < 2; repeat++)
+                {
+                    using var reopened = new LiteDatabase(new ConnectionString { Filename = Filename, ReadOnly = repeat == 0 });
+                    reopened.GetCollection("sentinel").FindById(42)["value"].AsString.Should().Be("unrelated");
+                    reopened.GetCollection("docs").Count().Should().Be(0);
+                }
+            }
             else File.Exists(Filename).Should().BeFalse();
         }
 
