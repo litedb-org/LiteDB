@@ -9,6 +9,7 @@ using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using LiteDB.Tests;
 using Xunit;
+using Xunit.Abstractions;
 using static LiteDB.Internals.SharedOneFilePublicationFixture;
 
 namespace LiteDB.Internals
@@ -16,6 +17,9 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedOneFileWarmLifetime_Tests
     {
+        private readonly ITestOutputHelper _output;
+        public SharedOneFileWarmLifetime_Tests(ITestOutputHelper output) => _output = output;
+
         [OneFileTheory]
         [InlineData(false, false)]
         [InlineData(false, true)]
@@ -205,10 +209,19 @@ namespace LiteDB.Internals
                 var accepted = table.ReadCache.Snapshot;
                 old.Retired.Should().BeTrue();
                 table.LiveVersions().Should().HaveCount(2);
-                Collect();
+                var started = System.Diagnostics.Stopwatch.StartNew();
+                // The finalizer only queues cleanup. Readers is decremented before
+                // Lease.Dispose under this gate, so zero alone is not completion.
+                CollectUntil(weak, () =>
+                {
+                    if (!Monitor.TryEnter(table.ReadCache.Gate)) return false;
+                    try { return old.Readers == 0 && old.Lease == null; }
+                    finally { Monitor.Exit(table.ReadCache.Gate); }
+                });
                 weak.IsAlive.Should().BeFalse();
-                SpinWait.SpinUntil(() => old.Readers == 0, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                table.LiveVersions().Should().Equal((int)accepted.Status.Version);
+                var versions = table.LiveVersions();
+                _output.WriteLine($"WARM_RELEASE versions={string.Join(",", versions)} elapsed_ms={started.Elapsed.TotalMilliseconds:F3}");
+                versions.Should().Equal((int)accepted.Status.Version);
                 accepted.Readers.Should().Be(1);
                 var count = 0;
                 while (current.Read())
@@ -230,6 +243,23 @@ namespace LiteDB.Internals
             var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue();
             return new WeakReference(reader);
+        }
+
+        private static void CollectUntil(WeakReference weak, Func<bool> released)
+        {
+            // Same five-second cleanup budget as the other lifetime guards.
+            // Further collections cover promotion/finalizer ordering; the lease
+            // condition must still fail if a generation is permanently retained.
+            var deadline = Environment.TickCount64 + 5000;
+            do
+            {
+                Collect();
+                if (!weak.IsAlive && released()) return;
+                Thread.Sleep(10);
+            }
+            while (Environment.TickCount64 < deadline);
+            weak.IsAlive.Should().BeFalse("the isolated result must be collectible");
+            released().Should().BeTrue("deferred cleanup must release the retired generation within five seconds");
         }
 
         private static void Collect()
