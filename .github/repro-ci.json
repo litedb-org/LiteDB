@@ -83,7 +83,10 @@
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Default_selects_qualified_protocol_and_preserves_indexed_data",
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#Explicit_opt_out_round_trips_and_uses_legacy_sidecars",
       "LiteDB.Tests/Engine/SharedOneFileDefault_Tests.cs#First_writable_default_open_upgrades_legacy_sidecars_repeatably",
-      "LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders"
+      "LiteDB.Tests/Internals/SharedOneFileDefaultProcess_Tests.cs#Default_and_legacy_refuse_mixed_processes_in_both_orders",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Shared_Dms_waits_for_real_process_lock_release",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Dms_timeout_refuses_admission_and_remains_retryable"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {
