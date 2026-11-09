@@ -286,3 +286,10 @@ still resets or refuses according to the envelope rules above. Live peers rely
 on coherent shared mappings, not a disk flush. DB/WAL durability barriers are
 unchanged. This follows docs/rules/data-safety.md and storage-ownership.md;
 bootstrap/process-death and final-close coverage remains required.
+
+Windows admission qualifies the filesystem of the opened handle with
+`GetVolumeInformationByHandleW`, retaining the canonical namespace's local-drive
+check and the NTFS/ReFS allowlist. It does not cache locality by pathname or
+volume serial: replacement, aliases and later external opens still obtain and
+validate fresh physical handles. Reusing an existing native admission is limited
+to nested construction while its outer facade holds the same validated owner.

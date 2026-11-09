@@ -19,12 +19,14 @@ namespace LiteDB.Client.Shared
             var local = false;
             if (DatabaseFileIdentity.Windows)
             {
-                var root = new StringBuilder(32768);
+                // The caller has already canonicalized this namespace and opened
+                // the actual file. Inspect that handle's filesystem directly;
+                // walking every parent with GetVolumePathNameW is unnecessary and
+                // can observe a different mount from the admitted handle.
                 var format = new StringBuilder(64);
-                if (!GetVolumePathNameW(DatabaseFileIdentity.WindowsPath(filename), root, root.Capacity) ||
-                    !GetVolumeInformationW(root.ToString(), null, 0, out _, out _, out _, format, format.Capacity))
+                if (!GetVolumeInformationByHandleW(handle, null, 0, out _, out _, out _, format, format.Capacity))
                     throw DatabaseFileLock.Error("Database volume inspection");
-                var drive = GetDriveTypeW(root.ToString());
+                var drive = GetDriveTypeW(System.IO.Path.GetPathRoot(filename));
                 local = drive == 2 || drive == 3 || drive == 6; // removable, fixed, RAM
                 native = local && (format.ToString() == "NTFS" || format.ToString() == "ReFS");
             }
@@ -108,12 +110,9 @@ namespace LiteDB.Client.Shared
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetVolumePathNameW(string filename, StringBuilder root, int size);
+        private static extern bool GetVolumeInformationByHandleW(SafeFileHandle handle, StringBuilder name, int size,
+            out uint serial, out uint componentLength, out uint flags, StringBuilder format, int formatSize);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern uint GetDriveTypeW(string root);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetVolumeInformationW(string root, StringBuilder name, int size,
-            out uint serial, out uint componentLength, out uint flags, StringBuilder format, int formatSize);
     }
 }
