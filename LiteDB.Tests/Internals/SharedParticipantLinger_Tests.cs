@@ -98,6 +98,7 @@ namespace LiteDB.Internals
             });
             SharedMemoryReaderTable idle;
             using (var engine = new SharedEngine(Settings(1000))) idle = engine.MappedReaderTable;
+            idle.Closed.Should().BeFalse();
             SharedParticipantRegistry.ReleaseAllIdle();
             idle.Closed.Should().BeTrue();
             active.MappedReaderTable.Closed.Should().BeFalse();
@@ -111,6 +112,7 @@ namespace LiteDB.Internals
         {
             SharedMemoryReaderTable old;
             using (var engine = new SharedEngine(Settings(1000))) old = engine.MappedReaderTable;
+            old.Closed.Should().BeFalse();
             var settings = Settings(1000);
             settings.DurableCommits = false;
             using var next = new SharedEngine(settings);
@@ -118,6 +120,56 @@ namespace LiteDB.Internals
             old.Closed.Should().BeTrue();
             using var db = new LiteDatabase(next, disposeOnClose: false);
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+        }
+
+        [OneFileFact]
+        public void Read_only_retention_preserves_database_bytes()
+        {
+            using (var seed = new LiteDatabase(Filename))
+                seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "saved" });
+            var before = TempFile.ReadAllBytesShared(Filename);
+            var settings = Settings(1000);
+            settings.ReadOnly = true;
+            SharedMemoryReaderTable table;
+            using (var first = new SharedEngine(settings)) table = first.MappedReaderTable;
+            table.Closed.Should().BeFalse();
+            using (var second = new SharedEngine(settings))
+            using (var db = new LiteDatabase(second, disposeOnClose: false))
+            {
+                second.MappedReaderTable.Should().BeSameAs(table);
+                db.GetCollection("docs").FindById(1)["payload"].AsString.Should().Be("saved");
+            }
+            SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeTrue();
+            TempFile.ReadAllBytesShared(Filename).Should().Equal(before);
+        }
+
+        [OneFileFact]
+        public void Live_result_cannot_be_released_as_idle()
+        {
+            using (var seed = new LiteDatabase(Filename))
+            {
+                for (var id = 0; id < 128; id++)
+                    seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = id, ["payload"] = new string('x', 2048) });
+            }
+            using var engine = new SharedEngine(Settings(1000));
+            var table = engine.MappedReaderTable;
+            using (var result = engine.Query("docs", new Query()))
+            {
+                result.Read().Should().BeTrue();
+                engine.Dispose();
+                SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeFalse();
+                table.Closed.Should().BeFalse();
+                var count = 1;
+                while (result.Read())
+                {
+                    result.Current["payload"].AsString.Should().Be(new string('x', 2048));
+                    count++;
+                }
+                count.Should().Be(128);
+            }
+            table.Closed.Should().BeFalse();
+            SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeTrue();
+            table.Closed.Should().BeTrue();
         }
 
         public void Dispose()
