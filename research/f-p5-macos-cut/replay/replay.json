@@ -1,0 +1,11 @@
+{
+  "Target": "shared",
+  "Seed": 529470,
+  "Count": 400,
+  "DurationBound": false,
+  "OriginalDurationSeconds": null,
+  "FailureId": "SHARED_SHAREDPROCESSFUZZER_L82",
+  "InputFile": "input.bin",
+  "InputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+  "TraceHash": "BE4B2246EBDA28B63CB03490ABED3D96C94598521AF9BC624DCD5FEBE78348B3"
+}
