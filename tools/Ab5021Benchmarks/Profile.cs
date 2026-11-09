@@ -8,6 +8,7 @@ internal sealed partial class Workload
     internal void Profile(string scenario)
     {
         Console.WriteLine($"PROFILE {scenario} {_config}");
+        Environment.SetEnvironmentVariable("BENCHMARK_SCENARIOS", scenario);
 #if DEV
         if (scenario.StartsWith("durable_insert_"))
         {
