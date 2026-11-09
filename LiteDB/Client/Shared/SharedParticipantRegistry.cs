@@ -48,7 +48,8 @@ namespace LiteDB.Client.Shared
                                 // A remote writer can die while we linger. A writable
                                 // opener must independently recover an uncertain image;
                                 // retaining the old bootstrap cannot certify that repair.
-                                if (!settings.ReadOnly && !table.Settings.ReadOnly && !table.Reads.TryRead(out _) && table.ReleaseIdle())
+                                if (!settings.ReadOnly && !table.Settings.ReadOnly &&
+                                    (!table.Reads.TryRead(out _) || table.Authority.Map.Load(SharedMemoryLayout.WriterOwner) != 0) && table.ReleaseIdle())
                                     continue;
                             }
                             catch (InvalidOperationException)

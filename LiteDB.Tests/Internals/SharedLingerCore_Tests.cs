@@ -192,8 +192,10 @@ namespace LiteDB.Internals
             Engine(db).SnapshotOpens.Should().Be(2);
         }
 
-        [OneFileFact]
-        public async Task Remote_writer_death_while_idle_forces_independent_recovery_on_open()
+        [OneFileTheory]
+        [InlineData("open-begin", false)]
+        [InlineData("writer-end", true)]
+        public async Task Remote_writer_death_while_idle_forces_independent_recovery_on_open(string cut, bool committed)
         {
             var connection = Connection;
             connection.SharedLinger = 60000;
@@ -203,7 +205,7 @@ namespace LiteDB.Internals
                 seed.GetCollection("docs").EnsureIndex("value");
                 seed.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
             }
-            using (var child = new MvccProcess("one-file-publication-hold", Filename, null, "open-begin"))
+            using (var child = new MvccProcess("one-file-publication-hold", Filename, null, cut))
             {
                 await child.Expect("ready");
                 await child.Kill(sharedFilesRemainOpen: true);
@@ -214,11 +216,13 @@ namespace LiteDB.Internals
                 (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
                 map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
                 map.Load(SharedMemoryLayout.WriterOwner).Should().Be(0);
-                recovered.GetCollection("docs").FindOne(Query.EQ("value", "saved"))["_id"].AsInt32.Should().Be(1);
+                var expected = committed ? new BsonValue(1) : new BsonValue("saved");
+                recovered.GetCollection("docs").FindOne(Query.EQ("value", expected))["_id"].AsInt32.Should().Be(1);
             }
             LiteDatabase.ReleaseIdle(Filename);
             using var cold = new LiteDatabase(Filename);
-            cold.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            var value = cold.GetCollection("docs").FindById(1)["value"];
+            Assert.Equal(committed ? new BsonValue(1) : new BsonValue("saved"), value);
         }
 
         [OneFileFact]
