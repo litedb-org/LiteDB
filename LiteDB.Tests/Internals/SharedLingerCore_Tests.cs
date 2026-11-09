@@ -98,6 +98,45 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Failed_expiry_checkpoint_preserves_wal_for_repeated_recovery()
+        {
+            var connection = Connection;
+            connection.SharedLinger = 200;
+            SharedMemoryReaderTable table;
+            using (var db = new LiteDatabase(connection))
+            {
+                table = Engine(db).MappedReaderTable;
+                db.CheckpointSize = 1000;
+                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+                db.GetCollection("docs").EnsureIndex("value");
+                db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 42, ["value"] = "unrelated" });
+            }
+            var reached = false;
+            EngineState.SimulateProcessCrash = stage =>
+            {
+                if (stage == "checkpoint-after-page-write")
+                {
+                    reached = true;
+                    throw new IOException("injected expiry checkpoint failure");
+                }
+            };
+            try
+            {
+                SpinWait.SpinUntil(() => table.Closed, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                reached.Should().BeTrue();
+                File.Exists(FileHelper.GetLogFile(Filename)).Should().BeTrue();
+            }
+            finally { EngineState.SimulateProcessCrash = null; }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var db = new LiteDatabase(Filename);
+                db.GetCollection("docs").FindOne(Query.EQ("value", "saved"))["_id"].AsInt32.Should().Be(1);
+                db.GetCollection("sentinel").FindById(42)["value"].AsString.Should().Be("unrelated");
+                db.GetCollection("docs").Count().Should().Be(1);
+            }
+        }
+
+        [OneFileFact]
         public void Reused_participant_preserves_same_thread_transaction_refusal_and_rollback()
         {
             using (var warm = new LiteDatabase(Connection)) warm.GetCollection("docs").Count().Should().Be(0);

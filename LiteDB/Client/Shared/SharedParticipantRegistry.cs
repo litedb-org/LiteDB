@@ -97,6 +97,19 @@ namespace LiteDB.Client.Shared
             foreach (var entry in Entries.Values) entry.Table?.ReleaseIdle();
         }
 
+        // Test cleanup uses registered database names rather than enumerating
+        // sidecars that final-close may delete, or following malformed aliases.
+#if DEBUG || TESTING
+        internal static void ReleaseIdleInDirectory(string directory)
+        {
+            var prefix = DatabaseFileIdentity.CanonicalPath(System.IO.Path.GetFullPath(directory))
+                .TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
+            var comparison = DatabaseFileIdentity.Windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            foreach (var pair in Entries)
+                if (pair.Key.StartsWith(prefix, comparison)) pair.Value.Table?.ReleaseIdle();
+        }
+#endif
+
         private static void Retire(string identity, Entry entry)
         {
             entry.Retired = true;

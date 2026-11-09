@@ -58,16 +58,9 @@ namespace LiteDB.Tests
 
         internal static void ReleaseIdleInDirectory(string path)
         {
-            if (!Directory.Exists(path)) return;
-            foreach (var entry in Directory.EnumerateFileSystemEntries(path))
-            {
-                var attributes = File.GetAttributes(entry);
-                // Invalid/dangling aliases cannot own admitted participants. Do
-                // not traverse symlinks (including loops created by refusal tests).
-                if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
-                if ((attributes & FileAttributes.Directory) != 0) ReleaseIdleInDirectory(entry);
-                else LiteDatabase.ReleaseIdle(entry);
-            }
+#if NET8_0_OR_GREATER
+            if (Directory.Exists(path)) LiteDB.Client.Shared.SharedParticipantRegistry.ReleaseIdleInDirectory(path);
+#endif
         }
 
         internal static void DeleteDirectory(string path)
