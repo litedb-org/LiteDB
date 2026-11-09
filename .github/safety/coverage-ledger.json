@@ -1176,6 +1176,20 @@
       "disposition": "strengthened",
       "invariant": "An abandoned retired stream releases its exact generation within five seconds while the active generation and all 160 current rows remain valid; final disposal leaves no readers.",
       "reason": "Wait for the full ReleaseCached critical section, not its intermediate Readers decrement. Preserve NoInlining allocation, weak-reference death, exact live-version set, active reader count, payload and reopen assertions. Bounded GC/finalizer cycles never explicitly dispose or clear the abandoned lease; a permanent leak still fails. Windows six-leg 200-session stress retains raw results."
+    },
+    {
+      "id": "f-p5-macos-eagain-expanded-native-error-proof",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/shared-admission-proof.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every process admission, deadline, retained-lock, committed-row and sentinel assertion remains enabled on all three hosted platforms; macOS mapped net8/net10 coverage remains unchanged.",
+      "reason": "Expand the focused filter from SharedRequestAdmission_Tests to SharedRequestAdmission to include the added Unix EINTR/EACCES/EAGAIN deadline and EINVAL propagation cases. No existing test or platform is removed or narrowed.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs",
+        "LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs"
+      ]
     }
   ]
 }
