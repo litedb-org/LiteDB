@@ -47,6 +47,43 @@ namespace LiteDB.Tests.Engine
             Assert.True(TransactionContext.IsThreadClear);
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Initially_clear_mask_restores_both_fields_changed_by_throwing_reader(bool currentEntry)
+        {
+            using var engine = new LiteEngine();
+            var context = new TransactionContext(engine, new object(), new object());
+            var current = typeof(TransactionContext).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic);
+            var ticket = typeof(TransactionContext).GetField("_ticket", BindingFlags.Static | BindingFlags.NonPublic);
+            object savedTicket;
+            using (TransactionContext.Enter(context))
+            using (TransactionContext.Dispatch(engine)) savedTicket = ticket.GetValue(null);
+            Assert.True(TransactionContext.IsThreadClear);
+            var inner = new Probe();
+            using var reader = Wrap(inner);
+            inner.Check = () =>
+            {
+                Assert.Null(current.GetValue(null));
+                Assert.Null(ticket.GetValue(null));
+                current.SetValue(null, context);
+                ticket.SetValue(null, savedTicket);
+                throw new ApplicationException();
+            };
+            try
+            {
+                if (currentEntry) Assert.Throws<ApplicationException>(() => reader.Current);
+                else Assert.Throws<ApplicationException>(() => reader.Read());
+                Assert.True(TransactionContext.IsThreadClear);
+            }
+            finally
+            {
+                inner.Check = null;
+                current.SetValue(null, null);
+                ticket.SetValue(null, null);
+            }
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public void Ordinary_reader_access_allocates_no_delegates_per_row()

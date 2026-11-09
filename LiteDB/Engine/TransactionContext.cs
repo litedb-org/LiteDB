@@ -87,11 +87,17 @@ namespace LiteDB.Engine
             {
                 _previous = _current;
                 _previousTicket = _ticket;
-                _current = null;
-                _ticket = null;
+                if (_previous != null) _current = null;
+                if (_previousTicket != null) _ticket = null;
                 // Keep execution frames: callbacks must still refuse self-waits.
             }
-            public void Dispose() { _current = _previous; _ticket = _previousTicket; }
+            public void Dispose()
+            {
+                // Ordinary reads normally enter and leave with both fields clear. Avoid
+                // redundant root writes, but still restore state changed by a callback.
+                if (!ReferenceEquals(_current, _previous)) _current = _previous;
+                if (!ReferenceEquals(_ticket, _previousTicket)) _ticket = _previousTicket;
+            }
         }
 
         internal static IDisposable Enter(TransactionContext context) => new Binding(context);
