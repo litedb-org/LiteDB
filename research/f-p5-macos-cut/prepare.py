@@ -7,7 +7,7 @@ s = p.read_text().replace('        FuzzOptions options;', '        if (args.Leng
 p.write_text(s)
 p = source/'LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs'
 s = p.read_text().replace('                if (phase != crashPoint) return;', '                if (options.CrashAt == 22) File.AppendAllText(options.Ledger + ".hooks", phase + "\\n");\n                if (phase != crashPoint) return;')
-s = s.replace('            db.Checkpoint();\n            Crash(11', '            var cutCheckpointPages = db.Checkpoint();\n            File.WriteAllText(options.Ledger + ".checkpoint-result", cutCheckpointPages.ToString());\n            Crash(11')
+s = s.replace('            db.Checkpoint();\n            Crash(11', '            db.Checkpoint();\n            File.WriteAllText(options.Ledger + ".checkpoint-result", \"returned (void API)\");\n            Crash(11')
 p.write_text(s)
 
 s = p.read_text().replace('            Crash(10, "before-checkpoint");', '''            Crash(10, "before-checkpoint");

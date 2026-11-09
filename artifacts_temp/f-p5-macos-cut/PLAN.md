@@ -1,11 +1,9 @@
 ## Summary
-- State: waiting for hosted macOS execution; classification pending.
-- Candidate e507faad4 contains b70b79ec2 (merge-base exit 0).
-- Refreshed comparison head bd79b12b61f89c5af0e197cfc70273f307b537b5 (same Engine/Client sources as initial ae2eae2af).
-- Scratch branch v6/wip-f-p5-macos-cut; corrected harness089004b30; no product edits.
-- Required run https://github.com/litedb-org/LiteDB/actions/runs/42575162758 queued; no product tests executed yet.
-- Earlier run42569656324 candidate failed checkout only (abbreviatedSHA); raw log retained; superseded runs cancelled.
-- Orchestrator instructed completed hosted macOS runs, overriding brief ci-pending default.
+- Round 2: comparison setup failure (d), not evidence about the original crash-cut finding.
+- Run42575162758 completed: both pinned revisions built unmodified binaries, then scratch diagnostics failed CS0815 at SharedProcessFuzzer.cs:188 (Checkpoint returns void).
+- Failed logs, run metadata, and both artifacts downloaded to f-p5-macos-cut-evidence/round2-*.
+- Fixing scratch prepare.py only; one additional dispatch permitted; no product changes or PRs.
+- Original finding classification remains pending actual hosted execution.
 
 ## Steps
 - Read rules and brief, created log in first minute, inspected retained seed 529470 replay (400 rounds, empty input SHA256).
@@ -30,3 +28,11 @@
 -06:45UTC first candidate job129003849277 executed and FAILED CHECKOUT ONLY: actions/checkout interprets abbreviatede507faad4 as branch/tag, fetch retries exit1. No build/tests executed, no product/harness behavior classification. Raw terminal log retained in f-p5-macos-cut-evidence/first-candidate-job.log. Correcting matrix to full40charSHA; cancelling remaining queued legs and consolidating all3probes+original replay into corrected run. No flake claim.
 2026-11-09T06:48:31Z Corrected full-SHA comparison scratch089004b30; current Phase5 snapshot refreshed bd79b12b61f89c5af0e197cfc70273f307b537b5; earlier ae2e comparison cancelled before any product execution.
 2026-11-09T06:52:29Z Corrected run42575162758 both full-SHA legs queued; waiting for actual macOS execution.
+2026-11-09T06:59:31Z Corrected full-SHA comparison remains queued; no new errors/results.
+2026-11-09T07:06:00Z Required full-SHA run42575162758 remains queued on both macOS legs.
+2026-11-09T07:10:03Z Corrected comparison still queued; no macOS test execution or result.
+2026-11-09T07:16:07Z Corrected comparison still queued; classification remains unproven.
+
+2026-11-09T07:25Z Round2 read rules/brief/prior log, downloaded gh --log-failed + artifacts. Both legs fail injected var cutCheckpointPages = db.Checkpoint(); (void); replay step skipped. Orchestrator instructed one corrected dispatch then wait, overriding brief no-wait default.
+
+2026-11-09T07:27Z Corrected scratch prepare.py records completion of void Checkpoint API instead of assigning a value. Exact-revision diagnostic net8 TestingEnabled builds both passed (0 errors); commands/results retained in round2-build-* and verify-round2.py. No local fuzz or broad test run.
