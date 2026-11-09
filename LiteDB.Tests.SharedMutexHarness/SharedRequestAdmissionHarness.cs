@@ -17,6 +17,7 @@ internal static class SharedRequestAdmissionHarness
         var worker = int.Parse(args[4]);
         Console.WriteLine("ready");
         Console.ReadLine();
+        Console.WriteLine("opening");
         for (var iteration = 0; iteration < 40; iteration++)
         {
             using var db = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared });
