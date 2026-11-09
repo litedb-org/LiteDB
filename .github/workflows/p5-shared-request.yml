@@ -1,0 +1,55 @@
+name: P5 Shared request report
+on:
+  push:
+    branches: ['v6/wip-p5-shared-request']
+    paths: ['tools/SharedRequestBenchmarks/**', '.github/workflows/p5-shared-request.yml']
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+        framework: [net8.0, net10.0]
+    env:
+      DOTNET_TieredCompilation: '0'
+      BENCHMARK_CANDIDATE_SHA: '7000dd6f01d0187a8fb5d030064eb327864ab731'
+      BENCHMARK_HARNESS_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: '7000dd6f01d0187a8fb5d030064eb327864ab731'
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build isolated production libraries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet build harness/tools/SharedRequestBenchmarks/V5/V5.csproj -c Release -f ${{ matrix.framework }} -p:TargetFrameworks=${{ matrix.framework }} -p:TestingEnabled=false -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'v5 build failed' }
+          $candidate = Join-Path $PWD 'candidate/LiteDB/LiteDB.csproj'
+          dotnet build harness/tools/SharedRequestBenchmarks/V6/V6.csproj -c Release -f ${{ matrix.framework }} -p:TargetFrameworks=${{ matrix.framework }} -p:TestingEnabled=false -p:GitVersionEnabled=false "-p:CandidateProject=$candidate"
+          if ($LASTEXITCODE) { throw 'v6 build failed' }
+      - name: Two repetitions, six interleaved rounds each
+        shell: pwsh
+        run: |
+          python harness/tools/SharedRequestBenchmarks/run.py harness/tools/SharedRequestBenchmarks/V5/bin/Release/${{ matrix.framework }}/V5.dll harness/tools/SharedRequestBenchmarks/V6/bin/Release/${{ matrix.framework }}/V6.dll artifacts/request
+          if ($LASTEXITCODE) { throw 'request comparison failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-request-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts/request/
+          if-no-files-found: error

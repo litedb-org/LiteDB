@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>$(DefineConstants);DEV</DefineConstants>
+    <CandidateProject Condition="'$(CandidateProject)' == ''">../../../LiteDB/LiteDB.csproj</CandidateProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../*.cs" />
+    <ProjectReference Include="$(CandidateProject)" />
+  </ItemGroup>
+</Project>
