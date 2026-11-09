@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Diagnostics;
+using System.Threading;
 
 namespace LiteDB.Client.Shared
 {
@@ -31,7 +33,19 @@ namespace LiteDB.Client.Shared
         }
 
         internal bool TryExclusiveDms() => _owner.TryLock(SharedMemoryLayout.Dms, true);
-        internal void ShareDms() => _owner.Lock(SharedMemoryLayout.Dms, false);
+        // Opening precedes reading persisted pragmas: use the default TIMEOUT
+        // (60 seconds), or the explicit caller budget. Never admit without DMS.
+        internal void ShareDms(TimeSpan? timeout = null)
+        {
+            var budget = timeout ?? TimeSpan.FromSeconds(60);
+            var elapsed = Stopwatch.StartNew();
+            while (!_owner.TryLock(SharedMemoryLayout.Dms, false))
+            {
+                if (elapsed.Elapsed >= budget)
+                    throw new TimeoutException("Shared DMS admission exceeded TIMEOUT while waiting for its OS lock.");
+                Thread.Sleep(1);
+            }
+        }
         internal void DowngradeDms() => _owner.Downgrade(SharedMemoryLayout.Dms);
         internal bool TryClaim(int slot) => _owner.TryLock(Slot(slot), true);
         internal void ReleaseSlot(int slot) => _owner.Unlock(Slot(slot));
