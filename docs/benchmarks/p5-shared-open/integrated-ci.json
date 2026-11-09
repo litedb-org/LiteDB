@@ -75,9 +75,9 @@
     "databaseId": 42547542099,
     "headSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
     "name": "P1 WAL handle safety",
-    "status": "queued",
+    "status": "completed",
     "url": "https://github.com/litedb-org/LiteDB/actions/runs/42547542099",
     "phase": "phase4",
-    "conclusion": ""
+    "conclusion": "success"
   }
 ]

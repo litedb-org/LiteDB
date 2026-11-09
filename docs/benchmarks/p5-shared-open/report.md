@@ -71,7 +71,7 @@ Roadmap [issue 3124](https://github.com/litedb-org/LiteDB/issues/3124), Phase 2 
 
 1. Dispose the safe mapping view after releasing its borrowed pointer and before accessor disposal. This unmaps ephemeral coordination without an explicit durability flush; other mapped participants remain coherent. Durable DB/WAL barriers, final-close locks/recovery, and torn/stale coordination validation remain intact.
 2. Retain the already validated `NativeAdmission` for nested participant/table construction. Standalone entry points still independently admit. No global validation cache was introduced, and the retained reference keeps the same native lock owner alive throughout construction.
-3. Query the Windows opened file handle with `GetVolumeInformationByHandleW` rather than walking parent paths with `GetVolumePathNameW`. Keep local-drive types and NTFS/ReFS qualification. This reduces probing without a stale path/volume-serial cache. The actual admitted file handle determines its filesystem ([Windows API](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumeinformationbyhandlew)).
+3. Query the Windows opened file handle with `GetVolumeInformationByHandleW` rather than walking parent paths with `GetVolumePathNameW`. Keep local-drive types and NTFS/ReFS qualification. This reduces probing without a stale path/volume-serial cache. The actual admitted file handle determines its filesystem ([Windows API](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumeinformationbyhandlew)). Microsoft documents this API since Windows Vista/Server 2008; the change does not add a Windows 8 minimum.
 
 ## Safety evidence and limits
 
@@ -112,7 +112,7 @@ The first independent scalar-leaf audit identified one missing historical parent
 | phase3 `d925be3a6` | P1 WAL handle safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547533755) |
 | phase4 `7000dd6f0` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547539289) |
 | phase4 `7000dd6f0` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547544943) |
-| phase4 `7000dd6f0` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547542099) |
+| phase4 `7000dd6f0` | P1 WAL handle safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547542099) |
 
 The completed phase2 update workflow has 121 candidate tests and 9 historical baseline guards passed on each Linux/Windows net8/net10 leg, with zero skipped/failed/aborted. `phase2-update-counts.json` separates the workflow candidate, tested production-source revision and test-harness revision; its baseline is the fixed source overlay specified in the workflow, not the moving phase1 branch.
 
@@ -121,5 +121,7 @@ The phase2 P1 WAL/handle workflow also completed successfully on six jobs. Each 
 Phase3 and phase4 update/index safety workflows also completed successfully on their exact current heads. Each of their four OS/runtime legs has 121 candidate tests and 9 fixed-overlay baseline guards passed, with every actual TRX outcome `Passed`. `integrated-update-counts.json` retains their exact source/harness pins and counters.
 
 Phase3 WAL/handle safety also completed successfully: eight sessions per leg, 1,392 passed + 1 `NotExecuted` on Linux/Windows and 1,393 passed + 1 `NotExecuted` on macOS, each on net8/net10. No failed/aborted sessions. Actual outcomes and the skipped name are retained in `phase3-handle-counts.json`; skipped coverage is not counted as qualified.
+
+Phase4 WAL/handle safety also completed successfully on its exact current head: all 12 jobs, with 456 nonempty completed TRX sessions. On each net8/net10 leg, the nine WAL sessions have 1,395 passed + 1 `NotExecuted` on Linux/Windows and 1,396 passed + 1 `NotExecuted` on macOS; the 67 ownership sessions have 1,141 passed on Linux, and 1,135 passed + 6 `NotExecuted` on Windows/macOS. No failures or aborted sessions. These are test-result executions across overlapping selections, not unique-test totals. `phase4-handle-counts.json` retains the raw counters, actual outcomes and every skipped name. Reproduce the exact-head audit with `python audit-phase4-handles.py <evidence-directory>`; skipped cases are not qualification evidence.
 
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.

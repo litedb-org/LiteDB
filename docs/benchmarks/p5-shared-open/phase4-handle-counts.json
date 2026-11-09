@@ -1,0 +1,388 @@
+[
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-ubuntu-latest-net8.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1396,
+      "executed": 1395,
+      "passed": 1395,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1395,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-ubuntu-latest-net8.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1141,
+      "passed": 1141,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1141
+    },
+    "nonPassingNames": []
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-ubuntu-latest-net10.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1396,
+      "executed": 1395,
+      "passed": 1395,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1395,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-ubuntu-latest-net10.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1141,
+      "passed": 1141,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1141
+    },
+    "nonPassingNames": []
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-windows-latest-net8.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1396,
+      "executed": 1395,
+      "passed": 1395,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1395,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-windows-latest-net8.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1135,
+      "passed": 1135,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1135,
+      "NotExecuted": 6
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime",
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-windows-latest-net10.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1396,
+      "executed": 1395,
+      "passed": 1395,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1395,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-windows-latest-net10.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1135,
+      "passed": 1135,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1135,
+      "NotExecuted": 6
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime",
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-macos-latest-net8.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1397,
+      "executed": 1396,
+      "passed": 1396,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1396,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-macos-latest-net8.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1135,
+      "passed": 1135,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1135,
+      "NotExecuted": 6
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime",
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-macos-latest-net10.0-wal",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 9,
+    "rawCounters": {
+      "total": 1397,
+      "executed": 1396,
+      "passed": 1396,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1396,
+      "NotExecuted": 1
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ]
+  },
+  {
+    "run": 42547542099,
+    "leg": "handle-safety-macos-latest-net10.0-ownership",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "sessions": 67,
+    "rawCounters": {
+      "total": 1141,
+      "executed": 1135,
+      "passed": 1135,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "actualResultOutcomes": {
+      "Passed": 1135,
+      "NotExecuted": 6
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime",
+      "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+      "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder"
+    ]
+  }
+]
