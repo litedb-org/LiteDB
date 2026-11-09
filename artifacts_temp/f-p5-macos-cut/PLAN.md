@@ -36,3 +36,17 @@
 2026-11-09T07:25Z Round2 read rules/brief/prior log, downloaded gh --log-failed + artifacts. Both legs fail injected var cutCheckpointPages = db.Checkpoint(); (void); replay step skipped. Orchestrator instructed one corrected dispatch then wait, overriding brief no-wait default.
 
 2026-11-09T07:27Z Corrected scratch prepare.py records completion of void Checkpoint API instead of assigning a value. Exact-revision diagnostic net8 TestingEnabled builds both passed (0 errors); commands/results retained in round2-build-* and verify-round2.py. No local fuzz or broad test run.
+
+2026-11-09T07:27:01Z Round2 sole redispatch https://github.com/litedb-org/LiteDB/actions/runs/42579384408 exact scratch3c9a0d39111450356cb00e55955135b453f384db; both exact product revisions retained, direct_only=false, queued. No more dispatches permitted. Wait until completed; no-runner deadline about09:27UTC.
+
+2026-11-09T07:32:21Z Run42579384408 both macOS legs running actual direct/replay step after successful unmodified and diagnostic builds. Hosted runners obtained; no-runner blocker no longer applies. Next CI poll >=07:37UTC.
+
+2026-11-09T07:38:50Z Both comparison jobs still in_progress; result unavailable, no further dispatch or cancellations.
+
+2026-11-09T07:46:07Z Both jobs remain in_progress (129034259293 /129034259588). Original replay400 rounds retained unchanged, waiting for completion; no new hosted run.
+
+2026-11-09T07:52:19Z Both macOS legs remain in_progress; setup builds passed, awaiting completed direct/replay artifacts. No qualification claim.
+
+2026-11-09T08:04:08Z Both macOS legs still in_progress. Probe provenance: step282 maps (282-1)%26+1=22/checkpoint-after-page-write, worker0 seed529470+282*397=641424 (same direct probe); original round has2workers. No claim of deterministic schedule replay: native process interleaving can move the failure round.
+
+2026-11-09T08:10:18Z Both jobs still in_progress in sole redispatch42579384408 (scratch3c9a0d391); wait continues. Recording resumable state on scratch branch, documentation-only successor does not change run source SHA or dispatch more CI.
