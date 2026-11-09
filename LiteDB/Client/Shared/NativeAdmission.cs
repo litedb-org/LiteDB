@@ -49,7 +49,8 @@ namespace LiteDB.Client.Shared
                     throw new IOException("Database alias has a separate WAL. Recover the matching data/WAL pair before opening.");
             }
             settings.Filename = canonical;
-            RebuildRecovery.EnsureAvailable(settings);
+            // No intervening filesystem work: reuse this normalization only here.
+            RebuildRecovery.EnsureAvailable(settings, canonical);
         }
 
         internal static void NormalizeSharedNamespace(EngineSettings settings)
