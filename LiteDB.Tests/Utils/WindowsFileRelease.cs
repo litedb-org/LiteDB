@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Tests
 {
@@ -54,6 +55,34 @@ namespace LiteDB.Tests
                     catch (DirectoryNotFoundException) { }
                 }
             }, timeoutMilliseconds);
+        }
+
+        // Call only after every intentional participant has closed. Process exit and
+        // SafeHandle.Close do not guarantee synchronous Windows byte-range release.
+        // Probe the actual range without opening/recovering/mutating database storage.
+        internal static void WaitForNativeAdmission(string filename, int timeoutMilliseconds = 5000)
+        {
+            if (!IsWindows) return;
+            var elapsed = Stopwatch.StartNew();
+            var attempts = 0;
+            using var probe = new DatabaseFileLock(filename, true, false, qualify: false);
+            while (true)
+            {
+                attempts++;
+                if (probe.TryLock(DatabaseFileLock.Admission, exclusive: true))
+                {
+                    probe.Unlock(DatabaseFileLock.Admission);
+                    Console.WriteLine("Windows native admission released: attempts=" + attempts +
+                        " elapsedMs=" + elapsed.Elapsed.TotalMilliseconds.ToString("F3",
+                            System.Globalization.CultureInfo.InvariantCulture));
+                    return;
+                }
+                var remaining = timeoutMilliseconds - elapsed.ElapsedMilliseconds;
+                if (remaining <= 0)
+                    throw new IOException("Windows native admission remained locked after " +
+                        elapsed.ElapsedMilliseconds + " ms: " + filename);
+                Thread.Sleep((int)Math.Min(1, remaining));
+            }
         }
 
         internal static void DeleteDirectory(string path) => Retry(() => Directory.Delete(path, true));
