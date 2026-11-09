@@ -41,7 +41,7 @@ jobs:
           if ($LASTEXITCODE) { throw 'decoder build' }
           foreach ($round in 1..3) {
             $prefix = "artifacts_temp/shared-profile/round-$round"
-            dotnet-trace collect --providers 'LiteDB-ScenarioProfile,LiteDB-SharedOpenProfile,Microsoft-DotNETCore-SampleProfiler,Microsoft-Windows-DotNETRuntime:0x1:4' --output "$prefix.nettrace" -- dotnet tools/Ab5021Benchmarks/V6/bin/Release/net8.0/V6.dll dev-default $round "$prefix.json"
+            dotnet-trace collect --providers 'LiteDB-ScenarioProfile,LiteDB-SharedOpenProfile:0xffffffffffffffff:5,Microsoft-DotNETCore-SampleProfiler,Microsoft-Windows-DotNETRuntime:0x1:4' --output "$prefix.nettrace" -- dotnet tools/Ab5021Benchmarks/V6/bin/Release/net8.0/V6.dll dev-default $round "$prefix.json"
             if ($LASTEXITCODE) { throw 'trace failed' }
             dotnet tools/Ab5021Benchmarks/TraceReport/bin/Release/net8.0/TraceReport.dll "$prefix.nettrace" "$prefix-profile.json"
             if ($LASTEXITCODE) { throw 'decode failed' }

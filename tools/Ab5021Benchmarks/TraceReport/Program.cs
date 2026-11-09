@@ -3,6 +3,7 @@ using Microsoft.Diagnostics.Tracing.Etlx;
 var etlx = TraceLog.CreateFromEventPipeDataFile(args[0]);
 using var log = new TraceLog(etlx);
 if (log.EventsLost != 0) throw new Exception("Lost events: " + log.EventsLost);
+if (!log.Events.Any(e => e.ProviderName == "LiteDB-SharedOpenProfile" && (int)e.ID == 1)) throw new Exception("Missing PROFILE spans");
 var rows = new List<object>();
 string? scenario = null;
 var spans = new Dictionary<string, List<double>>();

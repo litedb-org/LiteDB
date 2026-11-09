@@ -9,7 +9,7 @@ namespace LiteDB
     {
         internal static readonly SharedOpenProfile Log = new SharedOpenProfile();
         [Event(1)] public void Span(string name, double ms) { if (IsEnabled()) WriteEvent(1, name, ms); }
-        internal static IDisposable Measure(string name) => new Scope(name);
+        internal static IDisposable Measure(string name) { var source = Log; return new Scope(name); }
         private sealed class Scope : IDisposable
         {
             private readonly string _name;
