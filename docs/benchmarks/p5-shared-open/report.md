@@ -81,6 +81,19 @@ The new bootstrap guard verifies peer coherence after one map closes, repeated d
 
 [Hosted Shared safety](https://github.com/litedb-org/LiteDB/actions/runs/42542701548) completed on scratch `805a33f923f5498508e943525222d20516711dd2`, whose production library is identical to benchmark after: **703 passed, 0 failed, 0 skipped, 0 aborted on each of four platforms**. Every selected discovery result is accounted for by the per-class TRX set. The 67 selected classes include bootstrap, final close, maintenance opening/failure/crash, recovery cuts, registry process death, native admission/mixed-open, offline upgrade and policy cases. Each class retains the unchanged 300-second session limit. Earlier single-session Windows selection timed out with 233 passed/0 failed and an aborted session; it is not green evidence. Class partitioning preserved all 703 test names and allowed every class to finish. These are exception/process-death/modeled-recovery tests, not an actual device power-cut campaign.
 
+The affected-invariant mapping uses tests actually present in the 703-case selection (all passed on every runner):
+
+| Change / invariant | Discriminating permanent coverage | Failure model |
+| --- | --- | --- |
+| Unmap without explicit flush must preserve live peers and reopened bytes | `SharedOneFileBootstrap_Tests.Closing_ephemeral_view_keeps_peer_coherent_and_reopens_without_a_flush_contract` | Normal/repeated disposal; overlapping views |
+| Ephemeral reuse cannot bless incomplete bootstrap or override DB/WAL recovery | `Every_bootstrap_exception_boundary_releases_and_reinitializes_twice`, `Every_bootstrap_process_death_boundary_recovers_after_repeated_death`, `Torn_ephemeral_checksums_reset_only_without_surviving_participants` | Exception, process-death, corrupt ephemeral input |
+| Last close must still checkpoint and recover committed indexed data | `SharedOneFileFinalClose_Tests.Every_final_close_death_recovers_twice_without_changing_authority`, `Death_inside_final_checkpoint_recovers_the_complete_committed_state`, `Failed_final_checkpoint_does_not_publish_or_retire_stopped_storage` | Process-death, failed checkpoint |
+| Retained nested admission must outlive every escaping reader and exclude incompatible opens | `SharedOneFileRegistry_Tests.Escaping_snapshot_keeps_mapping_and_admission_after_last_facade_disposes`, `Open_racing_last_mapping_close_waits_then_initializes_a_new_generation`; `SharedOneFileRegistryProcess_Tests.Direct_excludes_new_Shared_in_both_open_orders_and_legacy_family_cannot_attach` | Thread/process overlap, mixed-mode exclusion |
+| Admission release after death cannot lose acknowledged rows or admit partial state | `SharedOneFileRegistryProcess_Tests.Process_kill_releases_participant_and_cold_reopen_keeps_only_acknowledged_indexed_data` | Process-death, repeated cold reopen, plain/encrypted |
+| File qualification must preserve aliases, namespace and failure cleanup | `SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved`, `Hard_links_refuse_without_mutating_storage_or_creating_an_authority`; `DirectHostAdmission_Tests.Native_admission_coexists_with_managed_streams_without_losing_exclusion` | Namespace aliases, real native handles, admission failure |
+
+Windows hosted evidence exercises the actual NTFS handle-query path. It does not constitute a ReFS/removable/RAM/SMB device campaign. Those environments remain bounded by the documented native-filesystem contract and fail-closed API behavior; no broader platform qualification is inferred from these runners.
+
 The integrated heads additionally carry F-P5-WARMLIFETIME's bounded synchronized cleanup-completion test correction, not a product change. Its separate Windows stress campaign remains separate evidence. Integrated exact-head full/P1 results below supersede prior cancelled dispatches; pending is not green.
 
 ## Integration and CI
