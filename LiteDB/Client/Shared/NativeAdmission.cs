@@ -49,7 +49,9 @@ namespace LiteDB.Client.Shared
                     throw new IOException("Database alias has a separate WAL. Recover the matching data/WAL pair before opening.");
             }
             settings.Filename = canonical;
-            RebuildRecovery.EnsureAvailable(settings);
+            // Alias/WAL validation above performs additional filesystem work. Revalidate
+            // in that case; only an unchanged path has an adjacent canonical proof.
+            RebuildRecovery.EnsureAvailable(settings, original == canonical ? canonical : null);
         }
 
         internal static void NormalizeSharedNamespace(EngineSettings settings)
