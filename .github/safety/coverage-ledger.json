@@ -1202,7 +1202,7 @@
       ],
       "disposition": "strengthened",
       "invariant": "Keep all API boundary and snapshot oracles and all existing smoke/nightly/campaign legs. Full 400-step seeds and recorded-input replay must pass with identical input/trace hashes.",
-      "reason": "Reuse ten underscore names to stay within finite collection-header capacity. Publish requests and stop files after closing their temporary handles, matching existing atomic ready/result publication. Add target/seed shards with bounded execution and process shutdown before upload; original interrupted snapshot input prefixes cannot provide full-budget replay. Existing workflow tiers and budgets remain intact.",
+      "reason": "Reuse ten underscore names to stay within finite collection-header capacity. Publish requests and stop files after closing their temporary handles, matching existing atomic ready/result publication. Add target/seed shards with bounded execution and process shutdown before upload; original interrupted snapshot input prefixes cannot provide full-budget replay. Existing workflow tiers and budgets remain intact. Observed original snapshot400 took81 minutes and paired replay was interrupted at365 by the combined150-minute cap. Separate original/replay subprocess budgets of150 minutes fit a330-minute job, with shutdown/upload reserve. All steps, input/hash and snapshot oracles are retained.",
       "coveredBy": [
         "LiteDB.Fuzz.Tests/HarnessControl_Tests.cs",
         ".github/scripts/test_harness_campaign.py",

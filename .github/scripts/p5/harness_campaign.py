@@ -80,20 +80,35 @@ def main():
         parser.error('--target and --seed required')
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     command = ['dotnet', str(binary), '--target', args.target, '--seed', str(args.seed),
-               '--count', '400', '--determinism-check', '--max-artifact-mb', '0',
+               '--count', '400', '--max-artifact-mb', '0',
                '--artifact-dir', str(root)]
-    record = dict(command=command, sha=sha)
-    (root / 'command.json').write_text(json.dumps(record, indent=2))
-    try:
-        with (root / 'campaign.log').open('w', encoding='utf-8') as log:
+    record = dict(commands=[], sha=sha)
+
+    def run(command, label):
+        row = dict(command=command, label=label)
+        record['commands'].append(row)
+        (root / 'command.json').write_text(json.dumps(record, indent=2))
+        with (root / (label + '.log')).open('w', encoding='utf-8') as log:
             process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
             try:
-                record['exit'] = process.wait(timeout=150 * 60)
+                row['exit'] = process.wait(timeout=150 * 60)
             except subprocess.TimeoutExpired:
-                record['timeout'] = True
+                row['timeout'] = True
                 raise
-        if record['exit']:
-            raise RuntimeError('Fuzz runner failed; see campaign.log')
+        if row['exit']:
+            raise RuntimeError('Fuzz runner failed; see ' + label + '.log')
+
+    try:
+        run(command, 'original')
+        candidates = [p for p in root.rglob('run.json')
+                      if (lambda r: r['target'] == args.target and r['seed'] == args.seed
+                          and r['count'] == r['steps'] == 400 and r['status'] == 'passed')
+                         (json.loads(p.read_text()))]
+        if len(candidates) != 1:
+            raise RuntimeError('Missing unique full-budget original')
+        # Replay the successful complete input, never the truncated failure prefix.
+        run(['dotnet', str(binary), '--replay', str(candidates[0].with_name('replay.json')),
+             '--artifact-dir', str(root / 'replay'), '--max-artifact-mb', '0'], 'replay')
         results = validate_results(root, args.target, args.seed, sha)
         (root / 'validated.json').write_text(json.dumps(results, indent=2))
     finally:
