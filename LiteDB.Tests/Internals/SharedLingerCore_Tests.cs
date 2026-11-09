@@ -193,6 +193,25 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Assembly_unloading_releases_idle_admission_before_its_timer()
+        {
+            var context = new System.Runtime.Loader.AssemblyLoadContext("linger-" + Guid.NewGuid(), isCollectible: true);
+            try
+            {
+                var assembly = context.LoadFromAssemblyPath(typeof(LiteDatabase).Assembly.Location);
+                var database = assembly.GetType("LiteDB.LiteDatabase");
+                var instance = database.GetConstructor(new[] { typeof(string), assembly.GetType("LiteDB.BsonMapper") })
+                    .Invoke(new object[] { "filename=" + Filename + ";connection=shared;shared one file=true;shared linger=60000", null });
+                ((IDisposable)instance).Dispose();
+                Action directWhileIdle = () => { using var denied = new LiteDatabase(Filename); };
+                directWhileIdle.Should().Throw<IOException>();
+            }
+            finally { context.Unload(); }
+            using var released = new LiteDatabase(Filename);
+            released.GetCollection("docs").Count().Should().Be(0);
+        }
+
+        [OneFileFact]
         public void Legacy_shared_ignores_linger_and_zero_releases_for_immediate_direct_open()
         {
             var connection = Connection;

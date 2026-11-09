@@ -73,9 +73,15 @@ namespace LiteDB.Client.Shared
 
         static SharedParticipantRegistry()
         {
-            AppDomain.CurrentDomain.ProcessExit += (_, __) => ReleaseOnExit();
-            System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(typeof(SharedParticipantRegistry).Assembly).Unloading += _ => ReleaseOnExit();
+            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+            System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(typeof(SharedParticipantRegistry).Assembly).Unloading += _ =>
+            {
+                AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+                ReleaseOnExit();
+            };
         }
+
+        private static void OnProcessExit(object sender, EventArgs args) => ReleaseOnExit();
 
         private static void ReleaseOnExit()
         {
