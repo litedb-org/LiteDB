@@ -106,7 +106,7 @@ The first independent scalar-leaf audit identified one missing historical parent
 | --- | --- | --- | --- |
 | phase2 `c67bb7c27` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546674434) |
 | phase2 `c67bb7c27` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546677209) |
-| phase2 `c67bb7c27` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546680231) |
+| phase2 `c67bb7c27` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546680231) |
 | phase3 `d925be3a6` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547530648) |
 | phase3 `d925be3a6` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547536365) |
 | phase3 `d925be3a6` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547533755) |
