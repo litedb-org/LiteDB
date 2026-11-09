@@ -1,0 +1,230 @@
+[
+  {
+    "leg": "handle-safety-macos-latest-net10.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1191,
+      "executed": 1163,
+      "passed": 1163,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedOneFileReplacementReplay_Tests.Retained_same_path_authority_never_overrides_replacement_DB_and_WAL",
+      "LiteDB.Internals.SharedOneFileWarmReads_Tests.Reclaimed_WAL_address_negative_control_requires_the_post_record_fence",
+      "LiteDB.Internals.SharedOneFileWarmReview_Tests.Collected_warm_stream_does_not_block_a_remote_writers_WAL_drain",
+      "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+      "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+      "LiteDB.Internals.SharedOneFileWarmLifetime_Tests.Collected_warm_result_allows_remote_drain_whether_empty_WAL_is_removed_or_retained",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Mapping_failure_with_an_accepted_peer_snapshot_preserves_both_files_and_the_snapshot",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Unavailable_or_changed_authority_refuses_writes_before_DB_or_WAL_mutation",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Every_safepoint_batch_publishes_one_reuse_before_its_first_physical_overwrite",
+      "LiteDB.Internals.SharedOneFileWarmResources_Tests.Independent_four_MiB_WAL_and_page_cache_limits_prevent_idle_retention",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Terminal_WAL_failure_must_leave_recovery_fenced_until_an_independent_protected_open",
+      "LiteDB.Internals.SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Zero_frame_dependency_commit_cannot_publish_before_its_barrier",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations",
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Rollback_ReturnNewPages_confirmation_is_published_only_after_the_covering_sync",
+      "LiteDB.Internals.SharedOneFileOwnershipFences_Tests.Recovery_barrier_failure_keeps_the_restored_prefix_unknown_until_successful_retry",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Interrupted_reset_or_reuse_keeps_storage_and_repairs_the_same_authority",
+      "LiteDB.Internals.SharedOneFileCheckpointFences_Tests.Failed_checkpoint_unwinding_cannot_publish_or_clear_the_terminal_recovery_fence",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.A_completed_durable_commit_survives_two_live_authority_recoveries",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+      "LiteDB.Internals.SharedOneFileFailureFences_Tests.Cache_only_or_unsupported_sync_never_advertises_a_new_durable_version",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Killed_warm_reader_releases_kernel_liveness_and_its_generation_can_be_reclaimed",
+      "LiteDB.Internals.SharedOneFileWarmPrefix_Tests.Live_cache_admission_never_leads_two_separate_durable_prefixes_or_a_failed_later_sync",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Recovery_syncs_a_dead_writers_confirmation_before_publishing_its_version",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1163,
+      "NotExecuted": 28
+    }
+  },
+  {
+    "leg": "handle-safety-macos-latest-net8.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1191,
+      "executed": 1163,
+      "passed": 1163,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+      "LiteDB.Internals.SharedOneFileReplacementReplay_Tests.Retained_same_path_authority_never_overrides_replacement_DB_and_WAL",
+      "LiteDB.Internals.SharedOneFileWarmResources_Tests.Independent_four_MiB_WAL_and_page_cache_limits_prevent_idle_retention",
+      "LiteDB.Internals.SharedOneFileWarmLifetime_Tests.Collected_warm_result_allows_remote_drain_whether_empty_WAL_is_removed_or_retained",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Every_safepoint_batch_publishes_one_reuse_before_its_first_physical_overwrite",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Unavailable_or_changed_authority_refuses_writes_before_DB_or_WAL_mutation",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Terminal_WAL_failure_must_leave_recovery_fenced_until_an_independent_protected_open",
+      "LiteDB.Internals.SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved",
+      "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+      "LiteDB.Internals.SharedOneFileWarmReview_Tests.Collected_warm_stream_does_not_block_a_remote_writers_WAL_drain",
+      "LiteDB.Internals.SharedOneFileWarmReads_Tests.Reclaimed_WAL_address_negative_control_requires_the_post_record_fence",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Mapping_failure_with_an_accepted_peer_snapshot_preserves_both_files_and_the_snapshot",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations",
+      "LiteDB.Internals.SharedOneFileWarmPrefix_Tests.Live_cache_admission_never_leads_two_separate_durable_prefixes_or_a_failed_later_sync",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Rollback_ReturnNewPages_confirmation_is_published_only_after_the_covering_sync",
+      "LiteDB.Internals.SharedOneFileOwnershipFences_Tests.Recovery_barrier_failure_keeps_the_restored_prefix_unknown_until_successful_retry",
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Interrupted_reset_or_reuse_keeps_storage_and_repairs_the_same_authority",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Recovery_syncs_a_dead_writers_confirmation_before_publishing_its_version",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.A_completed_durable_commit_survives_two_live_authority_recoveries",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+      "LiteDB.Internals.SharedOneFileFailureFences_Tests.Cache_only_or_unsupported_sync_never_advertises_a_new_durable_version",
+      "LiteDB.Internals.SharedOneFileCheckpointFences_Tests.Failed_checkpoint_unwinding_cannot_publish_or_clear_the_terminal_recovery_fence",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Zero_frame_dependency_commit_cannot_publish_before_its_barrier",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Killed_warm_reader_releases_kernel_liveness_and_its_generation_can_be_reclaimed",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1163,
+      "NotExecuted": 28
+    }
+  },
+  {
+    "leg": "handle-safety-ubuntu-latest-net10.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1252,
+      "executed": 1251,
+      "passed": 1251,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1251,
+      "NotExecuted": 1
+    }
+  },
+  {
+    "leg": "handle-safety-ubuntu-latest-net8.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1252,
+      "executed": 1251,
+      "passed": 1251,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1251,
+      "NotExecuted": 1
+    }
+  },
+  {
+    "leg": "handle-safety-windows-latest-net10.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1190,
+      "executed": 1162,
+      "passed": 1162,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedOneFileWarmLifetime_Tests.Collected_warm_result_allows_remote_drain_whether_empty_WAL_is_removed_or_retained",
+      "LiteDB.Internals.SharedOneFileWarmResources_Tests.Independent_four_MiB_WAL_and_page_cache_limits_prevent_idle_retention",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Mapping_failure_with_an_accepted_peer_snapshot_preserves_both_files_and_the_snapshot",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Every_safepoint_batch_publishes_one_reuse_before_its_first_physical_overwrite",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Unavailable_or_changed_authority_refuses_writes_before_DB_or_WAL_mutation",
+      "LiteDB.Internals.SharedOneFileWarmReads_Tests.Reclaimed_WAL_address_negative_control_requires_the_post_record_fence",
+      "LiteDB.Internals.SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved",
+      "LiteDB.Internals.SharedOneFileWarmReview_Tests.Collected_warm_stream_does_not_block_a_remote_writers_WAL_drain",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Terminal_WAL_failure_must_leave_recovery_fenced_until_an_independent_protected_open",
+      "LiteDB.Internals.SharedOneFileReplacementReplay_Tests.Retained_same_path_authority_never_overrides_replacement_DB_and_WAL",
+      "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+      "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+      "LiteDB.Internals.SharedOneFileWarmPrefix_Tests.Live_cache_admission_never_leads_two_separate_durable_prefixes_or_a_failed_later_sync",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Zero_frame_dependency_commit_cannot_publish_before_its_barrier",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Killed_warm_reader_releases_kernel_liveness_and_its_generation_can_be_reclaimed",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Interrupted_reset_or_reuse_keeps_storage_and_repairs_the_same_authority",
+      "LiteDB.Internals.SharedOneFileCheckpointFences_Tests.Failed_checkpoint_unwinding_cannot_publish_or_clear_the_terminal_recovery_fence",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Recovery_syncs_a_dead_writers_confirmation_before_publishing_its_version",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+      "LiteDB.Internals.SharedOneFileFailureFences_Tests.Cache_only_or_unsupported_sync_never_advertises_a_new_durable_version",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.A_completed_durable_commit_survives_two_live_authority_recoveries",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Rollback_ReturnNewPages_confirmation_is_published_only_after_the_covering_sync",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations",
+      "LiteDB.Internals.SharedOneFileOwnershipFences_Tests.Recovery_barrier_failure_keeps_the_restored_prefix_unknown_until_successful_retry",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1162,
+      "NotExecuted": 28
+    }
+  },
+  {
+    "leg": "handle-safety-windows-latest-net8.0",
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "sessions": 4,
+    "counters": {
+      "total": 1190,
+      "executed": 1162,
+      "passed": 1162,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassingNames": [
+      "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Every_safepoint_batch_publishes_one_reuse_before_its_first_physical_overwrite",
+      "LiteDB.Internals.SharedOneFileWarmReview_Tests.Collected_warm_stream_does_not_block_a_remote_writers_WAL_drain",
+      "LiteDB.Internals.SharedOneFileReplacementReplay_Tests.Retained_same_path_authority_never_overrides_replacement_DB_and_WAL",
+      "LiteDB.Internals.SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Terminal_WAL_failure_must_leave_recovery_fenced_until_an_independent_protected_open",
+      "LiteDB.Internals.SharedOneFileWalBatch_Tests.Mapping_failure_with_an_accepted_peer_snapshot_preserves_both_files_and_the_snapshot",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Unavailable_or_changed_authority_refuses_writes_before_DB_or_WAL_mutation",
+      "LiteDB.Internals.SharedOneFileWarmReads_Tests.Reclaimed_WAL_address_negative_control_requires_the_post_record_fence",
+      "LiteDB.Internals.SharedOneFileWarmResources_Tests.Independent_four_MiB_WAL_and_page_cache_limits_prevent_idle_retention",
+      "LiteDB.Internals.SharedOneFileWarmLifetime_Tests.Collected_warm_result_allows_remote_drain_whether_empty_WAL_is_removed_or_retained",
+      "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+      "LiteDB.Internals.SharedOneFileWarmPrefix_Tests.Live_cache_admission_never_leads_two_separate_durable_prefixes_or_a_failed_later_sync",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.A_completed_durable_commit_survives_two_live_authority_recoveries",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Interrupted_reset_or_reuse_keeps_storage_and_repairs_the_same_authority",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.Dead_multigeneration_reader_slot_is_reused_while_an_independent_scanner_remains_active",
+      "LiteDB.Internals.SharedOneFileOwnershipFences_Tests.Recovery_barrier_failure_keeps_the_restored_prefix_unknown_until_successful_retry",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Zero_frame_dependency_commit_cannot_publish_before_its_barrier",
+      "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+      "LiteDB.Internals.SharedOneFileWarmRecovery_Tests.Killed_warm_reader_releases_kernel_liveness_and_its_generation_can_be_reclaimed",
+      "LiteDB.Internals.SharedOneFileDurablePrefix_Tests.Rollback_ReturnNewPages_confirmation_is_published_only_after_the_covering_sync",
+      "LiteDB.Internals.SharedOneFileFailureFences_Tests.Cache_only_or_unsupported_sync_never_advertises_a_new_durable_version",
+      "LiteDB.Internals.SharedOneFilePublicationReview_Tests.Recovery_syncs_a_dead_writers_confirmation_before_publishing_its_version",
+      "LiteDB.Internals.SharedOneFileCheckpointFences_Tests.Failed_checkpoint_unwinding_cannot_publish_or_clear_the_terminal_recovery_fence",
+      "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests.New_admission_at_each_death_cut_preserves_multiple_current_and_retired_warm_generations",
+      "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests.Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot"
+    ],
+    "actualResultOutcomes": {
+      "Passed": 1162,
+      "NotExecuted": 28
+    }
+  }
+]
