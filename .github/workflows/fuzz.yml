@@ -454,3 +454,7 @@ jobs:
           name: fuzz-campaign-${{ github.run_id }}
           path: artifacts/fuzz
           if-no-files-found: error
+
+  reachability-proofs:
+    if: github.event_name == 'workflow_dispatch' && inputs.tier == 'smoke'
+    uses: ./.github/workflows/p5-reachability.yml
