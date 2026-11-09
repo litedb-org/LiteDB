@@ -1,7 +1,12 @@
 # Summary
-- F-P5-MACOS-CUT-FIX in progress; orchestrator instructed harness-only checkpoint admission fix, Linux/macOS hosted proof, and merge into latest v6/phase5.
-- Head and validation pending. No product changes planned.
-- Explicit step instruction requires waiting for hosted CI (overrides generic brief); maximum two dispatches.
+- F-P5-MACOS-CUT-FIX done: harness-only checkpoint admission21..26, every existing oracle/test retained; no product edits authored.
+- Fix5eb8d0abaa508d536e4c20e72a548d472b0ff176 pushed early to WIP and v6/phase5; current phase5de5f1ac023ccfccdf9204ffadcd37d921a8f5eaf retains it.
+- Final hosted proof https://github.com/litedb-org/LiteDB/actions/runs/42695893070 SUCCESS both Linux/macOS, exact source06790b89d02316c54e03eae5f60d527139481111.
+- Both seed529470 replays passed400steps/1200processes/26credited cuts/14internal cuts/400integrity checks/47,377acknowledged rows; exact step282 page-write marker verified.
+- Both12/12existing checkpoint guards passed; forced held-reader/closing-participant safe deferral controls retained,5committed rows survive2cold reopens; admitted/no-reader cuts reached.
+- Exactly2dispatches. Superseded own run42691183178 cancelled after its Linux success; no unrelated cancellations/PRs/watches/dev/phase1-4 edits.
+- Evidence final-linux/, final-macos/, final-hosted.log, final-run.json under f-p5-macos-cut-fix-evidence. Retained exact replay DLL hashes verified.
+- Limits: process-death/OS-cache evidence, finite schedules; not power loss/device proof. No exact-head green claim for later unrelated snapshot/Windows fixture integrations. Blocker:none.
 
 # Details
 - Read AGENT-RULES-sol.md and BRIEF.md; created log before implementation.
@@ -19,3 +24,21 @@
 -20:44UTC latest phase5 advanced06790b89d (transaction collection locks/reader-mask integration, fix5eb8d0aba retained). Because runtime paths changed, cancelled only own superseded run42691183178 while macOS pending (Linux completed evidence retained). Merged latest phase5 into scratch via merge commit and issued dispatch2/2 pinned06790b89d. No more dispatches permitted. Source fix is ancestor of current phase5; no product edits authored by this step. Earlier Linux success is bounded to5eb8d0aba, not qualification of06790b89d.
 - Dispatch2 https://github.com/litedb-org/LiteDB/actions/runs/42695893070 created20:44:54UTC; scratch422cbee1e, exact source06790b89d02316c54e03eae5f60d527139481111. Wait/no-runner cutoff22:45UTC. Dispatch budget exhausted; no more runs. Previous cancellation is supersession only, not a test failure.
 -20:55UTC dispatch2 both runners obtained. macOS already passed builds/checkpoint guards and entered forced controls/replay; Linux checking out source. No-runner cutoff no longer applies. Wait to completion; no third dispatch permitted.
+- Dispatch2 Linux COMPLETED SUCCESS on06790b89d, downloaded final-linux/ evidence; all strict replay/step282 assertions passed. macOS still executing. Original DLL hashes match; exact source provenance is product-sha.txt plus retained binaries built before overlay.
+- Final dispatch macOS remains in_progress after Linux completed; mandatory wait continues. No failure/green claim inferred from elapsed time; no additional dispatch/cancellation. Linux12/12guards,400steps,26cuts,14internal,1200processes,400integrityChecks passed on06790b89d. Remaining acceptance is completed macOS proof.
+- Continued final-dispatch wait: macOS full replay remains active, Linux completed and artifact-verified. No third dispatch, no unrelated cancellation or product edit. Replay bound10800s, hosted job220min; pending is not green.
+
+## Final verified evidence
+
+| Platform | Source | Guards | Direct exit / seconds | Replay exit / seconds | Steps / cuts / integrity checks |
+| --- | --- | --- | --- | --- | --- |
+| Linux Ubuntu26.04 x64 net8.0.33 |06790b89d|12/12|0 /5.133|0 /1003.719|400 /26 /400|
+| macOS15 ARM64 net8.0.33 |06790b89d|12/12|0 /3.661|0 /8702.392|400 /26 /400|
+
+Each replay retained original seed529470/input SHA256E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855 and full400budget. Both step282 child exits134 contain Deterministic internal process death at checkpoint-after-page-write; parent marker validation credited all26positions. No oracle changed, skipped, or weakened. Independent ledgers and integrity verifier passed.
+
+Forced controls use the same child seed641424/cut22 as classification42579384408. No-reader and admitted peer scenarios produce exact22|checkpoint-after-page-write; held admitted mapped-reader lease and forced FinalCloseStage slot-cleared with liveness still held both produce null marker and exact missing-boundary identity, proving safe deferral still exists. Each case reopens twice and verifies all5acknowledged rows. Diagnostic overlay only adds existing gate/sidecar logging and standalone probe; unmodified replay binary built/copied beforehand, with SHA256 retained and independently verified. run.json gitSha/dirty describes invoking scratch CWD; product-sha.txt and build-before-overlay provenance identify06790b89d.
+
+Final run scratch422cbee1ed3d438f796f7fd28afd675cbda6bb9c; source06790b89d. Current phase5de5f1ac02 is a descendant of fix5eb8d0aba and proof06790b89d; post-proof changes are SnapshotFuzzer/HarnessControl and Windows release fixtures plus additive coverage-ledger records. SharedProcessFuzzer, SharedCheckpointCrashScope, checkpoint tests and LiteDB/ product tree unchanged since proof06790b89d. No third dispatch and no exact-head hosted green assertion forde5f1ac02. git ls-remote checked before original source push and at final inspection.
+
+Commands: dotnet build source/LiteDB.Fuzz -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false; dotnet test source/LiteDB.Fuzz.Tests -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --filter FullyQualifiedName~SharedCheckpoint --logger trx; python3 research/f-p5-macos-cut/prepare.py; python3 research/f-p5-macos-cut/run.py (direct probe then exact retained replay400, strict nonzero/metrics/step282 assertions). Local diagnostic compile0errors, Python compile, diff whitespace and size checks passed. Local fuzz/full suites not run.
