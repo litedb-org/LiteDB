@@ -278,3 +278,11 @@ six ephemeral entries, preserved data/WAL bytes, indexed cold reads, live legacy
 and DMS refusal, unknown remnants, read-only and injected unsupported volumes.
 This models directory-entry loss/reordering for disposable files; it does not
 claim a physical device reset or qualification beyond the enabled mapped platform.
+Mapped coordination view disposal closes the safe view before disposing its
+accessor, avoiding the accessor's implicit synchronous flush. No persisted
+coordination bytes are a recovery oracle: independent DB/WAL validation under
+bootstrap/main/WRITE still precedes Ready, and invalid quiescent coordination
+still resets or refuses according to the envelope rules above. Live peers rely
+on coherent shared mappings, not a disk flush. DB/WAL durability barriers are
+unchanged. This follows docs/rules/data-safety.md and storage-ownership.md;
+bootstrap/process-death and final-close coverage remains required.
