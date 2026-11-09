@@ -69,7 +69,7 @@ internal static class MacosCutProbe
                 verify.Checkpoint();
             }
         }
-        await File.WriteAllTextAsync(Path.Combine(root, "probe.json"), JsonSerializer.Serialize(results));
+        await File.WriteAllTextAsync(Path.Combine(root, "probe.json"), System.Text.Json.JsonSerializer.Serialize(results));
         return 0;
     }
 
