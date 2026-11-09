@@ -9,6 +9,6 @@ Workflow success is distinct from valid report-only measurements. Historical fai
 |[run42544497136](https://github.com/litedb-org/LiteDB/actions/runs/42544497136)|3 primary diagnostic pairs; exact0b and optional raw-drain production-build failures|c5b44a2bd4ca5964050f7314f5dad0b1ff0e83e7|completed / failure|3 / 2 / 0 / 0|
 |[run42547323587](https://github.com/litedb-org/LiteDB/actions/runs/42547323587)|2 net8 writer diagnostic pairs|1fd207a7ef1516ac2d00ca6a948d304ac72db8fb|completed / success|2 / 0 / 0 / 0|
 |[run42548192227](https://github.com/litedb-org/LiteDB/actions/runs/42548192227)|1 integrated Phase3/Phase4 net8 writer diagnostic pair|1fd207a7ef1516ac2d00ca6a948d304ac72db8fb|completed / success|1 / 0 / 0 / 0|
-|[run42550856850](https://github.com/litedb-org/LiteDB/actions/runs/42550856850)|2 buildable reader activation timing legs and1 diagnostic job (scan +open control)|1fd207a7ef1516ac2d00ca6a948d304ac72db8fb|queued / pending|0 / 0 / 3 / 0|
+|[run42550856850](https://github.com/litedb-org/LiteDB/actions/runs/42550856850)|2 buildable reader activation timing legs and1 diagnostic job (scan +open control)|1fd207a7ef1516ac2d00ca6a948d304ac72db8fb|completed / success|3 / 0 / 0 / 0|
 
 All runs use unmodified before/after product commits. Benchmark checksums and graceful reopen are diagnostic integrity checks; no new product safety qualification or fixed-binary gain is claimed. No local benchmarks ran.

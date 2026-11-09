@@ -56,6 +56,10 @@ Ratios after/before from independent hosted jobs; each job retains six interleav
 |research-phase4|Windows net8.0|full_scan_3x100k/dev-os-cache|1.0519, 1.0425|1.0309|3.84011e+07|
 |research-phase4|Windows net8.0|open_close_20x/dev-default|0.9964, 1.0022|1.0395|28480|
 |research-phase4|Windows net8.0|open_close_20x/dev-os-cache|0.9937, 1.0186|1.0803|28480|
+|research-public-bind-buildable-range|Windows net10.0|full_scan_3x100k/dev-default|1.0395, 1.0340|1.0252|3.84008e+07|
+|research-public-bind-buildable-range|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0275, 1.0453|1.0203|3.84008e+07|
+|research-public-bind-buildable-range|Windows net10.0|open_close_20x/dev-default|0.9989, 0.9466|1.3657|10880|
+|research-public-bind-buildable-range|Windows net10.0|open_close_20x/dev-os-cache|0.9815, 1.0058|1.0699|10880|
 |research-scan-mask|Windows net10.0|full_scan_3x100k/dev-default|0.9769, 1.0093|1.0252|0|
 |research-scan-mask|Windows net10.0|full_scan_3x100k/dev-os-cache|0.9852, 0.9606|1.0203|0|
 |research-writer-fifo|Linux net10.0|durable_insert_5k_1_writers/dev-default|0.9988, 0.9611|1.2192|240072|

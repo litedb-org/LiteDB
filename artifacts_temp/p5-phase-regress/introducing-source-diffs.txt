@@ -1,0 +1,1114 @@
+Display copy: trailing whitespace is trimmed. Exact raw exports remain in the requested /tmp evidence directory and original git commits.
+
+Historical product-source snapshots for research attribution; no product fix is implemented.
+
+commit 32a0ca52d4c7ac42764ec917a46a2a723a80cef5
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Tue Oct 27 13:50:03 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Tue Oct 27 13:50:03 2026 +0000
+
+    Canonicalize rebuild guard lookup before protected recovery
+
+    Use the canonical filename for guard comparison and bootstrap, while preserving original alias WAL validation. Standalone probes retain their absent-parent no-op semantics; database admission still reports missing parents.
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Engine/Services/RebuildRecovery.cs b/LiteDB/Engine/Services/RebuildRecovery.cs
+index e99d7bf59..e9096ce44 100644
+--- a/LiteDB/Engine/Services/RebuildRecovery.cs
++++ b/LiteDB/Engine/Services/RebuildRecovery.cs
+@@ -22,7 +22,12 @@ namespace LiteDB.Engine
+             if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
+                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return;
+
+-            var marker = GetMarkerFilename(settings.Filename);
++            // Guard lookup, exact-path validation and bootstrap must share the
++            // same namespace, even before admission or while the live name is absent.
++            string filename;
++            try { filename = LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(settings.Filename); }
++            catch (DirectoryNotFoundException) { return; } // no guard can exist in an absent parent
++            var marker = GetMarkerFilename(filename);
+             try
+             {
+                 // FileInfo returns -1 for absence without throwing on every open,
+@@ -43,7 +48,12 @@ namespace LiteDB.Engine
+                     string.Equals(Path.GetFileName(entry).Normalize(), name, StringComparison.OrdinalIgnoreCase))) return;
+             }
+
+-            if (settings.SharedOneFile && MappedRebuildRecovery.TryRecover(settings)) return;
++            if (settings.SharedOneFile)
++            {
++                var recovery = settings.Clone();
++                recovery.Filename = filename;
++                if (MappedRebuildRecovery.TryRecover(recovery)) return;
++            }
+
+             Reachability.Sometimes("refusal:rebuild-incomplete-marker");
+             throw new LiteException(LiteException.REBUILD_INCOMPLETE,
+
+commit 5cb886e91aea4548db583a51acccf9ff930d4871
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Sat Nov 7 16:26:18 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Sat Nov 7 16:26:18 2026 +0000
+
+    Port explicit transaction lease and collection ownership substrate
+
+    Adapted from litedb-org/LiteDB#3114, 94d5f0274..ce8636f6d; preserves process-host facade identity and Phase 1 ticket completion.
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Engine/Services/CollectionLock.cs b/LiteDB/Engine/Services/CollectionLock.cs
+index 0b0102450..ae0ad53cf 100644
+--- a/LiteDB/Engine/Services/CollectionLock.cs
++++ b/LiteDB/Engine/Services/CollectionLock.cs
+@@ -1,35 +1,60 @@
+ using System;
++using System.Diagnostics;
+ using System.Threading;
+
+ namespace LiteDB.Engine
+ {
+     /// <summary>
+-    /// Provides a target-specific collection lock while preserving timed Monitor semantics.
++    /// A collection writer lock owned by an explicit object instead of the executing thread.
++    /// Legacy, automatic and cursor transactions own it through their thread, recursively as
++    /// before; an explicit transaction handle owns it itself, so a later call of that handle on
++    /// another thread can continue and release it, while another handle on the same thread waits.
+     /// </summary>
+     internal sealed class CollectionLock
+     {
+-#if NET9_0_OR_GREATER
+-        private readonly Lock _lock = new Lock();
+-#else
+         private readonly object _lock = new object();
++        private object _owner;
++        private int _depth;
++#if DEBUG || TESTING
++        internal Action BeforeWait;
+ #endif
+
+-        public bool TryEnter(TimeSpan timeout)
++        /// <param name="owner">The owning thread or <see cref="object"/> handle.</param>
++        /// <param name="timeout">How long to wait for another owner.</param>
++        public bool TryEnter(object owner, TimeSpan timeout)
+         {
+-#if NET9_0_OR_GREATER
+-            return _lock.TryEnter(timeout);
+-#else
+-            return Monitor.TryEnter(_lock, timeout);
++            if (owner == null) throw new ArgumentNullException(nameof(owner));
++            var started = Stopwatch.GetTimestamp();
++            lock (_lock)
++            {
++                while (_owner != null && !ReferenceEquals(_owner, owner))
++                {
++                    // The other owner can make progress only after this thread returns: a legacy
++                    // transaction of this thread, or a handle executing this callback.
++                    if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
++                    var elapsed = (Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency;
++                    var remaining = timeout - TimeSpan.FromSeconds(elapsed);
++                    if (remaining <= TimeSpan.Zero) return false;
++#if DEBUG || TESTING
++                    BeforeWait?.Invoke();
+ #endif
++                    if (!Monitor.Wait(_lock, remaining)) return false;
++                }
++                _owner = owner;
++                _depth++;
++                return true;
++            }
+         }
+
+-        public void Exit()
++        public void Exit(object owner)
+         {
+-#if NET9_0_OR_GREATER
+-            _lock.Exit();
+-#else
+-            Monitor.Exit(_lock);
+-#endif
++            lock (_lock)
++            {
++                if (!ReferenceEquals(_owner, owner)) throw new SynchronizationLockException("Collection lock belongs to another transaction.");
++                if (--_depth != 0) return;
++                _owner = null;
++                Monitor.PulseAll(_lock);
++            }
+         }
+     }
+ }
+diff --git a/LiteDB/Engine/Services/TransactionGate.cs b/LiteDB/Engine/Services/TransactionGate.cs
+index eda0cd213..00749bbe9 100644
+--- a/LiteDB/Engine/Services/TransactionGate.cs
++++ b/LiteDB/Engine/Services/TransactionGate.cs
+@@ -16,7 +16,7 @@ namespace LiteDB.Engine
+         // A cursor can outlive its originating thread. Numeric managed IDs can
+         // be recycled after that thread is collected, so retain its identity
+         // until the last lease is released, including release on another thread.
+-        private readonly Dictionary<Thread, int> _readers = new Dictionary<Thread, int>();
++        private readonly Dictionary<object, int> _readers = new Dictionary<object, int>(ReferenceOwnerComparer.Instance);
+         private int _readerCount;
+         private Thread _writer;
+         private int _waitingWriters;
+@@ -45,10 +45,18 @@ namespace LiteDB.Engine
+             }
+         }
+
+-        public bool TryEnterReadLock(TimeSpan timeout)
++        public bool TryEnterReadLock(TimeSpan timeout) => TryEnterReadLock(timeout, Thread.CurrentThread);
++
++        internal bool HasReadLease(object owner)
+         {
++            lock (_sync) return _readers.ContainsKey(owner);
++        }
++
++        internal bool TryEnterReadLock(TimeSpan timeout, object owner)
++        {
++            if (owner == null) throw new ArgumentNullException(nameof(owner));
+             var elapsed = Stopwatch.StartNew();
+-            var thread = Thread.CurrentThread;
++            var thread = owner;
+             lock (_sync)
+             {
+                 ThrowIfDisposed();
+@@ -63,7 +71,7 @@ namespace LiteDB.Engine
+             }
+         }
+
+-        public void ExitReadLock(Thread owner)
++        public void ExitReadLock(object owner)
+         {
+             lock (_sync)
+             {
+diff --git a/LiteDB/Engine/Structures/TransactionLease.cs b/LiteDB/Engine/Structures/TransactionLease.cs
+new file mode 100644
+index 000000000..7402cd223
+--- /dev/null
++++ b/LiteDB/Engine/Structures/TransactionLease.cs
+@@ -0,0 +1,40 @@
++using System;
++using System.Collections.Generic;
++using System.Runtime.CompilerServices;
++using System.Threading;
++
++namespace LiteDB.Engine
++{
++    internal enum TransactionOwnerKind { Legacy, Handle }
++
++    // Facade identity and transaction identity are orthogonal. A lease is never
++    // reused: delayed cleanup retains this exact identity and generation.
++    internal sealed class TransactionLease
++    {
++        private static long _generation;
++        internal object Facade { get; }
++        internal TransactionOwnerToken Token { get; } = new TransactionOwnerToken();
++        internal long Generation { get; } = Interlocked.Increment(ref _generation);
++        internal TransactionOwnerKind Kind { get; }
++        internal Thread Thread { get; }
++        internal object Admission => Kind == TransactionOwnerKind.Legacy ? (object)Thread : this;
++        internal object LockOwner => Admission;
++
++        private TransactionLease(object facade, TransactionOwnerKind kind)
++        {
++            Facade = facade ?? throw new ArgumentNullException(nameof(facade));
++            Kind = kind;
++            Thread = kind == TransactionOwnerKind.Legacy ? System.Threading.Thread.CurrentThread : null;
++        }
++
++        internal static TransactionLease Legacy(object facade) => new TransactionLease(facade, TransactionOwnerKind.Legacy);
++        internal static TransactionLease Handle(object facade) => new TransactionLease(facade, TransactionOwnerKind.Handle);
++    }
++
++    internal sealed class ReferenceOwnerComparer : IEqualityComparer<object>
++    {
++        internal static readonly ReferenceOwnerComparer Instance = new ReferenceOwnerComparer();
++        public new bool Equals(object x, object y) => ReferenceEquals(x, y);
++        public int GetHashCode(object obj) => RuntimeHelpers.GetHashCode(obj);
++    }
++}
+
+commit ac972bd2d6e509080b46a1495ba5fa43c4bb719c
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Sat Nov 7 21:37:31 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Sat Nov 7 21:37:31 2026 +0000
+
+    Implement Direct handle cooperative wait budgets and callback ownership guards
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Engine/Services/CollectionLock.cs b/LiteDB/Engine/Services/CollectionLock.cs
+index e12ec34fb..16758fc88 100644
+--- a/LiteDB/Engine/Services/CollectionLock.cs
++++ b/LiteDB/Engine/Services/CollectionLock.cs
+@@ -1,5 +1,6 @@
+ using System;
+ using System.Diagnostics;
++using System.Collections.Generic;
+ using System.Threading;
+
+ namespace LiteDB.Engine
+@@ -15,6 +16,7 @@ namespace LiteDB.Engine
+         private readonly object _lock = new object();
+         private object _owner;
+         private int _depth;
++        private readonly LinkedList<object> _waiters = new LinkedList<object>();
+ #if DEBUG || TESTING
+         internal Action BeforeWait;
+ #endif
+@@ -27,25 +29,36 @@ namespace LiteDB.Engine
+             var started = Stopwatch.GetTimestamp();
+             lock (_lock)
+             {
+-                while (_owner != null && !ReferenceEquals(_owner, owner))
++                if (ReferenceEquals(_owner, owner)) { _depth++; return true; }
++                var request = _waiters.AddLast(owner);
++                try
+                 {
+-                    // The other owner can make progress only after this thread returns: a legacy
+-                    // transaction of this thread, or a handle executing this callback.
+-                    if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
+-                    var elapsed = (Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency;
+-                    var remaining = timeout - TimeSpan.FromSeconds(elapsed);
+-                    if (remaining <= TimeSpan.Zero) return false;
++                    while (_owner != null || !ReferenceEquals(_waiters.First, request))
++                    {
++                        if (TransactionContext.IsExecutingOwner(_owner)) throw new TransactionWaitRefusedException(owner);
++                        if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
++                        var remaining = timeout - TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
++                        remaining = Min(remaining, TransactionWaitBudget.Remaining(timeout));
++                        if (remaining <= TimeSpan.Zero) return false;
+ #if DEBUG || TESTING
+-                    BeforeWait?.Invoke();
++                        BeforeWait?.Invoke();
+ #endif
+-                    if (!Monitor.Wait(_lock, remaining)) return false;
++                        TransactionWaitBudget.Wait(_lock, remaining);
++                    }
++                    _owner = owner;
++                    _depth++;
++                    return true;
++                }
++                finally
++                {
++                    _waiters.Remove(request);
++                    Monitor.PulseAll(_lock);
+                 }
+-                _owner = owner;
+-                _depth++;
+-                return true;
+             }
+         }
+
++        private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
++
+         public void Exit(object owner)
+         {
+             lock (_lock)
+diff --git a/LiteDB/Engine/Services/TransactionWaitBudget.cs b/LiteDB/Engine/Services/TransactionWaitBudget.cs
+new file mode 100644
+index 000000000..3114099ae
+--- /dev/null
++++ b/LiteDB/Engine/Services/TransactionWaitBudget.cs
+@@ -0,0 +1,53 @@
++using System;
++using System.Diagnostics;
++using System.Threading;
++
++namespace LiteDB.Engine
++{
++    // One sampled TIMEOUT per synchronous call. Only blocking admission/lock time
++    // consumes it; user callbacks, I/O and commit durability are not timed out.
++    internal sealed class TransactionWaitBudget : IDisposable
++    {
++        [ThreadStatic] private static TransactionWaitBudget _current;
++        private readonly TransactionWaitBudget _previous;
++        private readonly TransactionWaitBudget _budget;
++        private readonly TimeSpan _timeout;
++        private TimeSpan _spent;
++
++        internal TransactionWaitBudget(TimeSpan timeout)
++        {
++            _previous = _current;
++            _budget = _previous?._budget ?? this;
++            _timeout = timeout;
++            _current = this;
++        }
++
++        internal static TimeSpan Remaining(TimeSpan fallback)
++        {
++            var budget = _current?._budget;
++            if (budget == null) return fallback;
++            var remaining = budget._timeout - budget._spent;
++            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
++        }
++
++        internal static void Wait(object gate, TimeSpan remaining)
++        {
++            var budget = _current?._budget;
++            var started = Stopwatch.GetTimestamp();
++            try { Monitor.Wait(gate, remaining); }
++            finally
++            {
++                if (budget != null)
++                    budget._spent += TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
++            }
++        }
++
++        public void Dispose() => _current = _previous;
++    }
++
++    internal sealed class TransactionWaitRefusedException : InvalidOperationException
++    {
++        internal object RequestOwner { get; }
++        internal TransactionWaitRefusedException(object owner) : base("Cannot wait for a transaction executing on this callback thread.") { RequestOwner = owner; }
++    }
++}
+
+commit 1b5241484ca540e5db9e7457aa9cf3d77a338d06
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Sat Nov 7 19:18:00 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Sat Nov 7 19:18:00 2026 +0000
+
+    Qualify engine handle dispatch, interleaving and current group tickets
+
+    Port dispatch classification from #3117 d877ee3d5; adapt Direct interleaving and maintenance subsets and preserve progress diagnostics from a41df8463. Add facade/handle separation, forwarding decorator policy, terminal/cursor and raw callback guards. Later public/Shared/wait/close obligations remain explicit in the disposition inventory.
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Engine/UnboundEngine.cs b/LiteDB/Engine/UnboundEngine.cs
+new file mode 100644
+index 000000000..f2844e824
+--- /dev/null
++++ b/LiteDB/Engine/UnboundEngine.cs
+@@ -0,0 +1,67 @@
++using System.Collections.Generic;
++using LiteDB.Engine;
++using LiteDB.Vector;
++
++namespace LiteDB
++{
++    /// <summary>
++    /// The engine seen by ordinary database objects. A mapper or input callback running inside a
++    /// transaction handle's operation must not inherit that handle: each call clears the binding.
++    /// </summary>
++    internal sealed class UnboundEngine : ILiteEngine
++    {
++        private readonly ILiteEngine _inner;
++        internal UnboundEngine(ILiteEngine inner) { _inner = inner; }
++        public int Checkpoint()
++        { return TransactionContext.Unbound(() => _inner.Checkpoint()); }
++        public long Rebuild(RebuildOptions options)
++        { return TransactionContext.Unbound(() => _inner.Rebuild(options)); }
++        public bool BeginTrans()
++        { return TransactionContext.Unbound(() => _inner.BeginTrans()); }
++        public bool Commit()
++        { return TransactionContext.Unbound(() => _inner.Commit()); }
++        public bool Rollback()
++        { return TransactionContext.Unbound(() => _inner.Rollback()); }
++        public IBsonDataReader Query(string collection, Query query)
++        { return new Reader(TransactionContext.Unbound(() => _inner.Query(collection, query))); }
++        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
++        { return TransactionContext.Unbound(() => _inner.Insert(collection, docs, autoId)); }
++        public int Update(string collection, IEnumerable<BsonDocument> docs)
++        { return TransactionContext.Unbound(() => _inner.Update(collection, docs)); }
++        public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate)
++        { return TransactionContext.Unbound(() => _inner.UpdateMany(collection, transform, predicate)); }
++        public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
++        { return TransactionContext.Unbound(() => _inner.Upsert(collection, docs, autoId)); }
++        public int Delete(string collection, IEnumerable<BsonValue> ids)
++        { return TransactionContext.Unbound(() => _inner.Delete(collection, ids)); }
++        public int DeleteMany(string collection, BsonExpression predicate)
++        { return TransactionContext.Unbound(() => _inner.DeleteMany(collection, predicate)); }
++        public bool DropCollection(string name)
++        { return TransactionContext.Unbound(() => _inner.DropCollection(name)); }
++        public bool RenameCollection(string name, string newName)
++        { return TransactionContext.Unbound(() => _inner.RenameCollection(name, newName)); }
++        public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
++        { return TransactionContext.Unbound(() => _inner.EnsureIndex(collection, name, expression, unique)); }
++        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
++        { return TransactionContext.Unbound(() => _inner.EnsureVectorIndex(collection, name, expression, options)); }
++        public bool DropIndex(string collection, string name)
++        { return TransactionContext.Unbound(() => _inner.DropIndex(collection, name)); }
++        public BsonValue Pragma(string name)
++        { return TransactionContext.Unbound(() => _inner.Pragma(name)); }
++        public bool Pragma(string name, BsonValue value)
++        { return TransactionContext.Unbound(() => _inner.Pragma(name, value)); }
++        public void Dispose() => TransactionContext.Unbound(() => { _inner.Dispose(); return true; });
++
++        private sealed class Reader : IBsonDataReader
++        {
++            private readonly IBsonDataReader _inner;
++            internal Reader(IBsonDataReader inner) { _inner = inner; }
++            public BsonValue this[string field] => TransactionContext.Unbound(() => _inner[field]);
++            public string Collection => TransactionContext.Unbound(() => _inner.Collection);
++            public BsonValue Current => TransactionContext.Unbound(() => _inner.Current);
++            public bool HasValues => TransactionContext.Unbound(() => _inner.HasValues);
++            public bool Read() => TransactionContext.Unbound(() => _inner.Read());
++            public void Dispose() => TransactionContext.Unbound(() => { _inner.Dispose(); return true; });
++        }
++    }
++}
+
+commit 0b4ca2c625f9dcb7b6018224dbfc1f74f042b5c4
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Sat Nov 7 20:05:09 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Sat Nov 7 20:05:09 2026 +0000
+
+    Port Direct public transaction handle bindings onto process-host contexts
+
+    Source binding implementation: litedb-org/LiteDB#3118 at 5e2f5c245. Adapt logical context and completion to current process host; Shared remains disabled for step 5.
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Client/Database/LiteDatabase.cs b/LiteDB/Client/Database/LiteDatabase.cs
+index 7466d0e05..474a3f460 100644
+--- a/LiteDB/Client/Database/LiteDatabase.cs
++++ b/LiteDB/Client/Database/LiteDatabase.cs
+@@ -51,7 +51,7 @@ namespace LiteDB
+
+             var resolvedMapper = ResolveMapper(mapper);
+             _engine = connectionString.CreateEngine();
+-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
++            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
+             _disposeOnClose = true;
+         }
+
+@@ -79,7 +79,7 @@ namespace LiteDB
+
+             var resolvedMapper = ResolveMapper(mapper);
+             _engine = new LiteEngine(settings);
+-            _context = new LiteDatabaseContext(_engine, resolvedMapper);
++            _context = new LiteDatabaseContext(new UnboundEngine(_engine), resolvedMapper);
+             _disposeOnClose = true;
+         }
+
+@@ -92,7 +92,7 @@ namespace LiteDB
+             LiteDBPragmas.EnsurePreDevRiskAcknowledged();
+ #endif
+             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+-            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
++            _context = new LiteDatabaseContext(new UnboundEngine(_engine), ResolveMapper(mapper));
+             _disposeOnClose = disposeOnClose;
+         }
+
+@@ -156,16 +156,19 @@ namespace LiteDB
+         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
+         /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
+         /// </summary>
++        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+         public bool BeginTrans() => _engine.BeginTrans();
+
+         /// <summary>
+         /// Commit the current thread transaction; throws if only other threads have explicit transactions.
+         /// </summary>
++        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+         public bool Commit() => _engine.Commit();
+
+         /// <summary>
+         /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
+         /// </summary>
++        [Obsolete("Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.", false)]
+         public bool Rollback() => _engine.Rollback();
+
+         #endregion
+@@ -396,6 +399,7 @@ namespace LiteDB
+
+         protected virtual void Dispose(bool disposing)
+         {
++            if (disposing) _transactionHandles.Close();
+             if (disposing && _disposeOnClose)
+             {
+                 _engine.Dispose();
+diff --git a/LiteDB/Client/Transactions/LiteTransaction.cs b/LiteDB/Client/Transactions/LiteTransaction.cs
+new file mode 100644
+index 000000000..f3669f7c7
+--- /dev/null
++++ b/LiteDB/Client/Transactions/LiteTransaction.cs
+@@ -0,0 +1,366 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Runtime.ExceptionServices;
++using System.Threading;
++using LiteDB.Engine;
++
++namespace LiteDB
++{
++    /// <summary>One explicit transaction and all of its bound objects.</summary>
++    internal sealed class LiteTransaction : ILiteTransaction
++    {
++        private readonly object _gate = new object();
++        private TransactionContext _transaction;
++        private volatile LiteTransactionState _outcome;
++        private LiteDatabaseContext _client;
++        private TransactionHandles _handles;
++        private readonly HashSet<TransactionReader> _readers = new HashSet<TransactionReader>();
++        // Bound objects disposed while another call executes, released when that call returns.
++        private List<Action> _deferred;
++        private Thread _executing;
++        private bool _closing, _disposed;
++        internal LiteTransaction(LiteEngine engine, BsonMapper mapper, TransactionHandles handles)
++        {
++            _handles = handles;
++            _transaction = engine.BeginHandleTransaction();
++            _client = new LiteDatabaseContext(new TransactionEngine(this), mapper);
++        }
++
++        public LiteTransactionState State => _transaction?.Outcome ?? _outcome;
++        internal LiteEngine Storage => _transaction?.Engine ?? throw new InvalidOperationException("The transaction has completed.");
++
++        /// <summary>Whether a call of this handle executes on the current thread.</summary>
++        internal bool IsExecutingOnCurrentThread
++        {
++            get { lock (_gate) return ReferenceEquals(_executing, Thread.CurrentThread); }
++        }
++
++        /// <summary>Whether a call of this handle executes on any thread.</summary>
++        internal bool IsExecuting
++        {
++            get { lock (_gate) return _executing != null; }
++        }
++
++        /// <summary>Wait up to <paramref name="milliseconds"/> for an executing call to return.</summary>
++        internal void WaitForCallExit(int milliseconds)
++        {
++            lock (_gate) if (_executing != null) Monitor.Wait(_gate, milliseconds);
++        }
++
++        /// <summary>Database close: refuse calls not yet admitted; an idle handle then stays idle.</summary>
++        internal void RefuseNewCalls()
++        {
++            lock (_gate) _closing = true;
++        }
++
++        private void Enter(bool terminalAllowed = false)
++        {
++            // Before any side effect: the handle stays usable from a non-impersonating thread.
++            lock (_gate)
++            {
++                // A sequential call that lands during close sees the close, not an overlap;
++                // reentry from the executing call's own callbacks is still reported as such.
++                if ((_closing || _disposed) && !ReferenceEquals(_executing, Thread.CurrentThread))
++                    throw new ObjectDisposedException(nameof(ILiteTransaction));
++                if (_executing != null) throw new InvalidOperationException("Overlapping or reentrant transaction handle use is not supported.");
++                if (!terminalAllowed && State != LiteTransactionState.Active)
++                    throw new InvalidOperationException("The transaction has completed and its bound objects cannot be reused.");
++                _executing = Thread.CurrentThread;
++            }
++        }
++
++        private void Exit()
++        {
++            lock (_gate)
++            {
++                _executing = null;
++                // Database close waits for an executing call before rolling back.
++                Monitor.PulseAll(_gate);
++            }
++        }
++
++        internal T Run<T>(Func<T> action, Action validate = null)
++        {
++            Enter();
++            // Child lifetime misuse is an admission refusal, not a statement failure.
++            try { validate?.Invoke(); }
++            catch { Exit(); throw; }
++            return RunCore(action);
++        }
++
++        /// <summary>
++        /// Detach a bound reader or enumerator and release it, or have the handle's close or
++        /// completion release it. Disposal from a callback of the executing call is refused.
++        /// </summary>
++        internal void DisposeBoundObject(Action detach, Action release)
++        {
++            lock (_gate)
++            {
++                if (_closing || _disposed || State != LiteTransactionState.Active) { detach(); return; }
++                if (ReferenceEquals(_executing, Thread.CurrentThread))
++                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
++                detach();
++                // A foreach ending while another thread's call of this handle executes must not
++                // leave its reader registered (which refuses commit): release it after that call.
++                if (_executing != null) { (_deferred ?? (_deferred = new List<Action>())).Add(release); return; }
++                _executing = Thread.CurrentThread;
++            }
++            RunCore(() => { release(); return true; });
++        }
++
++        private void DisposeDeferred()
++        {
++            while (_deferred != null)
++            {
++                List<Action> pending;
++                lock (_gate) { pending = _deferred; _deferred = null; }
++                foreach (var dispose in pending) dispose();
++            }
++        }
++
++        private T RunCore<T>(Func<T> action)
++        {
++            try
++            {
++                using var binding = TransactionContext.Enter(_transaction);
++                try
++                {
++                    var result = action();
++                    DisposeDeferred();
++                    return result;
++                }
++                catch (Exception error)
++                {
++                    // Refusals before mutation leave the transaction usable. Any other statement
++                    // failure, or one whose engine transaction was rolled back, ends the handle.
++                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
++                        !(_transaction.Engine.IsHandleReadOnly && error is System.IO.IOException))) Abort(error);
++                    throw;
++                }
++            }
++            finally { Exit(); }
++        }
++
++        // The handle's engine transaction is still current and active: nothing completed it.
++        private bool TransactionIntact => _transaction.Transaction?.State == TransactionState.Active &&
++            !_transaction.Aborted;
++
++        // Only composed client operations may dispatch internally. Public wrappers always use Run.
++        internal T Dispatch<T>(Func<T> action, bool authorizeEngine = true)
++        {
++            lock (_gate)
++                if (!ReferenceEquals(_executing, Thread.CurrentThread))
++                    throw new InvalidOperationException("A bound engine call requires its transaction operation.");
++            using var binding = TransactionContext.Enter(_transaction);
++            using var dispatch = TransactionContext.Dispatch(_transaction.Engine);
++            return action();
++        }
++
++        private void ReleaseResources(Exception cause = null)
++        {
++            var handles = _handles;
++            _outcome = _transaction.Outcome;
++            _transaction = null;
++            _handles = null;
++            _client = null;
++            lock (_gate) _deferred = null;
++            handles.Completed(this);
++        }
++
++        private void Abort(Exception cause)
++        {
++            if (_transaction.Outcome != LiteTransactionState.Active) return;
++            _transaction.Outcome = LiteTransactionState.Failed;
++            try
++            {
++                CloseReadersAndRollback(onlyIfActive: true);
++            }
++            catch (Exception cleanup) { cause.Data["LiteDB.TransactionCleanupError"] = cleanup; }
++            finally { ReleaseResources(cause); }
++        }
++
++        internal IBsonDataReader Query(string collection, Query query) => Dispatch(() =>
++        {
++            if ((collection.StartsWith("$") && collection != "$indexes" && collection != "$cols") ||
++                query.Into?.StartsWith("$") == true)
++                throw new TransactionCapabilityException("External/system collection I/O is not supported inside transaction handles.");
++            var reader = new TransactionReader(this, _transaction.Engine.Query(collection, query));
++            _readers.Add(reader);
++            return (IBsonDataReader)reader;
++        });
++
++        internal void ReleaseReader(TransactionReader reader)
++        {
++            reader.Close();
++            _readers.Remove(reader);
++        }
++
++        private void CloseReaders()
++        {
++            var errors = new List<Exception>();
++            foreach (var reader in _readers.ToArray())
++                try { reader.Close(); } catch (Exception error) { errors.Add(error); }
++            _readers.Clear();
++            if (errors.Count != 0) throw new AggregateException(errors);
++        }
++
++        private void CloseReadersAndRollback(bool onlyIfActive = false)
++        {
++            Exception failure = null;
++            try { CloseReaders(); }
++            catch (Exception error) { failure = error; }
++            try
++            {
++                if (!onlyIfActive) Dispatch(() => _transaction.Engine.Rollback());
++                else if (_transaction.Transaction?.State == TransactionState.Active)
++                    Dispatch(() => _transaction.Engine.Rollback());
++            }
++            catch (Exception error)
++            {
++                if (failure == null) throw;
++                failure.Data["LiteDB.TransactionRollback"] = error;
++            }
++            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
++        }
++
++        public void Commit()
++        {
++            Enter();
++            try
++            {
++                using var binding = TransactionContext.Enter(_transaction);
++                try { DisposeDeferred(); }
++                catch (Exception error) { Abort(error); throw; }
++                if (_readers.Count != 0) throw new InvalidOperationException("Close transaction-bound readers before committing.");
++                Exception failure = null;
++                try
++                {
++                    // An engine that has already stopped commits nothing.
++                    if (_transaction.Engine.HandleUnavailableFailure() != null)
++                    {
++                        _transaction.Outcome = LiteTransactionState.Failed;
++                        _transaction.Engine.ThrowIfHandleUnavailable();
++                    }
++                    if (!Dispatch(() => _transaction.Engine.Commit()))
++                    {
++                        // The engine no longer holds this transaction (a peer stopped or closed the
++                        // engine first): this call committed nothing. Never report that as success.
++                        _transaction.Outcome = LiteTransactionState.Failed;
++                        _transaction.Engine.ThrowIfHandleUnavailable();
++                        throw new InvalidOperationException("The transaction ended before it could commit; nothing was committed.");
++                    }
++                }
++                catch (Exception error)
++                {
++                    // A peer engine close surfaces as raw failures of its services, locks or
++                    // streams: once the engine stopped, report its published failure instead,
++                    // unless this commit's own failure is what stopped it.
++                    var published = error is LiteException ? null : _transaction.Engine.HandleUnavailableFailure();
++                    failure = published == null || ReferenceEquals(published, error) || ReferenceEquals(published.InnerException, error)
++                        ? error : published;
++                    // A failed commit may already have published: never relabel it a rollback. A
++                    // failure inside commit stops the engine; a refusal that left both the engine
++                    // and the transaction untouched published nothing, so it rolls back.
++                    if (_transaction.Outcome == LiteTransactionState.Active && failure == error &&
++                        _transaction.Engine.HandleUnavailableFailure() == null && TransactionIntact)
++                    {
++                        _transaction.Outcome = LiteTransactionState.Failed;
++                        try { CloseReadersAndRollback(onlyIfActive: true); }
++                        catch (Exception cleanup) { error.Data["LiteDB.TransactionCleanupError"] = cleanup; }
++                    }
++                    else if (_transaction.Outcome == LiteTransactionState.Active)
++                        _transaction.Outcome = LiteTransactionState.Indeterminate;
++                    if (failure != error) ExceptionDispatchInfo.Capture(failure).Throw();
++                    throw;
++                }
++                finally { if (_transaction.Outcome != LiteTransactionState.Active) ReleaseResources(failure); }
++            }
++            finally { Exit(); }
++        }
++
++        public void Rollback()
++        {
++            Enter();
++            try { RollbackCore(); }
++            finally { Exit(); }
++        }
++
++        private void RollbackCore(bool onlyIfActive = false)
++        {
++            using var binding = TransactionContext.Enter(_transaction);
++            Exception failure = null;
++            try
++            {
++                CloseReadersAndRollback(onlyIfActive);
++                _transaction.Outcome = LiteTransactionState.RolledBack;
++            }
++            catch (Exception error) { failure = error; _transaction.Outcome = LiteTransactionState.Failed; throw; }
++            finally { ReleaseResources(failure); }
++        }
++
++        // Database close owns rollback once it reaches this handle (or waits for its call).
++        // Cleanup is idempotent across that handoff; a close that never got here (it was
++        // interrupted) leaves an idle handle that its own disposal still rolls back.
++        // Normal overlapping/reentrant user operations remain invalid.
++        private bool EnterCleanup()
++        {
++            lock (_gate)
++            {
++                if (_disposed || State != LiteTransactionState.Active) return false;
++                if (_executing != null)
++                {
++                    if (_closing) return false;
++                    throw new InvalidOperationException("Overlapping transaction disposal is not supported.");
++                }
++                _executing = Thread.CurrentThread;
++                return true;
++            }
++        }
++
++        public void Dispose()
++        {
++            lock (_gate)
++                if (State != LiteTransactionState.Active) { _disposed = true; return; }
++            if (!EnterCleanup()) return;
++            try { DisposeCore(); }
++            finally { Exit(); }
++        }
++
++        /// <summary>
++        /// Close on behalf of the owning database: refuse new calls, wait for an executing call
++        /// of another thread to return, then roll back an active transaction.
++        /// </summary>
++        internal void CloseForDatabase()
++        {
++            lock (_gate)
++            {
++                _closing = true;
++                while (_executing != null) Monitor.Wait(_gate);
++                if (_disposed) return;
++                _executing = Thread.CurrentThread;
++            }
++            try { DisposeCore(); }
++            finally { Exit(); }
++        }
++
++        private void DisposeCore()
++        {
++            try { if (State == LiteTransactionState.Active) RollbackCore(onlyIfActive: true); }
++            finally { lock (_gate) _disposed = true; }
++        }
++
++        public ILiteCollection<T> GetCollection<T>(string name = null, BsonAutoId autoId = BsonAutoId.ObjectId) =>
++            Run(() => (ILiteCollection<T>)new TransactionCollection<T>(this, new LiteCollection<T>(name, autoId, _client)));
++        public ILiteCollection<BsonDocument> GetCollection(string name, BsonAutoId autoId = BsonAutoId.ObjectId) =>
++            GetCollection<BsonDocument>(name ?? throw new ArgumentNullException(nameof(name)), autoId);
++        public IEnumerable<string> GetCollectionNames() => Run(() => Dispatch(() => _transaction.Engine.GetTransactionCollectionNames()));
++        public bool CollectionExists(string name) => GetCollectionNames().Contains(name, StringComparer.OrdinalIgnoreCase);
++    }
++
++    /// <summary>An operation a transaction handle does not support, refused before mutation.</summary>
++    internal sealed class TransactionCapabilityException : NotSupportedException
++    {
++        internal TransactionCapabilityException(string message) : base(message) { }
++    }
++}
+
+commit 02c06a0482448fe4233cc76a1050ee6da19085d9
+Author:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+AuthorDate: Sat Nov 7 20:09:12 2026 +0000
+Commit:     Jonas Kamsker <11245306+JKamsker@users.noreply.github.com>
+CommitDate: Sat Nov 7 20:09:12 2026 +0000
+
+    Prove Direct public bindings, handoff, legacy conflicts and migration contracts
+
+    Port Direct assertions from 3119 consolidated API suites; preserve Shared obligations for step 5 and retain all existing target suites. Add old-binary/decorator/parity and warning compile workflow.
+
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/LiteDB/Client/Transactions/LiteTransaction.cs b/LiteDB/Client/Transactions/LiteTransaction.cs
+index f3669f7c7..96aeeddd6 100644
+--- a/LiteDB/Client/Transactions/LiteTransaction.cs
++++ b/LiteDB/Client/Transactions/LiteTransaction.cs
+@@ -134,7 +134,7 @@ namespace LiteDB
+                 {
+                     // Refusals before mutation leave the transaction usable. Any other statement
+                     // failure, or one whose engine transaction was rolled back, ends the handle.
+-                    if (!TransactionIntact || (!(error is TransactionCapabilityException) && !(error is ReadOnlyRefusalException) &&
++                    if (!TransactionIntact || (!(error is TransactionCapabilityException) &&
+                         !(_transaction.Engine.IsHandleReadOnly && error is System.IO.IOException))) Abort(error);
+                     throw;
+                 }
+@@ -170,14 +170,14 @@ namespace LiteDB
+
+         private void Abort(Exception cause)
+         {
+-            if (_transaction.Outcome != LiteTransactionState.Active) return;
++            if (_transaction == null) return;
+             _transaction.Outcome = LiteTransactionState.Failed;
+             try
+             {
+                 CloseReadersAndRollback(onlyIfActive: true);
+             }
+             catch (Exception cleanup) { cause.Data["LiteDB.TransactionCleanupError"] = cleanup; }
+-            finally { ReleaseResources(cause); }
++            finally { _transaction.Outcome = LiteTransactionState.Failed; ReleaseResources(cause); }
+         }
+
+         internal IBsonDataReader Query(string collection, Query query) => Dispatch(() =>
+
+Reader wrapper diff0b..02c (empty confirms same wrapper source):
+
+Existing canonical implementation invoked by32a:
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+namespace LiteDB.Client.Shared
+{
+    internal static class DatabaseFileIdentity
+    {
+        internal static bool Windows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        private static bool Darwin => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+
+        internal static SafeFileHandle Open(string filename, bool readOnly, bool create, bool writable = false)
+        {
+            RequirePlatform();
+            SafeFileHandle handle;
+            if (Windows)
+            {
+                // LockFileEx needs only read access. Sharing delete permits rebuild's
+                // rename while the old inode remains locked until its final lease ends.
+                handle = CreateFileW(WindowsPath(filename), writable ? 0xc0000000u : 0x80000000u, 7, IntPtr.Zero, create ? 4u : 3u, 0, IntPtr.Zero);
+            }
+            else
+            {
+                var flags = (readOnly ? 0 : 2) | (Darwin ? 0x1000000 : 0x80000); // O_CLOEXEC
+                if (create) flags |= Darwin ? 0x200 : 0x40;
+                var descriptor = DatabaseUnixNative.Api.Open(filename, flags, 0x1b6); // 0666 + umask
+                handle = new SafeFileHandle((IntPtr)descriptor, true);
+            }
+            if (!handle.IsInvalid) return handle;
+            var code = Marshal.GetLastWin32Error();
+            handle.Dispose();
+            if (code == (Windows ? 3 : 2) && !Directory.Exists(System.IO.Path.GetDirectoryName(filename)))
+                throw new DirectoryNotFoundException("Database directory does not exist: " + filename);
+            if (code == 2) throw new FileNotFoundException("Database does not exist.", filename);
+            if (code == (Windows ? 5 : 13)) throw new UnauthorizedAccessException("Database access denied: " + filename);
+            if (code == (Windows ? 206 : Darwin ? 63 : 36)) throw new PathTooLongException("Database path is too long: " + filename);
+            throw DatabaseFileLock.Error("Opening database admission handle");
+        }
+
+        internal static string Read(SafeFileHandle handle)
+        {
+            if (Windows)
+            {
+                if (!GetFileInformationByHandle(handle, out var info)) throw DatabaseFileLock.Error("File identity");
+                RequireSingleLink(info.Links);
+                // ReFS uses 128-bit IDs; the legacy 64-bit file index is insufficient.
+                var identity = new byte[24]; // FILE_ID_INFO: volume serial + FILE_ID_128
+                if (!GetFileInformationByHandleEx(handle, 18, identity, identity.Length))
+                    throw DatabaseFileLock.Error("128-bit file identity");
+                return BitConverter.ToString(identity);
+            }
+            // Only the supported 64-bit Unix ABIs reach here. Reserve more than
+            // sizeof(stat); never marshal an OS structure using another OS's layout.
+            var bytes = new byte[256];
+            var result = DatabaseUnixNative.Stat(handle, bytes);
+            if (result != 0) throw DatabaseFileLock.Error("fstat");
+            var links = Darwin ? BitConverter.ToUInt16(bytes, 6) :
+                RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? BitConverter.ToUInt32(bytes, 20) :
+                BitConverter.ToUInt64(bytes, 16);
+            RequireSingleLink(links);
+            var device = Darwin ? BitConverter.ToUInt32(bytes, 0) : BitConverter.ToUInt64(bytes, 0);
+            return device.ToString("X16") + "-" + BitConverter.ToUInt64(bytes, 8).ToString("X16");
+        }
+
+        private static void RequireSingleLink(ulong links)
+        {
+            if (links != 1) throw new IOException("Database admission requires one filesystem link. " +
+                "Hard-linked databases cannot safely share path-based WAL and recovery files.");
+        }
+
+        internal static string CanonicalPath(string filename)
+        {
+            RequirePlatform();
+            filename = System.IO.Path.GetFullPath(filename);
+            if (!Windows)
+            {
+                var pointer = DatabaseUnixNative.Api.RealPath(filename, IntPtr.Zero);
+                if (pointer != IntPtr.Zero)
+                {
+                    try { return Marshal.PtrToStringAnsi(pointer); }
+                    finally { DatabaseUnixNative.Api.Free(pointer); }
+                }
+                var code = Marshal.GetLastWin32Error();
+                if (code == 13) throw new UnauthorizedAccessException("Database path access denied: " + filename);
+                if (code == (Darwin ? 63 : 36)) throw new PathTooLongException("Database path is too long: " + filename);
+                if (code == 20) throw new DirectoryNotFoundException("Database directory does not exist: " + filename);
+                if (code != 2) throw DatabaseFileLock.Error("realpath");
+                // A dangling file symlink can point into a guarded rebuild gap.
+                // Treating it as a new filename would create the target while
+                // consulting the alias's unrelated WAL/recovery marker names.
+                if (DatabaseUnixNative.Api.ReadLink(filename, out _, (UIntPtr)1).ToInt64() >= 0)
+                    throw new IOException("Cannot admit a database through an unresolved symlink: " + filename);
+                var linkError = Marshal.GetLastWin32Error();
+                if (linkError != 2 && linkError != 22) throw DatabaseFileLock.Error("readlink");
+            }
+            else
+            {
+                using var handle = CreateFileW(WindowsPath(filename), 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+                if (!handle.IsInvalid)
+                {
+                    var path = new StringBuilder(32768);
+                    var size = GetFinalPathNameByHandleW(handle, path, path.Capacity, 0);
+                    if (size == 0 || size >= path.Capacity) throw DatabaseFileLock.Error("Canonical database path");
+                    var value = path.ToString();
+                    return value.StartsWith(@"\\?\UNC\", StringComparison.Ordinal)
+                        ? @"\\" + value.Substring(8) : value.StartsWith(@"\\?\", StringComparison.Ordinal)
+                        ? value.Substring(4) : value;
+                }
+                var error = Marshal.GetLastWin32Error();
+                if (error == 5) throw new UnauthorizedAccessException("Database path access denied: " + filename);
+                if (error == 206) throw new PathTooLongException("Database path is too long: " + filename);
+                if (error != 2 && error != 3) throw DatabaseFileLock.Error("Canonical database path");
+                using var link = CreateFileW(WindowsPath(filename), 0, 7, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
+                if (!link.IsInvalid)
+                    throw new IOException("Cannot admit a database through an unresolved reparse point: " + filename);
+                var linkError = Marshal.GetLastWin32Error();
+                if (linkError != 2 && linkError != 3) throw DatabaseFileLock.Error("Reparse point inspection");
+            }
+            var parent = System.IO.Path.GetDirectoryName(filename);
+            if (string.IsNullOrEmpty(parent) || parent == filename || !Directory.Exists(parent))
+                throw new DirectoryNotFoundException("Database directory does not exist: " + filename);
+            return System.IO.Path.Combine(CanonicalPath(parent), System.IO.Path.GetFileName(filename));
+        }
+
+        internal static void RequireLocalVolume(SafeFileHandle handle, string filename)
+        {
+            if (!DatabaseVolumePolicy.IsNative(handle, filename, allowFallback: false))
+                throw new IOException("Unsupported database locking filesystem.");
+        }
+
+        private static void RequirePlatform()
+        {
+            if (Windows) return;
+            var architecture = RuntimeInformation.ProcessArchitecture;
+            if ((!Darwin && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) ||
+                (architecture != Architecture.X64 && architecture != Architecture.Arm64))
+                throw new PlatformNotSupportedException("Database admission requires Windows, or 64-bit Linux/macOS with OFD locks.");
+        }
+
+        internal static string WindowsPath(string filename) => filename.StartsWith(@"\\?\", StringComparison.Ordinal)
+            ? filename : filename.StartsWith(@"\\", StringComparison.Ordinal)
+            ? @"\\?\UNC\" + filename.Substring(2) : @"\\?\" + filename;
+
+#if DEBUG || TESTING
+        internal static Func<string, bool> UnsupportedVolume;
+#endif
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileInformation
+        {
+            internal uint Attributes;
+            internal System.Runtime.InteropServices.ComTypes.FILETIME Creation, Access, Write;
+            internal uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFileW(string filename, uint access, uint share,
+            IntPtr security, uint creation, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation info);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int infoClass, [Out] byte[] info, int size);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder path, int size, int flags);
+    }
+}

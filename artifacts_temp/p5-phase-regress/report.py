@@ -1,11 +1,11 @@
-import json,collections,statistics
+import json,collections,statistics,re
 from pathlib import Path
 root=Path(__file__).parent
 rows=json.loads((root/'comparisons.json').read_text())
 envelope=json.loads((root/'historical-aa-envelope.json').read_text())
 groups=collections.defaultdict(list)
 for r in rows:
- groups[r['leg'].split('-r')[0],r['os'],r['framework'],r['scenario'],r['config']].append(r)
+ groups[re.split(r'-r\d+-', r['leg'], maxsplit=1)[0],r['os'],r['framework'],r['scenario'],r['config']].append(r)
 lines=['# Completed paired timing evidence (incremental)', '', 'Ratios after/before from independent hosted jobs; each job retains six interleaved rounds. Report-only subsets do not issue a release gate verdict.', '', '|Probe|OS/runtime|Scenario/config|Ratios by repetition|Historical A/A upper (advisory)|Extra allocated bytes (median across jobs)|','|---|---|---|---|---:|---:|']
 for key,rs in sorted(groups.items()):
  allocations=[]

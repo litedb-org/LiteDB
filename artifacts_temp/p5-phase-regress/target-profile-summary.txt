@@ -81,3 +81,26 @@ Selected sampled-thread-time weight=93930.4304; percentages use only target stac
 Selected sampled-thread-time weight=73717.7536; percentages use only target stacks. Not CPU percentages or elapsed ratios.
   55.041% 40574.7793 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
   16.424% 12107.5034 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+42550856850/research-profile-binding-buildable-range-r1-windows-latest-net10.0/after-full_scan_3x100k.speedscope.json
+Selected sampled-thread-time weight=20537.8941; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+ 100.000% 20537.8941 LiteDB!LiteDB.LiteQueryable`1+<ReadDocuments>d__37[System.__Canon].MoveNext()
+  99.980% 20533.8858 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  99.466% 20428.1520 LiteDB!LiteDB.BsonDataReader.Read()
+   0.669% 137.4374 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+42550856850/research-profile-binding-buildable-range-r1-windows-latest-net10.0/after-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=6466.9846; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  25.235% 1631.9523 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+  24.330% 1573.4293 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   1.569% 101.4747 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   0.404% 26.1451 System.Private.CoreLib.il!System.Threading.Monitor.Enter(class System.Object,bool&)
+42550856850/research-profile-binding-buildable-range-r1-windows-latest-net10.0/before-full_scan_3x100k.speedscope.json
+Selected sampled-thread-time weight=20292.2582; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+ 100.000% 20292.2582 LiteDB!LiteDB.LiteQueryable`1+<ReadDocuments>d__37[System.__Canon].MoveNext()
+  99.449% 20180.4863 LiteDB!LiteDB.BsonDataReader.Read()
+   0.470% 95.2924 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+42550856850/research-profile-binding-buildable-range-r1-windows-latest-net10.0/before-open_close_20x.speedscope.json
+Selected sampled-thread-time weight=6839.4520; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  26.762% 1830.3805 LiteDB!LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(class System.String)
+  23.236% 1589.2116 LiteDB!LiteDB.Engine.RebuildRecovery.EnsureAvailable(class LiteDB.Engine.EngineSettings)
+   1.168% 79.8829 System.Private.CoreLib.il!System.Threading.Monitor.Enter_Slowpath(class System.Object)
+   0.205% 13.9999 System.Private.CoreLib.il!System.Threading.Monitor.Enter(class System.Object,bool&)

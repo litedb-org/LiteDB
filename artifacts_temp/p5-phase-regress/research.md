@@ -1,12 +1,12 @@
 # Summary
-- P5-PHASE-REGRESS research in progress; v6/wip-p5-phase-regress@5619fdb0e; no product fixes.
-- 24/24 phase timing +14/14 narrowing legs complete (140 comparison rows); buildable scan activation 0/2; valid diagnostic jobs 6/7.
-- Linux eight-writer shift located in Phase4 (first net8/net10 ratios 1.2394/1.2524); Phase2/3 controls near flat.
-- Windows open shift located in Phase3 (first net8/net10 ratios 1.1950/1.2009, +5.31 MB per 20 opens).
-- Windows scan shift located in Phase4 (first net8/net10 ratios 1.0540/1.0418, +38.4 MB per 300k documents).
-- Commit hypotheses: 32a0ca52d canonical guard lookups; 0b4ca2c62 reader masks; 5cb886e91/ac972bd2d collection ownership/wakes. Not yet commit-qualified.
-- Old profiler invocations failed after valid timings; one historical binding commit fails compilation. Corrected CLI and buildable range used.
-- Provisional ranked fixes/safety tests and raw evidence saved; no local measurements, no PR actions; waiting as orchestrator instructed.
+- P5-PHASE-REGRESS research done; v6/wip-p5-phase-regress@56a762854; no product fixes or local benchmarks.
+- All CI complete:40 timing legs /148 comparison rows;7 primary diagnostic jobs /16 traces. No pending requested work.
+- Writers: Phase4 substrate5cb886e91 +FIFOac972bd2d; source and profiles show owner parking. Net8 repeats1.2394/1.2885; net10 mixed1.0085/1.2524.
+- Open: Phase3 32a0ca52d repeated canonical guard resolution; Windows +5.31MB/20 opens; Windows/Linux profiles corroborate.
+- Scan: Phase4 activation0b4ca2c62..02c06a048 (source0b); introducing range1.0395/1.0340 default; +38.4MB/300k docs from per-access delegate masks.
+- Ranked fixes: Phase4 efficient handoff (estimated10–20% less Linux8-writer elapsed), Phase3 scoped canonical reuse (12–18% Windows open), Phase4 allocation-free masks (2–4% scan).
+- Old trace CLI failures and2 historical production-build failures preserved; completed replacement evidence retained. No failed workflow called green.
+- Research blockers:none. Gains unverified; net10 variation and exact0b build defect limit attribution. Implementations still require listed safety tests.
 
 ## Research outputs
 - [Consolidated findings](p5-phase-regress-evidence/findings.md) and [hosted CI ledger](p5-phase-regress-evidence/ci-evidence.md).
@@ -74,3 +74,12 @@
 - Added offline ci_ledger.py /ci-evidence.md mapping six hosted runs to exact harness SHA and observed matrix-job outcomes. Distinguishes valid timing artifacts from later profiler failures and records historical build failures without green/flake claims. Scratch5619fdb0e push confirmed; pending run42550856850 still has all three Windows jobs queued.
 - Reader fix safety refinement from TransactionContext inspection: retain execution frames when replacing Unbound delegates with a scope. Existing masking clears only current/ticket; callback owner detection relies on the retained frame chain. Required nested-callback coverage must establish both masking and self-wait refusal. No product code changed.
 - Profile accounting clarification: the remaining reader diagnostic job collects both scan and an open-control scenario, so the final target is7 successful primary diagnostic jobs,8 before/after trace pairs (16 traces). Earlier profile6/7 progress counts diagnostic jobs, not a limit of7 individual scenario pairs. Raw-drain and exact0b historical build failures remain separate failed exploratory/superseded jobs.
+- Scratch56a762854 push confirmed, preserving CI ledger and final reader frame-chain safety requirements. Rechecked no product/test diff against e507faad4, no workflow concurrency rule; only Windows runner queue remains. All three reader run42550856850 jobs still queued.
+- Method check: workflow builds before/after Release with TestingEnabled=false and GitVersionEnabled=false; run.py and profiling both set DOTNET_TieredCompilation=0. Recorded this in consolidated findings so the release-only assertion exclusion and exact harness comparison are explicit.
+- Windows reader activation run42550856850 repetition2 has started after runner queue; repetition1 and diagnostic job remain queued. Fixed before a19280cd2 ->after02c06a048, no historical source patch.
+- All three Windows reader replacement jobs now running: both timing jobs reached interleaved comparisons and diagnostic job reached EventPipe collection. This establishes production Release buildability of unchanged a19280cd2/02c06a048 on the affected Windows/net10 platform as well as the earlier allowed local build; no timing result claimed until completion.
+- Reader diagnostic job succeeded on a19280cd2 ->02c06a048, run42550856850; four open-control/scan before-after traces retained. All7 primary diagnostic jobs (8 scenario pairs,16 traces) now complete. Scan target stacks contain TransactionContext.Unbound only after activation (99.980% inclusive share); this proves the masking path encloses ordinary reads, not that masking consumes99.980% overhead. Read wrapper/lambdas can inline. Timing/allocation repeats remain running and are required to quantify the regression.
+- Reader range run42550856850 completed success in both timing jobs and diagnostic job. Actual repeated default scans1.0395/1.0340 and cache1.0275/1.0453, +38,400,800 bytes/300k docs; open controls default.9989/.9466, cache.9815/1.0058 (+10,880 bytes/20). All40 timing legs/148 rows and7 primary diagnostic jobs/16 traces complete. Narrowed scan gain estimate to2–4% elapsed from the measured range; still unverified until a product fix is benchmarked.
+- Finalized introducing phases/commits/range, code/profile causes, ranked fixes, expected gains, safety arguments and required tests in findings.md/fix-candidates.md. Final CI ledger records exact harness SHAs and real failure dispositions. Research blockers:none; no product fix, PR action or local benchmark.
+- Final evidence inventory confirms40 distinct timing legs/148 rows and7 successful diagnostic jobs/16 raw traces. Added introducing-source-diffs.txt with exact historical product diffs and empty0b..02c reader-wrapper diff for review; these are source evidence, not implemented fixes. Production/test/threshold diff against e507faad4 remains empty.
+- Final report review: current findings/fix list/CI ledger contain no pending qualification placeholders; all source/test/threshold files remain unchanged. Committed source-view copy trims historical trailing whitespace for a clean patch check; exact raw source exports remain in the requested evidence directory and original commits.
