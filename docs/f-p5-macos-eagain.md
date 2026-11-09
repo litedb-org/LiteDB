@@ -27,3 +27,10 @@ retained shared ownership, and four default Shared clients repeatedly opening,
 inserting, reading and disposing. Cold reopen verifies all160 independently
 identified records and an unrelated sentinel. Existing native-admission and
 mapped crash/recovery matrices remain required hosted evidence.
+
+Unix-only syscall-delegate injection additionally repeats EINTR, EACCES and native
+EAGAIN until the DMS deadline, proves no lock was acquired, and retries against
+the real syscall with retained ownership. EINVAL is a negative control: it remains
+an actionable I/O error. Injection is limited to the test's executing thread;
+other concurrent tests retain the real native calls. Windows exercises actual
+LockFileEx contention in the separate-process tests instead.
