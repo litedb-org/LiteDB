@@ -65,7 +65,10 @@
     "tests": [
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership",
       "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Ordinary_same_connection_getter_recursion_still_completes",
-      "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close"
+      "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Other_database_remains_callable_during_core_close",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Shared_Dms_waits_for_real_process_lock_release",
+      "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Dms_timeout_refuses_admission_and_remains_retryable"
     ]
   },
   "Issue_3027_SharedMutexNameLength": {

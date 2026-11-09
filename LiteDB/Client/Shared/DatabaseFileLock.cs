@@ -153,11 +153,13 @@ namespace LiteDB.Client.Shared
                     result = DatabaseUnixNative.Api.LockLinux(_lockHandle, query ? 36 : 37, ref value);
                     actual = value.Type;
                 }
-            } while (result < 0 && Marshal.GetLastWin32Error() == 4); // EINTR
+            } while (result < 0 && Marshal.GetLastWin32Error() == 4 && !allowConflict); // EINTR
             if (result < 0)
             {
                 var error = Marshal.GetLastWin32Error();
-                if (allowConflict && (error == 13 || error == (Darwin ? 35 : 11))) return -1;
+                // An interrupted nonblocking attempt acquired nothing. Return busy
+                // so the caller's retry/deadline also bounds repeated EINTR.
+                if (allowConflict && (error == 4 || error == 13 || error == (Darwin ? 35 : 11))) return -1;
                 throw Error("fcntl OFD lock");
             }
             return actual;

@@ -63,6 +63,23 @@ namespace LiteDB.Internals
             _passed = true;
         }
 
+        [Fact]
+        public async Task Dms_timeout_refuses_admission_and_remains_retryable()
+        {
+            using var owner = new MvccProcess("request-dms-hold", Filename, null);
+            await owner.Expect("ready");
+            using var contender = new SharedRangeLocks(Filename);
+            Action blocked = () => contender.ShareDms(TimeSpan.FromMilliseconds(100));
+            blocked.Should().Throw<TimeoutException>();
+            contender.TryExclusiveDms().Should().BeFalse("timeout must not acquire or release the peer lock");
+            owner.Send("continue");
+            await owner.Finish();
+            contender.ShareDms(TimeSpan.FromSeconds(5));
+            using var probe = new SharedRangeLocks(Filename);
+            probe.TryExclusiveDms().Should().BeFalse();
+            _passed = true;
+        }
+
         public void Dispose()
         {
             if (_passed) Directory.Delete(_directory, true);

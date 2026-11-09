@@ -64,6 +64,16 @@ class ReproMatrixTests(unittest.TestCase):
                 self.assertEqual(len(retired), len(skipped))
                 self.assertEqual(set(retired), {entry.split(" (", 1)[0] for entry in skipped})
 
+    def test_shared_request_admission_inventory_is_complete(self):
+        policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
+        prefix = "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#"
+        expected = {prefix + name for name in (
+            "Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits",
+            "Shared_Dms_waits_for_real_process_lock_release",
+            "Dms_timeout_refuses_admission_and_remains_retryable",
+        )}
+        self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"] if ref.startswith(prefix)})
+
     def test_wal_handle_replacement_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
         expected = {

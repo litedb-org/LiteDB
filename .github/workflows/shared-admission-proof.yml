@@ -25,6 +25,14 @@ jobs:
         run: |
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter FullyQualifiedName~SharedRequestAdmission_Tests --logger 'trx;LogFileName=admission.trx' --results-directory artifacts_temp/admission
           if ($LASTEXITCODE) { throw 'Admission regression failed' }
+      - name: macOS mapped matrix
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: |
+          foreach ($framework in @('net8.0', 'net10.0')) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $framework -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedOneFile|FullyQualifiedName~SharedMapped|FullyQualifiedName~SharedCoordination|FullyQualifiedName~NativeAdmission|FullyQualifiedName~SharedRequestAdmission' --logger "trx;LogFileName=mapped-$framework.trx" --results-directory artifacts_temp/admission
+            if ($LASTEXITCODE) { throw "Mapped matrix failed on $framework" }
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
