@@ -4,6 +4,10 @@ Ratios after/before from independent hosted jobs; each job retains six interleav
 
 |Probe|OS/runtime|Scenario/config|Ratios by repetition|Historical A/A upper (advisory)|Extra allocated bytes (median across jobs)|
 |---|---|---|---|---:|---:|
+|research-open-canonical|Linux net10.0|open_close_20x/dev-default|1.0982, 1.0391|1.0106|12160|
+|research-open-canonical|Linux net10.0|open_close_20x/dev-os-cache|1.0961, 1.1025|1.0279|12160|
+|research-open-canonical|Windows net10.0|open_close_20x/dev-default|1.1525, 1.1673|1.3657|5.30944e+06|
+|research-open-canonical|Windows net10.0|open_close_20x/dev-os-cache|1.1911, 1.1657|1.0699|5.30944e+06|
 |research-phase2|Linux net10.0|durable_insert_5k_1_writers/dev-default|0.9934, 0.9907|1.2192|0|
 |research-phase2|Linux net10.0|durable_insert_5k_8_writers/dev-default|1.0251, 0.9895|1.083|2.37287e+06|
 |research-phase2|Linux net10.0|open_close_20x/dev-default|0.9927, 1.0049|1.0106|2240|
@@ -12,6 +16,10 @@ Ratios after/before from independent hosted jobs; each job retains six interleav
 |research-phase2|Linux net8.0|durable_insert_5k_8_writers/dev-default|0.7501, 0.9965|1.0476|-552672|
 |research-phase2|Linux net8.0|open_close_20x/dev-default|1.0197, 1.0003|1.1035|2240|
 |research-phase2|Linux net8.0|open_close_20x/dev-os-cache|1.0279, 1.0458|1.1333|2240|
+|research-phase2|Windows net10.0|full_scan_3x100k/dev-default|1.0015, 1.0043|1.0252|0|
+|research-phase2|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0229, 1.0027|1.0203|0|
+|research-phase2|Windows net10.0|open_close_20x/dev-default|0.9916, 1.0127|1.3657|2240|
+|research-phase2|Windows net10.0|open_close_20x/dev-os-cache|0.9988, 0.9915|1.0699|2240|
 |research-phase2|Windows net8.0|full_scan_3x100k/dev-default|1.0416, 1.0043|1.0314|0|
 |research-phase2|Windows net8.0|full_scan_3x100k/dev-os-cache|0.9774, 0.9915|1.0309|0|
 |research-phase2|Windows net8.0|open_close_20x/dev-default|0.9872, 0.9982|1.0395|2240|
@@ -24,10 +32,10 @@ Ratios after/before from independent hosted jobs; each job retains six interleav
 |research-phase3|Linux net8.0|durable_insert_5k_8_writers/dev-default|0.9971, 0.9794|1.0476|281626|
 |research-phase3|Linux net8.0|open_close_20x/dev-default|1.0597, 1.0810|1.1035|12480|
 |research-phase3|Linux net8.0|open_close_20x/dev-os-cache|1.0838, 1.0742|1.1333|12480|
-|research-phase3|Windows net10.0|full_scan_3x100k/dev-default|0.9994|1.0252|0|
-|research-phase3|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0064|1.0203|0|
-|research-phase3|Windows net10.0|open_close_20x/dev-default|1.2009|1.3657|5.30976e+06|
-|research-phase3|Windows net10.0|open_close_20x/dev-os-cache|1.1921|1.0699|5.30976e+06|
+|research-phase3|Windows net10.0|full_scan_3x100k/dev-default|0.9994, 1.0480|1.0252|0|
+|research-phase3|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0064, 0.9640|1.0203|0|
+|research-phase3|Windows net10.0|open_close_20x/dev-default|1.2009, 1.1078|1.3657|5.30976e+06|
+|research-phase3|Windows net10.0|open_close_20x/dev-os-cache|1.1921, 1.1653|1.0699|5.30976e+06|
 |research-phase3|Windows net8.0|full_scan_3x100k/dev-default|0.9916, 0.9961|1.0314|0|
 |research-phase3|Windows net8.0|full_scan_3x100k/dev-os-cache|0.9914, 0.9743|1.0309|0|
 |research-phase3|Windows net8.0|open_close_20x/dev-default|1.1950, 1.2064|1.0395|5.30976e+06|
@@ -40,15 +48,29 @@ Ratios after/before from independent hosted jobs; each job retains six interleav
 |research-phase4|Linux net8.0|durable_insert_5k_8_writers/dev-default|1.2394, 1.2885|1.0476|-3.29763e+06|
 |research-phase4|Linux net8.0|open_close_20x/dev-default|1.0310, 0.9881|1.1035|28480|
 |research-phase4|Linux net8.0|open_close_20x/dev-os-cache|1.0248, 1.0432|1.1333|28480|
-|research-phase4|Windows net10.0|full_scan_3x100k/dev-default|1.0418|1.0252|3.84011e+07|
-|research-phase4|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0202|1.0203|3.84011e+07|
-|research-phase4|Windows net10.0|open_close_20x/dev-default|1.0191|1.3657|28480|
-|research-phase4|Windows net10.0|open_close_20x/dev-os-cache|0.9699|1.0699|28480|
-|research-phase4|Windows net8.0|full_scan_3x100k/dev-default|1.0540|1.0314|3.84011e+07|
-|research-phase4|Windows net8.0|full_scan_3x100k/dev-os-cache|1.0519|1.0309|3.84011e+07|
-|research-phase4|Windows net8.0|open_close_20x/dev-default|0.9964|1.0395|28480|
-|research-phase4|Windows net8.0|open_close_20x/dev-os-cache|0.9937|1.0803|28480|
-|research-writer-substrate|Linux net8.0|durable_insert_5k_1_writers/dev-default|0.9907|1.0662|480000|
-|research-writer-substrate|Linux net8.0|durable_insert_5k_8_writers/dev-default|1.0670|1.0476|3.85129e+06|
-|research-writer-substrate|Linux net8.0|open_close_20x/dev-default|0.9972|1.1035|1920|
-|research-writer-substrate|Linux net8.0|open_close_20x/dev-os-cache|1.0238|1.1333|1920|
+|research-phase4|Windows net10.0|full_scan_3x100k/dev-default|1.0418, 1.0318|1.0252|3.84011e+07|
+|research-phase4|Windows net10.0|full_scan_3x100k/dev-os-cache|1.0202, 1.0215|1.0203|3.84011e+07|
+|research-phase4|Windows net10.0|open_close_20x/dev-default|1.0191, 0.9575|1.3657|28480|
+|research-phase4|Windows net10.0|open_close_20x/dev-os-cache|0.9699, 0.9983|1.0699|28480|
+|research-phase4|Windows net8.0|full_scan_3x100k/dev-default|1.0540, 1.0169|1.0314|3.84011e+07|
+|research-phase4|Windows net8.0|full_scan_3x100k/dev-os-cache|1.0519, 1.0425|1.0309|3.84011e+07|
+|research-phase4|Windows net8.0|open_close_20x/dev-default|0.9964, 1.0022|1.0395|28480|
+|research-phase4|Windows net8.0|open_close_20x/dev-os-cache|0.9937, 1.0186|1.0803|28480|
+|research-scan-mask|Windows net10.0|full_scan_3x100k/dev-default|0.9769, 1.0093|1.0252|0|
+|research-scan-mask|Windows net10.0|full_scan_3x100k/dev-os-cache|0.9852, 0.9606|1.0203|0|
+|research-writer-fifo|Linux net10.0|durable_insert_5k_1_writers/dev-default|0.9988, 0.9611|1.2192|240072|
+|research-writer-fifo|Linux net10.0|durable_insert_5k_8_writers/dev-default|1.1328, 1.0255|1.083|-1.84645e+06|
+|research-writer-fifo|Linux net10.0|open_close_20x/dev-default|1.0087, 1.0536|1.0106|0|
+|research-writer-fifo|Linux net10.0|open_close_20x/dev-os-cache|0.9970, 1.0096|1.0279|0|
+|research-writer-fifo|Linux net8.0|durable_insert_5k_1_writers/dev-default|1.0034, 0.9830|1.0662|240080|
+|research-writer-fifo|Linux net8.0|durable_insert_5k_8_writers/dev-default|1.0151, 1.0949|1.0476|-1.60486e+06|
+|research-writer-fifo|Linux net8.0|open_close_20x/dev-default|0.9763, 0.9790|1.1035|0|
+|research-writer-fifo|Linux net8.0|open_close_20x/dev-os-cache|0.9888, 1.0320|1.1333|0|
+|research-writer-substrate|Linux net10.0|durable_insert_5k_1_writers/dev-default|0.9785, 1.0260|1.2192|479936|
+|research-writer-substrate|Linux net10.0|durable_insert_5k_8_writers/dev-default|1.3822, 1.0469|1.083|2.6666e+06|
+|research-writer-substrate|Linux net10.0|open_close_20x/dev-default|0.9921, 1.0072|1.0106|1920|
+|research-writer-substrate|Linux net10.0|open_close_20x/dev-os-cache|0.9899, 0.9876|1.0279|1920|
+|research-writer-substrate|Linux net8.0|durable_insert_5k_1_writers/dev-default|0.9907, 0.9803|1.0662|480000|
+|research-writer-substrate|Linux net8.0|durable_insert_5k_8_writers/dev-default|1.0670, 1.0642|1.0476|4.30658e+06|
+|research-writer-substrate|Linux net8.0|open_close_20x/dev-default|0.9972, 1.0337|1.1035|1920|
+|research-writer-substrate|Linux net8.0|open_close_20x/dev-os-cache|1.0238, 1.0194|1.1333|1920|
