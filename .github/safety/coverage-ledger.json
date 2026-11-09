@@ -1249,6 +1249,19 @@
         ".github/scripts/run_shared_admission_matrix.py",
         "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs"
       ]
+    },
+    {
+      "id": "f-p5-macos-eagain-ready-crashed-owner-fixture",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedRequestAdmissionHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Four process requests remain forced through contended DMS, every acknowledged row and sentinel is verified, and no constructor failure is swallowed.",
+      "reason": "Initial forced fixture gracefully retired its seed authority, then held DMS as if a Ready participant remained. Correct the artificial state: seed in a separate process, acknowledge sentinel commit, kill it without graceful final-close retirement, then simulate delayed DMS release. This matches the actual abandoned-owner case. Previous after failure Live Shared authority is not Ready is retained; no product readiness guard is weakened.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
+      ]
     }
   ]
 }

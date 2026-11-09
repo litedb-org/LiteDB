@@ -20,8 +20,13 @@ namespace LiteDB.Internals
         [Fact]
         public async Task Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits()
         {
-            using (var seed = new LiteDatabase(new ConnectionString { Filename = Filename, Connection = ConnectionType.Shared }))
-                seed.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+            // Leave a valid Ready authority, as an abruptly lost participant does;
+            // graceful final close retires it and is a different state transition.
+            using (var seed = new MvccProcess("request-seed-hold", Filename, null))
+            {
+                await seed.Expect("ready");
+                await seed.Kill();
+            }
             var workers = Enumerable.Range(0, 4).Select(id => new MvccProcess("request-open-loop", Filename, null, id.ToString())).ToArray();
             try
             {

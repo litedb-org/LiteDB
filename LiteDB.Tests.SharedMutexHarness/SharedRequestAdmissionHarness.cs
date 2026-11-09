@@ -5,6 +5,14 @@ internal static class SharedRequestAdmissionHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (mode == "request-seed-hold")
+        {
+            using var seed = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared });
+            seed.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
+            Console.WriteLine("ready");
+            Console.ReadLine();
+            return true;
+        }
         if (mode == "request-dms-hold")
         {
             using var locks = new SharedRangeLocks(filename);
