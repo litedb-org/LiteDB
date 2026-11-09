@@ -170,6 +170,11 @@ namespace LiteDB.Client.Shared
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             GC.SuppressFinalize(this);
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }
+            // Coordination is ephemeral: DB/WAL recovery, not mapped bytes, is
+            // authoritative after the last participant leaves. Accessor.Dispose
+            // flushes writable views synchronously. Close its safe view first to
+            // unmap without that durability barrier; peer views remain coherent.
+            _view?.SafeMemoryMappedViewHandle.Dispose();
             _view?.Dispose();
             _map?.Dispose();
             _wake?.Dispose();

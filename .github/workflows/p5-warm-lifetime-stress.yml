@@ -1,0 +1,33 @@
+name: P5 warm lifetime stress
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v6/wip-f-p5-warmlifetime']
+permissions:
+  contents: read
+jobs:
+  stress:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, windows-2025]
+        runtime: [8, 9, 10]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - name: Build selected framework and child harness
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.runtime == 10 && 'net10.0' || 'net8.0' }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Repeat complete lifetime class 200 times
+        run: python .github/scripts/p5_warm_lifetime_stress.py --framework ${{ matrix.runtime == 10 && 'net10.0' || 'net8.0' }} --repeat 200 --runtime-major ${{ matrix.runtime }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warm-lifetime-${{ matrix.runner }}-net${{ matrix.runtime }}
+          path: artifacts_temp/warm-lifetime

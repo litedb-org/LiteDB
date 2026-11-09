@@ -1181,6 +1181,16 @@
         "docs/migration-v6.md",
         ".github/workflows/transaction-handle-compatibility.yml"
       ]
+    },
+    {
+      "id": "p5-warm-lifetime-release-completion",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "An abandoned retired stream releases its exact generation within five seconds while the active generation and all 160 current rows remain valid; final disposal leaves no readers.",
+      "reason": "Wait for the full ReleaseCached critical section, not its intermediate Readers decrement. Preserve NoInlining allocation, weak-reference death, exact live-version set, active reader count, payload and reopen assertions. Bounded GC/finalizer cycles never explicitly dispose or clear the abandoned lease; a permanent leak still fails. Windows six-leg 200-session stress retains raw results."
     }
   ]
 }
