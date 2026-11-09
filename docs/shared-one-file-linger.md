@@ -70,3 +70,29 @@ Run the request harness pinned at 93464f2c1 before/after on all three OSes with
 1/4 processes, then full CI, both P1 safety workflows and Shared stress on the
 exact phase3 head. Preserve both parents' safety-registry leaves on merges.
 Missing safety evidence blocks default enablement and upward integration.
+
+## WIP implementation status
+
+The scratch branch contains a **DEBUG/TESTING-only participant prototype**.
+Production retention is disabled; this is not the owner-selected default-on
+feature. The prototype transfers one idle reference on reopen, fences cancelled
+timer callbacks by timer identity, and disposes mapping/admission through the
+existing final-close path on expiry or internal explicit release. It evicts an
+idle settings mismatch and leaves live results authoritative. Test cleanup calls
+the internal release operation before deleting its temporary directory.
+
+Linux net8 focused evidence covers reuse with the existing bootstrap observer,
+expiry followed by two indexed payload reopens, zero, single/all internal release,
+idle settings replacement, read-only byte preservation and an escaping result.
+The eight-case specification fails 7/8 before the prototype (3740cd5a1) and passes
+8/8 after its first implementation. These are graceful-close/exception-free
+lifetime cases, not process-death or power-loss qualification. A subsequent
+publication/close-wait correction requires its own fixed verification.
+
+Still required: public connection-string/EngineSettings configuration and release
+API; reusable engine ownership; bounded cross-process exclusive-release requests
+at all five callers; forced timer/reopen/release interleavings; process exit and
+crash recovery; Phase4 handle/141 coverage; all requested hosted measurements
+and safety workflows; measured default selection; upward merge commits and
+phase5 migration documentation. None of these are claimed complete. Do not
+merge this prototype into phase3 or enable production linger on this evidence.

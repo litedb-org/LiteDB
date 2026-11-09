@@ -28,6 +28,53 @@ namespace LiteDB.Client.Shared
         internal Action ClosedCallback;
         private int _references = 1;
         private bool _closing;
+#if DEBUG || TESTING
+        private Timer _lingerTimer;
+        private bool _idle;
+        private Thread _closeThread;
+        internal bool Idle { get { lock (_gate) return _idle; } }
+
+        // Prototype only: production retention awaits the exclusive-release protocol.
+        internal bool ReleaseIdle()
+        {
+            lock (_gate)
+            {
+                while (_closing)
+                {
+                    if (_closeThread == Thread.CurrentThread)
+                        throw new InvalidOperationException("Recursive Shared participant release is unsupported.");
+                    Monitor.Wait(_gate);
+                }
+                if (!_idle) return false;
+                _idle = false;
+                _lingerTimer?.Dispose();
+                _lingerTimer = null;
+                _references = 0;
+                _closing = true;
+            }
+            CloseResources();
+            return true;
+        }
+
+        private void ExpireIdle(object timer)
+        {
+            try
+            {
+                lock (_gate)
+                {
+                    // Identity fences a queued callback from a cancelled interval.
+                    if (!_idle || !ReferenceEquals(_lingerTimer, timer)) return;
+                    _idle = false;
+                    _lingerTimer.Dispose();
+                    _lingerTimer = null;
+                    _references = 0;
+                    _closing = true;
+                }
+                CloseResources();
+            }
+            catch (Exception) { /* Preserve existing final-close fences; never escape a timer. */ }
+        }
+#endif
         private int _facades;
         private int _maintenanceDepth;
         internal void AttachFacade()
@@ -165,6 +212,16 @@ namespace LiteDB.Client.Shared
             {
                 while (_closing) Monitor.Wait(_gate);
                 if (_references == 0) return false;
+#if DEBUG || TESTING
+                if (_idle)
+                {
+                    _idle = false;
+                    _lingerTimer?.Dispose();
+                    _lingerTimer = null;
+                    // Transfer the idle reference to the new facade.
+                    return true;
+                }
+#endif
                 _references++;
                 return true;
             }
@@ -175,8 +232,33 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (--_references != 0) return;
+#if DEBUG || TESTING
+                if (Settings.SharedLingerMilliseconds > 0)
+                {
+                    Timer timer = null;
+                    try
+                    {
+                        timer = SharedBackground.CreateTimer(_ => ExpireIdle(timer), null,
+                            Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                        _lingerTimer = timer;
+                        timer.Change(Settings.SharedLingerMilliseconds, Timeout.Infinite);
+                        _references = 1;
+                        _idle = true;
+                        return;
+                    }
+                    catch { timer?.Dispose(); _lingerTimer = null; }
+                }
+#endif
                 _closing = true;
             }
+            CloseResources();
+        }
+
+        private void CloseResources()
+        {
+#if DEBUG || TESTING
+            lock (_gate) _closeThread = Thread.CurrentThread;
+#endif
             // No table gate while taking the cache gate: admission takes them in
             // the reverse order. Zero references means no facade or result remains.
             try
@@ -194,7 +276,14 @@ namespace LiteDB.Client.Shared
             }
             finally
             {
-                lock (_gate) { _closing = false; Monitor.PulseAll(_gate); }
+                lock (_gate)
+                {
+#if DEBUG || TESTING
+                    _closeThread = null;
+#endif
+                    _closing = false;
+                    Monitor.PulseAll(_gate);
+                }
             }
         }
 

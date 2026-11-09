@@ -16,7 +16,7 @@ namespace LiteDB.Client.Shared
         private sealed class Entry
         {
             internal readonly object Gate = new object();
-            internal SharedMemoryReaderTable Table;
+            internal volatile SharedMemoryReaderTable Table;
             internal Thread Initializer;
             internal volatile bool Retired;
         }
@@ -40,6 +40,16 @@ namespace LiteDB.Client.Shared
                     var table = entry.Table;
                     if (table != null)
                     {
+#if DEBUG || TESTING
+                        if (table.Idle)
+                        {
+                            try { RequireCompatible(table, settings); }
+                            catch (InvalidOperationException)
+                            {
+                                if (table.ReleaseIdle()) continue;
+                            }
+                        }
+#endif
                         if (!table.TryRetain()) { Retire(identity, entry); continue; }
                         try
                         {
@@ -64,8 +74,28 @@ namespace LiteDB.Client.Shared
         }
 
 #if DEBUG || TESTING
-        internal static bool ReleaseIdle(string filename) => false;
-        internal static void ReleaseAllIdle() { }
+        static SharedParticipantRegistry()
+        {
+            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+            {
+                foreach (var entry in Entries.Values)
+                {
+                    try { entry.Table?.ReleaseIdle(); }
+                    catch (Exception) { /* Exit cleanup is best effort, OS locks die with the process. */ }
+                }
+            };
+        }
+
+        internal static bool ReleaseIdle(string filename)
+        {
+            var identity = DatabaseFileIdentity.CanonicalPath(System.IO.Path.GetFullPath(filename));
+            return Entries.TryGetValue(identity, out var entry) && entry.Table?.ReleaseIdle() == true;
+        }
+
+        internal static void ReleaseAllIdle()
+        {
+            foreach (var entry in Entries.Values) entry.Table?.ReleaseIdle();
+        }
 #endif
 
         private static void Retire(string identity, Entry entry)
@@ -92,6 +122,10 @@ namespace LiteDB.Client.Shared
                 if (!captured.SharedOneFileOverride.HasValue && !requested.SharedOneFileOverride.HasValue)
                     opening.ReadOnly = captured.ReadOnly;
                 DirectHostSettings.RequireCompatible(captured, opening, captured.Collation.ToString());
+#if DEBUG || TESTING
+                if (captured.SharedLingerMilliseconds != requested.SharedLingerMilliseconds)
+                    throw new InvalidOperationException("Shared linger settings differ.");
+#endif
                 if (captured.SharedMutexNameStrategy != requested.SharedMutexNameStrategy ||
                     !ReferenceEquals(captured.SharedReaderFiles, requested.SharedReaderFiles))
                     throw new InvalidOperationException("Shared opening settings differ.");
