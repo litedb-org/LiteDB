@@ -193,6 +193,27 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public async Task Rebuild_releases_protected_cached_storage_before_replacement()
+        {
+            using (var seed = new LiteDatabase(Filename))
+            {
+                seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+                seed.GetCollection("docs").EnsureIndex("value");
+            }
+            using (var child = new MvccProcess("one-file-linger-rebuild", Filename, null, disableMappedReads: true))
+            {
+                await child.Expect("done");
+                await child.Finish();
+            }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var db = new LiteDatabase(Filename);
+                db.GetCollection("docs").FindOne(Query.EQ("value", "saved"))["_id"].AsInt32.Should().Be(1);
+                db.GetCollection("docs").Count().Should().Be(1);
+            }
+        }
+
+        [OneFileFact]
         public void Assembly_unloading_releases_idle_admission_before_its_timer()
         {
             var context = new System.Runtime.Loader.AssemblyLoadContext("linger-" + Guid.NewGuid(), isCollectible: true);

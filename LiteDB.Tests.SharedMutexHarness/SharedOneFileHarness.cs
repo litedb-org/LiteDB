@@ -108,6 +108,22 @@ internal static class SharedOneFileHarness
             Console.WriteLine("done");
             return true;
         }
+        if (mode == "one-file-linger-rebuild")
+        {
+            using (var db = new LiteDatabase(new ConnectionString
+            { Filename = filename, Connection = ConnectionType.Shared, SharedOneFile = true, SharedLinger = 60000 }))
+            {
+                db.GetCollection("docs").FindById(1);
+                var shared = (SharedEngine)typeof(LiteDatabase).GetField("_engine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(db);
+                var parked = typeof(SharedProtectedSnapshot).GetField("_engine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (parked.GetValue(shared.MappedReaderTable.ProtectedSnapshot) == null) throw new Exception("No protected engine was retained");
+                db.Rebuild();
+                if (parked.GetValue(shared.MappedReaderTable.ProtectedSnapshot) != null) throw new Exception("Rebuild retained old snapshot storage");
+            }
+            LiteDatabase.ReleaseIdle(filename);
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "one-file-linger-change")
         {
             using (var db = new LiteDatabase(new ConnectionString
