@@ -2,6 +2,9 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Globalization;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Utils;
@@ -10,6 +13,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB.Tests.Engine
 {
+    [Collection("SharedTeardownOverlap")]
     public class ReachabilityGap_Tests
     {
         // Opt-in hosted audit telemetry. Snapshot includes tests that ran before this class;
@@ -90,6 +94,42 @@ namespace LiteDB.Tests.Engine
             Hits("api:ILiteTransaction.GetCollectionNames").Should().BeGreaterThan(names);
             db.GetCollection("pending").Count().Should().Be(0);
             db.GetCollection("sentinel").Count().Should().Be(1);
+        }
+
+        [Fact]
+        public async Task Disposal_waits_for_a_forced_active_call_then_refuses_new_calls()
+        {
+            using var file = new TempFile();
+            var settings = new EngineSettings { Filename = file.Filename, SharedOneFile = false };
+            using var engine = new SharedEngine(settings);
+            engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            IEnumerable<BsonDocument> HeldRows()
+            {
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(20)).Should().BeTrue();
+                yield return new BsonDocument { ["_id"] = 2 };
+            }
+            var before = Hits("maintenance:shared-dispose-during-active-call");
+            var writer = Task.Run(() => engine.Insert("rows", HeldRows(), BsonAutoId.Int32));
+            entered.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            var closing = Task.Run(engine.Dispose);
+            try
+            {
+                SpinWait.SpinUntil(() => Hits("maintenance:shared-dispose-during-active-call") > before,
+                    TimeSpan.FromSeconds(10)).Should().BeTrue();
+                closing.IsCompleted.Should().BeFalse("the forced active operation still owns the engine");
+            }
+            finally { release.Set(); }
+            (await writer).Should().Be(1);
+            await closing;
+            var refused = Hits("refusal:shared-call-after-dispose");
+            Action late = () => engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 3 } }, BsonAutoId.Int32);
+            late.Should().Throw<ObjectDisposedException>();
+            Hits("refusal:shared-call-after-dispose").Should().BeGreaterThan(refused);
+            using var reopened = new LiteDatabase(file.Filename);
+            reopened.GetCollection("rows").Count().Should().Be(2);
         }
 
         internal static long Hits(string name) => Reachability.Snapshot().TryGetValue(name, out var count) ? count : 0;

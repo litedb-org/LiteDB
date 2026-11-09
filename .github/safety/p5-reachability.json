@@ -1,6 +1,5 @@
 {
   "baseline": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
-  "markersRegistered": 173,
   "hooksRegistered": 100,
   "markersReached": 115,
   "hooksReached": 83,
@@ -300,7 +299,8 @@
         "LiteDB/Client/Shared/SharedEngine.Calls.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page"
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page",
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposal_waits_for_a_forced_active_call_then_refuses_new_calls"
       ],
       "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
       "workload": "shared dispose during active call"
@@ -569,7 +569,8 @@
         "LiteDB/Client/Shared/SharedEngine.Calls.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one",
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposal_waits_for_a_forced_active_call_then_refuses_new_calls"
       ],
       "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
       "workload": "shared call after dispose"
@@ -720,5 +721,11 @@
       "whyFuzzMisses": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
       "workload": "wal append during header publication"
     }
+  ],
+  "baselineObservedMarkerNames": 173,
+  "baselineRegisteredMarkers": 171,
+  "baselineUnregisteredObservedMarkers": [
+    "fault-point:mode-exclusive-lock",
+    "fault-point:mode-shared-lock"
   ]
 }

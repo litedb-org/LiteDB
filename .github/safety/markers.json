@@ -288,7 +288,8 @@
         "LiteDB/Client/Shared/SharedEngine.Calls.cs"
       ],
       "targets": [
-        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page"
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page",
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposal_waits_for_a_forced_active_call_then_refuses_new_calls"
       ],
       "doc": "docs/shared-mode-safety.md",
       "gate": "advisory",
@@ -677,7 +678,8 @@
         "LiteDB/Client/Shared/SharedEngine.Calls.cs"
       ],
       "targets": [
-        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one",
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposal_waits_for_a_forced_active_call_then_refuses_new_calls"
       ],
       "doc": "docs/shared-teardown-callbacks.md",
       "gate": "advisory",
