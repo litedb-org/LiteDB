@@ -92,6 +92,8 @@ The affected-invariant mapping uses tests actually present in the 703-case selec
 | Admission release after death cannot lose acknowledged rows or admit partial state | `SharedOneFileRegistryProcess_Tests.Process_kill_releases_participant_and_cold_reopen_keeps_only_acknowledged_indexed_data` | Process-death, repeated cold reopen, plain/encrypted |
 | File qualification must preserve aliases, namespace and failure cleanup | `SharedOneFileRegistry_Tests.Construction_time_cwd_symlink_case_and_separate_wal_namespace_are_preserved`, `Hard_links_refuse_without_mutating_storage_or_creating_an_authority`; `DirectHostAdmission_Tests.Native_admission_coexists_with_managed_streams_without_losing_exclusion` | Namespace aliases, real native handles, admission failure |
 
+Source review additionally checked the drive-root precondition: every production policy caller uses `DatabaseFileLock.Path`, canonicalized with `GetFinalPathNameByHandleW` in DOS-drive mode. Microsoft documents fully resolved aliases and a missing-drive-letter failure case ([canonical-path API](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew)). This supports the root-drive classification under existing admission; it is a source/API-contract argument, not a mounted-volume device campaign.
+
 Windows hosted evidence exercises the actual handle-query path on the runner filesystem admitted by the NTFS/ReFS policy. It does not constitute a separate NTFS/ReFS/removable/RAM/SMB device campaign. Those environments remain bounded by the documented native-filesystem contract and fail-closed API behavior; no broader platform qualification is inferred from these runners.
 
 The integrated heads additionally carry F-P5-WARMLIFETIME's bounded synchronized cleanup-completion test correction, not a product change. Its separate Windows stress campaign remains separate evidence. Integrated exact-head full/P1 results below supersede prior cancelled dispatches; pending is not green.
@@ -104,7 +106,7 @@ The first independent scalar-leaf audit identified one missing historical parent
 
 | Head | Workflow | State | Run |
 | --- | --- | --- | --- |
-| phase2 `c67bb7c27` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546674434) |
+| phase2 `c67bb7c27` | Full CI | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546674434) |
 | phase2 `c67bb7c27` | P1 WAL handle safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546677209) |
 | phase2 `c67bb7c27` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546680231) |
 | phase3 `d925be3a6` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547530648) |
@@ -123,5 +125,7 @@ Phase3 and phase4 update/index safety workflows also completed successfully on t
 Phase3 WAL/handle safety also completed successfully: eight sessions per leg, 1,392 passed + 1 `NotExecuted` on Linux/Windows and 1,393 passed + 1 `NotExecuted` on macOS, each on net8/net10. No failed/aborted sessions. Actual outcomes and the skipped name are retained in `phase3-handle-counts.json`; skipped coverage is not counted as qualified.
 
 Phase4 WAL/handle safety also completed successfully on its exact current head: all 12 jobs, with 456 nonempty completed TRX sessions. On each net8/net10 leg, the nine WAL sessions have 1,395 passed + 1 `NotExecuted` on Linux/Windows and 1,396 passed + 1 `NotExecuted` on macOS; the 67 ownership sessions have 1,141 passed on Linux, and 1,135 passed + 6 `NotExecuted` on Windows/macOS. No failures or aborted sessions. These are test-result executions across overlapping selections, not unique-test totals. `phase4-handle-counts.json` retains the raw counters, actual outcomes and every skipped name. Reproduce the exact-head audit with `python audit-phase4-handles.py <evidence-directory>`; skipped cases are not qualification evidence.
+
+Phase2 full CI completed successfully on `c67bb7c27595d3efd9b53ebca81c5541acbe5c47`. Its retained Safety evidence gate summary verifies 23 test legs, with 0 errors and 0 warnings. It records 3 quarantined tests that never executed; these are visible coverage gaps, not passing qualification evidence. `phase2-full-safety-evidence.json` retains the exact names, per-leg counters, source SHA, tier and attempt.
 
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.

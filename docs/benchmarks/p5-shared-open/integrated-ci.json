@@ -4,9 +4,9 @@
     "databaseId": 42546674434,
     "headSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "name": "Full CI",
-    "status": "queued",
+    "status": "completed",
     "url": "https://github.com/litedb-org/LiteDB/actions/runs/42546674434",
-    "conclusion": ""
+    "conclusion": "success"
   },
   {
     "phase": "phase2",
