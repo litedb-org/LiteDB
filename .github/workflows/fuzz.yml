@@ -1,6 +1,10 @@
 name: F-P5 macOS crash-cut classification
 on:
   workflow_dispatch:
+    inputs:
+      direct_only:
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -38,6 +42,8 @@ jobs:
       - name: Build net8 with engine hooks
         run: dotnet build source/LiteDB.Fuzz -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
       - name: Direct forced admission and retained seed replay
+        env:
+          DIRECT_ONLY: ${{ inputs.direct_only }}
         run: python3 research/f-p5-macos-cut/run.py
       - name: Retain evidence even on failure
         if: always()

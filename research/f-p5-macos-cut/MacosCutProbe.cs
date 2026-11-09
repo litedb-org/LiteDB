@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
-using System.Text.Json;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Fuzz;
 
@@ -11,15 +11,20 @@ internal static class MacosCutProbe
     {
         Directory.CreateDirectory(root);
         var results = new List<object>();
-        foreach (var holdReader in new[] { false, true })
+        foreach (var mode in new[] { "no-reader", "held-reader", "closing-participant" })
         {
-            var directory = Path.Combine(root, holdReader ? "held-reader" : "no-reader");
+            var holdReader = mode == "held-reader";
+            var closing = mode == "closing-participant";
+            var directory = Path.Combine(root, mode);
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "shared.db");
             using (var setup = Open(file))
                 setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "control", ["padding"] = new string('x', 131072) });
             LiteDatabase reader = null;
             IEnumerator<BsonDocument> cursor = null;
+            using var slotCleared = new ManualResetEventSlim();
+            using var resumeClose = new ManualResetEventSlim();
+            Task close = null;
             try
             {
                 if (holdReader)
@@ -31,6 +36,7 @@ internal static class MacosCutProbe
                     if (readerEngine.MappedReaderTable.LiveVersions().Length == 0)
                         throw new Exception("Reader did not retain an admitted mapped lease");
                 }
+                if (closing) reader = Open(file);
                 var ledger = Path.Combine(directory, "worker-0.jsonl");
                 var start = new ProcessStartInfo("dotnet")
                 {
@@ -40,9 +46,28 @@ internal static class MacosCutProbe
                     "--child", "shared", "--database", file, "--ledger", ledger,
                     "--worker-id", "0", "--seed", "641424", "--count", "400", "--crash-at", "22" })
                     start.ArgumentList.Add(arg);
+                if (closing) start.Environment["LITEDB_SCRATCH_CHECKPOINT_GATE"] = ledger;
                 using var process = Process.Start(start)!;
                 var stdout = process.StandardOutput.ReadToEndAsync();
                 var stderr = process.StandardError.ReadToEndAsync();
+                if (closing)
+                {
+                    var deadline = DateTime.UtcNow.AddSeconds(20);
+                    while (!File.Exists(ledger + ".ready"))
+                    {
+                        if (DateTime.UtcNow > deadline) throw new TimeoutException("Child did not reach checkpoint gate");
+                        await Task.Delay(10);
+                    }
+                    SharedMemoryFinalClose.FinalCloseStage = stage =>
+                    {
+                        if (stage != "slot-cleared") return;
+                        slotCleared.Set();
+                        if (!resumeClose.Wait(TimeSpan.FromSeconds(120))) throw new TimeoutException("Close probe not resumed");
+                    };
+                    close = Task.Run(reader.Dispose);
+                    if (!slotCleared.Wait(TimeSpan.FromSeconds(20))) throw new TimeoutException("Slot clear not reached");
+                    File.WriteAllText(ledger + ".resume", "checkpoint now");
+                }
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
                 await process.WaitForExitAsync(timeout.Token);
                 await File.WriteAllTextAsync(Path.Combine(directory, "stdout.log"), await stdout);
@@ -50,14 +75,20 @@ internal static class MacosCutProbe
                 await File.WriteAllTextAsync(Path.Combine(directory, "stderr.log"), error);
                 var marker = File.Exists(ledger + ".crash") ? File.ReadAllText(ledger + ".crash") : null;
                 if (process.ExitCode == 0) throw new Exception("Child unexpectedly succeeded");
-                if (!holdReader && marker != "22|checkpoint-after-page-write")
+                if (!holdReader && !closing && marker != "22|checkpoint-after-page-write")
                     throw new Exception("No-reader positive control did not reach page-write cut: " + error);
-                if (holdReader && marker == null && !error.Contains("Configured shared-process crash boundary was not reached"))
+                if ((holdReader || closing) && marker == null && !error.Contains("Configured shared-process crash boundary was not reached"))
                     throw new Exception("Held reader failed with another identity: " + error);
-                results.Add(new { holdReader, process.ExitCode, marker,
+                results.Add(new { mode, holdReader, closing, process.ExitCode, marker,
                     missingBoundary = error.Contains("Configured shared-process crash boundary was not reached") });
             }
-            finally { cursor?.Dispose(); reader?.Dispose(); }
+            finally
+            {
+                resumeClose.Set();
+                if (close != null) await close;
+                SharedMemoryFinalClose.FinalCloseStage = null;
+                cursor?.Dispose(); reader?.Dispose();
+            }
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 using var verify = Open(file);

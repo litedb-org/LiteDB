@@ -7,6 +7,7 @@ for label, args, budget in [
     ('direct', ['--macos-cut-probe', str(root/'direct')], 360),
     ('replay', ['--replay', str(pathlib.Path('research/f-p5-macos-cut/replay/replay.json').resolve()), '--artifact-dir', str(root/'replay')], 10800),
 ]:
+    if label == "replay" and os.environ.get("DIRECT_ONLY") == "true": continue
     started = time.time()
     with (root/(label+'.log')).open('w') as log:
         try:
