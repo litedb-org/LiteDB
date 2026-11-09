@@ -56,6 +56,17 @@ namespace LiteDB.Tests
             }, timeoutMilliseconds);
         }
 
-        internal static void DeleteDirectory(string path) => Retry(() => Directory.Delete(path, true));
+        internal static void ReleaseIdleInDirectory(string path)
+        {
+            if (!Directory.Exists(path)) return;
+            foreach (var filename in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                LiteDatabase.ReleaseIdle(filename);
+        }
+
+        internal static void DeleteDirectory(string path)
+        {
+            ReleaseIdleInDirectory(path);
+            Retry(() => Directory.Delete(path, true));
+        }
     }
 }

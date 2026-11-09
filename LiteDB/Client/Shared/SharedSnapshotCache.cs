@@ -13,6 +13,7 @@ namespace LiteDB.Client.Shared
         internal readonly SharedReadPacer Pacer = new SharedReadPacer();
         internal CachedSharedSnapshot Snapshot;
         internal int Demand;
+        internal long LingerDeadline;
         internal Timer Idle;
         internal TimeSpan IdleLimit = TimeSpan.FromMilliseconds(100);
 #if DEBUG || TESTING
@@ -35,7 +36,9 @@ namespace LiteDB.Client.Shared
                 {
                     var snapshot = Snapshot;
                     if (snapshot == null) return;
-                    var remaining = IdleLimit.TotalMilliseconds - (Environment.TickCount64 - snapshot.LastUse);
+                    var now = Environment.TickCount64;
+                    var remaining = Math.Max(IdleLimit.TotalMilliseconds - (now - snapshot.LastUse),
+                        Interlocked.Read(ref LingerDeadline) - now);
                     if (snapshot.Readers != 0 || remaining > 0)
                     {
                         Idle?.Change(snapshot.Readers != 0 ? IdleLimit : TimeSpan.FromMilliseconds(remaining), Timeout.InfiniteTimeSpan);

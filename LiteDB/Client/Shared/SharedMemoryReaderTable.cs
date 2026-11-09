@@ -215,6 +215,7 @@ namespace LiteDB.Client.Shared
                     _idle = false;
                     _lingerTimer?.Dispose();
                     _lingerTimer = null;
+                    Interlocked.Exchange(ref ReadCache.LingerDeadline, 0);
                     // Transfer the idle reference to the new facade.
                     return true;
                 }
@@ -238,6 +239,7 @@ namespace LiteDB.Client.Shared
                         _lingerTimer = timer;
                         timer.Change(Settings.SharedLingerMilliseconds, Timeout.Infinite);
                         _references = 1;
+                        Interlocked.Exchange(ref ReadCache.LingerDeadline, Environment.TickCount64 + Settings.SharedLinger);
                         _idle = true;
                         return;
                     }

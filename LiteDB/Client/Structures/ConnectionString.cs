@@ -243,6 +243,7 @@ namespace LiteDB
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("shared linger", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("shared one file", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("shared memory size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("shared process capacity", StringComparison.OrdinalIgnoreCase) ||

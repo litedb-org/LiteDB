@@ -108,6 +108,20 @@ internal static class SharedOneFileHarness
             Console.WriteLine("done");
             return true;
         }
+        if (mode == "one-file-linger-idle")
+        {
+            using (var db = new LiteDatabase(new ConnectionString
+            { Filename = filename, Connection = ConnectionType.Shared, SharedOneFile = true, SharedLinger = 60000 }))
+            {
+                db.CheckpointSize = 1000;
+                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" });
+                db.GetCollection("docs").EnsureIndex("value");
+            }
+            Console.WriteLine("idle");
+            Console.ReadLine();
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode.StartsWith("one-file-facade-", StringComparison.Ordinal))
         {
             try
