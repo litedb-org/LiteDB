@@ -281,13 +281,23 @@ namespace LiteDB.Internals
             reopened.GetCollection("docs").Count().Should().Be(0);
         }
 
-        [OneFileFact]
-        public void Idle_release_does_not_recreate_an_unlinked_database()
+        [OneFileTheory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Idle_release_preserves_deleted_and_replaced_paths(bool replace)
         {
             var connection = Connection;
             connection.SharedLinger = 60000;
             using (var db = new LiteDatabase(connection))
                 db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+            var replacement = Path.Combine(_directory, "replacement.db");
+            byte[] expected = null;
+            if (replace)
+            {
+                using (var other = new LiteDatabase(replacement))
+                    other.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 42, ["value"] = "unrelated" });
+                expected = File.ReadAllBytes(replacement);
+            }
             try { File.Delete(Filename); }
             catch (IOException) when (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                 System.Runtime.InteropServices.OSPlatform.Windows))
@@ -295,8 +305,19 @@ namespace LiteDB.Internals
                 LiteDatabase.ReleaseIdle(Filename);
                 File.Delete(Filename);
             }
+            if (replace)
+            {
+                try { File.Copy(replacement, Filename); }
+                catch (IOException) when (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Windows))
+                {
+                    LiteDatabase.ReleaseIdle(Filename);
+                    File.Copy(replacement, Filename);
+                }
+            }
             LiteDatabase.ReleaseIdle(Filename);
-            File.Exists(Filename).Should().BeFalse();
+            if (replace) File.ReadAllBytes(Filename).Should().Equal(expected);
+            else File.Exists(Filename).Should().BeFalse();
         }
 
         public void Dispose()
