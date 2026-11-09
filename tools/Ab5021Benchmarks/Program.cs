@@ -22,6 +22,11 @@ internal static class Program
         Directory.CreateDirectory(root);
         try
         {
+            if (Environment.GetEnvironmentVariable("PROFILE_SCENARIO") is string profile)
+            {
+                new Workload(config, root, 100000, 5000, false).Profile(profile);
+                return 0;
+            }
             // Every measured child gets the same untimed, scaled workload first.
             // Tiered compilation is disabled by the orchestrator for optimized first JITs.
             new Workload(config, Path.Combine(root, "warmup"), 2000, 100, false).Run();

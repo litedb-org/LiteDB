@@ -129,6 +129,19 @@ class BenchmarkGateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identical v5"):
             self.compare()
 
+    def test_scaling_subset_preserves_identity_and_same_job_ratios(self):
+        self.make_before()
+        names = {"open_close_20x", "durable_insert_5k_1_writers", "durable_insert_5k_8_writers"}
+        for path in self.output.rglob("round-*.json"):
+            result = json.loads(path.read_text())
+            result["samples"] = [s for s in result["samples"] if s["scenario"] in names]
+            path.write_text(json.dumps(result))
+        report = self.compare(",".join(sorted(names)))
+        self.assertEqual("report-only", report["verdict"])
+        self.assertEqual(4, len(report["comparisons"]))
+        self.assertTrue(all(row["ratio"] == 0.5 for row in report["comparisons"]))
+        self.assertEqual(CONFIG, self.config)
+
     def test_subset_never_issues_gate_verdict_and_rejects_unknown_names(self):
         self.make_before()
         scenario = "single_insert_5k_tx"

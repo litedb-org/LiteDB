@@ -2,7 +2,7 @@ using LiteDB;
 
 namespace Ab5021Benchmarks;
 
-internal sealed class Workload
+internal sealed partial class Workload
 {
     private readonly string _config;
     private readonly string _root;
@@ -101,7 +101,7 @@ internal sealed class Workload
         if (Selected == null || Selected.Contains("single_insert_5k_tx")) SmallTransactions();
         if (Selected == null || Selected.Contains("checkpoint_100k")) Checkpoint();
 #if DEV
-        if (_config == "dev-default" && Selected == null)
+        if (_config == "dev-default" && (Selected == null || Selected.Any(s => s.StartsWith("durable_insert_"))))
             Samples.AddRange(new DurableWriters(_config, _root, _documents.Take(_small).ToArray(), _record).Run());
 #endif
     }

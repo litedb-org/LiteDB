@@ -23,6 +23,8 @@ internal sealed class DurableWriters
     {
         foreach (var writers in new[] { 1, 4, 8 })
         {
+            var selected = Environment.GetEnvironmentVariable("BENCHMARK_SCENARIOS");
+            if (!string.IsNullOrEmpty(selected) && !selected.Split(',').Contains($"durable_insert_5k_{writers}_writers")) continue;
             var path = Path.Combine(_root, $"durable-{writers}.db");
             if (!_record) Console.WriteLine($"{_config} warmup opening durable-{writers}.db");
             ScenarioMeasurement measurement;

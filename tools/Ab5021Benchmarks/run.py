@@ -79,7 +79,7 @@ def summarize(output):
                                 minMs=min(values), maxMs=max(values),
                                 spreadPercent=(max(values) / min(values) - 1) * 100,
                                 ratio=None if scaling else statistics.median(values) / statistics.median(baseline),
-                                speedupVsOneWriter=statistics.median(one_writer) / statistics.median(values) if scaling else None, **metrics))
+                                speedupVsOneWriter=statistics.median(one_writer) / statistics.median(values) if scaling and one_writer else None, **metrics))
     (output / "summary.json").write_text(json.dumps(summary, indent=2))
     with (output / "summary.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(summary[0]))
@@ -137,7 +137,7 @@ def main():
     comparison = bool(os.environ.get("BENCHMARK_BASELINE_SHA"))
     scenarios = os.environ.get("BENCHMARK_SCENARIOS", "")
     if scenarios and (not comparison or len(set(scenarios.split(","))) != len(scenarios.split(","))
-                      or not set(scenarios.split(",")) <= set(GATE_CONFIG["scenarios"])):
+                      or not set(scenarios.split(",")) <= (set(GATE_CONFIG["scenarios"]) | set(GATE_CONFIG["scalingScenarios"]))):
         raise ValueError("Scenario subsets require comparison mode and known, distinct scenarios")
     output = Path(destination).resolve()
     output.mkdir(parents=True, exist_ok=True)
