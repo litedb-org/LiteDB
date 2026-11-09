@@ -63,6 +63,11 @@ namespace LiteDB.Client.Shared
             }
         }
 
+#if DEBUG || TESTING
+        internal static bool ReleaseIdle(string filename) => false;
+        internal static void ReleaseAllIdle() { }
+#endif
+
         private static void Retire(string identity, Entry entry)
         {
             entry.Retired = true;

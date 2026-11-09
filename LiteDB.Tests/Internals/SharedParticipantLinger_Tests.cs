@@ -72,11 +72,57 @@ namespace LiteDB.Internals
             db.GetCollection("docs").Count().Should().Be(0);
         }
 
+        [OneFileFact]
+        public void Explicit_release_is_synchronous_and_does_not_close_active_facades()
+        {
+            SharedMemoryReaderTable table;
+            using (var engine = new SharedEngine(Settings(1000)))
+            {
+                table = engine.MappedReaderTable;
+                SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeFalse();
+                table.Closed.Should().BeFalse();
+            }
+            SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeTrue();
+            table.Closed.Should().BeTrue();
+            SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeFalse();
+            using var db = new LiteDatabase(Filename);
+            db.GetCollection("docs").Count().Should().Be(0);
+        }
+
+        [OneFileFact]
+        public void Release_all_leaves_active_participants_usable()
+        {
+            using var active = new SharedEngine(new EngineSettings
+            {
+                Filename = Path.Combine(_directory, "active.db"), SharedOneFile = true, SharedLingerMilliseconds = 1000
+            });
+            SharedMemoryReaderTable idle;
+            using (var engine = new SharedEngine(Settings(1000))) idle = engine.MappedReaderTable;
+            SharedParticipantRegistry.ReleaseAllIdle();
+            idle.Closed.Should().BeTrue();
+            active.MappedReaderTable.Closed.Should().BeFalse();
+            using var db = new LiteDatabase(active, disposeOnClose: false);
+            db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            db.GetCollection("docs").Count().Should().Be(1);
+        }
+
+        [OneFileFact]
+        public void Idle_settings_mismatch_replaces_the_participant()
+        {
+            SharedMemoryReaderTable old;
+            using (var engine = new SharedEngine(Settings(1000))) old = engine.MappedReaderTable;
+            var settings = Settings(1000);
+            settings.DurableCommits = false;
+            using var next = new SharedEngine(settings);
+            next.MappedReaderTable.Should().NotBeSameAs(old);
+            old.Closed.Should().BeTrue();
+            using var db = new LiteDatabase(next, disposeOnClose: false);
+            db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+        }
+
         public void Dispose()
         {
-            // Prototype has no release API yet. Wait for the bounded test interval;
-            // this is replaced by explicit release in the next implementation step.
-            Thread.Sleep(1100);
+            SharedParticipantRegistry.ReleaseAllIdle();
             Directory.Delete(_directory, true);
         }
     }
