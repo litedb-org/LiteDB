@@ -9,6 +9,7 @@ using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using LiteDB.Tests;
 using Xunit;
+using Xunit.Abstractions;
 using static LiteDB.Internals.SharedOneFilePublicationFixture;
 
 namespace LiteDB.Internals
@@ -16,6 +17,9 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedOneFileWarmLifetime_Tests
     {
+        private readonly ITestOutputHelper _output;
+        public SharedOneFileWarmLifetime_Tests(ITestOutputHelper output) => _output = output;
+
         [OneFileTheory]
         [InlineData(false, false)]
         [InlineData(false, true)]
@@ -202,7 +206,16 @@ namespace LiteDB.Internals
                 Collect();
                 weak.IsAlive.Should().BeFalse();
                 SpinWait.SpinUntil(() => old.Readers == 0, TimeSpan.FromSeconds(5)).Should().BeTrue();
-                table.LiveVersions().Should().Equal((int)accepted.Status.Version);
+                var immediate = table.LiveVersions();
+                var started = System.Diagnostics.Stopwatch.StartNew();
+                var released = SpinWait.SpinUntil(() =>
+                {
+                    lock (table.ReadCache.Gate)
+                        return old.Readers == 0 && old.Lease == null;
+                }, TimeSpan.FromSeconds(5));
+                var eventual = table.LiveVersions();
+                _output.WriteLine($"WARM_RELEASE immediate={string.Join(",", immediate)} eventual={string.Join(",", eventual)} released={released} elapsed_ms={started.Elapsed.TotalMilliseconds:F3}");
+                immediate.Should().Equal((int)accepted.Status.Version);
                 accepted.Readers.Should().Be(1);
                 var count = 0;
                 while (current.Read())
