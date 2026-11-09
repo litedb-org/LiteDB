@@ -543,5 +543,17 @@
         }
       ]
     }
+  ],
+  "inheritedParentEntries": [
+    {
+      "source": "phase2@c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+      "contractId": "shared-one-file",
+      "reason": "Historical parent qualification gap; superseded by the active phase3 platform qualification statement. Preserved to retain every parent registry leaf.",
+      "gaps": [
+        {
+          "text": "Opt-in Linux x64 prototype only; Windows/macOS/ARM and actual device power loss unqualified. Writer publication has focused exception/process-death/prefix coverage; warm admission has focused fence/slot/recovery coverage; whole-path mapped power-loss fuzz and handoff remain later-slice gates."
+        }
+      ]
+    }
   ]
 }
