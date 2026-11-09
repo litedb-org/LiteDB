@@ -26,3 +26,15 @@
 - 2026-11-08T23:07:41.783586+00:00 hosted 42531054661: {'in_progress:': 6, 'completed:success': 1, 'completed:failure': 1, 'queued:': 14}; terminal qualification not yet claimed.
 - 2026-11-08T23:10:49.021132+00:00 hosted 42531054661: {'in_progress:': 7, 'completed:success': 1, 'completed:failure': 1, 'queued:': 13}; terminal qualification not yet claimed.
 - 2026-11-08T23:17:38.223699+00:00 hosted 42531054661: {'in_progress:': 8, 'completed:success': 2, 'completed:failure': 1, 'queued:': 11}; terminal qualification not yet claimed.
+- Scratch evidence-only checkpoint a3a912dcc pushed explicitly to v6/wip-p5-campaigns; original hosted driver remains b811372fb and candidate e507faad4. No redispatch.
+- 2026-11-08T23:23:54.799816+00:00 hosted 42531054661: {'in_progress:': 7, 'completed:success': 3, 'completed:failure': 1, 'queued:': 11}; terminal qualification not yet claimed.
+- 2026-11-08T23:32:24.410535+00:00 hosted 42531054661: {'in_progress:': 6, 'completed:success': 4, 'completed:failure': 2, 'queued:': 10}; streaming collector active.
+- 2026-11-08T23:45:35.934927+00:00 hosted 42531054661: {'in_progress:': 8, 'completed:success': 5, 'completed:failure': 2, 'queued:': 7}; streaming collector active.
+- Collector replacement: original gh downloader exited during8.5GB windows-6 archive; no product/test failure inferred. Streaming monitor2.py retained every artifact on disk and resumed180s polling. windows-3/5/6 and macos-faults succeeded; windows-4 reproduced same3vector seeds and3same-identity hosted replays. Current downloaded142810steps; macOS1772passed+4NotExecuted Linux-futex cases (explicit gaps);58binary hash entries verified.
+- 2026-11-08T23:48:49.970701+00:00 hosted 42531054661: {'in_progress:': 10, 'completed:success': 5, 'completed:failure': 2, 'queued:': 5}; streaming collector active.
+- 2026-11-08T23:51:51.985827+00:00 hosted 42531054661: {'in_progress:': 10, 'completed:success': 6, 'completed:failure': 2, 'queued:': 4}; streaming collector active.
+- 2026-11-08T23:54:59.343353+00:00 hosted 42531054661: {'in_progress:': 10, 'completed:success': 6, 'completed:failure': 2, 'queued:': 4}; streaming collector active.
+- 2026-11-08T23:58:01.334874+00:00 hosted 42531054661: {'in_progress:': 11, 'completed:success': 7, 'completed:failure': 2, 'queued:': 2}; streaming collector active.
+- 2026-11-09T00:03:04.613784+00:00 hosted 42531054661: {'completed:failure': 3, 'completed:success': 7, 'in_progress:': 10, 'queued:': 2}; streaming collector active.
+- linux-0 terminal failure: api-boundary all10seeds+10independent hosted replays fail348 with full header name capacity. Classified harness scaling defect: per-step collection accumulation exceeds8000-byte header; engine rejects before allocation. Evidence supplemental-findings.md; no product corruption/flaky claim, no fixes. Downloaded210540campaign steps,32failure records (12vector+20api).
+- 2026-11-09T00:06:24.534681+00:00 hosted 42531054661: {'completed:failure': 3, 'completed:success': 7, 'in_progress:': 10, 'queued:': 2}; streaming collector active.
