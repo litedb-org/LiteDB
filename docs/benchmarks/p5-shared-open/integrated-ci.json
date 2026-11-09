@@ -39,10 +39,10 @@
     "databaseId": 42547536365,
     "headSha": "d925be3a6716750de586ac85d227b90dc28db377",
     "name": "P1 update index safety",
-    "status": "queued",
+    "status": "completed",
     "url": "https://github.com/litedb-org/LiteDB/actions/runs/42547536365",
     "phase": "phase3",
-    "conclusion": ""
+    "conclusion": "success"
   },
   {
     "databaseId": 42547533755,
@@ -66,10 +66,10 @@
     "databaseId": 42547544943,
     "headSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
     "name": "P1 update index safety",
-    "status": "queued",
+    "status": "completed",
     "url": "https://github.com/litedb-org/LiteDB/actions/runs/42547544943",
     "phase": "phase4",
-    "conclusion": ""
+    "conclusion": "success"
   },
   {
     "databaseId": 42547542099,

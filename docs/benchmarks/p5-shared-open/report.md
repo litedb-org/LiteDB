@@ -108,14 +108,16 @@ The first independent scalar-leaf audit identified one missing historical parent
 | phase2 `c67bb7c27` | P1 WAL handle safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546677209) |
 | phase2 `c67bb7c27` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546680231) |
 | phase3 `d925be3a6` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547530648) |
-| phase3 `d925be3a6` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547536365) |
+| phase3 `d925be3a6` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547536365) |
 | phase3 `d925be3a6` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547533755) |
 | phase4 `7000dd6f0` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547539289) |
-| phase4 `7000dd6f0` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547544943) |
+| phase4 `7000dd6f0` | P1 update index safety | success | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547544943) |
 | phase4 `7000dd6f0` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547542099) |
 
 The completed phase2 update workflow has 121 candidate tests and 9 historical baseline guards passed on each Linux/Windows net8/net10 leg, with zero skipped/failed/aborted. `phase2-update-counts.json` separates the workflow candidate, tested production-source revision and test-harness revision; its baseline is the fixed source overlay specified in the workflow, not the moving phase1 branch.
 
 The phase2 P1 WAL/handle workflow also completed successfully on six jobs. Each net8/net10 Linux leg has 1,251 passed + 1 `NotExecuted`; Windows has 1,162 passed + 28 `NotExecuted`; macOS has 1,163 passed + 28 `NotExecuted`. These skipped cases are not passing qualification evidence. `phase2-handle-counts.json` retains every nonpassing name and actual outcome counts alongside the raw TRX counters (whose `notExecuted` attribute is misleadingly zero). The separate integrated-library Shared campaign above executes all 703 selected cases on every platform with zero skips.
+
+Phase3 and phase4 update/index safety workflows also completed successfully on their exact current heads. Each of their four OS/runtime legs has 121 candidate tests and 9 fixed-overlay baseline guards passed, with every actual TRX outcome `Passed`. `integrated-update-counts.json` retains their exact source/harness pins and counters.
 
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.

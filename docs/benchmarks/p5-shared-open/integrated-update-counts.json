@@ -1,0 +1,482 @@
+[
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-ubuntu-24.04-net10.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testHarnessRevision": "d925be3a6716750de586ac85d227b90dc28db377",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-ubuntu-24.04-net10.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-ubuntu-24.04-net8.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testHarnessRevision": "d925be3a6716750de586ac85d227b90dc28db377",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-ubuntu-24.04-net8.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-windows-2025-net10.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testHarnessRevision": "d925be3a6716750de586ac85d227b90dc28db377",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-windows-2025-net10.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-windows-2025-net8.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testHarnessRevision": "d925be3a6716750de586ac85d227b90dc28db377",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547536365,
+    "phase": "phase3",
+    "leg": "update-safety-windows-2025-net8.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-ubuntu-24.04-net10.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testHarnessRevision": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-ubuntu-24.04-net10.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-ubuntu-24.04-net8.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testHarnessRevision": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-ubuntu-24.04-net8.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-windows-2025-net10.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testHarnessRevision": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-windows-2025-net10.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-windows-2025-net8.0",
+    "suite": "candidate.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testHarnessRevision": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "outcomes": {
+      "Passed": 121
+    },
+    "rawCounters": {
+      "total": "121",
+      "executed": "121",
+      "passed": "121",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "run": 42547544943,
+    "phase": "phase4",
+    "leg": "update-safety-windows-2025-net8.0",
+    "suite": "phase1.trx",
+    "workflowCandidateSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b",
+    "outcomes": {
+      "Passed": 9
+    },
+    "rawCounters": {
+      "total": "9",
+      "executed": "9",
+      "passed": "9",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  }
+]
