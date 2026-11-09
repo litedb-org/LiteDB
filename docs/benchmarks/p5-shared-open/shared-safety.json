@@ -1,0 +1,54 @@
+[
+  {
+    "platform": "shared-safety-macos-15",
+    "classes": 67,
+    "counters": {
+      "total": 703,
+      "executed": 703,
+      "passed": 703,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassing": []
+  },
+  {
+    "platform": "shared-safety-ubuntu-24.04",
+    "classes": 67,
+    "counters": {
+      "total": 703,
+      "executed": 703,
+      "passed": 703,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassing": []
+  },
+  {
+    "platform": "shared-safety-ubuntu-24.04-arm",
+    "classes": 67,
+    "counters": {
+      "total": 703,
+      "executed": 703,
+      "passed": 703,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassing": []
+  },
+  {
+    "platform": "shared-safety-windows-2025",
+    "classes": 67,
+    "counters": {
+      "total": 703,
+      "executed": 703,
+      "passed": 703,
+      "failed": 0,
+      "notExecuted": 0,
+      "aborted": 0
+    },
+    "nonPassing": []
+  }
+]

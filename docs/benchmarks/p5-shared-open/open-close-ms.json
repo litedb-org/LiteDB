@@ -1,0 +1,962 @@
+[
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 3.0169500000000005,
+    "minMs": 2.5007,
+    "maxMs": 7.716195000000001
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.11130999999999999,
+    "minMs": 0.10366500000000001,
+    "maxMs": 0.132105
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 2.7106525,
+    "minMs": 2.22911,
+    "maxMs": 10.28595
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 6.4557925,
+    "minMs": 4.625035,
+    "maxMs": 13.615334999999998
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.11130999999999999,
+    "minMs": 0.10366500000000001,
+    "maxMs": 0.132105
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 5.0183,
+    "minMs": 4.21824,
+    "maxMs": 9.483929999999999
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 3.8090325,
+    "minMs": 2.408725,
+    "maxMs": 9.13586
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.12099750000000001,
+    "minMs": 0.10232000000000001,
+    "maxMs": 0.24503
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 3.27101,
+    "minMs": 2.326065,
+    "maxMs": 6.1949950000000005
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 5.7213975,
+    "minMs": 4.401415,
+    "maxMs": 8.73566
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.12099750000000001,
+    "minMs": 0.10232000000000001,
+    "maxMs": 0.24503
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 6.5926075,
+    "minMs": 5.351345,
+    "maxMs": 13.24873
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 2.5999100000000004,
+    "minMs": 2.541055,
+    "maxMs": 2.6451599999999997
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1731025,
+    "minMs": 0.17085,
+    "maxMs": 0.17840499999999998
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 2.36652,
+    "minMs": 2.30301,
+    "maxMs": 2.492015
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 5.2349525,
+    "minMs": 5.191495,
+    "maxMs": 5.256195
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1731025,
+    "minMs": 0.17085,
+    "maxMs": 0.17840499999999998
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 5.03444,
+    "minMs": 5.02888,
+    "maxMs": 5.082775
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 2.5391974999999998,
+    "minMs": 2.48909,
+    "maxMs": 2.63098
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1769925,
+    "minMs": 0.16854,
+    "maxMs": 0.183365
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 2.331715,
+    "minMs": 2.26582,
+    "maxMs": 2.3771750000000003
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 3.92481,
+    "minMs": 3.81271,
+    "maxMs": 4.060805
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1769925,
+    "minMs": 0.16854,
+    "maxMs": 0.183365
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.6594225,
+    "minMs": 3.37731,
+    "maxMs": 3.730595
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 1.736365,
+    "minMs": 1.69789,
+    "maxMs": 2.336185
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.11281249999999998,
+    "minMs": 0.10967,
+    "maxMs": 0.11344499999999999
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 1.5370375,
+    "minMs": 1.51508,
+    "maxMs": 1.678615
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 3.855505,
+    "minMs": 3.825945,
+    "maxMs": 5.407515
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.11281249999999998,
+    "minMs": 0.10967,
+    "maxMs": 0.11344499999999999
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.8960850000000002,
+    "minMs": 3.7081049999999998,
+    "maxMs": 4.89499
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 1.393715,
+    "minMs": 1.332325,
+    "maxMs": 1.522375
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.08492,
+    "minMs": 0.069965,
+    "maxMs": 0.088885
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 1.2204975,
+    "minMs": 1.1494149999999999,
+    "maxMs": 1.33383
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 4.940329999999999,
+    "minMs": 3.8385100000000003,
+    "maxMs": 5.02773
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.08492,
+    "minMs": 0.069965,
+    "maxMs": 0.088885
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 4.318495,
+    "minMs": 3.810175,
+    "maxMs": 4.87077
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 5.669544999999999,
+    "minMs": 5.548425,
+    "maxMs": 6.310625
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.3372725,
+    "minMs": 0.32645,
+    "maxMs": 0.3544
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.6414825,
+    "minMs": 3.627575,
+    "maxMs": 3.74753
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 17.605385000000002,
+    "minMs": 15.233525,
+    "maxMs": 24.094524999999997
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.3372725,
+    "minMs": 0.32645,
+    "maxMs": 0.3544
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 13.800515,
+    "minMs": 12.63822,
+    "maxMs": 14.860624999999999
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 7.6562225,
+    "minMs": 7.468649999999999,
+    "maxMs": 7.833605
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.4884975,
+    "minMs": 0.48217999999999994,
+    "maxMs": 0.49148
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 5.356310000000001,
+    "minMs": 5.283375,
+    "maxMs": 5.43949
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 20.0791875,
+    "minMs": 19.368415,
+    "maxMs": 21.97224
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.4884975,
+    "minMs": 0.48217999999999994,
+    "maxMs": 0.49148
+  },
+  {
+    "run": 42542748045,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 18.1960775,
+    "minMs": 17.17518,
+    "maxMs": 20.178559999999997
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 6.164294999999999,
+    "minMs": 3.9732849999999997,
+    "maxMs": 8.08213
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.159955,
+    "minMs": 0.11717999999999999,
+    "maxMs": 0.32286000000000004
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 5.08222,
+    "minMs": 3.4008000000000003,
+    "maxMs": 13.827430000000001
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 11.307997499999999,
+    "minMs": 8.896685,
+    "maxMs": 20.58598
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.159955,
+    "minMs": 0.11717999999999999,
+    "maxMs": 0.32286000000000004
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 10.3676975,
+    "minMs": 7.5664,
+    "maxMs": 15.333144999999998
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 5.0635925,
+    "minMs": 3.6893149999999997,
+    "maxMs": 10.300615
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.12683250000000001,
+    "minMs": 0.10971,
+    "maxMs": 0.336555
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 3.6678499999999996,
+    "minMs": 3.016185,
+    "maxMs": 6.33845
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 10,
+    "medianMs": 9.765505000000001,
+    "minMs": 8.978345000000001,
+    "maxMs": 13.841315
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 10,
+    "medianMs": 0.12683250000000001,
+    "minMs": 0.10971,
+    "maxMs": 0.336555
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-macos-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 10,
+    "medianMs": 8.911480000000001,
+    "minMs": 6.66651,
+    "maxMs": 13.394380000000002
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 2.6639575000000004,
+    "minMs": 2.483075,
+    "maxMs": 2.74179
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.17254,
+    "minMs": 0.16289499999999998,
+    "maxMs": 0.179745
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 2.368825,
+    "minMs": 2.292135,
+    "maxMs": 2.499565
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 4.0875675000000005,
+    "minMs": 3.7505699999999997,
+    "maxMs": 4.689385
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.17254,
+    "minMs": 0.16289499999999998,
+    "maxMs": 0.179745
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.6720775000000003,
+    "minMs": 3.4819299999999997,
+    "maxMs": 4.314875
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 2.6232499999999996,
+    "minMs": 2.54129,
+    "maxMs": 2.7116499999999997
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1841625,
+    "minMs": 0.17727500000000002,
+    "maxMs": 0.190575
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 2.4067225,
+    "minMs": 2.36326,
+    "maxMs": 2.4643550000000003
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 3.9394849999999995,
+    "minMs": 3.74647,
+    "maxMs": 4.418975
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.1841625,
+    "minMs": 0.17727500000000002,
+    "maxMs": 0.190575
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-arm-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.7059375,
+    "minMs": 3.535,
+    "maxMs": 3.827755
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 2.1153125,
+    "minMs": 2.06737,
+    "maxMs": 2.61554
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.15194249999999998,
+    "minMs": 0.148565,
+    "maxMs": 0.155535
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 1.90814,
+    "minMs": 1.881535,
+    "maxMs": 2.350155
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 3.3595,
+    "minMs": 3.24949,
+    "maxMs": 3.76089
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.15194249999999998,
+    "minMs": 0.148565,
+    "maxMs": 0.155535
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.16968,
+    "minMs": 3.016765,
+    "maxMs": 3.29704
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 1.6784599999999998,
+    "minMs": 1.6377,
+    "maxMs": 1.756535
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.0936425,
+    "minMs": 0.08824499999999999,
+    "maxMs": 0.10073499999999999
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 1.4329625,
+    "minMs": 1.3996499999999998,
+    "maxMs": 1.5220150000000001
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 4.486397500000001,
+    "minMs": 4.307035,
+    "maxMs": 4.69709
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.0936425,
+    "minMs": 0.08824499999999999,
+    "maxMs": 0.10073499999999999
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 4.214745000000001,
+    "minMs": 4.144254999999999,
+    "maxMs": 4.24782
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 6.76787,
+    "minMs": 6.314815,
+    "maxMs": 7.10694
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.41041250000000007,
+    "minMs": 0.39724,
+    "maxMs": 0.417795
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 4.686465,
+    "minMs": 4.63371,
+    "maxMs": 5.19256
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 17.888982499999997,
+    "minMs": 17.499965,
+    "maxMs": 20.53511
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.41041250000000007,
+    "minMs": 0.39724,
+    "maxMs": 0.417795
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net10.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 16.6480625,
+    "minMs": 15.290344999999999,
+    "maxMs": 17.687015
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 7.2365325,
+    "minMs": 6.32803,
+    "maxMs": 9.855345
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.363055,
+    "minMs": 0.34806499999999996,
+    "maxMs": 0.384475
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "after",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 3.9120725,
+    "minMs": 3.84514,
+    "maxMs": 3.9843400000000004
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "dev-os-cache",
+    "rounds": 6,
+    "medianMs": 20.1619075,
+    "minMs": 17.14835,
+    "maxMs": 182.61685
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "v5",
+    "rounds": 6,
+    "medianMs": 0.363055,
+    "minMs": 0.34806499999999996,
+    "maxMs": 0.384475
+  },
+  {
+    "run": 42542751289,
+    "leg": "shared-windows-latest-net8.0",
+    "side": "before",
+    "config": "dev-default",
+    "rounds": 6,
+    "medianMs": 16.79728,
+    "minMs": 14.31423,
+    "maxMs": 19.736510000000003
+  }
+]

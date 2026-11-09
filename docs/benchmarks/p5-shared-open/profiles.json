@@ -1,0 +1,524 @@
+[
+  {
+    "platform": "shared-profile-ubuntu-24.04",
+    "round": "round-1-profile.json",
+    "msPerCycle": 2.4393018499999926,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.12683499999999998,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.17332,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.02301500000000003,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.02185000000000003,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.0076650000000000025,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.24937500000000004,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.10596499999999998,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.00428,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.0026749999999999994,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.027765,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.058120000000000026,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.00935,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.017715,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.00019499999999999986,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.004895000000000002,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.013815,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.7826750000000001,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 0.9049299999999999,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 0.9133299999999999,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.464555,
+        "count": 1.0
+      }
+    }
+  },
+  {
+    "platform": "shared-profile-ubuntu-24.04",
+    "round": "round-2-profile.json",
+    "msPerCycle": 2.434942050000001,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.10985499999999992,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.16752999999999996,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.020395000000000014,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.009745000000000004,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.007490000000000002,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.21954,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.224105,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.004034999999999999,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.0023099999999999996,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.023755,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.05075999999999999,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.010760000000000002,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.015655000000000002,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.00014999999999999996,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.00481,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.014294999999999999,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.705195,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 0.9525250000000002,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 0.95914,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.3945249999999999,
+        "count": 1.0
+      }
+    }
+  },
+  {
+    "platform": "shared-profile-ubuntu-24.04",
+    "round": "round-3-profile.json",
+    "msPerCycle": 2.5338882500000013,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.11126500000000002,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.19180499999999995,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.02021500000000002,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.010595000000000012,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.009230000000000002,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.23340000000000005,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.13808499999999996,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.004185,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.00251,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.024714999999999994,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.05465500000000001,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.009845,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.01577,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.00017999999999999988,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.010255,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.019795000000000004,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.76933,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 0.93144,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 0.9403849999999998,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.42806999999999995,
+        "count": 1.0
+      }
+    }
+  },
+  {
+    "platform": "shared-profile-windows-2025",
+    "round": "round-1-profile.json",
+    "msPerCycle": 3.159635000000003,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.6632000000000005,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.04713,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.07657999999999991,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.03955999999999998,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.019105000000000007,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.32057,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.089355,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.005729999999999997,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.002285,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.037934999999999997,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.077555,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.00377,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.019315,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.0002049999999999999,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.0025599999999999993,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.009055000000000002,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.8711549999999999,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 0.9667349999999997,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 0.9704300000000001,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.64469,
+        "count": 1.0
+      }
+    }
+  },
+  {
+    "platform": "shared-profile-windows-2025",
+    "round": "round-2-profile.json",
+    "msPerCycle": 3.1988749999999984,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.67499,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.05078499999999999,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.08108999999999991,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.03564999999999998,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.02182000000000001,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.28451000000000004,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.08641999999999997,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.0062299999999999986,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.002255,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.044524999999999995,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.08706500000000002,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.004679999999999999,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.020505000000000002,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.00019499999999999986,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.002449999999999999,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.007495,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.9101649999999999,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 1.00356,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 1.0071099999999997,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.621005,
+        "count": 1.0
+      }
+    }
+  },
+  {
+    "platform": "shared-profile-windows-2025",
+    "round": "round-3-profile.json",
+    "msPerCycle": 3.1044499999999973,
+    "spansPerCycle": {
+      "DatabaseFileIdentity.CanonicalPath": {
+        "ms": 0.6387700000000001,
+        "count": 18.0
+      },
+      "SharedCoordinationPolicy.VolumeFailure": {
+        "ms": 0.039795000000000004,
+        "count": 2.0
+      },
+      "DatabaseFileIdentity.Open": {
+        "ms": 0.08021999999999997,
+        "count": 7.0
+      },
+      "DatabaseFileIdentity.Read": {
+        "ms": 0.03525499999999996,
+        "count": 7.0
+      },
+      "DatabaseVolumePolicy.IsNative": {
+        "ms": 0.017830000000000006,
+        "count": 5.0
+      },
+      "NativeAdmission.Open": {
+        "ms": 0.293865,
+        "count": 1.0
+      },
+      "SharedCoordinationFilesOfflineUpgrade.Run": {
+        "ms": 0.09176999999999999,
+        "count": 1.0
+      },
+      "SharedRangeLocks.TryExclusiveDms": {
+        "ms": 0.005930000000000002,
+        "count": 2.0
+      },
+      "SharedRangeLocks.EnterWrite": {
+        "ms": 0.0020900000000000003,
+        "count": 2.0
+      },
+      "SharedMemoryMap.SharedMemoryMap": {
+        "ms": 0.03742499999999999,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Dispose": {
+        "ms": 0.08053500000000002,
+        "count": 2.0
+      },
+      "SharedMemoryAuthority.CanReuse": {
+        "ms": 0.00412,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.CreateMap": {
+        "ms": 0.019305,
+        "count": 1.0
+      },
+      "DiskService.Checkpoint.SyncSharedRecovery": {
+        "ms": 0.00021999999999999993,
+        "count": 2.0
+      },
+      "SharedMemoryMap.Zero": {
+        "ms": 0.002495,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Claim": {
+        "ms": 0.00744,
+        "count": 1.0
+      },
+      "SharedMemoryAuthority.Open": {
+        "ms": 0.8623949999999999,
+        "count": 1.0
+      },
+      "SharedMemoryReaderTable.Open": {
+        "ms": 0.9609850000000002,
+        "count": 1.0
+      },
+      "SharedParticipantRegistry.Attach": {
+        "ms": 0.9653899999999999,
+        "count": 1.0
+      },
+      "SharedMemoryFinalClose.Run": {
+        "ms": 0.6412450000000002,
+        "count": 1.0
+      }
+    }
+  }
+]
