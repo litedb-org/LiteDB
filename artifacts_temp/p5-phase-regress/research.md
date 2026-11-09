@@ -1,6 +1,6 @@
 # Summary
-- P5-PHASE-REGRESS research in progress; v6/wip-p5-phase-regress@48b46dbd7; no product fixes.
-- 24/24 phase timing +14/14 narrowing legs complete (140 comparison rows); buildable scan activation 0/2; valid profiles 6/7.
+- P5-PHASE-REGRESS research in progress; v6/wip-p5-phase-regress@5619fdb0e; no product fixes.
+- 24/24 phase timing +14/14 narrowing legs complete (140 comparison rows); buildable scan activation 0/2; valid diagnostic jobs 6/7.
 - Linux eight-writer shift located in Phase4 (first net8/net10 ratios 1.2394/1.2524); Phase2/3 controls near flat.
 - Windows open shift located in Phase3 (first net8/net10 ratios 1.1950/1.2009, +5.31 MB per 20 opens).
 - Windows scan shift located in Phase4 (first net8/net10 ratios 1.0540/1.0418, +38.4 MB per 300k documents).
@@ -9,6 +9,7 @@
 - Provisional ranked fixes/safety tests and raw evidence saved; no local measurements, no PR actions; waiting as orchestrator instructed.
 
 ## Research outputs
+- [Consolidated findings](p5-phase-regress-evidence/findings.md) and [hosted CI ledger](p5-phase-regress-evidence/ci-evidence.md).
 - [Paired timing table](p5-phase-regress-evidence/paired-timings.md) and [machine-readable comparisons](p5-phase-regress-evidence/comparisons.json).
 - [Ranked candidate fixes, expected gains, target branches, and required safety tests](p5-phase-regress-evidence/fix-candidates.md); provisional until commit probes and profiles finish.
 - [Original allocation deltas](p5-phase-regress-evidence/original-allocation-deltas.txt) and [historical A/A envelopes](p5-phase-regress-evidence/historical-aa-envelope.json).
@@ -70,3 +71,6 @@
 - Scratch push48b46dbd7 confirmed on origin. All primary canonical/substrate/FIFO profile outputs and offline target-stack helper are committed; only four hosted legs remain (two reader timings, reader profile, integrated writer profile). Waiting as explicitly instructed; no final ci-pending handoff.
 - Integrated Phase3 b70b79ec2 ->Phase4 e507faad4 Linux net8 writer profile succeeded, run42548192227 on harness1fd207a7e. Worker-only Monitor.Wait share16.424% ->45.956%; after CollectionLock.TryEnter31.928% and TransactionWaitBudget.Wait42.415%; durable-prefix EnsureDurable55.041% ->43.757%. This corroborates owner parking on the actual endpoint boundary. Do not treat whole-process/aggregate thread-time totals as elapsed ratios. All Linux work complete; only Windows reader range (two timing jobs +one profile job) remains queued.
 - Tightened proposed writer fix safety argument: Pulse is not a safe substitute for PulseAll on the current shared monitor because it cannot select the FIFO head. Any targeted wake requires explicit successor signaling and cancellation/head-removal progress evidence; adaptive spinning must allow the logical owner to release. This is research guidance only, not a product implementation.
+- Added offline ci_ledger.py /ci-evidence.md mapping six hosted runs to exact harness SHA and observed matrix-job outcomes. Distinguishes valid timing artifacts from later profiler failures and records historical build failures without green/flake claims. Scratch5619fdb0e push confirmed; pending run42550856850 still has all three Windows jobs queued.
+- Reader fix safety refinement from TransactionContext inspection: retain execution frames when replacing Unbound delegates with a scope. Existing masking clears only current/ticket; callback owner detection relies on the retained frame chain. Required nested-callback coverage must establish both masking and self-wait refusal. No product code changed.
+- Profile accounting clarification: the remaining reader diagnostic job collects both scan and an open-control scenario, so the final target is7 successful primary diagnostic jobs,8 before/after trace pairs (16 traces). Earlier profile6/7 progress counts diagnostic jobs, not a limit of7 individual scenario pairs. Raw-drain and exact0b historical build failures remain separate failed exploratory/superseded jobs.
