@@ -194,7 +194,7 @@ namespace LiteDB.Internals
 
         [OneFileTheory]
         [InlineData("open-begin", false)]
-        [InlineData("writer-end", true)]
+        [InlineData("commit-version", true)]
         public async Task Remote_writer_death_while_idle_forces_independent_recovery_on_open(string cut, bool committed)
         {
             var connection = Connection;
