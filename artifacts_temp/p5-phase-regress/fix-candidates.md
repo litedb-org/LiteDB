@@ -10,3 +10,7 @@
 No product fix implemented. Expected gains above are hypotheses bounded by the reported phase4/phase1 gap, not measured optimization claims. Safety coverage is required when a later step implements a fix.
 
 Canonicalization fix belongs on v6/phase3 and must then propagate to v6/phase4; all handle/writer/reader fixes belong on v6/phase4. Historical branch SHAs remain the baseline even if stack heads move during research.
+
+Implementation direction for the scan candidate: replace per-access Func construction with a value-type binding-mask scope that snapshots/restores both TransactionContext._current and _ticket in a finally/Dispose boundary. Read/Current/indexer/disposal must each retain that boundary; returning the underlying reader or removing masking globally is unsafe because callbacks can re-enter ordinary facades while a handle executes. A null-context fast path needs tests for nested masks, throwing callbacks and state restoration, not just an empty-context benchmark.
+
+Implementation direction for open: keep standalone EnsureAvailable canonicalizing by default. An internal scoped already-canonical overload is a candidate only for settings proven normalized by the same retained admission/open operation; still perform each marker lookup at its existing ordering boundary. Do not cache a path across independent opens/replacement or remove early refusal for missing-file/alias recovery states.

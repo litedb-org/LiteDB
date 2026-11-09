@@ -1,10 +1,18 @@
 # Summary
-- P5-PHASE-REGRESS research in progress; product fixes prohibited by orchestrator.
-- Scratch branch v6/wip-p5-phase-regress; phase4 product remains e507faad4.
-- Phase heads verified with git ls-remote: phase1 a8727ffce, phase2 457cec425, phase3 b70b79ec2, phase4 e507faad4.
-- All adjacent merge-bases equal the preceding phase head.
-- Preparing twice-repeated adjacent-phase comparisons on Linux/Windows net8/net10 and separate EventPipe profiles.
-- No local benchmarks; no PR operations. Must wait for completed hosted evidence per step-specific instruction.
+- P5-PHASE-REGRESS research in progress; v6/wip-p5-phase-regress@f315730bf; no product fixes.
+- 13/24 adjacent-phase timing legs complete; introducing-commit probes 0/24 and corrected profile legs 0/5 complete, queued for hosted runners.
+- Linux eight-writer shift located in Phase4 (first net8/net10 ratios 1.2394/1.2524); Phase2/3 controls near flat.
+- Windows open shift located in Phase3 (first net8/net10 ratios 1.1950/1.2009, +5.31 MB per 20 opens).
+- Windows scan shift located in Phase4 (first net8/net10 ratios 1.0540/1.0418, +38.4 MB per 300k documents).
+- Commit hypotheses: 32a0ca52d canonical guard lookups; 0b4ca2c62 reader masks; 5cb886e91/ac972bd2d collection ownership/wakes. Not yet commit-qualified.
+- One diagnostic invocation failed after valid timings: dotnet-trace 10 changed profile names; corrected/pinned diagnostic-only replacement queued.
+- Provisional ranked fixes/safety tests and raw evidence saved; no local measurements, no PR actions; waiting as orchestrator instructed.
+
+## Research outputs
+- [Paired timing table](p5-phase-regress-evidence/paired-timings.md) and [machine-readable comparisons](p5-phase-regress-evidence/comparisons.json).
+- [Ranked candidate fixes, expected gains, target branches, and required safety tests](p5-phase-regress-evidence/fix-candidates.md); provisional until commit probes and profiles finish.
+- [Original allocation deltas](p5-phase-regress-evidence/original-allocation-deltas.txt) and [historical A/A envelopes](p5-phase-regress-evidence/historical-aa-envelope.json).
+- Raw per-run artifact folders and job failure logs remain under p5-phase-regress-evidence; no local benchmarks ran.
 
 ## Steps
 - Read agent rules, brief, repository development/workflow/validation/performance/data-safety/storage-ownership/safety-evidence guidance.
@@ -28,3 +36,8 @@
 - Corrected diagnostic-only writer selection so an 8-writer profile excludes the 1-writer denominator workload. Scratch c5b44a2bd sets the diagnostic child scenario explicitly; timing workloads unchanged. Cancelled still-queued diagnostic-only run 42543172492 before any leg executed and re-dispatched its same five legs at corrected harness. No measurement results or safety coverage removed.
 - Replacement diagnostic-only run: https://github.com/litedb-org/LiteDB/actions/runs/42544497136 at c5b44a2bd4ca5964050f7314f5dad0b1ff0e83e7. Superseded 42543172492 confirmed completed/cancelled before profile work.
 - Windows adjacent phase3/phase2 first repetitions completed: open default net8=1.1950, net10=1.2009; cache net8=1.2306, net10=1.1921. Extra timed allocation=5,309,760 bytes per 20 opens in every Windows cell. Scan phase3/phase2 near flat (net8 default=0.9916; net10 default=0.9994). This locates the major Windows open regression in Phase3, independently of Phase4 reader/handle overhead. Phase4/Phase3 net8 Windows scan first repetition=1.0540, open default=0.9964.
+- Extracted exact historical A/A upper envelopes into historical-aa-envelope.json and annotated incremental paired tables. Important scope nuance: Windows net10 open/default has a loose 1.3657 historical upper, so its +20% alone is not an envelope-qualified claim; cache upper=1.0699 and the measured Phase3 cache ratio=1.1921. Windows net8 open default/cache upper=1.0395/1.0803. Historical envelopes are advisory for new image/phase comparisons; raw same-job bounds remain retained.
+- New completed repeats: Linux Phase3/Phase2 net10 8-writer 0.9934/1.0139 (flat); Linux Phase4/Phase3 net8 8-writer 1.2394/1.2885 (repeated regression). Phase4/Phase3 net10 is mixed: r1=1.0085 versus r2=1.2524, with r1 before/after medians 897.95/905.60 ms and bounds 0.873–1.167. Do not call net10 twice-reproduced in this run; original three gate repetitions remain independent evidence. Retain this host/round variation in final confidence limits rather than discarding a run.
+- First introducing-commit probe completed: 5cb886e91 vs parent, Linux net8 first repetition: 8-writer 1.0670, 1-writer 0.9907; extra single-writer allocation exactly 480,000 bytes (96 bytes per auto-commit lease). This is smaller than the integrated Phase4 1.2394/1.2885 net8 shift; pending second substrate repeat and FIFO probes. Both original Phase4 net10/Windows net10 diagnostic failures confirmed from real logs as the same rejected dotnet-trace cpu-sampling profile; their timing/evaluation steps completed.
+- Scope refinement after phase localization: cancelled still-queued optional activation/drain run 42542131288 (no legs executed). Replaced it with only the required two Windows net10 0b4ca2c62 scan-activation comparisons (also reporting open as an unchanged workload control). Dropped eight optional Phase4 open/drain timing legs because the major open regression is already located in Phase3; no requested phase, runtime, affected regression, or repeat was removed. Standalone diagnostic drain remains useful qualitative context. Product safety tests and gate thresholds untouched.
+- Focused activation replacement: https://github.com/litedb-org/LiteDB/actions/runs/42546888188 at harness f315730bf6b3e8ad320cd61c1df947cff742d34c. Active requested research now consists of 24 phase legs + 14 narrowing/control legs + 2 actual scan-activation legs + 5 diagnostic-only legs; cancellations are superseded optional/diagnostic-only work, never omitted required evidence.
