@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15]
-        framework: [net8.0, net10.0]
+        os: [windows-2025]
+        framework: [net8.0]
     env:
       DOTNET_TieredCompilation: '0'
       BENCHMARK_CANDIDATE_SHA: '7000dd6f01d0187a8fb5d030064eb327864ab731'
