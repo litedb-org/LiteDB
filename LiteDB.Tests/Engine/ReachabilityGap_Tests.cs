@@ -51,6 +51,30 @@ namespace LiteDB.Tests.Engine
             raw.ReadByte().Should().Be(3);
         }
 
+        [Fact]
+        public void Handle_catalog_and_extension_reach_public_contract_and_preserve_rollback()
+        {
+            using var file = new TempFile();
+            using var db = new LiteDatabase(file.Filename);
+            db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1 });
+            var extension = Hits("api:LiteTransactionExtensions.BeginTransaction");
+            var exists = Hits("api:ILiteTransaction.CollectionExists");
+            var names = Hits("api:ILiteTransaction.GetCollectionNames");
+            using (var tx = LiteTransactionExtensions.BeginTransaction(db))
+            {
+                tx.CollectionExists("sentinel").Should().BeTrue();
+                tx.CollectionExists("missing").Should().BeFalse();
+                tx.GetCollectionNames().Should().Contain("sentinel");
+                tx.GetCollection("pending").Insert(new BsonDocument { ["_id"] = 2 });
+                tx.Rollback();
+            }
+            Hits("api:LiteTransactionExtensions.BeginTransaction").Should().BeGreaterThan(extension);
+            Hits("api:ILiteTransaction.CollectionExists").Should().BeGreaterThan(exists);
+            Hits("api:ILiteTransaction.GetCollectionNames").Should().BeGreaterThan(names);
+            db.GetCollection("pending").Count().Should().Be(0);
+            db.GetCollection("sentinel").Count().Should().Be(1);
+        }
+
         internal static long Hits(string name) => Reachability.Snapshot().TryGetValue(name, out var count) ? count : 0;
     }
 }

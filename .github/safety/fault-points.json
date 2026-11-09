@@ -1690,6 +1690,11 @@
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data",
+          "model": "exception",
+          "proves": "Asserts both named hook increments, torn legacy rewrite refusal, stopped followup writer and recovered acknowledged data."
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
@@ -1703,6 +1708,11 @@
           "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
           "model": "exception",
           "proves": "Actual stream flush/rewrite failures at this boundary publish terminal stop before queued confirmation, preserve WAL bytes on later attempts, and recover the seeded document twice from saved files."
+        },
+        {
+          "test": "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data",
+          "model": "exception",
+          "proves": "Asserts both named hook increments, torn legacy rewrite refusal, stopped followup writer and recovered acknowledged data."
         }
       ],
       "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."

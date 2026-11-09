@@ -12,8 +12,7 @@
         "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
-        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Handle_catalog_and_extension_reach_public_contract_and_preserve_rollback"
       ],
       "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
       "workload": "ILiteTransaction.CollectionExists"
@@ -25,8 +24,7 @@
         "LiteDB/Client/Transactions/LiteTransaction.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
-        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Handle_catalog_and_extension_reach_public_contract_and_preserve_rollback"
       ],
       "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
       "workload": "ILiteTransaction.GetCollectionNames"
@@ -38,8 +36,7 @@
         "LiteDB/Client/Transactions/ILiteTransaction.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
-        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Handle_catalog_and_extension_reach_public_contract_and_preserve_rollback"
       ],
       "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
       "workload": "LiteTransactionExtensions.BeginTransaction"
@@ -241,7 +238,8 @@
         "LiteDB/Engine/Disk/DiskService.WalWrite.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm"
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data"
       ],
       "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
       "workload": "WAL batch consistency"
@@ -253,7 +251,8 @@
         "LiteDB/Engine/Disk/DiskService.WalWrite.cs"
       ],
       "tests": [
-        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm"
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data"
       ],
       "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
       "workload": "WAL batch consistency"

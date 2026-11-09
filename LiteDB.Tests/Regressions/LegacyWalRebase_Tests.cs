@@ -39,9 +39,13 @@ namespace LiteDB.Tests.Regressions
                 // the physical tail first, so its first frame forces the legacy rebase path.
                 var current = new TransactionPages { TransactionID = 1 };
                 current.DirtyPages[1] = positions[1];
+                var anchorHits = LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("fault-point:wal-rebase-before-anchor-flush");
+                var rewriteHits = LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("fault-point:wal-rebase-before-rewrite");
                 log.Armed = true;
                 Action failed = () => disk.WriteLogDisk(Pages(disk, 1, 1, confirmed: true), null, current, () => 6);
                 failed.Should().Throw<IOException>().WithMessage("injected legacy ID rewrite");
+                LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("fault-point:wal-rebase-before-anchor-flush").Should().BeGreaterThan(anchorHits);
+                LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("fault-point:wal-rebase-before-rewrite").Should().BeGreaterThan(rewriteHits);
                 log.Overwrites.Should().Be(1, "the injector must tear the earlier slot rewrite");
                 state.Stopped.Should().BeTrue();
 

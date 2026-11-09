@@ -497,3 +497,22 @@ jobs:
             LiteDB.Fuzz/bin/Release/net8.0
           if-no-files-found: error
           retention-days: 14
+
+  reachability-report:
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.tier == 'smoke'
+    needs: [smoke, checksums, determinism]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fuzz-*
+          path: evidence/fuzz
+      - name: Recompute exact-head fuzz reachability
+        run: python .github/scripts/check_reachability.py --runs evidence/fuzz --output evidence/reachability.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-fuzz-reachability
+          path: evidence/reachability.json
