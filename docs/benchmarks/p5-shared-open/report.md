@@ -129,3 +129,13 @@ Phase4 WAL/handle safety also completed successfully on its exact current head: 
 Phase2 full CI completed successfully on `c67bb7c27595d3efd9b53ebca81c5541acbe5c47`. Its retained Safety evidence gate summary verifies 23 test legs, with 0 errors and 0 warnings. It records 3 quarantined tests that never executed; these are visible coverage gaps, not passing qualification evidence. `phase2-full-safety-evidence.json` retains the exact names, per-leg counters, source SHA, tier and attempt.
 
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.
+
+## Additional automatic check failures
+
+These failures are separate from the nine manually requested full/P1 workflows; their actual logs were read and are retained with SHA256 digests in `additional-check-failures.json`.
+
+- [Phase2 Phase 1 benchmark gate](https://github.com/litedb-org/LiteDB/actions/runs/42545969329), exact `c67bb7c27595d3efd9b53ebca81c5541acbe5c47`: net8 bulk insert `dev-os-cache` is 1.184x on Linux and 1.203x on Windows against the unchanged 1.10x limit. This is a measured gate miss of unclassified origin outside Shared open/close remediation. No comparable green dev run was established; it is not dismissed as a flake.
+- [Phase3 PR safety section](https://github.com/litedb-org/LiteDB/actions/runs/42547457737), exact `d925be3a6716750de586ac85d227b90dc28db377`: the PR description lacks the Evidence prompt.
+- [Phase4 PR safety section](https://github.com/litedb-org/LiteDB/actions/runs/42547501364), exact `7000dd6f01d0187a8fb5d030064eb327864ab731`: the description lacks all five safety prompts and references to `recovery-generation`, `query-meaning`, and `safety-machinery`.
+
+The orchestrator instructed no PR edits. These description checks remain unresolved; the report does not claim all PR checks are green. PR reviews were not assessed. Full CI on phase3/phase4 remains incomplete in the latest retained snapshot, and is not passing evidence.

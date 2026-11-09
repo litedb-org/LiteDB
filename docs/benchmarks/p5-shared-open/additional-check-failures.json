@@ -1,0 +1,57 @@
+[
+  {
+    "databaseId": 42545969329,
+    "headSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "name": "Phase 1 benchmark gate",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42545969329",
+    "logSha256": "2b96fa76faa31030a5cf96d6129b44afda74ed9214ffc7ff87f081f190e06db5",
+    "errors": [
+      "Process completed with exit code 1.",
+      "Process completed with exit code 1."
+    ],
+    "failedBenchmarkRows": [
+      "| bulk_insert_100k | dev-os-cache | 1.203 | 1.091 | 1.373 | 1.1 | fail |",
+      "| bulk_insert_100k | dev-os-cache | 1.184 | 1.084 | 1.325 | 1.1 | fail |"
+    ],
+    "classification": "Measured bulk-insert benchmark gate miss; origin unclassified, outside Shared open/close remediation. No comparable dev run established; not classified as flake."
+  },
+  {
+    "databaseId": 42547457737,
+    "headSha": "d925be3a6716750de586ac85d227b90dc28db377",
+    "name": "PR safety section",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42547457737",
+    "logSha256": "04cff1adeaf0b3cb8cfb458e4f21cd1a95620e554242ae47731ba7a8e9b3aa5f",
+    "errors": [
+      "Safety section: the 'Evidence' prompt is missing",
+      "Process completed with exit code 1."
+    ],
+    "failedBenchmarkRows": [],
+    "classification": "PR-description policy failure; PR edits prohibited by task"
+  },
+  {
+    "databaseId": 42547501364,
+    "headSha": "7000dd6f01d0187a8fb5d030064eb327864ab731",
+    "name": "PR safety section",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42547501364",
+    "logSha256": "e14b922bcdb2a9977b72047c03bdc6656e110d3db335485897859b082d763f55",
+    "errors": [
+      "Safety section: the 'Contracts and risk' prompt is missing",
+      "Safety section: the 'Prior states and interactions' prompt is missing",
+      "Safety section: the 'Failure outcomes' prompt is missing",
+      "Safety section: the 'Evidence' prompt is missing",
+      "Safety section: the 'Coverage delta and residual concerns' prompt is missing",
+      "Safety section: the changed paths implicate contract 'recovery-generation'; name it with its evidence or explain why this change cannot affect it",
+      "Safety section: the changed paths implicate contract 'query-meaning'; name it with its evidence or explain why this change cannot affect it",
+      "Safety section: the changed paths implicate contract 'safety-machinery'; name it with its evidence or explain why this change cannot affect it",
+      "Process completed with exit code 1."
+    ],
+    "failedBenchmarkRows": [],
+    "classification": "PR-description policy failure; PR edits prohibited by task"
+  }
+]
