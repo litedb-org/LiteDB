@@ -33,6 +33,11 @@ namespace LiteDB.Client.Shared
                 catch (AbandonedMutexException) { mainHeld = true; abandoned = true; }
                 if (!mainHeld || abandoned) return;
                 Stage("main");
+                // A disposed facade may linger after POSIX unlink/replacement.
+                // Final close must never create a new file at that old name or
+                // checkpoint its retained WAL into a different physical file.
+                using (var current = DatabaseFileIdentity.Open(table.Settings.Filename, true, false))
+                    if (DatabaseFileIdentity.Read(current) != table.Admission.Identity) return;
                 if (!table.Settings.ReadOnly && !table.Settings.ReadOnlyStorage)
                 {
                     var settings = table.Settings.Clone();

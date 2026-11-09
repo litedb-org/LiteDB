@@ -281,6 +281,24 @@ namespace LiteDB.Internals
             reopened.GetCollection("docs").Count().Should().Be(0);
         }
 
+        [OneFileFact]
+        public void Idle_release_does_not_recreate_an_unlinked_database()
+        {
+            var connection = Connection;
+            connection.SharedLinger = 60000;
+            using (var db = new LiteDatabase(connection))
+                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+            try { File.Delete(Filename); }
+            catch (IOException) when (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.Windows))
+            {
+                LiteDatabase.ReleaseIdle(Filename);
+                File.Delete(Filename);
+            }
+            LiteDatabase.ReleaseIdle(Filename);
+            File.Exists(Filename).Should().BeFalse();
+        }
+
         public void Dispose()
         {
             LiteDatabase.ReleaseIdle(Filename);
