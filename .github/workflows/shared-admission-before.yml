@@ -1,0 +1,50 @@
+name: Shared admission known-bad proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  before:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7000dd6f01d0187a8fb5d030064eb327864ab731
+          path: product
+      - uses: actions/checkout@v4
+        with:
+          ref: eacb0305f088d3cd22d3234020ff02d5922009b8
+          path: overlay
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install test-only overlay on exact known-bad product
+        shell: python
+        run: |
+          from pathlib import Path
+          for name in ('LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs', 'LiteDB.Tests.SharedMutexHarness/SharedRequestAdmissionHarness.cs'):
+              Path('product', name).write_bytes(Path('overlay', name).read_bytes())
+          path = Path('product/LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs')
+          text = path.read_text()
+          text = text.replace('        if (SharedOneFileProductionReuseHarness', '        if (SharedRequestAdmissionHarness.TryRun(mode, filename, args)) return true;\n        if (SharedOneFileProductionReuseHarness', 1)
+          assert 'SharedRequestAdmissionHarness.TryRun' in text
+          path.write_text(text)
+      - name: Known-bad tests (expected failure retained as failure)
+        working-directory: product
+        shell: pwsh
+        run: |
+          git rev-parse HEAD
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter FullyQualifiedName~SharedRequestAdmission_Tests --logger 'trx;LogFileName=before.trx' --results-directory artifacts_temp/admission-before
+          if ($LASTEXITCODE) { throw 'Known-bad admission regression failed; inspect TRX' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admission-before-${{ matrix.os }}
+          path: product/artifacts_temp/admission-before
