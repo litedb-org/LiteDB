@@ -42,7 +42,7 @@ namespace LiteDB.Internals
             }
             for (var repeat = 0; repeat < 2; repeat++)
             {
-                using var engine = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = true, Password = password });
+                using var engine = new SharedEngine(new EngineSettings { Filename = Filename, SharedOneFile = true, SharedLinger = 0, Password = password });
                 using var db = new LiteDatabase(engine, disposeOnClose: false);
                 db.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("acknowledged");
                 Assert.Null(db.GetCollection("docs").FindById(2));
