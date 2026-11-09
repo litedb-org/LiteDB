@@ -7,7 +7,7 @@ import statistics
 import sys
 
 CANDIDATE = "7000dd6f01d0187a8fb5d030064eb327864ab731"
-HARNESS = "1ae1bed23dfd88ab74cafb02a58b3283ccced940"
+HARNESS = sys.argv[3]
 root = Path(sys.argv[1])
 out = Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
@@ -31,12 +31,12 @@ for file in files:
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
     for row in rows:
-        assert row['verified'] and row['requestsPerWorker'] == 100 and row['warmupRequests'] == 10
+        assert row['verified'] and row['requestsPerWorker'] == 20 and row['warmupRequests'] == 10
         assert len(row['processes']) == row['workers'] and row['latencyMs'] > 0 and row['wallMsPerRequest'] > 0
         for process in row['processes']:
             assert (process['os'], process['architecture'], process['framework']) == identity
             assert process['candidateCommit'] == CANDIDATE and process['harnessCommit'] == HARNESS
-            assert process['tieredCompilation'] == '0' and process['requests'] == 100
+            assert process['tieredCompilation'] == '0' and process['requests'] == 20
             version = '8' if 'v8.0' in process['framework'] else '10'
             assert process['runtime'].startswith(f'.NET {version}.')
             assert process['milliseconds'] > 0

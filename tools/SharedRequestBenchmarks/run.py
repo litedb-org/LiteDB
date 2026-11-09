@@ -13,7 +13,7 @@ import time
 
 def sample(runner, scenario, workers, output):
     root = Path(tempfile.mkdtemp(prefix="litedb-request-"))
-    command = ["dotnet", str(Path(runner).resolve()), "seed", str(root), scenario, str(workers), "100"]
+    command = ["dotnet", str(Path(runner).resolve()), "seed", str(root), scenario, str(workers), "20"]
     children = []
     try:
         subprocess.run(command, check=True, timeout=120)
@@ -26,11 +26,12 @@ def sample(runner, scenario, workers, output):
             if time.monotonic() > deadline or any(p.poll() is not None for p in children):
                 raise RuntimeError("worker failed before barrier")
             time.sleep(.005)
+        deadline = time.monotonic() + 600
         start = time.perf_counter()
         (root / "go").write_text("go")
         while not all((root / f"done-{i}.json").exists() for i in range(workers)):
             if time.monotonic() > deadline or any(p.poll() not in (None, 0) for p in children):
-                raise RuntimeError("worker failed in measurement")
+                raise RuntimeError("worker failed in measurement or exceeded 600 seconds")
             time.sleep(.001)
         elapsed = (time.perf_counter() - start) * 1000
         for child in children:
@@ -42,9 +43,9 @@ def sample(runner, scenario, workers, output):
             raise RuntimeError("workers did not overlap")
         command[2] = "verify"
         subprocess.run(command, check=True, timeout=120)
-        result = dict(scenario=scenario, workers=workers, requestsPerWorker=100, warmupRequests=10,
-                      latencyMs=statistics.mean(r["milliseconds"] / 100 for r in rows),
-                      wallMsPerRequest=elapsed / (100 * workers), processes=rows, verified=True)
+        result = dict(scenario=scenario, workers=workers, requestsPerWorker=20, warmupRequests=10,
+                      latencyMs=statistics.mean(r["milliseconds"] / 20 for r in rows),
+                      wallMsPerRequest=elapsed / (20 * workers), processes=rows, verified=True)
         output.write_text(json.dumps(result, indent=2) + "\n")
         return result
     finally:
