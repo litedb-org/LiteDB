@@ -3,6 +3,10 @@ name: Phase 1 benchmark gate
 on:
   workflow_dispatch:
     inputs:
+      research_matrix:
+        description: 'Scratch-only JSON matrix for narrowing suspected commits'
+        required: false
+        type: string
       shared_newcomer_only:
         description: 'Only run fork-only Linux x64 newcomer attach-to-writer-acquire p50/p99'
         required: false
@@ -59,27 +63,7 @@ jobs:
     timeout-minutes: 65
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        framework: [net8.0, net10.0]
-        phase: [phase2, phase3, phase4]
-        repetition: [1, 2]
-        include:
-          - os: ubuntu-latest
-            runner: ubuntu-24.04
-            scenarios: open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers
-          - os: windows-latest
-            runner: windows-2025
-            scenarios: open_close_20x,full_scan_3x100k
-          - phase: phase2
-            before: a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3
-            after: 457cec42502e8d21c85c400ac35de447a56ebe9e
-          - phase: phase3
-            before: 457cec42502e8d21c85c400ac35de447a56ebe9e
-            after: b70b79ec274c981a340da1af54104483d96fe351
-          - phase: phase4
-            before: b70b79ec274c981a340da1af54104483d96fe351
-            after: e507faad40e968aa2fcf63ae6dd01fd7def2e07b
+      matrix: ${{ fromJSON(inputs.research_matrix || '{"include":[{"phase":"phase2","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase2","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"a8727ffce5d11d8fb74a87c3dd6d2ce8e3d7def3","after":"457cec42502e8d21c85c400ac35de447a56ebe9e","profile":false},{"phase":"phase3","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase3","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"457cec42502e8d21c85c400ac35de447a56ebe9e","after":"b70b79ec274c981a340da1af54104483d96fe351","profile":false},{"phase":"phase4","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false},{"phase":"phase4","repetition":1,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":true},{"phase":"phase4","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false},{"phase":"phase4","repetition":1,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":true},{"phase":"phase4","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net8.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false},{"phase":"phase4","repetition":2,"os":"ubuntu-latest","runner":"ubuntu-24.04","framework":"net10.0","scenarios":"open_close_20x,durable_insert_5k_1_writers,durable_insert_5k_8_writers","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false},{"phase":"phase4","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net8.0","scenarios":"open_close_20x,full_scan_3x100k","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false},{"phase":"phase4","repetition":2,"os":"windows-latest","runner":"windows-2025","framework":"net10.0","scenarios":"open_close_20x,full_scan_3x100k","before":"b70b79ec274c981a340da1af54104483d96fe351","after":"e507faad40e968aa2fcf63ae6dd01fd7def2e07b","profile":false}]}') }}
     steps:
       - name: Check out PR's own harness or selected workflow branch
         uses: actions/checkout@v4
@@ -172,7 +156,7 @@ jobs:
           }
           exit $gateExit
       - name: EventPipe profiles (separate from timings)
-        if: matrix.phase == 'phase4' && matrix.repetition == 1 && matrix.framework == 'net10.0'
+        if: matrix.profile == true
         shell: pwsh
         env:
           DOTNET_TieredCompilation: '0'
