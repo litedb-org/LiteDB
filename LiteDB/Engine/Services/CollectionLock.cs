@@ -16,7 +16,7 @@ namespace LiteDB.Engine
         private readonly object _lock = new object();
         private object _owner;
         private int _depth;
-        private readonly LinkedList<object> _waiters = new LinkedList<object>();
+        private readonly LinkedList<ManualResetEventSlim> _waiters = new LinkedList<ManualResetEventSlim>();
 #if DEBUG || TESTING
         internal Action BeforeWait;
 #endif
@@ -27,32 +27,53 @@ namespace LiteDB.Engine
         {
             if (owner == null) throw new ArgumentNullException(nameof(owner));
             var started = Stopwatch.GetTimestamp();
+            LinkedListNode<ManualResetEventSlim> request;
             lock (_lock)
             {
                 if (ReferenceEquals(_owner, owner)) { _depth++; return true; }
-                var request = _waiters.AddLast(owner);
-                try
+                if (_owner == null && _waiters.Count == 0)
                 {
-                    while (_owner != null || !ReferenceEquals(_waiters.First, request))
+                    _owner = owner;
+                    _depth = 1;
+                    return true;
+                }
+                // Only the FIFO head spins briefly for a release; other requests park.
+                request = _waiters.AddLast(new ManualResetEventSlim(false, _waiters.Count == 0 ? 10 : 0));
+            }
+            try
+            {
+                while (true)
+                {
+                    TimeSpan remaining;
+                    lock (_lock)
                     {
+                        if (_owner == null && ReferenceEquals(_waiters.First, request))
+                        {
+                            _owner = owner;
+                            _depth = 1;
+                            return true;
+                        }
                         if (TransactionContext.IsExecutingOwner(_owner)) throw new TransactionWaitRefusedException(owner);
                         if (ReferenceEquals(_owner, Thread.CurrentThread)) return false;
-                        var remaining = timeout - TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
+                        remaining = timeout - TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
                         remaining = Min(remaining, TransactionWaitBudget.Remaining(timeout));
                         if (remaining <= TimeSpan.Zero) return false;
 #if DEBUG || TESTING
                         BeforeWait?.Invoke();
 #endif
-                        TransactionWaitBudget.Wait(_lock, remaining);
                     }
-                    _owner = owner;
-                    _depth++;
-                    return true;
+                    // Set is persistent, so a release between the check and Wait cannot be lost.
+                    TransactionWaitBudget.Wait(request.Value, remaining);
                 }
-                finally
+            }
+            finally
+            {
+                lock (_lock)
                 {
+                    var wasHead = ReferenceEquals(_waiters.First, request);
                     _waiters.Remove(request);
-                    Monitor.PulseAll(_lock);
+                    request.Value.Dispose();
+                    if (wasHead && _owner == null) _waiters.First?.Value.Set();
                 }
             }
         }
@@ -66,7 +87,7 @@ namespace LiteDB.Engine
                 if (owner == null || !ReferenceEquals(_owner, owner)) throw new SynchronizationLockException("Collection lock belongs to another transaction.");
                 if (--_depth != 0) return;
                 _owner = null;
-                Monitor.PulseAll(_lock);
+                _waiters.First?.Value.Set();
             }
         }
     }

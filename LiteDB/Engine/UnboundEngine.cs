@@ -63,12 +63,12 @@ namespace LiteDB
         {
             private readonly IBsonDataReader _inner;
             internal Reader(IBsonDataReader inner) { _inner = inner; }
-            public BsonValue this[string field] => TransactionContext.Unbound(() => _inner[field]);
-            public string Collection => TransactionContext.Unbound(() => _inner.Collection);
-            public BsonValue Current => TransactionContext.Unbound(() => _inner.Current);
-            public bool HasValues => TransactionContext.Unbound(() => _inner.HasValues);
-            public bool Read() => TransactionContext.Unbound(() => _inner.Read());
-            public void Dispose() => TransactionContext.Unbound(() => { _inner.Dispose(); return true; });
+            public BsonValue this[string field] { get { using (TransactionContext.MaskBinding()) return _inner[field]; } }
+            public string Collection { get { using (TransactionContext.MaskBinding()) return _inner.Collection; } }
+            public BsonValue Current { get { using (TransactionContext.MaskBinding()) return _inner.Current; } }
+            public bool HasValues { get { using (TransactionContext.MaskBinding()) return _inner.HasValues; } }
+            public bool Read() { using (TransactionContext.MaskBinding()) return _inner.Read(); }
+            public void Dispose() { using (TransactionContext.MaskBinding()) _inner.Dispose(); }
         }
     }
 }

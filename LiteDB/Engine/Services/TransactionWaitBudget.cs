@@ -51,6 +51,34 @@ namespace LiteDB.Engine
             }
         }
 
+        internal static void Wait(ManualResetEventSlim ready, TimeSpan remaining)
+        {
+            var budget = _current?._budget;
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                TransactionBeginScope.Check();
+                if (TransactionBeginScope.Token.CanBeCanceled && remaining > TimeSpan.FromMilliseconds(20))
+                    remaining = TimeSpan.FromMilliseconds(20);
+                var interval = remaining;
+                // Slim-event TimeSpan waits truncate fractional milliseconds. A zero-ms
+                // poll can spend no measurable budget and spin until a later local cap.
+                // Round blocking intervals up and recheck the monotonic deadline on timeout.
+                while (remaining > TimeSpan.Zero &&
+                    !ready.Wait(TimeSpan.FromMilliseconds(Math.Ceiling(remaining.TotalMilliseconds))))
+                {
+                    TransactionBeginScope.Check();
+                    remaining = interval - TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
+                }
+                TransactionBeginScope.Check();
+            }
+            finally
+            {
+                if (budget != null)
+                    budget._spent += TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
+            }
+        }
+
         internal static void EnterSharedOwner(SemaphoreSlim gate, TimeSpan poll, Action checkExitedOwner)
         {
             while (true)
