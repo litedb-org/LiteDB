@@ -50,7 +50,7 @@ on:
     inputs:
       tier:
         type: choice
-        options: [smoke, nightly, campaign]
+        options: [smoke, nightly, campaign, harness]
         default: smoke
         required: true
       target:
@@ -401,6 +401,7 @@ jobs:
       - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
       - run: dotnet test LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj -c Release --no-restore -p:TestingEnabled=true
       - run: python3 scripts/test-fuzz-finding-triage.py
+      - run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
       - run: >-
           dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build --
           --target query,index,bson,parser,mapper,value --seed 42947 --count 40
@@ -454,3 +455,42 @@ jobs:
           name: fuzz-campaign-${{ github.run_id }}
           path: artifacts/fuzz
           if-no-files-found: error
+
+  harness-replay:
+    if: github.event_name == 'workflow_dispatch' && inputs.tier == 'harness'
+    name: Harness (${{ matrix.os }}, ${{ matrix.target }}, ${{ matrix.seed }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        target: [api-boundary, snapshot]
+        seed: [529470, 529471, 529472, 529473, 529474, 529475, 529476, 529477, 529478, 529479]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.x' }
+      - run: python -m pip install psutil
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 -p:TestingEnabled=true
+      - name: Run full seed and deterministic recorded-input replay
+        timeout-minutes: 155
+        run: python .github/scripts/p5/harness_campaign.py --target "${{ matrix.target }}" --seed "${{ matrix.seed }}"
+      - name: Stop and reap campaign children before artifact upload
+        if: always()
+        run: python .github/scripts/p5/harness_campaign.py --shutdown-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.seed }}
+          path: |
+            artifacts/harness
+            LiteDB.Fuzz/bin/Release/net8.0
+          if-no-files-found: error
+          retention-days: 14

@@ -1191,6 +1191,23 @@
       "disposition": "strengthened",
       "invariant": "An abandoned retired stream releases its exact generation within five seconds while the active generation and all 160 current rows remain valid; final disposal leaves no readers.",
       "reason": "Wait for the full ReleaseCached critical section, not its intermediate Readers decrement. Preserve NoInlining allocation, weak-reference death, exact live-version set, active reader count, payload and reopen assertions. Bounded GC/finalizer cycles never explicitly dispose or clear the abandoned lease; a permanent leak still fails. Windows six-leg 200-session stress retains raw results."
+    },
+    {
+      "id": "p5-harness-capacity-ipc-and-bounded-campaign",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Fuzz/Targets/ApiBoundaryFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SnapshotFuzzer.cs",
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Keep all API boundary and snapshot oracles and all existing smoke/nightly/campaign legs. Full 400-step seeds and recorded-input replay must pass with identical input/trace hashes.",
+      "reason": "Reuse ten underscore names to stay within finite collection-header capacity. Publish requests and stop files after closing their temporary handles, matching existing atomic ready/result publication. Add target/seed shards with bounded execution and process shutdown before upload; original interrupted snapshot input prefixes cannot provide full-budget replay. Existing workflow tiers and budgets remain intact.",
+      "coveredBy": [
+        "LiteDB.Fuzz.Tests/HarnessControl_Tests.cs",
+        ".github/scripts/test_harness_campaign.py",
+        ".github/workflows/fuzz.yml"
+      ]
     }
   ]
 }
