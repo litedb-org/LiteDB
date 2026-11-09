@@ -1,0 +1,32 @@
+name: Shared admission proof
+on:
+  push:
+    branches: ['v6/wip-f-p5-macos-eagain']
+    paths: ['LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admission:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - shell: pwsh
+        run: |
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter FullyQualifiedName~SharedRequestAdmission_Tests --logger 'trx;LogFileName=admission.trx' --results-directory artifacts_temp/admission
+          if ($LASTEXITCODE) { throw 'Admission regression failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admission-${{ matrix.os }}
+          path: artifacts_temp/admission
