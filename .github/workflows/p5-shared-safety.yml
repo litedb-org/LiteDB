@@ -9,7 +9,7 @@ permissions:
 jobs:
   safety:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -27,8 +27,22 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force artifacts_temp/shared-safety | Out-Null
           git rev-parse HEAD > artifacts_temp/shared-safety/head.txt
-          dotnet test LiteDB.Tests -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedOneFile|FullyQualifiedName~SharedOfflineUpgrade|FullyQualifiedName~DatabaseAdmission|FullyQualifiedName~SharedCoordinationPolicy' --logger 'trx;LogFileName=shared.trx' --results-directory artifacts_temp/shared-safety
-          if ($LASTEXITCODE) { throw 'Shared safety failed' }
+          $filter = 'FullyQualifiedName~SharedOneFile|FullyQualifiedName~SharedOfflineUpgrade|FullyQualifiedName~DatabaseAdmission|FullyQualifiedName~SharedCoordinationPolicy|FullyQualifiedName~DirectHostAdmission'
+          dotnet build LiteDB.Tests -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'Build failed' }
+          $discovery = dotnet test LiteDB.Tests -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --no-build --no-restore --list-tests --filter $filter
+          if ($LASTEXITCODE) { throw 'Discovery failed' }
+          $discovery | Out-File artifacts_temp/shared-safety/discovery.txt
+          $classes = @($discovery | ForEach-Object { if ($_ -match '^\s+(LiteDB\.[\w.]+_Tests)\.') { $Matches[1] } } | Sort-Object -Unique)
+          if ($classes.Count -lt 50) { throw "Incomplete class discovery: $($classes.Count)" }
+          $classes | Out-File artifacts_temp/shared-safety/classes.txt
+          $failed = $false
+          foreach ($testClass in $classes) {
+            # Each discovered class gets the unchanged 300-second session budget.
+            dotnet test LiteDB.Tests -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --no-build --no-restore --settings tests.runsettings --filter "FullyQualifiedName~$testClass." --logger "trx;LogFileName=$testClass.trx" --results-directory artifacts_temp/shared-safety
+            if ($LASTEXITCODE) { $failed = $true }
+          }
+          if ($failed) { throw 'At least one Shared class failed or did not complete' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
