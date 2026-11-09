@@ -36,6 +36,10 @@ namespace LiteDB.Client.Shared
         internal bool ExclusiveDms { get; private set; }
         internal bool TryExclusiveDms()
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedRangeLocks.TryExclusiveDms");
+#endif
+
             if (ExclusiveDms) return true;
             // Every production conversion owns bootstrap. Windows cannot upgrade
             // a shared LockFileEx range in place: drop only our shared layer while
@@ -64,6 +68,10 @@ namespace LiteDB.Client.Shared
 
         internal void EnterWrite(bool abandonedOwner)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedRangeLocks.EnterWrite");
+#endif
+
             if (_writing) throw new InvalidOperationException("WRITE is already owned.");
             if (!_writer.TryLock(SharedMemoryLayout.Write, true))
             {

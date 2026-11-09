@@ -175,6 +175,10 @@ namespace LiteDB.Client.Shared
         ~SharedMemoryMap() { this.Dispose(); }
         public void Dispose()
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryMap.Dispose");
+#endif
+
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             GC.SuppressFinalize(this);
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }

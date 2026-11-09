@@ -11,6 +11,10 @@ namespace LiteDB.Client.Shared
     {
         internal static bool IsNative(SafeFileHandle handle, string filename, bool allowFallback)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("DatabaseVolumePolicy.IsNative");
+#endif
+
             var native = false;
             var local = false;
             if (DatabaseFileIdentity.Windows)

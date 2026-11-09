@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: ['v6/wip-p5-shared-open']
+    paths: ['LiteDB/**', 'tools/Ab5021Benchmarks/TraceReport/**', '.github/workflows/p5-shared-open.yml']
 permissions:
   contents: read
 jobs:

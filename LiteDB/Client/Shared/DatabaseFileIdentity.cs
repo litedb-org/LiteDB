@@ -13,6 +13,10 @@ namespace LiteDB.Client.Shared
 
         internal static SafeFileHandle Open(string filename, bool readOnly, bool create, bool writable = false)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("DatabaseFileIdentity.Open");
+#endif
+
             RequirePlatform();
             SafeFileHandle handle;
             if (Windows)
@@ -41,6 +45,10 @@ namespace LiteDB.Client.Shared
 
         internal static string Read(SafeFileHandle handle)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("DatabaseFileIdentity.Read");
+#endif
+
             if (Windows)
             {
                 if (!GetFileInformationByHandle(handle, out var info)) throw DatabaseFileLock.Error("File identity");
@@ -72,6 +80,10 @@ namespace LiteDB.Client.Shared
 
         internal static string CanonicalPath(string filename)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("DatabaseFileIdentity.CanonicalPath");
+#endif
+
             RequirePlatform();
             filename = System.IO.Path.GetFullPath(filename);
             if (!Windows)
