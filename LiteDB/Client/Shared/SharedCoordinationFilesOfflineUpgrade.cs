@@ -28,6 +28,10 @@ namespace LiteDB.Client.Shared
 
         internal static void Run(EngineSettings settings, NativeAdmission admission)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedCoordinationFilesOfflineUpgrade.Run");
+#endif
+
             var filename = settings.Filename;
             var paths = new[] { "-shared-state", "-shared-disabled", "-shared-live" }
                 .Select(s => filename + s).Where(FileHelper.ExistsOrThrow).ToList();

@@ -74,6 +74,10 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryReaderTable Open(EngineSettings settings)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryReaderTable.Open");
+#endif
+
             var captured = settings.Clone();
             // Preserve delegate identity for admission without publishing its
             // request graph. Each facade/private cursor keeps its own transform.

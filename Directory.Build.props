@@ -1,4 +1,7 @@
 <Project>
+  <PropertyGroup Condition="'$(ProfilingEnabled)' == 'true'">
+    <DefineConstants>$(DefineConstants);PROFILE</DefineConstants>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(LiteDBPreDev)' == 'true'">
     <DefineConstants>$(DefineConstants);LITEDB_PREDEV</DefineConstants>
   </PropertyGroup>

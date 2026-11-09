@@ -1,0 +1,54 @@
+name: Shared open profile
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v6/wip-p5-shared-open']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build PROFILE-only diagnostics and capture EventPipe
+        shell: pwsh
+        env:
+          BENCHMARK_SHARED_ONLY: 'true'
+          LITEDB_PROFILE: '1'
+          DOTNET_TieredCompilation: '0'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force artifacts_temp/shared-profile | Out-Null
+          git rev-parse HEAD > artifacts_temp/shared-profile/head.txt
+          dotnet --info > artifacts_temp/shared-profile/runtime.txt
+          dotnet tool install --global dotnet-trace --version 8.0.547301
+          if ($LASTEXITCODE) { throw 'trace install' }
+          dotnet build tools/Ab5021Benchmarks/V6/V6.csproj -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=false -p:ProfilingEnabled=true -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'harness build' }
+          dotnet build tools/Ab5021Benchmarks/TraceReport/TraceReport.csproj -c Release -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'decoder build' }
+          foreach ($round in 1..3) {
+            $prefix = "artifacts_temp/shared-profile/round-$round"
+            dotnet-trace collect --providers 'LiteDB-ScenarioProfile,LiteDB-SharedOpenProfile,Microsoft-DotNETCore-SampleProfiler,Microsoft-Windows-DotNETRuntime:0x1:4' --output "$prefix.nettrace" -- dotnet tools/Ab5021Benchmarks/V6/bin/Release/net8.0/V6.dll dev-default $round "$prefix.json"
+            if ($LASTEXITCODE) { throw 'trace failed' }
+            dotnet tools/Ab5021Benchmarks/TraceReport/bin/Release/net8.0/TraceReport.dll "$prefix.nettrace" "$prefix-profile.json"
+            if ($LASTEXITCODE) { throw 'decode failed' }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-profile-${{ matrix.os }}
+          path: artifacts_temp/shared-profile/
+          if-no-files-found: error

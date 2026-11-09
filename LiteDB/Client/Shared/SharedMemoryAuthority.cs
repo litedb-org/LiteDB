@@ -38,6 +38,10 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryAuthority Open(EngineSettings settings, string identity, Action<SharedMemoryAuthority> validateStorage)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryAuthority.Open");
+#endif
+
             RebuildRecovery.EnsureAvailable(settings);
             RequirePlatform(settings.Filename);
             var path = PathFor(settings.Filename);
@@ -194,6 +198,10 @@ namespace LiteDB.Client.Shared
         private bool CanReuse(SharedMemoryEnvelope existing, SharedMemoryEnvelope requested, string identity,
             string path, SharedMutexNameStrategy strategy)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryAuthority.CanReuse");
+#endif
+
             if (!existing.HasValidChecksum() || !existing.MatchesIdentity(identity) || !existing.MatchesNamespace(path, strategy)) return false;
             if (existing.Size != requested.Size || existing.Processes != requested.Processes ||
                 existing.Generations != requested.Generations || existing.Stride != requested.Stride)
@@ -228,6 +236,10 @@ namespace LiteDB.Client.Shared
 
         private void Claim()
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryAuthority.Claim");
+#endif
+
             for (var slot = 0; slot < Header.Processes; slot++)
             {
                 if (!Locks.TryClaim(slot)) continue;
@@ -281,6 +293,10 @@ namespace LiteDB.Client.Shared
         }
         private static void Allocate(FileStream file, long length)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryAuthority.Allocate");
+#endif
+
             int error;
 #if DEBUG || TESTING
             if (AllocateFile != null)
@@ -296,6 +312,10 @@ namespace LiteDB.Client.Shared
         }
         private static SharedMemoryMap CreateMap(FileStream file, long size, Guid authority)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryAuthority.CreateMap");
+#endif
+
 #if DEBUG || TESTING
             if (MapFile != null)
             {

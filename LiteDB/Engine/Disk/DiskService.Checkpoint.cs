@@ -20,6 +20,10 @@ namespace LiteDB.Engine
         // Establish both the file and its name before quiet mapped publication.
         internal void SyncSharedRecovery()
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("DiskService.Checkpoint.SyncSharedRecovery");
+#endif
+
             _state.Validate();
             if (this.GetFileLength(FileOrigin.Log) == 0) return;
             var stream = _writer.Value;

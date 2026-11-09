@@ -41,6 +41,10 @@ namespace LiteDB
 
         internal static void FlushToDisk(FileStream stream)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("NativeFileSync.FlushToDisk");
+#endif
+
 #if DEBUG || TESTING
             Reachability.FaultPoint("SimulateErrno");
             var simulate = SimulateErrno;
@@ -79,6 +83,10 @@ namespace LiteDB
         // only, allowing another writer to append while the device sync runs.
         internal static void FlushDevice(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string path)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("NativeFileSync.FlushDevice");
+#endif
+
 #if NET8_0_OR_GREATER
             if (_windows) RandomAccess.FlushToDisk(handle);
             else if (NativeLibc.TryGet(out var fsync, out var fcntl))

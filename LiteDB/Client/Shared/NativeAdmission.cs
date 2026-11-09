@@ -65,6 +65,10 @@ namespace LiteDB.Client.Shared
 
         internal static NativeAdmission Open(EngineSettings settings, bool shared, bool normalized = false, bool create = true)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("NativeAdmission.Open");
+#endif
+
             if (!normalized) Normalize(settings);
             using var pathGate = shared ? EnterPath(settings.Filename) : null;
             lock (Gate)

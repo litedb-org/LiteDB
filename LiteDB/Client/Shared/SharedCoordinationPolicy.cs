@@ -30,6 +30,10 @@ namespace LiteDB.Client.Shared
         // Shared by runtime qualification and the mapped-test directory fixture.
         internal static string VolumeFailure(string filename)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedCoordinationPolicy.VolumeFailure");
+#endif
+
             var comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                 ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
             var drive = DriveInfo.GetDrives().Where(d => filename.StartsWith(

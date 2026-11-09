@@ -79,7 +79,9 @@ internal sealed class SharedWorkload
     private void Measure(string scenario, int operations, string path, Action action)
     {
         var measurement = new ScenarioMeasurement();
+        if (_record && ProfileMarkers.Enabled) ProfileMarkers.Log.Begin(scenario);
         action();
+        if (_record && ProfileMarkers.Enabled) ProfileMarkers.Log.End(scenario);
         measurement.Stop();
         if (!_record) return;
         Samples.Add(new Sample(scenario, measurement.Milliseconds, operations, new FileInfo(path).Length,

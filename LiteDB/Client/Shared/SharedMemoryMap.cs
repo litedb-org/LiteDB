@@ -21,6 +21,10 @@ namespace LiteDB.Client.Shared
 
         internal SharedMemoryMap(FileStream file, long size, Guid authority = default(Guid))
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryMap.SharedMemoryMap");
+#endif
+
             Size = size;
             if (authority != Guid.Empty)
             {
@@ -156,6 +160,10 @@ namespace LiteDB.Client.Shared
         }
         internal void Zero(long offset, long count)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryMap.Zero");
+#endif
+
             this.Require(offset, count);
             new Span<byte>(_pointer + offset, checked((int)count)).Clear();
         }

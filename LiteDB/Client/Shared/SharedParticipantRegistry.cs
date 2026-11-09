@@ -23,6 +23,10 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryReaders Attach(EngineSettings settings)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedParticipantRegistry.Attach");
+#endif
+
             using var admission = NativeAdmission.Open(settings, true);
             // Native admission validates physical identity and rejects hard-link/namespace
             // aliases. The canonical path stays stable across an exclusive replacement.

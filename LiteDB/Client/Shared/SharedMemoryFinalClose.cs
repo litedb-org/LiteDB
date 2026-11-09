@@ -13,6 +13,10 @@ namespace LiteDB.Client.Shared
         // No local caller can still use the cache or enter a writable core here.
         internal static void Run(SharedMemoryReaderTable table)
         {
+#if PROFILE
+            using var profile = SharedOpenProfile.Measure("SharedMemoryFinalClose.Run");
+#endif
+
             var authority = table.Authority;
             using var bootstrap = SharedMutexFactory.Create(SharedMutexNameFactory.CreateUsingSha1(
                 SharedMemoryAuthority.PathFor(table.Settings.Filename)) + ".Bootstrap");
