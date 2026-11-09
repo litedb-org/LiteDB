@@ -1,0 +1,58 @@
+name: F-P4 native admission diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: phase4-baseline
+            source: a79db83074de1e0c4741e91abd4790b2e638c8e1
+          - label: perf-candidate
+            source: 23a5c6c7b795b080c943488a3fb7679c76816064
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.source }}
+      - name: Apply explicit observational graft
+        shell: pwsh
+        run: |
+          git fetch origin ${{ github.sha }}
+          if ($LASTEXITCODE) { throw 'Harness fetch failed' }
+          New-Item -ItemType Directory -Force artifacts_temp/native-diagnostic | Out-Null
+          python -c "import pathlib,subprocess; pathlib.Path('artifacts_temp/native-diagnostic/graft.patch').write_bytes(subprocess.check_output(['git','show','${{ github.sha }}:.github/diagnostics/f-p4-native.patch']))"
+          if ($LASTEXITCODE) { throw 'Harness patch read failed' }
+          git apply --check artifacts_temp/native-diagnostic/graft.patch
+          if ($LASTEXITCODE) { throw 'Patch check failed' }
+          git apply artifacts_temp/native-diagnostic/graft.patch
+          if ($LASTEXITCODE) { throw 'Patch apply failed' }
+          git rev-parse HEAD | Set-Content artifacts_temp/native-diagnostic/source-sha.txt
+          git status --short | Set-Content artifacts_temp/native-diagnostic/worktree.txt
+          Get-FileHash artifacts_temp/native-diagnostic/graft.patch -Algorithm SHA256 | Format-List | Out-File artifacts_temp/native-diagnostic/graft-hash.txt
+          '${{ github.sha }}' | Set-Content artifacts_temp/native-diagnostic/harness-sha.txt
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Preserve failures and observe native release and recovery
+        shell: pwsh
+        env:
+          LITEDB_NATIVE_DIAG_REPEATS: '20'
+          LITEDB_NATIVE_DIAG_SOURCE: ${{ matrix.source }}
+        run: |
+          $env:LITEDB_NATIVE_DIAG_EVIDENCE = Join-Path $PWD 'artifacts_temp/native-diagnostic/observations'
+          for ($session = 0; $session -lt 10; $session++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedWriterTenureProcess_Tests.Dead_or_expired_requester_cannot_reserve_a_turn' --logger "trx;LogFileName=native-$session.trx" --results-directory artifacts_temp/native-diagnostic
+            if ($LASTEXITCODE) { throw "Original test failed in session $session; diagnostic preserves the failure" }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-diagnostic-${{ matrix.label }}
+          path: artifacts_temp/native-diagnostic

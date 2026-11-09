@@ -1,0 +1,160 @@
+--- a/LiteDB/Client/Shared/DatabaseFileLock.cs
++++ b/LiteDB/Client/Shared/DatabaseFileLock.cs
+@@ -19,6 +19,9 @@
+         // Keep legacy family and Phase 1 read-only marker offsets stable.
+         // The mapped family must not publish a read-only Direct marker.
+         internal const long MappedFamily = Admission + 3;
++#if (DEBUG || TESTING) && NET8_0_OR_GREATER
++        private readonly long _lifetimeDiagnosticId;
++#endif
+         private readonly SafeFileHandle _handle;
+         private readonly SafeFileHandle _lockHandle;
+         internal string Identity { get; }
+@@ -45,6 +48,9 @@
+                 }
+             }
+             catch { _handle.Dispose(); throw; }
++#if (DEBUG || TESTING) && NET8_0_OR_GREATER
++            _lifetimeDiagnosticId = NativeLockLifetimeDiagnostic.Opened(Path, _handle.DangerousGetHandle().ToInt64());
++#endif
+         }
+ 
+         internal void Admit(bool shared)
+@@ -177,6 +183,9 @@
+         {
+             if (_lockHandle != _handle) _lockHandle?.Dispose();
+             _handle.Dispose();
++#if (DEBUG || TESTING) && NET8_0_OR_GREATER
++            NativeLockLifetimeDiagnostic.Closed(_lifetimeDiagnosticId, _handle.IsClosed);
++#endif
+         }
+ 
+         [StructLayout(LayoutKind.Sequential)]
+--- /dev/null
++++ b/LiteDB/Client/Shared/NativeLockLifetimeDiagnostic.cs
+@@ -0,0 +1,48 @@
++#if (DEBUG || TESTING) && NET8_0_OR_GREATER
++using System;
++using System.Collections.Generic;
++using System.Diagnostics;
++using System.IO;
++using System.Linq;
++using System.Threading;
++
++namespace LiteDB.Client.Shared
++{
++    // Diagnostic graft only. Numeric handles and strings retain no native/object lease.
++    internal static class NativeLockLifetimeDiagnostic
++    {
++        internal sealed class Entry
++        {
++            public long Id, Handle, OpenedAt, ClosedAt;
++            public int Thread;
++            public string Path;
++            public bool IsClosed;
++        }
++        private static readonly object Gate = new object();
++        private static readonly Dictionary<long, Entry> Entries = new Dictionary<long, Entry>();
++        private static long _next;
++        internal static long Opened(string path, long handle)
++        {
++            var id = Interlocked.Increment(ref _next);
++            lock (Gate) Entries.Add(id, new Entry { Id = id, Handle = handle,
++                Path = path, OpenedAt = Stopwatch.GetTimestamp(), Thread = Environment.CurrentManagedThreadId });
++            return id;
++        }
++        internal static void Closed(long id, bool closed)
++        {
++            lock (Gate)
++                if (Entries.TryGetValue(id, out var entry) && entry.ClosedAt == 0)
++                { entry.ClosedAt = Stopwatch.GetTimestamp(); entry.IsClosed = closed; }
++        }
++        internal static Entry[] Snapshot(string filename)
++        {
++            var suffix = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(filename)) + "/" +
++                System.IO.Path.GetFileName(filename);
++            lock (Gate) return Entries.Values.Where(e => e.Path.Replace('\\', '/').EndsWith(suffix,
++                StringComparison.OrdinalIgnoreCase)).Select(e => new Entry { Id = e.Id, Handle = e.Handle,
++                    OpenedAt = e.OpenedAt, ClosedAt = e.ClosedAt, Thread = e.Thread,
++                    Path = e.Path, IsClosed = e.IsClosed }).ToArray();
++        }
++    }
++}
++#endif
+--- a/LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs
++++ b/LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs
+@@ -61,6 +61,17 @@
+         [InlineData(false)] [InlineData(true)]
+         public void Dead_or_expired_requester_cannot_reserve_a_turn(bool expireAlive)
+         {
++            var repeats = int.TryParse(Environment.GetEnvironmentVariable("LITEDB_NATIVE_DIAG_REPEATS"), out var n) ? n : 1;
++            repeats.Should().BeInRange(1, 20);
++            for (var iteration = 0; iteration < repeats; iteration++)
++            {
++                Console.WriteLine("native diagnostic iteration=" + iteration + " expireAlive=" + expireAlive);
++                Dead_or_expired_requester_once(expireAlive, iteration);
++            }
++        }
++
++        private void Dead_or_expired_requester_once(bool expireAlive, int iteration)
++        {
+             using var files = new SharedOneFilePublicationFixture();
+             using (var holder = new SharedEngine(files.Settings))
+             {
+@@ -84,8 +95,54 @@
+             }
+             for (var pass = 0; pass < 2; pass++)
+             {
+-                using var cold = new LiteDatabase(files.Filename); Verify(cold, 1);
+-                cold.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).Should().Equal(902);
++                try
++                {
++                    using var cold = new LiteDatabase(files.Filename); Verify(cold, 1);
++                    cold.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).Should().Equal(902);
++                }
++                catch (System.IO.IOException original) when (
++                    Environment.GetEnvironmentVariable("LITEDB_NATIVE_DIAG_EVIDENCE") != null &&
++                    original.ToString().Contains("LockFileEx failed (native error 33)"))
++                {
++                    // Record after the original failure, then retain that failure in TRX.
++                    var before = NativeLockLifetimeDiagnostic.Snapshot(files.Filename);
++                    var timer = System.Diagnostics.Stopwatch.StartNew();
++                    var attempts = 0;
++                    var verified = false;
++                    string dataError = null;
++                    try
++                    {
++                        while (timer.ElapsedMilliseconds < 5000)
++                        {
++                            attempts++;
++                            try
++                            {
++                                using var recovered = new LiteDatabase(files.Filename);
++                                Verify(recovered, 1);
++                                recovered.GetCollection("tenure").FindAll().Select(d => d["_id"].AsInt32).Should().Equal(902);
++                                verified = true;
++                                break;
++                            }
++                            catch (System.IO.IOException pending) when (pending.ToString().Contains("LockFileEx failed (native error 33)"))
++                            { Thread.Sleep(1); }
++                        }
++                    }
++                    catch (Exception failure) { dataError = failure.ToString(); }
++                    finally
++                    {
++                        var output = Environment.GetEnvironmentVariable("LITEDB_NATIVE_DIAG_EVIDENCE");
++                        System.IO.Directory.CreateDirectory(output);
++                        var result = new { source = Environment.GetEnvironmentVariable("LITEDB_NATIVE_DIAG_SOURCE"),
++                            filename = files.Filename, expireAlive, iteration, pass,
++                            original = original.ToString(), before,
++                            after = NativeLockLifetimeDiagnostic.Snapshot(files.Filename),
++                            attempts, elapsedMilliseconds = timer.ElapsedMilliseconds, verified, dataError };
++                        System.IO.File.WriteAllText(System.IO.Path.Combine(output, Guid.NewGuid().ToString("N") + ".json"),
++                            System.Text.Json.JsonSerializer.Serialize(result,
++                                new System.Text.Json.JsonSerializerOptions { IncludeFields = true, WriteIndented = true }));
++                    }
++                    throw;
++                }
+             }
+         }
+ 
