@@ -236,7 +236,7 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (--_references != 0) return;
-                if (Settings.SharedLingerMilliseconds > 0)
+                if (Settings.SharedLingerMilliseconds > 0 && ClosedCallback != null)
                 {
                     Timer timer = null;
                     try
