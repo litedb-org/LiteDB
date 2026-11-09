@@ -13,6 +13,18 @@ namespace LiteDB.Tests.Engine
     public class TransactionHandleDeadline_Tests
     {
         [Fact]
+        public void Signal_wait_does_not_truncate_a_positive_fractional_budget_to_polling()
+        {
+            using var ready = new ManualResetEventSlim(false, 0);
+            var timeout = TimeSpan.FromMilliseconds(0.9);
+            using (new TransactionWaitBudget(timeout))
+            {
+                TransactionWaitBudget.Wait(ready, timeout);
+                Assert.Equal(TimeSpan.Zero, TransactionWaitBudget.Remaining(timeout));
+            }
+        }
+
+        [Fact]
         public void Nested_stages_inherit_the_sampled_timeout_and_restore_thread_state()
         {
             var original = TimeSpan.FromSeconds(2);
