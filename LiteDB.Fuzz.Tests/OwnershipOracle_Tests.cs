@@ -48,6 +48,8 @@ public sealed class OwnershipOracle_Tests : IDisposable
         db.Dispose();
         context.ConnectionClean(db);
         context.ConnectionClean(peer, "PeerDispose");
+        // Quiescence requires the process idle cache to finish final close too.
+        LiteDatabase.ReleaseIdle(file);
         context.Quiescent(file);
         Assert.Empty(context.Oracles.WatchOwnership().TakeAll());
         Assert.True((int)context.Metrics["ownershipChecks"] >= 3);
