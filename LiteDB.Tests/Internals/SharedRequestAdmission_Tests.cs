@@ -20,13 +20,12 @@ namespace LiteDB.Internals
         [Fact]
         public async Task Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits()
         {
-            // Leave a valid Ready authority, as an abruptly lost participant does;
-            // graceful final close retires it and is a different state transition.
-            using (var seed = new MvccProcess("request-seed-hold", Filename, null))
-            {
-                await seed.Expect("ready");
-                await seed.Kill();
-            }
+            // WIP-only historical reproduction requested for the dedicated admission owner.
+            // Graceful final close retires Ready; the synthetic DMS holder below then
+            // exposes the original invalid live/not-Ready fixture. Do not merge this
+            // diagnostic arrangement into a phase branch. Qualified perf parent: 23a5c6c7b.
+            using (var seed = new LiteDatabase(new ConnectionString { Filename = Filename, Connection = ConnectionType.Shared }))
+                seed.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "untouched" });
             var workers = Enumerable.Range(0, 4).Select(id => new MvccProcess("request-open-loop", Filename, null, id.ToString())).ToArray();
             try
             {
