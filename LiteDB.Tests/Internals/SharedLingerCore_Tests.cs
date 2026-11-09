@@ -193,6 +193,35 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public async Task Remote_writer_death_while_idle_forces_independent_recovery_on_open()
+        {
+            var connection = Connection;
+            connection.SharedLinger = 60000;
+            using (var seed = new LiteDatabase(connection))
+            {
+                seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+                seed.GetCollection("docs").EnsureIndex("value");
+                seed.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            }
+            using (var child = new MvccProcess("one-file-publication-hold", Filename, null, "open-begin"))
+            {
+                await child.Expect("ready");
+                await child.Kill(sharedFilesRemainOpen: true);
+            }
+            using (var recovered = new LiteDatabase(connection))
+            {
+                var map = Engine(recovered).MappedReaderTable.Authority.Map;
+                (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
+                map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
+                map.Load(SharedMemoryLayout.WriterOwner).Should().Be(0);
+                recovered.GetCollection("docs").FindOne(Query.EQ("value", "saved"))["_id"].AsInt32.Should().Be(1);
+            }
+            LiteDatabase.ReleaseIdle(Filename);
+            using var cold = new LiteDatabase(Filename);
+            cold.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+        }
+
+        [OneFileFact]
         public async Task Rebuild_releases_protected_cached_storage_before_replacement()
         {
             using (var seed = new LiteDatabase(Filename))

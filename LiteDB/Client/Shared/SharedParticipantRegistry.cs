@@ -42,7 +42,15 @@ namespace LiteDB.Client.Shared
                     {
                         if (table.Idle)
                         {
-                            try { RequireCompatible(table, settings); }
+                            try
+                            {
+                                RequireCompatible(table, settings);
+                                // A remote writer can die while we linger. A writable
+                                // opener must independently recover an uncertain image;
+                                // retaining the old bootstrap cannot certify that repair.
+                                if (!settings.ReadOnly && !table.Settings.ReadOnly && !table.Reads.TryRead(out _) && table.ReleaseIdle())
+                                    continue;
+                            }
                             catch (InvalidOperationException)
                             {
                                 if (table.ReleaseIdle()) continue;

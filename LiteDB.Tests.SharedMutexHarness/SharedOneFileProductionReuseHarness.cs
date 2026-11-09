@@ -12,6 +12,8 @@ internal static class SharedOneFileProductionReuseHarness
         { Filename = filename, SharedOneFile = true, Password = args[3] == "-" ? null : args[3] };
         if (mode == "one-file-production-reuse-cut")
         {
+            // Closing cuts are thread-local observers of synchronous teardown.
+            settings.SharedLinger = 0;
             void Cut(string family, string stage)
             {
                 if (family == "PublicationStage" && stage == "open-begin" &&
