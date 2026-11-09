@@ -80,6 +80,8 @@ class ReproMatrixTests(unittest.TestCase):
             "Dms_timeout_refuses_admission_and_remains_retryable",
         )}
         self.assertEqual(expected, {ref for entry in policy.values() for ref in entry["tests"] if ref.startswith(prefix)})
+        self.assertIn("LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs#Native_errors_preserve_deadline_refusal_and_real_lock_retry",
+                      policy["SharedSelfTeardownRelease"]["tests"])
 
     def test_wal_handle_replacement_inventory_is_complete(self):
         policy = json.loads((ROOT / ".github/repro-ci.json").read_text())
