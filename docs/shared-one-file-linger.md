@@ -80,7 +80,10 @@ participants before acquiring native admission. Active participants remain
 exclusive to their existing family.
 
 Read engines reuse the participant cache, retaining its existing version/storage
-fence checks and generation leases during use. Read-only-first bootstrap does
+fence checks and generation leases during use. An idle writable participant with unavailable
+read status or a remaining remote writer owner is released before a fresh
+protected bootstrap; retained bootstrap state cannot certify recovery after a
+peer dies. Read-only-first bootstrap does
 not certify writable recovery: its buffered read engine can instead be retained
 under main and reused under main only if writer tenure, control sequence and
 structural/reuse/reset epochs are unchanged. No caller streams or ReadTransform

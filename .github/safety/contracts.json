@@ -565,6 +565,11 @@
           "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Rebuild_releases_protected_cached_storage_before_replacement",
           "model": "exception",
           "proves": "A child with mapped fast reads disabled retains a protected read engine, releases that storage before rebuild replacement, and preserves indexed payloads through two cold reopens."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Remote_writer_death_while_idle_forces_independent_recovery_on_open",
+          "model": "process-death",
+          "proves": "Remote writer death while a local participant lingers triggers independent writable recovery before serving queries, for uncertain pre-commit and even-fence post-commit images; indexed expected values survive cold reopen."
         }
       ],
       "gaps": [
