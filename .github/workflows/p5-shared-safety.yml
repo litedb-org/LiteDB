@@ -1,0 +1,34 @@
+name: Shared open safety
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts_temp/shared-safety | Out-Null
+          git rev-parse HEAD > artifacts_temp/shared-safety/head.txt
+          dotnet test LiteDB.Tests -c Release -f net8.0 -p:TargetFrameworks=net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedOneFile|FullyQualifiedName~SharedOfflineUpgrade|FullyQualifiedName~DatabaseAdmission|FullyQualifiedName~SharedCoordinationPolicy' --logger 'trx;LogFileName=shared.trx' --results-directory artifacts_temp/shared-safety
+          if ($LASTEXITCODE) { throw 'Shared safety failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-safety-${{ matrix.os }}
+          path: artifacts_temp/shared-safety/
+          if-no-files-found: error
