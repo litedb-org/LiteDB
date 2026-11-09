@@ -22,6 +22,15 @@ namespace LiteDB
             get => SharedOneFileOverride ?? LiteDB.Client.Shared.SharedProtocolDefaults.OneFile;
             set => SharedOneFileOverride = value;
         }
+        private int _sharedLinger = 1000;
+        /// <summary>Idle retention in milliseconds for qualified one-file Shared; default 1000.
+        /// The connection-string key is "shared linger". Zero disables retention.
+        /// Legacy Shared ignores it. Call LiteDatabase.ReleaseIdle before immediate file deletion.</summary>
+        public int SharedLinger
+        {
+            get => _sharedLinger;
+            set => _sharedLinger = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+        }
         internal bool? SharedOneFileOverride { get; set; }
         /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
         public long SharedMemorySize { get; set; }
@@ -198,6 +207,7 @@ namespace LiteDB
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
+            this.SharedLinger = _values.GetValue("shared linger", this.SharedLinger);
             if (_values.ContainsKey("shared one file")) this.SharedOneFile = _values.GetValue("shared one file", this.SharedOneFile);
             this.SharedMemorySize = _values.GetFileSize("shared memory size", this.SharedMemorySize);
             this.SharedProcessCapacity = _values.GetValue("shared process capacity", this.SharedProcessCapacity);
@@ -313,6 +323,7 @@ namespace LiteDB
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
                 DurableCommits = this.DurableCommits,
                 SharedOneFileOverride = this.SharedOneFileOverride,
+                SharedLinger = this.SharedLinger,
                 SharedMemorySize = this.SharedMemorySize,
                 SharedProcessCapacity = this.SharedProcessCapacity,
                 SharedGenerationCapacity = this.SharedGenerationCapacity,

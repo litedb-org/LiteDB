@@ -105,6 +105,7 @@ namespace LiteDB
                     .Append(';');
             }
 
+            if (connection.SharedLinger != 1000) bld.Append("Shared Linger=").Append(connection.SharedLinger.ToString(CultureInfo.InvariantCulture)).Append(';');
             if (connection.SharedOneFileOverride.HasValue) bld.Append("Shared One File=").Append(connection.SharedOneFile ? "true;" : "false;");
             if (connection.SharedMemorySize != 0) bld.Append("Shared Memory Size=").Append(connection.SharedMemorySize.ToString(CultureInfo.InvariantCulture)).Append(';');
             if (connection.SharedProcessCapacity != 256) bld.Append("Shared Process Capacity=").Append(connection.SharedProcessCapacity.ToString(CultureInfo.InvariantCulture)).Append(';');

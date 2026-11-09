@@ -221,7 +221,7 @@ namespace LiteDB
             try
             {
                 if (_readCacheDemand < 2) _readCacheDemand++;
-                if (_readCacheDemand < 2 || !this.TryReadStatus(out status) || status.Version != engine.ReadVersion) return null;
+                if ((_readCacheDemand < 2 && !(_settings.SharedOneFile && _settings.SharedLinger > 0)) || !this.TryReadStatus(out status) || status.Version != engine.ReadVersion) return null;
                 lease = this.TryRegisterLease(engine.ReadVersion);
                 if (lease == null) return null;
             }

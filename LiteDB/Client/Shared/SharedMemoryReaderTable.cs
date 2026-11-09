@@ -28,13 +28,11 @@ namespace LiteDB.Client.Shared
         internal Action ClosedCallback;
         private int _references = 1;
         private bool _closing;
-#if DEBUG || TESTING
         private Timer _lingerTimer;
         private bool _idle;
         private Thread _closeThread;
         internal bool Idle { get { lock (_gate) return _idle; } }
 
-        // Prototype only: production retention awaits the exclusive-release protocol.
         internal bool ReleaseIdle()
         {
             lock (_gate)
@@ -74,7 +72,6 @@ namespace LiteDB.Client.Shared
             }
             catch (Exception) { /* Preserve existing final-close fences; never escape a timer. */ }
         }
-#endif
         private int _facades;
         private int _maintenanceDepth;
         internal void AttachFacade()
@@ -111,6 +108,7 @@ namespace LiteDB.Client.Shared
         private SharedMemoryReaderTable(SharedMemoryAuthority authority, NativeAdmission admission, EngineSettings settings)
         {
             Settings = settings;
+            if (settings.SharedLinger > 0) ReadCache.IdleLimit = TimeSpan.FromMilliseconds(settings.SharedLinger);
             Authority = authority;
             _writer = new SharedMemoryWriter(authority);
             Reads = new SharedMemoryReadAdmission(authority);
@@ -212,7 +210,6 @@ namespace LiteDB.Client.Shared
             {
                 while (_closing) Monitor.Wait(_gate);
                 if (_references == 0) return false;
-#if DEBUG || TESTING
                 if (_idle)
                 {
                     _idle = false;
@@ -221,7 +218,6 @@ namespace LiteDB.Client.Shared
                     // Transfer the idle reference to the new facade.
                     return true;
                 }
-#endif
                 _references++;
                 return true;
             }
@@ -232,7 +228,6 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (--_references != 0) return;
-#if DEBUG || TESTING
                 if (Settings.SharedLingerMilliseconds > 0)
                 {
                     Timer timer = null;
@@ -248,7 +243,6 @@ namespace LiteDB.Client.Shared
                     }
                     catch { timer?.Dispose(); _lingerTimer = null; }
                 }
-#endif
                 _closing = true;
             }
             CloseResources();
@@ -256,9 +250,7 @@ namespace LiteDB.Client.Shared
 
         private void CloseResources()
         {
-#if DEBUG || TESTING
             lock (_gate) _closeThread = Thread.CurrentThread;
-#endif
             // No table gate while taking the cache gate: admission takes them in
             // the reverse order. Zero references means no facade or result remains.
             try
@@ -278,9 +270,7 @@ namespace LiteDB.Client.Shared
             {
                 lock (_gate)
                 {
-#if DEBUG || TESTING
                     _closeThread = null;
-#endif
                     _closing = false;
                     Monitor.PulseAll(_gate);
                 }
@@ -346,16 +336,12 @@ namespace LiteDB.Client.Shared
         public void SlotReused() => _writer.SlotReused();
         public void Committed(int version) => _writer.Committed(version);
 
-#if DEBUG || TESTING
         [ThreadStatic] internal static Action<string> PublicationStage;
-#endif
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
         internal static void PublishStage(string stage)
         {
-#if DEBUG || TESTING
             Reachability.FaultPoint("PublicationStage");
             PublicationStage?.Invoke(stage);
-#endif
         }
 
         private void Unregister(int version)

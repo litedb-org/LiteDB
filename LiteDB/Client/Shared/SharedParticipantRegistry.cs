@@ -40,7 +40,6 @@ namespace LiteDB.Client.Shared
                     var table = entry.Table;
                     if (table != null)
                     {
-#if DEBUG || TESTING
                         if (table.Idle)
                         {
                             try { RequireCompatible(table, settings); }
@@ -49,7 +48,6 @@ namespace LiteDB.Client.Shared
                                 if (table.ReleaseIdle()) continue;
                             }
                         }
-#endif
                         if (!table.TryRetain()) { Retire(identity, entry); continue; }
                         try
                         {
@@ -73,17 +71,19 @@ namespace LiteDB.Client.Shared
             }
         }
 
-#if DEBUG || TESTING
         static SharedParticipantRegistry()
         {
-            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+            AppDomain.CurrentDomain.ProcessExit += (_, __) => ReleaseOnExit();
+            System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(typeof(SharedParticipantRegistry).Assembly).Unloading += _ => ReleaseOnExit();
+        }
+
+        private static void ReleaseOnExit()
+        {
+            foreach (var entry in Entries.Values)
             {
-                foreach (var entry in Entries.Values)
-                {
-                    try { entry.Table?.ReleaseIdle(); }
-                    catch (Exception) { /* Exit cleanup is best effort, OS locks die with the process. */ }
-                }
-            };
+                try { entry.Table?.ReleaseIdle(); }
+                catch (Exception) { /* Exit is best effort; OS locks die with the process. */ }
+            }
         }
 
         internal static bool ReleaseIdle(string filename)
@@ -96,7 +96,6 @@ namespace LiteDB.Client.Shared
         {
             foreach (var entry in Entries.Values) entry.Table?.ReleaseIdle();
         }
-#endif
 
         private static void Retire(string identity, Entry entry)
         {
@@ -122,10 +121,8 @@ namespace LiteDB.Client.Shared
                 if (!captured.SharedOneFileOverride.HasValue && !requested.SharedOneFileOverride.HasValue)
                     opening.ReadOnly = captured.ReadOnly;
                 DirectHostSettings.RequireCompatible(captured, opening, captured.Collation.ToString());
-#if DEBUG || TESTING
                 if (captured.SharedLingerMilliseconds != requested.SharedLingerMilliseconds)
                     throw new InvalidOperationException("Shared linger settings differ.");
-#endif
                 if (captured.SharedMutexNameStrategy != requested.SharedMutexNameStrategy ||
                     !ReferenceEquals(captured.SharedReaderFiles, requested.SharedReaderFiles))
                     throw new InvalidOperationException("Shared opening settings differ.");

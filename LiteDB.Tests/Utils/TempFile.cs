@@ -61,6 +61,7 @@ namespace LiteDB.Tests
 
             if (disposing)
             {
+                LiteDatabase.ReleaseIdle(this.Filename);
                 WindowsFileRelease.Retry(() => File.Delete(this.Filename));
                 return;
             }

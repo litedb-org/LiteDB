@@ -20,9 +20,17 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
-        // WIP lifetime prototype. Production stays disabled until exclusive release is qualified.
-        internal int SharedLingerMilliseconds { get; set; }
 #endif
+        private int _sharedLinger = 1000;
+        /// <summary>Idle retention in milliseconds for qualified one-file Shared connections.
+        /// Defaults to 1000; zero closes synchronously. Legacy Shared ignores this setting.
+        /// Files can remain open after Dispose; use LiteDatabase.ReleaseIdle before deleting them.</summary>
+        public int SharedLinger
+        {
+            get => _sharedLinger;
+            set => _sharedLinger = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+        }
+        internal int SharedLingerMilliseconds { get => SharedLinger; set => SharedLinger = value; }
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
         // the caller holds the database exclusively; null allows the rebuild.
