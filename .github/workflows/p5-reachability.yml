@@ -1,0 +1,49 @@
+name: P5 reachability evidence
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proving-tests:
+    name: Reachability (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Execute proving tests with hooks
+        shell: pwsh
+        run: |
+          $filter = python .github/scripts/p5_reachability_evidence.py --filter
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --filter "$filter" --logger 'trx;LogFileName=reachability.trx' --results-directory evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git rev-parse HEAD > evidence/revision.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-reachability-${{ matrix.os }}
+          path: evidence
+          if-no-files-found: error
+  audit:
+    needs: proving-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: p5-reachability-*
+          path: evidence
+      - run: python .github/scripts/p5_reachability_evidence.py --trx evidence --output evidence/audit.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-reachability-audit
+          path: evidence/audit.md

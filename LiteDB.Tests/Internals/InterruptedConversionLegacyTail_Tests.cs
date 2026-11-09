@@ -174,6 +174,30 @@ namespace LiteDB.Internals
             ReadHeader(data, password)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.CHECKSUM_FILE_VERSION);
         }
 
+        [Fact]
+        public void Published_header_with_legacy_tail_is_refused_without_mutating_sources()
+        {
+            using var data = new MemoryStream();
+            using var log = new WalWriteFailure();
+            Interrupt(data, log, null, RedoPosition);
+            AppendLegacyCommit(log, ReadLegacyHeader(data, null), 2, 100);
+            log.Position = 0;
+            var journal = HeaderJournal.Read(log);
+            journal.LegacyTail.Should().BeTrue();
+            using var published = new WalTestDatabase(null);
+            published.Seed("docs");
+            published.Database.Checkpoint();
+            var header = ReadHeader(published.Data, null);
+            var dataBefore = data.ToArray();
+            var logBefore = log.ToArray();
+            var before = LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("refusal:legacy-tail-after-publication");
+            Action validate = () => journal.IsPublished(header);
+            validate.Should().Throw<PageChecksumException>();
+            LiteDB.Tests.Engine.ReachabilityGap_Tests.Hits("refusal:legacy-tail-after-publication").Should().BeGreaterThan(before);
+            data.ToArray().Should().Equal(dataBefore);
+            log.ToArray().Should().Equal(logBefore);
+        }
+
         private static void ExpectRefusal(MemoryStream data, WalWriteFailure log, string password)
         {
             var dataBefore = data.ToArray();

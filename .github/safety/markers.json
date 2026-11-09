@@ -316,9 +316,11 @@
         "LiteDB/Client/Shared/SharedEngine.Testing.cs",
         "LiteDB/Client/Shared/SharedEngine.cs"
       ],
-      "targets": [],
+      "targets": [
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposing_shared_transaction_discards_pending_rows_and_releases_writer"
+      ],
       "gate": "advisory",
-      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "gateReason": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
       "reason": "Shared Dispose closes the connection's core while a legacy explicit transaction is still open."
     },
     {
@@ -436,10 +438,12 @@
       "paths": [
         "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
       ],
-      "targets": [],
+      "targets": [
+        "LiteDB.Tests/Engine/Coordinator_Tests.cs#Coordinator_loss_during_stream_reports_unknown_outcome_and_preserves_acknowledged_rows"
+      ],
       "doc": "docs/experimental-coordinator.md",
       "gate": "advisory",
-      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "gateReason": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
       "reason": "Experimental coordinator: a write whose reply was lost fails with \"outcome is unknown\" instead of being retried unsafely."
     },
     {
@@ -548,10 +552,12 @@
       "paths": [
         "LiteDB/Engine/Disk/HeaderJournal.cs"
       ],
-      "targets": [],
+      "targets": [
+        "LiteDB.Tests/Internals/InterruptedConversionLegacyTail_Tests.cs#Published_header_with_legacy_tail_is_refused_without_mutating_sources"
+      ],
       "doc": "docs/header-publication.md",
       "gate": "advisory",
-      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "gateReason": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
       "reason": "A legacy WAL tail found after v10 header publication is rejected."
     },
     {
@@ -840,10 +846,12 @@
       "paths": [
         "LiteDB/Engine/Disk/Streams/ChecksummedWalStream.cs"
       ],
-      "targets": [],
+      "targets": [
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Pending_header_journal_refuses_append_without_mutating_wal"
+      ],
       "doc": "docs/header-publication.md",
       "gate": "advisory",
-      "gateReason": "No PR smoke target or identified test reaches it yet; reachability gap to close with a fuzz dimension.",
+      "gateReason": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
       "reason": "Appending transaction pages while a header publication footer is active is forbidden."
     },
     {

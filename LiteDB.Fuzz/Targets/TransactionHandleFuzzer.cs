@@ -41,9 +41,10 @@ internal sealed class TransactionHandleFuzzer : IFuzzTarget
                     FuzzThread.Run(() => other.GetCollection("peer").Upsert(new BsonDocument { ["_id"] = id, ["value"] = value }));
                 }
                 ILiteTransaction tx = null;
-                FuzzThread.Run(() => tx = db.BeginTransaction());
+                FuzzThread.Run(() => tx = LiteTransactionExtensions.BeginTransaction(db));
                 using (tx)
                 {
+                    FuzzThread.Run(() => context.Check(tx.CollectionExists("sentinel") && tx.GetCollectionNames().Contains("rows"), "Handle collection catalog lost committed collections."));
                     FuzzThread.Run(() => tx.GetCollection("rows").Upsert(new BsonDocument { ["_id"] = id, ["value"] = value }));
                     FuzzThread.Run(() => context.Check(tx.GetCollection("rows").FindById(id)["value"].AsInt32 == value, "Handle lost its pending value."));
                     if (outcome == 0) { FuzzThread.Run(tx.Commit); model[id] = value; }

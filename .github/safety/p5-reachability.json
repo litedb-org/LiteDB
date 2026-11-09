@@ -1,0 +1,725 @@
+{
+  "baseline": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+  "markersRegistered": 173,
+  "hooksRegistered": 100,
+  "markersReached": 115,
+  "hooksReached": 83,
+  "entries": [
+    {
+      "marker": "api:ILiteTransaction.CollectionExists",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
+        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+      ],
+      "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
+      "workload": "ILiteTransaction.CollectionExists"
+    },
+    {
+      "marker": "api:ILiteTransaction.GetCollectionNames",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Transactions/LiteTransaction.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
+        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+      ],
+      "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
+      "workload": "ILiteTransaction.GetCollectionNames"
+    },
+    {
+      "marker": "api:LiteTransactionExtensions.BeginTransaction",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Transactions/ILiteTransaction.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Legacy_attributes_are_warning_only_on_both_client_contracts",
+        "LiteDB.Tests/Engine/TransactionHandle_Tests.cs#Creator_retirement_and_sequential_handoff_preserve_commit_and_rollback"
+      ],
+      "whyFuzzMisses": "Baseline handle workload omitted catalog APIs and called the concrete BeginTransaction overload; the extended transaction-handle workload now calls all three APIs and checks the catalog.",
+      "workload": "LiteTransactionExtensions.BeginTransaction"
+    },
+    {
+      "marker": "fault-point:AllocateFile",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedMemoryAuthority.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap"
+      ],
+      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "workload": "ABI-2 ephemeral mapping allocation"
+    },
+    {
+      "marker": "fault-point:BeforeTransactionRegistration",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Services/TransactionMonitor.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive"
+      ],
+      "whyFuzzMisses": "Deterministic mapped and legacy retry tests install this exception hook; default-mode fuzz does not inject failed registration. Cross-process mapped retry coverage retains complete cold payload/index/sentinel oracles.",
+      "workload": "Transaction retry registration before admission"
+    },
+    {
+      "marker": "fault-point:BootstrapStage",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedMemoryAuthority.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+        "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death"
+      ],
+      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "workload": "ABI-2 ephemeral mapping bootstrap and final close"
+    },
+    {
+      "marker": "fault-point:DarwinTruncated",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedPlatformAllocation.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes"
+      ],
+      "whyFuzzMisses": "The permanent bootstrap exception test and CI-only bounded APFS driver reach this native Darwin truncation boundary, including repeated acknowledged process death. Generic Linux oracle smoke cannot execute Darwin syscalls; the native workflow and full macOS mapped matrix are required evidence.",
+      "workload": "ABI-2 disposable Darwin authority extent reset under exclusive DMS"
+    },
+    {
+      "marker": "fault-point:DispatchOverride",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedReaderCleanup.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease",
+        "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#False_after_queueing_and_retry_callbacks_dispose_each_owner_once"
+      ],
+      "whyFuzzMisses": "TESTING-only per-owner dispatch seam: SharedReaderCleanupDispatch_Tests.Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease forces false/OutOfMemoryException and asserts fault-point:DispatchOverride; False_after_queueing_and_retry_callbacks_dispose_each_owner_once covers delayed duplicates. PR fuzz smoke does not install the seam or deterministically abandon/finalize Shared results.",
+      "workload": "abandoned Shared reader cleanup dispatch"
+    },
+    {
+      "marker": "fault-point:MaintenanceStage",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedMemoryMaintenance.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats"
+      ],
+      "whyFuzzMisses": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path.",
+      "workload": "Mapped Shared sole-participant maintenance and rekey"
+    },
+    {
+      "marker": "fault-point:MapFile",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedMemoryAuthority.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap"
+      ],
+      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "workload": "ABI-2 ephemeral mapping allocation"
+    },
+    {
+      "marker": "fault-point:MappedRebuildStage",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Services/MappedRebuildRecovery.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats"
+      ],
+      "whyFuzzMisses": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path.",
+      "workload": "Mapped Shared rebuild guard publication and repeatable original-pair recovery"
+    },
+    {
+      "marker": "fault-point:WriteRetry",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedRangeLocks.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Real_abandoned_thread_with_live_handles_requires_actual_WRITE_and_can_retry_after_timeout"
+      ],
+      "whyFuzzMisses": "Focused SharedOneFileRetryHandoff tests force real abandoned-thread conflicts and native byte release/timeout. Default-mode fuzz does not enable ABI-2 or retain dead-thread native handles.",
+      "workload": "Native WRITE conflict with a held main mutex"
+    },
+    {
+      "marker": "fault-point:before-candidate-republish",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Services/RebuildService.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens"
+      ],
+      "whyFuzzMisses": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not.",
+      "workload": "rebuild install rollback"
+    },
+    {
+      "marker": "fault-point:before-source-retraction",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Services/RebuildService.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens"
+      ],
+      "whyFuzzMisses": "Rebuild rollback branch reached only when the original WAL cannot be restored; xUnit fault-combination tests reach it, the smoke campaign does not.",
+      "workload": "rebuild install rollback"
+    },
+    {
+      "marker": "fault-point:offline-complete",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationFilesOfflineUpgrade.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
+      ],
+      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "workload": "offline ABI-1 coordination retirement"
+    },
+    {
+      "marker": "fault-point:offline-readers-retired",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationFilesOfflineUpgrade.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
+      ],
+      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "workload": "offline ABI-1 coordination retirement"
+    },
+    {
+      "marker": "fault-point:offline-retired",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationFilesOfflineUpgrade.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
+      ],
+      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "workload": "offline ABI-1 coordination retirement"
+    },
+    {
+      "marker": "fault-point:offline-validated",
+      "hook": true,
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationFilesOfflineUpgrade.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
+      ],
+      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "workload": "offline ABI-1 coordination retirement"
+    },
+    {
+      "marker": "fault-point:wal-rebase-before-anchor-flush",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Disk/DiskService.WalWrite.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm"
+      ],
+      "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
+      "workload": "WAL batch consistency"
+    },
+    {
+      "marker": "fault-point:wal-rebase-before-rewrite",
+      "hook": true,
+      "paths": [
+        "LiteDB/Engine/Disk/DiskService.WalWrite.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm"
+      ],
+      "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
+      "workload": "WAL batch consistency"
+    },
+    {
+      "marker": "maintenance:direct-finalizer-release-queued",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Direct/DirectFacadeLifetime.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/DirectProcessHost_Tests.cs#Abandoned_finalizer_release_does_not_block_the_finalizer_thread"
+      ],
+      "whyFuzzMisses": "No deterministic PR smoke target forces GC/finalization of an undisposed Direct facade; DirectProcessHost_Tests.Abandoned_finalizer_release_does_not_block_the_finalizer_thread forces collection and pauses final close to prove finalizer progress and attach serialization. xUnit does not record markers.",
+      "workload": "direct finalizer release queued"
+    },
+    {
+      "marker": "maintenance:invalid-datafile-state-close",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/LiteEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/RecoveryMarker_Tests.cs#InvalidState_PersistsMarkerBeforeClosingDataWriter"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "invalid datafile state close"
+    },
+    {
+      "marker": "maintenance:operation-refused-by-close",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Services/LockService.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2965_Tests.cs#Operation_queued_behind_rebuild_fails_cleanly_and_can_be_retried"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "operation refused by close"
+    },
+    {
+      "marker": "maintenance:shared-dispose-during-active-call",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#Dispose_racing_tight_loops_of_the_connection_leaks_no_engine_or_page"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared dispose during active call"
+    },
+    {
+      "marker": "maintenance:shared-dispose-during-transaction",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Testing.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Disposing_shared_transaction_discards_pending_rows_and_releases_writer"
+      ],
+      "whyFuzzMisses": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
+      "workload": "shared dispose during transaction"
+    },
+    {
+      "marker": "maintenance:shared-dispose-ends-foreign-ownership",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedMutexOwner.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs#Dispose_on_another_thread_with_an_open_unleased_reader_releases_the_mutex"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared dispose ends foreign ownership"
+    },
+    {
+      "marker": "maintenance:shared-dispose-with-leased-reader",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedReaderSlots.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedReadPath_Tests.cs#A_registry_disposed_under_a_live_reader_keeps_its_lease_until_the_reader_ends"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared dispose with leased reader"
+    },
+    {
+      "marker": "maintenance:shared-dispose-with-mutex-waiters",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Testing.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared dispose with mutex waiters"
+    },
+    {
+      "marker": "refusal:checkpoint-redo-damaged",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/CheckpointWalBinding_Tests.cs#WalDamageAfterDataCopyStarts_CannotExposeAPartialTransaction"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "checkpoint redo damaged"
+    },
+    {
+      "marker": "refusal:checkpoint-wal-verification-failed",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Services/WalIndexService.Validation.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/ChecksumCheckpointValidation_Tests.cs#CorruptCommittedWal_IsRejectedBeforeCheckpointChangesAnyData"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "checkpoint wal verification failed"
+    },
+    {
+      "marker": "refusal:collation-mismatch",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Engine/CollationValidation.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2812CollationStamp_Tests.cs#Changed_sort_stamp_rejects_open_without_changing_data"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "collation mismatch"
+    },
+    {
+      "marker": "refusal:coordinator-outcome-unknown",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/Coordinator_Tests.cs#Coordinator_loss_during_stream_reports_unknown_outcome_and_preserves_acknowledged_rows"
+      ],
+      "whyFuzzMisses": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
+      "workload": "coordinator outcome unknown"
+    },
+    {
+      "marker": "refusal:coordinator-transaction-aborted",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Coordinated/CoordinatedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/Coordinator_Tests.cs#A_crashed_coordinator_is_replaced_and_acknowledged_writes_survive"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "coordinator transaction aborted"
+    },
+    {
+      "marker": "refusal:direct-attach-during-maintenance",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Direct/DirectProcessHost.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Replacement_identity_cannot_publish_a_second_core_before_maintenance_returns",
+        "LiteDB.Tests/Engine/DirectProcessHostRekey_Tests.cs#Facade_rebuild_keeps_admission_at_every_rekey_stage_and_until_maintenance_release"
+      ],
+      "whyFuzzMisses": "Forced xUnit schedules cover the native identity swap and a completed rebuild whose facade still owns maintenance; xUnit does not record markers and PR fuzz smoke does not force this window.",
+      "workload": "direct attach during maintenance"
+    },
+    {
+      "marker": "refusal:encrypted-wal-foreign-preamble",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/Streams/EncryptedLogPreamble.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/EncryptedWalCreation_Tests.cs#WrongPasswordAndForeignPreambles_FailWithoutChangingEitherSource"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "encrypted wal foreign preamble"
+    },
+    {
+      "marker": "refusal:explicit-commit-foreign-thread",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Engine/TransactionCompletionGuard.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2822CompletionGuard_Tests.cs#Foreign_completion_neither_commits_nor_rolls_back_the_owner"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "explicit commit foreign thread"
+    },
+    {
+      "marker": "refusal:index-migration-duplicate-key",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/IndexMigrationStaleKeys_Tests.cs#Unique_keys_that_collide_only_after_regeneration_reject_migration_without_changes"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "index migration duplicate key"
+    },
+    {
+      "marker": "refusal:index-migration-invalid-key",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigration.cs",
+        "LiteDB/Engine/Engine/IndexMigrationStaleKeys.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/IndexMigrationPreflight_Tests.cs#Invalid_regenerated_keys_are_rejected_before_promotion"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "index migration invalid key"
+    },
+    {
+      "marker": "refusal:index-migration-limit-size",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Engine/IndexMigrationCapacity.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/IndexMigrationCapacity_Tests.cs#Tight_limit_rejects_before_promotion_and_explicit_limit_recovers_pending_files"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "index migration limit size"
+    },
+    {
+      "marker": "refusal:legacy-tail-after-publication",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/InterruptedConversionLegacyTail_Tests.cs#Published_header_with_legacy_tail_is_refused_without_mutating_sources"
+      ],
+      "whyFuzzMisses": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
+      "workload": "legacy tail after publication"
+    },
+    {
+      "marker": "refusal:legacy-tail-unrecognized",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/HeaderJournal.LegacyTail.cs",
+        "LiteDB/Engine/Disk/HeaderJournal.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/InterruptedConversionLegacyTail_Tests.cs#LegacyCommitsAfterATornConversionRecord_AreRefusedWithoutChangingFiles"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "legacy tail unrecognized"
+    },
+    {
+      "marker": "refusal:mapper-root-not-document",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Mapper/BsonMapper.Serialize.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Mapper/Mapper_Tests.cs#ToDocument_RejectsNonDocumentRootsWithTypeContext"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "mapper root not document"
+    },
+    {
+      "marker": "refusal:rebuild-incomplete-marker",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Services/RebuildRecovery.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "rebuild incomplete marker"
+    },
+    {
+      "marker": "refusal:retirement-sequence-not-reached",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/WalRecovery.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/MvccRetirementCorruption_Tests.cs#DamagedOrCrcValidMalformedProofs_FailClosedWithoutChangingSources"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "retirement sequence not reached"
+    },
+    {
+      "marker": "refusal:shared-abandoned-transaction",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs#Transaction_owner_that_exits_lets_other_connections_write_and_is_reported"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared abandoned transaction"
+    },
+    {
+      "marker": "refusal:shared-call-after-dispose",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedTeardownOverlap_Tests.cs#A_waiter_admitted_during_Dispose_neither_runs_on_a_closing_engine_nor_leaks_one"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared call after dispose"
+    },
+    {
+      "marker": "refusal:shared-commit-foreign-thread",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedReaderPin_Tests.cs#Pinned_transaction_rejects_completion_from_another_thread"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared commit foreign thread"
+    },
+    {
+      "marker": "refusal:shared-file-locking-disabled",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedCoordinationPolicy.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedCoordinationPolicy_Tests.cs#Unix_file_locking_switch_refuses_participation_before_creating_files"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared file locking disabled"
+    },
+    {
+      "marker": "refusal:shared-peer-waits-for-own-ownership",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedPeerReaderCallback_Tests.cs#Peer_write_from_retaining_reader_callback_is_refused",
+        "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs#Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared peer waits for own ownership"
+    },
+    {
+      "marker": "refusal:shared-rebuild-with-open-readers",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Maintenance.cs",
+        "LiteDB/Client/Shared/SharedEngine.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Internals/MvccSharedLifecycle_Tests.cs#RebuildRejectsLiveReadersAndSucceedsAfterTheyClose"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared rebuild with open readers"
+    },
+    {
+      "marker": "refusal:shared-teardown-reentry",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared teardown reentry"
+    },
+    {
+      "marker": "refusal:shared-teardown-reentry-after-dispose",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Shared/SharedEngine.Calls.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/SharedSelfCloseCallback_Tests.cs#Self_call_during_core_close_cannot_wait_or_release_native_ownership"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "shared teardown reentry after dispose"
+    },
+    {
+      "marker": "refusal:unsupported-file-version",
+      "hook": false,
+      "paths": [
+        "LiteDB/Utils/LiteException.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/Issue2881_VectorFormat_Tests.cs#Unknown_file_version_reports_a_dedicated_error_without_changing_the_file"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "unsupported file version"
+    },
+    {
+      "marker": "refusal:vector-near-mismatch",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Query/Issue2881_VectorComposition_Tests.cs#Unsupported_api_combinations_fail_before_changing_the_query"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "vector near mismatch"
+    },
+    {
+      "marker": "refusal:vector-score-aggregate",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Query/VectorSearchResult_Tests.cs#WithScore_ValidatesQueryAndArguments"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "vector score aggregate"
+    },
+    {
+      "marker": "refusal:vector-score-without-search",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Query/VectorSearchResult_Tests.cs#WithScore_ValidatesQueryAndArguments"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "vector score without search"
+    },
+    {
+      "marker": "refusal:vector-wherenear-repeated",
+      "hook": false,
+      "paths": [
+        "LiteDB/Client/Vector/LiteQueryable.Vector.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Query/Issue2881_VectorComposition_Tests.cs#Unsupported_api_combinations_fail_before_changing_the_query"
+      ],
+      "whyFuzzMisses": "No PR smoke target reaches it yet; reached by the listed xUnit tests, which do not record markers.",
+      "workload": "vector wherenear repeated"
+    },
+    {
+      "marker": "refusal:wal-append-during-header-publication",
+      "hook": false,
+      "paths": [
+        "LiteDB/Engine/Disk/Streams/ChecksummedWalStream.cs"
+      ],
+      "tests": [
+        "LiteDB.Tests/Engine/ReachabilityGap_Tests.cs#Pending_header_journal_refuses_append_without_mutating_wal"
+      ],
+      "whyFuzzMisses": "Deterministic reachability guard asserts the marker and preserved state. Fuzz does not construct this forced interruption/state.",
+      "workload": "wal append during header publication"
+    }
+  ]
+}

@@ -26,6 +26,29 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Coordinator_loss_during_stream_reports_unknown_outcome_and_preserves_acknowledged_rows()
+        {
+            using var file = new TempFile();
+            using var host = new CoordinatedEngine(file.Filename);
+            using var client = new CoordinatedEngine(file.Filename);
+            using var hostDb = new LiteDatabase(host, disposeOnClose: false);
+            using var clientDb = new LiteDatabase(client, disposeOnClose: false);
+            hostDb.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+            IEnumerable<BsonDocument> Interrupted()
+            {
+                host.CrashCoordinator();
+                yield return new BsonDocument { ["_id"] = 2 };
+            }
+            var before = ReachabilityGap_Tests.Hits("refusal:coordinator-outcome-unknown");
+            Action write = () => clientDb.GetCollection("rows").Insert(Interrupted());
+            write.Should().Throw<LiteException>().WithMessage("*outcome is unknown*");
+            ReachabilityGap_Tests.Hits("refusal:coordinator-outcome-unknown").Should().BeGreaterThan(before);
+            using var reopened = new LiteDatabase(file.Filename);
+            (reopened.GetCollection("rows").FindById(1) != null).Should().BeTrue();
+            (reopened.GetCollection("rows").FindById(2) == null).Should().BeTrue();
+        }
+
+        [Fact]
         public void Clients_write_through_the_coordinator_and_read_the_files_directly()
         {
             using var file = new TempFile();
