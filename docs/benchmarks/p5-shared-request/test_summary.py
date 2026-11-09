@@ -18,15 +18,18 @@ class SummaryAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             files = []
+            identities = {}
             for os_name, version in itertools.product(('Linux', 'Windows', 'Darwin'), (8, 10)):
                 runtime = f'.NETCoreApp,Version=v{version}.0'
                 architecture = 'Arm64' if os_name == 'Darwin' else 'X64'
+                platform = 'macOS ARM64' if os_name == 'Darwin' else f'{os_name} x64'
+                identities[f'{platform}|{runtime}'] = dict(harness=HARNESS, readRequests=200 if os_name == 'Darwin' else 20, minimumOverlap=2 if os_name == 'Darwin' else 4)
                 rows = []
                 for rep, round_id, scenario, workers, variant in itertools.product((1, 2), range(6), ('read', 'insert', 'mixed'), (1, 4), ('v5', 'v6')):
                     rows.append(dict(repetition=rep, round=round_id, scenario=scenario, workers=workers,
                                      variant=variant, verified=True, requestsPerWorker=200 if os_name == 'Darwin' and scenario == 'read' else 20, warmupRequests=10,
                                      latencyMs=2 if variant == 'v6' else 1, wallMsPerRequest=1,
-                                     processes=[dict(runtime=f'.NET {version}.0.0', os=os_name, architecture=architecture, framework=runtime,
+                                     processes=[dict(start='2026-11-09T00:00:00Z', end='2026-11-09T00:00:01Z', runtime=f'.NET {version}.0.0', os=os_name, architecture=architecture, framework=runtime,
                                                      candidateCommit=CANDIDATE, harnessCommit=HARNESS,
                                                      tieredCompilation='0', requests=200 if os_name == 'Darwin' and scenario == 'read' else 20, milliseconds=100,
                                                      assemblySha256=variant) for _ in range(workers)]))
@@ -34,8 +37,10 @@ class SummaryAuditTests(unittest.TestCase):
                 path.parent.mkdir()
                 path.write_text(json.dumps(rows))
                 files.append(path)
+            manifest = root / 'identities.json'
+            manifest.write_text(json.dumps(identities))
             def run():
-                return subprocess.run([sys.executable, str(SCRIPT), str(root), str(root / 'report'), HARNESS, HARNESS], capture_output=True)
+                return subprocess.run([sys.executable, str(SCRIPT), str(root), str(root / 'report'), str(manifest)], capture_output=True)
             result = run()
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads((root / 'report' / 'summary.json').read_text())

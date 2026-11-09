@@ -14,7 +14,7 @@ Each leg runs two repetitions, each with six alternating v5/v6 rounds per scenar
 
 Primary latency is the arithmetic mean of worker elapsed/request values, followed by the median across the six rounds. This includes open, work, dispose, and in-loop result assertions. Startup, seed, warmup, barrier wait, and final verification are excluded. A secondary coordinated wall-time/request metric records aggregate throughput (including barrier release and polling overhead); it is retained separately in JSON and must not be interpreted as individual request latency. Bounds are observed sample min/max, and conservative ratio bounds `min(v6)/max(v5)` to `max(v6)/min(v5)`; they are not confidence intervals or latency percentiles. Repetitions, runtimes and platforms are never pooled.
 
-Audit: `python docs/benchmarks/p5-shared-request/summarize.py <downloaded-artifacts> <output-directory> <linux-windows-harness-sha> <macos-harness-sha>`. It requires all 864 samples, exact binary/source identity within each leg, expected architectures/runtime, all verification markers, and every round. Raw samples retain wall time, runtime, binary hashes, source SHAs and process intervals.
+Audit: `python docs/benchmarks/p5-shared-request/summarize.py <downloaded-artifacts> <output-directory> <measurement-identities.json>`. It requires all 864 samples, exact binary/source identity within each leg, expected architectures/runtime, all verification markers, and every round. Raw samples retain wall time, runtime, binary hashes, source SHAs and process intervals.
 
 ## Remaining open cost and candidates
 

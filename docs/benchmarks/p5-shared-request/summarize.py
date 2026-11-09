@@ -1,4 +1,5 @@
 """Audit all six hosted legs and retain per-repetition medians and sample bounds."""
+import datetime
 import hashlib
 import itertools
 import json
@@ -7,8 +8,7 @@ import statistics
 import sys
 
 CANDIDATE = "7000dd6f01d0187a8fb5d030064eb327864ab731"
-HARNESS = sys.argv[3]
-MAC_HARNESS = sys.argv[4]
+IDENTITIES = json.loads(Path(sys.argv[3]).read_text())
 root = Path(sys.argv[1])
 out = Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
@@ -31,12 +31,18 @@ for file in files:
     os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if first['architecture'] == 'Arm64' else 'Linux x64'
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
+    contract = IDENTITIES[f"{os_name}|{first['framework']}"]
     for row in rows:
-        requests = 200 if os_name == 'macOS ARM64' and row['scenario'] == 'read' else 20
-        expected_harness = MAC_HARNESS if os_name == 'macOS ARM64' else HARNESS
+        requests = contract['readRequests'] if row['scenario'] == 'read' else 20
+        expected_harness = contract['harness']
         assert row['verified'] and row['requestsPerWorker'] == requests and row['warmupRequests'] == 10
         assert len(row['processes']) == row['workers'] and row['latencyMs'] > 0 and row['wallMsPerRequest'] > 0
+        events = []
         for process in row['processes']:
+            start = datetime.datetime.fromisoformat(process['start'])
+            end = datetime.datetime.fromisoformat(process['end'])
+            assert start < end
+            events.extend(((start, 1), (end, -1)))
             assert (process['os'], process['architecture'], process['framework']) == identity
             assert process['candidateCommit'] == CANDIDATE and process['harnessCommit'] == expected_harness
             assert process['tieredCompilation'] == '0' and process['requests'] == requests
@@ -44,6 +50,11 @@ for file in files:
             assert process['runtime'].startswith(f'.NET {version}.')
             assert process['milliseconds'] > 0
             binaries[row['variant']].add(process['assemblySha256'])
+        active = peak = 0
+        for _, delta in sorted(events):
+            active += delta
+            peak = max(peak, active)
+        assert peak >= (contract['minimumOverlap'] if row['workers'] == 4 else 1)
     assert all(len(hashes) == 1 for hashes in binaries.values())
     for repetition, scenario, workers, metric in itertools.product((1, 2), ('read', 'insert', 'mixed'), (1, 4), ('latencyMs', 'wallMsPerRequest')):
         samples = {v: [r[metric] for r in rows if (r['repetition'], r['scenario'], r['workers'], r['variant']) == (repetition, scenario, workers, v)] for v in ('v5', 'v6')}
