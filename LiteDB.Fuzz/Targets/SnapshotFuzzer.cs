@@ -105,12 +105,14 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         return 0;
     }
 
-    private static void Publish(string path, string content)
+    internal static void Publish(string path, string content, Action beforePublish = null)
     {
         // File.Exists is the protocol signal. Publish only after the complete payload is present in
-        // another directory entry so the parent can never observe a newly-created, partial file.
+        // another directory entry. The publisher closes its handle before rename; the consumer
+        // alone reads/deletes the published file, before requesting another response.
         var temporary = path + ".publishing";
         File.WriteAllText(temporary, content);
+        beforePublish?.Invoke();
         File.Move(temporary, path, true);
     }
 
@@ -200,7 +202,7 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
             var result = _prefix + $".result-{++_validation}";
             var sharedResult = _prefix + ".result";
             File.Delete(sharedResult);
-            File.WriteAllText(_prefix + ".read", "read");
+            Publish(_prefix + ".read", "read");
             WaitFor(sharedResult, "Snapshot reader did not return a validation.");
             var value = File.ReadAllText(sharedResult);
             File.Move(sharedResult, result, true);
@@ -230,7 +232,7 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         {
             if (_stopped) return;
             _stopped = true;
-            File.WriteAllText(_prefix + ".stop", "stop");
+            Publish(_prefix + ".stop", "stop");
             if (!_process.WaitForExit(15000))
             {
                 _process.Kill(entireProcessTree: true);
