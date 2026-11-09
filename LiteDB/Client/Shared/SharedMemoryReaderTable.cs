@@ -72,7 +72,7 @@ namespace LiteDB.Client.Shared
             for (var i = authority.Header.Generations - 1; i >= 0; i--) _free.Push(i);
         }
 
-        internal static SharedMemoryReaderTable Open(EngineSettings settings)
+        internal static SharedMemoryReaderTable Open(EngineSettings settings, NativeAdmission validatedAdmission = null)
         {
 #if PROFILE
             using var profile = SharedOpenProfile.Measure("SharedMemoryReaderTable.Open");
@@ -93,7 +93,7 @@ namespace LiteDB.Client.Shared
             captured.CoordinationSignals = null;
             captured.DurableCommitPublication = null;
             captured.TransactionOwner = null;
-            var admission = NativeAdmission.Open(captured, true);
+            var admission = validatedAdmission?.Retain() ?? NativeAdmission.Open(captured, true);
             try
             {
                 SharedOfflineUpgrade.Run(captured, admission);

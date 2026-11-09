@@ -26,10 +26,10 @@ namespace LiteDB.Client.Shared
 #if PROFILE
             using var profile = SharedOpenProfile.Measure("SharedParticipantRegistry.Attach");
 #endif
-
-            using var admission = NativeAdmission.Open(settings, true);
-            // Native admission validates physical identity and rejects hard-link/namespace
-            // aliases. The canonical path stays stable across an exclusive replacement.
+            // Retain the facade's validated admission during nested construction.
+            using var admission = settings.SharedAdmission?.Retain() ?? NativeAdmission.Open(settings, true);
+            // The canonical registry key stays stable across exclusive replacement.
+            // Native admission still validates physical identity on each external open.
             var identity = settings.Filename;
             while (true)
             {
@@ -53,7 +53,7 @@ namespace LiteDB.Client.Shared
                     entry.Initializer = Thread.CurrentThread;
                     try
                     {
-                        table = SharedMemoryReaderTable.Open(settings);
+                        table = SharedMemoryReaderTable.Open(settings, admission);
                         table.ClosedCallback = () => Retire(identity, entry);
                         entry.Table = table;
                         try { return new SharedMemoryReaders(table); }
