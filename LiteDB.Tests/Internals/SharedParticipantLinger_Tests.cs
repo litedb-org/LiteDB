@@ -1,6 +1,8 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.IO;
+using System.Reflection;
+using System.Threading.Tasks;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -170,6 +172,64 @@ namespace LiteDB.Internals
             table.Closed.Should().BeFalse();
             SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeTrue();
             table.Closed.Should().BeTrue();
+        }
+
+        [OneFileFact]
+        public void Cancelled_expiry_cannot_close_a_reused_participant_or_its_next_idle_interval()
+        {
+            var first = new SharedEngine(Settings(1000));
+            var table = first.MappedReaderTable;
+            first.Dispose();
+            table.Closed.Should().BeFalse();
+            var oldTimer = typeof(SharedMemoryReaderTable).GetField("_lingerTimer", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(table);
+            var expire = typeof(SharedMemoryReaderTable).GetMethod("ExpireIdle", BindingFlags.Instance | BindingFlags.NonPublic);
+            using (var second = new SharedEngine(Settings(1000)))
+            {
+                second.MappedReaderTable.Should().BeSameAs(table);
+                expire.Invoke(table, new[] { oldTimer });
+                table.Closed.Should().BeFalse();
+            }
+            // Force the already-queued old callback after a second idle timer exists.
+            expire.Invoke(table, new[] { oldTimer });
+            table.Closed.Should().BeFalse();
+            SharedParticipantRegistry.ReleaseIdle(Filename).Should().BeTrue();
+            table.Closed.Should().BeTrue();
+        }
+
+        [OneFileFact]
+        public async Task Explicit_release_waits_for_in_progress_timer_storage_teardown()
+        {
+            SharedMemoryReaderTable table;
+            using (var engine = new SharedEngine(Settings(100))) table = engine.MappedReaderTable;
+            table.Closed.Should().BeFalse();
+            using var reached = new ManualResetEventSlim();
+            using var resume = new ManualResetEventSlim();
+            using var releaseEntered = new ManualResetEventSlim();
+            Task release = null;
+            SharedMemoryFinalClose.FinalCloseStage = stage =>
+            {
+                if (stage != "exclusive") return;
+                reached.Set();
+                if (!resume.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("Timer close was not resumed.");
+            };
+            try
+            {
+                reached.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                release = Task.Run(() => { releaseEntered.Set(); SharedParticipantRegistry.ReleaseIdle(Filename); });
+                releaseEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                await Task.Delay(50);
+                release.IsCompleted.Should().BeFalse();
+                table.Closed.Should().BeFalse();
+            }
+            finally
+            {
+                resume.Set();
+                try { if (release != null) await release; }
+                finally { SharedMemoryFinalClose.FinalCloseStage = null; }
+            }
+            table.Closed.Should().BeTrue();
+            using var cold = new LiteDatabase(Filename);
+            cold.GetCollection("docs").Count().Should().Be(0);
         }
 
         public void Dispose()
