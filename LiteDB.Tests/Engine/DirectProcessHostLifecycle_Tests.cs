@@ -18,6 +18,75 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
+        public async Task Cold_open_releases_registry_and_wakes_same_file_waiters_after_success_or_failure(bool fail)
+        {
+            var filename = Path.Combine(_directory, "opening.db");
+            using (var seed = new LiteDatabase(filename))
+                seed.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "preserved" });
+            // Native admission canonicalizes Darwin /var aliases. Compare the
+            // hook's canonical identity while opening the original caller path.
+            var identity = DatabaseFileIdentity.CanonicalPath(filename);
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            using var waiting = new ManualResetEventSlim();
+            var calls = 0;
+            DirectProcessHost.BeforeHostConstruction = path =>
+            {
+                if (path != identity || Interlocked.Increment(ref calls) != 1) return;
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(15)).Should().BeTrue();
+                if (fail) throw new IOException("cold open failed");
+            };
+            DirectProcessHost.BeforeHostWait = path => { if (path == identity) waiting.Set(); };
+            Task<LiteDatabase> first = null, peer = null;
+            LiteDatabase opened = null, second = null;
+            try
+            {
+                first = Task.Run(() => new LiteDatabase(filename));
+                entered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                peer = Task.Run(() => new LiteDatabase(filename));
+                waiting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                var unrelated = Task.Run(() =>
+                {
+                    using var db = new LiteDatabase(Path.Combine(_directory, "unrelated.db"));
+                    db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+                });
+                (await Task.WhenAny(unrelated, Task.Delay(5000))).Should().BeSameAs(unrelated);
+                await unrelated;
+                peer.IsCompleted.Should().BeFalse();
+                release.Set();
+                if (fail)
+                {
+                    Func<Task> opening = async () => { opened = await first; };
+                    await opening.Should().ThrowAsync<IOException>();
+                }
+                else opened = await first;
+                second = await peer;
+                second.GetCollection("sentinel").FindById(1)["value"].AsString.Should().Be("preserved");
+                if (opened != null)
+                {
+                    opened.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 2 });
+                    second.GetCollection("sentinel").Count().Should().Be(2);
+                }
+            }
+            finally
+            {
+                release.Set();
+                if (first != null && opened == null) { try { opened = await first; } catch (IOException) { } }
+                if (peer != null && second == null) second = await peer;
+                opened?.Dispose();
+                second?.Dispose();
+                DirectProcessHost.BeforeHostConstruction = null;
+                DirectProcessHost.BeforeHostWait = null;
+            }
+            using var cold = new LiteDatabase(filename);
+            cold.GetCollection("sentinel").FindById(1)["value"].AsString.Should().Be("preserved");
+            cold.GetCollection("sentinel").Count().Should().Be(fail ? 1 : 2);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public async Task Unrelated_database_opens_while_final_close_retains_same_file_exclusion(bool failClose)
         {
             var filename = Path.Combine(_directory, "closing.db");

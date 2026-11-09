@@ -14,6 +14,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         framework: [net8.0, net10.0]
+        # Keep each complete selection within the unchanged job/session limits.
+        partition: [wal, ownership]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -22,6 +24,7 @@ jobs:
             8.0.x
             10.0.x
       - name: Group commit, faults, WAL, recovery and lifetime
+        if: matrix.partition == 'wal'
         shell: pwsh
         run: |
           $all = 'FullyQualifiedName~GroupCommit|FullyQualifiedName~Wal|FullyQualifiedName~Recovery|FullyQualifiedName~NativeFileSync|FullyQualifiedName~Rebuild|FullyQualifiedName~Durable|FullyQualifiedName~LiteDB.Tests.Mapper'
@@ -32,9 +35,13 @@ jobs:
           # five-minute runsettings limit now that mapped Windows cases execute.
           $wal = "($all)&($other)&FullyQualifiedName~Wal"
           $remaining = "($all)&($other)&FullyQualifiedName!~Wal"
+          $nonSharedWal = "($wal)&FullyQualifiedName!~Shared"
+          $heavyWal = 'FullyQualifiedName~WalCombinedPowerLoss_Tests|FullyQualifiedName~WalSlotReuse_Tests'
           $filters = @(
             $coordinated, $core,
-            "($wal)&FullyQualifiedName~Shared", "($wal)&FullyQualifiedName!~Shared",
+            "($wal)&FullyQualifiedName~Shared",
+            "($nonSharedWal)&($heavyWal)",
+            "($nonSharedWal)&FullyQualifiedName!~WalCombinedPowerLoss_Tests&FullyQualifiedName!~WalSlotReuse_Tests",
             "($remaining)&FullyQualifiedName~SharedOneFile",
             "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName~Rebuild",
             "($remaining)&FullyQualifiedName!~SharedOneFile&FullyQualifiedName!~Rebuild"
@@ -46,13 +53,37 @@ jobs:
           }
           if ($failed) { throw 'At least one safety partition failed or did not complete' }
       - name: Primary key range delete differential and fault recovery
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.partition == 'wal' }}
         shell: pwsh
         run: |
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~PrimaryKeyDelete|FullyQualifiedName~DeleteMany|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~ReaderSnapshot' --logger 'trx;LogFileName=delete-safety.trx' --results-directory artifacts_temp/handle-safety
           if ($LASTEXITCODE) { throw 'Delete safety failed' }
+      - name: Phase 4 ownership, legacy admission and retained Shared tenure
+        if: ${{ !cancelled() && matrix.partition == 'ownership' }}
+        shell: pwsh
+        run: |
+          $filters = @(
+            'FullyQualifiedName~TransactionHandle',
+            'FullyQualifiedName~OwnershipLease_Tests|FullyQualifiedName~RuntimeLock_Tests|FullyQualifiedName~Issue2991|FullyQualifiedName~Issue2814Admission|FullyQualifiedName~Transactions_Tests|FullyQualifiedName~SameThread',
+            'FullyQualifiedName~DirectProcessHost|FullyQualifiedName~DirectHostSafety|FullyQualifiedName~DirectHostAllocation|FullyQualifiedName~DirectHostGroupCommit',
+            'FullyQualifiedName~SharedWriterTenure',
+            'FullyQualifiedName~DocumentLookupCursor|FullyQualifiedName~MvccCursorModel|FullyQualifiedName~TransactionCleanup|FullyQualifiedName~TransactionCompletion|FullyQualifiedName~Issue1344SnapshotCursor|FullyQualifiedName~SharedRetryWriterRelease'
+          )
+          # Every SharedOneFile suite gets the unchanged 300-second session budget.
+          # Aggregate mapped crash/recovery cases exceed that budget on Linux.
+          $sharedSuites = Get-ChildItem LiteDB.Tests/Internals/SharedOneFile*_Tests.cs | ForEach-Object {
+            [regex]::Matches((Get-Content $_.FullName -Raw), 'class\s+(SharedOneFile\w*_Tests)') | ForEach-Object { $_.Groups[1].Value }
+          } | Sort-Object -Unique
+          if (!$sharedSuites.Count) { throw 'No SharedOneFile safety suites discovered' }
+          foreach ($suite in $sharedSuites) { $filters += "FullyQualifiedName~$suite." }
+          $failed = @()
+          for ($i = 0; $i -lt $filters.Count; $i++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filters[$i] --logger "trx;LogFileName=ownership-$i.trx" --results-directory artifacts_temp/handle-safety
+            if ($LASTEXITCODE) { $failed += $i }
+          }
+          if ($failed.Count) { throw "Ownership safety partitions failed: $failed" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: handle-safety-${{ matrix.os }}-${{ matrix.framework }}
+          name: handle-safety-${{ matrix.os }}-${{ matrix.framework }}-${{ matrix.partition }}
           path: artifacts_temp/handle-safety

@@ -21,6 +21,7 @@ namespace LiteDB.Client.Shared
         private readonly NativeAdmission _admission;
         internal NativeAdmission Admission => _admission;
         internal readonly EngineSettings Settings;
+        internal TimeSpan HandleTimeout = TimeSpan.FromSeconds(60);
         internal WeakReference<Func<string, BsonValue, BsonValue>> ReadTransform;
         internal bool HasReadTransform;
         internal readonly SharedSnapshotCache ReadCache = new SharedSnapshotCache();
@@ -138,6 +139,7 @@ namespace LiteDB.Client.Shared
                             }
                             core = new LiteEngine(coreSettings);
                             captured.Collation = new Collation(core.Pragma(Pragmas.COLLATION).AsString);
+                            table.HandleTimeout = core.HandleTimeout;
                             if (writable)
                             {
                                 core.SyncSharedRecovery();

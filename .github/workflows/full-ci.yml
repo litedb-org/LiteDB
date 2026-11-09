@@ -5,6 +5,10 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
+      handles_qualification:
+        description: Add integrated handle stress, model seeds and full macOS Intel coverage
+        type: boolean
+        default: false
       macos_qualification:
         description: Run the complete mapped macOS qualification matrix only
         type: boolean
@@ -119,3 +123,98 @@ jobs:
         with:
           name: request-expiry-real-revision-proof
           path: artifacts_temp/request-expiry-proof/
+
+  handle-stress:
+    if: inputs.handles_qualification
+    name: Handle stress (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Fifty complete handle wait lifetime and process passes
+        shell: pwsh
+        env:
+          LITEDB_EXPECTED_RUNTIME_MAJOR: '8'
+          LITEDB_EXPECTED_ARCHITECTURE: ${{ (matrix.os == 'ubuntu-24.04-arm' || matrix.os == 'macos-15') && 'arm64' || 'x64' }}
+        run: ./scripts/qualify-handles.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p4-stress-${{ matrix.os }}
+          path: artifacts_temp/handle-qualification/
+  intel-full:
+    if: inputs.handles_qualification
+    name: Full macOS Intel (${{ matrix.runtime }})
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [8, 9, 10]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - name: Build exact candidate
+        shell: pwsh
+        run: |
+          $framework = if (${{ matrix.runtime }} -eq 10) { 'net10.0' } else { 'net8.0' }
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $framework -p:TestingEnabled=true -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'Build failed' }
+          @{ sha = (git rev-parse HEAD); framework = $framework; sdk = (dotnet --version);
+             librarySha256 = (Get-FileHash "LiteDB/bin/Release/$framework/LiteDB.dll" -Algorithm SHA256).Hash } |
+            ConvertTo-Json | Set-Content LiteDB.Tests/bin/Release/build-evidence.json
+      - name: Full suite with runtime and architecture guards
+        shell: pwsh
+        run: |
+          $framework = if (${{ matrix.runtime }} -eq 10) { 'net10.0' } else { 'net8.0' }
+          ./scripts/run-ci-tests.ps1 -RuntimeMajor ${{ matrix.runtime }} -Framework $framework -Architecture x64 -PartitionSuite
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p4-intel-full-${{ matrix.runtime }}
+          path: |
+            LiteDB.Tests/TestResults/
+            LiteDB.Tests/bin/Release/
+            LiteDB.Tests.SharedMutexHarness/bin/Release/
+            LiteDB/bin/Release/
+  handle-fuzz:
+    if: inputs.handles_qualification
+    name: Handle model seeds (${{ matrix.seed }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [2946, 2947, 2948, 2949, 2950, 2951]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet run --project LiteDB.Fuzz -c Release -f net8.0 -p:TestingEnabled=true -- --target transaction-handle --seed ${{ matrix.seed }} --count 300 --artifact-dir artifacts/fuzz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p4-handle-model-${{ matrix.seed }}
+          path: artifacts/fuzz/

@@ -54,7 +54,9 @@ namespace LiteDB
             var use = OpenDatabase(scoped: this.CanScope);
             try
             {
-                return Query();
+                var result = Query();
+                if (!_engine.HasActiveTransaction) this.ObserveHandleTimeout(_engine.HandleTimeout);
+                return result;
             }
             finally
             {
@@ -66,6 +68,7 @@ namespace LiteDB
         /// <summary>Run a public call; the admission it made, if any, ends when it returns.</summary>
         private T Call<T>(Func<T> call)
         {
+            using var budget = new TransactionWaitBudget(SharedHandleTimeout);
             this.ThrowIfTeardownReentry();
             if (Volatile.Read(ref _disposed) == 0) _admission?.EnsureValid();
             var depth = this.AdmittedDepth();
@@ -139,6 +142,8 @@ namespace LiteDB
         /// </summary>
         private void ThrowIfCallerRetainsOwnership()
         {
+            if (_handleLease != null && _pin?.IsOperatingOn(Thread.CurrentThread) == true)
+                throw new InvalidOperationException("Cannot wait for this Shared handle from its executing callback.");
             if (!SharedCallFrames.RetainedByOther(_mutexName, this)) return;
             Reachability.Sometimes("refusal:shared-peer-waits-for-own-ownership");
             throw new InvalidOperationException(

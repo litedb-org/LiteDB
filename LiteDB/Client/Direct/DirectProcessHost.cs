@@ -19,7 +19,7 @@ namespace LiteDB.Client.Direct
         // its changing physical identity would hide the live host during rebuild.
         private static readonly Dictionary<NativeAdmission.Entry, DirectProcessHost> Hosts =
             new Dictionary<NativeAdmission.Entry, DirectProcessHost>();
-        private static readonly HashSet<NativeAdmission.Entry> Opening = new HashSet<NativeAdmission.Entry>();
+        private static readonly Dictionary<NativeAdmission.Entry, Thread> Opening = new Dictionary<NativeAdmission.Entry, Thread>();
         private static readonly object Gate = new object();
         private readonly object _lifecycle = new object();
         private Thread _closingThread;
@@ -33,6 +33,7 @@ namespace LiteDB.Client.Direct
         private DirectProcessHost(EngineSettings settings, NativeAdmission admission)
         {
             Settings = settings;
+            Settings.ReadTransform = DirectReadTransform.Wrap(settings.ReadTransform);
             _admission = admission;
             _registryKey = admission.RegistryKey;
             Settings.BypassDirectHost = true;
@@ -41,6 +42,9 @@ namespace LiteDB.Client.Direct
 
         internal static DirectProcessHost Attach(EngineSettings settings)
         {
+#if DEBUG || TESTING
+            OwnershipAssertions.RequireNotHeld(Gate, "Path admission must precede the host registry.");
+#endif
             NativeAdmission.Normalize(settings);
             // Existing files are fenced by native admission. Only creation needs
             // the path mutex, acquired BEFORE local gates (replacement uses that order).
@@ -48,9 +52,11 @@ namespace LiteDB.Client.Direct
             while (true)
             {
                 DirectProcessHost waiting = null;
+                NativeAdmission admission = null;
+                NativeAdmission.Entry openingKey = null;
                 lock (Gate)
                 {
-                    var admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
+                    admission = NativeAdmission.Open(settings, shared: false, normalized: true, create: path != null);
                     try
                     {
                         if (Hosts.TryGetValue(admission.RegistryKey, out var host))
@@ -59,8 +65,6 @@ namespace LiteDB.Client.Direct
                             {
                                 if (host._closingThread == Thread.CurrentThread)
                                     throw new InvalidOperationException("The Direct host is closing. Retry after Dispose returns.");
-                                // Preserve the existing synchronous-close attachment
-                                // contract, waiting on this host outside the static gate.
                                 waiting = host;
                             }
                             else
@@ -76,21 +80,60 @@ namespace LiteDB.Client.Direct
                                 return host;
                             }
                         }
+                        else if (Opening.TryGetValue(admission.RegistryKey, out var opener))
+                        {
+                            if (opener == Thread.CurrentThread)
+                                throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
+                            // Wait releases the registry gate. The retained admission
+                            // keeps the physical entry stable until we retry.
+#if DEBUG || TESTING
+                            BeforeHostWait?.Invoke(settings.Filename);
+#endif
+                            Monitor.Wait(Gate);
+                        }
                         else
                         {
-                            var key = admission.RegistryKey;
-                            if (!Opening.Add(key)) throw new InvalidOperationException("Recursive opening of a Direct host is unsupported.");
-                            try { host = new DirectProcessHost(settings, admission); }
-                            finally { Opening.Remove(key); }
-                            admission = null;
-                            host._references = 1;
-                            Hosts[host._registryKey] = host;
-                            return host;
+                            openingKey = admission.RegistryKey;
+                            Opening.Add(openingKey, Thread.CurrentThread);
                         }
                     }
-                    finally { admission?.Dispose(); }
+                    finally
+                    {
+                        if (openingKey == null) admission.Dispose();
+                    }
                 }
-                lock (waiting._lifecycle) { }
+                if (openingKey != null)
+                {
+                    try
+                    {
+                        // Recovery/upgrade may open a replacement host. Never hold
+                        // the global registry across storage, path admission or callbacks.
+#if DEBUG || TESTING
+                        BeforeHostConstruction?.Invoke(settings.Filename);
+#endif
+                        var host = new DirectProcessHost(settings, admission);
+                        lock (Gate)
+                        {
+                            host._references = 1;
+                            Hosts.Add(openingKey, host);
+                        }
+                        admission = null;
+                        return host;
+                    }
+                    finally
+                    {
+                        try { admission?.Dispose(); }
+                        finally
+                        {
+                            lock (Gate)
+                            {
+                                Opening.Remove(openingKey);
+                                Monitor.PulseAll(Gate);
+                            }
+                        }
+                    }
+                }
+                if (waiting != null) lock (waiting._lifecycle) { }
             }
         }
 
@@ -153,6 +196,10 @@ namespace LiteDB.Client.Direct
 
         internal T Maintain<T>(Func<T> action)
         {
+#if DEBUG || TESTING
+            OwnershipAssertions.RequireNotHeld(Gate, "Maintenance path admission must precede the host registry.");
+            OwnershipAssertions.RequireNotHeld(_lifecycle, "Maintenance path admission must precede lifecycle admission.");
+#endif
             using var path = NativeAdmission.EnterPath(Settings.Filename);
             lock (_lifecycle)
             {
@@ -182,6 +229,8 @@ namespace LiteDB.Client.Direct
         }
 
 #if DEBUG || TESTING
+        internal static Action<string> BeforeHostConstruction;
+        internal static Action<string> BeforeHostWait;
         internal static Action<string> BeforeFinalClose;
         internal static Action<string> BeforeMaintenanceRelease;
 #endif

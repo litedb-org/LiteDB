@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,6 +18,8 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file, as in 5.x
 
             if (_host != null)
@@ -87,6 +89,9 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
+            using var dispatch = TransactionContext.Dispatch(this);
             return this.Rebuild(null);
         }
 

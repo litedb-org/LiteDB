@@ -94,6 +94,7 @@ namespace LiteDB
                 {
                     _readCache = mapped.Table.ReadCache;
                     _localTransactions = mapped.Table.LocalTransactions;
+                    Interlocked.Exchange(ref _handleTimeoutTicks, mapped.Table.HandleTimeout.Ticks);
                 }
 #endif
             }
@@ -180,7 +181,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                     if (SimulateOpenEngine != null) return SimulateOpenEngine();
 #endif
-                    return new LiteEngine(settings ?? _settings);
+                    return new LiteEngine(settings ?? this.RetainedCoreSettings());
                 }
                 catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
                 {
@@ -362,7 +363,14 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposing || Volatile.Read(ref _disposed) != 0) return;
+            if (!disposing)
+            {
+                // Never block the finalizer on a holder or storage close.
+                if (_handleLease != null)
+                    ThreadPool.QueueUserWorkItem(_ => { try { this.Dispose(true); } catch { } });
+                return;
+            }
+            if (Volatile.Read(ref _disposed) != 0) return;
             this.ThrowIfTeardownReentry();
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 

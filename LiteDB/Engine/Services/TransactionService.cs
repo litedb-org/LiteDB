@@ -26,15 +26,17 @@ namespace LiteDB.Engine
         private readonly TransactionPages _transPages = new TransactionPages();
 
         // transaction info
-        private readonly Thread _ownerThread = Thread.CurrentThread;
+        private readonly Thread _ownerThread;
+        private readonly int _threadID = Thread.CurrentThread.ManagedThreadId;
         private readonly DateTime _startTime;
         private long _headerPosition = long.MaxValue;
         private LockMode _mode = LockMode.Read;
         private TransactionState _state = TransactionState.Active;
 
         // expose (as read only)
-        public int ThreadID => _ownerThread.ManagedThreadId;
-        internal object FacadeOwner => _monitor.Owner;
+        public int ThreadID => _threadID;
+        internal TransactionLease Lease { get; }
+        internal object FacadeOwner => Lease.Facade;
         internal Thread OwnerThread => _ownerThread;
         public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;
@@ -64,7 +66,7 @@ namespace LiteDB.Engine
         /// </summary>
         public volatile bool ExplicitTransaction = false;
 
-        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
+        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly, TransactionLease lease = null)
         {
             // retain instances
             _header = header;
@@ -72,6 +74,9 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _monitor = monitor;
+            Lease = lease ?? TransactionLease.Legacy(monitor.Owner);
+            _ownerThread = Lease.Thread;
+            _transPages.LockOwner = Lease.LockOwner;
 
             this.QueryOnly = queryOnly;
             this.MaxTransactionSize = maxTransactionSize;
@@ -329,6 +334,9 @@ namespace LiteDB.Engine
             this.ReleaseCommitSnapshots();
             if (_transPages.CommitTicket != 0)
             {
+#if DEBUG || TESTING
+                OwnershipAssertions.BeforeTicketWait(_header, _disk.WalWriterLock, _snapshots.Count + _cursorSnapshots.Count);
+#endif
                 _disk.CompleteCommitTicket(_transPages.CommitTicket);
                 _disk.PublishDurableCommit(_walIndex.CurrentReadVersion);
             }

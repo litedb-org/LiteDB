@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -12,6 +12,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
+            this.ValidatePublicDispatch();
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (ids == null) throw new ArgumentNullException(nameof(ids));
 
@@ -68,6 +69,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int DeleteMany(string collection, BsonExpression predicate)
         {
+            this.ValidatePublicDispatch();
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
 
             // Shared coordinated reads keep the established query/snapshot ownership path.
@@ -86,6 +88,7 @@ namespace LiteDB.Engine
             {
                 var id = predicate.Right.Execute(_header.Pragmas.Collation).First();
 
+                using var dispatch = TransactionContext.Dispatch(this);
                 return this.Delete(collection, new BsonValue[] { id });
             }
             else
@@ -108,6 +111,7 @@ namespace LiteDB.Engine
                     query.Where.Add(predicate);
                 }
 
+                using (TransactionContext.Dispatch(this))
                 using (var reader = this.Query(collection, query))
                 {
                     while (reader.Read())
@@ -122,6 +126,7 @@ namespace LiteDB.Engine
                 }
             }
 
+            using var dispatch = TransactionContext.Dispatch(this);
             return this.Delete(collection, getIds());
         }
 

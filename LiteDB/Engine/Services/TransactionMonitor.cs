@@ -31,8 +31,33 @@ namespace LiteDB.Engine
         {
             var view = (TransactionMonitor)this.MemberwiseClone();
             view._owner = new TransactionOwnerToken();
+            view._handleOperations = new HandleOperationRegistry();
             view._explicitAborted = new ThreadLocal<bool>();
             return view;
+        }
+
+        private HandleOperationRegistry _handleOperations = new HandleOperationRegistry();
+        internal void EnterHandleCall(HandleCallLifetime call) => _handleOperations.Enter(call);
+        internal void ExitHandleCall(HandleCallLifetime call) => _handleOperations.Exit(call);
+
+        internal void DrainHandleCalls()
+        {
+            _handleOperations.Refuse();
+            var handles = _transactions.Snapshot().Where(t => ReferenceEquals(t.FacadeOwner, _owner) &&
+                t.Lease.Kind == TransactionOwnerKind.Handle).ToArray();
+            foreach (var transaction in handles) transaction.Lease.Calls.Refuse();
+            // An executing writer can wait for an idle owner's collection. Refusal
+            // makes idle stay idle; release those owners before draining calls.
+            foreach (var transaction in handles.Where(t => !t.Lease.Calls.Running))
+            {
+                try
+                {
+                    if (transaction.State == TransactionState.Active) transaction.Rollback();
+                    this.RemoveTransaction(transaction, out _);
+                }
+                finally { _locker.ExitTransaction(transaction.Lease.Admission); }
+            }
+            _handleOperations.Drain();
         }
 
         internal void CloseOwner()
@@ -51,16 +76,16 @@ namespace LiteDB.Engine
                 {
                     if (transaction.State == TransactionState.Active)
                     {
-                        if (transaction.OwnerThread != Thread.CurrentThread && transaction.Mode == LockMode.Write)
+                        if (transaction.Lease.Kind == TransactionOwnerKind.Legacy && transaction.OwnerThread != Thread.CurrentThread && transaction.Mode == LockMode.Write)
                             throw new InvalidOperationException("Dispose a Direct facade's active write transaction on its owning thread.");
-                        if (transaction.OwnerThread == Thread.CurrentThread) transaction.Rollback();
+                        if (transaction.Lease.Kind == TransactionOwnerKind.Handle || transaction.OwnerThread == Thread.CurrentThread) transaction.Rollback();
                     }
                     this.RemoveTransaction(transaction, out _);
                 }
                 finally
                 {
                     if (ReferenceEquals(_slot.Value, transaction)) _slot.Value = null;
-                    _locker.ExitTransaction(transaction.OwnerThread);
+                    _locker.ExitTransaction(transaction.Lease.Admission);
                 }
             }
             _explicitAborted.Dispose();
@@ -104,13 +129,22 @@ namespace LiteDB.Engine
             this.ThrowIfDisposed();
             var transaction = _slot.Value;
             if (transaction != null && transaction.State != TransactionState.Disposed &&
-                !ReferenceEquals(transaction.FacadeOwner, _owner))
+                (!ReferenceEquals(transaction.FacadeOwner, _owner) || TransactionContext.For(this) != null))
                 throw LiteException.SameThreadTransaction();
         }
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
+            var context = TransactionContext.For(this);
+            if (context != null)
+            {
+                isNew = false;
+                var bound = context.Transaction;
+                if (bound == null || bound.State != TransactionState.Active)
+                    throw new InvalidOperationException("The handle transaction is no longer active.");
+                return bound;
+            }
             var transaction = _slot.Value;
 
             if (create && transaction == null)
@@ -127,15 +161,15 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposed();
 
                 var enteredTransaction = false;
-                var owner = Thread.CurrentThread;
+                var owner = TransactionLease.Legacy(_owner);
                 try
                 {
                     // Checkpoint can reset the WAL ID sequence only while holding
                     // exclusive admission. Take our lease before reserving an ID.
-                    _locker.EnterTransaction();
+                    _locker.EnterTransaction(owner.Admission);
                     enteredTransaction = true;
                     this.ThrowIfDisposed();
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly, owner);
                     _transactions.Add(transaction);
 
                     this.ThrowIfDisposed();
@@ -150,7 +184,7 @@ namespace LiteDB.Engine
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction(owner);
+                        if (enteredTransaction) _locker.ExitTransaction(owner.Admission);
                     }
                     throw;
                 }
@@ -178,6 +212,35 @@ namespace LiteDB.Engine
             }
 
             return transaction;
+        }
+
+        internal TransactionService CreateTransaction(TransactionLease lease)
+        {
+            if (lease == null || lease.Kind != TransactionOwnerKind.Handle ||
+                !ReferenceEquals(lease.Facade, _owner))
+                throw new ArgumentException("Handle lease must belong to this facade.", nameof(lease));
+            EnsureWriteAllowed();
+            if (_slot.Value != null && _slot.Value.State != TransactionState.Disposed)
+                throw LiteException.SameThreadTransaction();
+            lease.Claim();
+            _locker.EnterTransaction(lease.Admission);
+            TransactionService transaction = null;
+            try
+            {
+                ThrowIfDisposed();
+                transaction = new TransactionService(_header, _locker, _disk, _walIndex,
+                    _transactionPageLimit, this, false, lease);
+                _transactions.Add(transaction);
+                ThrowIfDisposed();
+                return transaction;
+            }
+            catch
+            {
+                if (transaction != null) _transactions.Remove(transaction);
+                try { transaction?.Dispose(); }
+                finally { _locker.ExitTransaction(lease.Admission); }
+                throw;
+            }
         }
 
         /// <summary>
@@ -213,7 +276,7 @@ namespace LiteDB.Engine
                 {
                     // Rebuild may dispose the monitor and disk as soon as the transaction
                     // lease is released. Finish service cleanup before admitting it.
-                    if (!transaction.QueryOnly)
+                    if (!transaction.QueryOnly && transaction.Lease.Kind == TransactionOwnerKind.Legacy)
                     {
                         ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
                         _slot.Value = null;
@@ -224,7 +287,7 @@ namespace LiteDB.Engine
                 {
                     if (removed)
                     {
-                        _locker.ExitTransaction(transaction.OwnerThread);
+                        _locker.ExitTransaction(transaction.Lease.Admission);
 #if DEBUG || TESTING
                         AfterTransactionExit?.Invoke();
 #endif
@@ -239,6 +302,8 @@ namespace LiteDB.Engine
         /// </summary>
         public void MarkExplicitAbort()
         {
+            var context = TransactionContext.For(this);
+            if (context != null) { context.Aborted = true; return; }
             // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
             try
             {
@@ -254,6 +319,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool ConsumeExplicitAbort()
         {
+            var context = TransactionContext.For(this);
+            if (context != null) { var aborted = context.Aborted; context.Aborted = false; return aborted; }
             try
             {
                 var aborted = _explicitAborted.Value;
@@ -273,7 +340,7 @@ namespace LiteDB.Engine
         public TransactionService GetThreadTransaction()
         {
             this.ThrowIfDisposed();
-            return _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
+            return TransactionContext.For(this)?.Transaction ?? _slot.Value ?? _transactions.FindForThread(Thread.CurrentThread);
         }
 
         /// <summary>

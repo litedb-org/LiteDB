@@ -47,6 +47,7 @@ namespace LiteDB.Client.Shared
         private readonly ManualResetEventSlim _released = new ManualResetEventSlim(true, SpinCount);
         private Thread _holder;
         private Command _command;
+        private TimeSpan _commandTimeout;
         private bool _acquired;
         private bool _abandoned;
         private Exception _error;
@@ -130,7 +131,7 @@ namespace LiteDB.Client.Shared
         {
             SharedCoordinationDiagnostics.Operation();
             if (this.TryRecurse()) return false;
-            while (!_gate.Wait(Poll)) this.ReleaseIfOwnerExited();
+            Engine.TransactionWaitBudget.EnterSharedOwner(_gate, Poll, () => this.ReleaseIfOwnerExited());
             bool abandoned;
             if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned);
             else this.TakeGate(Command.Acquire, out abandoned);
@@ -347,13 +348,14 @@ namespace LiteDB.Client.Shared
                 {
                     this.EnsureHolder();
                     _command = command;
+                    _commandTimeout = Engine.TransactionWaitBudget.Remaining(TimeSpan.FromDays(20));
                     _done.Reset();
 #if DEBUG || TESTING
                     this.BeforeNotify?.Invoke();
 #endif
                     _posted.Set();
                 }
-                _done.Wait();
+                Engine.TransactionWaitBudget.Block(() => _done.Wait());
                 lock (_sync)
                 {
                     var error = _error;
@@ -446,11 +448,9 @@ namespace LiteDB.Client.Shared
             abandoned = false;
             try
             {
-                // Block without polling: a polling waiter would lose its place among
-                // the OS mutex's waiters, such as a pin holder of this connection.
-                // Queued at the turnstile, a party that just released cannot barge ahead.
+                // Keep our native queue position while consuming the sampled budget.
                 if (!block) return _turnstile.TryWait(_mutex);
-                _turnstile.Wait(_mutex);
+                _turnstile.Wait(_mutex, _commandTimeout);
                 return true;
             }
             catch (AbandonedMutexException)

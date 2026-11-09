@@ -168,7 +168,8 @@ oracle evidence even when the path-filtered Fuzz workflow does not run.
 | `mvcc-checkpoint` | full checkpoint from a published v13 root, salt rotation, lost/torn writes, failed syncs and twice-interrupted repair |
 | `page` | slot payload model plus page/footer/accounting/overlap invariants |
 | `index` | scalar, multikey, unique, ordering, and key-moving update checks |
-| `shared` | real child processes, acknowledged ledgers, and owner-process death |
+| `shared` | default Shared child processes, acknowledged ledgers, owner death; exclusive admission for mapped clear cuts |
+| `shared-legacy` | explicit legacy Shared, all26 owner-death cuts with original concurrent peer admission |
 | `bson` | contiguous vs fragmented reader/writer round trips and mutations |
 | `parser` | fresh vs cached SQL/expression parsing, binding, malformed errors |
 | `mapper` | supported CLR shape round trips and cyclic failure isolation |
@@ -223,6 +224,11 @@ snapshot, and vector-score invariant families with deliberately bad results.
 The shared-process target kills children at API boundaries and at test-only
 internal WAL/checkpoint gates: page and confirmation writes, durable flush,
 transaction confirmation, checkpoint page copies, data flush, and WAL clear.
+Default mapped WAL-clear cuts start peers only after the crash worker exits,
+because WAL truncation requires exclusive mapping ownership; all other cuts
+retain concurrent peer admission. `shared-legacy` explicitly opts out and retains
+the original concurrent admission schedule for all26cuts. Both require the
+configured durable crash marker and verify acknowledged ledgers after recovery.
 The complementary power-loss target separates volatile bytes from durable bytes:
 ordinary `Flush()` leaves data volatile, the engine's durable flush promotes it,
 and each modeled power cut discards the remaining volatile state before recovery.
@@ -349,6 +355,7 @@ oracles also check read-only byte preservation and successful root/WAL removal o
 retry. The latest data/WAL images are saved before recovery checks. Keeping this
 target separate preserves the existing retirement corpus input and trace hashes.
 
+`transaction-handle` checks retired-thread commit, rollback and facade abandonment against an independent full-state/index model on Direct and default/legacy Shared, including encrypted files and repeated cold reopen. Direct turns interleave two handles on peer facades with independent commit/rollback outcomes.
 The `shared` workload uses the default protocol. Its two WAL-clear cuts admit
 peers after the crash worker exits because mapped truncation requires exclusive
 mapping ownership; all other cuts keep concurrent admission. `shared-legacy`

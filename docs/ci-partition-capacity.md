@@ -271,3 +271,36 @@ cases now use separate death (42), repeated recovery (14), and rollback (12)
 sessions. Full CI uses a complement for rollback and future theories; macOS
 qualification discovers the existing theory methods and runs guards in every
 session. All crash cuts, per-case repetitions and the 300-second limit remain.
+
+## Integrated handle qualification on Intel macOS
+
+Exact candidate `9cbc26ce3df5b993a42902986848c7b0c15db818`, Full CI
+[42484774610](https://github.com/litedb-org/LiteDB/actions/runs/42484774610),
+exhausted the `shared` session on Intel .NET 8 after 260 passing results.
+The last completion was 0.17 seconds before the 300-second abort; no assertion
+failed. The same-head completed Intel .NET 9 session had 538 results including
+two guards and 291.166 seconds of test work excluding guards. This establishes
+aggregate capacity exhaustion for that abort; it does not establish a deadlock
+or explain differences in operation timings between runners.
+
+Retained class aggregates in
+[the timing fixture](../.github/scripts/fixtures/p4-intel-shared-capacity.json)
+cover both the partial net8 and complete net9 session. Disjoint warm, maintenance,
+recovery, reader and complementary sessions preserve all cases and the existing
+300-second ceiling. Each session still includes runtime/hooks guards, and the
+existing exhaustive discovery check requires every discovered method exactly once.
+
+| Session | Partial net8 work (s) | Complete net9 work (s) |
+| --- | ---: | ---: |
+| shared-warm | 3.192 | 64.140 |
+| shared-maintenance | 58.273 | 33.884 |
+| shared-recovery | 101.166 | 66.156 |
+| shared-readers | 8.259 | 28.554 |
+| shared complement | 124.288 | 98.431 |
+
+The capacity regression test fails before the split and passes after, requiring
+at most 180 seconds of retained work per session. Partial samples do not measure
+unreached cases; these sums estimate capacity rather than future wall time.
+Fresh hosted completion of every partition on the exact candidate remains the
+qualification gate. Runtime performance and physical power loss are separate
+questions; no benchmark or physical-device reset is claimed by this split.

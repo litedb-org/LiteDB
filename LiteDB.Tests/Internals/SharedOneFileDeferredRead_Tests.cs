@@ -1,5 +1,6 @@
 #if NET8_0_OR_GREATER
 using System;
+using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Tests;
@@ -11,6 +12,47 @@ namespace LiteDB.Internals
     [Collection("SharedOneFilePublication")]
     public class SharedOneFileDeferredRead_Tests
     {
+        [OneFileFact]
+        public void Transaction_reconciliation_waits_for_teardown_and_preserves_cold_state()
+        {
+            using var files = new SharedOneFilePublicationFixture();
+            using var engine = new SharedEngine(files.Settings);
+            engine.BeginTrans().Should().BeTrue();
+            engine.Update("docs", new[] { Row(1, 99) });
+            var gate = typeof(SharedEngine).GetField("_useLock", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(engine);
+            var reconcile = typeof(SharedEngine).GetMethod("ReconcileTransaction", BindingFlags.NonPublic | BindingFlags.Instance);
+            using var started = new ManualResetEventSlim();
+            using var done = new ManualResetEventSlim();
+            Exception failure = null;
+            var cleanup = new Thread(() =>
+            {
+                started.Set();
+                try { reconcile.Invoke(engine, new object[] { true }); }
+                catch (Exception ex) { failure = ex; }
+                finally { done.Set(); }
+            });
+            try
+            {
+                lock (gate)
+                {
+                    cleanup.Start();
+                    started.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    SpinWait.SpinUntil(() => done.IsSet ||
+                        (cleanup.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    done.IsSet.Should().BeFalse("reader reconciliation must wait for the core teardown gate");
+                }
+            }
+            finally { cleanup.Join(TimeSpan.FromSeconds(10)).Should().BeTrue(); }
+            failure.Should().BeNull();
+            engine.Dispose();
+            files.WriteIsFree();
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var cold = new LiteDatabase(files.Filename);
+                Verify(cold, 0);
+            }
+        }
+
         [OneFileTheory]
         [InlineData(false, false)] [InlineData(false, true)]
         [InlineData(true, false)] [InlineData(true, true)]

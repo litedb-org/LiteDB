@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -16,6 +16,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             _state.Validate();
 
             // Storage opened read-only because it cannot be written accepts explicit transactions,
@@ -41,6 +43,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: true);
@@ -55,7 +58,12 @@ namespace LiteDB.Engine
                     // A failed safepoint discarded pages this transaction changed: never publish the rest.
                     if (transaction.WriteFailure != null)
                     {
-                        this.RollbackAndReleaseTransaction(transaction);
+                        try { this.RollbackAndReleaseTransaction(transaction); }
+                        finally
+                        {
+                            var context = TransactionContext.For(this);
+                            if (context != null) context.Outcome = LiteTransactionState.Failed;
+                        }
                         throw TransactionService.WriteFailed(transaction.WriteFailure);
                     }
 
@@ -73,6 +81,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Rollback()
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
 
             var transaction = this.GetTransactionForCompletion(commit: false);
@@ -105,6 +114,7 @@ namespace LiteDB.Engine
             if (write && _settings.ReadOnlyStorage && _settings.LogStream == null)
                 throw new IOException("Cannot modify read-only storage without a caller-supplied writable log stream.");
 
+            if (write) _monitor.EnsureWriteAllowed();
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
@@ -117,14 +127,29 @@ namespace LiteDB.Engine
 
                 return result;
             }
+            catch (TransactionWaitRefusedException ex) when (!isNew && ReferenceEquals(ex.RequestOwner, transaction.Lease.LockOwner))
+            {
+                // Snapshot lock admission refused before this statement could mutate.
+                // An escaping refusal from a nested callback belongs to another owner
+                // and follows the normal outer-statement rollback path below.
+                throw;
+            }
             catch(Exception ex)
             {
+                var context = TransactionContext.For(this);
+                if (context != null) context.Outcome = LiteTransactionState.Failed;
                 if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
                     // Constraint errors can also reveal a pending predecessor.
                     // Establish that dependency before returning the original error.
                     _disk.CompleteCommitTicket(transaction.Pages.CommitTicket);
-                    this.RollbackAndReleaseTransaction(transaction);
+                    if (transaction.Lease.Kind == TransactionOwnerKind.Handle)
+                    {
+                        try { this.RollbackAndReleaseTransaction(transaction); }
+                        catch (Exception cleanup) { ex.Data["LiteDB.StatementRollback"] = cleanup; }
+                        finally { context.Outcome = LiteTransactionState.Failed; }
+                    }
+                    else this.RollbackAndReleaseTransaction(transaction);
 
                     if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
                 }
@@ -141,9 +166,14 @@ namespace LiteDB.Engine
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
             var state = _state;
+            var context = TransactionContext.For(this);
+            if (context != null) context.Outcome = LiteTransactionState.Indeterminate;
             try
             {
                 transaction.Commit();
+                // Commit returns only after the current durable-prefix ticket is covered.
+                // Record that fact before cleanup can throw or dispose the service.
+                if (context != null) context.Outcome = LiteTransactionState.Committed;
                 _monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
@@ -178,9 +208,12 @@ namespace LiteDB.Engine
 
         private void RollbackAndReleaseTransaction(TransactionService transaction)
         {
+            var context = TransactionContext.For(this);
+            if (context != null) context.Outcome = LiteTransactionState.Failed;
             try
             {
                 transaction.Rollback();
+                if (context != null) context.Outcome = LiteTransactionState.RolledBack;
                 _monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)

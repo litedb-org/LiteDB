@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +13,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BsonValue Pragma(string name)
         {
+            this.ValidatePublicDispatch();
             _state.Validate();
             return _header.Pragmas.Get(name);
         }
@@ -22,9 +23,12 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Pragma(string name, BsonValue value)
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             _state.Validate();
             _monitor.EnsureWriteAllowed();
-            if (this.Pragma(name) == value) return false;
+            using (TransactionContext.Dispatch(this))
+                if (this.Pragma(name) == value) return false;
 
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
 

@@ -1,0 +1,236 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using LiteDB.Client.Shared;
+using LiteDB.Engine;
+using LiteDB.Tests;
+using Xunit;
+
+namespace LiteDB.Internals
+{
+    [Collection("SharedOneFilePublication")]
+    public class TransactionHandleSharedProcess_Tests
+    {
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public Task Mapped_Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped, bool readOnly) => Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(mapped, readOnly);
+#endif
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        public async Task Open_handle_blocks_remote_begin_until_completion_and_timeout_does_not_release_holder(bool mapped, bool readOnly)
+        {
+            using var file = new TempFile();
+            Seed(file);
+            var mode = mapped ? "handle-mapped" : "handle-legacy";
+            using (var holder = new HandleProcess(readOnly ? (mapped ? "handle-readonly-mapped" : "handle-readonly-legacy") : mode, file, null))
+            using (var waiter = new HandleProcess(mode, file, null))
+            {
+                await holder.Expect("ready"); await waiter.Expect("ready");
+                holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+                waiter.Send("begin"); await waiter.Expect("attempting"); await waiter.Expect("timeout");
+                if (!readOnly) { holder.Send("write"); await holder.Expect("written"); }
+                holder.Send("commit"); await holder.Expect("committed");
+                waiter.Send("begin"); await waiter.Expect("attempting"); await waiter.Expect("begun");
+                waiter.Send("commit"); await waiter.Expect("committed");
+                holder.Send("close"); waiter.Send("close");
+                await holder.Expect("done"); await waiter.Expect("done");
+                await holder.Finish(); await waiter.Finish();
+            }
+            Verify(file, !readOnly);
+        }
+
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true)]
+        public Task Mapped_Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(bool mapped) => Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
+        public async Task Process_death_with_open_handle_discards_spill_and_recovers_preserved_indexes(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            var mode = mapped ? "handle-mapped" : "handle-legacy";
+            using (var holder = new HandleProcess(mode, file, null))
+            {
+                await holder.Expect("ready");
+                holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+                holder.Send("write"); await holder.Expect("written");
+                await holder.Kill();
+            }
+            using (var survivor = new HandleProcess(mode, file, null))
+            {
+                await survivor.Expect("ready");
+                survivor.Send("begin"); await survivor.Expect("attempting"); await survivor.Expect("begun");
+                survivor.Send("commit"); await survivor.Expect("committed");
+                survivor.Send("close"); await survivor.Expect("done"); await survivor.Finish();
+            }
+            Verify(file, false);
+        }
+
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true)]
+        public Task Mapped_Open_handle_excludes_file_replacement_and_rekey_without_mutation(bool mapped) => Open_handle_excludes_file_replacement_and_rekey_without_mutation(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
+        public async Task Open_handle_excludes_file_replacement_and_rekey_without_mutation(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using (var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
+            {
+                await holder.Expect("ready");
+                holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+                var before = ReadSharedBytes(file);
+                // Exclusive Direct admission is required before replacing or rekeying
+                // Shared storage. It must refuse while the handle retains admission.
+                Assert.ThrowsAny<Exception>(() => { using var exclusive = new LiteDatabase(file); exclusive.Rebuild(new RebuildOptions { Password = "changed" }); });
+                Assert.Equal(before, ReadSharedBytes(file));
+                holder.Send("commit"); await holder.Expect("committed");
+                holder.Send("close"); await holder.Expect("done"); await holder.Finish();
+            }
+            Verify(file, false);
+        }
+
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true)]
+        public Task Mapped_Interrupted_begin_retires_only_its_native_request_and_successor_progresses(bool mapped) => Interrupted_begin_retires_only_its_native_request_and_successor_progresses(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
+        public async Task Interrupted_begin_retires_only_its_native_request_and_successor_progresses(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped }))
+            using (var db = new LiteDatabase(engine))
+            using (var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null))
+            using (var waiting = new ManualResetEventSlim())
+            {
+                _ = db.Timeout;
+                await holder.Expect("ready");
+                holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+                var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+                turnstile.BeforeMainWait = waiting.Set;
+                Exception failure = null;
+                var caller = new Thread(() => { try { db.BeginTransaction().Dispose(); } catch (Exception error) { failure = error; } });
+                caller.Start();
+                Assert.True(waiting.Wait(TimeSpan.FromSeconds(10)), "The background holder must reach the actual native wait.");
+                caller.Interrupt();
+                Assert.True(caller.Join(TimeSpan.FromSeconds(5)));
+                Assert.IsType<ThreadInterruptedException>(failure);
+                turnstile.BeforeMainWait = null;
+                holder.Send("write"); await holder.Expect("written");
+                holder.Send("commit"); await holder.Expect("committed");
+                holder.Send("close"); await holder.Expect("done"); await holder.Finish();
+                using var next = db.BeginTransaction();
+                Assert.NotNull(next.GetCollection("rows").FindById(2));
+                next.Rollback();
+            }
+            Verify(file, true);
+        }
+
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true)]
+        public Task Mapped_Database_close_cancels_native_begin_without_releasing_remote_handle(bool mapped) => Database_close_cancels_native_begin_without_releasing_remote_handle(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
+        public async Task Database_close_cancels_native_begin_without_releasing_remote_handle(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped });
+            var db = new LiteDatabase(engine);
+            _ = db.Timeout;
+            using var holder = new HandleProcess(mapped ? "handle-mapped" : "handle-legacy", file, null);
+            await holder.Expect("ready");
+            holder.Send("begin"); await holder.Expect("attempting"); await holder.Expect("begun");
+            using var waiting = new ManualResetEventSlim();
+            var turnstile = (SharedMutexTurnstile)typeof(SharedEngine).GetField("_turnstile", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            turnstile.BeforeMainWait = waiting.Set;
+            var begin = Task.Run(() => Record.Exception(() => db.BeginTransaction()));
+            Assert.True(waiting.Wait(TimeSpan.FromSeconds(10)), "The holder must reach the contested native wait.");
+            var close = Task.Run(db.Dispose);
+            Assert.Same(begin, await Task.WhenAny(begin, Task.Delay(TimeSpan.FromSeconds(5))));
+            Assert.IsType<ObjectDisposedException>(await begin);
+            Assert.Same(close, await Task.WhenAny(close, Task.Delay(TimeSpan.FromSeconds(10))));
+            await close;
+            Assert.Equal(0, db.TransactionHandles.ActiveCount);
+            turnstile.BeforeMainWait = null;
+            holder.Send("write"); await holder.Expect("written");
+            holder.Send("commit"); await holder.Expect("committed");
+            holder.Send("close"); await holder.Expect("done"); await holder.Finish();
+            Verify(file, true);
+        }
+
+#if NET8_0_OR_GREATER
+        [OneFileTheory]
+        [InlineData(true)]
+        public Task Mapped_Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped) => Turnstile_deadline_releases_partial_request_and_next_handle_progresses(mapped);
+#endif
+
+        [Theory]
+        [InlineData(false)]
+        public async Task Turnstile_deadline_releases_partial_request_and_next_handle_progresses(bool mapped)
+        {
+            using var file = new TempFile(); Seed(file);
+            using (var engine = new SharedEngine(new EngineSettings { Filename = file, SharedOneFile = mapped }))
+            using (var db = new LiteDatabase(engine))
+            {
+                _ = db.Timeout;
+                using (var blocker = new HandleProcess(mapped ? "handle-turnstile-mapped" : "handle-turnstile-legacy", file, null))
+                {
+                    await blocker.Expect("held");
+                    var error = await Task.Run(() => Assert.Throws<LiteException>(() => db.BeginTransaction()));
+                    Assert.Equal(120, error.ErrorCode);
+                    Assert.Equal(0, db.TransactionHandles.ActiveCount);
+                    blocker.Send("release"); await blocker.Expect("done"); await blocker.Finish();
+                }
+                using var next = db.BeginTransaction();
+                Assert.NotNull(next.GetCollection("rows").FindById(1));
+                next.Commit();
+            }
+            Verify(file, false);
+        }
+
+        private static byte[] ReadSharedBytes(string filename)
+        {
+            using var source = new System.IO.FileStream(filename, System.IO.FileMode.Open,
+                System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+            using var copy = new System.IO.MemoryStream();
+            source.CopyTo(copy);
+            return copy.ToArray();
+        }
+
+        private static void Seed(string file)
+        {
+            using var db = new LiteDatabase(file);
+            db.Timeout = TimeSpan.FromSeconds(1);
+            db.GetCollection("rows").EnsureIndex("value");
+            db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 10 });
+            db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 9 });
+        }
+
+        private static void Verify(string file, bool committed)
+        {
+            for (var pass = 0; pass < 2; pass++)
+            {
+                using var db = new LiteDatabase(file);
+                Assert.Equal(committed ? new[] { 1, 2 } : new[] { 1 }, db.GetCollection("rows").FindAll().Select(d => d["_id"].AsInt32).OrderBy(x => x));
+                Assert.Equal(committed ? 1 : 0, db.GetCollection("rows").Count(Query.EQ("value", 20)));
+                Assert.NotNull(db.GetCollection("sentinel").FindById(9));
+            }
+        }
+    }
+}

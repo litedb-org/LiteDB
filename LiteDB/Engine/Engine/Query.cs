@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -14,9 +14,13 @@ namespace LiteDB.Engine
         /// </summary>
         public IBsonDataReader Query(string collection, Query query)
         {
+            this.ValidatePublicDispatch();
             if (string.IsNullOrWhiteSpace(collection)) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
             _state.Validate();
+            if (TransactionContext.For(this) != null &&
+                ((collection.StartsWith("$") && collection != "$cols" && collection != "$indexes") || query.Into?.StartsWith("$") == true))
+                throw new TransactionCapabilityException("Handle queries cannot access external input/output.");
 
             IEnumerable<BsonDocument> source = null;
 

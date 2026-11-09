@@ -26,15 +26,154 @@
   ],
   "dispositions": [
     {
-      "id": "p3-darwin-bounded-allocation",
-      "kind": "ci-test-config-changed",
+      "id": "p4-review-public-dispatch-and-portable-legacy",
+      "kind": "harness-changed",
       "subjects": [
-        ".github/workflows/p3-darwin-allocation.yml",
-        ".github/scripts/darwin_allocation.py"
+        "LiteDB.Tests/Engine/TransactionHandleDispatchCompleteness_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleGroupCommit_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedTenure_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleSharedAbandonment_Tests.cs",
+        "LiteDB.Tests/Internals/TransactionHandleReuseProcess_Tests.cs"
       ],
       "disposition": "strengthened",
-      "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.",
-      "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."
+      "invariant": "Retain every raw engine classification, group prefix/failure schedule and legacy/mapped lifecycle/process case. Public wrappers now drive dispatch and group lifecycle. Ordinary legacy theories execute on CLR 4 and x86; qualified mapped theories remain.",
+      "reason": "Review F1 reproduced 44 raw reader callback authorization failures on c22de98cb production with the public regression; fixed dispatch passes all 44. Internal Execute previously bypassed the defective public reader wrapper. Mixed OneFileTheory excluded legacy on fallback targets; portable child launch now asserts actual CLR major and pointer width.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs"
+      ]
+    },
+    {
+      "id": "p4-warm-child-owner-release-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All three original warm-up reads, exact warm-hit guards, old/current generation checks, process-death and slot-incarnation assertions, independent scanner concurrency and session limits remain unchanged.",
+      "reason": "Windows net8 WAL safety failed the child Oldest-was-not-warm setup guard before entering its crash scenario. Unlike the existing parent Warm fixture, the child did not wait for the asynchronous protected-query holder to release ownership before measuring cached admission. Use the same actual MutexOwner.WaitForRelease barrier after the existing three warm-up reads in all child warm-reader roles. No retry, extra warm-up reads, fallback acceptance, scanner pause or product cache change.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs"
+      ]
+    },
+    {
+      "id": "p4-mapped-reader-native-death-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Paused readers remain live; killed reader records disappear after their real native slot lock releases; reuse preserves the slot and changes its incarnation. Every original assertion and platform case remains.",
+      "reason": "Windows-2022 x64 net9 full CI observed a retained version immediately after WaitForExit while the native slot still conflicted. Shared-file kill mode has no private mapped-reader file to probe. Assert bounded actual native slot release using the existing five-second Windows file-release allowance before the unchanged immediate empty-floor assertion. No forced record clearing, PID-death inference, test skip, session-limit change or product reclamation change."
+    },
+    {
+      "id": "p4-shared-p1-job-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "relocated",
+      "invariant": "Every pre-existing WAL/recovery/delete and Phase 4 ownership/SharedOneFile command, assertion, failure check, OS/framework combination, 30-minute job limit and 300-second session ceiling remains.",
+      "reason": "Exact-head Windows net8/net10 jobs reached the 30-minute aggregate job ceiling while all completed sessions passed and ownership cases were still executing. Run the unchanged WAL/delete and ownership scripts in independent matrix partitions, with distinct artifacts. This allows all evidence to complete without excluding cases or extending test liveness deadlines.",
+      "coveredBy": [
+        ".github/workflows/p1-handle-safety.yml",
+        "LiteDB.Tests/Internals/TransactionHandleSharedProcess_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs"
+      ]
+    },
+    {
+      "id": "p4-handle-context-dispatch-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing targeted partitions and runtime/OS legs remain; engine handle dispatch, group tickets and ported progress tests execute in an additional partition.",
+      "reason": "Add synchronous engine-level context safety qualification on six OS/runtime legs without changing existing tests or session limits."
+    },
+    {
+      "id": "p4-shared-safety-session-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "relocated",
+      "invariant": "Every SharedOneFile test, assertion, runtime/OS leg, failure status and 300-second test session ceiling remains in the targeted workflow.",
+      "reason": "The new aggregate SharedOneFile partition exceeded the existing session ceiling on Linux after 451 passing cases. Discover all SharedOneFile suite classes from their source files and execute each suite in its own session, with unique TRX files and accumulated failure reporting. No case is excluded; absence of discovered suites fails the workflow. Original pre-existing safety partitions remain unchanged.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedOneFileAbandonedWrite_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileAdmission_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileAllocation_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileCheckpointFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileDecoratorOwnership_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileDurablePrefix_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLiveDimensions_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLockMap_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceOpening_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenancePathReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceReadOnlyReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenanceUpgradeReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileMaintenance_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOpeningMutations_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnershipFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePublicationReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReadOnlyUpgradeControls_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReadOwnership_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRebuildGuardInput_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRegistryProcess_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRekey_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReplacementReplay_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7OwnerReuseReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7Review_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSnapshotSafety_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileTransactionOwnership_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWalBatch_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmAmbient_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmCounter_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmFailures_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmGenerations_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmLifetime_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmPrefix_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmPublication_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecoveryBreadth_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmResources_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWarmReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs"
+      ]
+    },
+    {
+      "id": "p4-ownership-substrate-safety-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing WAL/group-commit, fault, recovery and delete-safety partition still runs with its original assertions, timeout and six OS/runtime matrix legs.",
+      "reason": "Add ownership substrate, RuntimeLock, transaction admission, legacy 141, Direct process host, every SharedOneFile/SharedWriterTenure split suite and cursor/cleanup regression partitions. Collect each partition TRX and fail the job if any partition fails. No prior filter, test, timeout or matrix leg is removed or narrowed."
     },
     {
       "id": "p3-integrated-windows-death-lock-observation",
@@ -559,7 +698,6 @@
       "subjects": [
         "LiteDB.Internals.SharedOneFilePhase1_Tests.Retry_releases_obsolete_writer_holds_and_preserves_peer_callback_isolation",
         "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
-        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Interrupted_native_allocation_retries_without_changing_database_bytes",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Connection_string_round_trips_configurable_size_and_capacity",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Empty_and_zero_partial_initialization_reset_but_declared_wrong_length_refuses",
@@ -577,7 +715,8 @@
         "LiteDB.Internals.SharedOneFileReaders_Tests.Paused_reader_stays_live_killed_records_disappear_and_slot_reuse_changes_incarnation",
         "LiteDB.Internals.SharedOneFileReaders_Tests.Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint",
         "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Include_keeps_referenced_collection_at_its_exact_admitted_generation",
-        "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation"
+        "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests.Mapped_exact_floors_preserve_every_protected_WAL_offset_then_allow_reclamation",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Interrupted_native_allocation_retries_without_changing_database_bytes"
       ],
       "disposition": "intentional-change",
       "decision": "docs/shared-one-file-prototype.md",
@@ -756,6 +895,19 @@
       "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
     },
     {
+      "id": "p4-shared-enable-disabled-guard",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Engine.TransactionHandleDirectApi_Tests.Shared_is_disabled_and_non_provider_extension_has_no_side_effects"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Custom non-provider rejection still has no side effects; Shared now starts and rolls back a real handle.",
+      "reason": "Rename to Shared_is_supported_and_non_provider_extension_has_no_side_effects accompanies implementation of the previously disabled Shared provider. Replace its NotSupported assertion with real rollback while retaining every non-provider/null-provider assertion.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/TransactionHandleDirectApi_Tests.cs#Shared_is_supported_and_non_provider_extension_has_no_side_effects"
+      ]
+    },
+    {
       "id": "p3-qual-macos-executed-matrix",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -828,6 +980,61 @@
       "reason": "Run42440646177 Intelnet8 MaintenanceCrash session aborted after300s with57Passed/0Failed,13missing expected results and290.893s completed durations. Split Mac qualification into three existing theory sessions (42death,14recovery,12rollback selected cases), with runtime/hook guards per session. Full CI uses disjoint death/recovery/complement sessions, retaining rollback and future cases. Case-set conservation is checked against the prior complete qualification TRX; ordinary full CI retains its exact-discovery partition verification. No tests, repetitions, crash cuts, recovery/data assertions, timeout or matrix leg removed."
     },
     {
+      "id": "p4-s7-compatibility-package",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-transaction-handle-compatibility.py",
+        "tools/TransactionHandleValidation/Program.cs",
+        "tools/TransactionHandleValidation/TransactionHandleValidation.csproj",
+        ".github/workflows/transaction-handle-compatibility.yml",
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing precompiled current-dev consumer and parity remain. Add released 5.0.21 decorator, exact interface snapshots and six legacy call-site CS0618 warnings; actual documentation is compiled and run. Warm fixtures drain setup writer before priming and retain post-read release barrier.",
+      "reason": "Orchestrator instructed Phase3 integration and compatibility migration package. No old test removed or skipped. Both parent safety evidence sets retained; qualification prose adopts Phase3 platform coverage. The released decorator probe deliberately fails on a real ABI incompatibility instead of crediting current-dev-only results."
+    },
+    {
+      "id": "p4-s7-released-engine-abi-scope",
+      "kind": "harness-changed",
+      "subjects": [
+        "scripts/test-released-handle-binary.py",
+        "scripts/test-transaction-handle-compatibility.py"
+      ],
+      "disposition": "replaced",
+      "invariant": "Released client callers must pass unchanged across release/dev/Phase3/Phase4. Current-dev decorators must pass on Phase4. A separate released decorator test requires original success and exact documented TypeLoadException/EnsureVectorIndex failure on every newer variant.",
+      "reason": "Explicit orchestrator steering: pre-existing dev vector ABI addition66ec615a is out of scope, not a step blocker. Preserve current interface; document required recompilation. Prior1b9 real failure is retained. No claim that old engine implementers are binary compatible.",
+      "coveredBy": [
+        "scripts/test-released-handle-binary.py",
+        "tools/TransactionHandleValidation/ReleasedCallers.cs",
+        ".github/workflows/transaction-handle-compatibility.yml"
+      ]
+    },
+    {
+      "id": "p4-s7-wal-session-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "replaced",
+      "invariant": "Exactly the same WAL safety selection executes in disjoint sessions with all assertions and unchanged 300-second session / 30-minute job limits. No tests excluded.",
+      "reason": "Exact6db Windows net10 WAL job128686430905 session safety3 aborted after300seconds with338passed and continuing AllocationWalFailure progress; not a test assertion failure or a green session. Split existing non-Shared WAL selection by WalCombinedPowerLoss_Tests or WalSlotReuse_Tests vs their exact complement. Prior green6aec same job128651858140 has395cases; exact name-set audit shows14+381 disjoint union395. Those two suites consumed155.85seconds in the aborted session. Logs/TRX retained; no flake claim or timeout increase.",
+      "coveredBy": [
+        ".github/workflows/p1-handle-safety.yml",
+        "LiteDB.Tests/Internals/WalCombinedPowerLoss_Tests.cs",
+        "LiteDB.Tests/Internals/WalSlotReuse_Tests.cs"
+      ]
+    },
+    {
+      "id": "p4-s7-recovery-cut-native-release",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Each killed successor must release actual native WRITE before unchanged same-authority, accepted snapshot, repeated-recovery, indexed payload and sentinel checks. A lock still retained after existing5second abandoned-owner bound fails.",
+      "reason": "Exact37b Windows net10 ownership job128692231686 failed open-structural-repaired after Kill returned but before native byte-lock cleanup. RecoveryCuts used immediate WriteIsFree(false), while existing WarmRecovery process-death tests correctly use WriteIsFree(abandonedOwner:true). Apply the identical production abandoned-owner acquisition bound to this actual killed-process probe. No test removed, skip, assertion removal or timeout increase."
+    },
+    {
       "id": "p3-default-expand-windows-refusal",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -846,6 +1053,91 @@
       "disposition": "strengthened",
       "invariant": "Historical 5.0.21 WAL conversion refuses a held legacy reader lease with LOCK_TIMEOUT, preserves every source byte and converts completely after the lease closes.",
       "reason": "Select Shared One File=false for this legacy-drain-specific refusal and subsequent reopen after the qualified platform default changes. Preserve every error-code, directory/file-byte and committed-data assertion. New default offline retirement and native-family refusal are covered separately by SharedOneFileDefault and SharedOfflineUpgrade suites."
+    },
+    {
+      "id": "p4-integrated-qualification",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml",
+        ".github/workflows/full-ci.yml",
+        "scripts/qualify-handles.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing selections and budgets remain; new handle model runs in smoke/nightly/all campaigns, full Intel runtime matrix and 50 complete wait/lifetime/process passes are added.",
+      "reason": "Orchestrator instructed integrated exact-candidate hosted qualification; additions only, zero skipped stress cases accepted."
+    },
+    {
+      "id": "p4-hosted-dispatch-location",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml",
+        ".github/workflows/p4-qualification.yml"
+      ],
+      "disposition": "relocated",
+      "invariant": "Identical additional qualification jobs run from the registered Full CI workflow through an explicit handles_qualification dispatch flag.",
+      "reason": "GitHub dispatch must use a registered workflow; preserve the new 50-pass stress, six deterministic seeds and three full Intel runtime legs. Existing Full jobs unchanged.",
+      "coveredBy": [
+        ".github/workflows/full-ci.yml"
+      ]
+    },
+    {
+      "id": "p4-default-checkpoint-scope",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Original four native-mutex release assertions remain on explicit legacy Shared; four new default cases require scope exclusion and final-close release plus two durable reopens.",
+      "reason": "Exact7f2 hosted determinism job128732641262 failed two cases on each runtime8/10 because ordinary default mapped tenure legitimately retains the native mutex after commit. Focused local known-bad7f2 reproduces2failed/2passed. Preserve legacy per-operation release obligation and test default tenure separately; no production change or skipped case."
+    },
+    {
+      "id": "p4-intel-build-evidence",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Added Intel full suite records source build SHA and library hash and retains test binaries alongside runtime-guarded results.",
+      "reason": "Improve exact candidate artifact provenance without changing test selection or budgets."
+    },
+    {
+      "id": "p4-integrated-intel-shared-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "relocated",
+      "invariant": "All current and future shared tests remain in exactly one complete-suite partition, with runtime/hooks guards in every session and the unchanged 300-second session ceiling. No assertion, cut, case or runtime/OS leg is removed.",
+      "reason": "Exact candidate9cbc Full CI42484774610 Intel net8 exhausted the cumulative shared-session budget after260 passing cases; the last case completed0.17seconds before abort. Completed Intel net9 same-head shared work totaled291.166seconds, leaving insufficient capacity. Split warm, maintenance, recovery and reader work into disjoint sessions plus a future-proof complement. Retained partial/full timing fixtures fail the180-second capacity guard before and pass after; fresh exact-head hosted qualification remains required.",
+      "coveredBy": [
+        ".github/scripts/test_ci_partition_capacity.py",
+        ".github/scripts/fixtures/p4-intel-shared-capacity.json"
+      ]
+    },
+    {
+      "id": "p4-default-shared-clear-fuzz-admission",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All original shared and fault targets, seeds, steps, hook markers, acknowledged-state oracles and timeouts remain. Mapped clear cuts require actual exclusive mapping admission; legacy Shared retains concurrent peer admission for every cut.",
+      "reason": "Current1c0 Linux core smoke failed deterministically at shared round25: default mapped peers hold mappings, preventing WAL truncate and making checkpoint-before-clear unreachable. Delay peer admission only for the two mapped clear cuts until the crash child exits, retain its exact durable marker and cold recovery checks, and add explicit shared-legacy target to smoke/nightly matrices. New hosted four-case child-process guards require both clear markers, index agreement and two cold reopens on default/legacy paths. No missing hook is accepted as a pass.",
+      "coveredBy": [
+        "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs"
+      ]
+    },
+    {
+      "id": "p3-darwin-bounded-allocation",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-darwin-allocation.yml",
+        ".github/scripts/darwin_allocation.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.",
+      "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."
     },
     {
       "id": "p3-reader-death-native-release-barrier",

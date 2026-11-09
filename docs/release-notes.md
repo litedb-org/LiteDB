@@ -1,12 +1,18 @@
 # Release notes
 
+## v6 synchronous transaction handles
+
+Use the [transaction handle migration guide](transaction-handles.md) for bound
+collections, sequential thread handoff, TIMEOUT and error 141, Shared writer
+reservations, disposal, and migration from BeginTrans.
+
 ## Same-thread transaction writes (Phase 5 migration note)
 
 When one `LiteDatabase` has a legacy explicit transaction open, a write through
 another facade for the same file on that transaction's thread now fails
 immediately with `LiteException.SAME_THREAD_TRANSACTION`. Finish the transaction
-on its owning thread before using the peer facade. Phase 4 will introduce
-thread-independent transaction handles for coordinated cross-thread completion.
+on its owning thread before using the peer facade. Use the [synchronous transaction handle API](transaction-handles.md) for
+coordinated cross-thread completion.
 Reads keep their existing behavior, and legacy transactions remain thread-bound
 across `await` continuations.
 
@@ -407,3 +413,21 @@ names of up to 244 characters keep their existing identity, and Windows naming i
 unchanged. Earlier prereleases without the `.Turn` mutex could open names of 245
 to 249 characters; running them together with this version on such a path is
 unsupported.
+
+## Known pre-existing custom engine ABI break
+
+Custom `ILiteEngine` implementers and decorators compiled against LiteDB 5.0.21
+must be recompiled for v6. The vector API added `EnsureVectorIndex` to
+`ILiteEngine` in dev commit
+[`66ec615a1b03058a84e2841caf0a72b2a4a2ae1d`](https://github.com/litedb-org/LiteDB/commit/66ec615a1b03058a84e2841caf0a72b2a4a2ae1d).
+An old implementer lacking that method fails to load with `TypeLoadException`.
+This predates transaction handles and affects current dev and both Phase 3 and
+Phase 4 assemblies. Recompile the decorator with a forwarding implementation of
+`EnsureVectorIndex`, or explicitly refuse unsupported vector operations according
+to its policy. The transaction-handle API does not unwrap custom decorators.
+
+This limitation does not apply to v5.0.21 callers of `ILiteDatabase`,
+`ILiteCollection` and legacy `BeginTrans`/`Commit`/`Rollback` that do not implement
+`ILiteEngine`. Hosted compatibility tests execute those unchanged binaries,
+current-dev-compiled engine decorators, and a separate assertion of the documented
+old-implementer limitation on dev, Phase 3 and Phase 4.

@@ -50,7 +50,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Enter transaction read lock - should be called just before enter a new transaction
         /// </summary>
-        public void EnterTransaction()
+        public void EnterTransaction() => EnterTransaction(Thread.CurrentThread);
+
+        internal void EnterTransaction(object owner)
         {
 #if DEBUG || TESTING
             BeforeTransactionAdmission?.Invoke();
@@ -60,11 +62,11 @@ namespace LiteDB.Engine
 
             try
             {
-                var timeout = _getTimeout();
-                if (_transaction.TryEnterReadLock(timeout) == false)
+                var timeout = TransactionWaitBudget.Timeout(_getTimeout());
+                if (_transaction.TryEnterReadLock(timeout, owner) == false)
                     throw LiteException.LockTimeout("transaction", timeout);
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException) when (!TransactionBeginScope.Token.IsCancellationRequested)
             {
                 // Rebuild can dispose the old admission gate while a new operation
                 // is queued behind its exclusive lease. Expose the engine contract,
@@ -77,7 +79,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction(Thread owner)
+        public void ExitTransaction(object owner)
         {
             _transaction.ExitReadLock(owner);
         }
@@ -85,25 +87,29 @@ namespace LiteDB.Engine
         /// <summary>
         /// Enter collection write lock mode (only 1 collection per time can have this lock)
         /// </summary>
-        public void EnterLock(string collectionName)
+        public void EnterLock(string collectionName) => EnterLock(collectionName, Thread.CurrentThread);
+
+        internal void EnterLock(string collectionName, object owner)
         {
-            ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
+            ENSURE(_transaction.HasReadLease(owner) || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
 
             // get collection lock from dictionary (or create new if it does not exist)
             var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            var timeout = _getTimeout();
-            if (collection.TryEnter(timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
+            var timeout = TransactionWaitBudget.Timeout(_getTimeout());
+            if (collection.TryEnter(owner, timeout) == false) throw LiteException.LockTimeout("write", collectionName, timeout);
         }
 
         /// <summary>
         /// Exit collection in reserved lock
         /// </summary>
-        public void ExitLock(string collectionName)
+        public void ExitLock(string collectionName) => ExitLock(collectionName, Thread.CurrentThread);
+
+        internal void ExitLock(string collectionName, object owner)
         {
             if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
 
-            collection.Exit();
+            collection.Exit(owner);
         }
 
         /// <summary>
@@ -122,7 +128,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             if (_transaction.CurrentReadCount > 0) Reachability.Sometimes("maintenance:rebuild-waits-for-active-transactions");
 #endif
-            var timeout = _getTimeout();
+            var timeout = TransactionWaitBudget.Timeout(_getTimeout());
             if (_transaction.TryEnterWriteLock(timeout) == false) throw LiteException.LockTimeout("exclusive", timeout);
 
 #if DEBUG || TESTING

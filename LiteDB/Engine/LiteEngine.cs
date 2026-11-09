@@ -40,6 +40,7 @@ namespace LiteDB.Engine
         private EngineSettings _settings;
 
         private DirectProcessHost _host;
+        private readonly Func<string, BsonValue, BsonValue> _directReadTransform;
         private DirectFacadeLifetime _lifetime;
         private NativeAdmission _sharedAdmission;
 
@@ -84,6 +85,7 @@ namespace LiteDB.Engine
             {
                 try
                 {
+                    _directReadTransform = settings.ReadTransform;
                     _host = DirectProcessHost.Attach(settings.Clone());
                     _settings = _host.Settings;
                     try
@@ -384,6 +386,8 @@ namespace LiteDB.Engine
         /// </summary>
         public int Checkpoint()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             // A fatal failure tears down the shared monitor; surface its cause before accessing it.
             _state.Validate();
             if (_host != null)
@@ -410,12 +414,15 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
+            this.ValidatePublicDispatch();
+            this.RefuseHandleMaintenance();
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
         protected virtual void Dispose(bool disposing)
         {
+            if (disposing) _monitor?.DrainHandleCalls();
             if (_host == null) this.Close();
             else _lifetime?.Dispose();
         }

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using LiteDB.Engine;
 
 namespace LiteDB.Client.Shared
 {
@@ -53,6 +54,11 @@ namespace LiteDB.Client.Shared
         // Operations executing now, and readers or transactions spanning calls.
         private int _operations = 1;
         private int _holds;
+        private object _handle;
+        private object _retainedCore;
+        internal void RetainCore(object core) => _retainedCore = core;
+        private readonly CancellationToken _beginCancellation = TransactionBeginScope.Token;
+        private readonly TimeSpan _waitTimeout = TransactionWaitBudget.Remaining(TimeSpan.FromDays(20));
         private TimeSpan _lastUse;
         private TimeSpan _readyAt;
         private TimeSpan _idle;
@@ -109,7 +115,14 @@ namespace LiteDB.Client.Shared
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             SharedBackground.Start(holder);
-            pin._acquired.Wait();
+            try { TransactionWaitBudget.Block(() => pin._acquired.Wait()); }
+            catch
+            {
+                pin.Exit(hold: false);
+                pin.RequestRelease(force: true);
+                pin._released.Wait();
+                throw;
+            }
             if (pin._error != null)
             {
                 holder.Join();
@@ -124,9 +137,16 @@ namespace LiteDB.Client.Shared
         {
             var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, IdleLimit, HoldLimit) { _tenure = tenure };
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB mapped writer holder" };
-            try { holder.Start(); }
+            try { SharedBackground.Start(holder); }
             catch { tenure.Dispose(); throw; }
-            pin._acquired.Wait();
+            try { TransactionWaitBudget.Block(() => pin._acquired.Wait()); }
+            catch
+            {
+                pin.Exit(hold: false);
+                pin.RequestRelease(force: true);
+                pin._released.Wait();
+                throw;
+            }
             if (pin._error != null)
             {
                 holder.Join();
@@ -142,10 +162,35 @@ namespace LiteDB.Client.Shared
         /// operations, and operations under the owner's open holds, still enter:
         /// the pin cannot end before they complete.
         /// </summary>
-        public bool TryEnter()
+        internal void BindHandle(object handle)
         {
             lock (_sync)
             {
+                if (_handle != null || _holds != 0 || _operations != 1)
+                    throw new InvalidOperationException("The pin is already in use.");
+                _handle = handle;
+            }
+        }
+
+        internal void UnbindHandle(object handle)
+        {
+            lock (_sync)
+            {
+                if (!ReferenceEquals(_handle, handle)) throw new InvalidOperationException("Stale handle pin.");
+                _handle = null;
+            }
+        }
+
+        public bool TryEnter(object handle = null)
+        {
+            lock (_sync)
+            {
+                if (!ReferenceEquals(_handle, handle)) return false;
+                if (_handle != null)
+                {
+                    if (_operations != 0) return false;
+                    _owner = Thread.CurrentThread;
+                }
                 if (!ReferenceEquals(Thread.CurrentThread, this.Owner))
                 {
 #if NET8_0_OR_GREATER
@@ -246,7 +291,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _turnstile.Wait(_mutex); }
+                try { _turnstile.WaitCancellable(_mutex, _waitTimeout, _beginCancellation); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)
@@ -281,6 +326,7 @@ namespace LiteDB.Client.Shared
             }
             try { _close(this, abandoned); }
             catch (Exception ex) { error = error ?? ex; }
+            _retainedCore = null;
             SharedOwnershipEvents.Release(_mutex);
             try { _mutex.ReleaseMutex(); }
             catch (Exception ex) { error = error ?? ex; }
@@ -300,7 +346,7 @@ namespace LiteDB.Client.Shared
                 bool probe;
                 lock (_sync)
                 {
-                    var ownerExited = !this.Owner.IsAlive;
+                    var ownerExited = _handle == null && !this.Owner.IsAlive;
 #if NET8_0_OR_GREATER
                     if (_tenure != null && _operations == 0 && _holds == 0) ownerExited = false;
 #endif

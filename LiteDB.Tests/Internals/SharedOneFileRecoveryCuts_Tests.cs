@@ -50,7 +50,9 @@ namespace LiteDB.Internals
                 using var successor = new MvccProcess("one-file-publication-hold", files.Filename, null, stage);
                 await successor.Expect("ready");
                 await successor.Kill(sharedFilesRemainOpen: true);
-                files.WriteIsFree();
+                // Process exit can precede native WRITE handle cleanup. Use the
+                // existing abandoned-owner acquisition bound and require the lock.
+                files.WriteIsFree(abandonedOwner: true);
                 table.Authority.Header.Authority.Should().Be(authority, "DMS stayed alive; this is repair, not first-opener reset");
                 table.Authority.Incarnation.Should().Be(incarnation);
             }

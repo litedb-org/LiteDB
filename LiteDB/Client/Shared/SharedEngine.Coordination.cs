@@ -54,6 +54,7 @@ namespace LiteDB
                 }
 #endif
                 _engine = opened;
+                this.ObserveHandleTimeout(opened.HandleTimeout);
             }
             catch
             {

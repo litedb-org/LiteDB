@@ -34,8 +34,7 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-generations")
         {
-            ReleaseIdleWriter(engine);
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             var hits = engine.CoordinatedReadHits;
             using var oldest = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Oldest was not warm");
@@ -47,8 +46,7 @@ internal static class SharedOneFileWarmHarness
             Task.Run(() => peerDb.GetCollection("docs").Update(new BsonDocument
                 { ["_id"] = 1, ["value"] = value, ["payload"] = new string('x', 1024) })).GetAwaiter().GetResult();
             ReleaseIdleWriter(peer);
-            ReleaseIdleWriter(engine);
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             hits = engine.CoordinatedReadHits;
             using var current = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits != hits + 1) throw new Exception("Current was not warm");
@@ -60,12 +58,12 @@ internal static class SharedOneFileWarmHarness
         }
         if (mode == "one-file-warm-reader")
         {
-            ReleaseIdleWriter(engine);
-            for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+            Warm(engine, db);
             var hits = engine.CoordinatedReadHits;
             using var reader = engine.Query("docs", new Query());
             if (engine.CoordinatedReadHits <= hits || !reader.Read()) throw new Exception("Reader did not admit warm");
             Console.WriteLine("ready");
+            Console.WriteLine(engine.MappedReaderTable.Authority.Slot);
             Console.ReadLine();
             return true;
         }
@@ -133,6 +131,16 @@ internal static class SharedOneFileWarmHarness
             finally { SharedMemoryReaderTable.PublicationStage = null; EngineState.SimulateProcessCrash = null; }
         }
         return true;
+    }
+
+    private static void Warm(SharedEngine engine, LiteDatabase db)
+    {
+        ReleaseIdleWriter(engine);
+        for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1);
+        // Match the parent warm fixture: returning the last protected query
+        // precedes its holder releasing native ownership. Measure warm admission
+        // only after that actual release, with every warm-hit guard unchanged.
+        engine.MutexOwner.WaitForRelease();
     }
 
     private static void ReleaseIdleWriter(SharedEngine engine)

@@ -3,6 +3,7 @@ using System;
 using System.Threading;
 using System.Collections.Generic;
 using LiteDB.Utils;
+using LiteDB.Engine;
 
 namespace LiteDB.Client.Shared
 {
@@ -32,7 +33,9 @@ namespace LiteDB.Client.Shared
                     while (!ReferenceEquals(_queue.First.Value, lease))
                     {
                         RefuseCancelled(cancelled);
-                        Monitor.Wait(_gate, 20);
+                        var remaining = TransactionWaitBudget.Remaining(TimeSpan.FromMilliseconds(20));
+                        if (remaining <= TimeSpan.Zero) throw LiteException.LockTimeout("Shared request queue", TransactionWaitBudget.Timeout(TimeSpan.FromSeconds(60)));
+                        TransactionWaitBudget.Wait(_gate, remaining < TimeSpan.FromMilliseconds(20) ? remaining : TimeSpan.FromMilliseconds(20));
                     }
                     RefuseCancelled(cancelled);
                     Publish();
@@ -57,7 +60,9 @@ namespace LiteDB.Client.Shared
                         if (IsTurn(now) && _authority.Map.Load(_authority.Block + SharedMemoryLayout.RequestExpiry) >
                             Environment.TickCount64) break;
                     }
-                    Thread.Sleep(1);
+                    if (TransactionWaitBudget.Remaining(TimeSpan.FromSeconds(60)) <= TimeSpan.Zero)
+                        throw LiteException.LockTimeout("Shared writer request", TransactionWaitBudget.Timeout(TimeSpan.FromSeconds(60)));
+                    TransactionWaitBudget.Block(() => Thread.Sleep(1));
                 }
                 Stage("request-admitted");
                 return lease;
@@ -67,6 +72,7 @@ namespace LiteDB.Client.Shared
 
         private static void RefuseCancelled(Func<bool> cancelled)
         {
+            TransactionBeginScope.Check();
             if (cancelled?.Invoke() == true) throw new ObjectDisposedException("SharedEngine");
         }
 

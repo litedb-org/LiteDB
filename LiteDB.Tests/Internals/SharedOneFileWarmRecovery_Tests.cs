@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -80,12 +81,27 @@ namespace LiteDB.Internals
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var child = new MvccProcess("one-file-warm-reader", files.Filename, null);
             await child.Expect("ready");
+            var killedSlot = int.Parse(await child.ReadLine(TimeSpan.FromSeconds(5)));
+            var table = engine.MappedReaderTable;
+            killedSlot.Should().NotBe(table.Authority.Slot);
+            table.Authority.Locks.IsLive(killedSlot).Should().BeTrue();
             engine.MappedReaderTable.LiveVersions().Should().NotBeEmpty();
             db.GetCollection("docs").Update(Row(1, 1)).Should().BeTrue();
             db.Checkpoint();
             await child.Kill(sharedFilesRemainOpen: true);
+            // WaitForExit can precede Windows native handle cleanup. Establish
+            // actual slot release within the existing file-release allowance;
+            // scanning before that proof must conservatively retain its floor.
+            SpinWait.SpinUntil(() => !table.Authority.Locks.IsLive(killedSlot), TimeSpan.FromSeconds(5))
+                .Should().BeTrue("a killed warm reader must release its actual native slot");
             engine.MappedReaderTable.LiveVersions().Should().BeEmpty("dead mapped records are ignored only after kernel proof");
             for (var recovery = 0; recovery < 2; recovery++) { db.Checkpoint(); Verify(db, 1); }
+            db.Dispose(); engine.Dispose();
+            for (var reopen = 0; reopen < 2; reopen++)
+            {
+                using var cold = new LiteDatabase(files.Filename);
+                Verify(cold, 1);
+            }
         }
     }
 }

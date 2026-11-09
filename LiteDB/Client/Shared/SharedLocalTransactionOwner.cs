@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Collections.Generic;
 using LiteDB.Engine;
 
 namespace LiteDB.Client.Shared
@@ -15,36 +16,57 @@ namespace LiteDB.Client.Shared
     {
         private readonly object _gate = new object();
         private Lease _current;
+        private readonly LinkedList<object> _queue = new LinkedList<object>();
         private long _generation;
 
         internal readonly TransactionOwnerToken Token = new TransactionOwnerToken();
 
         internal Lease Enter(object facade)
         {
+            return Enter(TransactionLease.Legacy(facade), null);
+        }
+
+        internal Lease Enter(TransactionLease identity, TimeSpan? timeout)
+        {
+            if (identity == null) throw new ArgumentNullException(nameof(identity));
+            var facade = identity.Facade;
             var thread = Thread.CurrentThread;
+            using var budget = new TransactionWaitBudget(timeout ?? TimeSpan.FromDays(20));
+            timeout = TransactionWaitBudget.Timeout(timeout ?? TimeSpan.FromDays(20));
             lock (_gate)
             {
                 ReleaseDeadOwnerLocked();
                 if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
-                    ReferenceEquals(_current.Thread, thread))
+                    _current.Identity.Kind == TransactionOwnerKind.Legacy && ReferenceEquals(_current.Thread, thread))
                 {
                     throw LiteException.SameThreadTransaction();
                 }
 
-                while (_current != null)
+                var request = _queue.AddLast(new object());
+                try
+                {
+                while (_current != null || !ReferenceEquals(_queue.First, request))
                 {
                     // A native holder normally pulses on terminal cleanup. Recheck
                     // actual Thread identity if death precedes its cleanup callback.
-                    Monitor.Wait(_gate, 100);
+                    var remaining = timeout.HasValue ? TransactionWaitBudget.Remaining(timeout.Value) : TimeSpan.FromMilliseconds(100);
+                    if (remaining <= TimeSpan.Zero) throw LiteException.LockTimeout("Shared local transaction", timeout.Value);
+                    TransactionWaitBudget.Wait(_gate, remaining < TimeSpan.FromMilliseconds(100) ? remaining : TimeSpan.FromMilliseconds(100));
                     ReleaseDeadOwnerLocked();
                     if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
-                        ReferenceEquals(_current.Thread, thread))
+                        _current.Identity.Kind == TransactionOwnerKind.Legacy && ReferenceEquals(_current.Thread, thread))
                     {
                         throw LiteException.SameThreadTransaction();
                     }
                 }
 
-                return _current = new Lease(this, facade, thread, ++_generation);
+                return _current = new Lease(this, identity, ++_generation);
+                }
+                finally
+                {
+                    _queue.Remove(request);
+                    Monitor.PulseAll(_gate);
+                }
             }
         }
 
@@ -65,13 +87,13 @@ namespace LiteDB.Client.Shared
             {
                 ReleaseDeadOwnerLocked();
                 return _current != null && !ReferenceEquals(_current.Facade, facade) &&
-                    ReferenceEquals(_current.Thread, thread);
+                    _current.Identity.Kind == TransactionOwnerKind.Legacy && ReferenceEquals(_current.Thread, thread);
             }
         }
 
         private void ReleaseDeadOwnerLocked()
         {
-            if (_current == null || _current.Thread.IsAlive) return;
+            if (_current == null || _current.Identity.Kind == TransactionOwnerKind.Handle || _current.Thread.IsAlive) return;
             _current = null;
             Monitor.PulseAll(_gate);
         }
@@ -79,15 +101,15 @@ namespace LiteDB.Client.Shared
         internal sealed class Lease : IDisposable
         {
             private SharedLocalTransactionOwner _owner;
-            internal readonly object Facade;
-            internal readonly Thread Thread;
+            internal readonly TransactionLease Identity;
+            internal object Facade => Identity.Facade;
+            internal Thread Thread => Identity.Thread;
             internal readonly long Generation;
 
-            internal Lease(SharedLocalTransactionOwner owner, object facade, Thread thread, long generation)
+            internal Lease(SharedLocalTransactionOwner owner, TransactionLease identity, long generation)
             {
                 _owner = owner;
-                Facade = facade;
-                Thread = thread;
+                Identity = identity;
                 Generation = generation;
             }
 

@@ -1,0 +1,504 @@
+{
+  "sha": "9cbc26ce3df5b993a42902986848c7b0c15db818",
+  "run": 42484774610,
+  "partition": "shared",
+  "samples": [
+    {
+      "artifact": "final-intel8-failure",
+      "complete": false,
+      "classes": [
+        {
+          "name": "LiteDB.Internals.SharedOneFileAllocation_Tests",
+          "cases": 4,
+          "seconds": 6.6387273
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileCheckpointFences_Tests",
+          "cases": 4,
+          "seconds": 3.7650218
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileCloseCompletion_Tests",
+          "cases": 6,
+          "seconds": 2.2710139
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDecoratorOwnership_Tests",
+          "cases": 4,
+          "seconds": 4.566008
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDeferredRead_Tests",
+          "cases": 5,
+          "seconds": 5.3811068
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDurablePrefix_Tests",
+          "cases": 5,
+          "seconds": 1.9363744
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileFailureFences_Tests",
+          "cases": 10,
+          "seconds": 8.1375602
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileGroupDowngrade_Tests",
+          "cases": 8,
+          "seconds": 17.1394178
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileLiveDimensions_Tests",
+          "cases": 11,
+          "seconds": 7.4440576
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceFailure_Tests",
+          "cases": 11,
+          "seconds": 21.6423592
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceOpening_Tests",
+          "cases": 7,
+          "seconds": 7.9903998
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenancePathReview_Tests",
+          "cases": 4,
+          "seconds": 17.0569046
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceReadOnlyReview_Tests",
+          "cases": 2,
+          "seconds": 4.0736874
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceUpgradeReview_Tests",
+          "cases": 2,
+          "seconds": 0.8017603
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenance_Tests",
+          "cases": 4,
+          "seconds": 6.7079781
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOpeningMutations_Tests",
+          "cases": 12,
+          "seconds": 17.4367666
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOwnerGeneration_Tests",
+          "cases": 8,
+          "seconds": 5.5805406
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOwnershipFences_Tests",
+          "cases": 3,
+          "seconds": 3.8996152
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileProductionReuse_Tests",
+          "cases": 28,
+          "seconds": 45.4031995
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFilePublicationReview_Tests",
+          "cases": 9,
+          "seconds": 1.8553131
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFilePublication_Tests",
+          "cases": 1,
+          "seconds": 2.9368826
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReadOnlyUpgradeControls_Tests",
+          "cases": 4,
+          "seconds": 3.0226652
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReadOwnership_Tests",
+          "cases": 9,
+          "seconds": 5.2363086
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests",
+          "cases": 19,
+          "seconds": 35.0168651
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRekey_Tests",
+          "cases": 7,
+          "seconds": 4.3320509
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReplacementReplay_Tests",
+          "cases": 10,
+          "seconds": 20.7462104
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRetryHandoff_Tests",
+          "cases": 7,
+          "seconds": 10.6254517
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReuse_Tests",
+          "cases": 22,
+          "seconds": 13.5594034
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileTerminalTransitions_Tests",
+          "cases": 20,
+          "seconds": 4.8007229
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWalBatch_Tests",
+          "cases": 2,
+          "seconds": 1.9817544
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmCounter_Tests",
+          "cases": 2,
+          "seconds": 0.6108111
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmFailures_Tests",
+          "cases": 9,
+          "seconds": 2.5156115
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmGenerations_Tests",
+          "cases": 1,
+          "seconds": 0.0656045
+        }
+      ]
+    },
+    {
+      "artifact": "final-intel9",
+      "complete": true,
+      "classes": [
+        {
+          "name": "LiteDB.Internals.SharedCommitFailure_Tests",
+          "cases": 32,
+          "seconds": 9.5270198
+        },
+        {
+          "name": "LiteDB.Internals.SharedDataReaderCleanup_Tests",
+          "cases": 4,
+          "seconds": 0.0033406
+        },
+        {
+          "name": "LiteDB.Internals.SharedDurability_Tests",
+          "cases": 10,
+          "seconds": 0.6053654
+        },
+        {
+          "name": "LiteDB.Internals.SharedFileHandles_Tests",
+          "cases": 7,
+          "seconds": 0.0496822
+        },
+        {
+          "name": "LiteDB.Internals.SharedOfflineUpgrade_Tests",
+          "cases": 20,
+          "seconds": 4.9498167
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileAbandonedWrite_Tests",
+          "cases": 1,
+          "seconds": 5.0090019
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileAdmission_Tests",
+          "cases": 10,
+          "seconds": 0.3748532
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileAllocation_Tests",
+          "cases": 4,
+          "seconds": 4.1862524
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileBootstrap_Tests",
+          "cases": 31,
+          "seconds": 1.3300465
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileCheckpointFences_Tests",
+          "cases": 4,
+          "seconds": 2.7275516
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileCloseCompletion_Tests",
+          "cases": 6,
+          "seconds": 1.5536293
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDecoratorOwnership_Tests",
+          "cases": 4,
+          "seconds": 1.6753536
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDeferredRead_Tests",
+          "cases": 5,
+          "seconds": 3.0897663
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileDurablePrefix_Tests",
+          "cases": 5,
+          "seconds": 1.0896922
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileFailureFences_Tests",
+          "cases": 10,
+          "seconds": 3.9197791
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileGroupDowngrade_Tests",
+          "cases": 8,
+          "seconds": 9.9957116
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileLiveDimensions_Tests",
+          "cases": 11,
+          "seconds": 5.2637129
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileLockMap_Tests",
+          "cases": 2,
+          "seconds": 0.0554514
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileLock_Tests",
+          "cases": 3,
+          "seconds": 0.0081758
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceFailure_Tests",
+          "cases": 11,
+          "seconds": 13.7040962
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceOpening_Tests",
+          "cases": 7,
+          "seconds": 4.8775882
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenancePathReview_Tests",
+          "cases": 4,
+          "seconds": 9.0549131
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceReadOnlyReview_Tests",
+          "cases": 2,
+          "seconds": 3.0606702
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenanceUpgradeReview_Tests",
+          "cases": 2,
+          "seconds": 0.482539
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileMaintenance_Tests",
+          "cases": 4,
+          "seconds": 2.7042187
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOpeningMutations_Tests",
+          "cases": 12,
+          "seconds": 5.2551546
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOwnerGeneration_Tests",
+          "cases": 8,
+          "seconds": 3.433138
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileOwnershipFences_Tests",
+          "cases": 3,
+          "seconds": 2.2871594
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFilePhase1_Tests",
+          "cases": 6,
+          "seconds": 3.2302227
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileProductionReuse_Tests",
+          "cases": 28,
+          "seconds": 33.5707951
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFilePublicationReview_Tests",
+          "cases": 9,
+          "seconds": 1.3394157
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFilePublication_Tests",
+          "cases": 1,
+          "seconds": 1.8824522
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReadOnlyUpgradeControls_Tests",
+          "cases": 4,
+          "seconds": 2.3574076
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReadOwnership_Tests",
+          "cases": 9,
+          "seconds": 2.7798447
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReaders_Tests",
+          "cases": 7,
+          "seconds": 1.5219214
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRecoveryCuts_Tests",
+          "cases": 19,
+          "seconds": 24.176852
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRegistry_Tests",
+          "cases": 22,
+          "seconds": 2.1782996
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRekey_Tests",
+          "cases": 7,
+          "seconds": 5.2727541
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReplacementReplay_Tests",
+          "cases": 10,
+          "seconds": 8.408493
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileRetryHandoff_Tests",
+          "cases": 7,
+          "seconds": 8.3720704
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileReuse_Tests",
+          "cases": 22,
+          "seconds": 8.30314
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileSlice7OwnerReuseReview_Tests",
+          "cases": 1,
+          "seconds": 0.1487916
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileSlice7Review_Tests",
+          "cases": 4,
+          "seconds": 0.8812517
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileSnapshotSafety_Tests",
+          "cases": 2,
+          "seconds": 0.1963114
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileTerminalTransitions_Tests",
+          "cases": 20,
+          "seconds": 3.6259866
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileTransactionOwnership_Tests",
+          "cases": 4,
+          "seconds": 0.1643172
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWalBatch_Tests",
+          "cases": 2,
+          "seconds": 1.0437028
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmCounter_Tests",
+          "cases": 2,
+          "seconds": 0.4575494
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmFailures_Tests",
+          "cases": 9,
+          "seconds": 1.2801431
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmGenerations_Tests",
+          "cases": 2,
+          "seconds": 1.0522192
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmLifetime_Tests",
+          "cases": 10,
+          "seconds": 4.3443918
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmPrefix_Tests",
+          "cases": 2,
+          "seconds": 3.9143261
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmPublication_Tests",
+          "cases": 2,
+          "seconds": 0.9385724
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmReads_Tests",
+          "cases": 24,
+          "seconds": 4.5231957
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmRecoveryBreadth_Tests",
+          "cases": 16,
+          "seconds": 23.446353
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmRecovery_Tests",
+          "cases": 15,
+          "seconds": 20.2098234
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmResources_Tests",
+          "cases": 7,
+          "seconds": 1.231069
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWarmReview_Tests",
+          "cases": 5,
+          "seconds": 2.742514
+        },
+        {
+          "name": "LiteDB.Internals.SharedOneFileWriteFailures_Tests",
+          "cases": 11,
+          "seconds": 3.7399562
+        },
+        {
+          "name": "LiteDB.Internals.SharedPageReads_Tests",
+          "cases": 3,
+          "seconds": 0.0649618
+        },
+        {
+          "name": "LiteDB.Internals.SharedPlatformWake_Tests",
+          "cases": 5,
+          "seconds": 0.6196167
+        },
+        {
+          "name": "LiteDB.Internals.SharedReaderCleanupMappedCycles_Tests",
+          "cases": 6,
+          "seconds": 11.2032544
+        },
+        {
+          "name": "LiteDB.Internals.SharedReaderCleanupMappedProgress_Tests",
+          "cases": 2,
+          "seconds": 1.1646436
+        },
+        {
+          "name": "LiteDB.Internals.SharedUnsyncableLog_Tests",
+          "cases": 1,
+          "seconds": 0.5054747
+        }
+      ]
+    }
+  ]
+}
