@@ -38,3 +38,13 @@
 - 2026-11-09T00:03:04.613784+00:00 hosted 42531054661: {'completed:failure': 3, 'completed:success': 7, 'in_progress:': 10, 'queued:': 2}; streaming collector active.
 - linux-0 terminal failure: api-boundary all10seeds+10independent hosted replays fail348 with full header name capacity. Classified harness scaling defect: per-step collection accumulation exceeds8000-byte header; engine rejects before allocation. Evidence supplemental-findings.md; no product corruption/flaky claim, no fixes. Downloaded210540campaign steps,32failure records (12vector+20api).
 - 2026-11-09T00:06:24.534681+00:00 hosted 42531054661: {'completed:failure': 3, 'completed:success': 7, 'in_progress:': 10, 'queued:': 2}; streaming collector active.
+- 2026-11-09T00:09:26.580485+00:00 hosted 42531054661: {'completed:failure': 3, 'completed:success': 7, 'in_progress:': 11, 'queued:': 1}; streaming collector active.
+- 2026-11-09T00:12:28.663646+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 7, 'in_progress:': 10, 'queued:': 1}; streaming collector active.
+- windows-2 terminal failure:10snapshot originals failed Windows control-file sharing. Hosted replays6same sharing family,3recorded-input exhaustion,1pass; exact deterministic replay not established for every seed. Classified harness IPC sharing race from .read/.result lifecycle, no snapshot-data mismatch. Evidence supplemental-findings.md; incomplete snapshot coverage remains blocker. Current236358campaign steps,51retained failures.
+- 2026-11-09T00:15:35.959571+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 9, 'in_progress:': 9}; streaming collector active.
+- 2026-11-09T00:27:51.823124+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 11, 'in_progress:': 7}; streaming collector active.
+- 2026-11-09T00:31:14.431438+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 11, 'in_progress:': 7}; streaming collector active.
+- 2026-11-09T00:34:16.668454+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:37:23.005420+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:40:25.213438+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- All three fault suites complete: Linux1775pass, macOS1772pass+4NotExecuted, Windows1771pass+4NotExecuted; zero failed commands. Downloaded301508campaign steps; windows-7 succeeded. Latest audit173markers/60unreached,100faults/17unreached,162hash entries verified. Six hosted legs still running; no queued. Evidence-only checkpoint952e0f921.
