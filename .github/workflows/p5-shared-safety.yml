@@ -1,6 +1,9 @@
 name: Shared open safety
 on:
   workflow_dispatch:
+  push:
+    branches: [v6/wip-p5-shared-open]
+    paths: [.github/workflows/p5-shared-safety.yml]
 permissions:
   contents: read
 jobs:
