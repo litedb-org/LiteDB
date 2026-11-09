@@ -60,8 +60,8 @@ internal class SharedProcessFuzzer : IFuzzTarget
                 File.AppendAllText(Path.Combine(context.DirectoryPath, "processes.jsonl"),
                     System.Text.Json.JsonSerializer.Serialize(new { round = rounds, worker, process.Id }) + Environment.NewLine);
                 context.Trace("spawn", new { round = rounds, worker, crashAt });
-                // Mapped WAL truncation requires exclusive mapping ownership. Starting
-                // peers first makes clear hooks unreachable even while WRITE is held.
+                // Peer snapshots and transitional mapped slots can defer checkpoints.
+                // Admit checkpoint crash cuts before peers so every hook is reachable.
                 // Other cuts retain the original concurrent admission schedule.
                 if (worker == 0 && !_legacy && RequiresExclusiveCheckpointStart(crashAt))
                     await WaitForExit(process);
@@ -226,7 +226,7 @@ internal class SharedProcessFuzzer : IFuzzTarget
     }
 
     internal static bool RequiresExclusiveCheckpointStart(int position) =>
-        position == 25 || position == 26; // checkpoint-before-clear / checkpoint-after-clear
+        position >= 21 && position <= 26; // checkpoint-before-page-write through checkpoint-after-clear
 
     private static async Task WaitForExit(Process process)
     {
