@@ -1,0 +1,72 @@
+name: F-P5 Windows native release investigation
+on:
+  workflow_dispatch:
+  push:
+    branches: [v6/wip-f-p5-win33]
+permissions:
+  contents: read
+jobs:
+  stress:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        framework: [net8.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fixed
+      - uses: actions/checkout@v4
+        with:
+          ref: 23a5c6c7b795b080c943488a3fb7679c76816064
+          path: before
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Observe original failure without suppressing it
+        shell: pwsh
+        working-directory: before
+        env:
+          LITEDB_NATIVE_DIAG_REPEATS: '20'
+          LITEDB_NATIVE_DIAG_SOURCE: 23a5c6c7b795b080c943488a3fb7679c76816064
+        run: |
+          New-Item -ItemType Directory -Force ../evidence/before | Out-Null
+          git apply --check ../fixed/.github/diagnostics/f-p5-win33-before.patch
+          if ($LASTEXITCODE) { throw 'Invalid diagnostic graft' }
+          git apply ../fixed/.github/diagnostics/f-p5-win33-before.patch
+          $env:LITEDB_NATIVE_DIAG_EVIDENCE = Join-Path (Resolve-Path ../evidence/before) 'observations'
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false *> ../evidence/before/build.log
+          if ($LASTEXITCODE) { throw 'Before build failed' }
+          for ($session = 0; $session -lt 10; $session++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj --no-build --no-restore -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedWriterTenureProcess_Tests.Dead_or_expired_requester_cannot_reserve_a_turn' --logger "trx;LogFileName=before-$session.trx" --results-directory ../evidence/before *> ../evidence/before/session-$session.log
+            if ($LASTEXITCODE) {
+              "Original failure retained in session $session" | Set-Content ../evidence/before/failure.txt
+              break
+            }
+          }
+          # Before failures are research outcomes, retained verbatim; never qualification.
+          exit 0
+      - name: Stress bounded release wait and all tenure safety assertions
+        shell: pwsh
+        working-directory: fixed
+        run: |
+          New-Item -ItemType Directory -Force ../evidence/fixed | Out-Null
+          git rev-parse HEAD | Set-Content ../evidence/fixed/source-sha.txt
+          dotnet --info | Set-Content ../evidence/fixed/runtime.txt
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false *> ../evidence/fixed/build.log
+          if ($LASTEXITCODE) { throw 'Fixed build failed' }
+          $filter = 'FullyQualifiedName~SharedWriterTenureProcess_Tests|FullyQualifiedName~WindowsFileRelease_Tests'
+          for ($session = 0; $session -lt 50; $session++) {
+            dotnet test LiteDB.Tests/LiteDB.Tests.csproj --no-build --no-restore -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter $filter --logger "trx;LogFileName=fixed-$session.trx" --results-directory ../evidence/fixed *> ../evidence/fixed/session-$session.log
+            if ($LASTEXITCODE) { throw "Fixed test failed in session $session" }
+            $filter = 'FullyQualifiedName~SharedWriterTenureProcess_Tests.Dead_or_expired_requester_cannot_reserve_a_turn'
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: win33-${{ matrix.os }}-${{ matrix.framework }}
+          path: evidence

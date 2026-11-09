@@ -1230,6 +1230,22 @@
       "coveredBy": [
         "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
       ]
+    },
+    {
+      "id": "f-p5-win33-native-release-precondition",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs",
+        "LiteDB.Tests/Utils/WindowsFileRelease.cs",
+        ".github/workflows/f-p5-win33.yml"
+      ],
+      "disposition": "replaced",
+      "invariant": "Dead/expired requesters cannot reserve a turn; all acknowledged rows, indexes, sentinel and tenure902 survive two cold opens. Native lock ownership is never bypassed.",
+      "reason": "Wait at most five seconds for the exact admission byte after all intentional participants close. Windows process exit/handle close does not promise synchronous byte-range release; native admission is deliberately fail-fast. Original failures remain in diagnostic TRX.",
+      "coveredBy": [
+        "LiteDB.Tests/Utils/WindowsFileRelease_Tests.cs",
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs"
+      ]
     }
   ]
 }
