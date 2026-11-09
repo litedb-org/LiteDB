@@ -16,6 +16,7 @@ files = sorted(root.glob("**/all.json"))
 assert len(files) == 6, f"expected six legs, found {len(files)}"
 summary = []
 identities = set()
+legs = set()
 manifest = {}
 for file in files:
     rows = json.loads(file.read_text())
@@ -28,10 +29,13 @@ for file in files:
     identities.add(identity)
     assert first['framework'] in ('.NETCoreApp,Version=v8.0', '.NETCoreApp,Version=v10.0')
     assert any(name in first['os'] for name in ('Windows', 'Linux', 'Darwin'))
-    os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if first['architecture'] == 'Arm64' else 'Linux x64'
+    os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if 'Darwin' in first['os'] else 'Linux x64'
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
-    contract = IDENTITIES[f"{os_name}|{first['framework']}"]
+    leg = f"{os_name}|{first['framework']}"
+    assert leg not in legs
+    legs.add(leg)
+    contract = IDENTITIES[leg]
     for row in rows:
         requests = contract['readRequests'] if row['scenario'] == 'read' else 20
         expected_harness = contract['harness']
@@ -65,6 +69,7 @@ for file in files:
                             ratioLow=stats['v6']['low']/stats['v5']['high'],
                             ratioHigh=stats['v6']['high']/stats['v5']['low']))
     manifest[str(file.relative_to(root))] = hashlib.sha256(file.read_bytes()).hexdigest()
+assert legs == set(IDENTITIES), (legs, set(IDENTITIES))
 (out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
 (out / 'artifact-sha256.json').write_text(json.dumps(manifest, indent=2) + '\n')
 lines = ['| OS | Runtime | Rep | Processes | Scenario | v5 ms [min,max] | v6 ms [min,max] | v6/v5 [bounds] |',

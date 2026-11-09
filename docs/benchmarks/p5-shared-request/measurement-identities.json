@@ -1,0 +1,32 @@
+{
+  "Linux x64|.NETCoreApp,Version=v8.0": {
+    "harness": "fd3ac44726c593b0ee7b97e4c4875f92c7d92171",
+    "readRequests": 20,
+    "minimumOverlap": 4
+  },
+  "Linux x64|.NETCoreApp,Version=v10.0": {
+    "harness": "fd3ac44726c593b0ee7b97e4c4875f92c7d92171",
+    "readRequests": 20,
+    "minimumOverlap": 4
+  },
+  "Windows x64|.NETCoreApp,Version=v8.0": {
+    "harness": "287399ca2ac1081fec2e93bb13b56cfddd476da3",
+    "readRequests": 200,
+    "minimumOverlap": 2
+  },
+  "Windows x64|.NETCoreApp,Version=v10.0": {
+    "harness": "fd3ac44726c593b0ee7b97e4c4875f92c7d92171",
+    "readRequests": 20,
+    "minimumOverlap": 4
+  },
+  "macOS ARM64|.NETCoreApp,Version=v8.0": {
+    "harness": "9453f357f706350e71340092fe34ad6b754f7bdb",
+    "readRequests": 200,
+    "minimumOverlap": 2
+  },
+  "macOS ARM64|.NETCoreApp,Version=v10.0": {
+    "harness": "9453f357f706350e71340092fe34ad6b754f7bdb",
+    "readRequests": 200,
+    "minimumOverlap": 2
+  }
+}
