@@ -1,0 +1,146 @@
+[
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net10.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.11277250000000001,
+    "minMsPerCycle": 0.094235,
+    "maxMsPerCycle": 0.1948
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net10.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 5.265775,
+    "minMsPerCycle": 4.5278599999999996,
+    "maxMsPerCycle": 7.091970000000001
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net10.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 5.1983125,
+    "minMsPerCycle": 4.494525,
+    "maxMsPerCycle": 6.429275
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net8.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.114005,
+    "minMsPerCycle": 0.089125,
+    "maxMsPerCycle": 0.29908999999999997
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net8.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 5.8544575000000005,
+    "minMsPerCycle": 4.891985,
+    "maxMsPerCycle": 23.860599999999998
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-macos-latest-net8.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 6.018355,
+    "minMsPerCycle": 4.92564,
+    "maxMsPerCycle": 61.206050000000005
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.060215,
+    "minMsPerCycle": 0.058120000000000005,
+    "maxMsPerCycle": 0.06408
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 3.8675799999999994,
+    "minMsPerCycle": 3.67365,
+    "maxMsPerCycle": 4.89156
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net10.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 4.7576775,
+    "minMsPerCycle": 3.70833,
+    "maxMsPerCycle": 5.18965
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.061817500000000004,
+    "minMsPerCycle": 0.06006,
+    "maxMsPerCycle": 0.06670000000000001
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 3.7978700000000005,
+    "minMsPerCycle": 3.649615,
+    "maxMsPerCycle": 4.889285
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-ubuntu-latest-net8.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 4.438875,
+    "minMsPerCycle": 3.7619700000000003,
+    "maxMsPerCycle": 8.888095
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net10.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.5075974999999999,
+    "minMsPerCycle": 0.48935000000000006,
+    "maxMsPerCycle": 0.60354
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net10.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 18.7749825,
+    "minMsPerCycle": 17.63944,
+    "maxMsPerCycle": 19.466365
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net10.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 21.926645,
+    "minMsPerCycle": 20.767155,
+    "maxMsPerCycle": 22.89966
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net8.0",
+    "config": "v5",
+    "millisecondsPerCycle": 0.23913500000000001,
+    "minMsPerCycle": 0.22552,
+    "maxMsPerCycle": 0.26292
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net8.0",
+    "config": "dev-default",
+    "millisecondsPerCycle": 15.462965,
+    "minMsPerCycle": 14.534389999999998,
+    "maxMsPerCycle": 16.16445
+  },
+  {
+    "run": 42531133092,
+    "leg": "shared-windows-latest-net8.0",
+    "config": "dev-os-cache",
+    "millisecondsPerCycle": 17.16937,
+    "minMsPerCycle": 16.433865,
+    "maxMsPerCycle": 18.851085
+  }
+]

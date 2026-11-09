@@ -42,7 +42,7 @@ The original benchmark finding ([run 42531133092](https://github.com/litedb-org/
 | macOS ARM64 | net8 | 5.854458 | 0.114005 |
 | macOS ARM64 | net10 | 5.265775 | 0.112773 |
 
-`open-close-ms.json` also retains OS-cache configuration and per-cell min/max. Those report-only measurements do not alter any existing threshold.
+`original-open-close-ms.json` retains all 18 original v5/default/OS-cache absolute medians. `open-close-ms.json` also retains OS-cache configuration and per-cell min/max. Those report-only measurements do not alter any existing threshold.
 
 ## Cause and profile evidence
 
