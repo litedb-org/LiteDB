@@ -26,7 +26,17 @@ namespace LiteDB.Internals
             try
             {
                 await Task.WhenAll(workers.Select(worker => worker.Expect("ready")));
-                foreach (var worker in workers) worker.Send("continue");
+                // Model a dead owner's OFD description still closing after its
+                // bootstrap mutex was abandoned: constructors must wait for DMS.
+                using (var owner = new MvccProcess("request-dms-hold", Filename + "-shm", null))
+                {
+                    await owner.Expect("ready");
+                    foreach (var worker in workers) worker.Send("continue");
+                    await Task.WhenAll(workers.Select(worker => worker.Expect("opening")));
+                    await Task.Delay(300);
+                    owner.Send("continue");
+                    await owner.Finish();
+                }
                 await Task.WhenAll(workers.Select(async worker =>
                 {
                     (await worker.ReadLine(TimeSpan.FromSeconds(100))).Should().Be("done");
