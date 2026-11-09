@@ -74,10 +74,24 @@ namespace LiteDB.Engine
 
         internal static T Unbound<T>(Func<T> action)
         {
-            var previous = _current;
-            var previousTicket = _ticket;
-            try { _current = null; _ticket = null; return action(); }
-            finally { _current = previous; _ticket = previousTicket; }
+            using (MaskBinding()) return action();
+        }
+
+        internal static BindingMask MaskBinding() => new BindingMask(true);
+
+        internal readonly struct BindingMask : IDisposable
+        {
+            private readonly TransactionContext _previous;
+            private readonly Ticket _previousTicket;
+            internal BindingMask(bool mask)
+            {
+                _previous = _current;
+                _previousTicket = _ticket;
+                _current = null;
+                _ticket = null;
+                // Keep execution frames: callbacks must still refuse self-waits.
+            }
+            public void Dispose() { _current = _previous; _ticket = _previousTicket; }
         }
 
         internal static IDisposable Enter(TransactionContext context) => new Binding(context);
