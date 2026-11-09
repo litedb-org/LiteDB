@@ -1,0 +1,41 @@
+name: F-P5 Windows native release investigation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integrated-class:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: de5f1ac023ccfccdf9204ffadcd37d921a8f5eaf
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build exact integrated head and run affected class once
+        shell: pwsh
+        env:
+          LITEDB_EXPECTED_RUNTIME_MAJOR: '8'
+          LITEDB_EXPECTED_ARCHITECTURE: x64
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $sha = git rev-parse HEAD
+          $sha | Set-Content evidence/source-sha.txt
+          if ($sha -ne 'de5f1ac023ccfccdf9204ffadcd37d921a8f5eaf') { throw 'Wrong checkout' }
+          dotnet --info | Set-Content evidence/runtime.txt
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false *> evidence/build.log
+          if ($LASTEXITCODE) { throw 'Build failed' }
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false --no-build --no-restore --settings tests.runsettings --filter 'FullyQualifiedName~SharedWriterTenureProcess_Tests|FullyQualifiedName~WindowsFileRelease_Tests|FullyQualifiedName~TestHost_Tests' --logger 'trx;LogFileName=integrated.trx' --results-directory evidence -- RunConfiguration.TargetPlatform=x64 *> evidence/test.log
+          if ($LASTEXITCODE) { throw 'Tests failed' }
+          [xml]$trx = Get-Content evidence/integrated.trx
+          $counts = $trx.TestRun.ResultSummary.Counters
+          if ([int]$counts.total -ne 22 -or [int]$counts.passed -ne 22 -or [int]$counts.failed -ne 0 -or [int]$counts.notExecuted -ne 0) { throw "Unexpected test counts: $($counts.OuterXml)" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: win33-integrated-windows-x64-net8
+          path: evidence
