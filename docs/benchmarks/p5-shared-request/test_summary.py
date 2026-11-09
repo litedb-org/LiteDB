@@ -24,18 +24,18 @@ class SummaryAuditTests(unittest.TestCase):
                 rows = []
                 for rep, round_id, scenario, workers, variant in itertools.product((1, 2), range(6), ('read', 'insert', 'mixed'), (1, 4), ('v5', 'v6')):
                     rows.append(dict(repetition=rep, round=round_id, scenario=scenario, workers=workers,
-                                     variant=variant, verified=True, requestsPerWorker=20, warmupRequests=10,
+                                     variant=variant, verified=True, requestsPerWorker=200 if os_name == 'Darwin' and scenario == 'read' else 20, warmupRequests=10,
                                      latencyMs=2 if variant == 'v6' else 1, wallMsPerRequest=1,
                                      processes=[dict(runtime=f'.NET {version}.0.0', os=os_name, architecture=architecture, framework=runtime,
                                                      candidateCommit=CANDIDATE, harnessCommit=HARNESS,
-                                                     tieredCompilation='0', requests=20, milliseconds=100,
+                                                     tieredCompilation='0', requests=200 if os_name == 'Darwin' and scenario == 'read' else 20, milliseconds=100,
                                                      assemblySha256=variant) for _ in range(workers)]))
                 path = root / f'{os_name}-{runtime}' / 'all.json'
                 path.parent.mkdir()
                 path.write_text(json.dumps(rows))
                 files.append(path)
             def run():
-                return subprocess.run([sys.executable, str(SCRIPT), str(root), str(root / 'report'), HARNESS], capture_output=True)
+                return subprocess.run([sys.executable, str(SCRIPT), str(root), str(root / 'report'), HARNESS, HARNESS], capture_output=True)
             result = run()
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads((root / 'report' / 'summary.json').read_text())

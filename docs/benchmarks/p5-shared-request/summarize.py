@@ -8,6 +8,7 @@ import sys
 
 CANDIDATE = "7000dd6f01d0187a8fb5d030064eb327864ab731"
 HARNESS = sys.argv[3]
+MAC_HARNESS = sys.argv[4]
 root = Path(sys.argv[1])
 out = Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
@@ -31,12 +32,14 @@ for file in files:
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
     for row in rows:
-        assert row['verified'] and row['requestsPerWorker'] == 20 and row['warmupRequests'] == 10
+        requests = 200 if os_name == 'macOS ARM64' and row['scenario'] == 'read' else 20
+        expected_harness = MAC_HARNESS if os_name == 'macOS ARM64' else HARNESS
+        assert row['verified'] and row['requestsPerWorker'] == requests and row['warmupRequests'] == 10
         assert len(row['processes']) == row['workers'] and row['latencyMs'] > 0 and row['wallMsPerRequest'] > 0
         for process in row['processes']:
             assert (process['os'], process['architecture'], process['framework']) == identity
-            assert process['candidateCommit'] == CANDIDATE and process['harnessCommit'] == HARNESS
-            assert process['tieredCompilation'] == '0' and process['requests'] == 20
+            assert process['candidateCommit'] == CANDIDATE and process['harnessCommit'] == expected_harness
+            assert process['tieredCompilation'] == '0' and process['requests'] == requests
             version = '8' if 'v8.0' in process['framework'] else '10'
             assert process['runtime'].startswith(f'.NET {version}.')
             assert process['milliseconds'] > 0
