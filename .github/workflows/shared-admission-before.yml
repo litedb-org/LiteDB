@@ -1,5 +1,8 @@
 name: Shared admission known-bad proof
 on:
+  push:
+    branches: ['v6/wip-f-p5-macos-eagain']
+    paths: ['.github/workflows/shared-admission-before.yml']
   workflow_dispatch:
 permissions:
   contents: read
