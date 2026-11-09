@@ -486,10 +486,11 @@ jobs:
         timeout-minutes: 155
         run: python .github/scripts/p5/harness_campaign.py --target "${{ matrix.target }}" --seed "${{ matrix.seed }}"
       - name: Stop and reap campaign children before artifact upload
+        id: shutdown
         if: always()
         run: python .github/scripts/p5/harness_campaign.py --shutdown-only
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.shutdown.outcome == 'success'
         with:
           name: harness-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.seed }}
           path: |

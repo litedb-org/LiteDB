@@ -37,3 +37,37 @@ class HarnessCampaignTests(unittest.TestCase):
                 row = self.result()
                 row[key] = value
                 self.validate([self.result(), row])
+
+    def test_shutdown_reaps_a_child_spawned_after_first_enumeration(self):
+        from unittest.mock import Mock, patch
+        import types
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            binary = root / 'LiteDB.Fuzz.dll'
+            (root / 'reader-1.ready').write_text('ready')
+            parent, late_child = Mock(), Mock()
+            for process in [parent, late_child]:
+                process.info = {'cmdline': ['dotnet', str(binary.resolve())]}
+            fake = types.SimpleNamespace(NoSuchProcess=ProcessLookupError, AccessDenied=PermissionError,
+                process_iter=Mock(side_effect=[[parent], [late_child], []]),
+                wait_procs=Mock(side_effect=lambda processes, timeout: ([], processes)))
+            with patch.dict('sys.modules', psutil=fake):
+                campaign.shutdown(binary, root)
+            self.assertEqual('stop', (root / 'reader-1.stop').read_text())
+            for process in [parent, late_child]:
+                process.terminate.assert_called_once()
+                process.kill.assert_called_once()
+
+    def test_shutdown_refuses_unstable_evidence(self):
+        from unittest.mock import Mock, patch
+        import types
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            binary = root / 'LiteDB.Fuzz.dll'
+            process = Mock()
+            process.info = {'cmdline': [str(binary.resolve())]}
+            fake = types.SimpleNamespace(NoSuchProcess=ProcessLookupError, AccessDenied=PermissionError,
+                process_iter=Mock(return_value=[process]),
+                wait_procs=Mock(side_effect=lambda processes, timeout: ([], processes)))
+            with patch.dict('sys.modules', psutil=fake), self.assertRaisesRegex(RuntimeError, 'unstable'):
+                campaign.shutdown(binary, root)

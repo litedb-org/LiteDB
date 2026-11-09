@@ -8,40 +8,46 @@ import hashlib
 import json
 import pathlib
 import subprocess
-import time
 
 
 def shutdown(binary, root):
     import psutil
     binary = str(binary.resolve())
-    processes = []
-    for process in psutil.process_iter(['pid', 'cmdline']):
-        try:
-            if binary in (process.info['cmdline'] or []):
-                processes.append(process)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    # Snapshot readers own these files after publication. Ask them to release
-    # their cursors before terminating any orphan writer/runner processes.
-    for ready in root.rglob('reader-*.ready'):
-        stop = ready.with_suffix('.stop')
-        temporary = stop.with_suffix('.stop.publishing')
-        temporary.write_text('stop')
-        temporary.replace(stop)
-    _, alive = psutil.wait_procs(processes, timeout=10)
-    for process in alive:
-        try:
-            process.terminate()
-        except psutil.NoSuchProcess:
-            pass
-    _, alive = psutil.wait_procs(alive, timeout=5)
-    for process in alive:
-        try:
-            process.kill()
-        except psutil.NoSuchProcess:
-            pass
-    _, alive = psutil.wait_procs(alive, timeout=5)
-    if alive:
+    def matching():
+        processes = []
+        for process in psutil.process_iter(['pid', 'cmdline']):
+            try:
+                if binary in (process.info['cmdline'] or []):
+                    processes.append(process)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return processes
+
+    # A runner can spawn a child between enumeration and termination. Re-scan
+    # after reaping each generation; never upload while any scoped process lives.
+    for _ in range(3):
+        processes = matching()
+        if not processes:
+            return
+        for ready in root.rglob('reader-*.ready'):
+            stop = ready.with_suffix('.stop')
+            temporary = stop.with_suffix('.stop.publishing')
+            temporary.write_text('stop')
+            temporary.replace(stop)
+        _, alive = psutil.wait_procs(processes, timeout=10)
+        for process in alive:
+            try:
+                process.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        _, alive = psutil.wait_procs(alive, timeout=5)
+        for process in alive:
+            try:
+                process.kill()
+            except psutil.NoSuchProcess:
+                pass
+        psutil.wait_procs(alive, timeout=5)
+    if matching():
         raise RuntimeError('Campaign processes remain alive; evidence is unstable')
 
 
