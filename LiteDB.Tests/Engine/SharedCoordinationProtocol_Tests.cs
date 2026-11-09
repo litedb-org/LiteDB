@@ -252,7 +252,7 @@ namespace LiteDB.Tests.Engine
             SharedCoordinationProtocol.Write(bytes, 48, 1);
             File.WriteAllBytes(Page, bytes);
         }
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

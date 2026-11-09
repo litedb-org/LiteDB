@@ -97,7 +97,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            if (_passed) Directory.Delete(_directory, true);
+            if (_passed) WindowsFileRelease.DeleteDirectory(_directory);
             else Console.Error.WriteLine("Preserved admission evidence: " + _directory);
         }
     }

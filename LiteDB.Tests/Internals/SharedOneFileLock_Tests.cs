@@ -126,6 +126,6 @@ namespace LiteDB.Internals
         }
 
         [DllImport("libc", SetLastError = true)] private static extern int dup(int descriptor);
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }

@@ -55,7 +55,8 @@ namespace LiteDB.Internals
                 {
                     first.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
                     table = Engine(first).MappedReaderTable;
-                    core = table.ReadCache.Snapshot.Engine;
+                    core = readOnly ? SharedOneFilePublicationFixture.Field<LiteEngine>(table.ProtectedSnapshot, "_engine") : table.ReadCache.Snapshot.Engine;
+                    core.Should().NotBeNull();
                     admission = table.Admission.RegistryKey;
                 }
                 Thread.Sleep(200); // Beyond the previous 100 ms snapshot expiry.
@@ -65,8 +66,10 @@ namespace LiteDB.Internals
                     shared.MappedReaderTable.Should().BeSameAs(table);
                     shared.MappedReaderTable.Admission.RegistryKey.Should().BeSameAs(admission);
                     second.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
-                    table.ReadCache.Snapshot.Engine.Should().BeSameAs(core);
-                    shared.CoordinatedReadHits.Should().Be(1);
+                    var reused = readOnly ? SharedOneFilePublicationFixture.Field<LiteEngine>(table.ProtectedSnapshot, "_engine") : table.ReadCache.Snapshot.Engine;
+                    reused.Should().BeSameAs(core);
+                    shared.SnapshotOpens.Should().Be(0);
+                    if (!readOnly) shared.CoordinatedReadHits.Should().Be(1);
                     bootstraps.Should().Be(1);
                 }
                 LiteDatabase.ReleaseIdle(Filename);
@@ -123,12 +126,30 @@ namespace LiteDB.Internals
                 if (crash) await child.Kill();
                 else { child.Send("exit"); await child.Expect("done"); await child.Finish(); }
             }
+            File.Exists(Filename + ".exit-checkpoint").Should().Be(!crash);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 using var db = new LiteDatabase(Filename);
                 db.GetCollection("docs").FindOne(Query.EQ("value", "acknowledged"))["_id"].AsInt32.Should().Be(1);
                 db.GetCollection("docs").Count().Should().Be(1);
             }
+        }
+
+        [OneFileFact]
+        public async Task Read_only_cached_engine_is_discarded_after_a_remote_writer()
+        {
+            using (var seed = new LiteDatabase(Filename))
+                seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+            var connection = Connection;
+            connection.ReadOnly = true;
+            using var db = new LiteDatabase(connection);
+            db.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            var table = Engine(db).MappedReaderTable;
+            var before = SharedOneFilePublicationFixture.Field<LiteEngine>(table.ProtectedSnapshot, "_engine");
+            before.Should().NotBeNull();
+            await MvccProcess.Run("one-file-linger-change", Filename, null);
+            db.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("changed");
+            Engine(db).SnapshotOpens.Should().Be(2);
         }
 
         [OneFileFact]
@@ -150,7 +171,7 @@ namespace LiteDB.Internals
         public void Dispose()
         {
             LiteDatabase.ReleaseIdle(Filename);
-            Directory.Delete(_directory, true);
+            WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

@@ -23,6 +23,7 @@ namespace LiteDB.Client.Shared
         internal readonly EngineSettings Settings;
         internal WeakReference<Func<string, BsonValue, BsonValue>> ReadTransform;
         internal bool HasReadTransform;
+        internal readonly SharedProtectedSnapshot ProtectedSnapshot;
         internal readonly SharedSnapshotCache ReadCache = new SharedSnapshotCache();
         internal readonly SharedMemoryReadAdmission Reads;
         internal Action ClosedCallback;
@@ -110,6 +111,7 @@ namespace LiteDB.Client.Shared
             Settings = settings;
             if (settings.SharedLinger > 0) ReadCache.IdleLimit = TimeSpan.FromMilliseconds(settings.SharedLinger);
             Authority = authority;
+            ProtectedSnapshot = new SharedProtectedSnapshot(authority);
             _writer = new SharedMemoryWriter(authority);
             Reads = new SharedMemoryReadAdmission(authority);
             _admission = admission;
@@ -259,6 +261,7 @@ namespace LiteDB.Client.Shared
             {
                 try
                 {
+                    ProtectedSnapshot.Dispose();
                     ReadCache.Dispose();
                     SharedMemoryFinalClose.Run(this);
                 }

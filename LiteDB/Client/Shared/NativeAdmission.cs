@@ -67,6 +67,11 @@ namespace LiteDB.Client.Shared
         internal static NativeAdmission Open(EngineSettings settings, bool shared, bool normalized = false, bool create = true)
         {
             if (!normalized) Normalize(settings);
+#if NET8_0_OR_GREATER
+            // Local idle owners can relinquish synchronously before incompatible
+            // admission. Never call teardown while holding the native registry gate.
+            if (!shared || !settings.SharedOneFile) SharedParticipantRegistry.ReleaseIdle(settings.Filename);
+#endif
             using var pathGate = shared ? EnterPath(settings.Filename) : null;
             lock (Gate)
             {

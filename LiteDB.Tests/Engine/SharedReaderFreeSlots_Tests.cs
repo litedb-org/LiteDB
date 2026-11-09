@@ -114,7 +114,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
-            if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+            if (Directory.Exists(_directory)) WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

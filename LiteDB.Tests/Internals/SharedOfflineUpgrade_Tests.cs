@@ -211,7 +211,7 @@ namespace LiteDB.Internals
             for (var id = 1; id <= 64; id++)
                 db.GetCollection("docs").FindOne(Query.EQ("value", id * 7))["_id"].AsInt32.Should().Be(id);
         }
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

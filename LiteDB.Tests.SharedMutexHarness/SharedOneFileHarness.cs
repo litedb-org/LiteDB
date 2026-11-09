@@ -108,6 +108,14 @@ internal static class SharedOneFileHarness
             Console.WriteLine("done");
             return true;
         }
+        if (mode == "one-file-linger-change")
+        {
+            using (var db = new LiteDatabase(new ConnectionString
+            { Filename = filename, Connection = ConnectionType.Shared, SharedOneFile = true, SharedLinger = 0 }))
+                db.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["value"] = "changed" });
+            Console.WriteLine("done");
+            return true;
+        }
         if (mode == "one-file-linger-idle")
         {
             using (var db = new LiteDatabase(new ConnectionString
@@ -117,6 +125,10 @@ internal static class SharedOneFileHarness
                 db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "acknowledged" });
                 db.GetCollection("docs").EnsureIndex("value");
             }
+            SharedMemoryFinalClose.FinalCloseStage = stage =>
+            {
+                if (stage == "checkpointed") File.WriteAllText(filename + ".exit-checkpoint", "checkpointed");
+            };
             Console.WriteLine("idle");
             Console.ReadLine();
             Console.WriteLine("done");

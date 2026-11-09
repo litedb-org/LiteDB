@@ -189,7 +189,7 @@ namespace LiteDB.Internals
 
         public void Dispose()
         {
-            try { Directory.Delete(_directory, true); }
+            try { WindowsFileRelease.DeleteDirectory(_directory); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }

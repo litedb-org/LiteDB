@@ -235,7 +235,7 @@ namespace LiteDB.Internals
         public void Dispose()
         {
             SharedParticipantRegistry.ReleaseAllIdle();
-            Directory.Delete(_directory, true);
+            WindowsFileRelease.DeleteDirectory(_directory);
         }
     }
 }

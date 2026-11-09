@@ -351,7 +351,7 @@ namespace LiteDB.Internals
             var defaults = SharedMemoryEnvelope.Create(Settings(), "identity");
             defaults.Size.Should().Be(1064960);
         }
-        public void Dispose() { SharedMemoryAuthority.BootstrapStage = null; Directory.Delete(_directory, true); }
+        public void Dispose() { SharedMemoryAuthority.BootstrapStage = null; WindowsFileRelease.DeleteDirectory(_directory); }
     }
 }
 #endif

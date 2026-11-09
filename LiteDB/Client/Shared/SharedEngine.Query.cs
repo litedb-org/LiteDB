@@ -71,7 +71,7 @@ namespace LiteDB
                 }
                 if (needsEngine)
                 {
-                    var readOnly = this.TryOpenSnapshot(recoveredAbandonedOwner);
+                    var readOnly = this.TakeLingerSnapshot(recoveredAbandonedOwner) ?? this.TryOpenSnapshot(recoveredAbandonedOwner);
                     if (readOnly != null) return this.QuerySnapshot(collection, query, readOnly);
                     // The file needs a writable open first (creation, upgrade, index
                     // migration, format promotion, auto-rebuild): proceed as before.
@@ -277,6 +277,7 @@ namespace LiteDB
                     if (buffered != null)
                     {
                         this.ProbeLeases(snapshot.ReadVersion);
+                        snapshot = this.ParkLingerSnapshot(snapshot);
                         return buffered;
                     }
                 }

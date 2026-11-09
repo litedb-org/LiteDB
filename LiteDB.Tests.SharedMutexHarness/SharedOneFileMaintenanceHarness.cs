@@ -8,7 +8,7 @@ internal static class SharedOneFileMaintenanceHarness
     internal static bool TryRun(string mode, string filename, string[] args)
     {
         if (!mode.StartsWith("one-file-maintenance-") && mode != "one-file-final-cut" && mode != "one-file-recovery-cut") return false;
-        var settings = new EngineSettings { Filename = filename, SharedOneFile = true, Password = args[3] == "-" ? null : args[3] };
+        var settings = new EngineSettings { Filename = filename, SharedOneFile = true, SharedLinger = 0, Password = args[3] == "-" ? null : args[3] };
         if (mode == "one-file-maintenance-legacy-reader") { settings.ReadOnly = true; settings.LegacyIndexScan = true; }
         void Cut(string family, string stage)
         {

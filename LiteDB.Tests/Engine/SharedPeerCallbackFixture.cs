@@ -144,7 +144,7 @@ namespace LiteDB.Tests.Engine
         {
             if (_retain) return;
             this.CloseAll();
-            try { Directory.Delete(_directory, true); }
+            try { WindowsFileRelease.DeleteDirectory(_directory); }
             catch (IOException) { /* A later run cleans the temp directory. */ }
         }
     }

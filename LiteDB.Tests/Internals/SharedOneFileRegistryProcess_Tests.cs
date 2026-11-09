@@ -50,7 +50,7 @@ namespace LiteDB.Internals
             }
             await MvccProcess.Run("direct-host-direct-open", Filename, password);
         }
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

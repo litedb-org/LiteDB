@@ -17,7 +17,7 @@ namespace LiteDB.Internals
         internal string Log => FileHelper.GetLogFile(Filename);
         private readonly string _password;
         private readonly CompactStorageMode _compact;
-        internal EngineSettings Settings => new EngineSettings { Filename = Filename, SharedOneFile = true, Password = _password, CompactStorage = _compact };
+        internal EngineSettings Settings => new EngineSettings { Filename = Filename, SharedOneFile = true, SharedLinger = 0, Password = _password, CompactStorage = _compact };
         internal SharedOneFilePublicationFixture(string password = null, bool legacy = false)
         {
             _password = password;

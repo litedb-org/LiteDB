@@ -23,7 +23,7 @@ namespace LiteDB.Internals
         private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-registry-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
         public SharedOneFileRegistry_Tests() => Directory.CreateDirectory(_directory);
-        private EngineSettings Settings(string path = null) => new EngineSettings { Filename = path ?? Filename, SharedOneFile = true };
+        private EngineSettings Settings(string path = null) => new EngineSettings { Filename = path ?? Filename, SharedOneFile = true, SharedLinger = 0 };
 
         [OneFileTheory]
         [InlineData(false)] [InlineData(true)]
@@ -278,7 +278,7 @@ namespace LiteDB.Internals
             using (var valid = new SharedEngine(settings)) valid.MappedReaderTable.Should().NotBeNull();
             await MvccProcess.Run("direct-host-direct-open", Filename, "secret");
         }
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

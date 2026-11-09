@@ -64,7 +64,7 @@ namespace LiteDB.Internals
             }
         }
 
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif

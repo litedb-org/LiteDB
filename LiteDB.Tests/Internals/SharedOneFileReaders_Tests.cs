@@ -206,7 +206,7 @@ namespace LiteDB.Internals
         private static IEnumerable<BsonDocument> Documents(int generation) => Enumerable.Range(0, 300).Select(id =>
             new BsonDocument { ["_id"] = id, ["group"] = id % 2, ["generation"] = generation,
                 ["payload"] = new string((char)('a' + generation), 2048) });
-        public void Dispose() => Directory.Delete(_directory, true);
+        public void Dispose() => WindowsFileRelease.DeleteDirectory(_directory);
     }
 }
 #endif
