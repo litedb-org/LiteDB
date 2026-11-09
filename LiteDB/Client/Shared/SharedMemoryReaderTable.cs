@@ -210,7 +210,12 @@ namespace LiteDB.Client.Shared
         {
             lock (_gate)
             {
-                while (_closing) Monitor.Wait(_gate);
+                while (_closing)
+                {
+                    if (_closeThread == Thread.CurrentThread)
+                        throw new InvalidOperationException("Recursive Shared participant open during release is unsupported.");
+                    Monitor.Wait(_gate);
+                }
                 if (_references == 0) return false;
                 if (_idle)
                 {
@@ -261,8 +266,8 @@ namespace LiteDB.Client.Shared
             {
                 try
                 {
-                    ProtectedSnapshot.Dispose();
-                    ReadCache.Dispose();
+                    try { ProtectedSnapshot.Dispose(); }
+                    finally { ReadCache.Dispose(); }
                     SharedMemoryFinalClose.Run(this);
                 }
                 finally

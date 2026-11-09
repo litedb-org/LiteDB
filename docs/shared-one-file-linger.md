@@ -2,11 +2,11 @@
 
 ## Design (P5-SHARED-LINGER)
 
-The owner chose default-on linger on 2026-11-09. The intended default is the
-shortest measured interval in the 1–2 second range that removes most per-request
-cost for a typical burst. Start measurement with 1000 ms; do not call that a
-measured default until hosted Linux x64, Windows x64 and macOS ARM64 net8 results
-establish it. This design is not an enablement claim.
+The owner chose default-on linger on 2026-11-09. P5-LINGER-CORE uses a
+1000 ms default on qualified one-file Shared connections, configurable through
+`SharedLinger` on `EngineSettings` or `ConnectionString`, or `shared linger=0`
+to disable it. This WIP is not integration-qualified; exclusive handoff is the
+next step. No performance measurement or performance qualification is claimed.
 
 The process participant moves from active to idle after its last facade and
 escaping result release, then to closing when the timer expires, then closed.
@@ -71,31 +71,30 @@ Run the request harness pinned at 93464f2c1 before/after on all three OSes with
 exact phase3 head. Preserve both parents' safety-registry leaves on merges.
 Missing safety evidence blocks default enablement and upward integration.
 
-## WIP implementation status
+## WIP implementation status (P5-LINGER-CORE)
 
-The scratch branch contains a **DEBUG/TESTING-only participant prototype**.
-Production retention is disabled; this is not the owner-selected default-on
-feature. The prototype transfers one idle reference on reopen, fences cancelled
-timer callbacks by timer identity, and disposes mapping/admission through the
-existing final-close path on expiry or internal explicit release. It evicts an
-idle settings mismatch and leaves live results authoritative. Test cleanup calls
-the internal release operation before deleting its temporary directory.
+Retention and the public settings/release API now compile in production. Both
+ProcessExit and AssemblyLoadContext unloading release idle participants best
+effort. Local Direct and legacy-family opens synchronously release idle mapped
+participants before acquiring native admission. Active participants remain
+exclusive to their existing family.
 
-Linux net8 focused evidence covers reuse with the existing bootstrap observer,
-expiry followed by two indexed payload reopens, zero, single/all internal release,
-idle settings replacement, read-only byte preservation and an escaping result.
-The eight-case specification fails 7/8 before the prototype (3740cd5a1) and passes
-8/8 after its first implementation. These are graceful-close/exception-free
-lifetime cases, not process-death or power-loss qualification. The final ten-case specification, including forced cancelled-callback replay
-and timer-close/release waiting, fails 9/10 against product ac724ea70 and passes
-10/10 against a9301ebbd on Linux net8, with zero skips. The all-target production
-library build also passes (netstandard2.0, net8.0, net10.0); retention is compiled
-out of that build.
+Read engines reuse the participant cache, retaining its existing version/storage
+fence checks and generation leases during use. Read-only-first bootstrap does
+not certify writable recovery: its buffered read engine can instead be retained
+under main and reused under main only if writer tenure, control sequence and
+structural/reuse/reset epochs are unchanged. No caller streams or ReadTransform
+targets enter either shared cache. Expiry closes caches before the existing
+final-close checkpoint and admission teardown.
 
-Still required: public connection-string/EngineSettings configuration and release
-API; reusable engine ownership; bounded cross-process exclusive-release requests
-at all five callers; forced timer/reopen/release interleavings; process exit and
-crash recovery; Phase4 handle/141 coverage; all requested hosted measurements
-and safety workflows; measured default selection; upward merge commits and
-phase5 migration documentation. None of these are claimed complete. Do not
-merge this prototype into phase3 or enable production linger on this evidence.
+Writable cores still close before their writer tenure ends. They bind immutable
+tenure state and facade-owned storage handles; transferring those cores requires
+additional ownership work and is not claimed here. Engine reuse evidence covers
+read engines. Phase4 handles are absent from this phase3-based checkout; handle
+interaction remains unqualified until integration into Phase4.
+
+The focused tests and evolving results are recorded in
+`/tmp/litedb-proto/phases/p5-linger-core.md`. No complete-suite, cross-platform,
+performance or cross-process exclusive-handoff qualification is claimed before
+the corresponding evidence passes. Do not integrate this WIP while those gates
+remain open.
