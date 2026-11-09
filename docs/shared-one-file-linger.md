@@ -88,7 +88,9 @@ not certify writable recovery: its buffered read engine can instead be retained
 under main and reused under main only if writer tenure, control sequence and
 structural/reuse/reset epochs are unchanged. No caller streams or ReadTransform
 targets enter either shared cache. Expiry closes caches before the existing
-final-close checkpoint and admission teardown.
+final-close checkpoint and admission teardown. Final close verifies the physical
+file identity before opening writable checkpoint storage, so a POSIX-unlinked
+file stays deleted and a replacement database remains byte-for-byte unchanged.
 
 Writable cores still close before their writer tenure ends. They bind immutable
 tenure state and facade-owned storage handles; transferring those cores requires
