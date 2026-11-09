@@ -1222,6 +1222,19 @@
         "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs",
         "LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs"
       ]
+    },
+    {
+      "id": "f-p5-macos-eagain-forced-constructor-overlap",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedRequestAdmissionHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All four processes still execute forty default Shared open/insert/read/dispose requests, and cold reopen still verifies every acknowledged record plus the unrelated sentinel.",
+      "reason": "Add a child opening barrier so the parent can retain a separate process exclusive DMS during initial constructor attempts. This models lingering native ownership after bootstrap abandonment and makes the reported public constructor failure deterministic instead of requiring a random race. No assertion, request or worker is removed.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
+      ]
     }
   ]
 }
