@@ -10,6 +10,58 @@ namespace LiteDB.Tests.Engine
 {
     public class OwnershipLease_Tests
     {
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Collection_successor_signal_preserves_fifo_and_survives_wake_before_wait(bool cancelHead)
+        {
+            var gate = new CollectionLock();
+            var owner = new object();
+            Assert.True(gate.TryEnter(owner, TimeSpan.Zero));
+            using var queued = new AutoResetEvent(false);
+            gate.BeforeWait = () => queued.Set();
+            var order = new System.Collections.Generic.List<int>();
+            var workers = new Task[8];
+            for (var i = 0; i < workers.Length; i++)
+            {
+                var index = i;
+                workers[i] = Task.Run(() =>
+                {
+                    var next = new object();
+                    var acquired = gate.TryEnter(next, cancelHead && index == 0 ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromSeconds(10));
+                    Assert.Equal(!cancelHead || index != 0, acquired);
+                    if (!acquired) return;
+                    try { lock (order) order.Add(index); }
+                    finally { gate.Exit(next); }
+                });
+                Assert.True(queued.WaitOne(TimeSpan.FromSeconds(5)));
+            }
+            if (cancelHead) Assert.True(workers[0].Wait(TimeSpan.FromSeconds(5)));
+            gate.Exit(owner);
+            Assert.True(Task.WaitAll(workers, TimeSpan.FromSeconds(15)));
+            Assert.Equal(cancelHead ? new[] { 1, 2, 3, 4, 5, 6, 7 } : new[] { 0, 1, 2, 3, 4, 5, 6, 7 }, order);
+            Assert.True(gate.TryEnter(owner, TimeSpan.Zero));
+            gate.Exit(owner);
+        }
+
+        [Fact]
+        public void Collection_release_between_condition_and_wait_is_not_lost()
+        {
+            var gate = new CollectionLock();
+            var owner = new object();
+            var next = new object();
+            Assert.True(gate.TryEnter(owner, TimeSpan.Zero));
+            // Reentrant observer forces release after checking ownership but before waiting.
+            gate.BeforeWait = () => gate.Exit(owner);
+            var worker = Task.Run(() =>
+            {
+                // A lost signal must fail the outer guard instead of acquiring after timeout.
+                Assert.True(gate.TryEnter(next, TimeSpan.FromSeconds(30)));
+                gate.Exit(next);
+            });
+            Assert.True(worker.Wait(TimeSpan.FromSeconds(5)));
+        }
+
         [Fact]
         public async Task Collection_recursion_follows_identity_across_threads_and_wrong_release_preserves_owner()
         {
