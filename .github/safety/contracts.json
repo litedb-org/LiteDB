@@ -550,6 +550,16 @@
           "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Lingering_process_death_or_exit_recovers_indexed_acknowledged_data",
           "model": "process-death",
           "proves": "A child killed after Dispose while idle preserves acknowledged indexed data across two cold reopens; graceful exit additionally observes final checkpoint execution."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Failed_expiry_checkpoint_preserves_wal_for_repeated_recovery",
+          "model": "exception",
+          "proves": "Timer final-checkpoint failure after a data page write leaves WAL available; repeated cold recovery preserves indexed committed payloads and an unrelated collection."
+        },
+        {
+          "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Assembly_unloading_releases_idle_admission_before_its_timer",
+          "model": "exception",
+          "proves": "A collectible assembly's 60-second idle participant refuses native Direct admission before unload and releases it synchronously on unloading."
         }
       ],
       "gaps": [
