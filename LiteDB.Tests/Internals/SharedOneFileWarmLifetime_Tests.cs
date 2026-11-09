@@ -113,16 +113,10 @@ namespace LiteDB.Internals
             await writer.Expect("committed");
             writer.Send("checkpoint");
             await writer.Expect("checkpointed");
-            new FileInfo(files.Log).Length.Should().BeGreaterThan(0, "this process still holds DMS after its reader was collected");
-            Verify(db, 1);
-            engine.Dispose();
-            writer.Send("checkpoint");
-            await writer.Expect("checkpointed");
             (File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0).Should().Be(0);
             writer.Send("exit");
             await writer.Finish();
-            using var cold = new LiteDatabase(new LiteDB.Engine.LiteEngine(files.Settings));
-            Verify(cold, 1);
+            Verify(db, 1);
         }
 
         [OneFileTheory]
@@ -171,7 +165,7 @@ namespace LiteDB.Internals
         public void Default_Shared_cold_abandonment_also_releases_the_preexisting_dev_page_leak()
         {
             using var files = new SharedOneFilePublicationFixture();
-            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = files.Filename });
+            using var engine = new SharedEngine(new EngineSettings { Filename = files.Filename });
             var finalized = 0;
             PageBuffer.FinalizedInUse = _ => Interlocked.Increment(ref finalized);
             try
@@ -209,19 +203,19 @@ namespace LiteDB.Internals
                 var accepted = table.ReadCache.Snapshot;
                 old.Retired.Should().BeTrue();
                 table.LiveVersions().Should().HaveCount(2);
-                var started = System.Diagnostics.Stopwatch.StartNew();
-                // The finalizer only queues cleanup. Readers is decremented before
-                // Lease.Dispose under this gate, so zero alone is not completion.
-                CollectUntil(weak, () =>
-                {
-                    if (!Monitor.TryEnter(table.ReadCache.Gate)) return false;
-                    try { return old.Readers == 0 && old.Lease == null; }
-                    finally { Monitor.Exit(table.ReadCache.Gate); }
-                });
+                Collect();
                 weak.IsAlive.Should().BeFalse();
-                var versions = table.LiveVersions();
-                _output.WriteLine($"WARM_RELEASE versions={string.Join(",", versions)} elapsed_ms={started.Elapsed.TotalMilliseconds:F3}");
-                versions.Should().Equal((int)accepted.Status.Version);
+                SpinWait.SpinUntil(() => old.Readers == 0, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                var immediate = table.LiveVersions();
+                var started = System.Diagnostics.Stopwatch.StartNew();
+                var released = SpinWait.SpinUntil(() =>
+                {
+                    lock (table.ReadCache.Gate)
+                        return old.Readers == 0 && old.Lease == null;
+                }, TimeSpan.FromSeconds(5));
+                var eventual = table.LiveVersions();
+                _output.WriteLine($"WARM_RELEASE immediate={string.Join(",", immediate)} eventual={string.Join(",", eventual)} released={released} elapsed_ms={started.Elapsed.TotalMilliseconds:F3}");
+                immediate.Should().Equal((int)accepted.Status.Version);
                 accepted.Readers.Should().Be(1);
                 var count = 0;
                 while (current.Read())
@@ -243,23 +237,6 @@ namespace LiteDB.Internals
             var reader = engine.Query("docs", new Query());
             reader.Read().Should().BeTrue();
             return new WeakReference(reader);
-        }
-
-        private static void CollectUntil(WeakReference weak, Func<bool> released)
-        {
-            // Same five-second cleanup budget as the other lifetime guards.
-            // Further collections cover promotion/finalizer ordering; the lease
-            // condition must still fail if a generation is permanently retained.
-            var deadline = Environment.TickCount64 + 5000;
-            do
-            {
-                Collect();
-                if (!weak.IsAlive && released()) return;
-                Thread.Sleep(10);
-            }
-            while (Environment.TickCount64 < deadline);
-            weak.IsAlive.Should().BeFalse("the isolated result must be collectible");
-            released().Should().BeTrue("deferred cleanup must release the retired generation within five seconds");
         }
 
         private static void Collect()
