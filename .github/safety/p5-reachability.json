@@ -49,7 +49,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap"
       ],
-      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "whyFuzzMisses": "Marker is inside the AllocateFile override branch. Fuzz uses native allocation and never installs the override.",
       "workload": "ABI-2 ephemeral mapping allocation"
     },
     {
@@ -61,7 +61,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive"
       ],
-      "whyFuzzMisses": "Deterministic mapped and legacy retry tests install this exception hook; default-mode fuzz does not inject failed registration. Cross-process mapped retry coverage retains complete cold payload/index/sentinel oracles.",
+      "whyFuzzMisses": "TESTING marker requires the BeforeTransactionRegistration delegate to be non-null. Fuzz does not install a failed-registration injection.",
       "workload": "Transaction retry registration before admission"
     },
     {
@@ -76,7 +76,7 @@
         "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
         "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death"
       ],
-      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "whyFuzzMisses": "Marker is emitted only while BootstrapStage is non-null. Fuzz does not install the bootstrap observer, even when it opens the mapped protocol.",
       "workload": "ABI-2 ephemeral mapping bootstrap and final close"
     },
     {
@@ -88,7 +88,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes"
       ],
-      "whyFuzzMisses": "The permanent bootstrap exception test and CI-only bounded APFS driver reach this native Darwin truncation boundary, including repeated acknowledged process death. Generic Linux oracle smoke cannot execute Darwin syscalls; the native workflow and full macOS mapped matrix are required evidence.",
+      "whyFuzzMisses": "Darwin allocation marker is inside a non-null DarwinTruncated injector check. Fuzz never installs that seam; ordinary native allocation does not increment it.",
       "workload": "ABI-2 disposable Darwin authority extent reset under exclusive DMS"
     },
     {
@@ -101,7 +101,7 @@
         "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease",
         "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#False_after_queueing_and_retry_callbacks_dispose_each_owner_once"
       ],
-      "whyFuzzMisses": "TESTING-only per-owner dispatch seam: SharedReaderCleanupDispatch_Tests.Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease forces false/OutOfMemoryException and asserts fault-point:DispatchOverride; False_after_queueing_and_retry_callbacks_dispose_each_owner_once covers delayed duplicates. PR fuzz smoke does not install the seam or deterministically abandon/finalize Shared results.",
+      "whyFuzzMisses": "Requires abandoned Shared-reader cleanup to queue the reaper; workloads dispose readers explicitly and do not force GC plus rejected/retried dispatch.",
       "workload": "abandoned Shared reader cleanup dispatch"
     },
     {
@@ -113,7 +113,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats"
       ],
-      "whyFuzzMisses": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path.",
+      "whyFuzzMisses": "Requires mapped Shared maintenance/rebuild stages. Campaign rebuild targets use Direct engines; Shared process workloads drive transactions/checkpoint rather than mapped rebuild.",
       "workload": "Mapped Shared sole-participant maintenance and rekey"
     },
     {
@@ -125,7 +125,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap"
       ],
-      "whyFuzzMisses": "Dormant Linux x64 ABI-2 opt-in is exercised by SharedOneFileBootstrap_Tests; existing default-mode oracle smoke does not enable this protocol. Whole-path mapped fuzz qualification remains a later-slice gate.",
+      "whyFuzzMisses": "Marker is inside the MapFile override branch. Fuzz uses native mapping and never installs the override.",
       "workload": "ABI-2 ephemeral mapping allocation"
     },
     {
@@ -139,7 +139,7 @@
         "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
         "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats"
       ],
-      "whyFuzzMisses": "Mapped opt-in maintenance/final-close boundaries are exercised by focused child-process safety tests; default-mode fuzz smoke does not enable this path.",
+      "whyFuzzMisses": "Requires recovery from an interrupted mapped Shared rebuild. Campaign recovery/rebuild targets do not create that mapped installation/recovery state.",
       "workload": "Mapped Shared rebuild guard publication and repeatable original-pair recovery"
     },
     {
@@ -151,7 +151,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Real_abandoned_thread_with_live_handles_requires_actual_WRITE_and_can_retry_after_timeout"
       ],
-      "whyFuzzMisses": "Focused SharedOneFileRetryHandoff tests force real abandoned-thread conflicts and native byte release/timeout. Default-mode fuzz does not enable ABI-2 or retain dead-thread native handles.",
+      "whyFuzzMisses": "Requires abandoned named-mutex ownership while a native WRITE range remains locked. Normal process death releases native handles; the deterministic test retains dead-thread handles to force the conflict.",
       "workload": "Native WRITE conflict with a held main mutex"
     },
     {
@@ -165,7 +165,7 @@
         "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
         "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens"
       ],
-      "whyFuzzMisses": "Rebuild rollback branch reached only when restoring the original pair fails; xUnit fault-combination tests reach it, the smoke campaign does not.",
+      "whyFuzzMisses": "Requires compound rebuild rollback faults: restoring the original pair fails, so the candidate must be republished. Fuzz install injection does not explore that rollback fault combination.",
       "workload": "rebuild install rollback"
     },
     {
@@ -179,7 +179,7 @@
         "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
         "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens"
       ],
-      "whyFuzzMisses": "Rebuild rollback branch reached only when the original WAL cannot be restored; xUnit fault-combination tests reach it, the smoke campaign does not.",
+      "whyFuzzMisses": "Requires original-WAL restoration failure during rebuild rollback, followed by retracting the restored source. Fuzz does not inject that rollback fault combination.",
       "workload": "rebuild install rollback"
     },
     {
@@ -191,7 +191,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
       ],
-      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "whyFuzzMisses": "Requires offline ABI-1 coordination retirement during mapped Shared upgrade. Campaign files start without the legacy coordination remnants constructed by SharedOfflineUpgrade_Tests.",
       "workload": "offline ABI-1 coordination retirement"
     },
     {
@@ -203,7 +203,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
       ],
-      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "whyFuzzMisses": "Requires offline ABI-1 coordination retirement during mapped Shared upgrade. Campaign files start without the legacy coordination remnants constructed by SharedOfflineUpgrade_Tests.",
       "workload": "offline ABI-1 coordination retirement"
     },
     {
@@ -215,7 +215,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
       ],
-      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "whyFuzzMisses": "Requires offline ABI-1 coordination retirement during mapped Shared upgrade. Campaign files start without the legacy coordination remnants constructed by SharedOfflineUpgrade_Tests.",
       "workload": "offline ABI-1 coordination retirement"
     },
     {
@@ -227,7 +227,7 @@
       "tests": [
         "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal"
       ],
-      "whyFuzzMisses": "Process-death offline transition tests cover this coordination stage; generic fuzz does not create ABI-1 remnants.",
+      "whyFuzzMisses": "Requires offline ABI-1 coordination retirement during mapped Shared upgrade. Campaign files start without the legacy coordination remnants constructed by SharedOfflineUpgrade_Tests.",
       "workload": "offline ABI-1 coordination retirement"
     },
     {
@@ -240,7 +240,7 @@
         "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
         "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data"
       ],
-      "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
+      "whyFuzzMisses": "Requires a legacy lower-ID transaction with previously written slots, overtaken in the WAL by a higher-ID writer; normal campaign WAL schedules do not force that ordering.",
       "workload": "WAL batch consistency"
     },
     {
@@ -253,7 +253,7 @@
         "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
         "LiteDB.Tests/Regressions/LegacyWalRebase_Tests.cs#Torn_legacy_transaction_id_rewrite_stops_before_followup_wal_and_keeps_confirmed_data"
       ],
-      "whyFuzzMisses": "Deterministic WalWriteFailureWindow_Tests exercise actual I/O faults here; the generic oracle smoke does not force legacy WAL rebasing or every safepoint boundary.",
+      "whyFuzzMisses": "Requires the legacy lower-ID transaction rebase after flushing its new-ID anchor; campaign WAL schedules do not force this legacy dirty-slot ordering.",
       "workload": "WAL batch consistency"
     },
     {
