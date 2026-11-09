@@ -114,4 +114,6 @@ The first independent scalar-leaf audit identified one missing historical parent
 | phase4 `7000dd6f0` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547544943) |
 | phase4 `7000dd6f0` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547542099) |
 
+The completed phase2 update workflow has 121 candidate tests and 9 historical baseline guards passed on each Linux/Windows net8/net10 leg, with zero skipped/failed/aborted. `phase2-update-counts.json` separates the workflow candidate, tested production-source revision and test-harness revision; its baseline is the fixed source overlay specified in the workflow, not the moving phase1 branch.
+
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.

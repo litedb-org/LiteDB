@@ -2,7 +2,6 @@
   {
     "leg": "update-safety-ubuntu-24.04-net10.0",
     "suite": "phase1.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "9",
       "executed": "9",
@@ -20,12 +19,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b"
   },
   {
     "leg": "update-safety-ubuntu-24.04-net10.0",
     "suite": "candidate.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "121",
       "executed": "121",
@@ -43,12 +44,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testHarnessRevision": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47"
   },
   {
     "leg": "update-safety-ubuntu-24.04-net8.0",
     "suite": "phase1.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "9",
       "executed": "9",
@@ -66,12 +69,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b"
   },
   {
     "leg": "update-safety-ubuntu-24.04-net8.0",
     "suite": "candidate.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "121",
       "executed": "121",
@@ -89,12 +94,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testHarnessRevision": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47"
   },
   {
     "leg": "update-safety-windows-2025-net10.0",
     "suite": "phase1.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "9",
       "executed": "9",
@@ -112,12 +119,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b"
   },
   {
     "leg": "update-safety-windows-2025-net10.0",
     "suite": "candidate.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "121",
       "executed": "121",
@@ -135,12 +144,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testHarnessRevision": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47"
   },
   {
     "leg": "update-safety-windows-2025-net8.0",
     "suite": "phase1.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "9",
       "executed": "9",
@@ -158,12 +169,14 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "dac4520a6c0d811b80919a117ba8b88676f5a3ac",
+    "testHarnessRevision": "3a2131866b77cc4b96a0611083d2742770922c3b"
   },
   {
     "leg": "update-safety-windows-2025-net8.0",
     "suite": "candidate.trx",
-    "candidate": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
     "counters": {
       "total": "121",
       "executed": "121",
@@ -181,6 +194,9 @@
       "completed": "0",
       "inProgress": "0",
       "pending": "0"
-    }
+    },
+    "workflowCandidateSha": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testedProductionSource": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47",
+    "testHarnessRevision": "c67bb7c27595d3efd9b53ebca81c5541acbe5c47"
   }
 ]
