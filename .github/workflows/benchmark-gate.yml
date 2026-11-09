@@ -131,11 +131,13 @@ jobs:
             if ($LASTEXITCODE) { throw "Build failed: $version" }
           }
       - name: Interleaved configured-round A-B comparison
+        if: matrix.profile_only != true
         env:
           BENCHMARK_SLOW_COMPARISON: ${{ inputs.slow_comparison }}
           BENCHMARK_SCENARIOS: ${{ matrix.scenarios }}
         run: python tools/Ab5021Benchmarks/run.py '${{ matrix.framework }}' 'artifacts_temp/ab-5021'
       - name: Evaluate per-scenario thresholds
+        if: matrix.profile_only != true
         id: gate
         env:
           BENCHMARK_SCENARIOS: ${{ matrix.scenarios }}
@@ -162,15 +164,19 @@ jobs:
           DOTNET_TieredCompilation: '0'
           BENCHMARK_SCENARIOS: ${{ matrix.scenarios }}
         run: |
-          dotnet tool install --global dotnet-trace
+          New-Item -ItemType Directory -Force artifacts_temp/ab-5021 | Out-Null
+          @{before=$env:BENCHMARK_BASELINE_SHA;after=$env:BENCHMARK_CANDIDATE_SHA;harness=$env:BENCHMARK_HARNESS_SHA;framework='${{ matrix.framework }}';temp=[IO.Path]::GetTempPath()} | ConvertTo-Json | Out-File artifacts_temp/ab-5021/profile-identities.json
+          dotnet --info | Out-File artifacts_temp/ab-5021/profile-runtime.txt
+          dotnet tool install --global dotnet-trace --version 10.0.750501
           if ($LASTEXITCODE) { throw 'Trace tool installation failed' }
           foreach ($variant in @('before', 'after')) {
             $dll = if ($variant -eq 'before') { 'tools/Ab5021Benchmarks/V6Before/V6.dll' } else { 'tools/Ab5021Benchmarks/V6/bin/Release/${{ matrix.framework }}/V6.dll' }
+            Get-FileHash (Join-Path (Split-Path $dll) 'LiteDB.dll') | Format-List | Out-File "artifacts_temp/ab-5021/$variant-binary.txt"
             foreach ($scenario in ($env:BENCHMARK_SCENARIOS -split ',')) {
               if ($scenario -eq 'durable_insert_5k_1_writers') { continue }
               $env:PROFILE_SCENARIO = $scenario
               $trace = "artifacts_temp/ab-5021/$variant-$scenario.nettrace"
-              dotnet-trace collect --profile cpu-sampling --output $trace -- dotnet $dll dev-default 1 unused.json
+              dotnet-trace collect --profile dotnet-sampled-thread-time,dotnet-common,gc-verbose --output $trace -- dotnet $dll dev-default 1 unused.json
               if ($LASTEXITCODE) { throw 'Profile failed' }
               dotnet-trace report $trace topN -n 60 --inclusive | Out-File "$trace-top.txt"
               dotnet-trace convert $trace --format Speedscope
