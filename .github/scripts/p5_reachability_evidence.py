@@ -36,7 +36,8 @@ def main():
         for test in entry['tests']:
             source, method = test.split('#')
             needle = Path(source).stem + '.' + method
-            matches = [(p, n, o) for p, n, o in results if needle in n and o == 'Passed']
+            matches = [(p, n, o) for p, n, o in results if needle in n and o == 'Passed'
+                       and (entry['marker'] != 'fault-point:DarwinTruncated' or 'macos' in p)]
             evidence.extend(sorted({p for p, _, _ in matches}))
         if not evidence:
             missing.append(entry['marker'])
