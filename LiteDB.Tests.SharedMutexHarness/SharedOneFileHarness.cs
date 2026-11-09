@@ -9,6 +9,7 @@ internal static class SharedOneFileHarness
         if (SharedOfflineUpgradeHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileMaintenanceHarness.TryRun(mode, filename, args)) return true;
         if (SharedWriterTenureHarness.TryRun(mode, filename, args)) return true;
+        if (SharedRequestAdmissionHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileProductionReuseHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileWarmHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileOwnershipHarness.TryRun(mode, filename, args)) return true;
