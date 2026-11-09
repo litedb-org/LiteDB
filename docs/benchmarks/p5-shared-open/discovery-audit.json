@@ -1,0 +1,30 @@
+[
+  {
+    "platform": "shared-safety-macos-15",
+    "expected": 703,
+    "actual": 703,
+    "missing": 0,
+    "extra": 0
+  },
+  {
+    "platform": "shared-safety-ubuntu-24.04",
+    "expected": 703,
+    "actual": 703,
+    "missing": 0,
+    "extra": 0
+  },
+  {
+    "platform": "shared-safety-ubuntu-24.04-arm",
+    "expected": 703,
+    "actual": 703,
+    "missing": 0,
+    "extra": 0
+  },
+  {
+    "platform": "shared-safety-windows-2025",
+    "expected": 703,
+    "actual": 703,
+    "missing": 0,
+    "extra": 0
+  }
+]
