@@ -101,10 +101,10 @@ namespace LiteDB.Client.Shared
             }
         }
 
-        internal static bool ReleaseIdle(string filename)
+        internal static bool ReleaseIdle(string filename, bool waitForClose = true)
         {
             var identity = DatabaseFileIdentity.CanonicalPath(System.IO.Path.GetFullPath(filename));
-            return Entries.TryGetValue(identity, out var entry) && entry.Table?.ReleaseIdle() == true;
+            return Entries.TryGetValue(identity, out var entry) && entry.Table?.ReleaseIdle(waitForClose) == true;
         }
 
         internal static void ReleaseAllIdle()

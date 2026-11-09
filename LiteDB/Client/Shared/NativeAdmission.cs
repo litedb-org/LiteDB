@@ -70,7 +70,7 @@ namespace LiteDB.Client.Shared
 #if NET8_0_OR_GREATER
             // Local idle owners can relinquish synchronously before incompatible
             // admission. Never call teardown while holding the native registry gate.
-            if (!shared || !settings.SharedOneFile) SharedParticipantRegistry.ReleaseIdle(settings.Filename);
+            if (!shared || !settings.SharedOneFile) SharedParticipantRegistry.ReleaseIdle(settings.Filename, waitForClose: false);
 #endif
             using var pathGate = shared ? EnterPath(settings.Filename) : null;
             lock (Gate)

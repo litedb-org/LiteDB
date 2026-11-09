@@ -34,12 +34,13 @@ namespace LiteDB.Client.Shared
         private Thread _closeThread;
         internal bool Idle { get { lock (_gate) return _idle; } }
 
-        internal bool ReleaseIdle()
+        internal bool ReleaseIdle(bool waitForClose = true)
         {
             lock (_gate)
             {
                 while (_closing)
                 {
+                    if (!waitForClose) return false;
                     if (_closeThread == Thread.CurrentThread)
                         throw new InvalidOperationException("Recursive Shared participant release is unsupported.");
                     Monitor.Wait(_gate);
