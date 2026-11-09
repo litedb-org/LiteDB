@@ -10,7 +10,8 @@ for label, args, budget in [
     started = time.time()
     with (root/(label+'.log')).open('w') as log:
         try:
-            p = subprocess.run(['dotnet', str(dll), *args], stdout=log, stderr=subprocess.STDOUT, timeout=budget)
+            binary = dll if label == 'direct' else root/'original-binary/LiteDB.Fuzz.dll'
+            p = subprocess.run(['dotnet', str(binary), *args], stdout=log, stderr=subprocess.STDOUT, timeout=budget)
             result = dict(label=label, exit=p.returncode, seconds=time.time()-started, args=args)
         except subprocess.TimeoutExpired:
             result = dict(label=label, timeout=budget, seconds=time.time()-started, args=args)

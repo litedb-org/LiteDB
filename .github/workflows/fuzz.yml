@@ -28,6 +28,11 @@ jobs:
           git -C source rev-parse HEAD > "$RUNNER_TEMP/f-p5-macos-cut/product-sha.txt"
           dotnet --info > "$RUNNER_TEMP/f-p5-macos-cut/dotnet-info.txt"
           sw_vers > "$RUNNER_TEMP/f-p5-macos-cut/macos.txt"
+      - name: Build and retain unmodified replay binary
+        run: |
+          dotnet build source/LiteDB.Fuzz -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
+          cp -R source/LiteDB.Fuzz/bin/Release/net8.0 "$RUNNER_TEMP/f-p5-macos-cut/original-binary"
+          shasum -a 256 "$RUNNER_TEMP/f-p5-macos-cut/original-binary/"*.dll > "$RUNNER_TEMP/f-p5-macos-cut/original-sha256.txt"
       - name: Add scratch-only diagnostic harness
         run: python3 research/f-p5-macos-cut/prepare.py
       - name: Build net8 with engine hooks
