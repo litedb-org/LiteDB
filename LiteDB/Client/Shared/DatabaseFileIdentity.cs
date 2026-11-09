@@ -100,8 +100,15 @@ namespace LiteDB.Client.Shared
                 using var handle = CreateFileW(WindowsPath(filename), 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
                 if (!handle.IsInvalid)
                 {
-                    var path = new StringBuilder(32768);
+                    // Most paths fit in MAX_PATH. Preserve long-path support by retrying
+                    // with the required capacity rather than allocating 64 KiB per probe.
+                    var path = new StringBuilder(260);
                     var size = GetFinalPathNameByHandleW(handle, path, path.Capacity, 0);
+                    if (size >= path.Capacity)
+                    {
+                        path.EnsureCapacity(checked((int)size + 1));
+                        size = GetFinalPathNameByHandleW(handle, path, path.Capacity, 0);
+                    }
                     if (size == 0 || size >= path.Capacity) throw DatabaseFileLock.Error("Canonical database path");
                     var value = path.ToString();
                     return value.StartsWith(@"\\?\UNC\", StringComparison.Ordinal)
