@@ -82,6 +82,7 @@ namespace LiteDB.Internals
                 successor.Send("close"); successor.Expect("done").GetAwaiter().GetResult(); successor.Finish().GetAwaiter().GetResult();
                 if (expireAlive) stale.Kill(sharedFilesRemainOpen: true).GetAwaiter().GetResult();
             }
+            WindowsFileRelease.WaitForNativeAdmission(files.Filename);
             for (var pass = 0; pass < 2; pass++)
             {
                 using var cold = new LiteDatabase(files.Filename); Verify(cold, 1);
