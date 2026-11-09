@@ -1,0 +1,111 @@
+[
+  {
+    "kind": "gate",
+    "repeat": 1,
+    "id": "42530951494",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [
+      "Benchmark (windows-latest, net10.0)",
+      "Benchmark (ubuntu-latest, net8.0)",
+      "Benchmark (ubuntu-latest, net10.0)"
+    ],
+    "artifacts": 6
+  },
+  {
+    "kind": "gate",
+    "repeat": 2,
+    "id": "42531056644",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [
+      "Benchmark (ubuntu-latest, net10.0)",
+      "Benchmark (ubuntu-latest, net8.0)",
+      "Benchmark (windows-latest, net8.0)",
+      "Benchmark (windows-latest, net10.0)"
+    ],
+    "artifacts": 6
+  },
+  {
+    "kind": "gate",
+    "repeat": 3,
+    "id": "42531062712",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [],
+    "artifacts": 6
+  },
+  {
+    "kind": "comparison",
+    "repeat": 1,
+    "id": "42531071262",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [
+      "Benchmark (ubuntu-latest, net10.0)"
+    ],
+    "artifacts": 6
+  },
+  {
+    "kind": "comparison",
+    "repeat": 2,
+    "id": "42531077200",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [],
+    "artifacts": 6
+  },
+  {
+    "kind": "comparison",
+    "repeat": 3,
+    "id": "42531083466",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [],
+    "artifacts": 6
+  },
+  {
+    "kind": "shared",
+    "repeat": 1,
+    "id": "42531133092",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "queued": 0,
+      "in_progress": 0,
+      "completed": 6
+    },
+    "failed": [],
+    "artifacts": 6
+  }
+]

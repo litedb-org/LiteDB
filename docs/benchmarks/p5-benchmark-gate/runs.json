@@ -1,0 +1,57 @@
+[
+  {
+    "kind": "gate",
+    "repeat": 1,
+    "databaseId": 42530951494,
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42530951494",
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b"
+  },
+  {
+    "kind": "gate",
+    "repeat": 2,
+    "databaseId": 42531056644,
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531056644"
+  },
+  {
+    "kind": "gate",
+    "repeat": 3,
+    "databaseId": 42531062712,
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531062712"
+  },
+  {
+    "kind": "comparison",
+    "repeat": 1,
+    "databaseId": 42531071262,
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531071262"
+  },
+  {
+    "kind": "comparison",
+    "repeat": 2,
+    "databaseId": 42531077200,
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531077200"
+  },
+  {
+    "kind": "comparison",
+    "repeat": 3,
+    "databaseId": 42531083466,
+    "headSha": "e507faad40e968aa2fcf63ae6dd01fd7def2e07b",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531083466"
+  },
+  {
+    "kind": "shared",
+    "repeat": 1,
+    "databaseId": 42531133092,
+    "headSha": "e0dadd3a662162808d305388f5d0798665dcec79",
+    "status": "queued",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42531133092"
+  }
+]

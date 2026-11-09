@@ -1,0 +1,275 @@
+[
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "delete_10k_one_tx",
+    "config": "dev-os-cache",
+    "ratios": [
+      0.9971499374731183,
+      1.0111736126278457,
+      1.0304617888403822
+    ],
+    "aaUpper": 1.01416576452882,
+    "exceedances": 1
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "durable_insert_5k_8_writers",
+    "config": "dev-default",
+    "ratios": [
+      1.1857932178270587,
+      1.3056793868594314,
+      1.2544198130860367
+    ],
+    "aaUpper": 1.0830344684837254,
+    "exceedances": 3
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-default",
+    "ratios": [
+      1.0473656261494084,
+      1.033985338532308,
+      1.044167312409333
+    ],
+    "aaUpper": 1.0458874781418956,
+    "exceedances": 1
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.0366749595040703,
+      1.0326160022370785,
+      0.9877154641694477
+    ],
+    "aaUpper": 1.0261777257566655,
+    "exceedances": 2
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "indexed_point_10k",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.0170996983013565,
+      1.0150787316065628,
+      1.0299385938129098
+    ],
+    "aaUpper": 1.0279796903973764,
+    "exceedances": 1
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "open_close_20x",
+    "config": "dev-default",
+    "ratios": [
+      1.0798991172761665,
+      1.1003655245448023,
+      1.0885469327830024
+    ],
+    "aaUpper": 1.0105678128933941,
+    "exceedances": 3
+  },
+  {
+    "os": "Linux",
+    "framework": "net10.0",
+    "scenario": "open_close_20x",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.0722295297599473,
+      1.101096730015828,
+      1.078631885666713
+    ],
+    "aaUpper": 1.0278765740651736,
+    "exceedances": 3
+  },
+  {
+    "os": "Linux",
+    "framework": "net8.0",
+    "scenario": "durable_insert_5k_8_writers",
+    "config": "dev-default",
+    "ratios": [
+      1.293352143311522,
+      1.2348905822434288,
+      1.2560698617512907
+    ],
+    "aaUpper": 1.0476366707229166,
+    "exceedances": 3
+  },
+  {
+    "os": "Linux",
+    "framework": "net8.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-default",
+    "ratios": [
+      1.0294872397132964,
+      1.0038058305980246,
+      1.040907606070828
+    ],
+    "aaUpper": 1.0356715515855195,
+    "exceedances": 1
+  },
+  {
+    "os": "Linux",
+    "framework": "net8.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.0215766455804867,
+      1.068887482324635,
+      1.0116069795930445
+    ],
+    "aaUpper": 1.0420503298036394,
+    "exceedances": 1
+  },
+  {
+    "os": "Windows",
+    "framework": "net10.0",
+    "scenario": "count_scan_3x100k",
+    "config": "dev-default",
+    "ratios": [
+      1.001911951973804,
+      0.9892305786207263,
+      1.028827242234042
+    ],
+    "aaUpper": 1.022495310335165,
+    "exceedances": 1
+  },
+  {
+    "os": "Windows",
+    "framework": "net10.0",
+    "scenario": "durable_insert_5k_1_writers",
+    "config": "dev-default",
+    "ratios": [
+      1.1273509050657984,
+      0.910961331818116,
+      1.0155160933948375
+    ],
+    "aaUpper": 1.0980105727561011,
+    "exceedances": 1
+  },
+  {
+    "os": "Windows",
+    "framework": "net10.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-default",
+    "ratios": [
+      1.0330887445447714,
+      1.0510410776085177,
+      1.0778447249144747
+    ],
+    "aaUpper": 1.0252423903680472,
+    "exceedances": 3
+  },
+  {
+    "os": "Windows",
+    "framework": "net10.0",
+    "scenario": "open_close_20x",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.211973898700256,
+      1.1962636003956482,
+      1.1429835345264645
+    ],
+    "aaUpper": 1.069869030570201,
+    "exceedances": 3
+  },
+  {
+    "os": "Windows",
+    "framework": "net10.0",
+    "scenario": "single_insert_5k_tx",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.1567020235808667,
+      1.148378861339173,
+      1.065205425997593
+    ],
+    "aaUpper": 1.1237205237919825,
+    "exceedances": 2
+  },
+  {
+    "os": "Windows",
+    "framework": "net8.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-default",
+    "ratios": [
+      1.0176382617048625,
+      1.0446934754114032,
+      1.0178562890247187
+    ],
+    "aaUpper": 1.0313980206461228,
+    "exceedances": 1
+  },
+  {
+    "os": "Windows",
+    "framework": "net8.0",
+    "scenario": "full_scan_3x100k",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.032060146181085,
+      1.027059281560057,
+      1.0132155005891608
+    ],
+    "aaUpper": 1.0309213843106593,
+    "exceedances": 1
+  },
+  {
+    "os": "Windows",
+    "framework": "net8.0",
+    "scenario": "open_close_20x",
+    "config": "dev-default",
+    "ratios": [
+      1.1926685518166475,
+      1.2238757483149831,
+      1.1815835808333413
+    ],
+    "aaUpper": 1.0394925047208476,
+    "exceedances": 3
+  },
+  {
+    "os": "Windows",
+    "framework": "net8.0",
+    "scenario": "open_close_20x",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.1971393724359687,
+      1.204053640397904,
+      1.1861436108094572
+    ],
+    "aaUpper": 1.0803343574975242,
+    "exceedances": 3
+  },
+  {
+    "os": "Windows",
+    "framework": "net8.0",
+    "scenario": "update_10k_one_tx",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.0564801640441916,
+      0.9941391160864049,
+      1.0309965621176085
+    ],
+    "aaUpper": 1.0471053516698223,
+    "exceedances": 1
+  },
+  {
+    "os": "macOS",
+    "framework": "net8.0",
+    "scenario": "delete_10k_one_tx",
+    "config": "dev-os-cache",
+    "ratios": [
+      1.682349508823518,
+      1.111514817753606,
+      1.0506573024249921
+    ],
+    "aaUpper": 1.5793629725957121,
+    "exceedances": 1
+  }
+]
