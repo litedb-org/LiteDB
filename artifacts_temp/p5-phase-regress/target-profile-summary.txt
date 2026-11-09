@@ -69,3 +69,15 @@ Selected sampled-thread-time weight=40346.6221; percentages use only target stac
 Selected sampled-thread-time weight=47448.6821; percentages use only target stacks. Not CPU percentages or elapsed ratios.
   61.776% 29312.0282 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
   18.820% 8929.8925 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+42548192227/research-profile-integrated-writers-r1-ubuntu-latest-net8.0/after-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=93930.4304; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  96.362% 90513.2104 LiteDB!LiteDB.Engine.TransactionContext.Unbound(class System.Func`1<!!0>)
+  45.956% 43166.6720 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
+  43.757% 41101.1376 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  42.415% 39840.3834 LiteDB!LiteDB.Engine.TransactionWaitBudget.Wait(class System.Object,value class System.TimeSpan)
+  31.928% 29990.3863 LiteDB!LiteDB.Engine.CollectionLock.TryEnter(class System.Object,value class System.TimeSpan)
+   0.049% 45.8458 LiteDB!LiteDB.Engine.CollectionLock.Exit(class System.Object)
+42548192227/research-profile-integrated-writers-r1-ubuntu-latest-net8.0/before-durable_insert_5k_8_writers.speedscope.json
+Selected sampled-thread-time weight=73717.7536; percentages use only target stacks. Not CPU percentages or elapsed ratios.
+  55.041% 40574.7793 LiteDB!LiteDB.Engine.WalCommitGroup.EnsureDurable(int64)
+  16.424% 12107.5034 System.Private.CoreLib!System.Threading.Monitor.Wait(class System.Object,int32)
