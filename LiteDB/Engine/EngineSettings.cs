@@ -20,6 +20,8 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
+        // WIP lifetime prototype. Production stays disabled until exclusive release is qualified.
+        internal int SharedLingerMilliseconds { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
