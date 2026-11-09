@@ -1,8 +1,12 @@
 # Summary
-- P5-SAFETY-CAMPAIGNS: running; exact candidate e507faad40e968aa2fcf63ae6dd01fd7def2e07b.
-- Orchestrator instructed hosted extended qualification, no product changes, wait for terminal runs.
-- Scratch branch v6/wip-p5-campaigns; no phase/dev pushes or PR actions.
-- Failures, reachability and binaries pending.
+- P5-SAFETY-CAMPAIGNS round2: waiting for terminal hosted run42531054661;16/22legs complete.
+- Exact candidate e507faad40e968aa2fcf63ae6dd01fd7def2e07b; hosted driver b811372fb; scratch checkpoint d4c4c7bde.
+- Downloaded301508campaign steps; all three platform fault suites completed,5318passes+8NotExecuted.
+- Known2952 vector failure on Linux/Windows;3142 c2776273 fixes all three exercised seeds400steps and100/80prefixes locally (yes).
+- Additional classified harness defects: api-boundary header capacity348steps; Windows snapshot IPC sharing with non-deterministic replay limits.
+- Latest audit:173markers/60unreached;100hooks+injectors/17unreached;162hash entries verified.
+- Collector monitor2.py streams archives, polls180s; no campaign redispatch or product changes.
+- Remaining linux-7,windows-0,linux-2,linux-shared,macos-shared-handle,windows-shared running; final report waits for all.
 
 # Steps
 - Read rules, brief, development/workflow/validation/safety/data-safety guidance and Phase 3/4 reports.
@@ -48,3 +52,67 @@
 - 2026-11-09T00:37:23.005420+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
 - 2026-11-09T00:40:25.213438+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
 - All three fault suites complete: Linux1775pass, macOS1772pass+4NotExecuted, Windows1771pass+4NotExecuted; zero failed commands. Downloaded301508campaign steps; windows-7 succeeded. Latest audit173markers/60unreached,100faults/17unreached,162hash entries verified. Six hosted legs still running; no queued. Evidence-only checkpoint952e0f921.
+- 2026-11-09T00:43:27.626640+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:46:29.921917+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:49:32.068473+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:52:34.400458+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:55:36.638898+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T00:58:38.683488+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T01:01:40.953398+00:00 hosted 42531054661: {'completed:failure': 4, 'completed:success': 12, 'in_progress:': 6}; streaming collector active.
+- 2026-11-09T01:04:43.179542+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- windows-0 terminal failure confirms api-boundary348 capacity issue for all10seeds+10independent replay commands; no new finding. Downloaded327888campaign steps,71failure records; five legs still running.
+- 2026-11-09T01:08:02.021110+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:11:04.198521+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:14:06.364543+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:17:08.571864+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:20:10.877361+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:23:13.147283+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:26:15.711257+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:29:18.094763+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:32:20.491523+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:35:22.831202+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:38:25.170262+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 12, 'in_progress:': 5}; streaming collector active.
+- 2026-11-09T01:41:27.502460+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:44:36.097235+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:47:38.732466+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:50:41.101188+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:53:43.683067+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:56:45.922237+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T01:59:48.298286+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:02:50.697942+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:05:53.129639+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:08:55.745867+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:11:58.016933+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:15:00.549886+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:18:02.881093+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:21:05.071480+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:24:07.441393+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:27:09.811866+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:30:12.211391+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:33:15.188668+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:36:17.570023+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:39:19.958235+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:42:22.336928+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:45:24.763047+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:48:27.037997+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 13, 'in_progress:': 4}; streaming collector active.
+- 2026-11-09T02:51:29.358222+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T02:54:35.396062+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T02:57:37.822151+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:00:40.096899+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:03:42.506371+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:06:44.876833+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:09:47.279378+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:12:49.718991+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:15:52.077348+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:18:54.614253+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:21:57.010849+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:24:59.296648+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:28:01.707478+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:31:04.152291+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:34:06.624706+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:37:08.981695+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:40:11.657631+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:43:14.234168+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:46:16.690671+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:49:19.057800+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:52:21.464774+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
