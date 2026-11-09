@@ -1,8 +1,10 @@
 ## Summary
-- State: investigating; classification pending.
+- State: waiting for hosted macOS execution; classification pending.
 - Candidate e507faad4 contains b70b79ec2 (merge-base exit 0).
-- Comparison head ae2eae2af0e485b892d2467699c9bb5dcfb37d60.
-- Scratch branch v6/wip-f-p5-macos-cut; no product edits.
+- Refreshed comparison head bd79b12b61f89c5af0e197cfc70273f307b537b5 (same Engine/Client sources as initial ae2eae2af).
+- Scratch branch v6/wip-f-p5-macos-cut; corrected harness089004b30; no product edits.
+- Required run https://github.com/litedb-org/LiteDB/actions/runs/42575162758 queued; no product tests executed yet.
+- Earlier run42569656324 candidate failed checkout only (abbreviatedSHA); raw log retained; superseded runs cancelled.
 - Orchestrator instructed completed hosted macOS runs, overriding brief ci-pending default.
 
 ## Steps
@@ -22,3 +24,9 @@
 2026-11-09T06:21:13Z Original full replay42569656324 and additive direct-only42572211702 queued, no runner assignment.
 2026-11-09T06:24:24Z Queue persists; unrelated previously active Phase4 run has no unfinished jobs. No unrelated workflows altered.
 - Additional direct-only run https://github.com/litedb-org/LiteDB/actions/runs/42572211702 exact scratch690e577af; original full replay https://github.com/litedb-org/LiteDB/actions/runs/42569656324 exact scratch03d553038. Both compare exact producte507faad40e968aa2fcf63ae6dd01fd7def2e07b/ae2eae2af0e485b892d2467699c9bb5dcfb37d60, queued. Tentative harness proposal pending hosted evidence: SharedProcessFuzzer.cs228-229 RequiresExclusiveCheckpointStart should admit all checkpoint cuts21..26 before starting peers (existing callsite66-67), covering live-but-not-ready attach/close and live snapshot deferrals; retain concurrency for other cuts. No fix implemented; no product classification inferred.
+2026-11-09T06:33:19Z Both comparison workflows remain queued; continuing required wait, no qualification claim.
+2026-11-09T06:38:06Z Hosted macOS comparison still queued, ~45min original. All requested product sources untouched; pending hosted evidence blocks classification.
+2026-11-09T06:43:03Z Both runs queued, zero assigned macOS runners; required wait continues.
+-06:45UTC first candidate job129003849277 executed and FAILED CHECKOUT ONLY: actions/checkout interprets abbreviatede507faad4 as branch/tag, fetch retries exit1. No build/tests executed, no product/harness behavior classification. Raw terminal log retained in f-p5-macos-cut-evidence/first-candidate-job.log. Correcting matrix to full40charSHA; cancelling remaining queued legs and consolidating all3probes+original replay into corrected run. No flake claim.
+2026-11-09T06:48:31Z Corrected full-SHA comparison scratch089004b30; current Phase5 snapshot refreshed bd79b12b61f89c5af0e197cfc70273f307b537b5; earlier ae2e comparison cancelled before any product execution.
+2026-11-09T06:52:29Z Corrected run42575162758 both full-SHA legs queued; waiting for actual macOS execution.
