@@ -1,0 +1,22 @@
+# Summary
+- P5-PHASE-REGRESS research in progress; product fixes prohibited by orchestrator.
+- Scratch branch v6/wip-p5-phase-regress; phase4 product remains e507faad4.
+- Phase heads verified with git ls-remote: phase1 a8727ffce, phase2 457cec425, phase3 b70b79ec2, phase4 e507faad4.
+- All adjacent merge-bases equal the preceding phase head.
+- Preparing twice-repeated adjacent-phase comparisons on Linux/Windows net8/net10 and separate EventPipe profiles.
+- No local benchmarks; no PR operations. Must wait for completed hosted evidence per step-specific instruction.
+
+## Steps
+- Read agent rules, brief, repository development/workflow/validation/performance/data-safety/storage-ownership/safety-evidence guidance.
+- Found original subset mode excludes durable scaling. Extended report-only subset selection to scaling while retaining rounds, production identities, checksums, and thresholds. Added synthetic comparison regression test.
+- Scratch workflow matrix: adjacent phase2/phase1, phase3/phase2, phase4/phase3, twice each, both runtimes and affected OSes (24 legs). Linux selects open + 1/8 writers; Windows selects open + full scan. One-writer control retained for scaling denominator. Nonselected main workload actions still execute as setup/control exactly as existing harness; only selected timings reported.
+- EventPipe diagnostic workloads amplify open/scan and repeat writer workload, separately from gate timing. Profiles of phase3/phase4 net10 on both OSes planned.
+- Code inspection rules out release lock-order assertions: OwnershipAssertions is wholly DEBUG || TESTING.
+- Scratch pushed 568a4cb8316271f2cbe21417d481500ab4725fee. Hosted run dispatched: https://github.com/litedb-org/LiteDB/actions/runs/42541251747 (24 legs). Local production net8 build: 0 errors; evaluator synthetic tests: 35 passed. Raw build output retained in evidence.
+- Prepared optional scratch research_matrix dispatch input for introducing-commit probes. Default matrix still exactly 24 adjacent-phase legs; existing run pinned to original harness. Code candidates (hypotheses pending CI): Phase3 32a0ca52d repeats canonical rebuild-guard path lookup; Phase4 5cb886e91 replaces native collection monitor with owner-object FIFO + PulseAll; Phase4 0b4ca2c62 introduces UnboundEngine reader delegate/mask per Read and Current; Phase4 1ed524586 adds close/drain work.
+- Scratch follow-up 6919988ecf0594475d8826467202ba5830f3bff4 pushed. Introducing-commit probe run: https://github.com/litedb-org/LiteDB/actions/runs/42541435160 (14 legs): 32a0ca52d/open Windows+Linux net10; 1b5241484/scan Windows net10; 5cb886e91/substrate and ac972bd2d/FIFO Linux net8+net10, twice each. Selected probes include EventPipe before/after on net10. Corrected reader wrapper attribution from public binding commit 0b4ca2c62 to its actual introduction 1b5241484.
+- Prepared evidence collector (validates presence of completed gate output and retains environment/binary identities, raw rounds, profile artifacts) and Speedscope inclusive/exclusive stack summarizer. Provisional ranked fixes and safety obligations saved as evidence/fix-candidates.md; estimates are explicitly unmeasured until paired evidence completes.
+- First completed legs: phase4/phase3 Linux net10 r2 8-writer=1.2524; phase2/phase1 Linux net10 r2=0.9895; phase3/phase2 Linux net8 r1=0.9971. Not final repeat-qualified evidence yet.
+- Refined scan attribution: UnboundEngine type appears in 1b5241484 but ordinary LiteDatabase routes through it only in 0b4ca2c62. Existing 1b probe is now a negative control. Dispatched additional twice-repeated 0b4ca2c62 public-binding (Windows net10 open+scan, Linux net10 open) and b996d3338 raw close/drain (Windows net8/net10, Linux net10 open) probes; ten legs. No product modifications.
+- Additional activation/drain run URL: https://github.com/litedb-org/LiteDB/actions/runs/42542131288, harness 6919988ecf0594475d8826467202ba5830f3bff4. Phase2/phase1 Linux net10 repeats completed: 8-writer 1.0251, 0.9895 (no regression); open default 0.9927, 1.0049.
+- Original same-job allocation evidence strengthens two hypotheses: full_scan adds exactly 38,401,080 bytes across OS/runtime legs (about 128 bytes per returned document: reader Read/Current delegates); Windows open adds 5,340,480 bytes per 20 opens versus 43,200 on Linux (repeated Windows canonicalization allocates a 32,768-character StringBuilder each call). Saved original-allocation-deltas.txt; these explain mechanisms but do not replace introducing-commit paired runs.

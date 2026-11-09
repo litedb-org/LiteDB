@@ -1,0 +1,24 @@
+benchmark-gate-ubuntu-latest-net10.0
+open_close_20x ratio 1.0798991172761665 before/after ms 2.97375 3.21135 extra allocated bytes 43200.0
+full_scan_3x100k ratio 1.0473656261494084 before/after ms 576.51935 603.82655 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 1.1857932178270587 before/after ms 1176.4902 1395.0740999999998 extra allocated bytes 1840056.0
+benchmark-gate-ubuntu-latest-net8.0
+open_close_20x ratio 1.087228035210098 before/after ms 4.51575 4.90965 extra allocated bytes 43200.0
+full_scan_3x100k ratio 1.0294872397132964 before/after ms 757.8278 780.1740500000001 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 1.293352143311522 before/after ms 1273.40215 1646.9574 extra allocated bytes -2368932.0
+benchmark-gate-macos-latest-net10.0
+open_close_20x ratio 1.1008313736460673 before/after ms 5.71945 6.29615 extra allocated bytes 82240.0
+full_scan_3x100k ratio 0.9034593546338112 before/after ms 750.33215 677.8946 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 1.0961183247476423 before/after ms 2286.5951999999997 2506.3788999999997 extra allocated bytes 2489164.0
+benchmark-gate-windows-latest-net10.0
+open_close_20x ratio 1.1806914830587376 before/after ms 20.67585 24.4118 extra allocated bytes 5340480.0
+full_scan_3x100k ratio 1.0330887445447714 before/after ms 514.3803499999999 531.40055 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 0.9889302617780193 before/after ms 9129.018950000001 9027.9631 extra allocated bytes 2263972.0
+benchmark-gate-windows-latest-net8.0
+open_close_20x ratio 1.1926685518166475 before/after ms 20.35205 24.27325 extra allocated bytes 5340480.0
+full_scan_3x100k ratio 1.0176382617048625 before/after ms 530.9225 540.2870499999999 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 1.0624593242106735 before/after ms 9666.5303 10270.29525 extra allocated bytes -1493356.0
+benchmark-gate-macos-latest-net8.0
+open_close_20x ratio 1.4304067064750159 before/after ms 5.1413 7.35415 extra allocated bytes 82240.0
+full_scan_3x100k ratio 0.9365138483466512 before/after ms 597.2680499999999 559.3498 extra allocated bytes 38401080.0
+durable_insert_5k_8_writers ratio 1.0872579407121405 before/after ms 1963.1709 2134.47315 extra allocated bytes -415420.0
