@@ -17,16 +17,19 @@ internal static class MacosCutProbe
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "shared.db");
             using (var setup = Open(file))
-                setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "control" });
+                setup.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "control", ["padding"] = new string('x', 131072) });
             LiteDatabase reader = null;
             IEnumerator<BsonDocument> cursor = null;
             try
             {
                 if (holdReader)
                 {
-                    reader = Open(file);
+                    var readerEngine = new SharedEngine(new Engine.EngineSettings { Filename = file });
+                    reader = new LiteDatabase(readerEngine);
                     cursor = reader.GetCollection("rows").FindAll().GetEnumerator();
                     if (!cursor.MoveNext()) throw new Exception("Reader did not pin control row");
+                    if (readerEngine.MappedReaderTable.LiveVersions().Length == 0)
+                        throw new Exception("Reader did not retain an admitted mapped lease");
                 }
                 var ledger = Path.Combine(directory, "worker-0.jsonl");
                 var start = new ProcessStartInfo("dotnet")
