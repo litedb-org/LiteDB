@@ -43,7 +43,18 @@ namespace LiteDB.Tests.Engine
             File.ReadAllText(RebuildRecovery.GetMarkerFilename(target)).Should().Be("incomplete");
             File.Delete(RebuildRecovery.GetMarkerFilename(target));
             using var reopened = new LiteDatabase(target);
-            reopened.GetCollection("rows").FindById(1).Should().NotBeNull();
+            Assert.NotNull(reopened.GetCollection("rows").FindById(1));
+        }
+
+        [Fact]
+        public void Windows_canonical_probes_grow_for_paths_beyond_MAX_PATH()
+        {
+            if (!DatabaseFileIdentity.Windows) return;
+            var directory = Path.Combine(_directory, new string('a', 100), new string('b', 100), new string('c', 100));
+            Directory.CreateDirectory(directory);
+            var filename = Path.Combine(directory, "long.db");
+            File.WriteAllBytes(filename, Array.Empty<byte>());
+            DatabaseFileIdentity.CanonicalPath(filename).Should().Be(filename);
         }
 
         [Fact]
