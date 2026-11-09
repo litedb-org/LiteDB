@@ -21,7 +21,7 @@ jobs:
           path: product
       - uses: actions/checkout@v4
         with:
-          ref: eacb0305f088d3cd22d3234020ff02d5922009b8
+          ref: 4bb83431e754469ec394564a5ca85d9fd82a8554
           path: overlay
       - uses: actions/setup-dotnet@v4
         with:
@@ -34,6 +34,13 @@ jobs:
           from pathlib import Path
           for name in ('LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs', 'LiteDB.Tests.SharedMutexHarness/SharedRequestAdmissionHarness.cs'):
               Path('product', name).write_bytes(Path('overlay', name).read_bytes())
+          # Old product has no explicit-budget overload. Keep the same two
+          # baseline guards; the added overload timeout guard runs after fixing.
+          test = Path('product/LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs')
+          text = test.read_text()
+          start = text.index('        [Fact]\n        public async Task Dms_timeout')
+          end = text.index('        public void Dispose()', start)
+          test.write_text(text[:start] + text[end:])
           path = Path('product/LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs')
           text = path.read_text()
           text = text.replace('        if (SharedOneFileProductionReuseHarness', '        if (SharedRequestAdmissionHarness.TryRun(mode, filename, args)) return true;\n        if (SharedOneFileProductionReuseHarness', 1)
