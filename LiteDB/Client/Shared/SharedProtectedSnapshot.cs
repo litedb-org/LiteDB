@@ -21,13 +21,22 @@ namespace LiteDB.Client.Shared
             var core = _engine;
             _engine = null;
             if (core == null) return null;
-            var map = _authority.Map;
-            if (!abandoned && core.CanRetainSharedSnapshot &&
-                _sequence == map.Load(SharedMemoryLayout.Control + 8) &&
-                _tenure == map.Load(SharedMemoryLayout.WriterTenureEpoch) &&
-                _reuse == map.Load(SharedMemoryLayout.ReuseEpoch) &&
-                _reset == map.Load(SharedMemoryLayout.ResetEpoch) &&
-                _structural == map.Load(SharedMemoryLayout.StructuralEpoch)) return core;
+            try
+            {
+                var map = _authority.Map;
+                if (!abandoned && core.CanRetainSharedSnapshot &&
+                    _sequence == map.Load(SharedMemoryLayout.Control + 8) &&
+                    _tenure == map.Load(SharedMemoryLayout.WriterTenureEpoch) &&
+                    _reuse == map.Load(SharedMemoryLayout.ReuseEpoch) &&
+                    _reset == map.Load(SharedMemoryLayout.ResetEpoch) &&
+                    _structural == map.Load(SharedMemoryLayout.StructuralEpoch)) return core;
+            }
+            catch
+            {
+                try { core.Dispose(); }
+                catch (Exception) { /* Preserve the admission/validation failure. */ }
+                throw;
+            }
             core.Dispose();
             return null;
         }
