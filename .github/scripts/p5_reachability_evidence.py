@@ -19,6 +19,11 @@ def main():
         print('|'.join('FullyQualifiedName~' + Path(t.split('#')[0]).stem + '.' + t.split('#')[1] for t in tests))
         return
     results = []
+    marker_hits = {}
+    if args.trx:
+        for path in args.trx.rglob('xunit-markers.json'):
+            for name, count in json.loads(path.read_text())['hits'].items():
+                marker_hits[name] = marker_hits.get(name, 0) + count
     if args.trx:
         for path in args.trx.rglob('*.trx'):
             root = ET.parse(path).getroot()
@@ -28,8 +33,8 @@ def main():
     lines = ['# P5 reachability evidence', '',
              'Baseline e507faad4: **115/173 markers; 83/100 hooks/injectors**. The 17 hook entries are also included among the 58 marker rows below.', '',
              'Passing xUnit execution is deterministic evidence, not fuzz marker telemetry. Every cited TRX must belong to a completed green hosted run on the recorded revision. New guards assert actual marker increments. Sources and workload requirements are explicit per row.', '',
-             '| Marker / hook | Code path / workload | Deterministic test | CI partition / TRX (Passed) | Why fuzz misses |',
-             '| --- | --- | --- | --- | --- |']
+             '| Marker / hook | Code path / workload | Deterministic test | CI partition / TRX (Passed) | xUnit site hits | Why fuzz misses |',
+             '| --- | --- | --- | --- | ---: | --- |']
     missing = []
     for entry in entries:
         evidence = []
@@ -39,9 +44,9 @@ def main():
             matches = [(p, n, o) for p, n, o in results if needle in n and o == 'Passed'
                        and (entry['marker'] != 'fault-point:DarwinTruncated' or 'macos' in p)]
             evidence.extend(sorted({p for p, _, _ in matches}))
-        if not evidence:
+        if not evidence or (not entry['hook'] and not marker_hits.get(entry['marker'], 0)):
             missing.append(entry['marker'])
-        lines.append('| `' + entry['marker'] + ('` (hook)' if entry['hook'] else '`') + ' | ' + entry['workload'] + '<br>' + '<br>'.join(entry['paths']) + ' | ' + '<br>'.join(entry['tests']) + ' | ' + ('<br>'.join(evidence) or 'UNPROVEN') + ' | ' + entry['whyFuzzMisses'].replace('|', '/') + ' |')
+        lines.append('| `' + entry['marker'] + ('` (hook)' if entry['hook'] else '`') + ' | ' + entry['workload'] + '<br>' + '<br>'.join(entry['paths']) + ' | ' + '<br>'.join(entry['tests']) + ' | ' + ('<br>'.join(evidence) or 'UNPROVEN') + ' | ' + str(marker_hits.get(entry['marker'], 0)) + ' | ' + entry['whyFuzzMisses'].replace('|', '/') + ' |')
     lines += ['', 'Missing executed test evidence: ' + (', '.join(missing) or 'none')]
     if args.output:
         args.output.write_text('\n'.join(lines) + '\n')

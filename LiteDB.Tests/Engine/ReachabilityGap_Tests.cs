@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Globalization;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Utils;
@@ -10,6 +12,21 @@ namespace LiteDB.Tests.Engine
 {
     public class ReachabilityGap_Tests
     {
+        // Opt-in hosted audit telemetry. Snapshot includes tests that ran before this class;
+        // no counters are reset and production code is unaffected.
+        static ReachabilityGap_Tests()
+        {
+            var output = Environment.GetEnvironmentVariable("LITEDB_REACHABILITY_OUT");
+            if (string.IsNullOrEmpty(output)) return;
+            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(output));
+                var hits = Reachability.Snapshot();
+                File.WriteAllText(output, "{\"target\":\"xunit\",\"hits\":{" +
+                    string.Join(",", hits.Select(x => "\"" + x.Key + "\":" + x.Value.ToString(CultureInfo.InvariantCulture))) + "}}");
+            };
+        }
+
         [Fact]
         public void Disposing_shared_transaction_discards_pending_rows_and_releases_writer()
         {
