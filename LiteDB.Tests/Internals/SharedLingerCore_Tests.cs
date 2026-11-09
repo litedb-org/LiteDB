@@ -103,6 +103,7 @@ namespace LiteDB.Internals
             var connection = Connection;
             connection.SharedLinger = 200;
             SharedMemoryReaderTable table;
+            var reached = false;
             using (var db = new LiteDatabase(connection))
             {
                 table = Engine(db).MappedReaderTable;
@@ -110,16 +111,16 @@ namespace LiteDB.Internals
                 db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
                 db.GetCollection("docs").EnsureIndex("value");
                 db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 42, ["value"] = "unrelated" });
-            }
-            var reached = false;
-            EngineState.SimulateProcessCrash = stage =>
-            {
-                if (stage == "checkpoint-after-page-write")
+                EngineState.SimulateProcessCrash = stage =>
                 {
-                    reached = true;
-                    throw new IOException("injected expiry checkpoint failure");
-                }
-            };
+                    if (stage == "checkpoint-after-page-write")
+                    {
+                        reached = true;
+                        throw new IOException("injected expiry checkpoint failure");
+                    }
+                };
+
+            }
             try
             {
                 SpinWait.SpinUntil(() => table.Closed, TimeSpan.FromSeconds(5)).Should().BeTrue();
