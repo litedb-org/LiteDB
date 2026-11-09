@@ -86,8 +86,11 @@ expiry followed by two indexed payload reopens, zero, single/all internal releas
 idle settings replacement, read-only byte preservation and an escaping result.
 The eight-case specification fails 7/8 before the prototype (3740cd5a1) and passes
 8/8 after its first implementation. These are graceful-close/exception-free
-lifetime cases, not process-death or power-loss qualification. A subsequent
-publication/close-wait correction requires its own fixed verification.
+lifetime cases, not process-death or power-loss qualification. The final ten-case specification, including forced cancelled-callback replay
+and timer-close/release waiting, fails 9/10 against product ac724ea70 and passes
+10/10 against a9301ebbd on Linux net8, with zero skips. The all-target production
+library build also passes (netstandard2.0, net8.0, net10.0); retention is compiled
+out of that build.
 
 Still required: public connection-string/EngineSettings configuration and release
 API; reusable engine ownership; bounded cross-process exclusive-release requests

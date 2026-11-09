@@ -1,0 +1,156 @@
+{
+  "candidate": "a9301ebbd012484ed7fdbe1af6990c7d728300c1",
+  "known_bad_product": "ac724ea70fb7db0f85441c1a0e1ca6456757e562",
+  "runtime": "Linux x64 net8",
+  "runs": {
+    "linger-after-boundaries.trx": {
+      "counts": {
+        "total": "8",
+        "executed": "8",
+        "passed": "8",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "b9175bc0c95d12fc4230992049a08b7b67b2b02290929aba9669e79ad42b87ae"
+    },
+    "linger-after-races.trx": {
+      "counts": {
+        "total": "10",
+        "executed": "10",
+        "passed": "10",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "d7b02f87dc5a4a439cb7bcc291d7808ac0e11d71e061e50a59c06359789d87fa"
+    },
+    "linger-after.trx": {
+      "counts": {
+        "total": "6",
+        "executed": "6",
+        "passed": "6",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "405b5dd112e8e915b1e61958b3ffe6b6e516d504a0a2e105bde7ca55af998881"
+    },
+    "linger-before-boundaries.trx": {
+      "counts": {
+        "total": "8",
+        "executed": "8",
+        "passed": "1",
+        "failed": "7",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "97209599c1c84ae3f6a45a31fe863474361a027aee31a3d5b2f68adbae26cf6a"
+    },
+    "linger-before-races.trx": {
+      "counts": {
+        "total": "10",
+        "executed": "10",
+        "passed": "1",
+        "failed": "9",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "1f2eed17523375a95d1dfb601c0601e1ad7f632cdd853258139ffb77b448e9b6"
+    },
+    "linger-before-release.trx": {
+      "counts": {
+        "total": "6",
+        "executed": "6",
+        "passed": "3",
+        "failed": "3",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "d5541b34c92f992da41450bc48170ed6fe88ac96b6d1a40dc3bc3ede15ce1d67"
+    },
+    "linger-before.trx": {
+      "counts": {
+        "total": "3",
+        "executed": "3",
+        "passed": "1",
+        "failed": "2",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "sha256": "0f9fc246a121e437d0a1ef362390a388bbe545e28feccba112e8cecdd8ac1e74"
+    }
+  },
+  "LiteDB/bin/Release/net8.0/LiteDB.dll": "e7cfbe0b5316f7e41f033d2cb408252df29aa49cb916ed8fbe5935622d9ffd6e",
+  "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll": "cb6d66c54ab46d69d4ec387a66293080b4ac944f05bc72fc40c47f82daf9c2d0"
+}
