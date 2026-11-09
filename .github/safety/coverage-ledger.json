@@ -1208,6 +1208,47 @@
         ".github/scripts/test_harness_campaign.py",
         ".github/workflows/fuzz.yml"
       ]
+    },
+    {
+      "id": "f-p5-macos-eagain-expanded-native-error-proof",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/shared-admission-proof.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every process admission, deadline, retained-lock, committed-row and sentinel assertion remains enabled on all three hosted platforms; macOS mapped net8/net10 coverage remains unchanged.",
+      "reason": "Expand the focused filter from SharedRequestAdmission_Tests to SharedRequestAdmission to include the added Unix EINTR/EACCES/EAGAIN deadline and EINVAL propagation cases. No existing test or platform is removed or narrowed.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs",
+        "LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs"
+      ]
+    },
+    {
+      "id": "f-p5-macos-eagain-forced-constructor-overlap",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedRequestAdmissionHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All four processes still execute forty default Shared open/insert/read/dispose requests, and cold reopen still verifies every acknowledged record plus the unrelated sentinel.",
+      "reason": "Add a child opening barrier so the parent can retain a separate process exclusive DMS during initial constructor attempts. This models lingering native ownership after bootstrap abandonment and makes the reported public constructor failure deterministic instead of requiring a random race. No assertion, request or worker is removed.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
+      ]
+    },
+    {
+      "id": "f-p5-macos-eagain-mapped-class-sessions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/shared-admission-proof.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All SharedOneFile, SharedMapped, SharedCoordination, NativeAdmission and SharedRequestAdmission test classes run on macOS net8 and net10 with unchanged300-second session limits and all failures retained.",
+      "reason": "The combined new mapped filter aborted after316 passing net8 cases at the300-second VSTest session cap. Partition by discovered test class, continue through every class/runtime on failure, and increase only the enclosing job budget to60 minutes. No test/session timeout is increased and no class or runtime is removed.",
+      "coveredBy": [
+        ".github/scripts/run_shared_admission_matrix.py",
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs"
+      ]
     }
   ]
 }
