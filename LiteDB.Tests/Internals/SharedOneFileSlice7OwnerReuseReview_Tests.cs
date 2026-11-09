@@ -24,8 +24,9 @@ namespace LiteDB.Internals
             using var peer = new LiteDatabase(second, disposeOnClose: false);
             using var cleanupEntered = new ManualResetEventSlim();
             using var releaseCleanup = new ManualResetEventSlim();
-            first.MutexOwner.BeforeOwnerExitedCleanup = () =>
+            first.OwnershipStage = stage =>
             {
+                if (stage != "before-tenure-close") return;
                 cleanupEntered.Set();
                 releaseCleanup.Wait(TimeSpan.FromSeconds(10));
             };
@@ -68,16 +69,16 @@ namespace LiteDB.Internals
             {
                 releaseCleanup.Set();
                 if (successorStarted) successor.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                first.MutexOwner.BeforeOwnerExitedCleanup = null;
+                first.OwnershipStage = null;
             }
             successorFailure.Should().BeNull();
             first.Dispose();
             second.Dispose();
             using (var cold = new LiteDatabase(file.Filename))
                 cold.GetCollection("docs").FindAll().Should().BeEquivalentTo(new[] { new BsonDocument { ["_id"] = 1 } });
-            foreignFailure.Should().BeOfType<InvalidOperationException>(
+            foreignFailure.Should().BeOfType<LiteException>(
                 "the new explicit transaction must publish its owner even when Begin started before old-owner cleanup")
-                .Which.Message.Should().Contain("connection");
+                .Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
         }
 
         private static T Field<T>(object value, string name) =>

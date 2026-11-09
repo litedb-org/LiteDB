@@ -39,6 +39,7 @@ namespace LiteDB.Tests.Engine
                 {
                     using var engine = new LiteEngine(new EngineSettings
                     {
+                        SharedOneFile = false,
                         Filename = Filename, Upgrade = true, AutoRebuild = true
                     });
                 };
@@ -154,7 +155,7 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("rows").Count().Should().Be(1);
             // A shared connection keeps its writable handles, which exclude direct mode.
             db.Dispose();
-            using var fresh = new LiteDatabase(new ConnectionString { Filename = Filename, Password = "new-password" });
+            using var fresh = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = "new-password" });
             fresh.GetCollection("rows").Count().Should().Be(1);
         }
 
@@ -168,10 +169,10 @@ namespace LiteDB.Tests.Engine
 
             Action open = () =>
             {
-                using var db = new LiteEngine(new EngineSettings { Filename = Filename, AutoRebuild = true, Upgrade = true });
+                using var db = new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, AutoRebuild = true, Upgrade = true });
             };
             open.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.REBUILD_INCOMPLETE);
-            Action rebuild = () => new RebuildService(new EngineSettings { Filename = Filename });
+            Action rebuild = () => new RebuildService(new EngineSettings { SharedOneFile = false, Filename = Filename });
             rebuild.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.REBUILD_INCOMPLETE);
             File.Exists(Filename).Should().BeFalse();
             File.Exists(FileHelper.GetLogFile(Filename)).Should().BeFalse();
@@ -182,7 +183,7 @@ namespace LiteDB.Tests.Engine
         {
             File.WriteAllText(Marker, "unrelated file database");
             using var stream = new MemoryStream();
-            using var engine = new LiteEngine(new EngineSettings { Filename = Filename, DataStream = stream });
+            using var engine = new LiteEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, DataStream = stream });
             engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32).Should().Be(1);
             File.Exists(Filename).Should().BeFalse();
         }
@@ -200,7 +201,7 @@ namespace LiteDB.Tests.Engine
             using (var db = Seed()) db.Checkpoint();
             var filename = Path.Combine(_directory, new string('x', length - 3) + ".db");
             File.Copy(Filename, filename);
-            using var reopened = new LiteDatabase(new ConnectionString { Filename = filename, ReadOnly = readOnly });
+            using var reopened = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, ReadOnly = readOnly });
             reopened.GetCollection("rows").Count().Should().Be(1);
             if (!readOnly) reopened.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
         }
@@ -208,7 +209,7 @@ namespace LiteDB.Tests.Engine
 
         private LiteDatabase Seed()
         {
-            var db = new LiteDatabase(new ConnectionString { Filename = Filename, Connection = ConnectionType.Shared });
+            var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Connection = ConnectionType.Shared });
             db.CheckpointSize = 0;
             db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
             return db;

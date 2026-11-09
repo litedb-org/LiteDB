@@ -15,8 +15,14 @@ namespace LiteDB
         private readonly Dictionary<string, string> _values;
         private int? _transactionPageLimit;
 
-        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
-        public bool SharedOneFile { get; set; }
+        /// <summary>Use one-file Shared coordination on qualified platforms by default.
+        /// Set false to use legacy sidecars (removed in v7). Explicit true requires a qualified physical file.</summary>
+        public bool SharedOneFile
+        {
+            get => SharedOneFileOverride ?? LiteDB.Client.Shared.SharedProtocolDefaults.OneFile;
+            set => SharedOneFileOverride = value;
+        }
+        internal bool? SharedOneFileOverride { get; set; }
         /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
         public long SharedMemorySize { get; set; }
         /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>
@@ -192,7 +198,7 @@ namespace LiteDB
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
-            this.SharedOneFile = _values.GetValue("shared one file", this.SharedOneFile);
+            if (_values.ContainsKey("shared one file")) this.SharedOneFile = _values.GetValue("shared one file", this.SharedOneFile);
             this.SharedMemorySize = _values.GetFileSize("shared memory size", this.SharedMemorySize);
             this.SharedProcessCapacity = _values.GetValue("shared process capacity", this.SharedProcessCapacity);
             this.SharedGenerationCapacity = _values.GetValue("shared generation capacity", this.SharedGenerationCapacity);
@@ -306,7 +312,7 @@ namespace LiteDB
                 AutoRebuild = this.AutoRebuild,
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
                 DurableCommits = this.DurableCommits,
-                SharedOneFile = this.SharedOneFile,
+                SharedOneFileOverride = this.SharedOneFileOverride,
                 SharedMemorySize = this.SharedMemorySize,
                 SharedProcessCapacity = this.SharedProcessCapacity,
                 SharedGenerationCapacity = this.SharedGenerationCapacity,

@@ -56,7 +56,7 @@ namespace LiteDB.Tests.Issues
         public void Delete_waits_for_the_complete_upload_without_leaving_dangling_metadata(ConnectionType mode, bool explicitDelete)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = mode });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = mode });
             db.Timeout = TimeSpan.FromSeconds(3);
             using var entered = new ManualResetEventSlim();
             using var release = new ManualResetEventSlim();

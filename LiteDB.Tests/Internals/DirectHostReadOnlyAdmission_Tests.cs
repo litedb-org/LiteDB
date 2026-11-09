@@ -87,7 +87,7 @@ namespace LiteDB.Internals
         public async Task Writable_process_modes_exclude_read_only_Direct(ConnectionType connection)
         {
             Seed(null);
-            using (var writer = new LiteDatabase(new ConnectionString { Filename = Filename, Connection = connection }))
+            using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Connection = connection }))
             {
                 await MvccProcess.Run("direct-host-readonly-direct-refused", Filename, null);
                 Verify(writer);
@@ -134,11 +134,11 @@ namespace LiteDB.Internals
         }
 
         private LiteDatabase OpenReadOnly(string password) => new LiteDatabase(new ConnectionString
-            { Filename = Filename, Password = password, ReadOnly = true });
+            { SharedOneFile = false, Filename = Filename, Password = password, ReadOnly = true });
 
         private void Seed(string password)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password });
             db.GetCollection("docs").EnsureIndex("value");
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 17, ["value"] = "committed", ["payload"] = new string('q', 12366) });
             db.GetCollection("sentinel").Insert(new BsonDocument { ["_id"] = 99, ["value"] = "unrelated" });

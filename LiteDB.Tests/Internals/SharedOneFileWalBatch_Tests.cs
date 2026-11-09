@@ -76,8 +76,8 @@ namespace LiteDB.Internals
             var table = engine.MappedReaderTable;
             var versions = table.LiveVersions();
             versions.Should().NotBeEmpty();
-            var data = File.ReadAllBytes(files.Filename);
-            var wal = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+            var wal = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
             var hits = 0;
             SharedMemoryAuthority.MapFile = (_, __) => { hits++; throw new UnauthorizedAccessException("mapped access denied"); };
             try
@@ -85,8 +85,8 @@ namespace LiteDB.Internals
                 Action attach = () => SharedMemoryReaderTable.Open(files.Settings);
                 attach.Should().Throw<UnauthorizedAccessException>();
                 hits.Should().Be(1);
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
                 table.LiveVersions().Should().BeEquivalentTo(versions);
             }
             finally { SharedMemoryAuthority.MapFile = null; }

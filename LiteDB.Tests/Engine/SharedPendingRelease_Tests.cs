@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Engine
 
         private SharedEngine Open(bool slowRelease)
         {
-            var engine = new SharedEngine(new EngineSettings { Filename = this.Filename });
+            var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename });
             if (slowRelease) engine.MutexOwner.BeforePostedRelease = () => Thread.Sleep(Delay);
             return engine;
         }
@@ -134,7 +134,7 @@ namespace LiteDB.Tests.Engine
 
         private int Count()
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = this.Filename });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = this.Filename });
             return db.GetCollection("docs").Count();
         }
 

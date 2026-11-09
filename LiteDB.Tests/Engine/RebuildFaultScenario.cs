@@ -34,6 +34,7 @@ namespace LiteDB.Tests.Engine
 
         public ConnectionString OriginalConnection(string filename) => new ConnectionString
         {
+            SharedOneFile = false,
             Filename = filename,
             Password = this.Change == RebuildChange.RemovePassword ? Password : null,
             Collation = new Collation("en-US/None")
@@ -41,6 +42,7 @@ namespace LiteDB.Tests.Engine
 
         public ConnectionString ReplacementConnection(string filename) => new ConnectionString
         {
+            SharedOneFile = false,
             Filename = filename,
             Password = this.Change == RebuildChange.SetPassword ? Password
                 : this.Change == RebuildChange.RemovePassword ? null

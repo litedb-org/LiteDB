@@ -97,6 +97,17 @@ namespace LiteDB.Engine
             if (owner != null) _owner = owner;
         }
 
+        // Header writes and host maintenance must check the foreign facade rule
+        // before applying their own transaction or multiple-facade restrictions.
+        internal void EnsureWriteAllowed()
+        {
+            this.ThrowIfDisposed();
+            var transaction = _slot.Value;
+            if (transaction != null && transaction.State != TransactionState.Disposed &&
+                !ReferenceEquals(transaction.FacadeOwner, _owner))
+                throw LiteException.SameThreadTransaction();
+        }
+
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
             this.ThrowIfDisposed();
@@ -154,7 +165,14 @@ namespace LiteDB.Engine
                         _slot.Value = null;
                         return this.GetTransaction(create, queryOnly, out isNew);
                     }
-                    if (create) throw new InvalidOperationException("Another Direct facade owns this thread's transaction. Complete it before using this facade on the same thread.");
+                    if (create && !queryOnly)
+                    {
+                        // Legacy transactions are thread-bound. Phase 4 will add
+                        // thread-independent handles; until then, refuse a foreign
+                        // same-thread write immediately so it cannot wait on work
+                        // that only the owning facade/thread can complete.
+                        throw LiteException.SameThreadTransaction();
+                    }
                     return null;
                 }
             }

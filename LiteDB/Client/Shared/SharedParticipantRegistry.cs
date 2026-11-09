@@ -27,7 +27,8 @@ namespace LiteDB.Client.Shared
             // entire attach. Retain that owner instead of reopening/qualifying
             // the same file twice inside one protected construction.
             using var admission = settings.SharedAdmission?.Retain() ?? NativeAdmission.Open(settings, true);
-            var identity = admission.Identity;
+            // Keep the stable canonical namespace key across exclusive replacement.
+            var identity = settings.Filename;
             while (true)
             {
                 var entry = Entries.GetOrAdd(identity, _ => new Entry());
@@ -80,6 +81,11 @@ namespace LiteDB.Client.Shared
                     throw new InvalidOperationException("Shared read transforms differ.");
                 var opening = requested.Clone();
                 opening.ReadTransform = null;
+                // Access is enforced by each facade's own core/snapshot settings.
+                // The table owns coordination, not a shared writable storage core.
+                // A read-only first table conservatively omits final-close checkpoint.
+                if (!captured.SharedOneFileOverride.HasValue && !requested.SharedOneFileOverride.HasValue)
+                    opening.ReadOnly = captured.ReadOnly;
                 DirectHostSettings.RequireCompatible(captured, opening, captured.Collation.ToString());
                 if (captured.SharedMutexNameStrategy != requested.SharedMutexNameStrategy ||
                     !ReferenceEquals(captured.SharedReaderFiles, requested.SharedReaderFiles))

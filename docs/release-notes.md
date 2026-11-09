@@ -1,5 +1,61 @@
 # Release notes
 
+## Same-thread transaction writes (Phase 5 migration note)
+
+When one `LiteDatabase` has a legacy explicit transaction open, a write through
+another facade for the same file on that transaction's thread now fails
+immediately with `LiteException.SAME_THREAD_TRANSACTION`. Finish the transaction
+on its owning thread before using the peer facade. Phase 4 will introduce
+thread-independent transaction handles for coordinated cross-thread completion.
+Reads keep their existing behavior, and legacy transactions remain thread-bound
+across `await` continuations.
+
+## Shared coordination default (v6 migration note)
+
+In v6, physical-file Shared connections default to one-file ABI-2 coordination
+on qualified .NET 8+ Linux x64/ARM64, Windows x64, and macOS ARM64/x64.
+x86, .NET Framework, and other unqualified targets automatically use legacy
+sidecars. Native-admitted local volumes outside the mapped allowlist (including
+Linux tmpfs/overlay) also retain legacy coordination. Network and unknown volumes
+remain refused by native admission. Caller streams, memory and temporary databases
+retain legacy coordination.
+Set `Shared One File=false` in the connection string, or
+`EngineSettings.SharedOneFile = false`, to explicitly use legacy on any platform.
+Explicit `true` still requires a qualified platform, mapped-qualified local volume and a physical database file.
+The legacy implementation is frozen for v6 and will be removed in v7.
+
+Stop all participants before switching protocols. Native data admission claims
+separate family bytes and refuses mixed current-v6 opens in either order with
+an admission error, even for idle facades. Unmodified older executables do not
+implement this handshake: stop and upgrade every executable before deployment;
+concurrent use with those versions is unsupported.
+
+The first writable default open retires recognised legacy sidecars only while
+offline admission and DMS prove no live participants. This does not rebuild the
+database. A default read-only open with legacy remnants uses protected legacy
+reads without retiring or rewriting those remnants or database/WAL bytes. Close
+that facade before a writable default open can switch to ABI-2. Explicit ABI-2
+read-only opens still refuse when retirement is needed. Unknown remnants refuse
+retirement in place. Interrupted retirement is retryable; ephemeral
+entries may reappear after power loss and are revalidated on the next open.
+
+Facades in one process using ABI-2 must match Password, DurableCommits,
+CompactStorage, LegacyIndexScan, effective CacheSize, TransactionPageLimit,
+InitialSize, IndexMigrationLimitSize, Upgrade, AutoRebuild, RejectInvalidLocalTime,
+LocalTimeZone, ReadTransform delegate identity, SharedMutexNameStrategy and the
+internal SharedReaderFiles delegate identity. An explicit Collation must match the
+live database collation. For automatic default selection, ReadOnly may differ:
+read-only and writable facades coexist in either opening order, and read-only
+writes remain forbidden. Explicit ABI-2 opt-in retains its strict ReadOnly match.
+Mapped
+capacity/size requests use the live header declarations. All processes must use
+the same coordination family and database identity; platform/runtime differences
+can select different families and will be refused safely.
+
+Rebuild and mapped maintenance require the only participant. Close other idle
+facades, other processes and outstanding query results/readers before maintenance;
+an idle facade still counts as a participant.
+
 ## Shared mapped reads
 
 Repeated Shared queries on qualified .NET 8+ local filesystems can retain a read-only

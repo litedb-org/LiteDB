@@ -93,6 +93,7 @@ namespace LiteDB.Internals
                 writer.Send("checkpoint");
                 await writer.Expect("checkpointed");
                 var retained = File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0;
+                retained.Should().BeGreaterThan(0, "the live facade still holds DMS even after its reader was collected");
                 lock (cache.Gate)
                 {
                     snapshot.Readers = 0;
@@ -101,12 +102,12 @@ namespace LiteDB.Internals
                     snapshot.Lease = null;
                     cache.Dispose();
                 }
+                SharedOneFilePublicationFixture.Verify(db, 1);
+                engine.Dispose();
                 writer.Send("checkpoint");
                 await writer.Expect("checkpointed");
                 (File.Exists(files.Log) ? new FileInfo(files.Log).Length : 0).Should().Be(0,
-                    "releasing the abandoned generation must let the same remote writer drain");
-                retained.Should().Be(0,
-                    "the only streamed reader was collected before the remote commit and checkpoint");
+                    "the same remote writer must drain after the final local participant detaches");
             }
             finally
             {
@@ -120,7 +121,8 @@ namespace LiteDB.Internals
                     cache.Dispose();
                 }
             }
-            SharedOneFilePublicationFixture.Verify(db, 1);
+            using var cold = new LiteDatabase(new LiteDB.Engine.LiteEngine(files.Settings));
+            SharedOneFilePublicationFixture.Verify(cold, 1);
         }
 
         [OneFileFact]

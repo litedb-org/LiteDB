@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Issues
         public void Defensive_rollback_on_an_idle_thread_returns_false_and_leaves_the_owner_untouched(ConnectionType connection)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection });
 
             using var other = new ForeignTransaction(db);
 

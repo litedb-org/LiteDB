@@ -83,7 +83,9 @@ namespace LiteDB.Internals
                     (map.Load(SharedMemoryLayout.Control + 8) & 1).Should().Be(0);
                     map.Load(SharedMemoryLayout.RecoveryOwner).Should().Be(0);
                     map.Load(SharedMemoryLayout.WriterOwner).Should().NotBe(0);
-                    var holds = pinned ? Field<int>(Field<object>(engine, "_pin"), "_holds") : Field<int>(engine.MutexOwner, "_recursion");
+                    var actualPin = Field<object>(engine, "_pin");
+                    actualPin.Should().NotBeNull("mapped Begin retains a pin even without an anchor reader");
+                    var holds = Field<int>(actualPin, "_holds");
                     holds.Should().Be(1, "retry must return the aborted transaction's hold exactly once");
                 }
                 var callbacks = 0;
@@ -92,7 +94,7 @@ namespace LiteDB.Internals
                     callbacks++;
                     db.BeginTrans().Should().BeFalse();
                     Action callback = () => peer.BeginTrans();
-                    callback.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+                    callback.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
                     yield return Row(2000);
                 }
                 db.GetCollection("docs").Insert(Input()).Should().Be(1);

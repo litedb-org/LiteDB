@@ -38,7 +38,6 @@ namespace LiteDB.Client.Shared
         internal static void Normalize(EngineSettings settings)
         {
             var original = System.IO.Path.GetFullPath(settings.Filename);
-            RebuildRecovery.EnsureAvailable(settings);
             var canonical = DatabaseFileIdentity.CanonicalPath(original);
             if (original != canonical)
             {
@@ -50,6 +49,9 @@ namespace LiteDB.Client.Shared
                     throw new IOException("Database alias has a separate WAL. Recover the matching data/WAL pair before opening.");
             }
             settings.Filename = canonical;
+            // Alias/WAL validation above performs additional filesystem work. Revalidate
+            // in that case; only an unchanged path has an adjacent canonical proof.
+            RebuildRecovery.EnsureAvailable(settings, original == canonical ? canonical : null);
         }
 
         internal static void NormalizeSharedNamespace(EngineSettings settings)
@@ -77,7 +79,11 @@ namespace LiteDB.Client.Shared
                     // handshake on Unix; Windows can lock exclusively with GENERIC_READ.
                     try
                     {
-                        file = new DatabaseFileLock(settings.Filename, settings.ReadOnly, false, settings.Filename, readOnlyFallback: !shared && settings.ReadOnly);
+                        // Explicit Shared upgrade needs exclusive OFD admission;
+                        // ordinary read-only opens retain a read descriptor.
+                        file = new DatabaseFileLock(settings.Filename,
+                            settings.ReadOnly && (!shared || !settings.Upgrade), false, settings.Filename,
+                            readOnlyFallback: !shared && settings.ReadOnly);
                     }
                     catch (FileNotFoundException) when (!settings.ReadOnly && create)
                     {
@@ -123,6 +129,34 @@ namespace LiteDB.Client.Shared
             file.Lock(oneFile ? DatabaseFileLock.MappedFamily : DatabaseFileLock.Family, false);
             if (file.Conflicts(oneFile ? DatabaseFileLock.Family : DatabaseFileLock.MappedFamily))
                 throw new IOException("Incompatible Shared coordination ABI family; stop all participants before switching.");
+        }
+
+        // The caller also owns the path mutex. Conversion proves absence of every
+        // remote Direct/Shared participant, including an idle legacy facade.
+        internal IDisposable ExclusiveOffline()
+        {
+            lock (Gate)
+            {
+                EnsureValid();
+                // Facade, transient registry probe, and initializing table.
+                if (_entry.References > 3)
+                    throw new IOException("Offline coordination upgrade requires all other local facades closed.");
+                if (DatabaseFileIdentity.Windows) _entry.File.Unlock(DatabaseFileLock.Admission);
+                try { _entry.File.Lock(DatabaseFileLock.Admission, true); }
+                catch
+                {
+                    if (DatabaseFileIdentity.Windows) _entry.File.Lock(DatabaseFileLock.Admission, false);
+                    throw;
+                }
+                return new OfflineLease(_entry.File);
+            }
+        }
+
+        private sealed class OfflineLease : IDisposable
+        {
+            private readonly DatabaseFileLock _file;
+            internal OfflineLease(DatabaseFileLock file) { _file = file; }
+            public void Dispose() { _file.Downgrade(DatabaseFileLock.Admission); }
         }
 
         internal NativeAdmission Retain()

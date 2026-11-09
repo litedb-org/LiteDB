@@ -56,7 +56,7 @@ namespace LiteDB.Tests.Engine
                 using var data = CallbackFile.Open(filename);
                 using var log = CallbackFile.Open(FileHelper.GetLogFile(filename));
                 using var outer = new SharedEngine(new EngineSettings
-                { Filename = filename, Password = Password(encrypted), DataStream = data, LogStream = log });
+                { SharedOneFile = false, Filename = filename, Password = Password(encrypted), DataStream = data, LogStream = log });
                 var peer = this.OpenPeer(this.Filename, encrypted);
                 outer.Insert("rows", new[] { Row(100) }, BsonAutoId.Int32).Should().Be(1);
                 var calls = 0;
@@ -88,6 +88,7 @@ namespace LiteDB.Tests.Engine
             var log = this.Track(CallbackFile.Open(FileHelper.GetLogFile(this.Filename)));
             var outer = this.Track(new SharedEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 Password = Password(encrypted),
                 DataStream = data,

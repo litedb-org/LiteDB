@@ -20,7 +20,7 @@ namespace LiteDB.Tests.Engine
             using (var seed = new LiteDatabase(file.Filename))
                 seed.GetCollection("rows").InsertBulk(Enumerable.Range(0, 200).Select(id =>
                     new BsonDocument { ["_id"] = id, ["value"] = 7, ["payload"] = new string('p', 4000) }));
-            using var engine = new SharedEngine(new EngineSettings { Filename = file.Filename })
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file.Filename })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) };
             using var database = new LiteDatabase(engine);
             using var registry = new SharedReaderRegistry(file.Filename);

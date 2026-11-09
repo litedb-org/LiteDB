@@ -30,6 +30,7 @@ namespace LiteDB.Internals
             using (var snapshots = new MvccProcess("followup-generations", Filename, password))
             using (var writer = new SharedEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = Filename, Password = password,
                 CheckpointStage = stage => { if (stage == "wal-slot-cleared") cleared++; }
             }))

@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace LiteDB.Client.Shared
 {
@@ -11,13 +12,21 @@ namespace LiteDB.Client.Shared
     {
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
+        private SharedWakeSignal _wake;
+        private readonly ReaderWriterLockSlim _wakeLifetime;
         private byte* _pointer;
         private bool _acquired;
+        private int _disposed;
         internal readonly long Size;
 
-        internal SharedMemoryMap(FileStream file, long size)
+        internal SharedMemoryMap(FileStream file, long size, Guid authority = default(Guid))
         {
             Size = size;
+            if (authority != Guid.Empty)
+            {
+                _wake = SharedWakeSignal.Open(authority);
+                if (_wake != null) _wakeLifetime = new ReaderWriterLockSlim();
+            }
             _map = MemoryMappedFile.CreateFromFile(file, null, size, MemoryMappedFileAccess.ReadWrite,
                 HandleInheritability.None, leaveOpen: true);
             try
@@ -43,6 +52,97 @@ namespace LiteDB.Client.Shared
         }
         internal long CompareExchange(long offset, long value, long expected)
         { this.Require(offset, 8); return Interlocked.CompareExchange(ref *(long*)(_pointer + offset), value, expected); }
+        internal long Increment(long offset)
+        { this.Require(offset, 8); return Interlocked.Increment(ref *(long*)(_pointer + offset)); }
+
+        internal void PrepareWake() => _wake?.Prepare();
+
+        // Maintenance owns exclusive DMS and bootstrap. Local wake/wait calls
+        // can still run, so drain their native handle use before replacement.
+        internal void RekeyWake(Guid previous, Guid authority)
+        {
+            if (_wakeLifetime == null) return;
+            _wakeLifetime.EnterWriteLock();
+            try
+            {
+                var next = SharedWakeSignal.Open(authority);
+                try { next.Prepare(); }
+                catch { next.Dispose(); throw; }
+                var old = _wake;
+                _wake = next;
+                old.Dispose();
+                SharedWakeSignal.Retire(previous);
+            }
+            finally { _wakeLifetime.ExitWriteLock(); }
+        }
+
+        // The mapping remains pinned until every holder/request lease drains.
+        internal void Wake()
+        {
+            Increment(SharedMemoryLayout.WriterWake);
+            if (_wakeLifetime != null)
+            {
+                _wakeLifetime.EnterReadLock();
+                try { _wake.Wake(); }
+                finally { _wakeLifetime.ExitReadLock(); }
+                return;
+            }
+            var result = syscall(FutexSyscall, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 1, int.MaxValue, IntPtr.Zero);
+            if (result < 0) throw new IOException("Shared writer futex wake failed: " + Marshal.GetLastPInvokeError());
+        }
+        internal void WaitWake(long observed, int milliseconds)
+        {
+            if (_wakeLifetime != null)
+            {
+                _wakeLifetime.EnterReadLock();
+                try
+                {
+                    if (Load(SharedMemoryLayout.WriterWake) != observed)
+                    {
+                        ObserveWait("returned", 0);
+                        return;
+                    }
+                    ObserveWait("syscall", milliseconds);
+                    _wake.Wait(milliseconds);
+                    ObserveWait("returned", 0);
+                }
+                finally { _wakeLifetime.ExitReadLock(); }
+                return;
+            }
+            var timeout = new Timespec { Seconds = 0, Nanoseconds = milliseconds * 1000000L };
+            ObserveWait("syscall", milliseconds);
+            var result = syscall(FutexSyscall, (IntPtr)(_pointer + SharedMemoryLayout.WriterWake), 0,
+                unchecked((int)observed), (IntPtr)(&timeout));
+            var error = result >= 0 ? 0 : Marshal.GetLastPInvokeError();
+#if DEBUG || TESTING
+            var simulate = SimulateWaitError;
+            if (simulate != null)
+            {
+                LiteDB.Utils.Reachability.FaultPoint("SimulateWaitError");
+                error = simulate(error);
+            }
+#endif
+            ObserveWait("returned", error);
+            if (error != 0 && error != 11 && error != 4 && error != 110)
+                throw new IOException("Shared writer futex wait failed: " + error);
+        }
+#if DEBUG || TESTING
+        internal IntPtr WakeAddress => (IntPtr)(_pointer + SharedMemoryLayout.WriterWake);
+        internal Action<string, int> WaitObserved;
+        internal Func<int, int> SimulateWaitError;
+#endif
+        [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
+        internal void ObserveWait(string stage, int value)
+        {
+#if DEBUG || TESTING
+            WaitObserved?.Invoke(stage, value);
+#endif
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Timespec { internal long Seconds, Nanoseconds; }
+        private static long FutexSyscall => RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? 98 : 202;
+        [DllImport("libc", SetLastError = true)]
+        private static extern long syscall(long number, IntPtr address, int operation, int value, IntPtr timeout);
         internal bool Matches(long offset, byte[] expected)
         {
             for (var i = 0; i < expected.Length; i += 8)
@@ -67,6 +167,7 @@ namespace LiteDB.Client.Shared
         ~SharedMemoryMap() { this.Dispose(); }
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             GC.SuppressFinalize(this);
             if (_acquired) { _view.SafeMemoryMappedViewHandle.ReleasePointer(); _acquired = false; _pointer = null; }
             // Coordination is ephemeral: DB/WAL recovery, not mapped bytes, is
@@ -76,6 +177,8 @@ namespace LiteDB.Client.Shared
             _view?.SafeMemoryMappedViewHandle.Dispose();
             _view?.Dispose();
             _map?.Dispose();
+            _wake?.Dispose();
+            _wakeLifetime?.Dispose();
         }
     }
 }

@@ -14,11 +14,17 @@ namespace LiteDB
 
         private bool BeginTransCore()
         {
+            this.ThrowIfForeignLocalTransaction(writing: true);
             this.ThrowIfCallerRetainsOwnership();
             // A pending admission belongs to this call, not to the old native
             // ownership. Dead-owner cleanup must never release the successor's lease.
             SharedLocalTransactionOwner.Lease pending = null;
-            if (_localTransactions != null &&
+            // A callback already executing the current core's transaction joins
+            // it before reserving local ownership. A queued lease may itself be
+            // waiting for this operation to release main.
+            var joining = (_pin?.IsOperatingOn(Thread.CurrentThread) == true || _owner.IsOwnedByCurrentThread) &&
+                _engine?.HasActiveTransaction == true;
+            if (_localTransactions != null && !joining &&
                 !ReferenceEquals(_localTransaction?.Thread, Thread.CurrentThread))
                 pending = _localTransactions.Enter(this);
 
@@ -32,6 +38,9 @@ namespace LiteDB
                 var started = _engine.BeginTrans();
                 if (started)
                 {
+                    ReleaseTransactionLease();
+                    _transactionLease = SharedTransactionOwnership.Enter(
+                        _mutexName, this, Thread.CurrentThread);
                     // A new inner transaction proves the old one aborted. Return its hold
                     // while this call still protects the engine and the new transaction.
                     if (_transactionRunning) CloseDatabase(_transactionUse, hold: true);
@@ -58,7 +67,7 @@ namespace LiteDB
             {
                 if (opened)
                 {
-                    try { this.ReconcileMappedTransaction(); }
+                    try { this.ReconcileTransaction(); }
                     finally { CloseDatabase(use); }
                 }
                 throw;
@@ -72,7 +81,7 @@ namespace LiteDB
 
         private bool CompleteTransaction(bool commit)
         {
-            this.ThrowIfForeignLocalTransaction();
+            this.ThrowIfForeignLocalTransaction(writing: true);
             // Hold one extra mutex recursion (or pinned operation) throughout
             // completion. A foreign thread must not reach cleanup, even while
             // BeginTrans is publishing.
@@ -86,6 +95,7 @@ namespace LiteDB
                 throw ForeignTransactionCompletion();
             }
 
+            var failed = false;
             try
             {
                 // Dispose ended the transaction with the connection; a rollback in a catch
@@ -102,6 +112,14 @@ namespace LiteDB
                     this.AtOwnershipStage(commit ? "before-commit" : "before-rollback");
                     return commit ? _engine.Commit() : _engine.Rollback();
                 }
+                catch
+                {
+                    failed = true;
+                    // A failed completion may leave an inner transaction alive.
+                    // It must be rolled back by close before this tenure is reused.
+                    pin?.RequestRelease(force: true);
+                    throw;
+                }
                 finally
                 {
                     this.EndTransaction(releaseHold: true);
@@ -109,7 +127,11 @@ namespace LiteDB
             }
             finally
             {
-                if (pinned) pin.Exit(hold: false);
+                if (pinned)
+                {
+                    this.CloseDatabase(pin);
+                    if (failed && pin.CanWaitFrom(Thread.CurrentThread)) pin.WaitReleased();
+                }
                 else _owner.Exit();
             }
         }
@@ -136,12 +158,17 @@ namespace LiteDB
         private static LiteException ForeignTransactionCompletion() =>
             new LiteException(0, "Complete the explicit transaction on the same thread that called BeginTrans; do not await inside it.");
 
-        private void ThrowIfForeignLocalTransaction()
+        private void ThrowIfForeignLocalTransaction(bool writing = false)
         {
+            if (writing)
+                SharedTransactionOwnership.EnsureWriteAllowed(_mutexName, this, Thread.CurrentThread);
             if (_localTransactions?.IsHeldByOther(this, Thread.CurrentThread) == true)
+            {
+                if (writing) throw LiteException.SameThreadTransaction();
                 throw new InvalidOperationException(
                     "Another connection (mapped Shared facade) owns the writable transaction on this thread. " +
                     "Complete it before using this facade on the same thread.");
+            }
         }
 
         /// <summary>
@@ -150,28 +177,38 @@ namespace LiteDB
         /// each resource before clearing it; stale result cleanup cannot release a
         /// successor's generation. Abandon/dispose already drain native holds.
         /// </summary>
-        private void EndTransaction(bool releaseHold)
+        private void EndTransaction(bool releaseHold, bool waitForStopped = true)
         {
             var use = _transactionUse;
             var local = Interlocked.Exchange(ref _localTransaction, null);
+            var shared = Interlocked.Exchange(ref _transactionLease, null);
             var running = _transactionRunning;
             _transactionUse = null;
             _transactionRunning = false;
             _transactionThread = null;
             try
             {
-                if (releaseHold && running) this.CloseDatabase(use, hold: true);
+                if (releaseHold && running) this.CloseDatabase(use, hold: true, waitForStopped: waitForStopped);
             }
-            finally { local?.Dispose(); }
+            finally
+            {
+                local?.Dispose();
+                shared?.Dispose();
+            }
+        }
+
+        private void ReleaseTransactionLease()
+        {
+            Interlocked.Exchange(ref _transactionLease, null)?.Dispose();
         }
 
         // Operations can implicitly abort or Stop the core. Reconcile before the
         // operation returns, while its extra native use still protects teardown.
-        private void ReconcileMappedTransaction()
+        private void ReconcileTransaction(bool waitForStopped = true)
         {
-            if (_localTransactions == null || !_transactionRunning || _engine == null ||
+            if (!_transactionRunning || _engine == null ||
                 (!_engine.StorageUncertain && _engine.HasActiveTransaction)) return;
-            this.EndTransaction(releaseHold: true);
+            this.EndTransaction(releaseHold: true, waitForStopped: waitForStopped);
         }
 
         #endregion

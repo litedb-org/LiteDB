@@ -1,5 +1,6 @@
 #if NET8_0_OR_GREATER
 using LiteDB.Client.Shared;
+using System.Runtime.InteropServices;
 using Xunit;
 
 namespace LiteDB.Tests
@@ -14,10 +15,20 @@ namespace LiteDB.Tests
     {
         public OneFileTheoryAttribute() { Skip = OneFileTestPlatform.Reason; }
     }
+    public sealed class LinuxFutexFactAttribute : FactAttribute
+    {
+        public LinuxFutexFactAttribute() { Skip = OneFileTestPlatform.LinuxFutexReason; }
+    }
+    public sealed class LinuxFutexTheoryAttribute : TheoryAttribute
+    {
+        public LinuxFutexTheoryAttribute() { Skip = OneFileTestPlatform.LinuxFutexReason; }
+    }
     internal static class OneFileTestPlatform
     {
         internal static string Reason => SharedMemoryAuthority.IsPlatformQualified ? null :
-            "ABI-2 mapped prototype refuses platforms other than qualified Linux x64; native backend tests remain enabled.";
+            "ABI-2 mapped Shared is refused on this OS/architecture; native backend tests remain enabled.";
+        internal static string LinuxFutexReason => RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+            ? Reason : "This test exercises the Linux futex ABI; native wake backend tests remain enabled.";
     }
 }
 #endif

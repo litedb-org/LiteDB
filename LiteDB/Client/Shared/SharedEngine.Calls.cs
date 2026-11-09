@@ -58,7 +58,7 @@ namespace LiteDB
             }
             finally
             {
-                try { this.ReconcileMappedTransaction(); }
+                try { this.ReconcileTransaction(); }
                 finally { CloseDatabase(use); }
             }
         });
@@ -120,7 +120,11 @@ namespace LiteDB
             Func<bool> retains = use != null
                 ? () => ReferenceEquals(_pin, use)
                 : (Func<bool>)(() => _owner.Generation == generation);
-            return new SharedDataReader(reader, dispose, _mutexName, this, retains,
+            return new SharedDataReader(reader, () =>
+            {
+                try { if (retains()) this.ReconcileTransaction(); }
+                finally { dispose(); }
+            }, _mutexName, this, retains,
                 () => this.ReadRetained(reader, use, generation));
         }
 

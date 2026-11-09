@@ -25,6 +25,8 @@ namespace LiteDB.Engine
         // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
         // the caller holds the database exclusively; null allows the rebuild.
         internal Func<bool> AutoRebuildAllowed { get; set; }
+        // Mapped replacements hold sole-participant authority through installation and rekey.
+        internal Func<IDisposable> SharedMaintenance { get; set; }
         // Shared mode: outlives each short-lived engine; rations close checkpoints too.
         internal CheckpointBackoff CheckpointBackoff { get; set; }
         internal bool SharedReadSnapshot { get; set; }
@@ -69,8 +71,15 @@ namespace LiteDB.Engine
         internal LiteDB.Client.Shared.NativeAdmission SharedAdmission { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
-        /// <summary>Opt into the experimental ABI-2 one-file Shared protocol (default false).</summary>
-        public bool SharedOneFile { get; set; }
+        /// <summary>Use one-file Shared coordination on qualified platforms by default.
+        /// Automatic selection is evaluated when a Shared connection captures these settings.
+        /// Set false to use legacy sidecars (removed in v7). Explicit true requires a qualified physical file.</summary>
+        public bool SharedOneFile
+        {
+            get => SharedOneFileOverride ?? (this.SharedMode && LiteDB.Client.Shared.SharedProtocolDefaults.OneFile);
+            set => SharedOneFileOverride = value;
+        }
+        internal bool? SharedOneFileOverride { get; set; }
         /// <summary>Coordination bytes at first initialization; zero derives size from capacities. No live resize.</summary>
         public long SharedMemorySize { get; set; }
         /// <summary>Process capacity chosen by the initializing first opener (default 256).</summary>
@@ -231,7 +240,7 @@ namespace LiteDB.Engine
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream,
-                    handles: this.SharedFileHandles);
+                    handles: this.SharedFileHandles, mappedShared: this.SharedOneFile && this.SharedMode);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");
@@ -268,7 +277,7 @@ namespace LiteDB.Engine
                 var logName = FileHelper.GetLogFile(this.Filename);
 
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true,
-                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits && !this.SharedMode);
+                    handles: this.SharedFileHandles, durableCommits: this.DurableCommits && !this.SharedMode, mappedShared: this.SharedOneFile && this.SharedMode);
             }
 
             return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);

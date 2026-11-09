@@ -210,6 +210,11 @@ namespace LiteDB.Client.Shared
             SharedMemoryReaderTable.PublishStage("recovery-cleared");
         }
 
+        internal void Replaced(int version)
+        {
+            lock (_writerGate) { EnsureWriter(); SetVersion(version); }
+        }
+
         private void SetVersion(int version)
         {
             var current = Authority.Map.Load(SharedMemoryLayout.CommittedVersion);

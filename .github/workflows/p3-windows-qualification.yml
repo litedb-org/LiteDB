@@ -1,0 +1,104 @@
+name: P3 Windows mapped qualification
+on:
+  push:
+    branches: ['v6/p3-qual-windows']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mapped:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build test and process harness binaries
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Execute and require every selected mapped case without skips
+        run: python .github/scripts/p3_windows_qualification.py --framework ${{ matrix.framework }} --shard ${{ matrix.shard }} --shards 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-mapped-${{ matrix.framework }}-${{ matrix.shard }}
+          path: artifacts_temp/windows-qualification
+  refusal:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net481]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install x86 runtime
+        if: matrix.framework == 'net8.0'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
+          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Channel 8.0 -Architecture x86 -InstallDir "$env:RUNNER_TEMP/dotnet-x86"
+
+      - name: Build refusal tests with SDK supporting all project targets
+        run: dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f ${{ matrix.framework }} -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Actual x86 or Framework refusal preserves database and WAL
+        shell: pwsh
+        run: |
+          $dotnet = if ('${{ matrix.framework }}' -eq 'net8.0') { "$env:RUNNER_TEMP/dotnet-x86/dotnet.exe" } else { 'dotnet' }
+          $env:LITEDB_EXPECTED_ARCHITECTURE = 'X86'
+          $env:LITEDB_EXPECTED_RUNTIME_MAJOR = if ('${{ matrix.framework }}' -eq 'net8.0') { '8' } else { '4' }
+          New-Item -ItemType Directory -Force artifacts_temp/windows-refusal | Out-Null
+          if ('${{ matrix.framework }}' -eq 'net481') {
+            $runner = Join-Path $env:USERPROFILE '.nuget/packages/xunit.runner.console/2.9.2/tools/net481/xunit.console.x86.exe'
+            & $runner LiteDB.Tests/bin/Release/net481/LiteDB.Tests.dll -nologo -class LiteDB.Tests.Engine.SharedIntegrationSeam_Tests -class LiteDB.Tests.Engine.TestHost_Tests -class LiteDB.Tests.Engine.SharedOneFileDefault_Tests -xml artifacts_temp/windows-refusal/refusal.xml
+            if ($LASTEXITCODE) { throw 'Framework refusal failed' }
+            [xml]$report = Get-Content artifacts_temp/windows-refusal/refusal.xml
+            $counts = $report.assemblies.assembly
+            if ([int]$counts.total -lt 6 -or [int]$counts.passed -ne [int]$counts.total -or [int]$counts.skipped -ne 0) { throw 'Empty, skipped or failed Framework refusal evidence' }
+          } else {
+            & $dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 --no-build -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedIntegrationSeam_Tests|FullyQualifiedName~TestHost_Tests|FullyQualifiedName~SharedOneFileDefault_Tests' --logger 'trx;LogFileName=refusal.trx' --results-directory artifacts_temp/windows-refusal -- RunConfiguration.TargetPlatform=x86
+            if ($LASTEXITCODE) { throw 'Unsupported platform refusal failed' }
+            [xml]$report = Get-Content artifacts_temp/windows-refusal/refusal.trx
+            $counts = $report.TestRun.ResultSummary.Counters
+            if ([int]$counts.total -lt 6 -or [int]$counts.passed -ne [int]$counts.total -or [int]$counts.notExecuted -ne 0) { throw 'Empty, skipped or failed x86 refusal evidence' }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-refusal-${{ matrix.framework }}
+          path: artifacts_temp/windows-refusal
+  default-cross-process:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install actual x86 runtime
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
+          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Channel 8.0 -Architecture x86 -InstallDir "$env:RUNNER_TEMP/dotnet-x86"
+      - name: Build x64 net8 and x86 Framework probes
+        shell: pwsh
+        run: |
+          dotnet build tools/SharedProtocolProbe -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'net8 build failed' }
+          dotnet build tools/SharedProtocolProbe -c Release -f net481 -p:PlatformTarget=x86 -p:TestingEnabled=true -p:GitVersionEnabled=false
+          if ($LASTEXITCODE) { throw 'Framework build failed' }
+      - name: Mixed opens refuse in both orders across runtime and architecture
+        run: python .github/scripts/p3_default_cross_process.py --x86-dotnet "${{ runner.temp }}/dotnet-x86/dotnet.exe"

@@ -15,7 +15,7 @@ namespace LiteDB.Client.Shared
     {
         internal const long Admission = long.MaxValue - 4096;
         internal const long Family = Admission + 1;
-        private const long ReadOnlyDirect = Admission + 2;
+        internal const long ReadOnlyDirect = Admission + 2;
         // Keep legacy family and Phase 1 read-only marker offsets stable.
         // The mapped family must not publish a read-only Direct marker.
         internal const long MappedFamily = Admission + 3;

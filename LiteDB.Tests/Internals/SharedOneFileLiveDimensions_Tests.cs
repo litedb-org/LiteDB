@@ -57,7 +57,7 @@ namespace LiteDB.Internals
             using var files = new SharedOneFilePublicationFixture();
             using var remote = new MvccProcess("one-file-dimensions-hold", files.Filename, null, writer ? "writer" : "reader");
             await remote.Expect("ready");
-            var bytes = File.ReadAllBytes(files.Filename + "-shm").Take(256).ToArray();
+            var bytes = MappedPlatformTestNative.ReadAllBytes(files.Filename + "-shm").Take(256).ToArray();
             var length = new FileInfo(files.Filename + "-shm").Length;
             using var attached = new ManualResetEventSlim();
             var pending = Task.Run(() =>
@@ -73,7 +73,7 @@ namespace LiteDB.Internals
             try
             {
                 attached.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-                File.ReadAllBytes(files.Filename + "-shm").Take(256).Should().Equal(bytes);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename + "-shm").Take(256).Should().Equal(bytes);
                 new FileInfo(files.Filename + "-shm").Length.Should().Be(length);
             }
             finally { remote.Send("close"); await remote.Expect("done"); await remote.Finish(); }
@@ -121,20 +121,20 @@ namespace LiteDB.Internals
         {
             using var files = new SharedOneFilePublicationFixture();
             using (var engine = new SharedEngine(files.Settings)) { }
-            var map = File.ReadAllBytes(files.Filename + "-shm");
+            var map = MappedPlatformTestNative.ReadAllBytes(files.Filename + "-shm");
             var header = map.Take(256).ToArray();
             Buffer.BlockCopy(BitConverter.GetBytes(field == "stride" ? 1 : 4096), 0, header, field == "stride" ? 32 : 16, 4);
             Buffer.BlockCopy(SharedMemoryEnvelope.Hash(header.Take(224).ToArray()), 0, header, 224, 32);
             Buffer.BlockCopy(header, 0, map, 0, 256);
             Buffer.BlockCopy(header, 0, map, SharedMemoryLayout.Page, 256);
             File.WriteAllBytes(files.Filename + "-shm", map);
-            var data = File.ReadAllBytes(files.Filename);
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 Action attach = () => { using var engine = new SharedEngine(files.Settings); };
                 attach.Should().Throw<IOException>();
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                File.ReadAllBytes(files.Filename + "-shm").Should().Equal(map);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename + "-shm").Should().Equal(map);
             }
         }
     }

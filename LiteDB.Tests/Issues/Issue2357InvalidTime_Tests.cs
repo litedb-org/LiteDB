@@ -30,7 +30,7 @@ namespace LiteDB.Tests.Issues
 
         internal static LiteDatabase Open(bool reject, string filename = ":memory:", ConnectionType connection = ConnectionType.Direct)
         {
-            var connectionString = new ConnectionString { Filename = filename, Connection = connection, RejectInvalidLocalTime = reject };
+            var connectionString = new ConnectionString { SharedOneFile = false, Filename = filename, Connection = connection, RejectInvalidLocalTime = reject };
 
             return new LiteDatabase(connectionString.CreateEngine(settings => settings.LocalTimeZone = DstZone));
         }

@@ -32,7 +32,8 @@ namespace LiteDB
             this.AddMutexWaiter();
             try
             {
-                var abandoned = _owner.Enter(scoped);
+                bool abandoned;
+                using (this.RequestMappedTurn()) abandoned = _owner.Enter(scoped);
 #if NET8_0_OR_GREATER
                 // A queued writer must not replace the current owner's local token.
                 if (writing) Interlocked.Exchange(ref _writerRequest, request);

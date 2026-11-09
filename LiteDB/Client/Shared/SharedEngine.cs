@@ -32,6 +32,7 @@ namespace LiteDB
         private SharedMutexPin _transactionUse;
         private SharedLocalTransactionOwner _localTransactions;
         private SharedLocalTransactionOwner.Lease _localTransaction;
+        private SharedTransactionOwnership.Lease _transactionLease;
         // ABI-2 mapped WRITE tenure is held while this connection's writable core
         // exists.  The local named mutex still orders facades; the mapped byte orders
         // processes and provides a kernel-visible dead-man switch.
@@ -45,8 +46,8 @@ namespace LiteDB
             _settings = settings.Clone();
             _settings.TransactionOwner = new TransactionOwnerToken();
             _settings.SharedMode = true;
-            ValidateOneFileSettings(_settings);
             if (NativeAdmission.IsFile(_settings)) NativeAdmission.Normalize(_settings);
+            _readOnlyLegacyFallback = ValidateOneFileSettings(_settings);
             // Bind reopens, mutex and snapshot registry to one construction-time path.
             NativeAdmission.NormalizeSharedNamespace(_settings);
             _settings.SharedDurability = new SharedDurabilityState();
@@ -114,17 +115,20 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin OpenDatabase(bool scoped = false, bool writing = false)
         {
-            this.ThrowIfForeignLocalTransaction();
+            if (writing || _localTransactions != null) this.ThrowIfForeignLocalTransaction(writing);
             // Writers retire idle read handles before _useLock, preserving lock order.
             if (writing) this.RetireCoordinatedReads();
             if (writing && _mappedWriterHeld) this.EnterMappedWriter();
             var pin = _pin;
             if (pin != null)
             {
-                if (pin.TryEnter()) return pin;
+                if (this.TryEnterPin(pin)) return pin;
                 // Another thread needs the mutex: end the pin at its next idle moment.
                 if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
             }
+
+            if (this.UsesMappedTenure && !_owner.IsOwnedByCurrentThread && !_transactionRunning)
+                return this.StartPin();
 
             // Acquire mutex for every call to open DB.
             var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope, writing);
@@ -200,12 +204,17 @@ namespace LiteDB
         /// Dequeue stack and dispose database on empty stack. A pinned use ends an
         /// operation, or with <paramref name="hold"/> a reader or transaction.
         /// </summary>
-        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1)
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1, bool waitForStopped = true)
         {
             if (use != null)
             {
+                this.CaptureHandoffPublication();
+                // A stopped core cannot linger or publish from a later idle close.
+                var stopped = _engine?.StorageUncertain == true;
+                if (stopped) use.RequestRelease(force: true);
                 // The pin keeps the engine; its holder closes it.
                 use.Exit(hold);
+                if (stopped && waitForStopped && use.CanWaitFrom(Thread.CurrentThread)) use.WaitReleased();
                 return;
             }
 
@@ -260,6 +269,7 @@ namespace LiteDB
                 finally
                 {
                     if (_localTransactions != null) this.EndTransaction(releaseHold: false);
+                    else this.ReleaseTransactionLease();
                 }
             }
             _handles?.CloseIdle();
@@ -362,6 +372,7 @@ namespace LiteDB
             SharedMutexPin pin;
             lock (_useLock) pin = _pin;
             this.MarkDisposeOverlaps(pin);
+            this.CaptureHandoffPublication();
             if (pin != null)
             {
                 pin.RequestRelease(force: true);

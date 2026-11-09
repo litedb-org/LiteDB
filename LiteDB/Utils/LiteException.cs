@@ -46,6 +46,8 @@ namespace LiteDB
         public const int REBUILD_INCOMPLETE = 139;
         /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
         public const int CHECKSUM_MISMATCH = 140;
+        /// <summary>A write was attempted through another facade while this thread owns an explicit transaction.</summary>
+        public const int SAME_THREAD_TRANSACTION = 141;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -265,6 +267,12 @@ namespace LiteDB
         internal static LiteException LockTimeout(string mode, string collection, TimeSpan ts)
         {
             return new LiteException(LOCK_TIMEOUT, "Collection '{0}' lock timeout when entering in {1} mode after {2}", collection, mode, ts.ToString());
+        }
+
+        internal static LiteException SameThreadTransaction()
+        {
+            return new LiteException(SAME_THREAD_TRANSACTION,
+                "Another LiteDB facade owns an explicit transaction on this thread. Complete it before writing through this facade.");
         }
 
         internal static LiteException InvalidCommand(string command)

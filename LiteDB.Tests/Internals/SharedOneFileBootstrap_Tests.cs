@@ -108,6 +108,46 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Wake_name_follows_envelope_publication_and_quiescent_replacement_retires_the_old_name()
+        {
+            var settings = Settings(2, 3);
+            using var admission = NativeAdmission.Open(settings, true);
+            var identities = new HashSet<Guid>();
+            SharedMemoryAuthority.BootstrapStage = stage =>
+            {
+                if (stage != "envelope-b" && stage != "before-storage") return;
+                var bytes = MappedPlatformTestNative.ReadAllBytes(SharedMemoryAuthority.PathFor(Filename));
+                var first = SharedMemoryEnvelope.Decode(bytes.Take(SharedMemoryLayout.EnvelopeBytes).ToArray(),
+                    Filename, admission.Identity, quiescent: true);
+                var second = SharedMemoryEnvelope.Decode(bytes.Skip(SharedMemoryLayout.Page)
+                    .Take(SharedMemoryLayout.EnvelopeBytes).ToArray(), Filename, admission.Identity, quiescent: true);
+                second.Authority.Should().Be(first.Authority);
+                identities.Add(first.Authority);
+                SharedPlatformWake_Tests.AssertDarwinNameExists(first.Authority, stage == "before-storage");
+            };
+            try
+            {
+                Guid old;
+                using (var first = Open(settings, admission)) old = first.Header.Authority;
+                // Raw authority disposal closes handles but retains the published
+                // namespace for recovery; a quiescent capacity reset must retire it.
+                SharedPlatformWake_Tests.AssertDarwinNameExists(old, true);
+                using (var replacement = Open(Settings(3, 5), admission))
+                {
+                    replacement.Header.Authority.Should().NotBe(old);
+                    SharedPlatformWake_Tests.AssertDarwinNameExists(old, false);
+                }
+                identities.Count.Should().Be(2);
+                for (var repeat = 0; repeat < 2; repeat++) Validate(settings, admission);
+            }
+            finally
+            {
+                SharedMemoryAuthority.BootstrapStage = null;
+                foreach (var identity in identities) SharedWakeSignal.Retire(identity);
+            }
+        }
+
+        [OneFileFact]
         public void First_opener_chooses_capacity_later_openers_map_declared_size_and_only_quiescence_changes_it()
         {
             var settings = Settings(2, 3);
@@ -143,10 +183,10 @@ namespace LiteDB.Internals
             var changed = (byte[])original.Clone();
             changed[offset] ^= 4;
             live.Map.Write(0, changed);
-            var before = File.ReadAllBytes(Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
             Action attach = () => { using var other = Open(settings, admission); };
             attach.Should().Throw<IOException>();
-            File.ReadAllBytes(Filename).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
             live.Map.Read(0, 256).Should().Equal(changed);
             live.Map.Write(0, original);
             using var valid = Open(settings, admission);
@@ -159,7 +199,7 @@ namespace LiteDB.Internals
             var settings = Settings();
             using var admission = NativeAdmission.Open(settings, true);
             byte[] saved;
-            using (var authority = Open(settings, admission)) saved = File.ReadAllBytes(Filename + "-shm");
+            using (var authority = Open(settings, admission)) saved = MappedPlatformTestNative.ReadAllBytes(Filename + "-shm");
             var other = Path.Combine(_directory, "other.db");
             File.Copy(Filename, other);
             File.WriteAllBytes(other + "-shm", saved);
@@ -169,7 +209,7 @@ namespace LiteDB.Internals
             Action attach = () => { using var authority = SharedMemoryAuthority.Open(copied, otherAdmission.Identity, () => validated = true); };
             attach.Should().Throw<IOException>().WithMessage("*identity/namespace*");
             validated.Should().BeFalse();
-            File.ReadAllBytes(other + "-shm").Should().Equal(saved);
+            MappedPlatformTestNative.ReadAllBytes(other + "-shm").Should().Equal(saved);
             // Same-path replay is always discarded under exclusive DMS, then independently validated.
             var calls = 0;
             using var reset = Open(settings, admission, () => { calls++; Validate(settings, admission); });
@@ -177,11 +217,41 @@ namespace LiteDB.Internals
         }
 
         [OneFileFact]
+        public void Interrupted_native_allocation_retries_without_changing_database_bytes()
+        {
+            var settings = Settings();
+            using var admission = NativeAdmission.Open(settings, true);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.OSX))
+            {
+                for (var repeat = 0; repeat < 2; repeat++)
+                {
+                    SharedPlatformAllocation.DarwinTruncated = () => throw new IOException("truncated authority");
+                    try
+                    {
+                        Action open = () => { using var authority = Open(settings, admission); };
+                        open.Should().Throw<IOException>().WithMessage("truncated authority");
+                        new FileInfo(Filename + "-shm").Length.Should().Be(0);
+                    }
+                    finally { SharedPlatformAllocation.DarwinTruncated = null; }
+                }
+            }
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                using var authority = Open(settings, admission);
+                authority.Map.Load(SharedMemoryLayout.Control).Should().Be(1);
+                Validate(settings, admission);
+            }
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
+        }
+
+        [OneFileFact]
         public void Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap()
         {
             var settings = Settings();
             using var admission = NativeAdmission.Open(settings, true);
-            var before = File.ReadAllBytes(Filename);
+            var before = MappedPlatformTestNative.ReadAllBytes(Filename);
             for (var repeat = 0; repeat < 2; repeat++)
             {
                 SharedMemoryAuthority.AllocateFile = (file, size) => 28; // modeled ENOSPC
@@ -199,7 +269,7 @@ namespace LiteDB.Internals
                 }
                 finally { SharedMemoryAuthority.MapFile = null; }
             }
-            File.ReadAllBytes(Filename).Should().Equal(before);
+            MappedPlatformTestNative.ReadAllBytes(Filename).Should().Equal(before);
             using var recovered = Open(settings, admission);
         }
 

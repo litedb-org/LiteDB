@@ -29,6 +29,7 @@ namespace LiteDB.Tests.Engine
             {
                 using (var db = new LiteDatabase(new ConnectionString
                 {
+                    SharedOneFile = false,
                     Filename = path, Password = "old", Collation = collation, Connection = connection
                 }))
                 {
@@ -54,7 +55,7 @@ namespace LiteDB.Tests.Engine
                     rows.FindById("ANA")["value"].AsInt32.Should().Be(2);
                     rows.Insert(new BsonDocument { ["_id"] = "next", ["value"] = 3 });
                 }
-                using var reopened = new LiteDatabase(new ConnectionString { Filename = path, Password = password });
+                using var reopened = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = path, Password = password });
                 reopened.Collation.ToString().Should().Be(collation.ToString());
                 reopened.GetCollection("rows").Count().Should().Be(3);
                 reopened.GetCollection("rows").FindById("ana")["value"].AsInt32.Should().Be(1);

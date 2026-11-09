@@ -39,11 +39,22 @@ namespace LiteDB.Tests.Engine
             var qualified = false;
             var root = Path.GetTempPath();
 #if NET8_0_OR_GREATER
-            qualified = BitConverter.IsLittleEndian && RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-                RuntimeInformation.ProcessArchitecture == Architecture.X64;
+            qualified = (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+                (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+                 (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                  RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+                (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                 RuntimeInformation.ProcessArchitecture == Architecture.X64);
             SharedMemoryAuthority.IsPlatformQualified.Should().Be(qualified);
             OneFileTestPlatform.Reason.Should().Be(qualified ? null :
-                "ABI-2 mapped prototype refuses platforms other than qualified Linux x64; native backend tests remain enabled.");
+                "ABI-2 mapped Shared is refused on this OS/architecture; native backend tests remain enabled.");
+            var futexReason = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                ? OneFileTestPlatform.Reason
+                : "This test exercises the Linux futex ABI; native wake backend tests remain enabled.";
+            new LinuxFutexFactAttribute().Skip.Should().Be(futexReason);
+            new LinuxFutexTheoryAttribute().Skip.Should().Be(futexReason);
             if (qualified) root = SharedMappedDirectory.Root;
 #endif
             var directory = Path.Combine(root, "litedb-one-file-qualification-" + Guid.NewGuid().ToString("N"));
@@ -76,7 +87,7 @@ namespace LiteDB.Tests.Engine
                         Action open = () => { using var engine = new SharedEngine(settings); };
                         open.Should().Throw<PlatformNotSupportedException>().WithMessage(
 #if NET8_0_OR_GREATER
-                            "ABI-2 Shared prototype currently requires Linux x64 qualification.");
+                            "ABI-2 Shared requires .NET 8 or later on qualified Linux x64/ARM64, Windows x64 or macOS x64/ARM64; other targets remain disabled pending hosted qualification.");
 #else
                             "SharedOneFile requires .NET 8 or later.");
 #endif

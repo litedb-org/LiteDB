@@ -17,6 +17,7 @@ namespace LiteDB.Client.Shared
     {
         private readonly Mutex _turn;
 #if DEBUG || TESTING
+        internal long MainAcquisitions { get; private set; }
         internal System.Action BeforeMainWait { get; set; }
 #endif
 
@@ -37,7 +38,17 @@ namespace LiteDB.Client.Shared
 #if DEBUG || TESTING
                 this.BeforeMainWait?.Invoke();
 #endif
-                mutex.WaitOne();
+                try { mutex.WaitOne(); }
+                catch (AbandonedMutexException)
+                {
+#if DEBUG || TESTING
+                    MainAcquisitions++;
+#endif
+                    throw;
+                }
+#if DEBUG || TESTING
+                MainAcquisitions++;
+#endif
             }
             finally
             {
@@ -50,7 +61,19 @@ namespace LiteDB.Client.Shared
         {
             try { if (!_turn.WaitOne(0)) return false; }
             catch (AbandonedMutexException) { }
-            try { return mutex.WaitOne(0); }
+            try
+            {
+                var acquired = false;
+                try { acquired = mutex.WaitOne(0); }
+                catch (AbandonedMutexException) { acquired = true; throw; }
+                finally
+                {
+#if DEBUG || TESTING
+                    if (acquired) MainAcquisitions++;
+#endif
+                }
+                return acquired;
+            }
             finally { _turn.ReleaseMutex(); }
         }
 

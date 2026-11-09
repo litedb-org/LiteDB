@@ -16,7 +16,7 @@ namespace LiteDB.Tests.Issues
         public void Foreign_completion_neither_commits_nor_rolls_back_the_owner(bool commit, ConnectionType connection)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection });
             db.BeginTrans().Should().BeTrue();
             db.BeginTrans().Should().BeFalse("nested begin joins the same transaction");
             db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Issues
         public void A_false_join_to_an_active_auto_transaction_is_not_an_explicit_owner(ConnectionType connection)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = connection });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = connection });
             IEnumerable<BsonDocument> Documents()
             {
                 db.BeginTrans().Should().BeFalse();

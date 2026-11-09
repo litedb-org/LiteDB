@@ -28,7 +28,36 @@ namespace LiteDB.Client.Shared
         internal Action ClosedCallback;
         private int _references = 1;
         private bool _closing;
+        private int _facades;
+        private int _maintenanceDepth;
+        internal void AttachFacade()
+        {
+            lock (_gate)
+            {
+                if (_maintenanceDepth != 0) throw new InvalidOperationException("Shared maintenance requires the only participant; retry after maintenance completes.");
+                _facades++;
+            }
+        }
+        internal void DetachFacade()
+        {
+            lock (_gate) _facades--;
+            Release();
+        }
+        internal IDisposable Maintain(EngineSettings settings) => new SharedMemoryMaintenance(this, settings);
+        public IDisposable TryEnterTruncate() => SharedMemoryTruncate.TryEnter(Authority, Settings.Filename);
+        internal void BeginMaintenance()
+        {
+            lock (_gate)
+            {
+                if (_facades > 1 || _versions.Count != 0)
+                    throw new InvalidOperationException("Shared maintenance requires the only participant. Close all other facades and readers first.");
+                _maintenanceDepth++;
+            }
+        }
+        internal bool EndMaintenance() { lock (_gate) return --_maintenanceDepth == 0; }
         private readonly SharedMemoryWriter _writer;
+        // Zero references starts final close, which can still checkpoint and open
+        // files. Completion observers must wait for its storage/native teardown.
         internal bool Closed { get { lock (_gate) return _references == 0 && !_closing; } }
         internal bool HasReaders { get { lock (_gate) return _versions.Count != 0; } }
 
@@ -44,8 +73,6 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryReaderTable Open(EngineSettings settings, NativeAdmission validatedAdmission = null)
         {
-            if (settings.Upgrade || settings.AutoRebuild)
-                throw new NotSupportedException("ABI-2 file-replacing upgrade/auto-rebuild requires slice 9 qualification.");
             var captured = settings.Clone();
             // Preserve delegate identity for admission without publishing its
             // request graph. Each facade/private cursor keeps its own transform.
@@ -55,6 +82,7 @@ namespace LiteDB.Client.Shared
             // Retain only immutable opening choices, never facade callbacks/resources.
             captured.SharedReaderVersions = null;
             captured.AutoRebuildAllowed = null;
+            captured.SharedMaintenance = null;
             captured.SharedAdmission = null;
             captured.SharedFileHandles = null;
             captured.CoordinationSignals = null;
@@ -63,11 +91,7 @@ namespace LiteDB.Client.Shared
             var admission = validatedAdmission?.Retain() ?? NativeAdmission.Open(captured, true);
             try
             {
-                // Offline migration is deliberately not automatic in slices 0–4.
-                // Never delete old/unknown files; the operator must stop old clients.
-                if (Directory.Exists(captured.Filename + "-readers") ||
-                    new[] { "-shared-live", "-shared-state", "-shared-disabled" }.Any(s => File.Exists(captured.Filename + s)))
-                    throw new IOException("Stop all ABI-1 participants and remove recognized legacy coordination offline before enabling SharedOneFile.");
+                SharedOfflineUpgrade.Run(captured, admission);
                 SharedMemoryReaderTable table = null;
                 SharedMemoryAuthority.Open(captured, admission.Identity, current =>
                 {
@@ -88,7 +112,17 @@ namespace LiteDB.Client.Shared
                         captured.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.TransactionOwner = table.LocalTransactions.Token;
                         coreSettings.SharedReaderVersions = table.LiveVersions;
-                        coreSettings.AutoRebuildAllowed = () => false;
+                        coreSettings.AutoRebuildAllowed = () => true;
+                        coreSettings.SharedMaintenance = () => table.Maintain(coreSettings);
+                        // Upgrade=true authorizes a writable v7 maintenance open
+                        // before the requested read-only facade, as in Direct.
+                        // Probe under main; a no-op upgrade must retain read-only
+                        // storage semantics for modern databases.
+                        if (coreSettings.Upgrade && LiteEngine.RequiresUpgrade(coreSettings))
+                        {
+                            coreSettings.ReadOnly = false;
+                            coreSettings.ReadOnlyStorage = false;
+                        }
                         var writable = !coreSettings.ReadOnly && !coreSettings.ReadOnlyStorage;
                         LiteEngine core = null;
                         var publish = false;
@@ -147,7 +181,11 @@ namespace LiteDB.Client.Shared
             // the reverse order. Zero references means no facade or result remains.
             try
             {
-                try { ReadCache.Dispose(); }
+                try
+                {
+                    ReadCache.Dispose();
+                    SharedMemoryFinalClose.Run(this);
+                }
                 finally
                 {
                     try { Authority.Dispose(); }
@@ -181,6 +219,27 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        internal IDisposable RequestWriter(Func<bool> cancelled = null)
+        {
+            if (!TryRetain()) throw new ObjectDisposedException(nameof(SharedMemoryReaderTable));
+            try { return new WriterRequest(this, Authority.Requests.Enter(cancelled)); }
+            catch { Release(); throw; }
+        }
+        private sealed class WriterRequest : IDisposable
+        {
+            private SharedMemoryReaderTable _table;
+            private readonly IDisposable _request;
+            internal WriterRequest(SharedMemoryReaderTable table, IDisposable request)
+            { _table = table; _request = request; }
+            public void Dispose()
+            {
+                var table = Interlocked.Exchange(ref _table, null);
+                if (table == null) return;
+                try { _request.Dispose(); }
+                finally { table.Release(); }
+            }
+        }
+
         internal long WriterTenure => _writer.Tenure;
         public void BindState(EngineState state, long tenure) => _writer.BindState(state, tenure);
         public void Stopped(long tenure) => _writer.Stopped(tenure);
@@ -189,6 +248,7 @@ namespace LiteDB.Client.Shared
         internal void ExitWriter(bool publish) => _writer.Exit(publish);
         internal void BeginOpenRecovery() => _writer.BeginOpenRecovery();
         internal void Opened(int version) => _writer.Opened(version);
+        internal void Replaced(int version) => _writer.Replaced(version);
         internal void PublishDurableCommit(int version) => _writer.Committed(version);
         public void ValidateWrite() => _writer.ValidateWrite();
         public void FenceUncertain() => _writer.FenceUncertain();

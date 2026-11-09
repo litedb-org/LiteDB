@@ -7,8 +7,9 @@ before checking the Unix read-only Direct marker at admission + 2. Only then do
 they claim their family byte (+ 1 legacy, + 3 mapped) and probe the opposite
 family. This permits compatible Shared peers while excluding Direct and mixed
 Shared families. The mapped family must never occupy the read-only marker byte.
-Stop all participants before changing experimental protocol versions; no live
-upgrade or coordination-file migration is implied by this merge.
+Stop all participants before switching protocol families. The first writable
+default open can retire recognised offline legacy sidecars; see
+[default and upgrade rules](shared-one-file-prototype.md).
 
 The Direct host registry and its per-host lifecycle gate own Direct facade
 cleanup, maintenance and final storage close. Mapped Shared keeps its separate
@@ -54,7 +55,11 @@ The transaction transition is:
    fence or leaves an uncertain fence, and releases WRITE in either case. Native
    main remains held through that teardown and only then admits a successor.
    Operations reconcile an inner implicit abort or Stop before returning their
-   extra native use. The former core may already be closed when the call fails.
+   extra native use, including legacy Shared's same-thread refusal lease and
+   native transaction hold. Initial and streamed query failures reconcile too.
+   The former core may already be closed when the call fails. Legacy owner-exit
+   diagnostic markers remain until the next opener, while their refusal lease
+   is released during owner-exit cleanup.
 5. **Abandon.** Ordinary owner-exit and pin-holder cleanup close their core while
    native main is still owned. Both run the same terminal transition in `finally`.
    They have already drained the native use count, so they do not return an
@@ -107,9 +112,189 @@ DMS boundaries; `ReplacementReplay` and `LiveDimensions` cover stale same-path
 metadata and live mapping lifetime. See the corresponding SharedOneFile test
 classes and the `shared-one-file` contract registry for executable evidence.
 
-This opt-in remains qualified only for Linux x64 on modern runtimes. These are
-exception, thread/process death, corrupt-input and forced-interleaving models.
-They do not establish Windows/macOS or ARM/x86 mapped execution, Framework mapped
-execution, device power loss or whole-path mapped power-loss fuzz qualification.
+The mapped default is qualified on modern runtimes for Windows x64, macOS x64/arm64,
+and Linux x64/arm64. These are exception, thread/process death, corrupt-input
+and forced-interleaving models. .NET Framework mapped execution remains refused;
+these tests do not establish device power loss or whole-path mapped power-loss
+fuzz qualification.
+Ownership tests must observe the actual native tenure: an ordinary commit or
+rollback can leave a healthy mapped core retained. Require and await a real
+handoff before asserting WRITE is free or injecting a delayed Stop for a retired
+core. Reader-generation oracles cover both transformed protected reads and the
+default warm-cache path; enabling warm admission does not relax exact snapshot,
+index or unrelated-data assertions.
+
 Transaction handles and supported cross-thread completion are Phase 4 work;
 legacy explicit transactions still complete on their creating Thread.
+
+## Phase 3-A writer tenure
+
+A writable mapped facade uses a dedicated native mutex holder from its first
+writable open, including legacy BeginTrans. While alone, it retains main, WRITE
+and the same core between calls and while idle. Idle tenure can move to another
+application Thread; a running call, explicit transaction or retained reader still
+belongs to its actual Thread. A sibling facade requests a boundary handoff through
+the participant; facade callbacks/settings and stale-result generations stay
+isolated. The unmapped path retains its previous scoped/pinned behavior.
+
+The existing pin gate serializes operation entry and handoff. It counts at most
+eight completed outer operations (therefore no more than eight transactions) or
+one monotonic millisecond after observing contention. `SharedWriterTenure`
+contains the internal budgets. An attached live process also enables the budget,
+even without a writer request. A budget never interrupts a transaction or a
+stream still retaining the writable core. New top-level calls stop entering at
+exhaustion; the holder closes under main, ends WRITE exactly once, then releases
+main. Mapped tenure close does not checkpoint, including a newcomer wake: the
+committed WAL remains authoritative. Storage teardown and healthy/uncertain fence
+publication still precede WRITE/main release. Recovery replays the WAL under the
+successor's ownership; per-commit checkpoints and the exclusive-DMS final-reference
+checkpoint remain unchanged. Stopped cores request forced drain before returning the failing operation;
+their odd fence remains until independent protected recovery. Durable group
+publication, structural/reuse fencing and reader admission rechecks are unchanged.
+
+Request records use reserved ABI-2 process-block bytes 80 (ticket) and 88 (expiry),
+with a shared sequence at control+1032. Each participant serializes local native
+acquisitions with a FIFO request queue. A ticket belongs to one process request,
+never to the number of local callers. Its transitions are:
+
+1. **Queued:** the call owns a local queue node and a participant reference, but
+   publishes no ticket and cannot enter native acquisition.
+2. **Published:** the head allocates a fresh global ticket, publishes its 100 ms
+   expiry, then wakes holders. One timer renews this request every 25 ms. Younger
+   local calls cannot borrow its ticket or pass its native admission.
+3. **Admitted:** after observing no older unexpired Ready process request, the
+   head rechecks its own expiry after the peer scan; an expired head refreshes
+   and retries with a fresh ticket. A still-live head enters the native
+   turnstile/main wait. The advisory record stays alive
+   until that native acquisition returns; only main plus real WRITE permit storage.
+4. **Retired:** successful acquisition, refusal, exception or cancellation removes
+   this node and clears its record, independently of outstanding local callers.
+   The next head publishes its own fresh ticket. A releasing holder queues a new
+   request; it cannot reuse a waiting caller's priority.
+5. **Expired/re-entered:** renewal or a resumed waiting call finding its expiry
+   passed allocates a fresh ticket. It cannot resurrect its former priority ahead
+   of already published successors. Renewal failures withdraw the record and
+   report through the waiting caller, rather than escaping a timer callback.
+
+Expiry validation loads the peer expiry before sampling the current upper bound;
+normal renewal after the caller's earlier clock sample cannot invalidate an older
+request. Expired, dead, not-Ready and genuinely out-of-range records reserve no
+turn. Liveness assumes scheduled requesting threads and renewal, and bounded
+transactions/retained results. A stalled head cannot authorize younger local
+writers. Native turnstile scheduling after advisory admission is still OS owned.
+Abandonment always requires actual native WRITE acquisition.
+
+A callback already operating the current core's transaction joins nested
+BeginTrans before reserving a new local transaction lease. A pending reservation
+may itself be waiting for that callback to release main; waiting behind it would
+form a cycle. Sibling facade callbacks still refuse before waiting, and a false
+Begin join owns no new explicit lease or completion responsibility.
+
+Every new pinned operation (including nested writes, Begin and retained-core
+queries) passes the facade admission under its disposal lock. The pin operation
+is taken first to protect that check from teardown and is returned on refusal.
+An already admitted call may finish after its callback invokes Dispose; that
+permission does not admit another call. Reused write pins also validate the live
+mapped authority before touching the core, matching ordinary writable opens.
+Disposed mapped participants refuse before native acquisition rather than following
+a cleared table reference. Explicit rollback after disposal retains
+its existing harmless no-transaction behavior. New pin publication admits under
+the same lock. While waiting for local/request priority, facade disposal cancels
+admission and unwinds the request's mapping reference even if an older remote
+request renews continuously. Native main waits already admitted before disposal
+retain the existing drain policy; no cancellation of an OS mutex wait is claimed.
+
+Linux uses shared `FUTEX_WAIT`/`FUTEX_WAKE` on the low aligned 32 bits of
+control+1024. Request publication increments the mapped wake sequence before
+waking the holder. The holder samples the word, rechecks pressure and waits on
+that sampled value, so publication racing wait cannot lose the wake. A 20 ms
+maximum wait checks application-owner death; under contention it waits at most
+1 ms. This is a scheduling/liveness bound, not a real-time OS guarantee. Local
+forced drain wakes the same futex. No holder probes the turnstile while alone.
+The full mapping stays pinned through native holder release and request lease disposal;
+both edges retain their own participant reference, independently of facade disposal.
+
+Windows uses an auto-reset named kernel event scoped by the validated authority
+UUID. `SetEvent` after sequence publication and `WaitForSingleObject` between
+predicate rechecks provide the same retained wake semantics; `WaitOnAddress` is
+not a cross-process substitute. macOS uses an authority-scoped POSIX named
+semaphore (`sem_open`/`sem_post`/`sem_wait`) with a bounded monotonic timer;
+Darwin's inconsistent `sem_timedwait` availability is not assumed. Both signals
+are recreated by authority UUID and never rely on unlinking while participants
+are live. .NET Framework continues to refuse mapped mode.
+
+Native reference semantics: [Linux futex](https://man7.org/linux/man-pages/man2/futex.2.html)
+uses an aligned shared 32-bit word; [Windows WaitOnAddress](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress)
+wakes only within one process. Native execution remains a qualification requirement.
+
+## Phase 3-C maintenance and final close
+
+Mapped replacement takes main and WRITE as ordinary writer tenure does, then a
+canonical-path admission mutex and bootstrap. Bootstrap is tried without waiting:
+attach can already be requesting main. Under bootstrap, an atomic DMS conversion
+must establish that this process is the only participant, including not-yet-Ready
+attachers. More than one local facade or any retained reader generation also
+refuses. Admission remains exclusive through replacement and rekey; a peer must
+close before retrying. `SharedOneFile` defaults to true on qualified targets; explicit false opts out
+to frozen legacy coordination, removed in v7.
+
+Ordinary `Checkpoint()` keeps its existing partial backfill behavior with peers.
+Only the engine's existing WAL truncation branch tries bootstrap and exclusive
+DMS; contention retains the WAL and its incarnation while still allowing partial
+backfill and safe obsolete-frame reclamation. The truncation lease remains held
+through structural publication. An outer exclusive bootstrap, maintenance or
+final-close scope is borrowed without downgrading it. Legacy WAL format conversion
+holds this lease across drain and reinitialization, even for an initially empty
+WAL. No public option is added.
+
+The existing rebuild installation/rollback protocol retains the original data/WAL
+pair and completed candidate. ABI-2 extends its guard with a checksummed immutable
+record of the exact paths and file identities. A pending record is flushed and
+renamed to the guard; its directory is synced before any installation rename.
+Each rename is followed by a directory sync. A death before guard publication
+cannot have changed the original pair. An offline protected mapped opener can
+recover a valid guard by restoring the identified original pair, syncing each
+rename, validating identities again, then removing the guard last. Recovery can
+itself be interrupted at every move. Unknown, partial, damaged or inconsistent
+records remain guarded with `REBUILD_INCOMPLETE`; they are never guessed empty.
+Direct/legacy opens retain the existing conservative guard refusal. See
+[rebuild recovery](rebuild-recovery.md).
+
+After replacement, native data admission follows the live inode. While DMS is
+still exclusive and the structural fence remains odd, both mapped envelopes are
+invalidated and rewritten with a fresh authority UUID and the live identity,
+retaining dimensions. The process block follows the new UUID, and the recovered
+read version resets its publication epoch before readers can return. Canonical
+path registry keys remain stable through the replacement; native admission still
+validates physical identity and refuses alias namespaces. The participant's
+password/collation settings follow a completed replacement, including rollback
+which leaves the replacement live. Upgrade and AutoRebuild enter this same
+maintenance scope only when actually replacing a file.
+
+The last reference includes facades, reader generations, queued writer requests
+and native holders. At zero references, the cache closes, bootstrap excludes new
+attachers and an exclusive DMS conversion determines whether this is also the
+last process. Only then may final close acquire main and WRITE, independently
+recover/sync a healthy core, and checkpoint according to the persisted CHECKPOINT
+rules (zero still disables automatic close checkpoints). A stopped/uncertain
+fence is left for the next ordinary opener rather than published by disposal.
+A live remote reader retains DMS and its exact WAL floor; writer disposal cannot
+retire that mapping or truncate away its view. The remote last participant later
+performs the final checkpoint.
+
+Healthy final close disables admission and clears Ready while preserving valid
+envelopes and dimensions for P2-G reuse. It releases WRITE after storage close,
+then main, then its slot, mapping and DMS. The next first opener still validates
+actual DB/WAL independently before publishing Ready. A kill at any close edge
+leaves either a fenced recovery or a reusable retired mapping; neither admits
+unvalidated storage. Managed I/O/flush failures preserve recovery evidence.
+
+`SharedOneFileMaintenance*` and `SharedOneFileFinalClose*` cover sole/peer admission,
+rekey, indexed payload preservation, encrypted files, installation and repeated
+recovery death cuts, directory-sync errors, guard damage and warm remote readers.
+The fault model is Linux x64 process death with surviving OS cache, injected I/O
+failure and corrupt metadata. The guard protocol also has a finite exhaustive
+directory-durability model: see [rebuild recovery](rebuild-recovery.md) and
+`SharedOneFileRebuildPowerLoss_Tests`. Directory barriers rely on qualified local
+atomic-rename/fsync semantics. This is not device-reset or whole-storage-stack
+modeled-power-loss qualification.

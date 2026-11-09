@@ -35,8 +35,8 @@ namespace LiteDB.Internals
                 engine.PinIdleLimit = engine.PinHoldLimit = TimeSpan.FromMinutes(10);
                 using var anchor = pinned ? engine.Query("docs", new Query()) : null;
                 if (anchor != null) { anchor.Read().Should().BeTrue(); engine.Update("docs", new[] { Row(1, 0) }); }
-                var pin = engine.Pin;
                 engine.BeginTrans().Should().BeTrue(); engine.Update("docs", new[] { Row(1, 99) });
+                var pin = engine.Pin;
                 engine.OwnershipStage = stage => { if (stage == "core-closed") Interlocked.Increment(ref closed); };
                 armed = true;
                 using (var reader = engine.Query("docs", new Query()))

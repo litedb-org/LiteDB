@@ -16,6 +16,10 @@ namespace LiteDB.Client.Shared
         internal const int WriterTenureEpoch = Control + 384;
         internal const int WriterOwner = Control + 392;
         internal const int FastAdmissionDisabled = Control + 448;
+        internal const int WriterWake = Control + 1024;
+        internal const int RequestSequence = Control + 1032;
+        internal const int TenureRequest = 80;
+        internal const int RequestExpiry = 88;
         internal const int Blocks = 4 * Page;
         internal const int ReaderOffset = 256;
         internal const int RequestOffset = 64;

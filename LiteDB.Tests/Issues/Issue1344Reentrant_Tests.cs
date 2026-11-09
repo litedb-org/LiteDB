@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Issues
         public void Storage_writes_join_an_auto_transaction_without_changing_its_owner(ConnectionType mode)
         {
             using var file = new TempFile();
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = mode }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = mode }))
             {
                 using (var source = new MemoryStream(new byte[] { 1 })) db.FileStorage.Upload("delete", "old", source);
                 using (var source = new MemoryStream(new byte[] { 2 })) db.FileStorage.Upload("metadata", "kept", source);

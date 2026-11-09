@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Engine
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
             using var file = new MappedTestFile();
-            using var engine = new SharedEngine(new EngineSettings { Filename = file })
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) };
             using var database = new LiteDatabase(engine);
             database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 19 });
@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new MappedTestFile();
             await MvccProcess.Run("seed", file, password);
-            using (var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
             using (var database = new LiteDatabase(engine))
             {
@@ -59,7 +59,7 @@ namespace LiteDB.Tests.Engine
                 File.Exists(SharedCoordinationFallback.DisabledPath(file)).Should().BeTrue();
                 database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(7);
             }
-            using var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
+            using var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password });
             cold.GetCollection("docs").Count().Should().Be(64);
             cold.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(7);
             cold.GetCollection("cold").FindById(63)["payload"].AsString.Should().Be(new string('x', 3000));
@@ -69,7 +69,7 @@ namespace LiteDB.Tests.Engine
         public void Opt_out_preserves_reads_and_revokes_live_mapped_peers_before_writing()
         {
             using var file = new MappedTestFile();
-            using var peerEngine = new SharedEngine(new EngineSettings { Filename = file })
+            using var peerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) };
             using var peer = new LiteDatabase(peerEngine);
             peer.GetCollection("rows").InsertBulk(Enumerable.Range(0, 200).Select(id =>
@@ -80,7 +80,7 @@ namespace LiteDB.Tests.Engine
             AppContext.SetSwitch(SharedCoordinationPolicy.DisableMappedSwitch, true);
             try
             {
-                using var engine = new SharedEngine(new EngineSettings { Filename = file });
+                using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file });
                 using var database = new LiteDatabase(engine);
                 for (var i = 0; i < 3; i++) database.GetCollection("rows").FindById(0)["value"].AsInt32.Should().Be(0);
                 engine.CoordinatedReadHits.Should().Be(0);
@@ -110,7 +110,7 @@ namespace LiteDB.Tests.Engine
             AppContext.SetSwitch("System.IO.DisableFileLocking", true);
             try
             {
-                Action create = () => new SharedEngine(new EngineSettings { Filename = file }).Dispose();
+                Action create = () => new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }).Dispose();
                 create.Should().Throw<PlatformNotSupportedException>().WithMessage("*file-sharing locks*");
                 Action map = () => SharedCoordinationPage.Open(file).Dispose();
                 map.Should().Throw<PlatformNotSupportedException>();
@@ -128,7 +128,7 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new MappedTestFile();
             await MvccProcess.Run("seed", file, password);
-            using var engine = new SharedEngine(new EngineSettings { Filename = file, Password = password })
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file, Password = password })
                 { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) };
             using var database = new LiteDatabase(engine);
             for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0);
@@ -145,7 +145,7 @@ namespace LiteDB.Tests.Engine
             engine.CoordinatedReadHits.Should().BeGreaterThan(hits);
             database.GetCollection("docs").Count().Should().Be(64);
             database.Dispose();
-            using var cold = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
+            using var cold = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Password = password });
             cold.GetCollection("docs").Count().Should().Be(64);
             cold.GetCollection("cold").FindById(63)["payload"].AsString.Should().Be(new string('x', 3000));
         }

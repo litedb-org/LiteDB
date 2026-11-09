@@ -19,8 +19,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
+                using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     writer.CheckpointSize = 0;
@@ -56,8 +56,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
+                using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     var rows = writer.GetCollection("rows");
@@ -85,8 +85,8 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
+                using (var writer = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     var rows = writer.GetCollection("rows");
@@ -117,7 +117,7 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file })
+                using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var db = new LiteDatabase(engine))
                 {
@@ -146,9 +146,9 @@ namespace LiteDB.Tests.Engine
         {
             WithFile(file =>
             {
-                using (var writerEngine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var writerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file }))
                 using (var writer = new LiteDatabase(writerEngine))
-                using (var readerEngine = new SharedEngine(new EngineSettings { Filename = file })
+                using (var readerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = file })
                     { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(readerEngine))
                 using (var finished = new ManualResetEventSlim(false))

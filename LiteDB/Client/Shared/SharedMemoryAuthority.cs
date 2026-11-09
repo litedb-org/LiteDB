@@ -17,6 +17,7 @@ namespace LiteDB.Client.Shared
         internal SharedMemoryMap Map { get; private set; }
         internal SharedMemoryEnvelope Header { get; private set; }
         internal int Slot { get; private set; } = -1;
+        internal SharedWriterRequests Requests { get; private set; }
         internal readonly Guid Incarnation = Guid.NewGuid();
         internal long Block => SharedMemoryLayout.Blocks + (long)Slot * Header.Stride;
         private FileStream _file;
@@ -65,6 +66,7 @@ namespace LiteDB.Client.Shared
                     settings.SharedMutexNameStrategy);
                 if (first && !reuse)
                 {
+                    if (old != null) SharedWakeSignal.Retire(old.Authority);
 #if DEBUG || TESTING
                     Interlocked.Increment(ref BootstrapResetCount);
 #endif
@@ -78,7 +80,7 @@ namespace LiteDB.Client.Shared
                     result._file.SetLength(result.Header.Size);
                     Allocate(result._file, result.Header.Size);
                     Stage("allocated");
-                    result.Map = CreateMap(result._file, result.Header.Size);
+                    result.Map = CreateMap(result._file, result.Header.Size, result.Header.Authority);
                     Stage("mapped");
                     result.Map.Zero(0, result.Header.Size);
                     result.Map.Store(SharedMemoryLayout.CommittedVersion, -1);
@@ -89,6 +91,7 @@ namespace LiteDB.Client.Shared
                     Stage("envelope-a");
                     result.Map.Write(SharedMemoryLayout.Page, result.Header.Bytes);
                     Stage("envelope-b");
+                    result.Map.PrepareWake();
                     Stage("before-storage");
                     validateStorage(result); // must open/recover independently under main
                     Stage("after-storage");
@@ -105,13 +108,14 @@ namespace LiteDB.Client.Shared
                 else
                 {
                     result.Header = old ?? throw new IOException("Live Shared authority has no valid envelopes.");
-                    result.Map = CreateMap(result._file, result.Header.Size);
+                    result.Map = CreateMap(result._file, result.Header.Size, result.Header.Authority);
                     // A writer can die after making the publication sequence odd.
                     // The mapping remains attachable so a successor can take the
                     // named mutex + WRITE tenure, validate DB/WAL, and repair it.
                     if (!reuse && (result.Map.Load(SharedMemoryLayout.Control) != 1 ||
                         result.Map.Load(SharedMemoryLayout.Control + 8) == 0))
                         throw new IOException("Live Shared authority is not Ready.");
+                    result.Map.PrepareWake();
                 }
                 if (first && reuse)
                 {
@@ -136,13 +140,14 @@ namespace LiteDB.Client.Shared
                 }
                 result.Claim();
                 Stage("claimed");
-                // A future lingering writer sees the peer/request before this open
-                // can block on its main mutex. The wake word is reserved, not active.
-                result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 1);
+                result.Requests = new SharedWriterRequests(result);
                 bootstrap.ReleaseMutex();
                 held = false;
-                if (!first) { Stage("before-storage"); validateStorage(result); Stage("after-storage"); }
-                result.Map.Store(result.Block + SharedMemoryLayout.RequestOffset, 0);
+                if (!first)
+                {
+                    using (result.Requests.Enter())
+                    { Stage("before-storage"); validateStorage(result); Stage("after-storage"); }
+                }
                 return result;
             }
             catch { result?.Dispose(); throw; }
@@ -196,6 +201,31 @@ namespace LiteDB.Client.Shared
             return true;
         }
 
+        internal void Rekey(EngineSettings settings, string identity)
+        {
+            // Sole DMS + bootstrap + main + WRITE remain held throughout. Preserve
+            // dimensions and counters; invalidating both envelopes makes death at
+            // either envelope store an offline reset, never a live mixed authority.
+            var dimensions = settings.Clone();
+            dimensions.SharedMemorySize = Header.Size;
+            dimensions.SharedProcessCapacity = Header.Processes;
+            dimensions.SharedGenerationCapacity = Header.Generations;
+            var next = SharedMemoryEnvelope.Create(dimensions, identity);
+            var previous = Header.Authority;
+            // Existing native handles remain usable after unlink. Retire while
+            // the old identity is still recoverable, before either envelope goes.
+            SharedWakeSignal.Retire(previous);
+            Map.Zero(0, 2 * SharedMemoryLayout.Page);
+            SharedMemoryMaintenance.Stage("rekey-invalidated");
+            Header = next;
+            Map.Write(0, Header.Bytes);
+            SharedMemoryMaintenance.Stage("rekey-envelope-a");
+            Map.Write(SharedMemoryLayout.Page, Header.Bytes);
+            SharedMemoryMaintenance.Stage("rekey-envelope-b");
+            Map.RekeyWake(previous, Header.Authority);
+            if (Slot >= 0) Map.Write(Block + 32, Header.Authority.ToByteArray());
+        }
+
         private void Claim()
         {
             for (var slot = 0; slot < Header.Processes; slot++)
@@ -220,25 +250,32 @@ namespace LiteDB.Client.Shared
             {
                 Stage("before-close");
                 if (Map != null && Slot >= 0) Map.Store(Block, 0);
+                SharedMemoryFinalClose.Stage("slot-cleared");
             }
             finally
             {
                 try { Map?.Dispose(); }
                 finally { try { _file?.Dispose(); } finally { Locks.Dispose(); } }
             }
+            SharedMemoryFinalClose.Stage("dms-released");
             Stage("closed");
         }
 
-        internal static bool IsPlatformQualified => BitConverter.IsLittleEndian &&
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        // Enable only platforms with complete hosted mapped-protocol qualification.
+        internal static bool IsPlatformQualified =>
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+            (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+                (RuntimeInformation.ProcessArchitecture == Architecture.X64 ||
+                 RuntimeInformation.ProcessArchitecture == Architecture.Arm64)) ||
+            (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                RuntimeInformation.ProcessArchitecture == Architecture.X64);
 
         private static void RequirePlatform(string path)
         {
-            // Initial qualification is Linux x64 only. Backends for other systems
-            // compile, but do not silently claim mapped-atomic/platform qualification.
             if (!IsPlatformQualified)
-                throw new PlatformNotSupportedException("ABI-2 Shared prototype currently requires Linux x64 qualification.");
+                throw new PlatformNotSupportedException("ABI-2 Shared requires .NET 8 or later on qualified Linux x64/ARM64, Windows x64 or macOS x64/ARM64; other targets remain disabled pending hosted qualification.");
             var failure = SharedCoordinationPolicy.VolumeFailure(path);
             if (failure != null) throw new IOException("ABI-2 requires qualified coherent local storage: " + failure);
         }
@@ -251,13 +288,13 @@ namespace LiteDB.Client.Shared
                 Reachability.FaultPoint("AllocateFile");
                 error = AllocateFile(file, length);
             }
-            else error = posix_fallocate(file.SafeFileHandle, 0, length);
+            else error = SharedPlatformAllocation.Allocate(file, length);
 #else
-            error = posix_fallocate(file.SafeFileHandle, 0, length);
+            error = SharedPlatformAllocation.Allocate(file, length);
 #endif
             if (error != 0) throw new IOException("Shared allocation failed (native error " + error + ").");
         }
-        private static SharedMemoryMap CreateMap(FileStream file, long size)
+        private static SharedMemoryMap CreateMap(FileStream file, long size, Guid authority)
         {
 #if DEBUG || TESTING
             if (MapFile != null)
@@ -266,9 +303,8 @@ namespace LiteDB.Client.Shared
                 return MapFile(file, size);
             }
 #endif
-            return new SharedMemoryMap(file, size);
+            return new SharedMemoryMap(file, size, authority);
         }
-        [DllImport("libc", SetLastError = true)] private static extern int posix_fallocate(Microsoft.Win32.SafeHandles.SafeFileHandle file, long offset, long length);
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
         private static void Stage(string stage)
         {

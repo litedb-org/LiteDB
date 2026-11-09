@@ -5,6 +5,10 @@ internal static class SharedOneFileHarness
 {
     internal static bool TryRun(string mode, string filename, string[] args)
     {
+        if (SharedDarwinAllocationHarness.TryRun(mode, filename, args)) return true;
+        if (SharedOfflineUpgradeHarness.TryRun(mode, filename, args)) return true;
+        if (SharedOneFileMaintenanceHarness.TryRun(mode, filename, args)) return true;
+        if (SharedWriterTenureHarness.TryRun(mode, filename, args)) return true;
         if (SharedRequestAdmissionHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileProductionReuseHarness.TryRun(mode, filename, args)) return true;
         if (SharedOneFileWarmHarness.TryRun(mode, filename, args)) return true;
@@ -55,6 +59,7 @@ internal static class SharedOneFileHarness
             using var engine = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = filename, SharedOneFile = true });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.BeginTrans();
+            var pin = engine.Pin;
             SharedMemoryReaderTable.PublicationStage = stage =>
             {
                 if (stage != args[4]) return;
@@ -65,6 +70,7 @@ internal static class SharedOneFileHarness
             {
                 db.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["value"] = 1, ["payload"] = new string('x', 1024) });
                 db.Commit();
+                if (args[4] == "writer-end") { pin!.RequestRelease(false); pin.WaitReleased(); }
             }
             finally { SharedMemoryReaderTable.PublicationStage = null; }
             return true;

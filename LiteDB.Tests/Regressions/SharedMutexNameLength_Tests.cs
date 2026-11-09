@@ -108,12 +108,12 @@ namespace LiteDB.Tests.Regressions
             {
                 var file = Path.Combine(directory, "app.db");
 
-                using (var db = new LiteDatabase($"Filename={file};Connection=shared"))
+                using (var db = new LiteDatabase($"Filename={file};Connection=shared;Shared One File=false"))
                 {
                     db.GetCollection("items").Insert(new BsonDocument { ["_id"] = 1 });
                 }
 
-                using (var db = new LiteDatabase($"Filename={file};Connection=shared"))
+                using (var db = new LiteDatabase($"Filename={file};Connection=shared;Shared One File=false"))
                 {
                     db.GetCollection("items").Count().Should().Be(1);
                 }

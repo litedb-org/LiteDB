@@ -17,12 +17,17 @@ namespace LiteDB.Engine
 
         internal static string GetMarkerFilename(string filename) => FileHelper.GetSuffixFile(filename, "-rebuild", false);
 
-        internal static void EnsureAvailable(EngineSettings settings)
+        internal static void EnsureAvailable(EngineSettings settings, string canonicalFilename = null)
         {
             if (settings.DataStream != null || string.IsNullOrEmpty(settings.Filename) ||
                 settings.Filename == ":memory:" || settings.Filename == ":temp:") return;
 
-            var marker = GetMarkerFilename(settings.Filename);
+            // Guard lookup, exact-path validation and bootstrap must share the
+            // same namespace, even before admission or while the live name is absent.
+            string filename;
+            try { filename = canonicalFilename ?? LiteDB.Client.Shared.DatabaseFileIdentity.CanonicalPath(settings.Filename); }
+            catch (DirectoryNotFoundException) { return; } // no guard can exist in an absent parent
+            var marker = GetMarkerFilename(filename);
             try
             {
                 // FileInfo returns -1 for absence without throwing on every open,
@@ -43,13 +48,30 @@ namespace LiteDB.Engine
                     string.Equals(Path.GetFileName(entry).Normalize(), name, StringComparison.OrdinalIgnoreCase))) return;
             }
 
+            if (settings.SharedOneFile)
+            {
+                var recovery = settings.Clone();
+                recovery.Filename = filename;
+                if (MappedRebuildRecovery.TryRecover(recovery)) return;
+            }
+
             Reachability.Sometimes("refusal:rebuild-incomplete-marker");
             throw new LiteException(LiteException.REBUILD_INCOMPLETE,
                 "Rebuild recovery is incomplete. Database access is blocked by '{0}'. " +
                 "Preserve the data, WAL, backup and temporary files; restore a complete database before removing this marker.", marker);
         }
 
-        internal static void Begin(string filename, string backup, string backupLog, string candidate)
+        internal static void Begin(EngineSettings settings, string backup, string backupLog, string candidate)
+        {
+            if (settings.SharedOneFile)
+            {
+                MappedRebuildRecovery.Begin(settings, backup, backupLog, candidate);
+                return;
+            }
+            Begin(settings.Filename, backup, backupLog, candidate);
+        }
+
+        private static void Begin(string filename, string backup, string backupLog, string candidate)
         {
 #if DEBUG || TESTING
             Reachability.FaultPoint("before-recovery-marker");
@@ -74,16 +96,29 @@ namespace LiteDB.Engine
             }
         }
 
-        internal static void Complete(string filename)
+        internal static void Complete(string filename, bool mapped = false)
         {
 #if DEBUG || TESTING
             Reachability.FaultPoint("before-recovery-marker-delete");
             RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-delete");
 #endif
+            if (mapped) NativeFileSync.SyncDirectory(Path.GetDirectoryName(filename));
             // Closing the new marker invites virus scanners and sync clients to open it, and on
             // Windows their handle fails the delete. Wait that out like the source rename does;
             // a marker that stays locked still fails here and keeps the database guarded.
             FileHelper.Exec(MarkerDeleteTimeoutSeconds, () => File.Delete(GetMarkerFilename(filename)));
+            if (mapped)
+            {
+                try { NativeFileSync.SyncDirectory(Path.GetDirectoryName(filename)); }
+                catch (Exception error)
+                {
+                    // The complete replacement names were synced before deletion.
+                    // Do not roll them back after losing the guard: a crash may
+                    // retain either the complete replacement or its recovery record.
+                    error.Data[MappedRebuildRecovery.RemovedMarkerKey] = true;
+                    throw;
+                }
+            }
         }
     }
 }

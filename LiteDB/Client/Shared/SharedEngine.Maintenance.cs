@@ -10,7 +10,7 @@ namespace LiteDB
         {
             return WriteDatabase(() =>
             {
-                if (_settings.SharedOneFile) throw new NotSupportedException("ABI-2 maintenance requires slice 9 qualification.");
+                using var maintenance = _settings.SharedMaintenance?.Invoke();
                 // Publish before inspecting leases: a cached reader may be admitting
                 // without the database mutex and must not accept a replaced file set.
                 _settings.CoordinationSignals?.StructuralBegin();
@@ -22,7 +22,22 @@ namespace LiteDB
                         throw new LiteException(0, "Close shared readers before rebuilding the database.");
                     }
                     _handles?.CloseIdle();
-                    return _engine.Rebuild(options);
+                    try
+                    {
+                        var result = _engine.Rebuild(options);
+#if NET8_0_OR_GREATER
+                        if (_readers is LiteDB.Client.Shared.SharedMemoryReaders mapped)
+                            mapped.Table.Replaced(_engine.ReadVersion);
+#endif
+                        return result;
+                    }
+                    catch
+                    {
+                        // Rebuild can have closed the core before failing. Drain it
+                        // before this facade can reuse a disposed or replaced state.
+                        if (_settings.SharedOneFile) _pin?.RequestRelease(force: true);
+                        throw;
+                    }
                 }
                 finally
                 {

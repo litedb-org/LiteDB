@@ -1,9 +1,48 @@
 # One-file Shared prototype integration contract
 
-ABI 2 is opt-in and dormant by default until slices 7–10 are qualified. The
-existing multi-file Shared implementation remains the default. ABI 1/2 deployment
-requires all old executables stopped: unmodified old clients cannot be fenced by
-a protocol they do not implement. No database-format change or rebuild is needed.
+In v6, physical-file Shared connections default to one-file ABI-2 coordination
+on qualified .NET 8+ Linux x64/ARM64, Windows x64, and macOS ARM64/x64.
+x86, .NET Framework, and other unqualified targets automatically use legacy
+sidecars. Native-admitted local volumes outside the mapped allowlist (including
+Linux tmpfs/overlay) also retain legacy coordination. Network and unknown volumes
+remain refused by native admission. Caller streams, memory and temporary databases
+retain legacy coordination.
+Set `Shared One File=false` in the connection string, or
+`EngineSettings.SharedOneFile = false`, to explicitly use legacy on any platform.
+Explicit `true` still requires a qualified platform, mapped-qualified local volume and a physical database file.
+The legacy implementation is frozen for v6 and will be removed in v7.
+
+Stop all participants before switching protocols. Native data admission claims
+separate family bytes and refuses mixed current-v6 opens in either order with
+an admission error, even for idle facades. Unmodified older executables do not
+implement this handshake: stop and upgrade every executable before deployment;
+concurrent use with those versions is unsupported.
+
+The first writable default open retires recognised legacy sidecars only while
+offline admission and DMS prove no live participants. This does not rebuild the
+database. A default read-only open with legacy remnants uses protected legacy
+reads without retiring or rewriting those remnants or database/WAL bytes. Close
+that facade before a writable default open can switch to ABI-2. Explicit ABI-2
+read-only opens still refuse when retirement is needed. Unknown remnants refuse
+retirement in place. Interrupted retirement is retryable; ephemeral
+entries may reappear after power loss and are revalidated on the next open.
+
+Facades in one process using ABI-2 must match Password, DurableCommits,
+CompactStorage, LegacyIndexScan, effective CacheSize, TransactionPageLimit,
+InitialSize, IndexMigrationLimitSize, Upgrade, AutoRebuild, RejectInvalidLocalTime,
+LocalTimeZone, ReadTransform delegate identity, SharedMutexNameStrategy and the
+internal SharedReaderFiles delegate identity. An explicit Collation must match the
+live database collation. For automatic default selection, ReadOnly may differ:
+read-only and writable facades coexist in either opening order, and read-only
+writes remain forbidden. Explicit ABI-2 opt-in retains its strict ReadOnly match.
+Mapped
+capacity/size requests use the live header declarations. All processes must use
+the same coordination family and database identity; platform/runtime differences
+can select different families and will be refused safely.
+
+Rebuild and mapped maintenance require the only participant. Close other idle
+facades, other processes and outstanding query results/readers before maintenance;
+an idle facade still counts as a participant.
 
 Both modes use NativeAdmission and DatabaseFileLock.Admission on the actual data
 file: writable Direct exclusive, Shared shared, for the full physical participant
@@ -79,10 +118,18 @@ The participant captures no facade callbacks or facade token. Initialization is
 per physical identity; unrelated identities never wait behind its entry gate.
 Closing the last facade/result retires that exact entry without erasing a successor.
 
-Qualification is currently Linux x64/.NET 8+ on the mapped local-volume allowlist.
-Other mapped platforms explicitly refuse opt-in; their prototype tests report a
-capability skip, while native range tests remain enabled. Windows/Darwin/ARM and
-Framework mapped qualification are outstanding. Defaults retain ABI 1. The map
+The ABI-2 platform guard admits Linux x64/ARM64, Windows x64 and macOS ARM64/x64
+on .NET 8+ and the mapped local-volume allowlist. These platforms default to ABI 2.
+x86 and Framework automatically retain ABI 1 and still refuse explicit opt-in;
+native range tests remain enabled.
+The manual Full CI `macos_qualification` mode runs all mapped classes on native
+`macos-15` ARM64 and `macos-15-intel` x64 with net8/net10, retaining a source
+inventory and TRX and rejecting skipped or missing results. Linux-only syscall
+cases are inventoried separately. macOS qualification
+requires three consecutive full matrices and a 50-repeat tenure/wake/coherence/
+process stress matrix on the exact final head. This evidence is bounded to the
+hosted macOS 15/APFS configurations, not older kernels, other filesystems or
+physical device power loss. The map
 starts with committed-version unknown and fast-admission disabled. Slice 5
 publishes writer/recovery/structural/reuse/reset identities. Slice 6 enables mapped warm
 admission only after protected validation and a covering durable sync.
@@ -157,7 +204,7 @@ negative control must fail when the final check is bypassed. The bounded SC mode
 also rejects unmarked destruction, ignored records and premature version visibility.
 These are Linux x64 exception/process-death/interleaving tests; they do not qualify
 ARM memory ordering, actual device power loss, unmodified old clients or default
-enablement. SharedOneFile remains false by default.
+enablement. The v6 platform default is described above.
 
 Escaping engine-created Shared results own a detached cleanup record. Its GC handle
 roots the inner cursor, pages and release callback without rooting the escaping
@@ -184,11 +231,53 @@ excludes local monitor contention, deliberate Sleep/Yield pacing, direct native
 open/turnstile seams, storage I/O and helper-thread work. A zero value establishes
 that those selected seams were avoided; it does not establish zero syscalls for
 a whole query. Cold and contended controls are in `SharedOneFileWarmCounter_Tests`.
-The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
+The mapped platform guard and the bounded macOS qualification gate are described above; ABI 2 is the qualified platform default.
 
 The [ownership transition protocol](shared-one-file-ownership.md) specifies local
 reservation/publication, native tenure, terminal cleanup, abandoned-owner handoff
 and deferred disposal, together with their discriminating safety tests and limits.
+
+## Offline coordination transition
+
+A writable default (or explicit `SharedOneFile=true`) open automatically retires recognised ABI-1
+coordination remnants before mapped bootstrap. Close every process first. Native
+database admission is converted to exclusive ownership, and an existing `-shm`
+must also grant exclusive DMS. An idle legacy facade therefore excludes migration;
+PIDs, directory contents and timestamps never establish liveness. Native volume
+qualification rejects network and unknown filesystems before retirement. Read-only
+explicit ABI-2 opens with legacy remnants refuse without changing them. Default
+read-only opens instead retain protected legacy coordination as described above.
+
+The transition validates the complete present set before deleting anything:
+`-shared-state`, `-shared-disabled`, recognised reader lease/content files, the
+empty `-readers` directory, `-shared-live`, then an ABI-1 `-shm` status page
+(`LDBSHRD` protocol, exact size and canonical path binding). Unknown `-shm`
+formats are preserved; there is no guessed `LDBSHM1` layout. Unknown headers,
+capabilities, markers, reader names and symbolic links refuse in place.
+
+Every removal is independent and retryable. No journal or completion flag is
+needed: these files carry no durable database truth, and exclusive admission is
+re-established on every retry. Power loss may restore any subset of removed
+entries; each is validated independently rather than requiring its old partner.
+The data file and WAL are never written by retirement, and no rebuild occurs.
+Ordinary mapped bootstrap and storage recovery follow retirement and retain their
+existing recovery rules. A failed deletion stops the open; retry after correcting
+the I/O error. Unknown remnants require operator investigation, not forced cleanup.
+
+Legacy versions implementing native admission are refused while a mapped facade
+remains open. Once every mapped facade closes they may open sequentially and use
+the existing mutex protocol safely; a subsequent mapped open retires their new
+remnants again and independently recovers storage. This is not a permanent
+on-disk downgrade ban. Versions predating native admission remain outside the
+supported mixed-version deployment contract: stop and replace all such processes
+before rollout, as required by the existing Shared connection identity contract.
+
+`SharedOfflineUpgrade_Tests` covers all retirement cuts with process death, a
+second interruption during retry, independent resurrection of every subset of
+six ephemeral entries, preserved data/WAL bytes, indexed cold reads, live legacy
+and DMS refusal, unknown remnants, read-only and injected unsupported volumes.
+This models directory-entry loss/reordering for disposable files; it does not
+claim a physical device reset or qualification beyond the enabled mapped platform.
 
 Mapped coordination view disposal closes the safe view before disposing its
 accessor, avoiding the accessor's implicit synchronous flush. No persisted

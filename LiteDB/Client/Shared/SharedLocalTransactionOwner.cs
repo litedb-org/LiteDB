@@ -28,9 +28,7 @@ namespace LiteDB.Client.Shared
                 if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
                     ReferenceEquals(_current.Thread, thread))
                 {
-                    throw new InvalidOperationException(
-                        "Another connection (mapped Shared facade) owns the writable transaction on this thread. " +
-                        "Complete it before using this facade on the same thread.");
+                    throw LiteException.SameThreadTransaction();
                 }
 
                 while (_current != null)
@@ -42,9 +40,7 @@ namespace LiteDB.Client.Shared
                     if (_current != null && !ReferenceEquals(_current.Facade, facade) &&
                         ReferenceEquals(_current.Thread, thread))
                     {
-                        throw new InvalidOperationException(
-                            "Another connection (mapped Shared facade) owns the writable transaction on this thread. " +
-                            "Complete it before using this facade on the same thread.");
+                        throw LiteException.SameThreadTransaction();
                     }
                 }
 

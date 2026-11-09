@@ -80,6 +80,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void Clear()
         {
+            using var truncate = (_signals as IWriteAdmissionSignals)?.TryEnterTruncate();
+            if (_signals is IWriteAdmissionSignals && truncate == null)
+                throw new InvalidOperationException("WAL truncation requires the only Shared participant.");
             _signals?.StructuralBegin();
             _indexLock.TryEnterWriteLock(-1);
 

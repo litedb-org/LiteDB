@@ -52,7 +52,7 @@ namespace LiteDB.Tests.Engine
         /// <summary>Rows 1..<paramref name="rows"/> indexed on value, and an unrelated sentinel.</summary>
         protected void Seed(string filename, bool encrypted, int rows = 1)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = Password(encrypted), Connection = ConnectionType.Direct });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, Password = Password(encrypted), Connection = ConnectionType.Direct });
             var col = db.GetCollection("rows");
             col.Insert(Enumerable.Range(1, rows).Select(Row));
             col.EnsureIndex("value");
@@ -70,6 +70,7 @@ namespace LiteDB.Tests.Engine
         {
             var settings = new EngineSettings
             {
+                SharedOneFile = false,
                 Filename = this.Filename,
                 Password = Password(encrypted),
                 ReadTransform = transform ?? ((_, value) => value)
@@ -85,7 +86,7 @@ namespace LiteDB.Tests.Engine
 
         protected LiteDatabase OpenPeer(string filename, bool encrypted, out SharedEngine engine)
         {
-            engine = new SharedEngine(new EngineSettings { Filename = filename, Password = Password(encrypted) });
+            engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = filename, Password = Password(encrypted) });
             return this.Track(new LiteDatabase(engine));
         }
 
@@ -127,7 +128,7 @@ namespace LiteDB.Tests.Engine
         /// </summary>
         protected static void VerifyCold(string filename, bool encrypted, params int[] ids)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = filename, Password = Password(encrypted), Connection = ConnectionType.Direct });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, Password = Password(encrypted), Connection = ConnectionType.Direct });
             var rows = db.GetCollection("rows");
             rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(ids);
             foreach (var id in ids)

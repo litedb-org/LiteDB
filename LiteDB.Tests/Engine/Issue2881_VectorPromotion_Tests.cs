@@ -21,7 +21,7 @@ namespace LiteDB.Tests.Engine
             using (var db = OpenLegacy(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var original = ReadDataFile(file.Filename);
             original[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly, Upgrade = upgrade }))
+            using (var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = file.Filename, ReadOnly = readOnly, Upgrade = upgrade }))
             {
                 db.GetCollection("docs").Count().Should().Be(1);
             }
@@ -69,6 +69,7 @@ namespace LiteDB.Tests.Engine
             using var log = new MemoryStream();
             using var db = new LiteDatabase(new LiteEngine(new EngineSettings
             {
+                SharedOneFile = false,
                 DataStream = data,
                 LogStream = log,
                 CompactStorage = CompactStorageMode.Legacy
@@ -100,6 +101,7 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             var connection = new ConnectionString
             {
+                SharedOneFile = false,
                 Filename = file.Filename,
                 Password = password,
                 Connection = ConnectionType.Shared,
@@ -141,6 +143,7 @@ namespace LiteDB.Tests.Engine
         {
             return new LiteDatabase(new ConnectionString
             {
+                SharedOneFile = false,
                 Filename = filename,
                 CompactStorage = CompactStorageMode.Legacy
             });

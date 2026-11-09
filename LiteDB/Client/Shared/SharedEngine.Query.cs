@@ -42,6 +42,11 @@ namespace LiteDB
                 if (coordinated != null) return coordinated;
             }
 #endif
+            if (reads && this.UsesMappedTenure && !_transactionRunning)
+            {
+                var retained = this.TryQueryRetained(collection, query);
+                if (retained != null) return retained;
+            }
             SharedMutexPin use;
             if (reads && _pin == null)
             {
@@ -184,7 +189,8 @@ namespace LiteDB
             }
             catch
             {
-                this.CloseDatabase(use);
+                try { this.ReconcileTransaction(); }
+                finally { this.CloseDatabase(use); }
                 throw;
             }
         }
@@ -234,10 +240,10 @@ namespace LiteDB
         /// continues the same reader, so the query is not executed a second time.
         /// The caller owns one mutex recursion, which this method releases or hands over.
         /// </summary>
-        private IBsonDataReader QuerySnapshot(string collection, Query query, LiteEngine snapshot)
+        private IBsonDataReader QuerySnapshot(string collection, Query query, LiteEngine snapshot, SharedMutexPin use = null)
         {
 #if NET8_0_OR_GREATER
-            var coordinated = this.TryInstallCoordinated(collection, query, snapshot);
+            var coordinated = this.TryInstallCoordinated(collection, query, snapshot, use);
             if (coordinated != null) return coordinated;
 #endif
             IBsonDataReader reader = null;
@@ -253,7 +259,8 @@ namespace LiteDB
                         snapshot.Dispose();
                         snapshot = null;
                         release = false;
-                        _owner.Exit();
+                        if (use != null) return this.QueryUnderMutex(collection, query, use);
+                        this.ReleaseSnapshotUse(use);
                         // Nothing has executed. Retry through the holder so an unleased
                         // streaming reader can still be disposed on any thread.
                         return this.QueryCore(collection, query);
@@ -326,7 +333,7 @@ namespace LiteDB
                             if (release)
                             {
                                 if (!_transactionRunning) _transactionThread = null;
-                                _owner.Exit();
+                                this.ReleaseSnapshotUse(use);
                             }
                         }
                     }
@@ -390,6 +397,7 @@ namespace LiteDB
                 // settings delegates, admission object or cached stream owner.
                 settings.SharedReaderVersions = mapped.Table.LiveVersions;
                 settings.AutoRebuildAllowed = () => false;
+                settings.SharedMaintenance = null;
                 settings.SharedAdmission = mapped.Table.Admission;
                 settings.SharedFileHandles = null;
             }

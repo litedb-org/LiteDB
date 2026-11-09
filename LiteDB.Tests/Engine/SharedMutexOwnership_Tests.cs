@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Engine
         public SharedMutexOwnership_Tests()
         {
             Directory.CreateDirectory(_directory);
-            using var seed = new SharedEngine(new EngineSettings { Filename = this.Filename });
+            using var seed = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename });
             seed.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
         }
 
@@ -37,6 +37,7 @@ namespace LiteDB.Tests.Engine
         /// <summary>No reader lease can be registered, so readers stream under the mutex, as before v13.</summary>
         private SharedEngine OpenUnleased() => new SharedEngine(new EngineSettings
         {
+            SharedOneFile = false,
             Filename = this.Filename,
             SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
         });
@@ -304,7 +305,7 @@ namespace LiteDB.Tests.Engine
             // Another instance shares only the named mutex, like another process.
             RunPromptly(() =>
             {
-                using var other = new SharedEngine(new EngineSettings { Filename = this.Filename });
+                using var other = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = this.Filename });
                 other.Insert("probe", new[] { new BsonDocument { ["_id"] = Guid.NewGuid() } }, BsonAutoId.Int32);
             });
         }

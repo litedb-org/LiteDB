@@ -24,6 +24,10 @@ namespace LiteDB.Internals
             var previous = State(Core(engine));
             var tenure = engine.MappedReaderTable.WriterTenure;
             db.Rollback().Should().BeTrue();
+            var retired = engine.Pin;
+            retired.Should().NotBeNull();
+            retired.RequestRelease(false); retired.WaitReleased();
+            previous.Disposed.Should().BeTrue("the delayed Stop must belong to a genuinely retired core");
             using var old = engine.Query("docs", new Query());
             old.Read().Should().BeTrue();
             db.BeginTrans().Should().BeTrue();
@@ -64,7 +68,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-publication-hold", files.Filename, null, "wal-before-durable-flush"))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             var table = engine.MappedReaderTable;
             var before = table.Authority.Map.Load(SharedMemoryLayout.CommittedVersion);

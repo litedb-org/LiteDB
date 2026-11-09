@@ -1,0 +1,30 @@
+name: P3 Darwin bounded allocation
+on:
+  push:
+    branches: [v6/wip-f-p3-darwin, v6/p3-platforms]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bounded-apfs:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet build LiteDB.Tests.SharedMutexHarness/SharedMutexHarness.csproj -c Release -p:TestingEnabled=true -p:GitVersionEnabled=false
+      - name: Native repeated reservation and killed-authority reset on bounded APFS
+        run: |
+          set -o pipefail
+          mkdir -p artifacts_temp/darwin-allocation
+          python3 .github/scripts/darwin_allocation.py 2>&1 | tee artifacts_temp/darwin-allocation/native.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: darwin-bounded-allocation
+          path: artifacts_temp/darwin-allocation
+          if-no-files-found: error

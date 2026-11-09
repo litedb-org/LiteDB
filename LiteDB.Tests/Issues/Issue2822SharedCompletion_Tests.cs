@@ -15,7 +15,7 @@ namespace LiteDB.Tests.Issues
         public void Ordinary_shared_reader_does_not_look_like_an_explicit_transaction(bool separateInstance)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared };
             using var db = new LiteDatabase(connection);
             using var other = new LiteDatabase(connection);
             db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Issues
         public void Joining_an_auto_transaction_does_not_require_an_extra_completion(bool rollback)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared };
             using var db = new LiteDatabase(connection);
             IEnumerable<BsonDocument> Documents()
             {
@@ -72,7 +72,7 @@ namespace LiteDB.Tests.Issues
         public void Ordinary_open_rejects_an_abandoned_local_transaction(bool begin)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared };
             using var db = new LiteDatabase(connection);
             Exception failure = null;
             var owner = new Thread(() => failure = Record.Exception(() => db.BeginTrans().Should().BeTrue()));
@@ -93,7 +93,7 @@ namespace LiteDB.Tests.Issues
         public void Abandoned_explicit_owner_is_rejected_and_can_be_disposed_normally(bool rollback, bool consumeSignal)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = ConnectionType.Shared };
             var db = new LiteDatabase(connection);
             db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
             Exception failure = null;

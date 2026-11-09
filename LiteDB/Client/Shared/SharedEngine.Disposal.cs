@@ -23,10 +23,20 @@ namespace LiteDB
             try { return reader.Read(); }
             finally
             {
-                lock (_useLock)
+                try
                 {
-                    _retainedReads--;
-                    System.Threading.Monitor.PulseAll(_useLock);
+                    // Reconcile while this read still excludes holder teardown. A
+                    // stopped pin must drain after the read admission is returned;
+                    // waiting here would wait for our own finally to finish.
+                    this.ReconcileTransaction(waitForStopped: false);
+                }
+                finally
+                {
+                    lock (_useLock)
+                    {
+                        _retainedReads--;
+                        System.Threading.Monitor.PulseAll(_useLock);
+                    }
                 }
             }
         });

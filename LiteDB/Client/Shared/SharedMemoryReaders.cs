@@ -10,7 +10,7 @@ namespace LiteDB.Client.Shared
     {
         private SharedMemoryReaderTable _table;
         internal SharedMemoryReaderTable Table => _table;
-        internal SharedMemoryReaders(SharedMemoryReaderTable table) { _table = table; }
+        internal SharedMemoryReaders(SharedMemoryReaderTable table) { table.AttachFacade(); _table = table; }
         public IDisposable Register(int version) => (_table ?? throw new ObjectDisposedException(nameof(SharedMemoryReaders))).Register(version);
         public IDisposable RegisterUnscanned(int version) => this.Register(version);
         public void Probe(int version) { if (_table == null) throw new ObjectDisposedException(nameof(SharedMemoryReaders)); }
@@ -24,7 +24,7 @@ namespace LiteDB.Client.Shared
         public void Dispose()
         {
             GC.SuppressFinalize(this);
-            Interlocked.Exchange(ref _table, null)?.Release();
+            Interlocked.Exchange(ref _table, null)?.DetachFacade();
         }
     }
 }

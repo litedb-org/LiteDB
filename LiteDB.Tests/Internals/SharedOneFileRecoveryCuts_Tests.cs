@@ -49,7 +49,7 @@ namespace LiteDB.Internals
                     tail.SetLength(size + 123);
                 using var successor = new MvccProcess("one-file-publication-hold", files.Filename, null, stage);
                 await successor.Expect("ready");
-                await successor.Kill();
+                await successor.Kill(sharedFilesRemainOpen: true);
                 files.WriteIsFree();
                 table.Authority.Header.Authority.Should().Be(authority, "DMS stayed alive; this is repair, not first-opener reset");
                 table.Authority.Incarnation.Should().Be(incarnation);
@@ -84,17 +84,23 @@ namespace LiteDB.Internals
             var identity = table.Authority.Header.Authority;
             var offset = stage == "version-reset" ? SharedMemoryLayout.ResetEpoch : SharedMemoryLayout.ReuseEpoch;
             var epoch = table.Authority.Map.Load(offset);
+            // A real WAL reset now requires sole DMS. Reuse still races a live
+            // participant; reset is interrupted offline and reuses its authority.
+            if (stage == "version-reset") engine.Dispose();
             using (var child = new MvccProcess("one-file-mutation-cut", files.Filename, null, stage))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: stage == "slot-reused");
             }
+            using var recovered = stage == "version-reset" ? new SharedEngine(files.Settings) : null;
+            using var recoveredDb = recovered == null ? null : new LiteDatabase(recovered, disposeOnClose: false);
+            if (recovered != null) table = recovered.MappedReaderTable;
             table.Authority.Map.Load(offset).Should().BeGreaterThan(epoch);
             table.Authority.Header.Authority.Should().Be(identity);
             for (var repeat = 0; repeat < 2; repeat++)
             {
-                SharedOneFilePublicationFixture.Verify(db, expected);
-                db.Checkpoint();
+                SharedOneFilePublicationFixture.Verify(recoveredDb ?? db, expected);
+                (recoveredDb ?? db).Checkpoint();
                 SharedOneFilePublicationFixture.Quiet(table);
             }
         }
@@ -110,7 +116,7 @@ namespace LiteDB.Internals
             using (var child = new MvccProcess("one-file-commit-cut", files.Filename, null, stage))
             {
                 await child.Expect("ready");
-                await child.Kill();
+                await child.Kill(sharedFilesRemainOpen: true);
             }
             for (var repeat = 0; repeat < 2; repeat++)
             {

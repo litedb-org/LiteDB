@@ -141,16 +141,16 @@ namespace LiteDB.Internals
             var map = engine.MappedReaderTable.Authority.Map;
             var offset = counter == 0 ? SharedMemoryLayout.WriterTenureEpoch : SharedMemoryLayout.Control + 8;
             var previous = map.Load(offset);
-            var data = File.ReadAllBytes(files.Filename);
-            var wal = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+            var wal = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
             map.Store(offset, long.MaxValue);
             try
             {
                 Action write = () => db.GetCollection("docs").Update(Row(1, 1));
                 write.Should().Throw<OverflowException>();
                 files.WriteIsFree();
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
             }
             finally { map.Store(offset, previous); }
             Verify(db, 0);

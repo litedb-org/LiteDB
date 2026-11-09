@@ -26,6 +26,37 @@
   ],
   "dispositions": [
     {
+      "id": "p3-darwin-bounded-allocation",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-darwin-allocation.yml",
+        ".github/scripts/darwin_allocation.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same-size native reservation and quiescent reset remain possible without space for an extra map; repeated interrupted resets preserve indexed committed data.",
+      "reason": "Adds CI-only direct/reset inventory on native bounded APFS without altering existing test selection. These harness scenarios are not ReproRunner names; repro-ci inventory is unchanged."
+    },
+    {
+      "id": "p3-integrated-windows-death-lock-observation",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFilePublicationFixture.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Killed-writer recovery must acquire the actual kernel WRITE range before checking repeated recovery, old snapshots and committed indexed state. A live or leaked lock still fails within five seconds.",
+      "reason": "P1 run 42421342736 Windows net10 open-end case at 076878880 failed the immediate WRITE probe after child process exit, which does not guarantee Windows has completed handle cleanup. Only the post-death warm-recovery caller now requests the existing EnterWrite abandoned-owner path: bounded five-second actual native-lock acquisition, identical to production recovery. Other fixture callers retain immediate checks; no state assertion, failure hook or timeout is removed."
+    },
+    {
+      "id": "p3-integrated-mapped-handle-safety-partitions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every existing coordinated, group commit, WAL, recovery, durability, rebuild, mapper and delete safety case remains selected on all six OS/runtime legs with the same five-minute session timeout.",
+      "reason": "Integrated Windows mapped qualification activates additional expensive crash/rebuild cases. Run 42421342736 Windows net8 aborted its broad final session after 649 passes and one existing skip at 300 seconds without an assertion failure. Partition WAL by Shared and the remaining selection by SharedOneFile then Rebuild using mutually exclusive positive/negative predicates. The union equals the previous filters, with no exclusions, timeout increases or changed assertions."
+    },
+    {
       "id": "shared-retry-completed-write-watchdog",
       "kind": "assertions-reduced",
       "subjects": [
@@ -39,6 +70,16 @@
         "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Progressing_work_can_exceed_a_single_stall_window",
         "LiteDB.Tests/Internals/RetryWriteWatchdog_Tests.cs#Overall_cap_bounds_even_progressing_work"
       ]
+    },
+    {
+      "id": "p3-linuxarm-complete-mapped-qualification",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-linuxarm-qualification.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile and Linux futex class executes on Linux ARM64 net8 and net10 without skips, including process death and modeled power loss; default opt-in is unchanged.",
+      "reason": "Add dedicated hosted qualification with source-derived classes, discovery-to-TRX completeness, runtime/architecture and test-hook guards, per-class counts and a 50-iteration tenure/futex/coherence stress job. Existing CI partitions, timeouts, assertions and registries are preserved."
     },
     {
       "id": "p1-update-safety-isolated-baseline-harness",
@@ -60,6 +101,157 @@
       "disposition": "strengthened",
       "invariant": "Every existing partition, runtime guard, test result and nonzero exit still determines CI failure; the 300-second session ceiling remains.",
       "reason": "Collect a mini hang dump and active-test sequence after 240 seconds without a completed case, before the session ceiling destroys the evidence. A detected hang still fails the session; no skip, retry-to-green, filter or expected-result change is added. Upload nested collector outputs on failure as well as success."
+    },
+    {
+      "id": "p3n-arm64-futex-review-coverage",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Final_facade_disposal_wakes_a_holder_proven_inside_the_shared_futex_syscall",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Low_32_bit_wake_sequence_wrap_still_refuses_the_pre_wrap_wait_word",
+        "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_wake_before_wait_prevents_sleeping_on_the_old_word",
+        "LiteDB.Internals.SharedWriterTenureFutexProbe_Tests.A_spurious_wake_and_stale_pin_release_preserve_mapping_lifetime"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every enabled Linux mapped Shared backend executes all futex race cuts, blocked-holder disposal, pressure/error handling, low-word wrap and stale-pin mapping lifetime assertions.",
+      "reason": "Replace the obsolete x64-only gate with the production qualification predicate on Linux, making the unchanged safety cases eligible whenever ARM64 is qualified. The kernel probe independently expects aarch64 futex syscall 98 or x64 syscall 202 while preserving the exact mapped address and shared FUTEX_WAIT operation checks. ARM64 remains refused until complete hosted execution evidence is available; the integration seam asserts repeated refusal without storage mutation on unqualified targets and checks both attribute gates. No test, assertion, fault cut or timeout is removed."
+    },
+    {
+      "id": "p3fx2-shared-retry-proof-guard-rename",
+      "kind": "proof-guard-removed",
+      "subjects": [
+        "Issue_3094_SharedRetryWriterRelease"
+      ],
+      "disposition": "relocated",
+      "invariant": "Transaction retry must release obsolete Shared writer ownership, preserve active transaction guards, and allow other threads and processes to progress after completion.",
+      "reason": "Repair the stale permanentGuard reference left by d4713d40bf382baf87c3f18498e85feb5bc33fb7. P3-FX F2 renamed and strengthened the failed-registration test to require immediate release after implicit abort, rather than retain an already-ended transaction's hold. The existing p3fx-aborted-retry-releases-legacy-ownership disposition records that behavior correction; retry, rollback, peer progress and cold data/index/sentinel assertions remain. No test or known-bad proof pin changes here.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership"
+      ]
+    },
+    {
+      "id": "p3fx-fork-ci-newcomer-acquisition-evidence",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Production performance evidence is CI-only, uses isolated before/after libraries, keeps durability modes and runtimes separate and verifies the resulting database independently; the ordinary benchmark gate remains exhaustive.",
+      "reason": "Add a separately selected, fork-only Linux x64 job with a finite 20-minute job/15-minute process budget and error on missing evidence. Existing comparison, preattached tenure and open/close jobs remain available. The new input excludes the unrelated comparison job only when explicitly requested. Identical candidate timing programs measure fresh process attachments against df6b16f80 and the fixed candidate, with positive CHECKPOINT, real writer admission, raw p50/p99 samples and cold row/index/sentinel checks. Fake-worker unit tests validate ordering without running measurements locally.",
+      "coveredBy": [
+        ".github/scripts/test_shared_newcomer.py"
+      ]
+    },
+    {
+      "id": "p3fx-aborted-retry-releases-legacy-ownership",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Engine.SharedRetryWriterRelease_Tests.Failed_retry_preserves_old_ownership_until_retry_or_rollback"
+      ],
+      "disposition": "replaced",
+      "invariant": "A failed retry Begin must not create an extra native hold, discard a still-active transaction, or prevent another thread from making progress after completion.",
+      "reason": "Renamed and strengthened the existing encrypted/plain, pinned/unpinned retry test for the corrected implicit-abort lifetime. It now requires zero obsolete transaction holds immediately after abort and after failed registration, installs the same registration fault on the reopened core, and retains successful retry, rollback, foreign-thread progress and exact cold data/index/sentinel checks. The old expectation of one hold after an already-ended inner transaction is the confirmed stale-ownership defect, not a supported active-transaction invariant.",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Failed_retry_after_implicit_abort_leaves_no_transaction_ownership",
+        "LiteDB.Tests/Engine/SharedRetryWriterRelease_Tests.cs#Ordinary_transaction_keeps_guards_and_releases_on_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Failed_input_returns_transaction_ownership_before_any_outer_completion",
+        "LiteDB.Tests/Engine/LegacySharedImplicitAbort_Tests.cs#Stopped_query_releases_transaction_at_initial_or_streamed_read"
+      ]
+    },
+    {
+      "id": "p3j-remove-experimental-same-thread-wait-option",
+      "kind": "test-removed",
+      "subjects": [
+        "LiteDB.Tests.Database.ConnectionString_Tests.Same_thread_transaction_wait_setting_round_trips",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Direct_opt_in_same_thread_wait_times_out",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Mapped_shared_opt_in_same_thread_wait_times_out",
+        "LiteDB.Tests.Engine.SameThreadTransaction_Tests.Opt_in_same_thread_wait_is_bounded_by_timeout"
+      ],
+      "disposition": "intentional-change",
+      "invariant": "The removed tests required the experimental opt-in to round-trip and replace immediate same-thread foreign-facade refusal with a TIMEOUT-bounded wait.",
+      "reason": "The owner removed the opt-in for Phase 3: legacy same-thread foreign-facade writes always throw SAME_THREAD_TRANSACTION (141). Cooperative waiting is deferred to Phase 4 thread-independent transaction handles. The retained Direct, legacy Shared and mapped Shared tests require immediate code-141 refusal, successful owner rollback and separate-thread progress after commit; the removed setting and its obsolete waiting behavior must not be restored.",
+      "decision": "docs/connection-string-parsing.md#same-thread-transaction-writes",
+      "coveredBy": [
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Direct_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Legacy_shared_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Mapped_shared_peer_write_fails_immediately_with_the_same_thread_error",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Direct_foreign_thread_writer_waits_for_commit",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Foreign_thread_writer_still_waits_and_succeeds_after_commit",
+        "LiteDB.Tests/Engine/SameThreadTransaction_Tests.cs#Mapped_shared_foreign_thread_writer_waits_for_commit"
+      ]
+    },
+    {
+      "id": "p3h-shared-session-capacity-and-hang-capture",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/run-ci-tests.ps1",
+        ".github/workflows/_reusable-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every discovered Shared test executes exactly once per leg with the runtime/hook guards, unchanged assertions, concurrency and 300-second session limit; a stalled test cannot count as complete.",
+      "reason": "Retained 40521868246 TRX files show ongoing serial completions until all four Linux shared session aborts; passing x64 net9/net10 need 258.7/268.9 seconds of test work. Split maintenance-crash, final-close, rebuild and tenure from the shared complement; preserve process partitions and exhaustive discovery accounting. Add 120-second per-test blame-hang mini dumps and sequence artifacts, retaining failure status. No tests or fault cuts are removed and no timeout is raised.",
+      "decision": "docs/ci-partition-capacity.md"
+    },
+    {
+      "id": "p3b-multigeneration-slow-and-warm",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedOneFileReaders_Tests.Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Three simultaneously accepted reader generations retain exact indexed payloads and unrelated data through checkpoint; the protected slow path remains explicitly exercised.",
+      "reason": "Replace the obsolete slice-4 assertion that warm reads do not exist with two executed theory cases. An identity ReadTransform keeps the original zero-warm-hit slow path; the default case preserves all exact generation/index/sentinel/file assertions and additionally proves real warm hits with the final generation. Adds one discovered case; neither case is skipped.",
+      "decision": "docs/shared-one-file-ownership.md"
+    },
+    {
+      "id": "p3b-retained-tenure-test-boundaries",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileDeferredRead_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnerGeneration_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileOwnershipFences_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFilePhase1_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7OwnerReuseReview_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileSlice7Review_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Real ownership handoff, retired-core generation isolation, late-read disposal, retry hold balance, unchanged degraded-sync fences and the single authority-file contract remain exercised.",
+      "reason": "Mapped Phase 3 uses pins without anchor readers and retains cores after commit/rollback. Capture the actual pin after Begin; demand and await native release before asserting it is free or a core is retired; use the mapped holder teardown cut for dead-owner cleanup; probe WRITE exclusion before the degraded-sync handoff; resolve the WAL filename with FileHelper. Preserve all exact cold data, authority, fence and foreign-callback assertions and add actual-generation/retirement controls."
+    },
+    {
+      "id": "p3b-close-cut-harness-synchronization",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileHarness.cs",
+        "LiteDB.Tests.SharedMutexHarness/SharedOneFileWarmHarness.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Writer-end death tests must reach and pause the actual mapped close publication before the child returns a completion marker or exits. Existing cold and snapshot recovery oracles are unchanged.",
+      "reason": "Capture the retained pin under an explicit transaction and demand its actual release at writer-end. Ordinary auto-commit now returns before retained close, so the old harness could print committed or exit before the death cut. Added metadata/WAL-reset/close-cut commands preserve existing modes; encrypted logical WAL-zero validation accounts for its physical encryption header."
+    },
+    {
+      "id": "p3b-r1-concurrent-fifo-oracle",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureReview_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A releasing holder must not borrow an outstanding local request ticket or barge past the older remote requester; all twelve real handoffs and exact cold state remain checked.",
+      "reason": "The original R1 synchronous loop required unfair reacquisitions to complete before releasing the paused older requests, which deadlocks a correct FIFO fix. The unchanged review commits were merged first. The loop now runs on a separate actual Thread, proves it queues without admission, releases both older callers, asserts every reacquisition ticket exceeds the remote ticket, and joins all workers before retaining the original twelve-handoff and cold exact oracles."
+    },
+    {
+      "id": "p3a-fork-only-writer-tenure-measurements",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/benchmark-gate.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing full CI and benchmark comparisons remain unchanged by default; Phase 3-A measurements run only on the fork in isolated production builds.",
+      "reason": "Adds an opt-in Linux net8/net10 job comparing exact Phase 2 against the candidate, five alternating paired rounds, durable and nonsync small transactions and two-process alternating latency. A bounded job and required artifacts add evidence without reducing existing thresholds or tests."
     },
     {
       "id": "p2j-immediate-terminal-core-cleanup-oracles",
@@ -367,6 +559,7 @@
       "subjects": [
         "LiteDB.Internals.SharedOneFilePhase1_Tests.Retry_releases_obsolete_writer_holds_and_preserves_peer_callback_isolation",
         "LiteDB.Internals.SharedOneFilePhase1_Tests.Protected_reopens_use_timeout_restored_from_the_WAL",
+        "LiteDB.Internals.SharedOneFileBootstrap_Tests.Interrupted_native_allocation_retries_without_changing_database_bytes",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Connection_string_round_trips_configurable_size_and_capacity",
         "LiteDB.Internals.SharedOneFileBootstrap_Tests.Empty_and_zero_partial_initialization_reset_but_declared_wrong_length_refuses",
@@ -501,6 +694,16 @@
       "reason": "Express the same disjoint partition complement using VSTest supported !~ predicates. Every original case remains in exactly one partition, with unchanged assertions and session timeout."
     },
     {
+      "id": "p3-coordinated-admission-safety-partition",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p1-handle-safety.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every test selected by the existing three WAL/handle safety partitions still executes with unchanged assertions, session timeout and failure propagation.",
+      "reason": "Prepends an additional partition for SharedWriterTenureCoordinatedAdmission_Tests, SharedWriterTenureCoherenceBreadth_Tests and SharedOneFileWarmReads_Tests. All three original filter expressions remain unchanged; no exclusion, skip, retry, timeout or expected-result change is introduced, and any partition failure still fails the job."
+    },
+    {
       "id": "p1-integrate-add-delete-safety",
       "kind": "ci-test-config-changed",
       "subjects": [
@@ -529,6 +732,148 @@
       "disposition": "strengthened",
       "invariant": "Complete all six Windows rounds, every scenario, identity/correctness check and unchanged ratio/noise evaluation; stalled children still fail.",
       "reason": "Runs 42372017467 attempts 1/2 exhausted the default 23-minute total budget with 245\u2013482 second complete Windows rounds. Automatically use the existing capped 55-minute comparison budget on Windows (65-minute job cap); retain the default 360-second per-child deadline. Six maximum observed rounds need 48.2 minutes. Synthetic harness tests cover child timeout and total exhaustion; no product or safety-test timeout changes."
+    },
+    {
+      "id": "p3-windows-qualification-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-windows-qualification.yml",
+        ".github/scripts/p3_windows_qualification.py",
+        ".github/workflows/p3-windows-stress.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every mapped OneFile class executes on Windows x64 net8/net10 without skips; existing cross-platform CI and Linux-specific futex evidence remain unchanged.",
+      "reason": "Add per-class isolated sessions with unchanged tests.runsettings, TRX failure/skip/empty-result checks, fifty repetitions of tenure/coherence/process-death/native-wake classes, and real x86/net481 refusal. Windows x64 remains opt-in; Linux futex syscall tests remain platform specific. Full matrix and stress are independent workflows, retaining every original job command, runtime, shard, assertion, timeout and fifty-repeat bound. Three complete full-matrix runs plus one complete stress campaign qualify the exact final head; no test or job is conditionally skipped. Class discovery includes sealed/partial declarations."
+    },
+    {
+      "id": "p3-windows-registry-platform-contracts",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileRegistry_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Same physical files share one participant; distinct physical files remain independent; native admission stays enforced or opening refuses before mutation when native locking is disabled.",
+      "reason": "Retains Unix case-sensitive and disable-file-locking refusal assertions. Adds actual filesystem case-alias identity checks and an always-distinct filename, plus an independent native admission conflict probe on Windows where the runtime Unix-only disabling switch does not disable LockFileEx. No test or platform case is skipped."
+    },
+    {
+      "id": "p3-qual-macos-executed-matrix",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/full-ci.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Existing full CI remains unchanged; additive macOS opt-in qualification executes every mapped class on native ARM64 and Intel net8/net10, rejects skipped or missing results and retains TRX.",
+      "reason": "Orchestrator instructed exact-head macOS qualification and 50-repeat stress. Linux futex ABI-only tests and the Linux POSIX/OFD negative control remain in the original full suite; the platform-neutral wake-edge theory is expanded to every qualified backend. Include ordinary OneFile admission/lock/map Facts and the integration seam, whose expected architecture set stays independent of the product predicate. Stress repeats the entire19-class set in50 fresh test hosts, with both guards per host, every class required in each TRX and unchanged300-second session limit; selected case counts and repetitions are unchanged. A separately marked request-safety diagnostic repeats its assertions only for failure investigation; its one-class inventory cannot satisfy the84-class full or19-class stress audit. An additional guarded Linux TESTING comparison consumes the unpublished proof registration: real b4834a819 must fail specifically at expired local-ticket admission, then the candidate passes identical permanent test/harness source; overlay only that test and harness on the real historical revision and verify its production source stays unmodified; its known-bad TRX never counts as candidate qualification. No existing assertion, timeout or quarantine is weakened."
+    },
+    {
+      "id": "p3-qual-macos-portable-wake-edges",
+      "kind": "conditional-attribute",
+      "subjects": [
+        "LiteDB.Internals.SharedWriterTenureWakeSafety_Tests.Wake_at_every_sample_recheck_and_syscall_edge_is_observed_before_final_detach"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Wake at every sample/recheck/syscall/return edge retains the holder, preserves the committed row and releases WRITE on final detach.",
+      "reason": "The theory uses only platform-neutral mapped wake hooks; expand from LinuxFutexTheory to OneFileTheory so all qualified native backends execute the same four forced interleavings. Linux syscall-specific tests remain unchanged."
+    },
+    {
+      "id": "p3-qual-macos-observed-child-suspension",
+      "kind": "assertions-reduced",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs",
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "A stopped child retains all native ranges and snapshots; an expired live requester cannot reserve priority; process death releases ownership while committed data remains.",
+      "reason": "Signal return-code assertions move into SharedProcessSignals.Stop/Resume, which preserve the checks and additionally require waitpid WIFSTOPPED before tests inspect leases. Choose native Darwin SIGSTOP/SIGCONT rather than Linux numbers; expand the stopped-process native range control to Darwin. No liveness, ownership, data or error assertion is removed."
+    },
+    {
+      "id": "p3-qual-macos-stale-sample-fixture",
+      "kind": "fixture-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "An actually renewed older request rejects a stale admission sample; both real requests eventually complete and the child write remains indexed and intact after cold reopen.",
+      "reason": "Hosted diagnostic34f97d6b4 records remote ticket1 expiring and rejoining as3 behind local2, invalidating the old unconditional older-ticket premise. Observe actual renewal, prove SIGSTOP with waitpid before local publication, assert strictly older remote ticket and expiry beyond stale sample+100, and require the real IsTurn predicate to refuse that stale sample. Then resume both real RequestWriter calls and retain admission, child write, cold sentinel/index/payload checks. No retries, skips or fabricated bytes/clocks. The stale-sample predicate is forced independently of subsequent live admission, whose expiring priority may legally change. A focused negative control restoring the old sampled-clock upper bound fails this predicate assertion; the restored unmutated revision passes all3 class cases. Correct the RequestStage evidence prose to state this bounded predicate/progress proof rather than imply priority persists through later native admission. Further investigation proves a distinct real local-expiry defect: retain the original expired-child case and add a forced post-sample local-expiry/successor cut, with real-revision CI before/after evidence and a post-peer-scan local-expiry recheck in production. Prestart the child runtime before holding the10-second sampling barrier, then command actual publication only after local expiry; retain all waits, ordering, expiry, ticket, progress and cold-data checks. Worker termination signals the observer so it reports the actual worker exception. While the real gate deliberately blocks renewal callbacks, observe actual Ready/ticket publication with a bounded mapped scan instead of requiring an async pipe continuation on that blocked pool to release the barrier; retain the requested stdout assertion after gate release."
+    },
+    {
+      "id": "p3-integrate-macos-offline-admission-preservation",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All nine retirement cuts, repeated interruptions and all 64 subsets of six legacy ephemeral entries preserve database/WAL bytes and persistent admission ownership files.",
+      "reason": "Final-head macOS P1 net10 run42437670381 failed the exact-directory assertion because Darwin intentionally retains .litedb-admission. Snapshot exact preexisting root entries and files before seeding legacy state; require every entry and byte to survive, allow only the explicitly added WAL, and require exactly six newly seeded ephemeral files rather than misclassifying persistent admission as an ephemeral resurrection candidate. No cut, recovery retry, refusal, data assertion or timeout is removed."
+    },
+    {
+      "id": "p3-integrate-windows-mixed-wake-inventory",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/scripts/p3_windows_qualification.py"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Windows full/stress qualification executes every portable mapped case without skips; Linux futex syscall cases remain in Linux full and ARM64 matrices.",
+      "reason": "Mac qualification expands a wake-edge theory to OneFileTheory, causing Windows discovery to correctly include its mixed portable/Linux-futex class. Run42440188749 net8 shard6 reported4portable passes and4LinuxFutexFact skips. Record those source-attributed Linux-only methods explicitly in Windows inventory and exclude only them from the Windows filter, retaining strict audit rejection of any eligible skipped, failed, missing or empty result. New unit tests pin the four kernel-specific exclusions, retain the portable theory in both full/stress sets, and require no exclusions for request safety. No test attributes, Linux workflow, session limit or repetition count changes."
+    },
+    {
+      "id": "p3-integrate-macos-maintenance-session-capacity",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        "scripts/qualify-macos.ps1",
+        "scripts/run-ci-tests.ps1"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every maintenance death, interrupted recovery and rollback case runs with unchanged per-case two repetitions and300-second test-host session limit, and every CI-discovered test belongs to exactly one full-suite partition.",
+      "reason": "Run42440646177 Intelnet8 MaintenanceCrash session aborted after300s with57Passed/0Failed,13missing expected results and290.893s completed durations. Split Mac qualification into three existing theory sessions (42death,14recovery,12rollback selected cases), with runtime/hook guards per session. Full CI uses disjoint death/recovery/complement sessions, retaining rollback and future cases. Case-set conservation is checked against the prior complete qualification TRX; ordinary full CI retains its exact-discovery partition verification. No tests, repetitions, crash cuts, recovery/data assertions, timeout or matrix leg removed."
+    },
+    {
+      "id": "p3-default-expand-windows-refusal",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/p3-windows-qualification.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Unsupported explicit true refusal stays covered while default fallback and cross-runtime family refusal gain runtime-verified evidence.",
+      "reason": "Append default class to both unsupported-target runs and add real mixed-process runtime/architecture matrix."
+    },
+    {
+      "id": "p3-default-historical-legacy-wal-lease",
+      "kind": "harness-changed",
+      "subjects": [
+        "tools/Regression5021Compatibility/Program.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Historical 5.0.21 WAL conversion refuses a held legacy reader lease with LOCK_TIMEOUT, preserves every source byte and converts completely after the lease closes.",
+      "reason": "Select Shared One File=false for this legacy-drain-specific refusal and subsequent reopen after the qualified platform default changes. Preserve every error-code, directory/file-byte and committed-data assertion. New default offline retirement and native-family refusal are covered separately by SharedOneFileDefault and SharedOfflineUpgrade suites."
+    },
+    {
+      "id": "p3-reader-death-native-release-barrier",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedOneFileReaders_Tests.cs",
+        "LiteDB.Tests/Internals/SharedOneFileLock_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Paused readers pin exact floors; the first scan after native slot release excludes dead readers without another participant or writer; all three ranges release and reused slots change incarnation.",
+      "reason": "Windows process exit may precede native byte-range cleanup. Bound only the production native slot predicate to five seconds, then retain immediate empty-floor/DMS/WRITE assertions. No retries of floor assertions or unrelated reclamation events. Initial floors and kill-to-clear timings are retained; both complete classes run100times on Windows2022/2025 x64 net8/9/10. Permanently locked slots or stale floors still fail."
+    },
+    {
+      "id": "f-p3-fuzz-explicit-shared-protocols",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/fuzz.yml",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All existing targets, seeds, step counts, crash proofs and legacy per-operation mutex assertions remain; mapped clear cuts use exclusive admission required for truncation.",
+      "reason": "The default transition changes mutex tenure and requires exclusive mapping ownership for WAL clear. Preserve all-cut concurrent legacy workloads with explicit opt-out and test default close/reopen separately. Add mapped futex fault workload rather than removing unreachable markers.",
+      "coveredBy": [
+        "LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs",
+        "LiteDB.Fuzz/Targets/SharedWakeFuzzer.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointClearProcess_Tests.cs",
+        "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs"
+      ]
     },
     {
       "id": "p5-warm-lifetime-release-completion",
@@ -592,6 +937,21 @@
       "reason": "Initial forced fixture gracefully retired its seed authority, then held DMS as if a Ready participant remained. Correct the artificial state: seed in a separate process, acknowledge sentinel commit, kill it without graceful final-close retirement, then simulate delayed DMS release. This matches the actual abandoned-owner case. Previous after failure Live Shared authority is not Ready is retained; no product readiness guard is weakened.",
       "coveredBy": [
         "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
+      ]
+    },
+    {
+      "id": "f-p5-win33-native-release-precondition",
+      "kind": "harness-changed",
+      "subjects": [
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs",
+        "LiteDB.Tests/Utils/WindowsFileRelease.cs"
+      ],
+      "disposition": "replaced",
+      "invariant": "Dead/expired requesters cannot reserve a turn; all acknowledged rows, indexes, sentinel and tenure902 survive two cold opens. Native lock ownership is never bypassed.",
+      "reason": "Wait at most five seconds for the exact admission byte after all intentional participants close. Windows process exit/handle close does not promise synchronous byte-range release; native admission is deliberately fail-fast. Historical diagnostic evidence is retained under /tmp/litedb-proto/phases/f-p5-win33-evidence and hosted run 42692994150.",
+      "coveredBy": [
+        "LiteDB.Tests/Utils/WindowsFileRelease_Tests.cs",
+        "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs"
       ]
     }
   ]

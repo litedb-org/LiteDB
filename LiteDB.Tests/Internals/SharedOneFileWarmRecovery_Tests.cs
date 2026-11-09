@@ -52,8 +52,10 @@ namespace LiteDB.Internals
                 else status.Version.Should().Be(oldVersion);
             }
             if (cut == "commit-version") valid.Should().BeFalse();
-            await writer.Kill();
-            files.WriteIsFree();
+            await writer.Kill(sharedFilesRemainOpen: true);
+            // Process exit can precede Windows kernel byte-lock cleanup. Require
+            // actual WRITE acquisition within the same bound as abandoned recovery.
+            files.WriteIsFree(abandonedOwner: true);
             for (var recovery = 0; recovery < 2; recovery++)
             {
                 db.Timeout.Should().BeGreaterThan(TimeSpan.Zero); // synced writable recovery, never cached metadata
@@ -81,7 +83,7 @@ namespace LiteDB.Internals
             engine.MappedReaderTable.LiveVersions().Should().NotBeEmpty();
             db.GetCollection("docs").Update(Row(1, 1)).Should().BeTrue();
             db.Checkpoint();
-            await child.Kill();
+            await child.Kill(sharedFilesRemainOpen: true);
             engine.MappedReaderTable.LiveVersions().Should().BeEmpty("dead mapped records are ignored only after kernel proof");
             for (var recovery = 0; recovery < 2; recovery++) { db.Checkpoint(); Verify(db, 1); }
         }

@@ -57,7 +57,7 @@ namespace LiteDB
 
             // Any thread may dispose the owner's last reader and so end its pin.
             var pin = _pin;
-            if (pin != null && ReferenceEquals(pin.Owner, owner))
+            if (!this.UsesMappedTenure && pin != null && ReferenceEquals(pin.Owner, owner))
             {
                 pin.RequestRelease(force: false);
                 if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
@@ -80,28 +80,45 @@ namespace LiteDB
         /// </summary>
         private T WriteDatabase<T>(Func<T> write, bool scoped = false) => this.Call(() =>
         {
+            this.ThrowIfForeignLocalTransaction(writing: true);
             var pin = _pin;
-            var use = pin != null && pin.TryEnter() ? pin
+            var use = this.TryEnterPin(pin) ? pin
                 : this.CanPin() ? this.StartPin()
                 : this.OpenDatabase(scoped && this.CanScope, writing: true);
             try
             {
+                // Reused pins still validate the live authority before every
+                // write, just like OpenDatabase's ordinary ownership path.
+                if (_mappedWriterHeld) this.EnterMappedWriter();
                 this.StartWriterPressure();
                 return write();
             }
             finally
             {
-                try { this.ReconcileMappedTransaction(); }
+                try { this.ReconcileTransaction(); }
                 finally { this.CloseDatabase(use); }
             }
         });
+
+        // Every use of an existing pin is a new facade admission. Taking the
+        // operation first keeps close from racing this check; refusal returns it.
+        private bool TryEnterPin(SharedMutexPin pin)
+        {
+            if (pin == null || !pin.TryEnter()) return false;
+            try
+            {
+                lock (_useLock) this.AdmitLocked();
+                return true;
+            }
+            catch { this.CloseDatabase(pin); throw; }
+        }
 
         /// <summary>
         /// A thread iterating a leased reader pins; an ending pin of its own is
         /// replaced directly. A holder cannot acquire a mutex this thread owns.
         /// </summary>
         private bool CanPin() =>
-            !_transactionRunning && this.HasLocalReaders(Thread.CurrentThread) && !_owner.IsOwnedByCurrentThread;
+            !_transactionRunning && (this.UsesMappedTenure || this.HasLocalReaders(Thread.CurrentThread)) && !_owner.IsOwnedByCurrentThread;
 
         /// <summary>
         /// Acquire the mutex on a holder thread and open the engine for this thread.
@@ -127,7 +144,7 @@ namespace LiteDB
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                pin = this.AcquirePin();
             }
             finally
             {
@@ -146,7 +163,7 @@ namespace LiteDB
                 {
                     // Dispose reads the pin under this lock after marking itself disposed:
                     // it either sees this pin and ends it, or this start is refused.
-                    if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+                    this.AdmitLocked();
                     _pin = pin;
                 }
                 return pin;
@@ -170,6 +187,7 @@ namespace LiteDB
             using (this.OwnershipFrame(HolderRetains))
             try
             {
+                this.AtOwnershipStage("before-tenure-close");
                 lock (_useLock)
                 {
                     // ReadTransform may run in a retained result after Query has
@@ -208,13 +226,38 @@ namespace LiteDB
                     var engine = _engine;
                     _engine = null;
                     var close = Stopwatch.StartNew();
-                    this.CloseRetainedCore(engine, checkpoint: !abandoned);
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+                    var previous = SharedMemoryReaderTable.PublicationStage;
+                    SharedMemoryReaderTable.PublicationStage = HandoffPublication;
+#endif
+                    try
+                    {
+                        try { this.AtOwnershipStage("tenure-handoff"); }
+                        // Mapped handoff leaves committed WAL authoritative. Close storage
+                        // and publish its fence before WRITE/main release; final-reference
+                        // cleanup retains the separately protected checkpoint.
+                        finally { this.CloseRetainedCore(engine, checkpoint: !abandoned && !this.UsesMappedTenure); }
+                    }
+                    finally
+                    {
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+                        SharedMemoryReaderTable.PublicationStage = previous;
+#endif
+                    }
                     _lastPinClose = close.Elapsed;
                 }
             }
             finally
             {
-                if (abandoned && _localTransactions != null) this.EndTransaction(releaseHold: false);
+                if (abandoned)
+                {
+                    // A forced end of a live owner's pin is terminal in either
+                    // Shared mode. Only a dead legacy owner retains its diagnostic
+                    // marker; its foreign-facade refusal lease still ends here.
+                    if (_localTransactions != null || _transactionThread?.IsAlive != false)
+                        this.EndTransaction(releaseHold: false);
+                    else this.ReleaseTransactionLease();
+                }
             }
         }
 
@@ -273,6 +316,10 @@ namespace LiteDB
         /// </summary>
         private void CheckpointOnDispose()
         {
+            // Mapped final checkpoint belongs to the last table reference under
+            // exclusive DMS. A facade's cleanup must not reopen and bless a core
+            // whose holder just failed its close and left an uncertain fence.
+            if (_settings.SharedOneFile) return;
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
             if (!this.TryEnterForDispose(out var abandoned)) return;
             try

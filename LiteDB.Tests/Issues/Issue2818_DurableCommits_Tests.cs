@@ -65,6 +65,7 @@ namespace LiteDB.Tests.Issues
             {
                 return new LiteEngine(new EngineSettings
                 {
+                    SharedOneFile = false,
                     DataStream = Data, LogStream = Log, Password = password, DurableCommits = durableCommits
                 });
             }
@@ -254,7 +255,7 @@ namespace LiteDB.Tests.Issues
         {
             using var original = new TempFile();
             using var copy = new TempFile();
-            var connection = new ConnectionString { Filename = original.Filename, Password = password, DurableCommits = false };
+            var connection = new ConnectionString { SharedOneFile = false, Filename = original.Filename, Password = password, DurableCommits = false };
 
             try
             {
@@ -271,7 +272,7 @@ namespace LiteDB.Tests.Issues
                     File.WriteAllBytes(LogOf(copy), ReadShared(LogOf(original)));
                 }
 
-                using (var recovered = new LiteDatabase(new ConnectionString { Filename = copy.Filename, Password = password }))
+                using (var recovered = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = copy.Filename, Password = password }))
                 {
                     var rows = recovered.GetCollection("rows").FindAll().OrderBy(x => x["_id"].AsInt32).ToList();
 
@@ -299,7 +300,7 @@ namespace LiteDB.Tests.Issues
             {
                 foreach (var durable in new[] { false, true, false, true })
                 {
-                    var connection = new ConnectionString { Filename = file.Filename, Connection = type, DurableCommits = durable };
+                    var connection = new ConnectionString { SharedOneFile = false, Filename = file.Filename, Connection = type, DurableCommits = durable };
 
                     using (var db = new LiteDatabase(connection))
                     {
@@ -323,7 +324,7 @@ namespace LiteDB.Tests.Issues
         [InlineData(":temp:")]
         public void Opting_out_is_harmless_for_storage_that_is_not_a_file(string filename)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = filename, DurableCommits = false });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = filename, DurableCommits = false });
             var rows = db.GetCollection("rows");
 
             rows.Insert(new BsonDocument { ["_id"] = 1 });

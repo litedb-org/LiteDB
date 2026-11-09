@@ -66,6 +66,9 @@ namespace LiteDB.Engine
         internal void EnableChecksums(ref HeaderPage header)
         {
             if (_readOnly || ChecksumsEnabled) return;
+            using var truncate = (_signals as IWriteAdmissionSignals)?.TryEnterTruncate();
+            if (_signals is IWriteAdmissionSignals && truncate == null)
+                throw new InvalidOperationException("WAL conversion requires the only Shared participant.");
             this.RequireWritableStorage();
             using var structural = new StructuralScope(_signals);
             var stream = _dataPool.Writer.Value;
@@ -153,6 +156,10 @@ namespace LiteDB.Engine
             if (_state.DeferCheckpointStop) return false;
 #endif
             owned = _state.BeginStop(exception);
+            // Close marks the engine disposed before checkpointing, so BeginStop
+            // deliberately declines ownership there. Its structural unwind must
+            // still never clear the mapped fence after a failed final checkpoint.
+            (_signals as IWriteAdmissionSignals)?.FenceUncertain();
             return true;
         }
 

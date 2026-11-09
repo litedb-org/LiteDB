@@ -122,7 +122,7 @@ void WalCrashReadOnly()
     RequireUnchanged(directory, before, "the read-only legacy scan");
 }
 
-// Another process's shared reader holds a snapshot (its lease file is open and locked). The drain
+// Exercise the frozen v6 legacy opt-out: another process's shared reader holds a snapshot (its lease file is open and locked). The drain
 // cannot run past it, so the conversion must be refused with both files unchanged; it succeeded
 // by truncating the legacy WAL, losing its commits. Once the reader is gone, the open converts.
 void WalCrashSharedLease()
@@ -136,7 +136,7 @@ void WalCrashSharedLease()
         var seen = "";
         var error = Failure(() =>
         {
-            using var db = new LiteDatabase($"Filename={data};Connection=shared");
+            using var db = new LiteDatabase($"Filename={data};Connection=shared;Shared One File=false");
             var docs = db.GetCollection("docs").FindAll().ToList();
             seen = $"{docs.Count} documents, {docs.Count(x => x["value"] == 7)} with value 7";
         });
@@ -144,7 +144,7 @@ void WalCrashSharedLease()
             $"expected LOCK_TIMEOUT ({LiteException.LOCK_TIMEOUT}) while the lease is held; got {Describe(error, seen)} ({Sizes(Snapshot(directory))})");
         RequireUnchanged(directory, before, "the refused conversion");
     }
-    using var reopened = new LiteDatabase($"Filename={data};Connection=shared");
+    using var reopened = new LiteDatabase($"Filename={data};Connection=shared;Shared One File=false");
     CheckWalCrash(reopened, "shared open after the reader closed", indexed: true);
 }
 

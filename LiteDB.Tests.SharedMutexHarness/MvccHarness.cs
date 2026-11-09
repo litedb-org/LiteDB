@@ -28,6 +28,7 @@ internal static class MvccHarness
         if (CoordinatorHarness.TryRun(mode, filename, password, args)) return true;
         var settings = new EngineSettings
         {
+            SharedOneFile = false,
             Filename = filename, Password = password, TransactionPageLimit = 1, CacheSize = 8192
         };
         if (mode == "crash-checkpoint")

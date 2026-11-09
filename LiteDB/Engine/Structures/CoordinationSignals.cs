@@ -7,6 +7,8 @@ namespace LiteDB.Engine
         void FenceUncertain();
         void Stopped(long tenure);
         void BindState(EngineState state, long tenure);
+        /// <summary>Try to exclude every process for WAL truncation; null keeps the WAL.</summary>
+        System.IDisposable TryEnterTruncate();
     }
 
     /// <summary>

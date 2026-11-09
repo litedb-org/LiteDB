@@ -216,6 +216,7 @@ namespace LiteDB.Tests.Issues
         {
             return new LiteDatabase(new ConnectionString
             {
+                SharedOneFile = false,
                 Filename = file,
                 Password = password,
                 Connection = connection

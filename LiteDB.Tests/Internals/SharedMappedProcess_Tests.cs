@@ -39,7 +39,7 @@ namespace LiteDB.Internals
                 await child.Kill();
             }
             // A surviving temporary file must never prevent a fresh authority.
-            using (var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password }))
+            using (var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password }))
             using (var database = new LiteDatabase(engine))
             {
                 for (var i = 0; i < 3; i++) database.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
@@ -89,7 +89,7 @@ namespace LiteDB.Internals
         public async Task Death_during_partial_lease_or_writer_open_recovers_without_lost_data(string mode, string password)
         {
             await MvccProcess.Run("seed", Filename, password);
-            using var observerEngine = new SharedEngine(new EngineSettings { Filename = Filename, Password = password });
+            using var observerEngine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = password });
             using var observer = new LiteDatabase(observerEngine);
             for (var i = 0; i < 3; i++) observer.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
             var authority = (SharedCoordinationPage)typeof(SharedEngine).GetField("_coordination",
@@ -119,7 +119,7 @@ namespace LiteDB.Internals
 
         private void VerifyCold(string password, int revision)
         {
-            using (var database = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password }))
+            using (var database = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password }))
             {
                 foreach (var name in new[] { "docs", "cold" })
                 {

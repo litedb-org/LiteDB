@@ -1,7 +1,10 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -9,6 +12,7 @@ using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
 using Xunit;
+using Xunit.Abstractions;
 using LiteDB.Tests;
 
 namespace LiteDB.Internals
@@ -16,8 +20,13 @@ namespace LiteDB.Internals
     public class SharedOneFileReaders_Tests : IDisposable
     {
         private readonly string _directory = Path.Combine(SharedMappedDirectory.Root, "litedb-shm-readers-" + Guid.NewGuid().ToString("N"));
+        private readonly ITestOutputHelper _output;
         private string Filename => Path.Combine(_directory, "test.db");
-        public SharedOneFileReaders_Tests() => Directory.CreateDirectory(_directory);
+        public SharedOneFileReaders_Tests(ITestOutputHelper output)
+        {
+            _output = output;
+            Directory.CreateDirectory(_directory);
+        }
         private EngineSettings Settings(int generations = 256) => new EngineSettings
         { Filename = Filename, SharedOneFile = true, SharedGenerationCapacity = generations };
 
@@ -72,11 +81,22 @@ namespace LiteDB.Internals
             var table = SharedMemoryReaderTable.Open(Settings());
             using var local = new SharedMemoryReaders(table);
             table.LiveVersions().Should().Equal(11);
-            kill(first.ProcessId, 19).Should().Be(0);
+            SharedProcessSignals.Stop(first.ProcessId);
             try { table.LiveVersions().Should().Equal(11); }
-            finally { kill(first.ProcessId, 18).Should().Be(0); }
-            await first.Kill();
-            table.LiveVersions().Should().BeEmpty();
+            finally { SharedProcessSignals.Resume(first.ProcessId); }
+            var killed = Stopwatch.StartNew();
+            await first.Kill(sharedFilesRemainOpen: true);
+            var initialFloors = table.LiveVersions();
+            var slot = int.Parse(firstIdentity.Split(':')[0]);
+            var initiallyLive = table.Authority.Locks.IsLive(slot);
+            // Process exit can precede Windows kernel handle/byte-range cleanup.
+            // Wait for the SAME native slot predicate used by every production scan.
+            // No writer, reopen, new participant or mapped-byte reset may help reclaim it.
+            SpinWait.SpinUntil(() => !table.Authority.Locks.IsLive(slot), TimeSpan.FromSeconds(5))
+                .Should().BeTrue("the dead child's native slot must be released within five seconds");
+            var releasedMs = killed.Elapsed.TotalMilliseconds;
+            table.LiveVersions().Should().BeEmpty("the first scan after native release must exclude the dead floor");
+            _output.WriteLine($"READER_DEATH kill_to_clear_ms={killed.Elapsed.TotalMilliseconds:F3} native_release_ms={releasedMs:F3} initial_live={initiallyLive} initial_floors={string.Join(",", initialFloors ?? new[] { -1 })}");
             using var second = new MvccProcess("one-file-reader-hold", Filename, null);
             await second.Expect("ready");
             var secondIdentity = await second.ReadLine(TimeSpan.FromSeconds(5));
@@ -87,8 +107,9 @@ namespace LiteDB.Internals
             table.LiveVersions().Should().BeEmpty();
         }
 
-        [OneFileFact]
-        public void Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint()
+        [OneFileTheory]
+        [InlineData(false)] [InlineData(true)]
+        public void Three_live_snapshot_generations_keep_complete_payloads_indexes_and_unrelated_collection_through_checkpoint(bool warm)
         {
             using (var seed = new LiteDatabase(Filename))
             {
@@ -96,7 +117,9 @@ namespace LiteDB.Internals
                 seed.GetCollection("docs").EnsureIndex("group");
                 seed.GetCollection("unrelated").Insert(new BsonDocument { ["_id"] = 9, ["value"] = "untouched" });
             }
-            using var engine = new SharedEngine(Settings());
+            var settings = Settings();
+            if (!warm) settings.ReadTransform = (_, value) => value;
+            using var engine = new SharedEngine(settings);
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
             var readers = new List<IBsonDataReader>();
@@ -127,9 +150,31 @@ namespace LiteDB.Internals
             }
             finally { foreach (var reader in readers) reader.Dispose(); }
             db.Checkpoint();
-            Directory.GetFileSystemEntries(_directory).Select(Path.GetFileName)
-                .Should().OnlyContain(name => name == "test.db" || name == "test.db-log" || name == "test.db-shm");
-            engine.CoordinatedReadHits.Should().Be(0, "warm mapped admission belongs to slice 6");
+            var logName = Path.GetFileName(FileHelper.GetLogFile(Filename));
+            Directory.GetFiles(_directory).Select(Path.GetFileName)
+                .Should().OnlyContain(name => name == "test.db" || name == logName || name == "test.db-shm");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                var admission = Path.Combine(_directory, ".litedb-admission");
+                Directory.GetDirectories(_directory).Should().Equal(admission);
+                var locks = Directory.GetFiles(admission);
+                locks.Should().NotBeEmpty();
+                foreach (var path in locks)
+                {
+                    Path.GetExtension(path).Should().Be(".lock");
+                    new FileInfo(path).Length.Should().Be(0);
+                    File.GetAttributes(path).Should().NotHaveFlag(FileAttributes.ReparsePoint);
+                }
+                Directory.GetDirectories(admission).Should().BeEmpty();
+            }
+            else Directory.GetDirectories(_directory).Should().BeEmpty();
+            if (warm)
+            {
+                var before = engine.CoordinatedReadHits;
+                for (var i = 0; i < 3; i++) db.GetCollection("docs").FindById(1)["generation"].AsInt32.Should().Be(3);
+                engine.CoordinatedReadHits.Should().BeGreaterThan(before, "the same exact generations must also survive enabled warm admission");
+            }
+            else engine.CoordinatedReadHits.Should().Be(0, "transformed queries preserve the protected slow reader path");
         }
 
         [OneFileFact]
@@ -154,14 +199,13 @@ namespace LiteDB.Internals
         public void New_and_legacy_shared_protocols_cannot_mix_locally()
         {
             using var engine = new SharedEngine(Settings());
-            Action old = () => { using var legacy = new SharedEngine(new EngineSettings { Filename = Filename }); };
+            Action old = () => { using var legacy = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename }); };
             old.Should().Throw<IOException>().WithMessage("*admission*");
         }
 
         private static IEnumerable<BsonDocument> Documents(int generation) => Enumerable.Range(0, 300).Select(id =>
             new BsonDocument { ["_id"] = id, ["group"] = id % 2, ["generation"] = generation,
                 ["payload"] = new string((char)('a' + generation), 2048) });
-        [DllImport("libc", SetLastError = true)] private static extern int kill(int process, int signal);
         public void Dispose() => Directory.Delete(_directory, true);
     }
 }

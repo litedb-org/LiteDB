@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -79,7 +80,7 @@ namespace LiteDB.Internals
             {
                 if (path != files.Log || !unsupported) return 0;
                 hits++;
-                return 95;
+                return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? 45 : 95;
             };
             try
             {
@@ -87,6 +88,12 @@ namespace LiteDB.Internals
                 if (unsupported) hits.Should().BeGreaterThan(0);
                 table.Authority.Map.Load(SharedMemoryLayout.CommittedVersion).Should().Be(before);
                 Fenced(table);
+                var retained = engine.Pin;
+                retained.Should().NotBeNull("a successful cache-only commit may retain its writable core");
+                ((Action)files.WriteIsFree).Should().Throw<IOException>("the retained core still excludes native WRITE");
+                retained.RequestRelease(force: false);
+                retained.WaitReleased();
+                Fenced(table); // handoff must not turn an unproven sync into a durable publication
                 files.WriteIsFree();
             }
             finally { NativeFileSync.SimulateErrno = null; }
@@ -115,15 +122,15 @@ namespace LiteDB.Internals
             var map = table.Authority.Map;
             var offset = word == 0 ? SharedMemoryLayout.Control : word == 1 ? 0 : word == 2 ? SharedMemoryLayout.Page : word == 3 ? 8 : 48;
             var previous = map.Load(offset);
-            var data = File.ReadAllBytes(files.Filename);
-            var wal = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+            var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+            var wal = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
             map.Store(offset, 0);
             try
             {
                 Action write = () => db.GetCollection("docs").Update(Row(1, 1));
                 write.Should().Throw<IOException>();
-                File.ReadAllBytes(files.Filename).Should().Equal(data);
-                (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
+                MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(wal);
                 SharedMemoryReaderTable.Scan(table.Authority).Should().BeNull();
             }
             finally { map.Store(offset, previous); }

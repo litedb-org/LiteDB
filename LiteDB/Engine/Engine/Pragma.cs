@@ -22,6 +22,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Pragma(string name, BsonValue value)
         {
+            _state.Validate();
+            _monitor.EnsureWriteAllowed();
             if (this.Pragma(name) == value) return false;
 
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();

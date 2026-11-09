@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Client.Shared;
 using LiteDB.Tests.Safety;
 using Xunit;
 
@@ -56,7 +57,7 @@ namespace LiteDB.Tests.Engine
         {
             Seed(encrypted);
             using var protection = new OwnershipMonitor();
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -93,24 +94,40 @@ namespace LiteDB.Tests.Engine
 
         [Theory]
         [MemberData(nameof(Routes))]
-        public void Failed_retry_preserves_old_ownership_until_retry_or_rollback(bool encrypted, bool pinned)
+        public void Failed_retry_after_implicit_abort_leaves_no_transaction_ownership(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
             Action duplicate = () => db.GetCollection("docs").Insert(Row(1));
             duplicate.Should().Throw<LiteException>();
-            var monitor = Field<TransactionMonitor>(Field<LiteEngine>(engine, "_engine"), "_monitor");
-            monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+            Ownership(engine, pinned).Should().Be(0, "implicit abort returns the obsolete transaction hold immediately");
+            var monitors = new List<TransactionMonitor>();
+            void FailRegistration(LiteEngine core)
+            {
+                var monitor = Field<TransactionMonitor>(core, "_monitor");
+                monitors.Add(monitor);
+                monitor.BeforeTransactionRegistration = () => throw new IOException("retry begin failure");
+            }
+            var retained = Field<LiteEngine>(engine, "_engine");
+            if (retained != null) FailRegistration(retained);
+            SharedOwnershipEvents.CoreStage = (facade, core, stage) =>
+            {
+                if (ReferenceEquals(facade, engine) && stage == SharedOwnershipEvents.Opened) FailRegistration(core);
+            };
             try
             {
                 Action retry = () => db.BeginTrans();
                 retry.Should().Throw<IOException>().WithMessage("retry begin failure");
-                Ownership(engine, pinned).Should().Be(1, "failed Begin owes no new completion");
+                Ownership(engine, pinned).Should().Be(0, "failed Begin owes no new completion and cannot restore an aborted hold");
             }
-            finally { monitor.BeforeTransactionRegistration = null; }
+            finally
+            {
+                SharedOwnershipEvents.CoreStage = null;
+                foreach (var monitor in monitors) monitor.BeforeTransactionRegistration = null;
+            }
             db.BeginTrans().Should().BeTrue();
             Ownership(engine, pinned).Should().Be(1);
             duplicate.Should().Throw<LiteException>();
@@ -131,7 +148,7 @@ namespace LiteDB.Tests.Engine
         public void Ordinary_transaction_keeps_guards_and_releases_on_completion(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -157,7 +174,7 @@ namespace LiteDB.Tests.Engine
         public void Retry_retains_same_connection_recursion_and_peer_callback_guard(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var peer = new LiteDatabase(Connection(encrypted));
             using var anchor = Pin(engine, pinned);
@@ -171,7 +188,7 @@ namespace LiteDB.Tests.Engine
                 db.BeginTrans().Should().BeFalse();
                 db.GetCollection("docs").Insert(Row(2001));
                 Action callback = () => peer.BeginTrans();
-                callback.Should().Throw<InvalidOperationException>().WithMessage("*another connection*");
+                callback.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.SAME_THREAD_TRANSACTION);
                 yield return Row(2002);
             }
             db.GetCollection("docs").Insert(Input()).Should().Be(2);
@@ -191,7 +208,7 @@ namespace LiteDB.Tests.Engine
         public void Child_process_can_write_after_retry_commit(bool encrypted, bool pinned)
         {
             Seed(encrypted);
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename, Password = Password(encrypted) });
+            using var engine = new SharedEngine(new EngineSettings { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             using var anchor = Pin(engine, pinned);
             db.BeginTrans().Should().BeTrue();
@@ -248,6 +265,7 @@ namespace LiteDB.Tests.Engine
 
         private ConnectionString Connection(bool encrypted) => new ConnectionString
         {
+            SharedOneFile = false,
             Filename = Filename, Password = Password(encrypted), Connection = ConnectionType.Shared
         };
 
@@ -256,7 +274,7 @@ namespace LiteDB.Tests.Engine
 
         private void Seed(bool encrypted)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = Password(encrypted) });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             db.GetCollection("docs").Insert(Enumerable.Range(1, 150).Select(Row));
             db.GetCollection("docs").EnsureIndex("value");
             db.GetCollection("sentinel").Insert(Row(42));
@@ -264,7 +282,7 @@ namespace LiteDB.Tests.Engine
 
         private void Verify(bool encrypted, params int[] ids)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = Password(encrypted) });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = Password(encrypted) });
             var rows = db.GetCollection("docs");
             rows.FindAll().Select(x => x["_id"].AsInt32).OrderBy(x => x).Should().Equal(ids);
             foreach (var id in ids)

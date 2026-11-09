@@ -51,6 +51,9 @@ namespace LiteDB
         private void EnsureCoordination(bool allowCreate = true, bool writing = false)
         {
             if (_settings.SharedOneFile) return; // ABI 2 uses the participant authority.
+            // Keep default legacy-remnant reads under main plus reader leases.
+            // Attaching ABI-1 status would rewrite the remnants during a read-only open.
+            if (_readOnlyLegacyFallback) return;
             if (_coordination != null) return;
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {
@@ -121,7 +124,19 @@ namespace LiteDB
 
         private IBsonDataReader TryQueryCoordinated(string collection, Query query)
         {
-            if ((_coordination == null && MappedReads == null) || _pin != null || _transactionRunning || _owner.IsOwnedByCurrentThread) return null;
+            if (_coordination == null && MappedReads == null) return null;
+            // The holder can detach an idle pin between any two volatile loads.
+            // Keep one reference through the check; IsIdle serializes with close.
+            var pin = _pin;
+            if (pin != null)
+            {
+#if DEBUG || TESTING
+                CoordinationStage?.Invoke("pin-sampled");
+                CoordinationStage?.Invoke("cached-pin");
+#endif
+                if (!(this.UsesMappedTenure && pin.IsIdle)) return null;
+            }
+            if (_transactionRunning || _owner.IsOwnedByCurrentThread) return null;
             bool yieldToWriter;
             int delay;
             lock (_snapshotGate)
@@ -193,7 +208,7 @@ namespace LiteDB
         }
 
         /// <summary>Install only a snapshot opened and leased under the database mutex.</summary>
-        private IBsonDataReader TryInstallCoordinated(string collection, Query query, LiteEngine engine)
+        private IBsonDataReader TryInstallCoordinated(string collection, Query query, LiteEngine engine, SharedMutexPin use = null)
         {
             // A process-published cache must never own caller streams or a
             // ReadTransform target. Such callers already bypass cached admission;
@@ -213,7 +228,7 @@ namespace LiteDB
             catch
             {
                 try { engine.Dispose(); }
-                finally { _owner.Exit(); }
+                finally { this.ReleaseSnapshotUse(use); }
                 throw;
             }
             var snapshot = new CachedSharedSnapshot(engine, lease, status) { Readers = 1 };
@@ -245,7 +260,7 @@ namespace LiteDB
                 }
                 throw;
             }
-            finally { _owner.Exit(); }
+            finally { this.ReleaseSnapshotUse(use); }
         }
 
         private void RecordCachedWork(long ticks)

@@ -30,6 +30,7 @@ namespace LiteDB.Tests.Issues
             Seed(password);
             using var db = new LiteDatabase(new ConnectionString
             {
+                SharedOneFile = false,
                 Filename = Filename, Password = password, Connection = ConnectionType.Shared
             });
             RebuildService.SimulateInstallFailure = phase =>
@@ -60,6 +61,7 @@ namespace LiteDB.Tests.Issues
                 {
                     using var fresh = new LiteDatabase(new ConnectionString
                     {
+                        SharedOneFile = false,
                         Filename = Filename, Password = password, Connection = connection,
                         ReadOnly = readOnly, Upgrade = true, AutoRebuild = true
                     });
@@ -76,17 +78,17 @@ namespace LiteDB.Tests.Issues
             var recoveredPath = Path.Combine(_directory, "recovered.db");
             File.Copy(sourceIsLive ? Filename : Backup, recoveredPath);
             File.Copy(BackupLog, FileHelper.GetLogFile(recoveredPath));
-            using (var recovered = new LiteDatabase(new ConnectionString { Filename = recoveredPath, Password = password }))
+            using (var recovered = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = recoveredPath, Password = password }))
             {
                 AssertRows(recovered);
             }
-            using var candidate = new LiteDatabase(new ConnectionString { Filename = Candidate, Password = "new-password" });
+            using var candidate = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Candidate, Password = "new-password" });
             AssertRows(candidate);
         }
 
         private void Seed(string password)
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = Filename, Password = password });
+            using var db = new LiteDatabase(new ConnectionString { SharedOneFile = false, Filename = Filename, Password = password });
             db.CheckpointSize = 0;
             db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed" });
             db.Checkpoint();

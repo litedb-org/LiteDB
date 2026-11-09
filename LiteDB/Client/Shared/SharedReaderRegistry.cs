@@ -15,6 +15,8 @@ namespace LiteDB.Client.Shared
     /// A registry keeps one lease file for all its readers (<see cref="SharedReaderSlots"/>);
     /// a lease file named after a single version is still understood.
     /// </summary>
+    // Legacy implementation is frozen for v6 fallback and opt-out; removed in v7.
+    [Obsolete("Legacy Shared coordination is frozen for v6 and will be removed in v7.")]
     internal sealed class SharedReaderRegistry : ISharedReaderRegistry
     {
         private static readonly int[] _none = new int[0];

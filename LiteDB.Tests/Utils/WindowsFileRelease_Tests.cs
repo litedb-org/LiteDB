@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using LiteDB.Client.Shared;
 
 namespace LiteDB.Tests.Utils
 {
@@ -18,6 +19,44 @@ namespace LiteDB.Tests.Utils
         public void Only_Windows_sharing_and_lock_violations_are_eligible(int hresult, bool expected)
         {
             Assert.Equal(expected, WindowsFileRelease.IsSharingViolation(new IOException("failure", hresult)));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Native_admission_probe_requires_real_release_and_preserves_bytes(bool release)
+        {
+            if (!WindowsFileRelease.IsWindows) return;
+            using var file = new TempFile();
+            File.WriteAllText(file.Filename, "preserved crash evidence");
+            using var held = new DatabaseFileLock(file.Filename, false, false, qualify: false);
+            held.Lock(DatabaseFileLock.Admission, exclusive: false);
+            // Separate handles must conflict even within one process.
+            using (var other = new DatabaseFileLock(file.Filename, true, false, qualify: false))
+                Assert.False(other.TryLock(DatabaseFileLock.Admission, exclusive: true));
+            if (!release)
+            {
+                var elapsed = Stopwatch.StartNew();
+                Assert.Throws<IOException>(() => WindowsFileRelease.WaitForNativeAdmission(file.Filename, 100));
+                Assert.True(elapsed.ElapsedMilliseconds >= 100);
+            }
+            else
+            {
+                using var started = new ManualResetEventSlim();
+                var waiter = Task.Run(() =>
+                {
+                    started.Set();
+                    WindowsFileRelease.WaitForNativeAdmission(file.Filename);
+                });
+                try
+                {
+                    Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+                    Assert.NotSame(waiter, await Task.WhenAny(waiter, Task.Delay(100)));
+                }
+                finally { held.Unlock(DatabaseFileLock.Admission); }
+                await waiter;
+            }
+            Assert.Equal("preserved crash evidence", File.ReadAllText(file.Filename));
         }
 
         [Fact]

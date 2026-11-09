@@ -22,7 +22,7 @@ namespace LiteDB.Internals
         public void Legacy_Shared_replacement_retains_native_entry_and_idle_peers_reopen_the_new_core(string password)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, Password = password };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename, Password = password };
             using (var engine = new SharedEngine(settings))
             using (var owner = new LiteDatabase(engine, disposeOnClose: false))
             using (var peerEngine = new SharedEngine(settings))
@@ -76,7 +76,7 @@ namespace LiteDB.Internals
         public void Legacy_rebuild_callback_refuses_peer_read_before_waiting_for_snapshot_cache(string password)
         {
             using var file = new TempFile();
-            var settings = new EngineSettings { Filename = file.Filename, Password = password };
+            var settings = new EngineSettings { SharedOneFile = false, Filename = file.Filename, Password = password };
             using var engine = new SharedEngine(settings);
             using var owner = new LiteDatabase(engine, disposeOnClose: false);
             using var peerEngine = new SharedEngine(settings);
@@ -147,11 +147,14 @@ namespace LiteDB.Internals
             using (var engine = new SharedEngine(files.Settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
+                // Phase 3 permits sole-participant maintenance. A live sibling must
+                // still reject replacement before any native rekey.
+                using var maintenancePeer = new SharedEngine(files.Settings);
                 var table = engine.MappedReaderTable;
                 var key = table.Admission.RegistryKey;
                 var identity = table.Admission.Identity;
-                var data = File.ReadAllBytes(files.Filename);
-                var log = File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>();
+                var data = MappedPlatformTestNative.ReadAllBytes(files.Filename);
+                var log = File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>();
                 var rekey = 0;
                 NativeAdmission.ReplacementStage = (path, stage) => { if (path == files.Filename) rekey++; };
                 try
@@ -168,12 +171,12 @@ namespace LiteDB.Internals
                         }
                     };
                     // A live participant rejects incompatible opening settings;
-                    // a cold participant below rejects the replacement capability.
-                    if (operation == "rebuild") replace.Should().Throw<NotSupportedException>();
+                    // cold modern opens below prove no-op choices retain native identity.
+                    if (operation == "rebuild") replace.Should().Throw<InvalidOperationException>().WithMessage("*only participant*");
                     else replace.Should().Throw<InvalidOperationException>();
                     rekey.Should().Be(0);
-                    File.ReadAllBytes(files.Filename).Should().Equal(data);
-                    (File.Exists(files.Log) ? File.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
+                    MappedPlatformTestNative.ReadAllBytes(files.Filename).Should().Equal(data);
+                    (File.Exists(files.Log) ? MappedPlatformTestNative.ReadAllBytes(files.Log) : Array.Empty<byte>()).Should().Equal(log);
                     using var peer = new SharedEngine(files.Settings);
                     peer.MappedReaderTable.Should().BeSameAs(table);
                     table.Admission.RegistryKey.Should().BeSameAs(key);
@@ -187,8 +190,19 @@ namespace LiteDB.Internals
                 var settings = files.Settings;
                 settings.Upgrade = operation == "upgrade";
                 settings.AutoRebuild = operation == "autorebuild";
-                Action coldReplace = () => { using var refused = new SharedEngine(settings); };
-                coldReplace.Should().Throw<NotSupportedException>();
+                // A modern file needs no upgrade/rebuild. Phase 3 supports these
+                // choices offline; prove the no-op open never replaces its inode.
+                using var admission = NativeAdmission.Open(settings, true);
+                var identity = admission.Identity;
+                var key = admission.RegistryKey;
+                for (var repeat = 0; repeat < 2; repeat++)
+                {
+                    using var requested = new SharedEngine(settings);
+                    requested.MappedReaderTable.Admission.Identity.Should().Be(identity);
+                    requested.MappedReaderTable.Admission.RegistryKey.Should().BeSameAs(key);
+                    using var db = new LiteDatabase(requested, disposeOnClose: false);
+                    SharedOneFilePublicationFixture.Verify(db, 0);
+                }
             }
             for (var repeat = 0; repeat < 2; repeat++)
             {

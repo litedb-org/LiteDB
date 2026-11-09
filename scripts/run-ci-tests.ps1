@@ -83,7 +83,16 @@ if ($PartitionSuite) {
         'shared-mapped-process' = 'FullyQualifiedName~LiteDB.Internals.SharedMappedProcess'
         'shared-upgrade-process' = 'FullyQualifiedName~LiteDB.Internals.SharedCoordinationUpgradeProcess'
         'shared-process' = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName~Process&FullyQualifiedName!~LiteDB.Internals.SharedMappedProcess&FullyQualifiedName!~LiteDB.Internals.SharedCoordinationUpgradeProcess'
-        shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process'
+        # The old shared session exhausted 300 s while still completing cases.
+        # Keep process-death matrices and tenure reviews independently bounded.
+        'shared-maintenance-crash-death' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName~Every_maintenance_death_preserves_committed_pair_and_repeats'
+        'shared-maintenance-crash-recovery' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName~Recovery_can_itself_die_and_be_repeated'
+        # Complement retains rollback and any future theories; no cases disappear.
+        'shared-maintenance-crash' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~Process&FullyQualifiedName!~Every_maintenance_death_preserves_committed_pair_and_repeats&FullyQualifiedName!~Recovery_can_itself_die_and_be_repeated'
+        'shared-final-close' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileFinalClose&FullyQualifiedName!~Process'
+        'shared-rebuild' = 'FullyQualifiedName~LiteDB.Internals.SharedOneFileRebuild&FullyQualifiedName!~Process'
+        'shared-writer-tenure' = 'FullyQualifiedName~LiteDB.Internals.SharedWriterTenure&FullyQualifiedName!~Process'
+        shared = 'FullyQualifiedName~LiteDB.Internals.Shared&FullyQualifiedName!~Process&FullyQualifiedName!~LiteDB.Internals.SharedOneFileMaintenanceCrash&FullyQualifiedName!~LiteDB.Internals.SharedOneFileFinalClose&FullyQualifiedName!~LiteDB.Internals.SharedOneFileRebuild&FullyQualifiedName!~LiteDB.Internals.SharedWriterTenure'
         mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
         internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
@@ -180,11 +189,18 @@ $arguments = @(
     'vstest', $assembly,
     "/Framework:.NETCoreApp,Version=v$RuntimeMajor.0", "/Platform:$Architecture",
     "/Settings:$(Join-Path $repoRoot 'tests.runsettings')", "/ResultsDirectory:$results",
-    # Capture the active sequence and dump before the unchanged 300s session limit.
-    "/Blame:CollectHangDump;TestTimeout=$($HangTimeoutSeconds)s;HangDumpType=mini",
     "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=minimal'
 )
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }
+# Per-test inactivity capture distinguishes a stalled Shared operation from a
+# session that simply exhausts its unchanged 300-second cumulative budget.
+if ($Filter -match 'Shared') {
+    $arguments += '/Blame:CollectHangDump;TestTimeout=120s;HangDumpType=mini'
+}
+else {
+    # Other partitions also capture evidence before the unchanged session ceiling.
+    $arguments += "/Blame:CollectHangDump;TestTimeout=$($HangTimeoutSeconds)s;HangDumpType=mini"
+}
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 & dotnet @arguments
 $exitCode = $LASTEXITCODE
