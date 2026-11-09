@@ -55,7 +55,8 @@ namespace LiteDB.Tests.Engine
             gate.BeforeWait = () => gate.Exit(owner);
             var worker = Task.Run(() =>
             {
-                Assert.True(gate.TryEnter(next, TimeSpan.FromSeconds(2)));
+                // A lost signal must fail the outer guard instead of acquiring after timeout.
+                Assert.True(gate.TryEnter(next, TimeSpan.FromSeconds(30)));
                 gate.Exit(next);
             });
             Assert.True(worker.Wait(TimeSpan.FromSeconds(5)));
