@@ -262,7 +262,7 @@ namespace LiteDB.Tests.Engine
             var directory = Path.Combine(Path.GetTempPath(), "litedb-coordination-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(Path.Combine(directory, "test.db")); }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Engine
             var directory = Path.Combine(Path.GetTempPath(), "litedb-abi-regression-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { action(Path.Combine(directory, "test.db")); }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

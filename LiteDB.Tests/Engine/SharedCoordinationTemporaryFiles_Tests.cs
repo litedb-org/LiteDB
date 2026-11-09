@@ -100,7 +100,7 @@ namespace LiteDB.Tests.Engine
             var directory = Path.Combine(Path.GetTempPath(), "litedb-control-temp-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(directory); }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

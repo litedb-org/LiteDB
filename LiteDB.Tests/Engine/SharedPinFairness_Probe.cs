@@ -126,7 +126,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
-            try { Directory.Delete(_directory, recursive: true); }
+            try { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(_directory); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }

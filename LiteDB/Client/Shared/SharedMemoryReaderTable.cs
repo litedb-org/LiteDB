@@ -346,12 +346,16 @@ namespace LiteDB.Client.Shared
         public void SlotReused() => _writer.SlotReused();
         public void Committed(int version) => _writer.Committed(version);
 
+#if DEBUG || TESTING
         [ThreadStatic] internal static Action<string> PublicationStage;
+#endif
         [System.Diagnostics.Conditional("DEBUG"), System.Diagnostics.Conditional("TESTING")]
         internal static void PublishStage(string stage)
         {
+#if DEBUG || TESTING
             Reachability.FaultPoint("PublicationStage");
             PublicationStage?.Invoke(stage);
+#endif
         }
 
         private void Unregister(int version)

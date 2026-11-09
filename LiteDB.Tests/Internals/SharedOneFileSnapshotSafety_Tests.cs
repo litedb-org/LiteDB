@@ -83,7 +83,7 @@ namespace LiteDB.Internals
                 count.Should().Be(256);
                 db.GetCollection("refs").FindById(1)["value"].AsString.Should().Be("after");
             }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

@@ -172,7 +172,7 @@ namespace LiteDB.Tests.Engine
             var directory = Path.Combine(SharedMappedDirectory.Root, "litedb-coordinated-lifecycle-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             try { test(Path.Combine(directory, "test.db")); }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

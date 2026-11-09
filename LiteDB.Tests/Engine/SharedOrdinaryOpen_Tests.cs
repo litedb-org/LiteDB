@@ -74,7 +74,7 @@ namespace LiteDB.Tests.Engine
                     Validate(cold, rollback ? 0 : 7);
                 success = true;
             }
-            finally { if (success) Directory.Delete(directory, true); }
+            finally { if (success) LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
 
         private static BsonDocument Row(int id, int generation) => new BsonDocument

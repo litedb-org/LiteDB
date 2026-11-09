@@ -74,7 +74,7 @@ namespace LiteDB.Tests.Engine
                 }
                 passed = true;
             }
-            finally { if (passed) Directory.Delete(directory, true); }
+            finally { if (passed) LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

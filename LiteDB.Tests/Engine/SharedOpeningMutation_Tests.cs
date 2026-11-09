@@ -197,7 +197,7 @@ namespace LiteDB.Tests.Engine
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, "test.db");
             test(file, FileHelper.GetLogFile(file));
-            Directory.Delete(directory, true); // Preserve failures for inspection.
+            LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); // Preserve failures for inspection.
         }
     }
 }

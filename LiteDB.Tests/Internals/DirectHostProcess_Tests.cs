@@ -45,7 +45,7 @@ namespace LiteDB.Internals
             using (var seed = new LiteDatabase(Filename))
                 seed.GetCollection("docs").Insert(System.Linq.Enumerable.Range(0, 256).Select(id =>
                     new BsonDocument { ["_id"] = id, ["payload"] = new string('x', 2048) }));
-            using var shared = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = Filename });
+            using var shared = new SharedEngine(new LiteDB.Engine.EngineSettings { Filename = Filename, SharedLinger = 0 });
             using (var reader = shared.Query("docs", new Query()))
             {
                 reader.Read().Should().BeTrue();

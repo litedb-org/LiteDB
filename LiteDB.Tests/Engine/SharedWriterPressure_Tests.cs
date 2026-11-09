@@ -72,7 +72,7 @@ namespace LiteDB.Tests.Engine
                 }
                 passed = true;
             }
-            finally { if (passed) Directory.Delete(directory, true); }
+            finally { if (passed) LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
 
         [MappedTheory]
@@ -128,7 +128,7 @@ namespace LiteDB.Tests.Engine
                 }
                 passed = true;
             }
-            finally { if (passed) Directory.Delete(directory, true); }
+            finally { if (passed) LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
 
         [MappedTheory]
@@ -199,7 +199,7 @@ namespace LiteDB.Tests.Engine
             }
             finally
             {
-                if (passed) Directory.Delete(directory, true);
+                if (passed) LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory);
                 else Console.Error.WriteLine("Preserved writer-pressure database: " + directory);
             }
         }

@@ -193,7 +193,7 @@ namespace LiteDB.Tests.Engine
                 using var view = mapping.CreateViewAccessor();
                 test(page, view);
             }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
     }
 }

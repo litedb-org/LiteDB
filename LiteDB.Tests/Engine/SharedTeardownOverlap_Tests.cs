@@ -44,7 +44,7 @@ namespace LiteDB.Tests.Engine
             // Leaks of a failed run are counted, not left to end a later test's process.
             CollectFinalizers();
             PageBuffer.FinalizedInUse = null;
-            try { Directory.Delete(_directory, recursive: true); }
+            try { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(_directory); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }

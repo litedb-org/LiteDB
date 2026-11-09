@@ -96,7 +96,7 @@ namespace LiteDB.Tests.Engine
                 using (var cold = new LiteDatabase(file))
                     cold.GetCollection("rows").Find(Query.EQ("value", "updated")).Single()["_id"].AsInt32.Should().Be(1);
             }
-            finally { Directory.Delete(directory, true); }
+            finally { LiteDB.Tests.WindowsFileRelease.DeleteDirectory(directory); }
         }
 
         private static void PreserveBeforeCleanup(string directory)
