@@ -23,7 +23,10 @@ namespace LiteDB.Client.Shared
 
         internal static SharedMemoryReaders Attach(EngineSettings settings)
         {
-            using var admission = NativeAdmission.Open(settings, true);
+            // SharedEngine already holds validated native admission through this
+            // entire attach. Retain that owner instead of reopening/qualifying
+            // the same file twice inside one protected construction.
+            using var admission = settings.SharedAdmission?.Retain() ?? NativeAdmission.Open(settings, true);
             var identity = admission.Identity;
             while (true)
             {
@@ -47,7 +50,7 @@ namespace LiteDB.Client.Shared
                     entry.Initializer = Thread.CurrentThread;
                     try
                     {
-                        table = SharedMemoryReaderTable.Open(settings);
+                        table = SharedMemoryReaderTable.Open(settings, admission);
                         table.ClosedCallback = () => Retire(identity, entry);
                         entry.Table = table;
                         try { return new SharedMemoryReaders(table); }
