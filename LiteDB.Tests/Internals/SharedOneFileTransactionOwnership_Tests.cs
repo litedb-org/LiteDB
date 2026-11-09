@@ -93,7 +93,7 @@ namespace LiteDB.Internals
         [OneFileFact]
         public void A_consistent_same_layout_authority_is_reused_after_last_close()
         {
-            var settings = new EngineSettings { Filename = Filename, SharedOneFile = true };
+            var settings = new EngineSettings { Filename = Filename, SharedOneFile = true, SharedLinger = 0 };
             var reuseBefore = SharedMemoryAuthority.BootstrapReuseCount;
             Guid authority;
             using (var first = new SharedEngine(settings)) authority = first.MappedReaderTable.Authority.Header.Authority;
