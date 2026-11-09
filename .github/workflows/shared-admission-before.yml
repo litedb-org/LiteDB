@@ -21,7 +21,7 @@ jobs:
           path: product
       - uses: actions/checkout@v4
         with:
-          ref: 1243910f1
+          ref: 1243910f13df42d6110211713926eb52dfae6d96
           path: overlay
       - uses: actions/setup-dotnet@v4
         with:
