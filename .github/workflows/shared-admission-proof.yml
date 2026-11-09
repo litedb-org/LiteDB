@@ -9,7 +9,7 @@ permissions:
 jobs:
   admission:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -29,10 +29,12 @@ jobs:
         if: runner.os == 'macOS'
         shell: pwsh
         run: |
+          $failed = $false
           foreach ($framework in @('net8.0', 'net10.0')) {
-            dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f $framework -p:TestingEnabled=true -p:GitVersionEnabled=false --settings tests.runsettings --filter 'FullyQualifiedName~SharedOneFile|FullyQualifiedName~SharedMapped|FullyQualifiedName~SharedCoordination|FullyQualifiedName~NativeAdmission|FullyQualifiedName~SharedRequestAdmission' --logger "trx;LogFileName=mapped-$framework.trx" --results-directory artifacts_temp/admission
-            if ($LASTEXITCODE) { throw "Mapped matrix failed on $framework" }
+            python .github/scripts/run_shared_admission_matrix.py $framework
+            if ($LASTEXITCODE) { $failed = $true }
           }
+          if ($failed) { throw 'Mapped matrix failed; inspect all per-class TRX files' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

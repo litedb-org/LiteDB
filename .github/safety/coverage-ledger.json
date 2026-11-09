@@ -1235,6 +1235,20 @@
       "coveredBy": [
         "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs#Concurrent_processes_open_use_dispose_default_Shared_preserve_all_commits"
       ]
+    },
+    {
+      "id": "f-p5-macos-eagain-mapped-class-sessions",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/shared-admission-proof.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "All SharedOneFile, SharedMapped, SharedCoordination, NativeAdmission and SharedRequestAdmission test classes run on macOS net8 and net10 with unchanged300-second session limits and all failures retained.",
+      "reason": "The combined new mapped filter aborted after316 passing net8 cases at the300-second VSTest session cap. Partition by discovered test class, continue through every class/runtime on failure, and increase only the enclosing job budget to60 minutes. No test/session timeout is increased and no class or runtime is removed.",
+      "coveredBy": [
+        ".github/scripts/run_shared_admission_matrix.py",
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs"
+      ]
     }
   ]
 }
