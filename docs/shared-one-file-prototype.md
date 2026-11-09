@@ -189,3 +189,12 @@ The mapped platform guard remains Linux x64/.NET 8+ pending wider qualification.
 The [ownership transition protocol](shared-one-file-ownership.md) specifies local
 reservation/publication, native tenure, terminal cleanup, abandoned-owner handoff
 and deferred disposal, together with their discriminating safety tests and limits.
+
+Mapped coordination view disposal closes the safe view before disposing its
+accessor, avoiding the accessor's implicit synchronous flush. No persisted
+coordination bytes are a recovery oracle: independent DB/WAL validation under
+bootstrap/main/WRITE still precedes Ready, and invalid quiescent coordination
+still resets or refuses according to the envelope rules above. Live peers rely
+on coherent shared mappings, not a disk flush. DB/WAL durability barriers are
+unchanged. This follows docs/rules/data-safety.md and storage-ownership.md;
+bootstrap/process-death and final-close coverage remains required.

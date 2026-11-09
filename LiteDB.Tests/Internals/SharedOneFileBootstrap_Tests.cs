@@ -25,6 +25,25 @@ namespace LiteDB.Internals
             db.GetCollection("docs").EnsureIndex("value");
             db.GetCollection("unrelated").Insert(new BsonDocument { ["_id"] = 7, ["payload"] = new string('z', 20000) });
         }
+        [OneFileFact]
+        public void Closing_ephemeral_view_keeps_peer_coherent_and_reopens_without_a_flush_contract()
+        {
+            var path = Path.Combine(_directory, "view.shm");
+            using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite);
+            file.SetLength(8192);
+            using var peer = new SharedMemoryMap(file, file.Length);
+            var closing = new SharedMemoryMap(file, file.Length);
+            closing.Store(0, 123);
+            closing.Dispose();
+            closing.Dispose();
+            peer.Load(0).Should().Be(123);
+            peer.Store(8, 456);
+            using var reopened = new SharedMemoryMap(file, file.Length);
+            reopened.Load(8).Should().Be(456);
+            reopened.Store(16, 789);
+            peer.Load(16).Should().Be(789);
+        }
+
         internal static readonly string[] Cuts = { "created", "invalidated", "allocated", "mapped", "odd", "envelope-a", "envelope-b",
             "before-storage", "after-storage", "before-ready", "ready", "before-dms-downgrade", "downgraded", "write-released", "claimed", "before-close", "closed" };
         public static IEnumerable<object[]> Boundaries => Cuts.Select(s => new object[] { s });
