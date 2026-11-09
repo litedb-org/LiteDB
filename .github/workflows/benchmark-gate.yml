@@ -366,11 +366,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-arm, windows-latest, macos-latest]
         framework: [net8.0, net10.0]
         include:
           - os: ubuntu-latest
             runner: ubuntu-24.04
+          - os: ubuntu-arm
+            runner: ubuntu-24.04-arm
           - os: windows-latest
             runner: windows-2025
           - os: macos-latest
