@@ -1,6 +1,8 @@
 name: F-P4 native admission diagnostic
 on:
   workflow_dispatch:
+  push:
+    branches: [v6/wip-f-p4-perf-native-diag]
 permissions:
   contents: read
 jobs:
