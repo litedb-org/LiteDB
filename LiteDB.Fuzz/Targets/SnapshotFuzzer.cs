@@ -116,6 +116,30 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         File.Move(temporary, path, true);
     }
 
+    internal static string ReadPublished(string path, TimeSpan timeout, Action sharingViolation = null)
+    {
+        var deadline = Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                // A Windows rename or scanner may briefly retain a handle after publication.
+                // Share deletion with the publisher; retry only native sharing/lock violations.
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            }
+            catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33
+                || (!OperatingSystem.IsWindows() && (error.HResult & 0xffff) == 11))
+            {
+                if (deadline.Elapsed >= timeout) throw;
+                sharingViolation?.Invoke();
+                Thread.Sleep(10);
+            }
+        }
+    }
+
     private static IEnumerable<BsonDocument> Documents(ILiteCollection<BsonDocument> rows, int mode) =>
         mode == 0 ? rows.Query().OrderBy("_id").ToEnumerable() :
         rows.Query().OrderBy("Value").ThenBy("_id").ToEnumerable();
@@ -204,7 +228,7 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
             File.Delete(sharedResult);
             Publish(_prefix + ".read", "read");
             WaitFor(sharedResult, "Snapshot reader did not return a validation.");
-            var value = File.ReadAllText(sharedResult);
+            var value = ReadPublished(sharedResult, TimeSpan.FromSeconds(15));
             File.Move(sharedResult, result, true);
             FuzzOracle.VerifySnapshotResult(_context, value);
         }

@@ -60,4 +60,44 @@ public sealed class HarnessControl_Tests
             Directory.Delete(root, true);
         }
     }
+    [Fact]
+    public async Task Published_result_waits_for_sharing_handle_and_preserves_payload()
+    {
+        var path = Path.GetTempFileName();
+        using var retry = new ManualResetEventSlim();
+        File.WriteAllText(path, "changed");
+        var held = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var read = Task.Run(() => SnapshotFuzzer.ReadPublished(path, TimeSpan.FromSeconds(10), retry.Set));
+        try
+        {
+            Assert.True(retry.Wait(TimeSpan.FromSeconds(5)));
+            Assert.False(read.IsCompleted);
+            held.Dispose();
+            var payload = await read;
+            Assert.Equal("changed", payload);
+            Assert.Throws<FuzzFailureException>(() => FuzzOracle.VerifySnapshotResult(null, payload));
+            FuzzOracle.VerifySnapshotResult(null, "ok");
+        }
+        finally
+        {
+            held.Dispose();
+            await read;
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Published_result_persistent_lock_and_missing_file_fail()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            using (var held = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                Assert.Throws<IOException>(() => SnapshotFuzzer.ReadPublished(path, TimeSpan.Zero));
+            File.Delete(path);
+            Assert.Throws<FileNotFoundException>(() => SnapshotFuzzer.ReadPublished(path, TimeSpan.FromSeconds(10)));
+        }
+        finally { File.Delete(path); }
+    }
+
 }
