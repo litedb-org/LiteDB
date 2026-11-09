@@ -1,0 +1,910 @@
+﻿2026-11-08T23:37:13.6442522Z Current runner version: '2.338.2'
+2026-11-08T23:37:13.6458204Z ##[group]Runner Image Provisioner
+2026-11-08T23:37:13.6458733Z Hosted Compute Agent
+2026-11-08T23:37:13.6459087Z Version: 20261028.624
+2026-11-08T23:37:13.6459525Z Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+2026-11-08T23:37:13.6459952Z Build Date: 2026-10-28T21:51:42Z
+2026-11-08T23:37:13.6460567Z Worker ID: {ad4854b2-4639-4514-9c48-030bd3b55fb0}
+2026-11-08T23:37:13.6460994Z Region: southcentralus
+2026-11-08T23:37:13.6461338Z Cloud: Azure
+2026-11-08T23:37:13.6461700Z ##[endgroup]
+2026-11-08T23:37:13.6462669Z ##[group]Operating System
+2026-11-08T23:37:13.6463060Z Ubuntu
+2026-11-08T23:37:13.6463420Z 26.04.1
+2026-11-08T23:37:13.6463733Z LTS
+2026-11-08T23:37:13.6464099Z ##[endgroup]
+2026-11-08T23:37:13.6464426Z ##[group]Runner Image
+2026-11-08T23:37:13.6464797Z Image: ubuntu-26.04
+2026-11-08T23:37:13.6465179Z Version: 20261101.186.1
+2026-11-08T23:37:13.6465922Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261101.186/images/ubuntu/Ubuntu2604-Readme.md
+2026-11-08T23:37:13.6466836Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261101.186
+2026-11-08T23:37:13.6467397Z ##[endgroup]
+2026-11-08T23:37:13.6468331Z ##[group]GITHUB_TOKEN Permissions
+2026-11-08T23:37:13.6469661Z Contents: read
+2026-11-08T23:37:13.6470056Z Metadata: read
+2026-11-08T23:37:13.6470557Z ##[endgroup]
+2026-11-08T23:37:13.6471916Z Secret source: Actions
+2026-11-08T23:37:13.6472484Z Cache mode: write
+2026-11-08T23:37:13.6473067Z Prepare workflow directory
+2026-11-08T23:37:13.6716236Z Prepare all required actions
+2026-11-08T23:37:13.6748759Z Getting action download info
+2026-11-08T23:37:13.9065189Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-08T23:37:14.0096214Z Download action repository 'actions/setup-dotnet@v4' (SHA:67a3573c9a986a3f9c594539f4ab511d57bb3ce9)
+2026-11-08T23:37:14.4476107Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-08T23:37:14.5722045Z Complete job name: linux-2
+2026-11-08T23:37:14.6380669Z ##[group]Run actions/checkout@v4
+2026-11-08T23:37:14.6381131Z with:
+2026-11-08T23:37:14.6381368Z   path: driver
+2026-11-08T23:37:14.6381625Z   repository: litedb-org/LiteDB
+2026-11-08T23:37:14.6383556Z   token: ***
+2026-11-08T23:37:14.6383798Z   ssh-strict: true
+2026-11-08T23:37:14.6384047Z   ssh-user: git
+2026-11-08T23:37:14.6384298Z   persist-credentials: true
+2026-11-08T23:37:14.6384573Z   clean: true
+2026-11-08T23:37:14.6384823Z   sparse-checkout-cone-mode: true
+2026-11-08T23:37:14.6385120Z   fetch-depth: 1
+2026-11-08T23:37:14.6385363Z   fetch-tags: false
+2026-11-08T23:37:14.6385613Z   show-progress: true
+2026-11-08T23:37:14.6385872Z   lfs: false
+2026-11-08T23:37:14.6386108Z   submodules: false
+2026-11-08T23:37:14.6386363Z   set-safe-directory: true
+2026-11-08T23:37:14.6386650Z   allow-unsafe-pr-checkout: false
+2026-11-08T23:37:14.6387001Z env:
+2026-11-08T23:37:14.6387237Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-08T23:37:14.6387532Z ##[endgroup]
+2026-11-08T23:37:14.8184487Z Syncing repository: litedb-org/LiteDB
+2026-11-08T23:37:14.8185494Z ##[group]Getting Git version info
+2026-11-08T23:37:14.8185883Z Working directory is '/home/runner/work/LiteDB/LiteDB/driver'
+2026-11-08T23:37:14.8186453Z [command]/usr/bin/git version
+2026-11-08T23:37:14.8190916Z git version 2.56.0
+2026-11-08T23:37:14.8201791Z ##[endgroup]
+2026-11-08T23:37:14.8209796Z Temporarily overriding HOME='/home/runner/work/_temp/f140a005-224c-44e9-bf24-2e0f68f44865' before making global git config changes
+2026-11-08T23:37:14.8210769Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-08T23:37:14.8212691Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/LiteDB/LiteDB/driver
+2026-11-08T23:37:14.8262367Z ##[group]Initializing the repository
+2026-11-08T23:37:14.8265557Z [command]/usr/bin/git init /home/runner/work/LiteDB/LiteDB/driver
+2026-11-08T23:37:14.8351828Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-08T23:37:14.8352799Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-08T23:37:14.8353425Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-08T23:37:14.8353834Z hint: call:
+2026-11-08T23:37:14.8354061Z hint:
+2026-11-08T23:37:14.8354361Z hint: 	git config --global init.defaultBranch <name>
+2026-11-08T23:37:14.8354711Z hint:
+2026-11-08T23:37:14.8355033Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-08T23:37:14.8355543Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-08T23:37:14.8355944Z hint:
+2026-11-08T23:37:14.8356180Z hint: 	git branch -m <name>
+2026-11-08T23:37:14.8356442Z hint:
+2026-11-08T23:37:14.8356789Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-08T23:37:14.8361928Z Initialized empty Git repository in /home/runner/work/LiteDB/LiteDB/driver/.git/
+2026-11-08T23:37:14.8369008Z [command]/usr/bin/git remote add origin https://github.com/litedb-org/LiteDB
+2026-11-08T23:37:14.8439984Z ##[endgroup]
+2026-11-08T23:37:14.8440855Z ##[group]Disabling automatic garbage collection
+2026-11-08T23:37:14.8442854Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-08T23:37:14.8487775Z ##[endgroup]
+2026-11-08T23:37:14.8488191Z ##[group]Setting up auth
+2026-11-08T23:37:14.8493771Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-08T23:37:14.8521459Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-08T23:37:14.8844926Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-08T23:37:14.8869604Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-08T23:37:14.9077416Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-08T23:37:14.9102583Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-08T23:37:14.9308079Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-08T23:37:14.9337719Z ##[endgroup]
+2026-11-08T23:37:14.9338243Z ##[group]Fetching the repository
+2026-11-08T23:37:14.9345022Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b811372fb09ea469ea884d06df22002225df4d71:refs/remotes/origin/v6/wip-p5-campaigns
+2026-11-08T23:37:16.1031575Z From https://github.com/litedb-org/LiteDB
+2026-11-08T23:37:16.1041412Z  * [new ref]         b811372fb09ea469ea884d06df22002225df4d71 -> origin/v6/wip-p5-campaigns
+2026-11-08T23:37:16.1043587Z ##[endgroup]
+2026-11-08T23:37:16.1044235Z ##[group]Determining the checkout info
+2026-11-08T23:37:16.1044929Z ##[endgroup]
+2026-11-08T23:37:16.1045360Z [command]/usr/bin/git sparse-checkout disable
+2026-11-08T23:37:16.1096181Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-08T23:37:16.1124974Z ##[group]Checking out the ref
+2026-11-08T23:37:16.1127769Z [command]/usr/bin/git checkout --progress --force -B v6/wip-p5-campaigns refs/remotes/origin/v6/wip-p5-campaigns
+2026-11-08T23:37:16.2273994Z Switched to a new branch 'v6/wip-p5-campaigns'
+2026-11-08T23:37:16.2276483Z branch 'v6/wip-p5-campaigns' set up to track 'origin/v6/wip-p5-campaigns'.
+2026-11-08T23:37:16.2285550Z ##[endgroup]
+2026-11-08T23:37:16.2322768Z [command]/usr/bin/git log -1 --format=%H
+2026-11-08T23:37:16.2343015Z b811372fb09ea469ea884d06df22002225df4d71
+2026-11-08T23:37:16.2704096Z ##[group]Run actions/checkout@v4
+2026-11-08T23:37:16.2704828Z with:
+2026-11-08T23:37:16.2705445Z   ref: e507faad40e968aa2fcf63ae6dd01fd7def2e07b
+2026-11-08T23:37:16.2706387Z   path: candidate
+2026-11-08T23:37:16.2706963Z   fetch-depth: 0
+2026-11-08T23:37:16.2707563Z   repository: litedb-org/LiteDB
+2026-11-08T23:37:16.2713207Z   token: ***
+2026-11-08T23:37:16.2713760Z   ssh-strict: true
+2026-11-08T23:37:16.2714330Z   ssh-user: git
+2026-11-08T23:37:16.2714917Z   persist-credentials: true
+2026-11-08T23:37:16.2715553Z   clean: true
+2026-11-08T23:37:16.2716136Z   sparse-checkout-cone-mode: true
+2026-11-08T23:37:16.2716827Z   fetch-tags: false
+2026-11-08T23:37:16.2717399Z   show-progress: true
+2026-11-08T23:37:16.2717985Z   lfs: false
+2026-11-08T23:37:16.2718537Z   submodules: false
+2026-11-08T23:37:16.2719136Z   set-safe-directory: true
+2026-11-08T23:37:16.2719811Z   allow-unsafe-pr-checkout: false
+2026-11-08T23:37:16.2720561Z env:
+2026-11-08T23:37:16.2721135Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-08T23:37:16.2721807Z ##[endgroup]
+2026-11-08T23:37:16.3257477Z Syncing repository: litedb-org/LiteDB
+2026-11-08T23:37:16.3260102Z ##[group]Getting Git version info
+2026-11-08T23:37:16.3261222Z Working directory is '/home/runner/work/LiteDB/LiteDB/candidate'
+2026-11-08T23:37:16.3278237Z [command]/usr/bin/git version
+2026-11-08T23:37:16.3307522Z git version 2.56.0
+2026-11-08T23:37:16.3319591Z ##[endgroup]
+2026-11-08T23:37:16.3328230Z Temporarily overriding HOME='/home/runner/work/_temp/d5077753-9d6f-483e-895c-a48566973844' before making global git config changes
+2026-11-08T23:37:16.3331317Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-08T23:37:16.3333694Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/LiteDB/LiteDB/candidate
+2026-11-08T23:37:16.3358706Z ##[group]Initializing the repository
+2026-11-08T23:37:16.3361991Z [command]/usr/bin/git init /home/runner/work/LiteDB/LiteDB/candidate
+2026-11-08T23:37:16.3409076Z Initialized empty Git repository in /home/runner/work/LiteDB/LiteDB/candidate/.git/
+2026-11-08T23:37:16.3411457Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-08T23:37:16.3413555Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-08T23:37:16.3415505Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-08T23:37:16.3417054Z hint: call:
+2026-11-08T23:37:16.3417842Z hint:
+2026-11-08T23:37:16.3418787Z hint: 	git config --global init.defaultBranch <name>
+2026-11-08T23:37:16.3419995Z hint:
+2026-11-08T23:37:16.3421281Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-08T23:37:16.3423113Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-08T23:37:16.3424128Z hint:
+2026-11-08T23:37:16.3424656Z hint: 	git branch -m <name>
+2026-11-08T23:37:16.3425314Z hint:
+2026-11-08T23:37:16.3426184Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-08T23:37:16.3428992Z [command]/usr/bin/git remote add origin https://github.com/litedb-org/LiteDB
+2026-11-08T23:37:16.3445295Z ##[endgroup]
+2026-11-08T23:37:16.3446813Z ##[group]Disabling automatic garbage collection
+2026-11-08T23:37:16.3448156Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-08T23:37:16.3472629Z ##[endgroup]
+2026-11-08T23:37:16.3474051Z ##[group]Setting up auth
+2026-11-08T23:37:16.3476258Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-08T23:37:16.3501748Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-08T23:37:16.3711991Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-08T23:37:16.3736129Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-08T23:37:16.3956320Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-08T23:37:16.3976654Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-08T23:37:16.4187087Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-08T23:37:16.4218276Z ##[endgroup]
+2026-11-08T23:37:16.4219756Z ##[group]Fetching the repository
+2026-11-08T23:37:16.4225692Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+2026-11-08T23:37:18.9291947Z From https://github.com/litedb-org/LiteDB
+2026-11-08T23:37:18.9292587Z  * [new branch]          Query_Tests             -> origin/Query_Tests
+2026-11-08T23:37:18.9293265Z  * [new branch]          automation/bugfix-build-probe-v1 -> origin/automation/bugfix-build-probe-v1
+2026-11-08T23:37:18.9293937Z  * [new branch]          automation/bugfix-build-probe-v2 -> origin/automation/bugfix-build-probe-v2
+2026-11-08T23:37:18.9294563Z  * [new branch]          automation/bugfix-matrix-v1 -> origin/automation/bugfix-matrix-v1
+2026-11-08T23:37:18.9295139Z  * [new branch]          automation/bugfix-matrix-v2 -> origin/automation/bugfix-matrix-v2
+2026-11-08T23:37:18.9295709Z  * [new branch]          automation/bugfix-matrix-v3 -> origin/automation/bugfix-matrix-v3
+2026-11-08T23:37:18.9296251Z  * [new branch]          automation/bugfix-runtime-v1 -> origin/automation/bugfix-runtime-v1
+2026-11-08T23:37:18.9296842Z  * [new branch]          automation/bugfix-runtime-v10 -> origin/automation/bugfix-runtime-v10
+2026-11-08T23:37:18.9297411Z  * [new branch]          automation/bugfix-runtime-v11 -> origin/automation/bugfix-runtime-v11
+2026-11-08T23:37:18.9298017Z  * [new branch]          automation/bugfix-runtime-v2 -> origin/automation/bugfix-runtime-v2
+2026-11-08T23:37:18.9298584Z  * [new branch]          automation/bugfix-runtime-v3 -> origin/automation/bugfix-runtime-v3
+2026-11-08T23:37:18.9299168Z  * [new branch]          automation/bugfix-runtime-v4 -> origin/automation/bugfix-runtime-v4
+2026-11-08T23:37:18.9299724Z  * [new branch]          automation/bugfix-runtime-v5 -> origin/automation/bugfix-runtime-v5
+2026-11-08T23:37:18.9300544Z  * [new branch]          automation/bugfix-runtime-v6 -> origin/automation/bugfix-runtime-v6
+2026-11-08T23:37:18.9301125Z  * [new branch]          automation/bugfix-runtime-v7 -> origin/automation/bugfix-runtime-v7
+2026-11-08T23:37:18.9301659Z  * [new branch]          automation/bugfix-runtime-v8 -> origin/automation/bugfix-runtime-v8
+2026-11-08T23:37:18.9302199Z  * [new branch]          automation/bugfix-runtime-v9 -> origin/automation/bugfix-runtime-v9
+2026-11-08T23:37:18.9302776Z  * [new branch]          automation/bugfix-scheduler-v1 -> origin/automation/bugfix-scheduler-v1
+2026-11-08T23:37:18.9303334Z  * [new branch]          automation/bugfix-state -> origin/automation/bugfix-state
+2026-11-08T23:37:18.9303852Z  * [new branch]          automation/wholesale-bugfix -> origin/automation/wholesale-bugfix
+2026-11-08T23:37:18.9304436Z  * [new branch]          bug/rollback-crash      -> origin/bug/rollback-crash
+2026-11-08T23:37:18.9305006Z  * [new branch]          ci/runtime-install-explicit-version -> origin/ci/runtime-install-explicit-version
+2026-11-08T23:37:18.9305598Z  * [new branch]          ci/split-engine-partition -> origin/ci/split-engine-partition
+2026-11-08T23:37:18.9306186Z  * [new branch]          ci/windows-dead-process-handle-release -> origin/ci/windows-dead-process-handle-release
+2026-11-08T23:37:18.9306855Z  * [new branch]          claude/compassionate-knuth-m52zj6 -> origin/claude/compassionate-knuth-m52zj6
+2026-11-08T23:37:18.9307496Z  * [new branch]          codex/2920-compact-document-storage -> origin/codex/2920-compact-document-storage
+2026-11-08T23:37:18.9308553Z  * [new branch]          codex/add-bufferslice.asspan-helper-method -> origin/codex/add-bufferslice.asspan-helper-method
+2026-11-08T23:37:18.9309410Z  * [new branch]          codex/add-markdown-documentation-to-docs-md-folder -> origin/codex/add-markdown-documentation-to-docs-md-folder
+2026-11-08T23:37:18.9310854Z  * [new branch]          codex/analyze-shared-x86 -> origin/codex/analyze-shared-x86
+2026-11-08T23:37:18.9311523Z  * [new branch]          codex/backup/stack-shared-20260924 -> origin/codex/backup/stack-shared-20260924
+2026-11-08T23:37:18.9312194Z  * [new branch]          codex/backup/storage-stack-20260922/pr-2924 -> origin/codex/backup/storage-stack-20260922/pr-2924
+2026-11-08T23:37:18.9312928Z  * [new branch]          codex/backup/storage-stack-20260922/pr-2936 -> origin/codex/backup/storage-stack-20260922/pr-2936
+2026-11-08T23:37:18.9313653Z  * [new branch]          codex/backup/storage-stack-20260922/pr-2937 -> origin/codex/backup/storage-stack-20260922/pr-2937
+2026-11-08T23:37:18.9314439Z  * [new branch]          codex/backup/storage-stack-20260922/pr-2954 -> origin/codex/backup/storage-stack-20260922/pr-2954
+2026-11-08T23:37:18.9315269Z  * [new branch]          codex/create-console-app-to-reproduce-rollback-crash -> origin/codex/create-console-app-to-reproduce-rollback-crash
+2026-11-08T23:37:18.9315837Z  * [new branch]          codex/diagnose-shared-progress -> origin/codex/diagnose-shared-progress
+2026-11-08T23:37:18.9316194Z  * [new branch]          codex/diagnose-shared-x86 -> origin/codex/diagnose-shared-x86
+2026-11-08T23:37:18.9316539Z  * [new branch]          codex/diagnostic-query-b204 -> origin/codex/diagnostic-query-b204
+2026-11-08T23:37:18.9316990Z  * [new branch]          codex/expand-query/queryplan-for-composite-sorting -> origin/codex/expand-query/queryplan-for-composite-sorting
+2026-11-08T23:37:18.9317541Z  * [new branch]          codex/extend-ilitequeryable-with-groupby-overload -> origin/codex/extend-ilitequeryable-with-groupby-overload
+2026-11-08T23:37:18.9318060Z  * [new branch]          codex/fix-2881-vector-query-compatibility -> origin/codex/fix-2881-vector-query-compatibility
+2026-11-08T23:37:18.9318492Z  * [new branch]          codex/fix-2991-reader-ownership -> origin/codex/fix-2991-reader-ownership
+2026-11-08T23:37:18.9318898Z  * [new branch]          codex/fix-bug-in-litedb-issue-2619 -> origin/codex/fix-bug-in-litedb-issue-2619
+2026-11-08T23:37:18.9319382Z  * [new branch]          codex/fix-bug-in-sortservice-multi-key-sorting -> origin/codex/fix-bug-in-sortservice-multi-key-sorting
+2026-11-08T23:37:18.9319890Z  * [new branch]          codex/implement-regression-tests-for-all -> origin/codex/implement-regression-tests-for-all
+2026-11-08T23:37:18.9320687Z  * [new branch]          codex/introduce-overloads-for-bsonserializer -> origin/codex/introduce-overloads-for-bsonserializer
+2026-11-08T23:37:18.9321569Z  * [new branch]          codex/investigate-dotnet-test-hang-issue -> origin/codex/investigate-dotnet-test-hang-issue
+2026-11-08T23:37:18.9322143Z  * [new branch]          codex/investigate-issue_2586_rollbacktransaction-reproduction -> origin/codex/investigate-issue_2586_rollbacktransaction-reproduction
+2026-11-08T23:37:18.9322768Z  * [new branch]          codex/investigate-rebuild_crash_io_write_error-test-timeout -> origin/codex/investigate-rebuild_crash_io_write_error-test-timeout
+2026-11-08T23:37:18.9323226Z  * [new branch]          codex/manual-v4-security -> origin/codex/manual-v4-security
+2026-11-08T23:37:18.9323582Z  * [new branch]          codex/manual-wholesale-bugfix -> origin/codex/manual-wholesale-bugfix
+2026-11-08T23:37:18.9323937Z  * [new branch]          codex/os-native-admission -> origin/codex/os-native-admission
+2026-11-08T23:37:18.9324403Z  * [new branch]          codex/plan-docfx-implementation-for-documentation -> origin/codex/plan-docfx-implementation-for-documentation
+2026-11-08T23:37:18.9324991Z  * [new branch]          codex/plan-docfx-implementation-for-documentation-36e6iw -> origin/codex/plan-docfx-implementation-for-documentation-36e6iw
+2026-11-08T23:37:18.9325757Z  * [new branch]          codex/plan-docfx-implementation-for-documentation-egw4da -> origin/codex/plan-docfx-implementation-for-documentation-egw4da
+2026-11-08T23:37:18.9326461Z  * [new branch]          codex/plan-docfx-implementation-for-documentation-sgj7ri -> origin/codex/plan-docfx-implementation-for-documentation-sgj7ri
+2026-11-08T23:37:18.9326938Z  * [new branch]          codex/pr-3003-read-profile -> origin/codex/pr-3003-read-profile
+2026-11-08T23:37:18.9327304Z  * [new branch]          codex/pr-903-resolve-conflicts -> origin/codex/pr-903-resolve-conflicts
+2026-11-08T23:37:18.9327696Z  * [new branch]          codex/pr2908-index-compatibility -> origin/codex/pr2908-index-compatibility
+2026-11-08T23:37:18.9328045Z  * [new branch]          codex/pr2908-medium     -> origin/codex/pr2908-medium
+2026-11-08T23:37:18.9328356Z  * [new branch]          codex/pr2908-ownership  -> origin/codex/pr2908-ownership
+2026-11-08T23:37:18.9328662Z  * [new branch]          codex/pr2908-repro      -> origin/codex/pr2908-repro
+2026-11-08T23:37:18.9328961Z  * [new branch]          codex/pr2908-safe       -> origin/codex/pr2908-safe
+2026-11-08T23:37:18.9329478Z  * [new branch]          codex/refactor-bufferreader-and-bufferwriter-for-number-handling -> origin/codex/refactor-bufferreader-and-bufferwriter-for-number-handling
+2026-11-08T23:37:18.9330365Z  * [new branch]          codex/refactor-bufferreader-and-bufferwriter-methods -> origin/codex/refactor-bufferreader-and-bufferwriter-methods
+2026-11-08T23:37:18.9331004Z  * [new branch]          codex/refactor-litedb-for-async-first-architecture -> origin/codex/refactor-litedb-for-async-first-architecture
+2026-11-08T23:37:18.9331552Z  * [new branch]          codex/refactor-litedb.reprorunner-cli-structure -> origin/codex/refactor-litedb.reprorunner-cli-structure
+2026-11-08T23:37:18.9332122Z  * [new branch]          codex/refactor-litedb.reprorunner-cli-structure-aucio6 -> origin/codex/refactor-litedb.reprorunner-cli-structure-aucio6
+2026-11-08T23:37:18.9332686Z  * [new branch]          codex/reproduce-and-fix-reported-litedb-bugs -> origin/codex/reproduce-and-fix-reported-litedb-bugs
+2026-11-08T23:37:18.9333099Z  * [new branch]          codex/review-2882-5067  -> origin/codex/review-2882-5067
+2026-11-08T23:37:18.9333502Z  * [new branch]          codex/review-sortservice.insert-behavior -> origin/codex/review-sortservice.insert-behavior
+2026-11-08T23:37:18.9334030Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x
+2026-11-08T23:37:18.9334636Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-1v45v0 -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-1v45v0
+2026-11-08T23:37:18.9335265Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-9yc980 -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-9yc980
+2026-11-08T23:37:18.9335900Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-fn7v9z -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-fn7v9z
+2026-11-08T23:37:18.9336524Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-kq0j8p -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-kq0j8p
+2026-11-08T23:37:18.9337153Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-n2e5o5 -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-n2e5o5
+2026-11-08T23:37:18.9337761Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-s4l0me -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-s4l0me
+2026-11-08T23:37:18.9338370Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-w6m203 -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-w6m203
+2026-11-08T23:37:18.9338989Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-y7k4ba -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-y7k4ba
+2026-11-08T23:37:18.9339728Z  * [new branch]          codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-zebmrg -> origin/codex/run-unit-tests-for-dotnet-versions-6.x-to-10.x-zebmrg
+2026-11-08T23:37:18.9340688Z  * [new branch]          codex/shared-cache-stability -> origin/codex/shared-cache-stability
+2026-11-08T23:37:18.9341272Z  * [new branch]          codex/shared-cache-stability-fence -> origin/codex/shared-cache-stability-fence
+2026-11-08T23:37:18.9341713Z  * [new branch]          codex/shared-checkpoint-drain-experiment -> origin/codex/shared-checkpoint-drain-experiment
+2026-11-08T23:37:18.9342183Z  * [new branch]          codex/shared-checkpoint-rescan-experiment -> origin/codex/shared-checkpoint-rescan-experiment
+2026-11-08T23:37:18.9342605Z  * [new branch]          codex/shared-equal-reader-load -> origin/codex/shared-equal-reader-load
+2026-11-08T23:37:18.9343066Z  * [new branch]          codex/shared-fixed-yield-experiment -> origin/codex/shared-fixed-yield-experiment
+2026-11-08T23:37:18.9343778Z  * [new branch]          codex/shared-mapped-admission-candidate -> origin/codex/shared-mapped-admission-candidate
+2026-11-08T23:37:18.9344465Z  * [new branch]          codex/shared-mixed-tail-measurement -> origin/codex/shared-mixed-tail-measurement
+2026-11-08T23:37:18.9345086Z  * [new branch]          codex/shared-mmap-writer-cost -> origin/codex/shared-mmap-writer-cost
+2026-11-08T23:37:18.9345699Z  * [new branch]          codex/shared-mode-diagnostics-3019 -> origin/codex/shared-mode-diagnostics-3019
+2026-11-08T23:37:18.9346255Z  * [new branch]          codex/shared-next-3013  -> origin/codex/shared-next-3013
+2026-11-08T23:37:18.9346824Z  * [new branch]          codex/shared-pacing-ten-experiment -> origin/codex/shared-pacing-ten-experiment
+2026-11-08T23:37:18.9347458Z  * [new branch]          codex/shared-performance-followups -> origin/codex/shared-performance-followups
+2026-11-08T23:37:18.9348031Z  * [new branch]          codex/shared-read-demand-authority -> origin/codex/shared-read-demand-authority
+2026-11-08T23:37:18.9348652Z  * [new branch]          codex/shared-resource-reference -> origin/codex/shared-resource-reference
+2026-11-08T23:37:18.9349284Z  * [new branch]          codex/shared-same-version-prototype -> origin/codex/shared-same-version-prototype
+2026-11-08T23:37:18.9349939Z  * [new branch]          codex/shared-sleep-zero-experiment -> origin/codex/shared-sleep-zero-experiment
+2026-11-08T23:37:18.9350650Z  * [new branch]          codex/shared-slots-indexed-validation -> origin/codex/shared-slots-indexed-validation
+2026-11-08T23:37:18.9351081Z  * [new branch]          codex/shared-slots-reader-validation -> origin/codex/shared-slots-reader-validation
+2026-11-08T23:37:18.9351500Z  * [new branch]          codex/shared-slots-tail-validation -> origin/codex/shared-slots-tail-validation
+2026-11-08T23:37:18.9351876Z  * [new branch]          codex/shared-spin-experiment -> origin/codex/shared-spin-experiment
+2026-11-08T23:37:18.9352267Z  * [new branch]          codex/shared-stream-yield-experiment -> origin/codex/shared-stream-yield-experiment
+2026-11-08T23:37:18.9352709Z  * [new branch]          codex/shared-writer-hint-500-experiment -> origin/codex/shared-writer-hint-500-experiment
+2026-11-08T23:37:18.9353172Z  * [new branch]          codex/shared-writer-reopen-prototype -> origin/codex/shared-writer-reopen-prototype
+2026-11-08T23:37:18.9353717Z  * [new branch]          codex/shared-writer-tail-diagnostics -> origin/codex/shared-writer-tail-diagnostics
+2026-11-08T23:37:18.9354090Z  * [new branch]          codex/stabilize-dev-ci  -> origin/codex/stabilize-dev-ci
+2026-11-08T23:37:18.9354423Z  * [new branch]          codex/stack-checksums   -> origin/codex/stack-checksums
+2026-11-08T23:37:18.9354718Z  * [new branch]          codex/stack-compact     -> origin/codex/stack-compact
+2026-11-08T23:37:18.9355009Z  * [new branch]          codex/stack-mvcc        -> origin/codex/stack-mvcc
+2026-11-08T23:37:18.9355298Z  * [new branch]          codex/stack-shared      -> origin/codex/stack-shared
+2026-11-08T23:37:18.9355696Z  * [new branch]          codex/tests-in-memory   -> origin/codex/tests-in-memory
+2026-11-08T23:37:18.9355974Z  * [new branch]          dev                     -> origin/dev
+2026-11-08T23:37:18.9356319Z  * [new branch]          dev-failing-ci          -> origin/dev-failing-ci
+2026-11-08T23:37:18.9356596Z  * [new branch]          dev-staging             -> origin/dev-staging
+2026-11-08T23:37:18.9356863Z  * [new branch]          dev_async               -> origin/dev_async
+2026-11-08T23:37:18.9357175Z  * [new branch]          feat/3064-1-owner-keyed-locks -> origin/feat/3064-1-owner-keyed-locks
+2026-11-08T23:37:18.9357550Z  * [new branch]          feat/3064-2-engine-handle-context -> origin/feat/3064-2-engine-handle-context
+2026-11-08T23:37:18.9357912Z  * [new branch]          feat/3064-3-handle-api-direct -> origin/feat/3064-3-handle-api-direct
+2026-11-08T23:37:18.9358245Z  * [new branch]          feat/3064-4-handle-shared -> origin/feat/3064-4-handle-shared
+2026-11-08T23:37:18.9358586Z  * [new branch]          feat/3064-transaction-handles -> origin/feat/3064-transaction-handles
+2026-11-08T23:37:18.9358942Z  * [new branch]          feat/3080-shared-wait-guards -> origin/feat/3080-shared-wait-guards
+2026-11-08T23:37:18.9359301Z  * [new branch]          feat/3083-shared-holder-reuse -> origin/feat/3083-shared-holder-reuse
+2026-11-08T23:37:18.9359606Z  * [new branch]          feat/docs               -> origin/feat/docs
+2026-11-08T23:37:18.9359874Z  * [new branch]          feat/groupby            -> origin/feat/groupby
+2026-11-08T23:37:18.9360277Z  * [new branch]          feat/spatial-A          -> origin/feat/spatial-A
+2026-11-08T23:37:18.9360618Z  * [new branch]          feat/spatial-B          -> origin/feat/spatial-B
+2026-11-08T23:37:18.9360895Z  * [new branch]          feat/spatial-B1         -> origin/feat/spatial-B1
+2026-11-08T23:37:18.9361173Z  * [new branch]          feat/spatial-C1         -> origin/feat/spatial-C1
+2026-11-08T23:37:18.9361459Z  * [new branch]          feat/spatial-patch1     -> origin/feat/spatial-patch1
+2026-11-08T23:37:18.9361761Z  * [new branch]          feat/spatial-patch3     -> origin/feat/spatial-patch3
+2026-11-08T23:37:18.9362041Z  * [new branch]          feat/vectors            -> origin/feat/vectors
+2026-11-08T23:37:18.9362466Z  * [new branch]          fix/3082-crash-consistent-allocation -> origin/fix/3082-crash-consistent-allocation
+2026-11-08T23:37:18.9363120Z  * [new branch]          fix/3094-shared-retry-writer-release -> origin/fix/3094-shared-retry-writer-release
+2026-11-08T23:37:18.9363784Z  * [new branch]          fix/3099-timeout-after-wal-restore -> origin/fix/3099-timeout-after-wal-restore
+2026-11-08T23:37:18.9364421Z  * [new branch]          fix/auto-heal-corrupt-wal-free-list -> origin/fix/auto-heal-corrupt-wal-free-list
+2026-11-08T23:37:18.9365107Z  * [new branch]          fix/ci-preserve-missing-trx-failures -> origin/fix/ci-preserve-missing-trx-failures
+2026-11-08T23:37:18.9365702Z  * [new branch]          fix/easy-bugfix-wave1   -> origin/fix/easy-bugfix-wave1
+2026-11-08T23:37:18.9366240Z  * [new branch]          fix/hnsw-graph-connectivity -> origin/fix/hnsw-graph-connectivity
+2026-11-08T23:37:18.9366870Z  * [new branch]          fix/issue-1002-expansion-v8-1002-a1 -> origin/fix/issue-1002-expansion-v8-1002-a1
+2026-11-08T23:37:18.9367517Z  * [new branch]          fix/issue-1002-expansion-v8-1002-a2 -> origin/fix/issue-1002-expansion-v8-1002-a2
+2026-11-08T23:37:18.9368154Z  * [new branch]          fix/issue-1002-hosted-v10-1002-a1 -> origin/fix/issue-1002-hosted-v10-1002-a1
+2026-11-08T23:37:18.9368787Z  * [new branch]          fix/issue-1002-hosted-v11-1002-a1 -> origin/fix/issue-1002-hosted-v11-1002-a1
+2026-11-08T23:37:18.9369352Z  * [new branch]          fix/issue-1506-expansion-v8-1506-a1 -> origin/fix/issue-1506-expansion-v8-1506-a1
+2026-11-08T23:37:18.9369808Z  * [new branch]          fix/issue-2839-sweep-2839-v2-a1 -> origin/fix/issue-2839-sweep-2839-v2-a1
+2026-11-08T23:37:18.9370358Z  * [new branch]          fix/issue-2869-expansion-v7-2869-a1 -> origin/fix/issue-2869-expansion-v7-2869-a1
+2026-11-08T23:37:18.9370890Z  * [new branch]          fix/issue-2874-canary-2874-v3-a1 -> origin/fix/issue-2874-canary-2874-v3-a1
+2026-11-08T23:37:18.9371258Z  * [new branch]          fix/issue-2874-canary-2874-v4-a1 -> origin/fix/issue-2874-canary-2874-v4-a1
+2026-11-08T23:37:18.9371824Z  * [new branch]          fix/linq-signed-zero-and-lifted-nulls -> origin/fix/linq-signed-zero-and-lifted-nulls
+2026-11-08T23:37:18.9372250Z  * [new branch]          fix/mapper-clone-attribute-mappings -> origin/fix/mapper-clone-attribute-mappings
+2026-11-08T23:37:18.9372617Z  * [new branch]          fix/pr2916-followups    -> origin/fix/pr2916-followups
+2026-11-08T23:37:18.9372958Z  * [new branch]          fix/read-snapshot-reused-page -> origin/fix/read-snapshot-reused-page
+2026-11-08T23:37:18.9373391Z  * [new branch]          fix/refuse-modern-wal-before-legacy-replay -> origin/fix/refuse-modern-wal-before-legacy-replay
+2026-11-08T23:37:18.9373830Z  * [new branch]          fix/shared-abandoned-reader-pins -> origin/fix/shared-abandoned-reader-pins
+2026-11-08T23:37:18.9374238Z  * [new branch]          fix/shared-retry-writer-release-hang -> origin/fix/shared-retry-writer-release-hang
+2026-11-08T23:37:18.9374675Z  * [new branch]          fix/transaction-monitor-release-order -> origin/fix/transaction-monitor-release-order
+2026-11-08T23:37:18.9375138Z  * [new branch]          fix/transaction-monitor-release-order-impl -> origin/fix/transaction-monitor-release-order-impl
+2026-11-08T23:37:18.9375519Z  * [new branch]          gh-pages                -> origin/gh-pages
+2026-11-08T23:37:18.9375801Z  * [new branch]          integration/bugfixes    -> origin/integration/bugfixes
+2026-11-08T23:37:18.9376077Z  * [new branch]          master                  -> origin/master
+2026-11-08T23:37:18.9376339Z  * [new branch]          no-diskqueue            -> origin/no-diskqueue
+2026-11-08T23:37:18.9376628Z  * [new branch]          pj/task-scheduler-poc   -> origin/pj/task-scheduler-poc
+2026-11-08T23:37:18.9376940Z  * [new branch]          pj/try-to-not-dead-lock -> origin/pj/try-to-not-dead-lock
+2026-11-08T23:37:18.9377315Z  * [new branch]          reduce-allocation-on-StartDisposable -> origin/reduce-allocation-on-StartDisposable
+2026-11-08T23:37:18.9377688Z  * [new branch]          safety-net/01-preflight -> origin/safety-net/01-preflight
+2026-11-08T23:37:18.9377992Z  * [new branch]          safety-net/02-oracles   -> origin/safety-net/02-oracles
+2026-11-08T23:37:18.9378296Z  * [new branch]          safety-net/03-wait-graph -> origin/safety-net/03-wait-graph
+2026-11-08T23:37:18.9378733Z  * [new branch]          safety-net/04-teardown  -> origin/safety-net/04-teardown
+2026-11-08T23:37:18.9379197Z  * [new branch]          safety-net/05-explorer  -> origin/safety-net/05-explorer
+2026-11-08T23:37:18.9379569Z  * [new branch]          safety-net/06-diff-nets -> origin/safety-net/06-diff-nets
+2026-11-08T23:37:18.9379862Z  * [new branch]          safety-net/07-models    -> origin/safety-net/07-models
+2026-11-08T23:37:18.9380278Z  * [new branch]          safety-net/08-workflow  -> origin/safety-net/08-workflow
+2026-11-08T23:37:18.9380583Z  * [new branch]          split/01-release-corpus -> origin/split/01-release-corpus
+2026-11-08T23:37:18.9380900Z  * [new branch]          split/02-unix-mutex-names -> origin/split/02-unix-mutex-names
+2026-11-08T23:37:18.9381225Z  * [new branch]          split/03-rebuild-ownership -> origin/split/03-rebuild-ownership
+2026-11-08T23:37:18.9381626Z  * [new branch]          split/04-legacy-salvage -> origin/split/04-legacy-salvage
+2026-11-08T23:37:18.9382147Z  * [new branch]          split/05-vector-compatibility -> origin/split/05-vector-compatibility
+2026-11-08T23:37:18.9382652Z  * [new branch]          split/06-legacy-wal     -> origin/split/06-legacy-wal
+2026-11-08T23:37:18.9383114Z  * [new branch]          split/07-caller-streams -> origin/split/07-caller-streams
+2026-11-08T23:37:18.9383630Z  * [new branch]          split/08-wal-write-atomicity -> origin/split/08-wal-write-atomicity
+2026-11-08T23:37:18.9384290Z  * [new branch]          split/09-durability-protocol -> origin/split/09-durability-protocol
+2026-11-08T23:37:18.9384647Z  * [new branch]          split/10-readonly-continuation -> origin/split/10-readonly-continuation
+2026-11-08T23:37:18.9385082Z  * [new branch]          split/11-witness-slot-reuse -> origin/split/11-witness-slot-reuse
+2026-11-08T23:37:18.9385451Z  * [new branch]          tools/transaction-path-benchmarks -> origin/tools/transaction-path-benchmarks
+2026-11-08T23:37:18.9385772Z  * [new branch]          unity3d                 -> origin/unity3d
+2026-11-08T23:37:18.9386016Z  * [new branch]          v1                      -> origin/v1
+2026-11-08T23:37:18.9386249Z  * [new branch]          v3                      -> origin/v3
+2026-11-08T23:37:18.9386486Z  * [new branch]          v4                      -> origin/v4
+2026-11-08T23:37:18.9386766Z  * [new branch]          v5.0.20                 -> origin/v5.0.20
+2026-11-08T23:37:18.9387088Z  * [new branch]          v5.1                    -> origin/v5.1
+2026-11-08T23:37:18.9387492Z  * [new branch]          v6/fix-refuse-damaged-vector-metadata -> origin/v6/fix-refuse-damaged-vector-metadata
+2026-11-08T23:37:18.9387855Z  * [new branch]          v6/p1-bench-budget      -> origin/v6/p1-bench-budget
+2026-11-08T23:37:18.9388165Z  * [new branch]          v6/p1-bench-gate        -> origin/v6/p1-bench-gate
+2026-11-08T23:37:18.9388451Z  * [new branch]          v6/p1-bg-checkpoint     -> origin/v6/p1-bg-checkpoint
+2026-11-08T23:37:18.9388743Z  * [new branch]          v6/p1-bg-checkpoint-s8  -> origin/v6/p1-bg-checkpoint-s8
+2026-11-08T23:37:18.9389028Z  * [new branch]          v6/p1-bulk-cpu          -> origin/v6/p1-bulk-cpu
+2026-11-08T23:37:18.9389305Z  * [new branch]          v6/p1-cpu-integrate     -> origin/v6/p1-cpu-integrate
+2026-11-08T23:37:18.9389594Z  * [new branch]          v6/p1-cpu-mapper2       -> origin/v6/p1-cpu-mapper2
+2026-11-08T23:37:18.9389879Z  * [new branch]          v6/p1-cpu-update        -> origin/v6/p1-cpu-update
+2026-11-08T23:37:18.9390292Z  * [new branch]          v6/p1-direct-host       -> origin/v6/p1-direct-host
+2026-11-08T23:37:18.9390653Z  * [new branch]          v6/p1-fix-checkpoint    -> origin/v6/p1-fix-checkpoint
+2026-11-08T23:37:18.9390953Z  * [new branch]          v6/p1-fix-commit-path   -> origin/v6/p1-fix-commit-path
+2026-11-08T23:37:18.9391254Z  * [new branch]          v6/p1-fix-compact-write -> origin/v6/p1-fix-compact-write
+2026-11-08T23:37:18.9391553Z  * [new branch]          v6/p1-fix-gate-compare  -> origin/v6/p1-fix-gate-compare
+2026-11-08T23:37:18.9391846Z  * [new branch]          v6/p1-fix-gate-noise    -> origin/v6/p1-fix-gate-noise
+2026-11-08T23:37:18.9392131Z  * [new branch]          v6/p1-fix-groupsync     -> origin/v6/p1-fix-groupsync
+2026-11-08T23:37:18.9392448Z  * [new branch]          v6/p1-fix-padding       -> origin/v6/p1-fix-padding
+2026-11-08T23:37:18.9392718Z  * [new branch]          v6/p1-fix-scan          -> origin/v6/p1-fix-scan
+2026-11-08T23:37:18.9392999Z  * [new branch]          v6/p1-group-integrate   -> origin/v6/p1-group-integrate
+2026-11-08T23:37:18.9393292Z  * [new branch]          v6/p1-group-nondurable  -> origin/v6/p1-group-nondurable
+2026-11-08T23:37:18.9393695Z  * [new branch]          v6/p1-perf-group        -> origin/v6/p1-perf-group
+2026-11-08T23:37:18.9394017Z  * [new branch]          v6/p1-perf-group-handle -> origin/v6/p1-perf-group-handle
+2026-11-08T23:37:18.9394299Z  * [new branch]          v6/p1-perf-rng          -> origin/v6/p1-perf-rng
+2026-11-08T23:37:18.9394569Z  * [new branch]          v6/p1-perf-wallen       -> origin/v6/p1-perf-wallen
+2026-11-08T23:37:18.9394862Z  * [new branch]          v6/p1-perf-wallen-bench -> origin/v6/p1-perf-wallen-bench
+2026-11-08T23:37:18.9395152Z  * [new branch]          v6/p1-speed-profile     -> origin/v6/p1-speed-profile
+2026-11-08T23:37:18.9395435Z  * [new branch]          v6/p1-write-path        -> origin/v6/p1-write-path
+2026-11-08T23:37:18.9395715Z  * [new branch]          v6/p2-review-slice5     -> origin/v6/p2-review-slice5
+2026-11-08T23:37:18.9396103Z  * [new branch]          v6/p2-review-slice6     -> origin/v6/p2-review-slice6
+2026-11-08T23:37:18.9396382Z  * [new branch]          v6/p2-review-slice7     -> origin/v6/p2-review-slice7
+2026-11-08T23:37:18.9396733Z  * [new branch]          v6/p3-default           -> origin/v6/p3-default
+2026-11-08T23:37:18.9397016Z  * [new branch]          v6/p3-offline-upgrade   -> origin/v6/p3-offline-upgrade
+2026-11-08T23:37:18.9397297Z  * [new branch]          v6/p3-platforms         -> origin/v6/p3-platforms
+2026-11-08T23:37:18.9397571Z  * [new branch]          v6/p3-qual-linuxarm     -> origin/v6/p3-qual-linuxarm
+2026-11-08T23:37:18.9397843Z  * [new branch]          v6/p3-qual-macos        -> origin/v6/p3-qual-macos
+2026-11-08T23:37:18.9398118Z  * [new branch]          v6/p3-qual-windows      -> origin/v6/p3-qual-windows
+2026-11-08T23:37:18.9398414Z  * [new branch]          v6/p3-review-maintenance -> origin/v6/p3-review-maintenance
+2026-11-08T23:37:18.9398716Z  * [new branch]          v6/p3-review-tenure     -> origin/v6/p3-review-tenure
+2026-11-08T23:37:18.9398992Z  * [new branch]          v6/p3-same-thread       -> origin/v6/p3-same-thread
+2026-11-08T23:37:18.9399264Z  * [new branch]          v6/p4-handles           -> origin/v6/p4-handles
+2026-11-08T23:37:18.9399532Z  * [new branch]          v6/phase1               -> origin/v6/phase1
+2026-11-08T23:37:18.9399785Z  * [new branch]          v6/phase2               -> origin/v6/phase2
+2026-11-08T23:37:18.9400048Z  * [new branch]          v6/phase2-p2g           -> origin/v6/phase2-p2g
+2026-11-08T23:37:18.9400476Z  * [new branch]          v6/phase3               -> origin/v6/phase3
+2026-11-08T23:37:18.9400724Z  * [new branch]          v6/phase4               -> origin/v6/phase4
+2026-11-08T23:37:18.9400976Z  * [new branch]          v6/phase5               -> origin/v6/phase5
+2026-11-08T23:37:18.9401235Z  * [new branch]          v6/wip-f-hnsw           -> origin/v6/wip-f-hnsw
+2026-11-08T23:37:18.9401519Z  * [new branch]          v6/wip-f-p3-darwin      -> origin/v6/wip-f-p3-darwin
+2026-11-08T23:37:18.9401813Z  * [new branch]          v6/wip-f-p3-default     -> origin/v6/wip-f-p3-default
+2026-11-08T23:37:18.9402094Z  * [new branch]          v6/wip-f-p3-fuzz        -> origin/v6/wip-f-p3-fuzz
+2026-11-08T23:37:18.9402392Z  * [new branch]          v6/wip-f-p3-readerdeath -> origin/v6/wip-f-p3-readerdeath
+2026-11-08T23:37:18.9402685Z  * [new branch]          v6/wip-f-p4-review      -> origin/v6/wip-f-p4-review
+2026-11-08T23:37:18.9402961Z  * [new branch]          v6/wip-f-retry          -> origin/v6/wip-f-retry
+2026-11-08T23:37:18.9403233Z  * [new branch]          v6/wip-f-retry-ci       -> origin/v6/wip-f-retry-ci
+2026-11-08T23:37:18.9403507Z  * [new branch]          v6/wip-f-retry-r3       -> origin/v6/wip-f-retry-r3
+2026-11-08T23:37:18.9403782Z  * [new branch]          v6/wip-f3137b           -> origin/v6/wip-f3137b
+2026-11-08T23:37:18.9404041Z  * [new branch]          v6/wip-f3137d           -> origin/v6/wip-f3137d
+2026-11-08T23:37:18.9404305Z  * [new branch]          v6/wip-f3137f           -> origin/v6/wip-f3137f
+2026-11-08T23:37:18.9404564Z  * [new branch]          v6/wip-f3137h           -> origin/v6/wip-f3137h
+2026-11-08T23:37:18.9404822Z  * [new branch]          v6/wip-f3137j           -> origin/v6/wip-f3137j
+2026-11-08T23:37:18.9405082Z  * [new branch]          v6/wip-f3137o           -> origin/v6/wip-f3137o
+2026-11-08T23:37:18.9405340Z  * [new branch]          v6/wip-f3140            -> origin/v6/wip-f3140
+2026-11-08T23:37:18.9405595Z  * [new branch]          v6/wip-f3140b           -> origin/v6/wip-f3140b
+2026-11-08T23:37:18.9405856Z  * [new branch]          v6/wip-hnswb            -> origin/v6/wip-hnswb
+2026-11-08T23:37:18.9406259Z  * [new branch]          v6/wip-hnswc            -> origin/v6/wip-hnswc
+2026-11-08T23:37:18.9406528Z  * [new branch]          v6/wip-hnswd            -> origin/v6/wip-hnswd
+2026-11-08T23:37:18.9406786Z  * [new branch]          v6/wip-hnswe            -> origin/v6/wip-hnswe
+2026-11-08T23:37:18.9407142Z  * [new branch]          v6/wip-hnswf            -> origin/v6/wip-hnswf
+2026-11-08T23:37:18.9407399Z  * [new branch]          v6/wip-hnswg            -> origin/v6/wip-hnswg
+2026-11-08T23:37:18.9407677Z  * [new branch]          v6/wip-p1-bench-budget  -> origin/v6/wip-p1-bench-budget
+2026-11-08T23:37:18.9408083Z  * [new branch]          v6/wip-p1-budget-propagate -> origin/v6/wip-p1-budget-propagate
+2026-11-08T23:37:18.9408404Z  * [new branch]          v6/wip-p1-bulk-cpu      -> origin/v6/wip-p1-bulk-cpu
+2026-11-08T23:37:18.9408696Z  * [new branch]          v6/wip-p1-ckpt-amortize -> origin/v6/wip-p1-ckpt-amortize
+2026-11-08T23:37:18.9409105Z  * [new branch]          v6/wip-p1-ckpt-profile  -> origin/v6/wip-p1-ckpt-profile
+2026-11-08T23:37:18.9409567Z  * [new branch]          v6/wip-p1-cpu-delete    -> origin/v6/wip-p1-cpu-delete
+2026-11-08T23:37:18.9409904Z  * [new branch]          v6/wip-p1-cpu-interact  -> origin/v6/wip-p1-cpu-interact
+2026-11-08T23:37:18.9410314Z  * [new branch]          v6/wip-p1-cpu-mapper    -> origin/v6/wip-p1-cpu-mapper
+2026-11-08T23:37:18.9410616Z  * [new branch]          v6/wip-p1-cpu-mapper2   -> origin/v6/wip-p1-cpu-mapper2
+2026-11-08T23:37:18.9410918Z  * [new branch]          v6/wip-p1-cpu-propagate -> origin/v6/wip-p1-cpu-propagate
+2026-11-08T23:37:18.9411218Z  * [new branch]          v6/wip-p1-cpu-update    -> origin/v6/wip-p1-cpu-update
+2026-11-08T23:37:18.9411513Z  * [new branch]          v6/wip-p1-gap-single    -> origin/v6/wip-p1-gap-single
+2026-11-08T23:37:18.9411805Z  * [new branch]          v6/wip-p1-gate-single   -> origin/v6/wip-p1-gate-single
+2026-11-08T23:37:18.9412119Z  * [new branch]          v6/wip-p1-group-nondurable -> origin/v6/wip-p1-group-nondurable
+2026-11-08T23:37:18.9412448Z  * [new branch]          v6/wip-p1-mapper-propagate -> origin/v6/wip-p1-mapper-propagate
+2026-11-08T23:37:18.9412763Z  * [new branch]          v6/wip-p1-openclose-aa  -> origin/v6/wip-p1-openclose-aa
+2026-11-08T23:37:18.9413087Z  * [new branch]          v6/wip-p1-perf-group-single -> origin/v6/wip-p1-perf-group-single
+2026-11-08T23:37:18.9413407Z  * [new branch]          v6/wip-p2-bulk-gap      -> origin/v6/wip-p2-bulk-gap
+2026-11-08T23:37:18.9413736Z  * [new branch]          v6/wip-p2-rekey-hang    -> origin/v6/wip-p2-rekey-hang
+2026-11-08T23:37:18.9414126Z  * [new branch]          v6/wip-p3-coord-nre     -> origin/v6/wip-p3-coord-nre
+2026-11-08T23:37:18.9414440Z  * [new branch]          v6/wip-p3-default       -> origin/v6/wip-p3-default
+2026-11-08T23:37:18.9414720Z  * [new branch]          v6/wip-p3-integrate     -> origin/v6/wip-p3-integrate
+2026-11-08T23:37:18.9415023Z  * [new branch]          v6/wip-p3-integrate-macos -> origin/v6/wip-p3-integrate-macos
+2026-11-08T23:37:18.9415341Z  * [new branch]          v6/wip-p3-offline-upgrade -> origin/v6/wip-p3-offline-upgrade
+2026-11-08T23:37:18.9415653Z  * [new branch]          v6/wip-p3-qual-linuxarm -> origin/v6/wip-p3-qual-linuxarm
+2026-11-08T23:37:18.9415947Z  * [new branch]          v6/wip-p3-qual-macos    -> origin/v6/wip-p3-qual-macos
+2026-11-08T23:37:18.9416241Z  * [new branch]          v6/wip-p3-qual-windows  -> origin/v6/wip-p3-qual-windows
+2026-11-08T23:37:18.9416524Z  * [new branch]          v6/wip-p4-final         -> origin/v6/wip-p4-final
+2026-11-08T23:37:18.9416813Z  * [new branch]          v6/wip-p4-s1-ownership  -> origin/v6/wip-p4-s1-ownership
+2026-11-08T23:37:18.9417106Z  * [new branch]          v6/wip-p4-s2-dispatch   -> origin/v6/wip-p4-s2-dispatch
+2026-11-08T23:37:18.9417403Z  * [new branch]          v6/wip-p4-s3-direct-api -> origin/v6/wip-p4-s3-direct-api
+2026-11-08T23:37:18.9417693Z  * [new branch]          v6/wip-p4-s4-waits      -> origin/v6/wip-p4-s4-waits
+2026-11-08T23:37:18.9417981Z  * [new branch]          v6/wip-p4-s5-shared     -> origin/v6/wip-p4-s5-shared
+2026-11-08T23:37:18.9418269Z  * [new branch]          v6/wip-p4-s6-lifetime   -> origin/v6/wip-p4-s6-lifetime
+2026-11-08T23:37:18.9418551Z  * [new branch]          v6/wip-p4-s7-compat     -> origin/v6/wip-p4-s7-compat
+2026-11-08T23:37:18.9418835Z  * [new branch]          v6/wip-p4-s8-qualify    -> origin/v6/wip-p4-s8-qualify
+2026-11-08T23:37:18.9419212Z  * [new branch]          v6/wip-p5-bench         -> origin/v6/wip-p5-bench
+2026-11-08T23:37:18.9419492Z  * [new branch]          v6/wip-p5-campaigns     -> origin/v6/wip-p5-campaigns
+2026-11-08T23:37:18.9419886Z  * [new branch]          xreview2/3137e-torn-version -> origin/xreview2/3137e-torn-version
+2026-11-08T23:37:18.9420371Z  * [new branch]          xreview2/3137g-wip      -> origin/xreview2/3137g-wip
+2026-11-08T23:37:18.9420681Z  * [new branch]          xreview2/3137i-wip      -> origin/xreview2/3137i-wip
+2026-11-08T23:37:18.9421105Z  * [new branch]          xreview2/3137k-a        -> origin/xreview2/3137k-a
+2026-11-08T23:37:18.9421520Z  * [new branch]          xreview2/3137k-b        -> origin/xreview2/3137k-b
+2026-11-08T23:37:18.9421949Z  * [new branch]          xreview2/hnswb-wip      -> origin/xreview2/hnswb-wip
+2026-11-08T23:37:18.9422437Z  * [new branch]          xreview2/hnswc-dangling-edge -> origin/xreview2/hnswc-dangling-edge
+2026-11-08T23:37:18.9422939Z  * [new branch]          xreview2/hnswd-b        -> origin/xreview2/hnswd-b
+2026-11-08T23:37:18.9423252Z  * [new branch]          xreview2/hnswd-review   -> origin/xreview2/hnswd-review
+2026-11-08T23:37:18.9423546Z  * [new branch]          xreview2/hnswe-race     -> origin/xreview2/hnswe-race
+2026-11-08T23:37:18.9423822Z  * [new tag]             6.0.0-prerelease.114    -> 6.0.0-prerelease.114
+2026-11-08T23:37:18.9424078Z  * [new tag]             pre-reslice/3064        -> pre-reslice/3064
+2026-11-08T23:37:18.9424332Z  * [new tag]             pre-reslice/3080        -> pre-reslice/3080
+2026-11-08T23:37:18.9424578Z  * [new tag]             pre-reslice/3083        -> pre-reslice/3083
+2026-11-08T23:37:18.9424821Z  * [new tag]             pre-reslice/3102        -> pre-reslice/3102
+2026-11-08T23:37:18.9425069Z  * [new tag]             pre-reslice2/3080       -> pre-reslice2/3080
+2026-11-08T23:37:18.9425319Z  * [new tag]             pre-reslice2/3083       -> pre-reslice2/3083
+2026-11-08T23:37:18.9425564Z  * [new tag]             v.3.1.4                 -> v.3.1.4
+2026-11-08T23:37:18.9425788Z  * [new tag]             v0.8.0                  -> v0.8.0
+2026-11-08T23:37:18.9426015Z  * [new tag]             v0.9.0                  -> v0.9.0
+2026-11-08T23:37:18.9426235Z  * [new tag]             v1.0.0                  -> v1.0.0
+2026-11-08T23:37:18.9426451Z  * [new tag]             v1.0.1                  -> v1.0.1
+2026-11-08T23:37:18.9426665Z  * [new tag]             v1.0.2                  -> v1.0.2
+2026-11-08T23:37:18.9426882Z  * [new tag]             v1.0.3                  -> v1.0.3
+2026-11-08T23:37:18.9427100Z  * [new tag]             v1.0.4                  -> v1.0.4
+2026-11-08T23:37:18.9427314Z  * [new tag]             v2.0.0                  -> v2.0.0
+2026-11-08T23:37:18.9427544Z  * [new tag]             v2.0.0-beta             -> v2.0.0-beta
+2026-11-08T23:37:18.9427779Z  * [new tag]             v2.0.0-rc               -> v2.0.0-rc
+2026-11-08T23:37:18.9428012Z  * [new tag]             v2.0.0-rc2              -> v2.0.0-rc2
+2026-11-08T23:37:18.9428240Z  * [new tag]             v2.0.1                  -> v2.0.1
+2026-11-08T23:37:18.9428455Z  * [new tag]             v2.0.2                  -> v2.0.2
+2026-11-08T23:37:18.9428674Z  * [new tag]             v2.0.4                  -> v2.0.4
+2026-11-08T23:37:18.9428888Z  * [new tag]             v3.0.0                  -> v3.0.0
+2026-11-08T23:37:18.9429111Z  * [new tag]             v3.0.0-beta             -> v3.0.0-beta
+2026-11-08T23:37:18.9429347Z  * [new tag]             v3.0.0-beta2            -> v3.0.0-beta2
+2026-11-08T23:37:18.9429586Z  * [new tag]             v3.0.0-beta3            -> v3.0.0-beta3
+2026-11-08T23:37:18.9429808Z  * [new tag]             v3.0.1                  -> v3.0.1
+2026-11-08T23:37:18.9430024Z  * [new tag]             v3.1.0                  -> v3.1.0
+2026-11-08T23:37:18.9430385Z  * [new tag]             v3.1.1                  -> v3.1.1
+2026-11-08T23:37:18.9430595Z  * [new tag]             v3.1.2                  -> v3.1.2
+2026-11-08T23:37:18.9430932Z  * [new tag]             v3.1.3                  -> v3.1.3
+2026-11-08T23:37:18.9431145Z  * [new tag]             v3.1.5                  -> v3.1.5
+2026-11-08T23:37:18.9431439Z  * [new tag]             v4.0.0                  -> v4.0.0
+2026-11-08T23:37:18.9431666Z  * [new tag]             v4.0.0-beta1            -> v4.0.0-beta1
+2026-11-08T23:37:18.9431900Z  * [new tag]             v4.0.0-beta2            -> v4.0.0-beta2
+2026-11-08T23:37:18.9432124Z  * [new tag]             v4.1.0                  -> v4.1.0
+2026-11-08T23:37:18.9432337Z  * [new tag]             v4.1.1                  -> v4.1.1
+2026-11-08T23:37:18.9432552Z  * [new tag]             v4.1.2                  -> v4.1.2
+2026-11-08T23:37:18.9432770Z  * [new tag]             v4.1.3                  -> v4.1.3
+2026-11-08T23:37:18.9432982Z  * [new tag]             v4.1.4                  -> v4.1.4
+2026-11-08T23:37:18.9433206Z  * [new tag]             v5.0.0-alpha            -> v5.0.0-alpha
+2026-11-08T23:37:18.9433451Z  * [new tag]             v5.0.0-alpha2           -> v5.0.0-alpha2
+2026-11-08T23:37:18.9433692Z  * [new tag]             v5.0.0-beta             -> v5.0.0-beta
+2026-11-08T23:37:18.9433925Z  * [new tag]             v5.0.0-rc               -> v5.0.0-rc
+2026-11-08T23:37:18.9434154Z  * [new tag]             v5.0.1                  -> v5.0.1
+2026-11-08T23:37:18.9434377Z  * [new tag]             v5.0.10                 -> v5.0.10
+2026-11-08T23:37:18.9434598Z  * [new tag]             v5.0.11                 -> v5.0.11
+2026-11-08T23:37:18.9434819Z  * [new tag]             v5.0.12                 -> v5.0.12
+2026-11-08T23:37:18.9435041Z  * [new tag]             v5.0.13                 -> v5.0.13
+2026-11-08T23:37:18.9435258Z  * [new tag]             v5.0.14                 -> v5.0.14
+2026-11-08T23:37:18.9435481Z  * [new tag]             v5.0.15                 -> v5.0.15
+2026-11-08T23:37:18.9435697Z  * [new tag]             v5.0.16                 -> v5.0.16
+2026-11-08T23:37:18.9435913Z  * [new tag]             v5.0.17                 -> v5.0.17
+2026-11-08T23:37:18.9436135Z  * [new tag]             v5.0.18                 -> v5.0.18
+2026-11-08T23:37:18.9436352Z  * [new tag]             v5.0.19                 -> v5.0.19
+2026-11-08T23:37:18.9436573Z  * [new tag]             v5.0.2                  -> v5.0.2
+2026-11-08T23:37:18.9436790Z  * [new tag]             v5.0.20                 -> v5.0.20
+2026-11-08T23:37:18.9437004Z  * [new tag]             v5.0.21                 -> v5.0.21
+2026-11-08T23:37:18.9437221Z  * [new tag]             v5.0.22                 -> v5.0.22
+2026-11-08T23:37:18.9437443Z  * [new tag]             v5.0.3                  -> v5.0.3
+2026-11-08T23:37:18.9437660Z  * [new tag]             v5.0.4                  -> v5.0.4
+2026-11-08T23:37:18.9437876Z  * [new tag]             v5.0.5                  -> v5.0.5
+2026-11-08T23:37:18.9438089Z  * [new tag]             v5.0.7                  -> v5.0.7
+2026-11-08T23:37:18.9438302Z  * [new tag]             v5.0.8                  -> v5.0.8
+2026-11-08T23:37:18.9438519Z  * [new tag]             v5.0.9                  -> v5.0.9
+2026-11-08T23:37:18.9438761Z  * [new tag]             v6.0.0-prerelease.0001  -> v6.0.0-prerelease.0001
+2026-11-08T23:37:18.9439028Z  * [new tag]             v6.0.0-prerelease.0015  -> v6.0.0-prerelease.0015
+2026-11-08T23:37:18.9439297Z  * [new tag]             v6.0.0-prerelease.0052  -> v6.0.0-prerelease.0052
+2026-11-08T23:37:18.9439556Z  * [new tag]             v6.0.0-prerelease.0075  -> v6.0.0-prerelease.0075
+2026-11-08T23:37:18.9439812Z  * [new tag]             v6.0.0-prerelease.77    -> v6.0.0-prerelease.77
+2026-11-08T23:37:18.9440066Z  * [new tag]             v6.0.0-prerelease.9.10  -> v6.0.0-prerelease.9.10
+2026-11-08T23:37:18.9441508Z [command]/usr/bin/git rev-parse --verify --quiet e507faad40e968aa2fcf63ae6dd01fd7def2e07b^{object}
+2026-11-08T23:37:18.9441821Z e507faad40e968aa2fcf63ae6dd01fd7def2e07b
+2026-11-08T23:37:18.9442346Z ##[endgroup]
+2026-11-08T23:37:18.9442622Z ##[group]Determining the checkout info
+2026-11-08T23:37:18.9442892Z ##[endgroup]
+2026-11-08T23:37:18.9443175Z [command]/usr/bin/git sparse-checkout disable
+2026-11-08T23:37:18.9443665Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-08T23:37:18.9444302Z ##[group]Checking out the ref
+2026-11-08T23:37:18.9444573Z [command]/usr/bin/git checkout --progress --force e507faad40e968aa2fcf63ae6dd01fd7def2e07b
+2026-11-08T23:37:19.0563679Z Note: switching to 'e507faad40e968aa2fcf63ae6dd01fd7def2e07b'.
+2026-11-08T23:37:19.0563946Z 
+2026-11-08T23:37:19.0564103Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-11-08T23:37:19.0564421Z changes and commit them, and you can discard any commits you make in this
+2026-11-08T23:37:19.0564732Z state without impacting any branches by switching back to a branch.
+2026-11-08T23:37:19.0564909Z 
+2026-11-08T23:37:19.0565041Z If you want to create a new branch to retain commits you create, you may
+2026-11-08T23:37:19.0565334Z do so (now or later) by using -c with the switch command. Example:
+2026-11-08T23:37:19.0565499Z 
+2026-11-08T23:37:19.0565644Z   git switch -c <new-branch-name>
+2026-11-08T23:37:19.0565761Z 
+2026-11-08T23:37:19.0565848Z Or undo this operation with:
+2026-11-08T23:37:19.0565956Z 
+2026-11-08T23:37:19.0566042Z   git switch -
+2026-11-08T23:37:19.0566129Z 
+2026-11-08T23:37:19.0566279Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-11-08T23:37:19.0566469Z 
+2026-11-08T23:37:19.0566642Z HEAD is now at e507faad4 Reconcile shared coverage disposition by identity after phase merge
+2026-11-08T23:37:19.0577768Z ##[endgroup]
+2026-11-08T23:37:19.0613745Z [command]/usr/bin/git log -1 --format=%H
+2026-11-08T23:37:19.0634494Z e507faad40e968aa2fcf63ae6dd01fd7def2e07b
+2026-11-08T23:37:19.0786083Z ##[group]Run actions/setup-dotnet@v4
+2026-11-08T23:37:19.0786280Z with:
+2026-11-08T23:37:19.0786442Z   dotnet-version: 8.0.x
+10.0.x
+2026-11-08T23:37:19.0786622Z   cache: false
+2026-11-08T23:37:19.0786767Z env:
+2026-11-08T23:37:19.0786913Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-08T23:37:19.0787091Z ##[endgroup]
+2026-11-08T23:37:19.1727541Z (node:2302) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-08T23:37:19.1728058Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-08T23:37:19.1743594Z [command]/home/runner/work/_actions/actions/setup-dotnet/v4/externals/install-dotnet.sh --skip-non-versioned-files --runtime dotnet --channel LTS
+2026-11-08T23:37:19.6176582Z dotnet-install: .NET Core Runtime with version '10.0.14' is already installed.
+2026-11-08T23:37:19.6214944Z [command]/home/runner/work/_actions/actions/setup-dotnet/v4/externals/install-dotnet.sh --skip-non-versioned-files --channel 8.0
+2026-11-08T23:37:19.9827090Z dotnet-install: .NET Core SDK with version '8.0.427' is already installed.
+2026-11-08T23:37:19.9841431Z [command]/home/runner/work/_actions/actions/setup-dotnet/v4/externals/install-dotnet.sh --skip-non-versioned-files --runtime dotnet --channel LTS
+2026-11-08T23:37:20.3209946Z dotnet-install: .NET Core Runtime with version '10.0.14' is already installed.
+2026-11-08T23:37:20.3216343Z [command]/home/runner/work/_actions/actions/setup-dotnet/v4/externals/install-dotnet.sh --skip-non-versioned-files --channel 10.0
+2026-11-08T23:37:20.6609086Z dotnet-install: .NET Core SDK with version '10.0.403' is already installed.
+2026-11-08T23:37:20.6802560Z ##[group]Run dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false
+2026-11-08T23:37:20.6803109Z [36;1mdotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 -p:TestingEnabled=true -p:GitVersionEnabled=false[0m
+2026-11-08T23:37:20.6848750Z shell: /usr/bin/bash -e {0}
+2026-11-08T23:37:20.6848912Z env:
+2026-11-08T23:37:20.6849033Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-08T23:37:20.6849202Z   DOTNET_ROOT: /usr/share/dotnet
+2026-11-08T23:37:20.6849344Z ##[endgroup]
+2026-11-08T23:37:24.7956529Z   Determining projects to restore...
+2026-11-08T23:37:25.8117635Z /home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj : warning NU1510: PackageReference System.ComponentModel.TypeConverter will not be pruned. This package is automatically available and does not need to be referenced explicitly. Remove the PackageReference item. [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj]
+2026-11-08T23:37:25.9009132Z   Restored /home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj (in 78 ms).
+2026-11-08T23:37:26.4590465Z   Restored /home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj (in 655 ms).
+2026-11-08T23:37:27.0166685Z /home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj : warning NU1510: PackageReference System.ComponentModel.TypeConverter will not be pruned. This package is automatically available and does not need to be referenced explicitly. Remove the PackageReference item. [TargetFramework=net8.0]
+2026-11-08T23:37:33.3452490Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Mapper/BsonMapper.Deserialize.cs(27,39): warning CS8632: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3463079Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/FileReader/Legacy/AesEncryption.cs(21,23): warning SYSLIB0041: 'Rfc2898DeriveBytes.Rfc2898DeriveBytes(string, byte[])' is obsolete: 'The default hash algorithm and iteration counts in Rfc2898DeriveBytes constructors are outdated and insecure. Use a constructor that accepts the hash algorithm and the number of iterations.' (https://aka.ms/dotnet-warnings/SYSLIB0041) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3468168Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/Disk/Streams/AesStream.cs(97,27): warning SYSLIB0041: 'Rfc2898DeriveBytes.Rfc2898DeriveBytes(string, byte[])' is obsolete: 'The default hash algorithm and iteration counts in Rfc2898DeriveBytes constructors are outdated and insecure. Use a constructor that accepts the hash algorithm and the number of iterations.' (https://aka.ms/dotnet-warnings/SYSLIB0041) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3471941Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/FileReader/FileReaderV8.cs(23,29): warning CS0649: Field 'FileReaderV8.PageInfo.PageType' is never assigned to, and will always have its default value [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3474908Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/LiteEngine.cs(263,37): warning CS1734: XML comment on 'LiteEngine.InvalidDatafileState' has a paramref tag for 'checkpoint', but there is no parameter by that name [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3477858Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/LiteEngine.cs(266,42): warning CS1734: XML comment on 'LiteEngine.InvalidDatafileState' has a paramref tag for 'final', but there is no parameter by that name [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3481962Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,42): warning CS1573: Parameter 'engine' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3485710Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,62): warning CS1573: Parameter 'lease' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3489648Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,73): warning CS1573: Parameter 'version' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3493738Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(115,57): warning CA1416: This call site is reachable on all platforms. 'File.GetUnixFileMode(string)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3497493Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(138,24): warning CA1416: This call site is reachable on all platforms. 'File.GetUnixFileMode(string)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3501636Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(145,51): warning CA1416: This call site is reachable on all platforms. 'File.SetUnixFileMode(string, UnixFileMode)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3505691Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(133,17): warning CA1416: This call site is reachable on all platforms. 'Directory.CreateDirectory(string, UnixFileMode)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3509538Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(170,27): warning CA1416: This call site is reachable on all platforms. 'FileStreamOptions.UnixCreateMode.set' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:33.3776047Z   LiteDB -> /home/runner/work/LiteDB/LiteDB/candidate/LiteDB/bin/Release/net8.0/LiteDB.dll
+2026-11-08T23:37:34.8508855Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(58,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8513036Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(64,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8515040Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(72,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8517047Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(75,17): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8519287Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Engine/PromotionPowerLossScenario.cs(79,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8521429Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Engine/PromotionPowerLossScenario.cs(81,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8523509Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Internals/MvccRetirementScenario.cs(221,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8525688Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Internals/MvccRetirementScenario.cs(228,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8527709Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(58,39): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8529626Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(62,39): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8531808Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(68,39): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8533997Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(87,29): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8535940Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(113,48): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8537914Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(114,22): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8539866Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(78,14): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8542172Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(86,18): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8544122Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(90,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8546045Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(72,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8547933Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(133,9): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8549802Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(143,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8551908Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(147,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8553790Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(56,35): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8555654Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(63,39): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8557595Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(68,39): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8559500Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(107,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8561516Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(99,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8563457Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(108,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8565658Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(110,25): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8567747Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/RecoveryFuzzer.cs(63,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8570674Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/RecoveryFuzzer.cs(65,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8574463Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(158,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8577589Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(172,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8580476Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(184,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8582542Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(203,17): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8584509Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(207,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8586403Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/PowerLossFuzzer.cs(86,31): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8588293Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/PowerLossFuzzer.cs(100,31): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8590265Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/IndexFuzzer.cs(117,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8592115Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/IndexFuzzer.cs(119,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8593994Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(93,54): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8595978Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(111,51): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8597844Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(114,50): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8599728Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(71,39): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8601744Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(74,30): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8603606Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(80,27): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8605532Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(42,25): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8607409Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(45,25): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8609292Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(50,25): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8611238Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(52,25): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8613143Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(167,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8615141Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(169,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8617056Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumWalFuzzer.cs(31,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8618912Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumWalFuzzer.cs(40,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8620940Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(49,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8622836Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(68,35): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8624725Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(71,25): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8626643Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumCrashFuzzer.cs(23,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8628531Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumCrashFuzzer.cs(30,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8630587Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ApiBoundaryFuzzer.cs(48,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8632556Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ApiBoundaryFuzzer.cs(50,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8634446Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/BoundaryFuzzer.cs(103,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8636332Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/BoundaryFuzzer.cs(107,31): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8638325Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(201,9): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8640322Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(212,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.8642168Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(218,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9443917Z   LiteDB.Fuzz -> /home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll
+2026-11-08T23:37:34.9659919Z 
+2026-11-08T23:37:34.9660354Z Build succeeded.
+2026-11-08T23:37:34.9660529Z 
+2026-11-08T23:37:34.9661626Z /home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj : warning NU1510: PackageReference System.ComponentModel.TypeConverter will not be pruned. This package is automatically available and does not need to be referenced explicitly. Remove the PackageReference item. [TargetFramework=net8.0]
+2026-11-08T23:37:34.9664855Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Mapper/BsonMapper.Deserialize.cs(27,39): warning CS8632: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9669270Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/FileReader/Legacy/AesEncryption.cs(21,23): warning SYSLIB0041: 'Rfc2898DeriveBytes.Rfc2898DeriveBytes(string, byte[])' is obsolete: 'The default hash algorithm and iteration counts in Rfc2898DeriveBytes constructors are outdated and insecure. Use a constructor that accepts the hash algorithm and the number of iterations.' (https://aka.ms/dotnet-warnings/SYSLIB0041) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9680516Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/Disk/Streams/AesStream.cs(97,27): warning SYSLIB0041: 'Rfc2898DeriveBytes.Rfc2898DeriveBytes(string, byte[])' is obsolete: 'The default hash algorithm and iteration counts in Rfc2898DeriveBytes constructors are outdated and insecure. Use a constructor that accepts the hash algorithm and the number of iterations.' (https://aka.ms/dotnet-warnings/SYSLIB0041) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9683742Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/FileReader/FileReaderV8.cs(23,29): warning CS0649: Field 'FileReaderV8.PageInfo.PageType' is never assigned to, and will always have its default value [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9686339Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/LiteEngine.cs(263,37): warning CS1734: XML comment on 'LiteEngine.InvalidDatafileState' has a paramref tag for 'checkpoint', but there is no parameter by that name [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9688890Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Engine/LiteEngine.cs(266,42): warning CS1734: XML comment on 'LiteEngine.InvalidDatafileState' has a paramref tag for 'final', but there is no parameter by that name [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9692332Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,42): warning CS1573: Parameter 'engine' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9695777Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,62): warning CS1573: Parameter 'lease' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9699229Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorClient.Snapshots.cs(376,73): warning CS1573: Parameter 'version' has no matching param tag in the XML comment for 'CoordinatorClient.Snapshot.Snapshot(LiteEngine, IDisposable, int, CoordinatorStatus)' (but other parameters do) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9702933Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(115,57): warning CA1416: This call site is reachable on all platforms. 'File.GetUnixFileMode(string)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9706341Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(138,24): warning CA1416: This call site is reachable on all platforms. 'File.GetUnixFileMode(string)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9709843Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(145,51): warning CA1416: This call site is reachable on all platforms. 'File.SetUnixFileMode(string, UnixFileMode)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9713697Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(133,17): warning CA1416: This call site is reachable on all platforms. 'Directory.CreateDirectory(string, UnixFileMode)' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9717246Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/Client/Coordinated/CoordinatorStatusPage.cs(170,27): warning CA1416: This call site is reachable on all platforms. 'FileStreamOptions.UnixCreateMode.set' is unsupported on: 'windows'. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB/LiteDB.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9720745Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(58,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9724033Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(64,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9727200Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(72,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9730882Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/WalFuzzer.cs(75,17): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9734195Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Engine/PromotionPowerLossScenario.cs(79,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9737451Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Engine/PromotionPowerLossScenario.cs(81,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9740820Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Internals/MvccRetirementScenario.cs(221,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9744049Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Tests/Internals/MvccRetirementScenario.cs(228,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9747497Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(58,39): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9750803Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(62,39): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9754086Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(68,39): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9757384Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(87,29): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9760718Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(113,48): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9763922Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/TransactionFuzzer.cs(114,22): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9767482Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(78,14): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9771292Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(86,18): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9774799Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ThreadedSnapshotFuzzer.cs(90,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9778383Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(72,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9782206Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(133,9): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9785703Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(143,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9789146Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/StorageFuzzer.cs(147,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9792931Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(56,35): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9796420Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(63,39): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9800004Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(68,39): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9803616Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SqlDmlFuzzer.cs(107,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9807215Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(99,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9812579Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(108,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9816030Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SnapshotWriterProcess.cs(110,25): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9819436Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/RecoveryFuzzer.cs(63,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9822567Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/RecoveryFuzzer.cs(65,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9825727Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(158,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9829065Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(172,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9832515Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(184,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9835859Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(203,17): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9839084Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/SharedProcessFuzzer.cs(207,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9842597Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/PowerLossFuzzer.cs(86,31): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9845894Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/PowerLossFuzzer.cs(100,31): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9849128Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/IndexFuzzer.cs(117,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9852564Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/IndexFuzzer.cs(119,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9855794Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(93,54): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9859059Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(111,51): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9862571Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CursorHandoffFuzzer.cs(114,50): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9865869Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(71,39): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9869055Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(74,30): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9872365Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ConcurrentFuzzer.cs(80,27): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9875629Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(42,25): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9878938Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(45,25): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9882419Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(50,25): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9885652Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(52,25): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9888917Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(167,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9892473Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/CompactStorageFuzzer.cs(169,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9895742Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumWalFuzzer.cs(31,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9898972Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumWalFuzzer.cs(40,21): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9902758Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(49,21): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9905686Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(68,35): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9907711Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumMigrationFuzzer.cs(71,25): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9910661Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumCrashFuzzer.cs(23,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9912846Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChecksumCrashFuzzer.cs(30,17): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9914898Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ApiBoundaryFuzzer.cs(48,13): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9916961Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ApiBoundaryFuzzer.cs(50,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9919123Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/BoundaryFuzzer.cs(103,17): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9921652Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/BoundaryFuzzer.cs(107,31): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9923957Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(201,9): warning CS0618: 'LiteDatabase.BeginTrans()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9926105Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(212,13): warning CS0618: 'LiteDatabase.Commit()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9928294Z ##[warning]/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/Targets/ChaosFuzzer.cs(218,13): warning CS0618: 'LiteDatabase.Rollback()' is obsolete: 'Use BeginTransaction() and Commit/Rollback on the returned transaction. This legacy API is thread-bound and must not cross await.' [/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/LiteDB.Fuzz.csproj::TargetFramework=net8.0]
+2026-11-08T23:37:34.9988321Z     80 Warning(s)
+2026-11-08T23:37:34.9988466Z     0 Error(s)
+2026-11-08T23:37:34.9988547Z 
+2026-11-08T23:37:34.9988621Z Time Elapsed 00:00:08.49
+2026-11-08T23:37:35.0058389Z ##[group]Run python ../driver/.github/scripts/p5/campaign.py "fuzz" --targets "bson,compact-power-loss,linq-cache,power-loss,snapshot,transaction-handle"
+2026-11-08T23:37:35.0059025Z [36;1mpython ../driver/.github/scripts/p5/campaign.py "fuzz" --targets "bson,compact-power-loss,linq-cache,power-loss,snapshot,transaction-handle"[0m
+2026-11-08T23:37:35.0101641Z shell: /usr/bin/bash -e {0}
+2026-11-08T23:37:35.0101787Z env:
+2026-11-08T23:37:35.0101912Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-08T23:37:35.0102063Z   DOTNET_ROOT: /usr/share/dotnet
+2026-11-08T23:37:35.0102206Z ##[endgroup]
+2026-11-08T23:37:38.1093099Z {"name": "bson-529470", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529470", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529470", "--max-artifact-mb", "0"], "exit": 0, "seconds": 3.0594751834869385}
+2026-11-08T23:37:38.5704042Z {"name": "bson-529471", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529471", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529471", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.46073317527770996}
+2026-11-08T23:37:39.0463808Z {"name": "bson-529472", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529472", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529472", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.4756615161895752}
+2026-11-08T23:37:39.5301211Z {"name": "bson-529473", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529473", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529473", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.48333024978637695}
+2026-11-08T23:37:39.9947323Z {"name": "bson-529474", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529474", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529474", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.4642179012298584}
+2026-11-08T23:37:40.4317155Z {"name": "bson-529475", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529475", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529475", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.43659090995788574}
+2026-11-08T23:37:40.9229388Z {"name": "bson-529476", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529476", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529476", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.49082493782043457}
+2026-11-08T23:37:41.4071427Z {"name": "bson-529477", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529477", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529477", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.48381471633911133}
+2026-11-08T23:37:41.9462526Z {"name": "bson-529478", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529478", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529478", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.5387845039367676}
+2026-11-08T23:37:42.3384615Z {"name": "bson-529479", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "bson", "--seed", "529479", "--count", "400", "--artifact-dir", "evidence/fuzz/bson/529479", "--max-artifact-mb", "0"], "exit": 0, "seconds": 0.39174652099609375}
+2026-11-08T23:37:48.4210852Z {"name": "compact-power-loss-529470", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529470", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529470", "--max-artifact-mb", "0"], "exit": 0, "seconds": 6.0822062492370605}
+2026-11-08T23:37:54.0317366Z {"name": "compact-power-loss-529471", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529471", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529471", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.610231161117554}
+2026-11-08T23:37:59.8097333Z {"name": "compact-power-loss-529472", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529472", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529472", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.777606248855591}
+2026-11-08T23:38:05.1182314Z {"name": "compact-power-loss-529473", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529473", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529473", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.308031797409058}
+2026-11-08T23:38:10.9176628Z {"name": "compact-power-loss-529474", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529474", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529474", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.799014091491699}
+2026-11-08T23:38:16.3602898Z {"name": "compact-power-loss-529475", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529475", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529475", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.442142009735107}
+2026-11-08T23:38:21.8170622Z {"name": "compact-power-loss-529476", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529476", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529476", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.456361532211304}
+2026-11-08T23:38:27.6503708Z {"name": "compact-power-loss-529477", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529477", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529477", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.832842826843262}
+2026-11-08T23:38:33.2456657Z {"name": "compact-power-loss-529478", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529478", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529478", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.59485387802124}
+2026-11-08T23:38:38.6244213Z {"name": "compact-power-loss-529479", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "compact-power-loss", "--seed", "529479", "--count", "400", "--artifact-dir", "evidence/fuzz/compact-power-loss/529479", "--max-artifact-mb", "0"], "exit": 0, "seconds": 5.378350496292114}
+2026-11-08T23:38:40.7095223Z {"name": "linq-cache-529470", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529470", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529470", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2.081719398498535}
+2026-11-08T23:38:42.6134685Z {"name": "linq-cache-529471", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529471", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529471", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.903512716293335}
+2026-11-08T23:38:44.4700787Z {"name": "linq-cache-529472", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529472", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529472", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.856154441833496}
+2026-11-08T23:38:46.4045250Z {"name": "linq-cache-529473", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529473", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529473", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.933875322341919}
+2026-11-08T23:38:48.3939435Z {"name": "linq-cache-529474", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529474", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529474", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.9889392852783203}
+2026-11-08T23:38:50.3470292Z {"name": "linq-cache-529475", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529475", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529475", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.952674150466919}
+2026-11-08T23:38:52.1414805Z {"name": "linq-cache-529476", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529476", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529476", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.7939996719360352}
+2026-11-08T23:38:54.1338399Z {"name": "linq-cache-529477", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529477", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529477", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.9918017387390137}
+2026-11-08T23:38:56.1401110Z {"name": "linq-cache-529478", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529478", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529478", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2.005789041519165}
+2026-11-08T23:38:58.0515984Z {"name": "linq-cache-529479", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "linq-cache", "--seed", "529479", "--count", "400", "--artifact-dir", "evidence/fuzz/linq-cache/529479", "--max-artifact-mb", "0"], "exit": 0, "seconds": 1.911055088043213}
+2026-11-08T23:39:07.3445938Z {"name": "power-loss-529470", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529470", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529470", "--max-artifact-mb", "0"], "exit": 0, "seconds": 9.292515993118286}
+2026-11-08T23:39:16.0851292Z {"name": "power-loss-529471", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529471", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529471", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.74001693725586}
+2026-11-08T23:39:24.4841930Z {"name": "power-loss-529472", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529472", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529472", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.398589372634888}
+2026-11-08T23:39:33.8422357Z {"name": "power-loss-529473", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529473", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529473", "--max-artifact-mb", "0"], "exit": 0, "seconds": 9.357587575912476}
+2026-11-08T23:39:42.6834968Z {"name": "power-loss-529474", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529474", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529474", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.840760469436646}
+2026-11-08T23:39:51.5453961Z {"name": "power-loss-529475", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529475", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529475", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.861392974853516}
+2026-11-08T23:40:00.5792644Z {"name": "power-loss-529476", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529476", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529476", "--max-artifact-mb", "0"], "exit": 0, "seconds": 9.033409118652344}
+2026-11-08T23:40:09.5719882Z {"name": "power-loss-529477", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529477", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529477", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.992286205291748}
+2026-11-08T23:40:19.1969688Z {"name": "power-loss-529478", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529478", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529478", "--max-artifact-mb", "0"], "exit": 0, "seconds": 9.624504804611206}
+2026-11-08T23:40:28.0037170Z {"name": "power-loss-529479", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "power-loss", "--seed", "529479", "--count", "400", "--artifact-dir", "evidence/fuzz/power-loss/529479", "--max-artifact-mb", "0"], "exit": 0, "seconds": 8.806315422058105}
+2026-11-09T00:21:16.1680612Z {"name": "snapshot-529470", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529470", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529470", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2448.1638238430023}
+2026-11-09T01:02:49.4438506Z {"name": "snapshot-529471", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529471", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529471", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2493.275301218033}
+2026-11-09T01:39:51.6873559Z {"name": "snapshot-529472", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529472", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529472", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2222.2430291175842}
+2026-11-09T02:17:32.0305788Z {"name": "snapshot-529473", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529473", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529473", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2260.342575788498}
+2026-11-09T03:00:03.2753805Z {"name": "snapshot-529474", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529474", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529474", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2551.2444024086}
+2026-11-09T03:42:13.0625768Z {"name": "snapshot-529475", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529475", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529475", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2529.7866201400757}
+2026-11-09T04:24:51.6567557Z {"name": "snapshot-529476", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529476", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529476", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2558.5936982631683}
+2026-11-09T05:05:36.1298773Z {"name": "snapshot-529477", "command": ["dotnet", "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll", "--target", "snapshot", "--seed", "529477", "--count", "400", "--artifact-dir", "evidence/fuzz/snapshot/529477", "--max-artifact-mb", "0"], "exit": 0, "seconds": 2444.4725861549377}
+2026-11-09T05:27:25.7500337Z ##[error]The operation was canceled.
+2026-11-09T05:27:25.7542532Z ##[group]Run actions/upload-artifact@v4
+2026-11-09T05:27:25.7542710Z with:
+2026-11-09T05:27:25.7542826Z   name: p5-linux-2
+2026-11-09T05:27:25.7543074Z   path: candidate/evidence
+candidate/LiteDB.Fuzz/bin/Release/net8.0
+candidate/LiteDB.Tests/bin/Release/net8.0
+2026-11-09T05:27:25.7543484Z   retention-days: 14
+2026-11-09T05:27:25.7543618Z   if-no-files-found: error
+2026-11-09T05:27:25.7543756Z   compression-level: 6
+2026-11-09T05:27:25.7543884Z   overwrite: false
+2026-11-09T05:27:25.7544009Z   include-hidden-files: false
+2026-11-09T05:27:25.7544148Z env:
+2026-11-09T05:27:25.7544267Z   LITEDB_HANDLE_CLOSE_ROUNDS: 120
+2026-11-09T05:27:25.7544421Z   DOTNET_ROOT: /usr/share/dotnet
+2026-11-09T05:27:25.7544559Z ##[endgroup]
+2026-11-09T05:27:25.8857593Z (node:202589) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-09T05:27:25.8858305Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-09T05:27:26.0685231Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-11-09T05:27:26.0686232Z The least common ancestor is /home/runner/work/LiteDB/LiteDB/candidate. This will be the root directory of the artifact
+2026-11-09T05:27:26.0686700Z With the provided path, there will be 1286 files uploaded
+2026-11-09T05:27:26.0687148Z Artifact name is valid!
+2026-11-09T05:27:26.0687420Z Root directory input is valid!
+2026-11-09T05:27:26.3673928Z Beginning upload of artifact content to blob storage
+2026-11-09T05:27:26.9233301Z (node:202589) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-09T05:27:27.3502774Z ##[error]An error has occurred while creating the zip file for upload
+2026-11-09T05:27:27.3504839Z Error: ENOENT: no such file or directory, open '/home/runner/work/LiteDB/LiteDB/candidate/evidence/fuzz/snapshot/529478/20261109-050536-snapshot-s529478-w0-rda504e47/reader-267-third-primary.ready'
+2026-11-09T05:27:27.3537829Z /home/runner/work/_actions/actions/upload-artifact/v4/dist/upload/index.js:3811
+2026-11-09T05:27:27.3538715Z     throw new Error('An error has occurred during zip creation for the artifact');
+2026-11-09T05:27:27.3539144Z     ^
+2026-11-09T05:27:27.3541642Z 
+2026-11-09T05:27:27.3542094Z Error: An error has occurred during zip creation for the artifact
+2026-11-09T05:27:27.3542762Z     at Archiver.zipErrorCallback (/home/runner/work/_actions/actions/upload-artifact/v4/dist/upload/index.js:3811:11)
+2026-11-09T05:27:27.3543260Z     at Archiver.emit (node:events:526:24)
+2026-11-09T05:27:27.3543828Z     at Archiver.<anonymous> (/home/runner/work/_actions/actions/upload-artifact/v4/dist/upload/index.js:57606:12)
+2026-11-09T05:27:27.3544633Z     at __webpack_modules__.86454.module.exports.handleStuff (/home/runner/work/_actions/actions/upload-artifact/v4/dist/upload/index.js:69663:5)
+2026-11-09T05:27:27.3545280Z     at DeflateCRC32Stream.wrapper (node:events:639:12)
+2026-11-09T05:27:27.3545638Z     at DeflateCRC32Stream.emit (node:events:526:24)
+2026-11-09T05:27:27.3546025Z     at endReadableNT (node:internal/streams/readable:1783:12)
+2026-11-09T05:27:27.3546509Z     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-11-09T05:27:27.3546845Z 
+2026-11-09T05:27:27.3546989Z Node.js v24.22.1
+2026-11-09T05:27:27.3845823Z Post job cleanup.
+2026-11-09T05:27:27.4538377Z [command]/usr/bin/git version
+2026-11-09T05:27:27.4578277Z git version 2.56.0
+2026-11-09T05:27:27.4608541Z Temporarily overriding HOME='/home/runner/work/_temp/a6b33bcc-26cd-4641-985a-9066ad5796b2' before making global git config changes
+2026-11-09T05:27:27.4609429Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-09T05:27:27.4611106Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/LiteDB/LiteDB/candidate
+2026-11-09T05:27:27.4659934Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-09T05:27:27.4701697Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-09T05:27:27.4994668Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-09T05:27:27.5019163Z http.https://github.com/.extraheader
+2026-11-09T05:27:27.5027890Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-09T05:27:27.5061162Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-09T05:27:27.5313255Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-09T05:27:27.5349833Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-09T05:27:27.5735386Z Post job cleanup.
+2026-11-09T05:27:27.6373675Z [command]/usr/bin/git version
+2026-11-09T05:27:27.6431016Z git version 2.56.0
+2026-11-09T05:27:27.6452418Z Temporarily overriding HOME='/home/runner/work/_temp/a8bc42f4-c417-4555-963a-3c83f296a861' before making global git config changes
+2026-11-09T05:27:27.6453105Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-09T05:27:27.6453910Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/LiteDB/LiteDB/driver
+2026-11-09T05:27:27.6495749Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-09T05:27:27.6530251Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-09T05:27:27.6829953Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-09T05:27:27.6855700Z http.https://github.com/.extraheader
+2026-11-09T05:27:27.6865095Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-09T05:27:27.6896811Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-09T05:27:27.7163884Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-09T05:27:27.7195278Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-09T05:27:27.7634958Z Cleaning up orphan processes
+2026-11-09T05:27:27.7805190Z Terminate orphan process: pid (2814) (python)
+2026-11-09T05:27:27.7843881Z Terminate orphan process: pid (187500) (dotnet)
+2026-11-09T05:27:27.7857296Z Terminate orphan process: pid (187508) (dotnet)
+2026-11-09T05:27:27.7891982Z Terminate orphan process: pid (187529) (dotnet)
+2026-11-09T05:27:27.7992644Z Terminate orphan process: pid (202651) (dotnet)
+2026-11-09T05:27:27.8067806Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-dotnet@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

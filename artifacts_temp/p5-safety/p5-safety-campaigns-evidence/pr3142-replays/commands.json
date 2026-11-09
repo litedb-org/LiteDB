@@ -1,0 +1,142 @@
+[
+  {
+    "name": "seed-529476",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "vector",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 17.184399843215942
+  },
+  {
+    "name": "seed-529477",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "vector",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 12.57467794418335
+  },
+  {
+    "name": "seed-529478",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "vector",
+      "--seed",
+      "529478",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 13.856143474578857
+  },
+  {
+    "name": "prefix-100",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "vector",
+      "--seed",
+      "529477",
+      "--count",
+      "100",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/prefix-100",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 4.013314962387085
+  },
+  {
+    "name": "prefix-80",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "vector",
+      "--seed",
+      "529477",
+      "--count",
+      "80",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/prefix-80",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 3.2826404571533203
+  },
+  {
+    "name": "recorded-529476",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--replay",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529476/20261108-225409-vector-s529476-w0-rd1719ea8/replay.json",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/recorded-529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 1,
+    "seconds": 35.32138538360596
+  },
+  {
+    "name": "recorded-529477",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--replay",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529477/20261108-225417-vector-s529477-w0-r0e1e8368/replay.json",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/recorded-529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 1,
+    "seconds": 34.705798864364624
+  },
+  {
+    "name": "recorded-529478",
+    "command": [
+      "dotnet",
+      "/tmp/litedb-proto/p5-pr3142-source/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--replay",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529478/20261108-225425-vector-s529478-w0-r18f82987/replay.json",
+      "--artifact-dir",
+      "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/recorded-529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 1,
+    "seconds": 78.58323884010315
+  }
+]

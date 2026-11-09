@@ -1,0 +1,3300 @@
+[
+  {
+    "category": "hooks",
+    "name": "after-reclaim",
+    "hits": 615636,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecovery_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Only the checkpoint exception model is claimed; process death and modeled power loss after reclamation are not."
+  },
+  {
+    "category": "hooks",
+    "name": "before-commit-lock",
+    "hits": 693153,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecoveredCommitLock_Tests.cs#RecoveredHeaderKeepsCheckpointOutsideCommitPublication",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_FailedJournalSyncPreservesOriginalGeneration",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-index-lock",
+    "hits": 693153,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccCheckpoint_Tests.cs#CheckpointCannotPassVersionCaptureBeforePinPublication",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccCheckpoint_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-reclaim",
+    "hits": 622022,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecovery_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#TornRootRemoval_ToleratesRepeatedTornHeaderRepairs",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-wal-reclaim-lock",
+    "hits": 42374,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamation_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "data-flushed",
+    "hits": 670726,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecovery_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "data-page",
+    "hits": 13000632,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecovery_Tests.cs#InterruptedFullCheckpointRecoversCommittedState",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecovery_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccSharedProcess_Tests.cs#KillingPartialCheckpointerDoesNotInvalidateAnotherProcessesReader",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccSharedProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccSharedProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccSharedProcess_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-after-header-write",
+    "hits": 42692,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-after-record-write",
+    "hits": 123117,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-before-header-write",
+    "hits": 45552,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#TornPromotion_RemainsRecoverableAfterTwoTornRepairs",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-before-journal-retire-flush",
+    "hits": 45702,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-before-record-write",
+    "hits": 124749,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#FailedDurableBarrier_StopsBeforeUnsafeReuse",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-header-flushed",
+    "hits": 42624,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCorruption_Tests.cs#DamagedOrCrcValidMalformedProofs_FailClosedWithoutChangingSources",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCorruption_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCorruption_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCorruption_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-journal-retired",
+    "hits": 45634,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retirement-records-flushed",
+    "hits": 45618,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-slot-cleared",
+    "hits": 12661859,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamation_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamationProcess_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-slots-flushed",
+    "hits": 42290,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamation_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamationProcess_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-slots-published",
+    "hits": 42202,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamation_Tests.cs#RecoveryWorksAtEveryReclamationBoundary",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamation_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamation_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccReclamationProcess_Tests.cs#KilledReclaimerCannotInvalidateLiveReaderOrReusedSlotRecovery",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccReclamationProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccReclamationProcess_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "created",
+    "hits": 20806,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationFile_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "flushed",
+    "hits": 20806,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationFile_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "published",
+    "hits": 20806,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationFile_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedMappedProcess_Tests.cs#Death_during_control_creation_preserves_data_and_recovers_mapped_reads",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedMappedProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedMappedProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedMappedProcess_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "publishing",
+    "hits": 20806,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "retired",
+    "hits": 21190,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationProtocol_Tests.cs#Failed_retirement_is_repeatable_without_partial_authority_admission",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationProtocol_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationProtocol_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationProtocol_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "written",
+    "hits": 20806,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationFile_Tests.cs#Failed_creation_publishes_only_complete_bytes_and_removes_its_temporary_file",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationFile_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationFile_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/SharedCoordinationTemporaryFiles_Tests.cs#Cleanup_cannot_remove_a_live_publisher_even_at_the_rename_boundary",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCoordinationTemporaryFiles_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-after-clear",
+    "hits": 616138,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+        "results": {},
+        "files": []
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-after-data-flush",
+    "hits": 671324,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-after-page-write",
+    "hits": 13001195,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-before-clear",
+    "hits": 616748,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+        "results": {},
+        "files": []
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-before-data-flush",
+    "hits": 672610,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "checkpoint-before-page-write",
+    "hits": 13004527,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRootedCheckpoint_Tests.cs#RootedFullCheckpoint_PowerLossPreservesPayloadsAndIndexes",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRootedCheckpoint_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Death_inside_final_checkpoint_recovers_the_complete_committed_state",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-after-header-flush",
+    "hits": 27744,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionFileRecovery_Tests.cs#Promotion_recovery_preserves_a_later_corruption_guard",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-after-header-write",
+    "hits": 27832,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-after-journal-flush",
+    "hits": 29889,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-after-journal-page-write",
+    "hits": 61743,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Recovery_keeps_a_valid_header_when_the_journal_is_only_OS_cached",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-after-journal-retire-flush",
+    "hits": 27554,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-before-header-write",
+    "hits": 29766,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Torn_header_is_recovered_from_durable_journal",
+        "results": {
+          "Passed": 180
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionFileRecovery_Tests.cs#Torn_header_recovers_through_real_files_without_touching_unrelated_files",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionFileRecovery_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-before-journal-retire-flush",
+    "hits": 27611,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-before-journal-write",
+    "hits": 31992,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Torn_journal_cannot_damage_the_unpromoted_database",
+        "results": {
+          "Passed": 180
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/MvccRetirementCrash_Tests.cs#EveryRetirementBoundary_PreservesAcknowledgedPayloadsAndIndexes",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRetirementCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRetirementCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-recovery-after-header-flush",
+    "hits": 57026,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-recovery-after-header-write",
+    "hits": 11128,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "promotion-recovery-before-header-write",
+    "hits": 18456,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Repeated_power_loss_during_recovery_keeps_the_journal",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "startup-after-tail-trim",
+    "hits": 3904,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+        "results": {
+          "Passed": 33
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileReuse_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/StartupTailTrimCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/StartupTailTrimCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "startup-before-tail-trim",
+    "hits": 3904,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+        "results": {
+          "Passed": 33
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileReuse_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/StartupTailTrimCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/StartupTailTrimCrash_Tests.cs#InterruptedTailTrim_RecoversEveryCommittedDocumentRepeatedly",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/StartupTailTrimCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/StartupTailTrimCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-after-durable-flush",
+    "hits": 2454928,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedDurability_Tests.cs#SharedCommit_HonorsDurabilitySettingAtConfirmation",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedDurability_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedDurability_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedDurability_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-after-index-confirmation",
+    "hits": 2370463,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommit_Tests.cs#Concurrent_commits_share_barriers_and_preserve_durable_visibility",
+        "results": {
+          "Passed": 15
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommit_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommit_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommit_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Fuzz.Tests/SharedCheckpointCrashScope_Tests.cs#Only_checkpoint_crash_workers_retain_the_native_mutex_after_commit",
+        "results": {},
+        "files": []
+      },
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitUnsupported_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-before-durable-flush",
+    "hits": 2455653,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs#SharedCommit_DeviceFailuresRecoverWholeTransactionsAndReleaseWriterOwnership",
+        "results": {
+          "Passed": 96
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedCommitFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedCommitFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedCommitFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedDurability_Tests.cs#SharedCommit_HonorsDurabilitySettingAtConfirmation",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedDurability_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedDurability_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedDurability_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-before-index-confirmation",
+    "hits": 2370753,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/MvccRecoveredCommitLock_Tests.cs#RecoveredHeaderKeepsCheckpointOutsideCommitPublication",
+        "results": {
+          "Passed": 72
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/MvccRecoveredCommitLock_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-confirmation-after-write",
+    "hits": 2459911,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitStop_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-confirmation-before-write",
+    "hits": 2460448,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-page-after-write",
+    "hits": 37030077,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalCombinedFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalCombinedFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalCombinedFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-page-before-write",
+    "hits": 37033053,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/WalCombinedFailure_Tests.cs#FailedSecondFrame_PreservesTheSuccessfulBatchPrefixAndRecoveredCommit",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalCombinedFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalCombinedFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalCombinedFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactPromotionPowerLoss_Tests.cs#Power_loss_preserves_legacy_rows_and_atomic_compact_transaction",
+        "results": {
+          "Passed": 216
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactPromotionPowerLoss_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "after-log-backup",
+    "hits": 51484,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "after-source-backup",
+    "hits": 46084,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "after-temp-install",
+    "hits": 40724,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-candidate-cleanup",
+    "hits": 16120,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-candidate-republish",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Issue2979_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-candidate-rollback",
+    "hits": 16120,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/Issue2967_Tests.cs#Failed_candidate_rollback_keeps_the_original_wal_with_its_backup_data",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Issue2967_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Issue2967_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Issue2967_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-log-backup",
+    "hits": 54184,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-log-rollback",
+    "hits": 16120,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Issue2979_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-recovery-marker",
+    "hits": 54184,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Marker_creation_failure_does_not_move_the_original_files",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-recovery-marker-delete",
+    "hits": 54184,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Failed_marker_cleanup_preserves_the_original_error_and_blocks_opens",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-recovery-marker-flush",
+    "hits": 54184,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Marker_flush_failure_leaves_the_original_pair_untouched_and_access_blocked",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-source-backup",
+    "hits": 48784,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-source-retraction",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/Issue2979_Tests.cs#Repeated_recovery_failures_block_shared_reuse_and_fresh_opens",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Issue2979_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Issue2979_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-source-rollback",
+    "hits": 16120,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallRollback_Tests.cs#Shared_handle_adopts_the_collation_of_a_republished_replacement",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallRollback_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallRollback_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallRollback_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "before-temp-install",
+    "hits": 43384,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Every_reachable_fault_combination_honours_the_rollback_contract",
+        "results": {
+          "Passed": 135
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/Rebuild_InstallFaultMatrix_Tests.cs#Successful_rebuild_passes_every_install_fault_point",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Rebuild_InstallFaultMatrix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/RebuildRecoveryMarker_Tests.cs#Opens_are_guarded_during_every_installation_phase",
+        "results": {
+          "Passed": 36
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RebuildRecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "wal-rebase-before-anchor-flush",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "results": {
+          "Passed": 48
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalWriteFailureWindow_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+  },
+  {
+    "category": "hooks",
+    "name": "wal-rebase-before-rewrite",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "results": {
+          "Passed": 48
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalWriteFailureWindow_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+  },
+  {
+    "category": "hooks",
+    "name": "wal-before-batch-flush",
+    "hits": 11695843,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Failed_leader_buffer_flush_publishes_stop_under_the_writer_monitor",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitStop_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "results": {
+          "Passed": 48
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalWriteFailureWindow_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Failed_completion_after_downgrade_stops_all_facades_without_acknowledging_the_follower",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitUnsupported_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Exception and forced writer interleaving evidence; this new marker has no process-death or modeled-power-loss campaign claim."
+  },
+  {
+    "category": "hooks",
+    "name": "wal-before-failed-append-truncate",
+    "hits": 4721,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+  },
+  {
+    "category": "hooks",
+    "name": "wal-after-failed-append-truncate",
+    "hits": 1852,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Failed_append_cleanup_publishes_reuse_and_failed_truncation_remains_fenced",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Exception model only; no power-loss campaign at this newly exposed truncation boundary."
+  },
+  {
+    "category": "hooks",
+    "name": "wal-before-ticket-completion",
+    "hits": 850636,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileGroupDowngrade_Tests.cs#Issued_mapped_tickets_complete_after_downgrade_without_publishing_uncovered_versions",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileGroupDowngrade_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileGroupDowngrade_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileGroupDowngrade_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitUnsupported_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Zero_frame_results_errors_and_queries_complete_dependencies_after_downgrade",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitUnsupported_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Deterministic exception/interleaving and saved OS-cache image evidence; no device reset or power-loss guarantee on storage that rejects sync."
+  },
+  {
+    "category": "hooks",
+    "name": "offline-validated",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+        "results": {
+          "Passed": 27
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "offline-retired",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+        "results": {
+          "Passed": 27
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "offline-readers-retired",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+        "results": {
+          "Passed": 27
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "offline-complete",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOfflineUpgrade_Tests.cs#Every_retirement_cut_and_interrupted_retry_preserve_database_and_wal",
+        "results": {
+          "Passed": 27
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOfflineUpgrade_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "handle-before-release",
+    "hits": 2400,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer",
+        "results": {
+          "Passed": 108
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "hooks",
+    "name": "handle-after-release",
+    "hits": 2400,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/TransactionHandleReviewSafety_Tests.cs#Shared_handle_commit_death_recovers_atomic_rows_indexes_and_writer",
+        "results": {
+          "Passed": 108
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/TransactionHandleReviewSafety_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "DarwinTruncated",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Interrupted_native_allocation_retries_without_changing_database_bytes",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "DispatchOverride",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#Rejected_dispatch_retries_from_timer_and_releases_real_reader_pins_and_lease",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/SharedReaderCleanupDispatch_Tests.cs#False_after_queueing_and_retry_callbacks_dispose_each_owner_once",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedReaderCleanupDispatch_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "OwnershipStage",
+    "hits": 115547,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileSlice7OwnerReuseReview_Tests.cs#Begin_queued_behind_dead_owner_cleanup_publishes_a_new_local_owner",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileSlice7OwnerReuseReview_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileSlice7OwnerReuseReview_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileSlice7OwnerReuseReview_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileTerminalTransitions_Tests.cs#Every_terminal_transition_releases_to_a_peer_and_preserves_cold_indexed_state",
+        "results": {
+          "Passed": 48
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileTerminalTransitions_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileTerminalTransitions_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileTerminalTransitions_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Every_protected_entry_propagates_abandonment_until_the_real_WRITE_byte_is_acquired",
+        "results": {
+          "Passed": 15
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "WriteRetry",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileRetryHandoff_Tests.cs#Real_abandoned_thread_with_live_handles_requires_actual_WRITE_and_can_retry_after_timeout",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileRetryHandoff_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "BeforeTransactionRegistration",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileOwnershipProcess_Tests.cs#Issue3094_3125_repeated_and_failed_retries_release_to_another_process_while_owner_stays_alive",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileOwnershipProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileOwnershipProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileOwnershipProcess_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateDiskWriteFail",
+    "hits": 39494033,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/AllocationPublicationFailure_Tests.cs#Failed_foreign_image_publication_refuses_pending_header_free_and_later_header_commits",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/AllocationPublicationFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/AllocationPublicationFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/AllocationPublicationFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CompactStorageFault_Tests.cs#Failure_at_each_wal_page_boundary_never_publishes_partial_documents_or_schemas",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CompactStorageFault_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CompactStorageFault_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CompactStorageFault_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/WalTransactionBoundary_Tests.cs#FailedConfirmationAfterTheLastFlush_ReleasesItsFrameAndRemainsUncommitted",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalTransactionBoundary_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalTransactionBoundary_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalTransactionBoundary_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateDiskReadFail",
+    "hits": 227268267,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/FrameFailure_Tests.cs#ReadHook_Failure_ReleasesAcquiredFrame",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/FrameFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/FrameFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/FrameFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/RecoveryMarker_Tests.cs#InvalidState_PersistsMarkerBeforeClosingDataWriter",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/RecoveryMarker_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/RecoveryMarker_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateDataWriteFail",
+    "hits": 13004527,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedDataPageWrite_StopsTheEngine_AndTheWalRecoversEveryCommit",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Engine/CheckpointDataWriteFailure_Tests.cs#FailedCloseCheckpoint_LeavesTheWalToRecoverEveryCommit",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/CheckpointDataWriteFailure_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateErrno",
+    "hits": 2690610,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Issues/NativeFileSync_Tests.cs#Failed_log_sync_stops_checkpoint_before_the_data_file_changes",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/NativeFileSync_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/NativeFileSync_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/NativeFileSync_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/Issue2614_InitializationCleanup_Tests.cs#FailedInitialization_ReleasesFileHandle_AndAllowsRetry",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/Issue2614_InitializationCleanup_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/Issue2614_InitializationCleanup_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/Issue2614_InitializationCleanup_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitUnsupported_Tests.cs#Downgrade_completes_issued_tickets_and_exposes_every_acknowledged_commit",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitUnsupported_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitUnsupported_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateDirectoryErrno",
+    "hits": 167120,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_failed_directory_sync_fails_the_commit",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalDirectorySync_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalDirectorySync_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalDirectorySync_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Issues/WalDirectorySync_Tests.cs#A_directory_that_cannot_sync_reports_the_log_as_not_durable_and_keeps_committing",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalDirectorySync_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalDirectorySync_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalDirectorySync_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceFailure_Tests.cs#Each_failed_directory_sync_preserves_a_recoverable_pair",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileMaintenanceFailure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileMaintenanceFailure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileMaintenanceFailure_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "SimulatePosixDelete",
+    "hits": 25626,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedFileHandles_Tests.cs#Volumes_without_posix_delete_open_files_per_operation",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedFileHandles_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedFileHandles_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedFileHandles_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "AfterFailedWalWrite",
+    "hits": 3926,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/GroupCommitStop_Tests.cs#Uncertain_follower_stops_the_captured_leader_and_zero_frame_waiter",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/GroupCommitStop_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/GroupCommitStop_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Regressions/TornSlotRewrite_Tests.cs#Commit_waiting_for_the_writer_during_a_failed_rewrite_is_never_acknowledged_and_lost",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/TornSlotRewrite_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/TornSlotRewrite_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/TornSlotRewrite_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Regressions/WalWriteFailureWindow_Tests.cs#Failure_publishes_stop_before_a_queued_writer_can_confirm",
+        "results": {
+          "Passed": 48
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/WalWriteFailureWindow_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/WalWriteFailureWindow_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "BootstrapStage",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileReuse_Tests.cs#Death_during_proven_reuse_validation_repeats_and_recovers_the_same_authority",
+        "results": {
+          "Passed": 33
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileReuse_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileReuse_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_exception_boundary_releases_and_reinitializes_twice",
+        "results": {
+          "Passed": 51
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Every_bootstrap_process_death_boundary_recovers_after_repeated_death",
+        "results": {
+          "Passed": 51
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+  },
+  {
+    "category": "injectors",
+    "name": "AllocateFile",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "MapFile",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileBootstrap_Tests.cs#Allocation_and_mapping_failures_preserve_storage_and_release_bootstrap",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileBootstrap_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "PublicationStage",
+    "hits": 1249635,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileProductionReuse_Tests.cs#Actual_production_reuse_survives_two_deaths_at_each_store_and_handoff",
+        "results": {
+          "Passed": 84
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileProductionReuse_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFilePublication_Tests.cs#Death_at_each_mapped_writer_publication_fence_recovers_complete_storage",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFilePublication_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFilePublication_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFilePublication_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileRecoveryCuts_Tests.cs#Successors_dying_twice_inside_live_authority_repair_preserve_the_accepted_snapshot",
+        "results": {
+          "Passed": 45
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileRecoveryCuts_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileRecoveryCuts_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileRecoveryCuts_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileDurablePrefix_Tests.cs#Separately_captured_group_tickets_never_publish_beyond_their_covering_prefix",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileDurablePrefix_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileDurablePrefix_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileDurablePrefix_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFailureFences_Tests.cs#Terminal_stop_cannot_publish_or_clear_fences_and_releases_WRITE",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFailureFences_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFailureFences_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFailureFences_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWriteFailures_Tests.cs#Interrupted_writer_acquisition_unwinds_native_and_thread_ownership",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWriteFailures_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWarmRecovery_Tests.cs#Death_at_every_writer_fence_keeps_warm_generations_during_repeated_protected_recovery",
+        "results": {
+          "Passed": 42
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWarmRecovery_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWarmRecovery_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWarmRecovery_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWarmPublication_Tests.cs#Every_publication_step_admits_only_a_sync_covered_version_and_stopped_writer_never_reenables",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWarmPublication_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWarmPublication_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWarmPublication_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 only; no device reset or ARM memory-ordering claim."
+  },
+  {
+    "category": "injectors",
+    "name": "AdmissionStage",
+    "hits": 561044,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Every_status_load_rejects_a_raced_64_bit_fence_without_executing_a_query",
+        "results": {
+          "Passed": 12
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWarmReads_Tests.cs#Sequence_change_at_each_load_before_and_after_record_publication_falls_back",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWarmReads_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileWarmFailures_Tests.cs#Admission_exception_releases_a_new_record_without_query_execution",
+        "results": {
+          "Passed": 15
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileWarmFailures_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileWarmFailures_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileWarmFailures_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Bounded Linux x64 SC/CLR evidence; no ARM or device memory-ordering qualification."
+  },
+  {
+    "category": "injectors",
+    "name": "RequestStage",
+    "hits": 104373,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenure_Tests.cs#Request_fault_releases_its_record_and_does_not_poison_the_next_writer",
+        "results": {
+          "Passed": 9
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenure_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenure_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenure_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureProcess_Tests.cs#Dead_or_expired_requester_cannot_reserve_a_turn",
+        "results": {
+          "Passed": 6
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureProcess_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureProcess_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureProcess_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureReview_Tests.cs#Reacquiring_holder_takes_a_fresh_ticket_even_with_an_outstanding_local_waiter",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureReview_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureReview_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureReview_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Renewal_after_a_preempted_clock_sample_preserves_end_to_end_remote_priority",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureRequestSafety_Tests.cs#Expired_live_request_reenters_after_the_already_published_successor",
+        "results": {
+          "Passed": 3
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureRequestSafety_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 only; no Windows/macOS or device reset qualification."
+  },
+  {
+    "category": "injectors",
+    "name": "SimulateWaitError",
+    "hits": 20000,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Wait_bounds_follow_pressure_and_EINTR_and_spurious_wakes_recheck_without_losing_the_holder",
+        "results": {
+          "Passed": 1,
+          "NotExecuted": 2
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedWriterTenureWakeSafety_Tests.cs#Unexpected_wait_error_drains_a_live_operation_before_releasing_storage",
+        "results": {
+          "Passed": 1,
+          "NotExecuted": 2
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedWriterTenureWakeSafety_Tests.trx"
+        ]
+      }
+    ],
+    "gap": ""
+  },
+  {
+    "category": "injectors",
+    "name": "MaintenanceStage",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats",
+        "results": {
+          "Passed": 126
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
+  },
+  {
+    "category": "injectors",
+    "name": "MappedRebuildStage",
+    "hits": 0,
+    "status": "unreached (no marker telemetry; xUnit execution listed separately)",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileRebuildPowerLoss_Tests.cs#Every_durable_directory_image_and_repeated_recovery_preserves_committed_indexes",
+        "results": {
+          "Passed": 24
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileRebuildPowerLoss_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Recovery_can_itself_die_and_be_repeated",
+        "results": {
+          "Passed": 42
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileMaintenanceCrash_Tests.cs#Every_maintenance_death_preserves_committed_pair_and_repeats",
+        "results": {
+          "Passed": 126
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileMaintenanceCrash_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 modern runtimes; atomic same-directory rename and successful sync assumed. No physical-device reset, other-filesystem or whole-storage-stack power-loss qualification."
+  },
+  {
+    "category": "injectors",
+    "name": "FinalCloseStage",
+    "hits": 209860,
+    "status": "reached",
+    "testEvidence": [
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileCloseCompletion_Tests.cs#Closed_requires_completed_final_storage_and_native_release",
+        "results": {
+          "Passed": 18
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileCloseCompletion_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileCloseCompletion_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileCloseCompletion_Tests.trx"
+        ]
+      },
+      {
+        "test": "LiteDB.Tests/Internals/SharedOneFileFinalClose_Tests.cs#Every_final_close_death_recovers_twice_without_changing_authority",
+        "results": {
+          "Passed": 60
+        },
+        "files": [
+          "artifacts/p5-linux-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-macos-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx",
+          "artifacts/p5-windows-faults/evidence/trx/SharedOneFileFinalClose_Tests.trx"
+        ]
+      }
+    ],
+    "gap": "Linux x64 modern runtimes; no device reset or whole-path modeled power-loss claim."
+  }
+]

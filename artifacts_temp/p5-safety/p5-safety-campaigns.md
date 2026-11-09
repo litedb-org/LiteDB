@@ -1,12 +1,12 @@
 # Summary
-- P5-SAFETY-CAMPAIGNS round2: waiting for terminal hosted run42531054661;16/22legs complete.
-- Exact candidate e507faad40e968aa2fcf63ae6dd01fd7def2e07b; hosted driver b811372fb; scratch checkpoint d4c4c7bde.
-- Downloaded301508campaign steps; all three platform fault suites completed,5318passes+8NotExecuted.
-- Known2952 vector failure on Linux/Windows;3142 c2776273 fixes all three exercised seeds400steps and100/80prefixes locally (yes).
-- Additional classified harness defects: api-boundary header capacity348steps; Windows snapshot IPC sharing with non-deterministic replay limits.
-- Latest audit:173markers/60unreached;100hooks+injectors/17unreached;162hash entries verified.
-- Collector monitor2.py streams archives, polls180s; no campaign redispatch or product changes.
-- Remaining linux-7,windows-0,linux-2,linux-shared,macos-shared-handle,windows-shared running; final report waits for all.
+- P5-SAFETY-CAMPAIGNS round2: BLOCKED qualification; all22hosted legs terminal (15success/5failure/2cancelled).
+- Candidate e507faad40e968aa2fcf63ae6dd01fd7def2e07b; hosted driver b811372fb; no redispatch/product changes.
+- Downloaded21/22archives; linux-2 upload failed ENOENT on live child file. Log retained, binary hashes/raw metrics unavailable.
+- Retained48targets,365110reported steps(lower bound),72failedrunrecords; fault tests5318pass+8NotExecuted.
+- Known2952 vector failures:3142 c2776273 fixes exercised3seeds400steps and100/80prefixes locally=yes.
+- Classified harness findings: API header capacity, Windows snapshot IPC/input exhaustion; macOS missed checkpoint cut origin unresolved, no deterministic replay.
+- Audit173markers/58unreached;100faults/17unreached;185publishedbinary hashes match; available partial-leg core hashes measured separately.
+- Report p5-safety-report.md; full logs/evidence in p5-safety-campaigns-evidence. Missing replay/raw evidence remain blockers.
 
 # Steps
 - Read rules, brief, development/workflow/validation/safety/data-safety guidance and Phase 3/4 reports.
@@ -142,3 +142,11 @@
 - macos-shared-handle terminal cancelled at350min; partial artifact downloaded. shared529470 failed282 at crashAt22/checkpoint-after-page-write without crashmarker; no deterministic replay completed, origin unresolved and explicit blocker. shared529471 passed400;529472 interrupted; remainingmac targets unexecuted. Job log retained via jobs API. Current357110reportedsteps72failure records. Two legs remain running.
 - 2026-11-09T05:05:24.727938+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
 - 2026-11-09T05:08:30.126891+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:11:32.401325+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:14:34.733266+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:17:37.161675+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:20:39.412739+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:23:41.718091+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:26:43.924631+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:29:46.112005+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'completed:cancelled': 2}; streaming collector active.
+- Final hosted run terminal,21archives downloaded; missinglinux-2 archive upload failed after350min cancellation. 48exit0 commands logged but missingrawmetrics/hashes excluded. Full campaign log and both cancellation joblogs retained; final report written with unresolved safety/qualification blockers.

@@ -1,0 +1,26 @@
+[
+  {
+    "seed": 529476,
+    "original": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529476/20261108-225409-vector-s529476-w0-rd1719ea8/input.bin",
+    "regenerated": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529476/20261108-230122-vector-s529476-w0-r52d806c9/input.bin",
+    "originalBytes": 2580,
+    "prefixMatches": true,
+    "originalSha256": "acdab218baa0e880ed34469044db84dc8cc0e0734ef4a1fca74182c867888ff7"
+  },
+  {
+    "seed": 529477,
+    "original": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529477/20261108-225417-vector-s529477-w0-r0e1e8368/input.bin",
+    "regenerated": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529477/20261108-230138-vector-s529477-w0-re4963c50/input.bin",
+    "originalBytes": 3184,
+    "prefixMatches": true,
+    "originalSha256": "6c74a874106ac5184718b15b7e26ec5446b3e999011ad019ec661327a3a55b83"
+  },
+  {
+    "seed": 529478,
+    "original": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/artifacts/p5-linux-4/evidence/fuzz/vector/529478/20261108-225425-vector-s529478-w0-r18f82987/input.bin",
+    "regenerated": "/tmp/litedb-proto/phases/p5-safety-campaigns-evidence/pr3142-replays/seed-529478/20261108-230151-vector-s529478-w0-r86ce6279/input.bin",
+    "originalBytes": 19572,
+    "prefixMatches": true,
+    "originalSha256": "3664dc5c84b609a739f0f70c6c2eb97642a83e0cace8a0f9e7d8c3f06173eb11"
+  }
+]

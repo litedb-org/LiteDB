@@ -1,0 +1,56 @@
+[
+  {
+    "kind": "original",
+    "target": "api-boundary",
+    "identity": "LiteDB.LiteException",
+    "count": 20
+  },
+  {
+    "kind": "original",
+    "target": "shared",
+    "identity": "SHARED_SHAREDPROCESSFUZZER_L82",
+    "count": 1
+  },
+  {
+    "kind": "original",
+    "target": "snapshot",
+    "identity": "SNAPSHOT_READER_FAILED",
+    "count": 9
+  },
+  {
+    "kind": "original",
+    "target": "snapshot",
+    "identity": "System.IO.IOException",
+    "count": 1
+  },
+  {
+    "kind": "original",
+    "target": "vector",
+    "identity": "VECTOR_DATABASEVECTORINTEGRITYVERIFIER_L43",
+    "count": 6
+  },
+  {
+    "kind": "replay",
+    "target": "api-boundary",
+    "identity": "LiteDB.LiteException",
+    "count": 20
+  },
+  {
+    "kind": "replay",
+    "target": "snapshot",
+    "identity": "SNAPSHOT_READER_FAILED",
+    "count": 6
+  },
+  {
+    "kind": "replay",
+    "target": "snapshot",
+    "identity": "System.IO.InvalidDataException",
+    "count": 3
+  },
+  {
+    "kind": "replay",
+    "target": "vector",
+    "identity": "VECTOR_DATABASEVECTORINTEGRITYVERIFIER_L43",
+    "count": 6
+  }
+]

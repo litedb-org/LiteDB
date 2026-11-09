@@ -1,0 +1,21 @@
+{
+  "jobs": 22,
+  "jobConclusions": {
+    "failure": 5,
+    "success": 15,
+    "cancelled": 2
+  },
+  "targets": 48,
+  "steps": 365110,
+  "failures": 72,
+  "unreachedMarkers": 58,
+  "unreachedFaults": 17,
+  "missing": [
+    "linux-2"
+  ],
+  "badHashes": [],
+  "testOutcomes": {
+    "Passed": 5318,
+    "NotExecuted": 8
+  }
+}

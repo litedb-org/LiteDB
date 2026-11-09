@@ -1,0 +1,1112 @@
+[
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.TestPlatform.ObjectModel.dll",
+    "sha256": "28b2cddea8b257785baf77e3c59f80c97c9eb38b616ce41b58b1e99e07ad0a11",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/SharedMutexHarness.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/MathNet.Numerics.dll",
+    "sha256": "83b41a608e438409d6520d01124f52f57409e229791c0e074e315ace7d9f4134",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/FluentAssertions.dll",
+    "sha256": "74989bec64beb8c1269e51c3e867233711cab1268f2a921fdeb34e0a88e1a4e4",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CoreUtilities.dll",
+    "sha256": "a4f6023603d624fbc76b58ab60558320d29f562eef10488e48ed27cc6ceb4b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.PlatformAbstractions.dll",
+    "sha256": "36e62b27cb37b5587d6acb3533c9bcebb2368edcfd2c8203157faca3aa3fb404",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.abstractions.dll",
+    "sha256": "3166dc70323fb30ccf1cedb0fe86f2ad122c46d254542342d90386efc4c9285c",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.assert.dll",
+    "sha256": "50694822851cd81c29adcd0f33e4041d1605befcdc9384c02eadd62218b643b1",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.utility.netcoreapp10.dll",
+    "sha256": "244afc7b0b6d19ae3a92c30ae0ac6ba53fc99ce16285a3a2ec4af5d8267d3cc0",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.execution.dotnet.dll",
+    "sha256": "d112327a738f816894cdd314b27b141a07d5550bc2a747c08d9cab0659a76887",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Security.Cryptography.ProtectedData.dll",
+    "sha256": "81a0385cf1fed22f3153789d4ae1fee75719f23e72cd543edba1af48926fbf24",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Configuration.ConfigurationManager.dll",
+    "sha256": "0627cfbee88b77f40d30012b7ab87d7e5e165f8d76f8aaa469d5db98e5b99335",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll",
+    "sha256": "829b3ba64f6a77e95c7b9db7eb9fa567cc97f2d0cd4c7f897f8eefba2d92eb53",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CommunicationUtilities.dll",
+    "sha256": "467b1df61023901a09de9a0052ac69e5961c846de0152c4d8d6afdec090cf889",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.deps.json",
+    "sha256": "2cd710e943fbbb74b013f3f168be64fa1f25d2216c113a037ab6bd894f766c79",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/testhost.dll",
+    "sha256": "db1fd507774c7b5a14a5be89faf578d8e8f76ff146d7ff9a179284d01b8c3b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.IO.Pipelines.dll",
+    "sha256": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.core.dll",
+    "sha256": "0ed5297c796b0225aab35564319ebb6600738e14e868fddb21c317e35b99513b",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.visualstudio.testadapter.dll",
+    "sha256": "c5ac41b36fac0fcef9714fb80fea0175913530fb53dd7bb8e5e1470339667100",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.Utilities.dll",
+    "sha256": "23fca5df9a5bdf954a09116547b77e9599484a7bf457d1694bec3cb7392278d2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Newtonsoft.Json.dll",
+    "sha256": "72cf291d4bab0edd08a9b07c6173e1e7ad1abb7ab727fd7044bf6305d7515661",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/SharedMutexHarness.deps.json",
+    "sha256": "f17c3651b2a6b790e868c0f920c5541ab2a88005222669d3178d25c2cb480a05",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Text.Encodings.Web.dll",
+    "sha256": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.TestPlatform.Common.dll",
+    "sha256": "25c6a0465aa98ad84be35c68eb516d95fb86043f1d3066b326cb6e8ae4af3ce9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.CodeCoverage.Shim.dll",
+    "sha256": "5619c8dfbd19198780ed0b834b1f79a07310aaef5510f02f9025735e135e0100",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.json",
+    "sha256": "e6355285959c7fa79637d4182a8772eee2a65d5229d92e2502ab572c76de8ff6",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.reporters.netcoreapp10.dll",
+    "sha256": "3ce9f8dca9328c996904a3f032c658571061b12ebe3d56f3a361b45fa630edab",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CrossPlatEngine.dll",
+    "sha256": "322fbf9184012a02309fa57c6c70fd05c372d761e7f9b8497cc62a4d91f1b9ce",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Text.Json.dll",
+    "sha256": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "648bcaecf4c754dea2d542a0ef18a88648f2457bbf5b359cc4f210b5e21cf745",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CoreUtilities.dll",
+    "sha256": "a4f6023603d624fbc76b58ab60558320d29f562eef10488e48ed27cc6ceb4b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.reporters.netcoreapp10.dll",
+    "sha256": "3ce9f8dca9328c996904a3f032c658571061b12ebe3d56f3a361b45fa630edab",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/testhost.dll",
+    "sha256": "db1fd507774c7b5a14a5be89faf578d8e8f76ff146d7ff9a179284d01b8c3b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.abstractions.dll",
+    "sha256": "3166dc70323fb30ccf1cedb0fe86f2ad122c46d254542342d90386efc4c9285c",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll",
+    "sha256": "8ba2c51bb9f55a7ce0f8e292a557965b041552e681bf2b8d37a480d94db53cfe",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.deps.json",
+    "sha256": "2cd710e943fbbb74b013f3f168be64fa1f25d2216c113a037ab6bd894f766c79",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.utility.netcoreapp10.dll",
+    "sha256": "244afc7b0b6d19ae3a92c30ae0ac6ba53fc99ce16285a3a2ec4af5d8267d3cc0",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.json",
+    "sha256": "e6355285959c7fa79637d4182a8772eee2a65d5229d92e2502ab572c76de8ff6",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.core.dll",
+    "sha256": "0ed5297c796b0225aab35564319ebb6600738e14e868fddb21c317e35b99513b",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Text.Encodings.Web.dll",
+    "sha256": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Text.Json.dll",
+    "sha256": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/SharedMutexHarness.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.CodeCoverage.Shim.dll",
+    "sha256": "5619c8dfbd19198780ed0b834b1f79a07310aaef5510f02f9025735e135e0100",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CrossPlatEngine.dll",
+    "sha256": "322fbf9184012a02309fa57c6c70fd05c372d761e7f9b8497cc62a4d91f1b9ce",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/MathNet.Numerics.dll",
+    "sha256": "83b41a608e438409d6520d01124f52f57409e229791c0e074e315ace7d9f4134",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.runner.visualstudio.testadapter.dll",
+    "sha256": "c5ac41b36fac0fcef9714fb80fea0175913530fb53dd7bb8e5e1470339667100",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/SharedMutexHarness.deps.json",
+    "sha256": "f17c3651b2a6b790e868c0f920c5541ab2a88005222669d3178d25c2cb480a05",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.IO.Pipelines.dll",
+    "sha256": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Newtonsoft.Json.dll",
+    "sha256": "72cf291d4bab0edd08a9b07c6173e1e7ad1abb7ab727fd7044bf6305d7515661",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.PlatformAbstractions.dll",
+    "sha256": "36e62b27cb37b5587d6acb3533c9bcebb2368edcfd2c8203157faca3aa3fb404",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/FluentAssertions.dll",
+    "sha256": "74989bec64beb8c1269e51c3e867233711cab1268f2a921fdeb34e0a88e1a4e4",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Security.Cryptography.ProtectedData.dll",
+    "sha256": "81a0385cf1fed22f3153789d4ae1fee75719f23e72cd543edba1af48926fbf24",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.execution.dotnet.dll",
+    "sha256": "d112327a738f816894cdd314b27b141a07d5550bc2a747c08d9cab0659a76887",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.TestPlatform.Common.dll",
+    "sha256": "25c6a0465aa98ad84be35c68eb516d95fb86043f1d3066b326cb6e8ae4af3ce9",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.VisualStudio.TestPlatform.ObjectModel.dll",
+    "sha256": "28b2cddea8b257785baf77e3c59f80c97c9eb38b616ce41b58b1e99e07ad0a11",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/System.Configuration.ConfigurationManager.dll",
+    "sha256": "0627cfbee88b77f40d30012b7ab87d7e5e165f8d76f8aaa469d5db98e5b99335",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.CommunicationUtilities.dll",
+    "sha256": "467b1df61023901a09de9a0052ac69e5961c846de0152c4d8d6afdec090cf889",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/xunit.assert.dll",
+    "sha256": "50694822851cd81c29adcd0f33e4041d1605befcdc9384c02eadd62218b643b1",
+    "verified": true
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/Microsoft.TestPlatform.Utilities.dll",
+    "sha256": "23fca5df9a5bdf954a09116547b77e9599484a7bf457d1694bec3cb7392278d2",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\FluentAssertions.dll",
+    "sha256": "74989bec64beb8c1269e51c3e867233711cab1268f2a921fdeb34e0a88e1a4e4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\LiteDB.Tests.deps.json",
+    "sha256": "e586cb26cf27910856f11d14fef878ed3bfa35deb91f913809783a226a97f37c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\LiteDB.Tests.dll",
+    "sha256": "88e0240b57497312c69200fff226dbdd405c40fc4d2314a6a34d9425ce80d0cb",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\LiteDB.Tests.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\MathNet.Numerics.dll",
+    "sha256": "83b41a608e438409d6520d01124f52f57409e229791c0e074e315ace7d9f4134",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.TestPlatform.CommunicationUtilities.dll",
+    "sha256": "467b1df61023901a09de9a0052ac69e5961c846de0152c4d8d6afdec090cf889",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.TestPlatform.CoreUtilities.dll",
+    "sha256": "a4f6023603d624fbc76b58ab60558320d29f562eef10488e48ed27cc6ceb4b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.TestPlatform.CrossPlatEngine.dll",
+    "sha256": "322fbf9184012a02309fa57c6c70fd05c372d761e7f9b8497cc62a4d91f1b9ce",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.TestPlatform.PlatformAbstractions.dll",
+    "sha256": "36e62b27cb37b5587d6acb3533c9bcebb2368edcfd2c8203157faca3aa3fb404",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.TestPlatform.Utilities.dll",
+    "sha256": "23fca5df9a5bdf954a09116547b77e9599484a7bf457d1694bec3cb7392278d2",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.VisualStudio.CodeCoverage.Shim.dll",
+    "sha256": "5619c8dfbd19198780ed0b834b1f79a07310aaef5510f02f9025735e135e0100",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.VisualStudio.TestPlatform.Common.dll",
+    "sha256": "25c6a0465aa98ad84be35c68eb516d95fb86043f1d3066b326cb6e8ae4af3ce9",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Microsoft.VisualStudio.TestPlatform.ObjectModel.dll",
+    "sha256": "28b2cddea8b257785baf77e3c59f80c97c9eb38b616ce41b58b1e99e07ad0a11",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\Newtonsoft.Json.dll",
+    "sha256": "72cf291d4bab0edd08a9b07c6173e1e7ad1abb7ab727fd7044bf6305d7515661",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\SharedMutexHarness.deps.json",
+    "sha256": "e171639922009e864e5880edbd0abfcdf5a09fc7b26b92ddecc56ef1bdbbf46c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\SharedMutexHarness.exe",
+    "sha256": "e38eca2e4b24756d6b59da720b8fa68cea97244e43d168e9327970dfed403792",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\SharedMutexHarness.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\System.Configuration.ConfigurationManager.dll",
+    "sha256": "0627cfbee88b77f40d30012b7ab87d7e5e165f8d76f8aaa469d5db98e5b99335",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\System.IO.Pipelines.dll",
+    "sha256": "a86a7e46a2b9f3a1a706d7dc4a3b8068914a27190a3aae8f18dc3f22a79969ff",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\System.Security.Cryptography.ProtectedData.dll",
+    "sha256": "81a0385cf1fed22f3153789d4ae1fee75719f23e72cd543edba1af48926fbf24",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\System.Text.Encodings.Web.dll",
+    "sha256": "930baf0ea8e302ae6f339c6c19c4f96d1357a5378e0a90fb5406113fd214763c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\System.Text.Json.dll",
+    "sha256": "70d7fb8c873eedfa3353e10935620f345cf18b46535393bd7a02de337bd19fa2",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\testhost.dll",
+    "sha256": "db1fd507774c7b5a14a5be89faf578d8e8f76ff146d7ff9a179284d01b8c3b9c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\testhost.exe",
+    "sha256": "290a3ae6e296530f1856e28faf6af2bd9895fbcc52981c7949105c38136d882f",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.abstractions.dll",
+    "sha256": "3166dc70323fb30ccf1cedb0fe86f2ad122c46d254542342d90386efc4c9285c",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.assert.dll",
+    "sha256": "50694822851cd81c29adcd0f33e4041d1605befcdc9384c02eadd62218b643b1",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.core.dll",
+    "sha256": "0ed5297c796b0225aab35564319ebb6600738e14e868fddb21c317e35b99513b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.execution.dotnet.dll",
+    "sha256": "d112327a738f816894cdd314b27b141a07d5550bc2a747c08d9cab0659a76887",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.runner.json",
+    "sha256": "e2713df5db3530e1a9dbb52088834aabe93421de0facaa8600bded8a8d8ce432",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.runner.reporters.netcoreapp10.dll",
+    "sha256": "3ce9f8dca9328c996904a3f032c658571061b12ebe3d56f3a361b45fa630edab",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.runner.utility.netcoreapp10.dll",
+    "sha256": "244afc7b0b6d19ae3a92c30ae0ac6ba53fc99ce16285a3a2ec4af5d8267d3cc0",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests\\bin\\Release\\net8.0\\xunit.runner.visualstudio.testadapter.dll",
+    "sha256": "c5ac41b36fac0fcef9714fb80fea0175913530fb53dd7bb8e5e1470339667100",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.deps.json",
+    "sha256": "27842c19d88bf3b0ad41b0326a880d9b2afcc411bdfae06b08de5dee048bcba4",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.exe",
+    "sha256": "bc03011fdb9b87230f39555122a8045d73559b40d8cc226c835400d390104b3b",
+    "verified": true
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz\\bin\\Release\\net8.0\\LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "28329cf08f6505e73806b17558b187c02f0c1c516fe47ebfb7a013d082aaa306",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.runtimeconfig.json",
+    "sha256": "97c9700542b659150b230c3578b29530fd76ab01ec66a92cd16945e0245713df",
+    "verified": true
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.deps.json",
+    "sha256": "09bae3aaa103bd2f2a9b40c23fbfdc7ff345cd03dba67b78c76cbcd78fb32eb9",
+    "verified": true
+  }
+]

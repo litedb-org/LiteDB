@@ -1,0 +1,272 @@
+[
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/handle-probe/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/mvcc-probe/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-linux-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll",
+    "sha256": "829b3ba64f6a77e95c7b9db7eb9fa567cc97f2d0cd4c7f897f8eefba2d92eb53"
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/handle-probe/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/mvcc-probe/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "648bcaecf4c754dea2d542a0ef18a88648f2457bbf5b359cc4f210b5e21cf745"
+  },
+  {
+    "job": "p5-macos-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll",
+    "sha256": "8ba2c51bb9f55a7ce0f8e292a557965b041552e681bf2b8d37a480d94db53cfe"
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-macos-shared-handle",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "75ff946114633c706520c272447c0beccb8043b25fcebb53dedf5b93a85f0e24"
+  },
+  {
+    "job": "p5-macos-shared-handle",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "648bcaecf4c754dea2d542a0ef18a88648f2457bbf5b359cc4f210b5e21cf745"
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-7",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-3",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-4",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-shared",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/handle-probe/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/mvcc-probe/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-windows-faults",
+    "file": "LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll",
+    "sha256": "88e0240b57497312c69200fff226dbdd405c40fc4d2314a6a34d9425ce80d0cb"
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "a4fe0eccf7e03b669bb7bd617d7364c23be741539252ff9e361151453f987677"
+  },
+  {
+    "job": "p5-windows-2",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "faa737143c9924fe252030333fc9f80da138351bea6ab0de2d059fafe9cfb125"
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-0",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-6",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-1",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.dll",
+    "sha256": "0b5c202a2c50d16ed65bf65a90ea5c26d4deb17482c1bf5f7468aa399d9b90b9"
+  },
+  {
+    "job": "p5-linux-5",
+    "file": "LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+    "sha256": "1673d7adaa04b7b2cb64b593764e0ab624b5d3b1d99ad1a581c1bb502cafe7e2"
+  }
+]

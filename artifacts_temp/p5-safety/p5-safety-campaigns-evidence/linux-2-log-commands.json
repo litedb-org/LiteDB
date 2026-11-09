@@ -1,0 +1,914 @@
+[
+  {
+    "name": "bson-529470",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529470",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529470",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 3.0594751834869385
+  },
+  {
+    "name": "bson-529471",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529471",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529471",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.46073317527770996
+  },
+  {
+    "name": "bson-529472",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529472",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529472",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.4756615161895752
+  },
+  {
+    "name": "bson-529473",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529473",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529473",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.48333024978637695
+  },
+  {
+    "name": "bson-529474",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529474",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529474",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.4642179012298584
+  },
+  {
+    "name": "bson-529475",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529475",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529475",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.43659090995788574
+  },
+  {
+    "name": "bson-529476",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.49082493782043457
+  },
+  {
+    "name": "bson-529477",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.48381471633911133
+  },
+  {
+    "name": "bson-529478",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529478",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.5387845039367676
+  },
+  {
+    "name": "bson-529479",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "bson",
+      "--seed",
+      "529479",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/bson/529479",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.39174652099609375
+  },
+  {
+    "name": "compact-power-loss-529470",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529470",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529470",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 6.0822062492370605
+  },
+  {
+    "name": "compact-power-loss-529471",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529471",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529471",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.610231161117554
+  },
+  {
+    "name": "compact-power-loss-529472",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529472",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529472",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.777606248855591
+  },
+  {
+    "name": "compact-power-loss-529473",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529473",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529473",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.308031797409058
+  },
+  {
+    "name": "compact-power-loss-529474",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529474",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529474",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.799014091491699
+  },
+  {
+    "name": "compact-power-loss-529475",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529475",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529475",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.442142009735107
+  },
+  {
+    "name": "compact-power-loss-529476",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.456361532211304
+  },
+  {
+    "name": "compact-power-loss-529477",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.832842826843262
+  },
+  {
+    "name": "compact-power-loss-529478",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529478",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.59485387802124
+  },
+  {
+    "name": "compact-power-loss-529479",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "compact-power-loss",
+      "--seed",
+      "529479",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/compact-power-loss/529479",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 5.378350496292114
+  },
+  {
+    "name": "linq-cache-529470",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529470",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529470",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2.081719398498535
+  },
+  {
+    "name": "linq-cache-529471",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529471",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529471",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.903512716293335
+  },
+  {
+    "name": "linq-cache-529472",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529472",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529472",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.856154441833496
+  },
+  {
+    "name": "linq-cache-529473",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529473",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529473",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.933875322341919
+  },
+  {
+    "name": "linq-cache-529474",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529474",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529474",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.9889392852783203
+  },
+  {
+    "name": "linq-cache-529475",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529475",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529475",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.952674150466919
+  },
+  {
+    "name": "linq-cache-529476",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.7939996719360352
+  },
+  {
+    "name": "linq-cache-529477",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.9918017387390137
+  },
+  {
+    "name": "linq-cache-529478",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529478",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2.005789041519165
+  },
+  {
+    "name": "linq-cache-529479",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "linq-cache",
+      "--seed",
+      "529479",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/linq-cache/529479",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 1.911055088043213
+  },
+  {
+    "name": "power-loss-529470",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529470",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529470",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 9.292515993118286
+  },
+  {
+    "name": "power-loss-529471",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529471",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529471",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.74001693725586
+  },
+  {
+    "name": "power-loss-529472",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529472",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529472",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.398589372634888
+  },
+  {
+    "name": "power-loss-529473",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529473",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529473",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 9.357587575912476
+  },
+  {
+    "name": "power-loss-529474",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529474",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529474",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.840760469436646
+  },
+  {
+    "name": "power-loss-529475",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529475",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529475",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.861392974853516
+  },
+  {
+    "name": "power-loss-529476",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 9.033409118652344
+  },
+  {
+    "name": "power-loss-529477",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.992286205291748
+  },
+  {
+    "name": "power-loss-529478",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529478",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529478",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 9.624504804611206
+  },
+  {
+    "name": "power-loss-529479",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "power-loss",
+      "--seed",
+      "529479",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/power-loss/529479",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 8.806315422058105
+  },
+  {
+    "name": "snapshot-529470",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529470",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529470",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2448.1638238430023
+  },
+  {
+    "name": "snapshot-529471",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529471",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529471",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2493.275301218033
+  },
+  {
+    "name": "snapshot-529472",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529472",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529472",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2222.2430291175842
+  },
+  {
+    "name": "snapshot-529473",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529473",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529473",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2260.342575788498
+  },
+  {
+    "name": "snapshot-529474",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529474",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529474",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2551.2444024086
+  },
+  {
+    "name": "snapshot-529475",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529475",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529475",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2529.7866201400757
+  },
+  {
+    "name": "snapshot-529476",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529476",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529476",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2558.5936982631683
+  },
+  {
+    "name": "snapshot-529477",
+    "command": [
+      "dotnet",
+      "/home/runner/work/LiteDB/LiteDB/candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll",
+      "--target",
+      "snapshot",
+      "--seed",
+      "529477",
+      "--count",
+      "400",
+      "--artifact-dir",
+      "evidence/fuzz/snapshot/529477",
+      "--max-artifact-mb",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 2444.4725861549377
+  }
+]

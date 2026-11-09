@@ -1,0 +1,2918 @@
+{
+  "schemaVersion": 1,
+  "runs": 1378,
+  "markers": {
+    "api:ILiteDatabase.Obsolete": {
+      "hits": 427614,
+      "targets": {
+        "api-boundary": 69600,
+        "index": 40,
+        "recovery": 8000,
+        "transaction": 410,
+        "boundary": 60,
+        "chaos": 1392,
+        "compact-storage": 1538,
+        "checksum-crash": 10738,
+        "compatibility": 8000,
+        "sql-dml": 306,
+        "checksum-migration": 68480,
+        "concurrent": 51600,
+        "read-only": 20,
+        "storage": 5428,
+        "wal": 23636,
+        "conflict": 16120,
+        "mvcc-retirement": 1430,
+        "storage-failure": 16020,
+        "checksum-wal": 34240,
+        "cursor-handoff": 61718,
+        "rebuild-transition": 8120,
+        "threaded-snapshot": 16000,
+        "compact-power-loss": 4640,
+        "power-loss": 20078
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.CollectionExists": {
+      "hits": 0,
+      "targets": {},
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.Commit": {
+      "hits": 1867,
+      "targets": {
+        "transaction-handle": 1867
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.GetCollection": {
+      "hits": 9600,
+      "targets": {
+        "transaction-handle": 9600
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.GetCollectionNames": {
+      "hits": 0,
+      "targets": {},
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.ILiteCollection": {
+      "hits": 9600,
+      "targets": {
+        "transaction-handle": 9600
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransaction.Rollback": {
+      "hits": 2426,
+      "targets": {
+        "transaction-handle": 2426
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:ILiteTransactionProvider.BeginTransaction": {
+      "hits": 5600,
+      "targets": {
+        "transaction-handle": 5600
+      },
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "api:LiteTransactionExtensions.BeginTransaction": {
+      "hits": 0,
+      "targets": {},
+      "kind": "api",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:AdmissionStage": {
+      "hits": 561044,
+      "targets": {
+        "snapshot": 10364,
+        "transaction-handle": 550680
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:AfterFailedWalWrite": {
+      "hits": 3926,
+      "targets": {
+        "wal": 356,
+        "mvcc-retirement": 1510,
+        "compact-power-loss": 320,
+        "power-loss": 1740
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:AllocateFile": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:BeforeTransactionRegistration": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:BootstrapStage": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:DarwinTruncated": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:DispatchOverride": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:FinalCloseStage": {
+      "hits": 209860,
+      "targets": {
+        "shared": 173630,
+        "snapshot": 200,
+        "transaction-handle": 36030
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:MaintenanceStage": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:MapFile": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:MappedRebuildStage": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:OwnershipStage": {
+      "hits": 115547,
+      "targets": {
+        "shared": 60770,
+        "shared-legacy": 32000,
+        "snapshot": 5463,
+        "transaction-handle": 17314
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:PublicationStage": {
+      "hits": 1249635,
+      "targets": {
+        "shared": 1042488,
+        "snapshot": 52293,
+        "transaction-handle": 154854
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:RequestStage": {
+      "hits": 104373,
+      "targets": {
+        "shared": 78132,
+        "snapshot": 8223,
+        "transaction-handle": 18018
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:SimulateDataWriteFail": {
+      "hits": 13004527,
+      "targets": {
+        "api-boundary": 781360,
+        "index": 5116,
+        "recovery": 108040,
+        "transaction": 4656,
+        "boundary": 89520,
+        "compact-crash": 158662,
+        "integrity": 1580,
+        "parser": 760,
+        "chaos": 25526,
+        "compact-storage": 17500,
+        "malformed-file": 50160,
+        "pressure": 27280,
+        "sort": 64360,
+        "value": 320,
+        "checksum-crash": 656136,
+        "compatibility": 328000,
+        "mapper": 2880,
+        "query": 504,
+        "sql-dml": 11716,
+        "vector": 10716,
+        "checksum-migration": 602550,
+        "concurrent": 79060,
+        "mvcc-checkpoint": 252360,
+        "read-only": 100,
+        "storage": 187272,
+        "wal": 108624,
+        "checksum-page": 123142,
+        "conflict": 1129165,
+        "mvcc-retirement": 146884,
+        "rebuild": 147378,
+        "storage-failure": 136720,
+        "checksum-wal": 218234,
+        "cursor-handoff": 16639,
+        "oracle-selftest": 80,
+        "rebuild-transition": 730800,
+        "threaded-snapshot": 6471922,
+        "shared": 35079,
+        "shared-legacy": 32000,
+        "compact-power-loss": 61727,
+        "power-loss": 141764,
+        "snapshot": 33495,
+        "transaction-handle": 4740
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:SimulateDirectoryErrno": {
+      "hits": 167120,
+      "targets": {
+        "api-boundary": 13920,
+        "index": 296,
+        "transaction": 358,
+        "boundary": 360,
+        "integrity": 100,
+        "chaos": 1356,
+        "compact-storage": 2212,
+        "malformed-file": 2680,
+        "pressure": 20,
+        "compatibility": 40000,
+        "vector": 126,
+        "concurrent": 5160,
+        "read-only": 20,
+        "storage": 1640,
+        "conflict": 16120,
+        "rebuild": 16000,
+        "cursor-handoff": 4074,
+        "oracle-selftest": 20,
+        "rebuild-transition": 24360,
+        "threaded-snapshot": 20,
+        "shared": 17481,
+        "shared-legacy": 16000,
+        "snapshot": 2143,
+        "transaction-handle": 2654
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:SimulateDiskReadFail": {
+      "hits": 227268267,
+      "targets": {
+        "api-boundary": 4088240,
+        "index": 237922,
+        "recovery": 110680,
+        "transaction": 86574,
+        "boundary": 16840,
+        "compact-crash": 1572948,
+        "integrity": 8300,
+        "parser": 525108,
+        "chaos": 454086,
+        "compact-storage": 117308,
+        "malformed-file": 61000,
+        "pressure": 52409240,
+        "sort": 3446728,
+        "value": 30740,
+        "checksum-crash": 11198250,
+        "compatibility": 200000,
+        "mapper": 3600,
+        "query": 454734,
+        "sql-dml": 74516,
+        "vector": 276896,
+        "checksum-migration": 11516710,
+        "concurrent": 949740,
+        "mvcc-checkpoint": 7322748,
+        "read-only": 135680,
+        "storage": 5121414,
+        "wal": 296534,
+        "checksum-page": 1648514,
+        "conflict": 2326523,
+        "mvcc-retirement": 6274294,
+        "rebuild": 639052,
+        "storage-failure": 6508952,
+        "checksum-wal": 3444362,
+        "cursor-handoff": 672240,
+        "rebuild-transition": 738920,
+        "threaded-snapshot": 101736220,
+        "shared": 437310,
+        "shared-legacy": 403696,
+        "compact-power-loss": 135906,
+        "power-loss": 247409,
+        "snapshot": 161435,
+        "transaction-handle": 1176898
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:SimulateDiskWriteFail": {
+      "hits": 39494033,
+      "targets": {
+        "api-boundary": 1188280,
+        "index": 40958,
+        "recovery": 132000,
+        "transaction": 13156,
+        "boundary": 106060,
+        "compact-crash": 474562,
+        "integrity": 7340,
+        "parser": 32080,
+        "chaos": 38896,
+        "compact-storage": 31378,
+        "malformed-file": 960,
+        "pressure": 524060,
+        "sort": 1178198,
+        "value": 22400,
+        "checksum-crash": 1995912,
+        "compatibility": 408000,
+        "mapper": 5760,
+        "query": 6464,
+        "sql-dml": 14336,
+        "vector": 43380,
+        "checksum-migration": 1723658,
+        "concurrent": 181180,
+        "mvcc-checkpoint": 3243408,
+        "read-only": 5060,
+        "storage": 333980,
+        "wal": 168268,
+        "checksum-page": 574282,
+        "conflict": 2632476,
+        "mvcc-retirement": 4967632,
+        "rebuild": 227880,
+        "storage-failure": 1073420,
+        "checksum-wal": 1321836,
+        "cursor-handoff": 20840,
+        "oracle-selftest": 80,
+        "rebuild-transition": 803880,
+        "threaded-snapshot": 15546080,
+        "shared": 34728,
+        "shared-legacy": 32000,
+        "compact-power-loss": 117959,
+        "power-loss": 212494,
+        "snapshot": 3928,
+        "transaction-handle": 4784
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:SimulateErrno": {
+      "hits": 2690610,
+      "targets": {
+        "api-boundary": 1009920,
+        "index": 10738,
+        "transaction": 6078,
+        "boundary": 7400,
+        "integrity": 1760,
+        "chaos": 43962,
+        "compact-storage": 28346,
+        "malformed-file": 18120,
+        "pressure": 9877,
+        "compatibility": 440000,
+        "vector": 7792,
+        "concurrent": 136261,
+        "read-only": 1760,
+        "storage": 40980,
+        "conflict": 201408,
+        "rebuild": 257788,
+        "cursor-handoff": 68252,
+        "oracle-selftest": 120,
+        "rebuild-transition": 174580,
+        "threaded-snapshot": 66073,
+        "shared": 61359,
+        "shared-legacy": 48000,
+        "power-loss": 1975,
+        "snapshot": 6042,
+        "transaction-handle": 42019
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:SimulatePosixDelete": {
+      "hits": 25626,
+      "targets": {
+        "snapshot": 20,
+        "transaction-handle": 9606,
+        "shared": 8000,
+        "shared-legacy": 8000
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:SimulateWaitError": {
+      "hits": 20000,
+      "targets": {
+        "shared-wake": 20000
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:WriteRetry": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:after-log-backup": {
+      "hits": 51484,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 22660,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 6760
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:after-reclaim": {
+      "hits": 615636,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 8000,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5662,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 60,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 35268,
+        "read-only": 20,
+        "storage": 952,
+        "wal": 10372,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 17200,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 10420,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 1777,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10136,
+        "power-loss": 8793,
+        "snapshot": 40,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:after-source-backup": {
+      "hits": 46084,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 19980,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 4040
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:after-temp-install": {
+      "hits": 40724,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 17320,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 1340
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-candidate-cleanup": {
+      "hits": 16120,
+      "targets": {
+        "compatibility": 8000,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-candidate-republish": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:before-candidate-rollback": {
+      "hits": 16120,
+      "targets": {
+        "compatibility": 8000,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-commit-lock": {
+      "hits": 693153,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 12000,
+        "transaction": 750,
+        "boundary": 460,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 6080,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 291,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 63108,
+        "read-only": 20,
+        "storage": 1862,
+        "wal": 13970,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 39564,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 18820,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 8040,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10327,
+        "power-loss": 10473,
+        "snapshot": 1642,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-index-lock": {
+      "hits": 693153,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 12000,
+        "transaction": 750,
+        "boundary": 460,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 6080,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 291,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 63108,
+        "read-only": 20,
+        "storage": 1862,
+        "wal": 13970,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 39564,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 18820,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 8040,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10327,
+        "power-loss": 10473,
+        "snapshot": 1642,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-log-backup": {
+      "hits": 54184,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 24000,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-log-rollback": {
+      "hits": 16120,
+      "targets": {
+        "compatibility": 8000,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-reclaim": {
+      "hits": 622022,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 9340,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5662,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 60,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 39530,
+        "read-only": 20,
+        "storage": 952,
+        "wal": 10596,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 17200,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 10420,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 1777,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10136,
+        "power-loss": 9353,
+        "snapshot": 40,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-recovery-marker": {
+      "hits": 54184,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 24000,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-recovery-marker-delete": {
+      "hits": 54184,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 24000,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-recovery-marker-flush": {
+      "hits": 54184,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 24000,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-source-backup": {
+      "hits": 48784,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 21320,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 5400
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-source-retraction": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:before-source-rollback": {
+      "hits": 16120,
+      "targets": {
+        "compatibility": 8000,
+        "rebuild-transition": 8120
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-temp-install": {
+      "hits": 43384,
+      "targets": {
+        "integrity": 20,
+        "chaos": 504,
+        "compact-storage": 884,
+        "compatibility": 18640,
+        "vector": 16,
+        "concurrent": 2560,
+        "conflict": 8060,
+        "rebuild": 8000,
+        "cursor-handoff": 2020,
+        "rebuild-transition": 2680
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:before-wal-reclaim-lock": {
+      "hits": 42374,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 16974,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-after-clear": {
+      "hits": 616138,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 8000,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5662,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 60,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 35490,
+        "read-only": 20,
+        "storage": 952,
+        "wal": 10372,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 17200,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 10420,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 1777,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10136,
+        "power-loss": 9073,
+        "snapshot": 40,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-after-data-flush": {
+      "hits": 671324,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 9340,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5726,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 271,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 58352,
+        "read-only": 20,
+        "storage": 1752,
+        "wal": 10596,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 37352,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 12328,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 8024,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10192,
+        "power-loss": 9633,
+        "snapshot": 802,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-after-page-write": {
+      "hits": 13001195,
+      "targets": {
+        "api-boundary": 781360,
+        "index": 5116,
+        "recovery": 106720,
+        "transaction": 4656,
+        "boundary": 89500,
+        "compact-crash": 158662,
+        "integrity": 1580,
+        "parser": 760,
+        "chaos": 25526,
+        "compact-storage": 17500,
+        "malformed-file": 50160,
+        "pressure": 27280,
+        "sort": 64360,
+        "value": 320,
+        "checksum-crash": 656136,
+        "compatibility": 328000,
+        "mapper": 2880,
+        "query": 504,
+        "sql-dml": 11716,
+        "vector": 10716,
+        "checksum-migration": 602550,
+        "concurrent": 79060,
+        "mvcc-checkpoint": 251224,
+        "read-only": 100,
+        "storage": 187272,
+        "wal": 108092,
+        "checksum-page": 123142,
+        "conflict": 1129165,
+        "mvcc-retirement": 146884,
+        "rebuild": 147378,
+        "storage-failure": 136720,
+        "checksum-wal": 218234,
+        "cursor-handoff": 16639,
+        "oracle-selftest": 80,
+        "rebuild-transition": 730800,
+        "threaded-snapshot": 6471922,
+        "shared": 35079,
+        "shared-legacy": 32000,
+        "compact-power-loss": 61683,
+        "power-loss": 141484,
+        "snapshot": 33495,
+        "transaction-handle": 4740
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-before-clear": {
+      "hits": 616748,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 8000,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5662,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 60,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 35764,
+        "read-only": 20,
+        "storage": 952,
+        "wal": 10428,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 17200,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 10420,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 1777,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10136,
+        "power-loss": 9353,
+        "snapshot": 40,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-before-data-flush": {
+      "hits": 672610,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 9340,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5726,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 271,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 59254,
+        "read-only": 20,
+        "storage": 1752,
+        "wal": 10652,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 37352,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 12328,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 8024,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10240,
+        "power-loss": 9913,
+        "snapshot": 802,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:checkpoint-before-page-write": {
+      "hits": 13004527,
+      "targets": {
+        "api-boundary": 781360,
+        "index": 5116,
+        "recovery": 108040,
+        "transaction": 4656,
+        "boundary": 89520,
+        "compact-crash": 158662,
+        "integrity": 1580,
+        "parser": 760,
+        "chaos": 25526,
+        "compact-storage": 17500,
+        "malformed-file": 50160,
+        "pressure": 27280,
+        "sort": 64360,
+        "value": 320,
+        "checksum-crash": 656136,
+        "compatibility": 328000,
+        "mapper": 2880,
+        "query": 504,
+        "sql-dml": 11716,
+        "vector": 10716,
+        "checksum-migration": 602550,
+        "concurrent": 79060,
+        "mvcc-checkpoint": 252360,
+        "read-only": 100,
+        "storage": 187272,
+        "wal": 108624,
+        "checksum-page": 123142,
+        "conflict": 1129165,
+        "mvcc-retirement": 146884,
+        "rebuild": 147378,
+        "storage-failure": 136720,
+        "checksum-wal": 218234,
+        "cursor-handoff": 16639,
+        "oracle-selftest": 80,
+        "rebuild-transition": 730800,
+        "threaded-snapshot": 6471922,
+        "shared": 35079,
+        "shared-legacy": 32000,
+        "compact-power-loss": 61727,
+        "power-loss": 141764,
+        "snapshot": 33495,
+        "transaction-handle": 4740
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:created": {
+      "hits": 20806,
+      "targets": {
+        "shared-legacy": 16000,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:data-flushed": {
+      "hits": 670726,
+      "targets": {
+        "api-boundary": 176000,
+        "index": 656,
+        "recovery": 9340,
+        "transaction": 750,
+        "boundary": 440,
+        "compact-crash": 22394,
+        "integrity": 100,
+        "parser": 60,
+        "chaos": 5726,
+        "compact-storage": 2212,
+        "malformed-file": 2640,
+        "pressure": 271,
+        "sort": 1180,
+        "value": 40,
+        "checksum-crash": 69952,
+        "compatibility": 32000,
+        "mapper": 720,
+        "query": 20,
+        "sql-dml": 3220,
+        "vector": 644,
+        "checksum-migration": 78096,
+        "concurrent": 15460,
+        "mvcc-checkpoint": 58090,
+        "read-only": 20,
+        "storage": 1752,
+        "wal": 10596,
+        "checksum-page": 8560,
+        "conflict": 16120,
+        "mvcc-retirement": 37352,
+        "rebuild": 16000,
+        "storage-failure": 1020,
+        "checksum-wal": 23716,
+        "cursor-handoff": 12328,
+        "oracle-selftest": 20,
+        "rebuild-transition": 16240,
+        "threaded-snapshot": 8024,
+        "shared": 8799,
+        "shared-legacy": 8000,
+        "compact-power-loss": 10136,
+        "power-loss": 9353,
+        "snapshot": 802,
+        "transaction-handle": 1877
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:data-page": {
+      "hits": 13000632,
+      "targets": {
+        "api-boundary": 781360,
+        "index": 5116,
+        "recovery": 106720,
+        "transaction": 4656,
+        "boundary": 89500,
+        "compact-crash": 158662,
+        "integrity": 1580,
+        "parser": 760,
+        "chaos": 25526,
+        "compact-storage": 17500,
+        "malformed-file": 50160,
+        "pressure": 27280,
+        "sort": 64360,
+        "value": 320,
+        "checksum-crash": 656136,
+        "compatibility": 328000,
+        "mapper": 2880,
+        "query": 504,
+        "sql-dml": 11716,
+        "vector": 10716,
+        "checksum-migration": 602550,
+        "concurrent": 79060,
+        "mvcc-checkpoint": 250984,
+        "read-only": 100,
+        "storage": 187272,
+        "wal": 108092,
+        "checksum-page": 123142,
+        "conflict": 1129165,
+        "mvcc-retirement": 146884,
+        "rebuild": 147378,
+        "storage-failure": 136720,
+        "checksum-wal": 218234,
+        "cursor-handoff": 16639,
+        "oracle-selftest": 80,
+        "rebuild-transition": 730800,
+        "threaded-snapshot": 6471922,
+        "shared": 35079,
+        "shared-legacy": 32000,
+        "compact-power-loss": 61640,
+        "power-loss": 141204,
+        "snapshot": 33495,
+        "transaction-handle": 4740
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:flushed": {
+      "hits": 20806,
+      "targets": {
+        "shared-legacy": 16000,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:handle-after-release": {
+      "hits": 2400,
+      "targets": {
+        "transaction-handle": 2400
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:handle-before-release": {
+      "hits": 2400,
+      "targets": {
+        "transaction-handle": 2400
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:mode-exclusive-lock": {
+      "hits": 257924,
+      "targets": {
+        "api-boundary": 27800,
+        "index": 296,
+        "transaction": 454,
+        "boundary": 360,
+        "integrity": 130,
+        "chaos": 1526,
+        "compact-storage": 2810,
+        "malformed-file": 16040,
+        "pressure": 40,
+        "compatibility": 88000,
+        "vector": 142,
+        "concurrent": 5240,
+        "read-only": 6120,
+        "storage": 2002,
+        "conflict": 32240,
+        "rebuild": 25160,
+        "cursor-handoff": 4120,
+        "oracle-selftest": 20,
+        "rebuild-transition": 40600,
+        "threaded-snapshot": 20,
+        "transaction-handle": 4804
+      },
+      "kind": null,
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:mode-shared-lock": {
+      "hits": 278362,
+      "targets": {
+        "integrity": 20,
+        "compatibility": 8000,
+        "read-only": 4200,
+        "shared": 121541,
+        "shared-legacy": 96000,
+        "snapshot": 1762,
+        "transaction-handle": 46839
+      },
+      "kind": null,
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:offline-complete": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:offline-readers-retired": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:offline-retired": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:offline-validated": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:promotion-after-header-flush": {
+      "hits": 27744,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8316,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 676
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-after-header-write": {
+      "hits": 27832,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8370,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 710
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-after-journal-flush": {
+      "hits": 29889,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8522,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 2615
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-after-journal-page-write": {
+      "hits": 61743,
+      "targets": {
+        "compact-crash": 18560,
+        "chaos": 24,
+        "compact-storage": 120,
+        "pressure": 40,
+        "mvcc-checkpoint": 18560,
+        "storage": 80,
+        "mvcc-retirement": 17044,
+        "cursor-handoff": 80,
+        "threaded-snapshot": 40,
+        "compact-power-loss": 7195
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-after-journal-retire-flush": {
+      "hits": 27554,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8236,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 566
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-before-header-write": {
+      "hits": 29766,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8446,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 2568
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-before-journal-retire-flush": {
+      "hits": 27611,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8236,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 623
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-before-journal-write": {
+      "hits": 31992,
+      "targets": {
+        "compact-crash": 9280,
+        "chaos": 12,
+        "compact-storage": 60,
+        "pressure": 20,
+        "mvcc-checkpoint": 9280,
+        "storage": 40,
+        "mvcc-retirement": 8600,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 20,
+        "compact-power-loss": 4640
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-recovery-after-header-flush": {
+      "hits": 57026,
+      "targets": {
+        "recovery": 4000,
+        "boundary": 20,
+        "compact-crash": 4118,
+        "checksum-crash": 22540,
+        "mvcc-checkpoint": 13604,
+        "wal": 1402,
+        "mvcc-retirement": 3356,
+        "compact-power-loss": 2306,
+        "power-loss": 5680
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-recovery-after-header-write": {
+      "hits": 11128,
+      "targets": {
+        "compact-crash": 86,
+        "checksum-crash": 2884,
+        "mvcc-checkpoint": 4808,
+        "mvcc-retirement": 2060,
+        "compact-power-loss": 1290
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:promotion-recovery-before-header-write": {
+      "hits": 18456,
+      "targets": {
+        "compact-crash": 86,
+        "checksum-crash": 2884,
+        "mvcc-checkpoint": 8648,
+        "mvcc-retirement": 4832,
+        "compact-power-loss": 2006
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:published": {
+      "hits": 20806,
+      "targets": {
+        "shared-legacy": 16000,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:publishing": {
+      "hits": 20806,
+      "targets": {
+        "shared-legacy": 16000,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retired": {
+      "hits": 21190,
+      "targets": {
+        "shared-legacy": 16384,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-after-header-write": {
+      "hits": 42692,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 17292,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-after-record-write": {
+      "hits": 123117,
+      "targets": {
+        "chaos": 12,
+        "pressure": 476,
+        "mvcc-checkpoint": 18560,
+        "storage": 792,
+        "mvcc-retirement": 20282,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 82883,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-before-header-write": {
+      "hits": 45552,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 20152,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-before-journal-retire-flush": {
+      "hits": 45702,
+      "targets": {
+        "chaos": 64,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 800,
+        "mvcc-retirement": 17150,
+        "cursor-handoff": 1908,
+        "threaded-snapshot": 6247,
+        "snapshot": 762
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-before-record-write": {
+      "hits": 124749,
+      "targets": {
+        "chaos": 12,
+        "pressure": 476,
+        "mvcc-checkpoint": 18560,
+        "storage": 792,
+        "mvcc-retirement": 21914,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 82883,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-header-flushed": {
+      "hits": 42624,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 17224,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-journal-retired": {
+      "hits": 45634,
+      "targets": {
+        "chaos": 64,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 800,
+        "mvcc-retirement": 17082,
+        "cursor-handoff": 1908,
+        "threaded-snapshot": 6247,
+        "snapshot": 762
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:retirement-records-flushed": {
+      "hits": 45618,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 20218,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:startup-after-tail-trim": {
+      "hits": 3904,
+      "targets": {
+        "compact-crash": 538,
+        "malformed-file": 1980,
+        "checksum-crash": 1330,
+        "wal": 56
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:startup-before-tail-trim": {
+      "hits": 3904,
+      "targets": {
+        "compact-crash": 538,
+        "malformed-file": 1980,
+        "checksum-crash": 1330,
+        "wal": 56
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-after-durable-flush": {
+      "hits": 2454928,
+      "targets": {
+        "api-boundary": 389160,
+        "index": 8034,
+        "recovery": 24000,
+        "transaction": 3038,
+        "boundary": 5580,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8638,
+        "compact-storage": 9024,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 1440,
+        "query": 1060,
+        "sql-dml": 5544,
+        "vector": 7966,
+        "checksum-migration": 175190,
+        "concurrent": 69241,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31622,
+        "wal": 21096,
+        "checksum-page": 107158,
+        "conflict": 112748,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28451,
+        "power-loss": 19996,
+        "snapshot": 475,
+        "transaction-handle": 1891
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-after-failed-append-truncate": {
+      "hits": 1852,
+      "targets": {
+        "storage": 460,
+        "wal": 1392
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-after-index-confirmation": {
+      "hits": 2370463,
+      "targets": {
+        "api-boundary": 319600,
+        "index": 7994,
+        "recovery": 24000,
+        "transaction": 2908,
+        "boundary": 5520,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8550,
+        "compact-storage": 8982,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 720,
+        "query": 1060,
+        "sql-dml": 5416,
+        "vector": 7966,
+        "checksum-migration": 161074,
+        "concurrent": 72420,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31546,
+        "wal": 18946,
+        "checksum-page": 107158,
+        "conflict": 112840,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28409,
+        "power-loss": 19416,
+        "snapshot": 475,
+        "transaction-handle": 1887
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-before-batch-flush": {
+      "hits": 11695843,
+      "targets": {
+        "api-boundary": 361400,
+        "index": 8434,
+        "transaction": 5190,
+        "boundary": 5980,
+        "compact-crash": 99414,
+        "integrity": 1120,
+        "chaos": 6378,
+        "compact-storage": 4654,
+        "malformed-file": 60,
+        "pressure": 128060,
+        "checksum-crash": 738924,
+        "compatibility": 60000,
+        "vector": 7030,
+        "checksum-migration": 364296,
+        "concurrent": 120841,
+        "mvcc-checkpoint": 918720,
+        "read-only": 1660,
+        "storage": 52398,
+        "checksum-page": 101024,
+        "conflict": 626157,
+        "mvcc-retirement": 1425642,
+        "rebuild": 10878,
+        "checksum-wal": 145520,
+        "cursor-handoff": 14620,
+        "oracle-selftest": 20,
+        "rebuild-transition": 48720,
+        "threaded-snapshot": 6417940,
+        "shared": 8682,
+        "compact-power-loss": 5472,
+        "power-loss": 4658,
+        "snapshot": 1248,
+        "transaction-handle": 703
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-before-durable-flush": {
+      "hits": 2455653,
+      "targets": {
+        "api-boundary": 389160,
+        "index": 8034,
+        "recovery": 24000,
+        "transaction": 3038,
+        "boundary": 5580,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8638,
+        "compact-storage": 9024,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 1440,
+        "query": 1060,
+        "sql-dml": 5544,
+        "vector": 7966,
+        "checksum-migration": 175190,
+        "concurrent": 69241,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31622,
+        "wal": 21452,
+        "checksum-page": 107158,
+        "conflict": 112748,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28530,
+        "power-loss": 20286,
+        "snapshot": 475,
+        "transaction-handle": 1891
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-before-failed-append-truncate": {
+      "hits": 4721,
+      "targets": {
+        "storage": 460,
+        "wal": 1392,
+        "mvcc-retirement": 1510,
+        "compact-power-loss": 199,
+        "power-loss": 1160
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-before-index-confirmation": {
+      "hits": 2370753,
+      "targets": {
+        "api-boundary": 319600,
+        "index": 7994,
+        "recovery": 24000,
+        "transaction": 2908,
+        "boundary": 5520,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8550,
+        "compact-storage": 8982,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 720,
+        "query": 1060,
+        "sql-dml": 5416,
+        "vector": 7966,
+        "checksum-migration": 161074,
+        "concurrent": 72420,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31546,
+        "wal": 18946,
+        "checksum-page": 107158,
+        "conflict": 112840,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28409,
+        "power-loss": 19706,
+        "snapshot": 475,
+        "transaction-handle": 1887
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-before-ticket-completion": {
+      "hits": 850636,
+      "targets": {
+        "api-boundary": 389320,
+        "index": 9204,
+        "transaction": 4210,
+        "boundary": 5560,
+        "integrity": 800,
+        "compact-storage": 5044,
+        "malformed-file": 60,
+        "pressure": 8060,
+        "compatibility": 60000,
+        "vector": 7706,
+        "concurrent": 111780,
+        "read-only": 1660,
+        "storage": 32454,
+        "conflict": 112840,
+        "rebuild": 12716,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 48720,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "snapshot": 475,
+        "transaction-handle": 685
+      },
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-confirmation-after-write": {
+      "hits": 2459911,
+      "targets": {
+        "api-boundary": 389160,
+        "index": 8034,
+        "recovery": 24000,
+        "transaction": 3038,
+        "boundary": 5580,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8638,
+        "compact-storage": 9024,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 1440,
+        "query": 1060,
+        "sql-dml": 5544,
+        "vector": 7966,
+        "checksum-migration": 175190,
+        "concurrent": 73080,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31622,
+        "wal": 21452,
+        "checksum-page": 107158,
+        "conflict": 112840,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28567,
+        "power-loss": 20576,
+        "snapshot": 475,
+        "transaction-handle": 1891
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-confirmation-before-write": {
+      "hits": 2460448,
+      "targets": {
+        "api-boundary": 389160,
+        "index": 8034,
+        "recovery": 24000,
+        "transaction": 3038,
+        "boundary": 5580,
+        "compact-crash": 46400,
+        "integrity": 840,
+        "parser": 7000,
+        "chaos": 8638,
+        "compact-storage": 9024,
+        "malformed-file": 120,
+        "pressure": 8060,
+        "sort": 320200,
+        "value": 8000,
+        "checksum-crash": 215544,
+        "compatibility": 120000,
+        "mapper": 1440,
+        "query": 1060,
+        "sql-dml": 5544,
+        "vector": 7966,
+        "checksum-migration": 175190,
+        "concurrent": 73080,
+        "mvcc-checkpoint": 157760,
+        "read-only": 1660,
+        "storage": 31622,
+        "wal": 21632,
+        "checksum-page": 107158,
+        "conflict": 112840,
+        "mvcc-retirement": 226396,
+        "rebuild": 54418,
+        "storage-failure": 8020,
+        "checksum-wal": 144976,
+        "cursor-handoff": 14580,
+        "oracle-selftest": 20,
+        "rebuild-transition": 56840,
+        "threaded-snapshot": 16060,
+        "shared": 8682,
+        "shared-legacy": 8000,
+        "compact-power-loss": 28634,
+        "power-loss": 20866,
+        "snapshot": 475,
+        "transaction-handle": 1891
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-page-after-write": {
+      "hits": 37030077,
+      "targets": {
+        "api-boundary": 799120,
+        "index": 32924,
+        "recovery": 108000,
+        "transaction": 10118,
+        "boundary": 100480,
+        "compact-crash": 428162,
+        "integrity": 6500,
+        "parser": 25080,
+        "chaos": 30258,
+        "compact-storage": 22354,
+        "malformed-file": 840,
+        "pressure": 516000,
+        "sort": 857998,
+        "value": 14400,
+        "checksum-crash": 1780368,
+        "compatibility": 288000,
+        "mapper": 4320,
+        "query": 5404,
+        "sql-dml": 8792,
+        "vector": 35414,
+        "checksum-migration": 1548468,
+        "concurrent": 108100,
+        "mvcc-checkpoint": 3085648,
+        "read-only": 3400,
+        "storage": 301898,
+        "wal": 145424,
+        "checksum-page": 467124,
+        "conflict": 2519636,
+        "mvcc-retirement": 4739726,
+        "rebuild": 173462,
+        "storage-failure": 1065400,
+        "checksum-wal": 1176860,
+        "cursor-handoff": 6260,
+        "oracle-selftest": 60,
+        "rebuild-transition": 747040,
+        "threaded-snapshot": 15530020,
+        "shared": 26046,
+        "shared-legacy": 24000,
+        "compact-power-loss": 89289,
+        "power-loss": 191338,
+        "snapshot": 3453,
+        "transaction-handle": 2893
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-page-before-write": {
+      "hits": 37033053,
+      "targets": {
+        "api-boundary": 799120,
+        "index": 32924,
+        "recovery": 108000,
+        "transaction": 10118,
+        "boundary": 100480,
+        "compact-crash": 428162,
+        "integrity": 6500,
+        "parser": 25080,
+        "chaos": 30258,
+        "compact-storage": 22354,
+        "malformed-file": 840,
+        "pressure": 516000,
+        "sort": 857998,
+        "value": 14400,
+        "checksum-crash": 1780368,
+        "compatibility": 288000,
+        "mapper": 4320,
+        "query": 5404,
+        "sql-dml": 8792,
+        "vector": 35414,
+        "checksum-migration": 1548468,
+        "concurrent": 108100,
+        "mvcc-checkpoint": 3085648,
+        "read-only": 3400,
+        "storage": 301898,
+        "wal": 146636,
+        "checksum-page": 467124,
+        "conflict": 2519636,
+        "mvcc-retirement": 4741164,
+        "rebuild": 173462,
+        "storage-failure": 1065400,
+        "checksum-wal": 1176860,
+        "cursor-handoff": 6260,
+        "oracle-selftest": 60,
+        "rebuild-transition": 747040,
+        "threaded-snapshot": 15530020,
+        "shared": 26046,
+        "shared-legacy": 24000,
+        "compact-power-loss": 89325,
+        "power-loss": 191628,
+        "snapshot": 3453,
+        "transaction-handle": 2893
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-rebase-before-anchor-flush": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-rebase-before-rewrite": {
+      "hits": 0,
+      "targets": {},
+      "kind": "fault-point",
+      "gate": "advisory",
+      "declared": []
+    },
+    "fault-point:wal-slot-cleared": {
+      "hits": 12661859,
+      "targets": {
+        "chaos": 12,
+        "pressure": 54050,
+        "mvcc-checkpoint": 408320,
+        "storage": 62244,
+        "mvcc-retirement": 537228,
+        "cursor-handoff": 81,
+        "threaded-snapshot": 11597562,
+        "snapshot": 2362
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-slots-flushed": {
+      "hits": 42290,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 16890,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:wal-slots-published": {
+      "hits": 42202,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 16802,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "fault-point:written": {
+      "hits": 20806,
+      "targets": {
+        "shared-legacy": 16000,
+        "transaction-handle": 4806
+      },
+      "kind": "fault-point",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:checkpoint-during-active-readers": {
+      "hits": 57908,
+      "targets": {
+        "chaos": 418,
+        "pressure": 231,
+        "mvcc-checkpoint": 18560,
+        "storage": 910,
+        "mvcc-retirement": 22364,
+        "cursor-handoff": 8400,
+        "threaded-snapshot": 6263,
+        "snapshot": 762
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:checkpoint-reclaims-under-live-readers": {
+      "hits": 42374,
+      "targets": {
+        "chaos": 12,
+        "pressure": 211,
+        "mvcc-checkpoint": 18560,
+        "storage": 566,
+        "mvcc-retirement": 16974,
+        "cursor-handoff": 40,
+        "threaded-snapshot": 5939,
+        "snapshot": 72
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:close-during-active-transaction": {
+      "hits": 20091,
+      "targets": {
+        "sort": 20,
+        "storage": 1436,
+        "wal": 2334,
+        "mvcc-retirement": 8680,
+        "rebuild": 852,
+        "compact-power-loss": 4449,
+        "power-loss": 2320
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:close-during-foreign-transaction": {
+      "hits": 7170,
+      "targets": {
+        "mvcc-retirement": 7170
+      },
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:commit-cut-off-by-stopped-engine": {
+      "hits": 2010,
+      "targets": {
+        "wal": 304,
+        "compact-power-loss": 225,
+        "power-loss": 1481
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:direct-finalizer-release-queued": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:fatal-during-commit": {
+      "hits": 3892,
+      "targets": {
+        "wal": 1606,
+        "compact-power-loss": 225,
+        "power-loss": 2061
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:invalid-datafile-state-close": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:operation-refused-by-close": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:rebuild-waits-for-active-transactions": {
+      "hits": 7255,
+      "targets": {
+        "conflict": 7255
+      },
+      "kind": "maintenance",
+      "gate": "smoke",
+      "declared": []
+    },
+    "maintenance:shared-dispose-during-active-call": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:shared-dispose-during-pin": {
+      "hits": 18972,
+      "targets": {
+        "shared": 17363,
+        "transaction-handle": 1609
+      },
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:shared-dispose-during-transaction": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:shared-dispose-ends-foreign-ownership": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:shared-dispose-with-leased-reader": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "maintenance:shared-dispose-with-mutex-waiters": {
+      "hits": 0,
+      "targets": {},
+      "kind": "maintenance",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:checkpoint-redo-damaged": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:checkpoint-wal-verification-failed": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:checksum-coverage-marker-invalid": {
+      "hits": 4880,
+      "targets": {
+        "checksum-page": 4880
+      },
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:collation-mismatch": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:compact-document-corrupt": {
+      "hits": 9296,
+      "targets": {
+        "compact-codec": 9132,
+        "vector": 78,
+        "rebuild": 86
+      },
+      "kind": "refusal",
+      "gate": "smoke",
+      "declared": []
+    },
+    "refusal:coordinator-outcome-unknown": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:coordinator-transaction-aborted": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:data-page-checksum-mismatch": {
+      "hits": 136126,
+      "targets": {
+        "malformed-file": 2040,
+        "checksum-page": 132946,
+        "rebuild": 1140
+      },
+      "kind": "refusal",
+      "gate": "smoke",
+      "declared": []
+    },
+    "refusal:direct-attach-during-maintenance": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:encrypted-wal-foreign-preamble": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:explicit-commit-foreign-thread": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:index-migration-duplicate-key": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:index-migration-invalid-key": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:index-migration-limit-size": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:legacy-tail-after-publication": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:legacy-tail-unrecognized": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:mapper-root-not-document": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:reader-upgrade-to-exclusive": {
+      "hits": 38018,
+      "targets": {
+        "transaction-gate": 38018
+      },
+      "kind": "refusal",
+      "gate": "smoke",
+      "declared": []
+    },
+    "refusal:readonly-open-needs-index-migration": {
+      "hits": 21008,
+      "targets": {
+        "checksum-crash": 12448,
+        "checksum-migration": 8560
+      },
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:rebuild-incomplete-marker": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:reject-invalid-local-time": {
+      "hits": 13880,
+      "targets": {
+        "api-boundary": 13880
+      },
+      "kind": "refusal",
+      "gate": "smoke",
+      "declared": []
+    },
+    "refusal:retirement-sequence-not-reached": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-abandoned-transaction": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-call-after-dispose": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-commit-foreign-thread": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-file-locking-disabled": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-peer-waits-for-own-ownership": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-rebuild-with-open-readers": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-teardown-reentry": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:shared-teardown-reentry-after-dispose": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:unsupported-file-version": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:vector-near-mismatch": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:vector-score-aggregate": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:vector-score-without-search": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:vector-wherenear-repeated": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "refusal:wal-append-during-header-publication": {
+      "hits": 0,
+      "targets": {},
+      "kind": "refusal",
+      "gate": "advisory",
+      "declared": []
+    },
+    "situation:chaos-explicit-rollback": {
+      "hits": 248,
+      "targets": {
+        "chaos": 248
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:chaos-long-reader-overlaps-writer": {
+      "hits": 484,
+      "targets": {
+        "chaos": 484
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:chaos-reopen-with-acknowledged-rows": {
+      "hits": 410,
+      "targets": {
+        "chaos": 410
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:concurrent-checkpoint-under-cursor": {
+      "hits": 12900,
+      "targets": {
+        "concurrent": 12900
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:concurrent-same-document-commits": {
+      "hits": 12900,
+      "targets": {
+        "concurrent": 12900
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:conflict-rebuild-races-acknowledged-writer": {
+      "hits": 8060,
+      "targets": {
+        "conflict": 8060
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:conflict-same-id-uploads": {
+      "hits": 8060,
+      "targets": {
+        "conflict": 8060
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:cursor-handoff-checkpoint-overlaps-last-cursor": {
+      "hits": 8400,
+      "targets": {
+        "cursor-handoff": 8400
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:cursor-handoff-foreign-disposal-keeps-transaction": {
+      "hits": 61718,
+      "targets": {
+        "cursor-handoff": 61718
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    },
+    "situation:integrity-mutant-rejected": {
+      "hits": 200,
+      "targets": {
+        "integrity": 200
+      },
+      "kind": "situation",
+      "gate": "smoke",
+      "declared": []
+    }
+  },
+  "neverHit": [
+    "api:ILiteTransaction.CollectionExists",
+    "api:ILiteTransaction.GetCollectionNames",
+    "api:LiteTransactionExtensions.BeginTransaction",
+    "fault-point:AllocateFile",
+    "fault-point:BeforeTransactionRegistration",
+    "fault-point:BootstrapStage",
+    "fault-point:DarwinTruncated",
+    "fault-point:DispatchOverride",
+    "fault-point:MaintenanceStage",
+    "fault-point:MapFile",
+    "fault-point:MappedRebuildStage",
+    "fault-point:WriteRetry",
+    "fault-point:before-candidate-republish",
+    "fault-point:before-source-retraction",
+    "fault-point:offline-complete",
+    "fault-point:offline-readers-retired",
+    "fault-point:offline-retired",
+    "fault-point:offline-validated",
+    "fault-point:wal-rebase-before-anchor-flush",
+    "fault-point:wal-rebase-before-rewrite",
+    "maintenance:direct-finalizer-release-queued",
+    "maintenance:invalid-datafile-state-close",
+    "maintenance:operation-refused-by-close",
+    "maintenance:shared-dispose-during-active-call",
+    "maintenance:shared-dispose-during-transaction",
+    "maintenance:shared-dispose-ends-foreign-ownership",
+    "maintenance:shared-dispose-with-leased-reader",
+    "maintenance:shared-dispose-with-mutex-waiters",
+    "refusal:checkpoint-redo-damaged",
+    "refusal:checkpoint-wal-verification-failed",
+    "refusal:collation-mismatch",
+    "refusal:coordinator-outcome-unknown",
+    "refusal:coordinator-transaction-aborted",
+    "refusal:direct-attach-during-maintenance",
+    "refusal:encrypted-wal-foreign-preamble",
+    "refusal:explicit-commit-foreign-thread",
+    "refusal:index-migration-duplicate-key",
+    "refusal:index-migration-invalid-key",
+    "refusal:index-migration-limit-size",
+    "refusal:legacy-tail-after-publication",
+    "refusal:legacy-tail-unrecognized",
+    "refusal:mapper-root-not-document",
+    "refusal:rebuild-incomplete-marker",
+    "refusal:retirement-sequence-not-reached",
+    "refusal:shared-abandoned-transaction",
+    "refusal:shared-call-after-dispose",
+    "refusal:shared-commit-foreign-thread",
+    "refusal:shared-file-locking-disabled",
+    "refusal:shared-peer-waits-for-own-ownership",
+    "refusal:shared-rebuild-with-open-readers",
+    "refusal:shared-teardown-reentry",
+    "refusal:shared-teardown-reentry-after-dispose",
+    "refusal:unsupported-file-version",
+    "refusal:vector-near-mismatch",
+    "refusal:vector-score-aggregate",
+    "refusal:vector-score-without-search",
+    "refusal:vector-wherenear-repeated",
+    "refusal:wal-append-during-header-publication"
+  ],
+  "declaredUnhit": []
+}
