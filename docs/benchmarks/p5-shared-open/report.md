@@ -6,7 +6,7 @@ Product commits on phase2: `34bd9f9b73c48c912073afa0ddb56ac222987e0d` (ephemeral
 
 ## Production measurements
 
-Milliseconds per complete open/read-collection-names/close cycle; lower is better. Each JSON sample measures 20 cycles; values below divide by 20 before taking the median. Each non-macOS cell has six interleaved rounds, each macOS cell ten. Repetitions and runtimes are not pooled. v5 means NuGet 5.0.21 Shared; before means phase4 `e507faad40e968aa2fcf63ae6dd01fd7def2e07b`; after means scratch `a09852383e4ebfdfd9aa67d27408024650037fba`. Normal release builds do not enable PROFILE. The exact library source of after equals integrated phase4 `2f9a9b07818b4bde8112ab73558c3eb6044de74d` after removing PROFILE-only blocks and full-line comments; the integration also carries a sibling's test-only lifetime-completion correction.
+Milliseconds per complete open/read-collection-names/close cycle; lower is better. Each JSON sample measures 20 cycles; values below divide by 20 before taking the median. Each non-macOS cell has six interleaved rounds, each macOS cell ten. Repetitions and runtimes are not pooled. v5 means NuGet 5.0.21 Shared; before means phase4 `e507faad40e968aa2fcf63ae6dd01fd7def2e07b`; after means scratch `a09852383e4ebfdfd9aa67d27408024650037fba`. Normal release builds do not enable PROFILE. The exact library source of after equals integrated phase4 `7000dd6f01d0187a8fb5d030064eb327864ab731` after removing PROFILE-only blocks and full-line comments; the integration also carries a sibling's test-only lifetime-completion correction.
 
 [Repetition 1](https://github.com/litedb-org/LiteDB/actions/runs/42542748045) and [repetition 2](https://github.com/litedb-org/LiteDB/actions/runs/42542751289) both completed successfully: eight OS/runtime legs each. The harness asserts the one-file default, default checkpoint threshold, collection names on each reopen, and complete 2,000-row payload/checksum after write/commit/reopen. Every expected round, candidate/baseline SHA, actual runtime, architecture, nonnegative sample counter and operation count was independently checked. Raw artifact SHA256 manifest is retained in the step evidence directory.
 
@@ -46,7 +46,7 @@ The original benchmark finding ([run 42531133092](https://github.com/litedb-org/
 
 ## Cause and profile evidence
 
-[Before EventPipe](https://github.com/litedb-org/LiteDB/actions/runs/42541410916), [residual after unmap](https://github.com/litedb-org/LiteDB/actions/runs/42541772210), and [final EventPipe](https://github.com/litedb-org/LiteDB/actions/runs/42542450626) completed on hosted Linux x64 and Windows x64, net8. Each records three Shared scenarios with sampled stacks and nested duration spans. Decoder rejects lost events and missing mandatory spans. Instrumented timings are diagnostic and must not replace the production measurements above. Nested inclusive spans overlap and must not be added.
+[Before EventPipe](https://github.com/litedb-org/LiteDB/actions/runs/42541410916), [residual after unmap](https://github.com/litedb-org/LiteDB/actions/runs/42541772210), and [final EventPipe](https://github.com/litedb-org/LiteDB/actions/runs/42542450626) completed on hosted Linux x64 and Windows x64, net8. Each records three Shared scenarios with sampled stacks and nested duration spans. Decoder rejects lost events and missing PROFILE-provider events; the reported scenarios and measured stages were also inspected. Instrumented timings are diagnostic and must not replace the production measurements above. Nested inclusive spans overlap and must not be added.
 
 - Before, Windows sampled main-thread stacks included `FlushViewOfFile` in 118/186 samples; Linux mapped-view flush occurred in 42/71 samples. These are wall-clock sample counts, not CPU percentages. Writable `MemoryMappedViewAccessor.Dispose` explicitly flushes unless its safe view is already closed ([.NET 8 source](https://github.com/dotnet/runtime/blob/v8.0.0/src/libraries/System.IO.MemoryMappedFiles/src/System/IO/MemoryMappedFiles/MemoryMappedViewAccessor.cs)). Both temporary existing-map inspection and final disposal paid this cost. Quiescent generation reuse had not prevented the implicit sync.
 - Before Windows: protected registry attach 7.411ms/cycle inclusive, native admission 3.713ms inclusive, final close 1.242ms inclusive; map construction 0.0846ms, recovery sync 0.00030ms, claim zeroing 0.00477ms. No WAL work was pending. Twenty `CanReuse` calls and no fresh allocation/reset establish reuse, rather than repeated large preallocation/initialization, in this workload.
@@ -87,18 +87,18 @@ The integrated heads additionally carry F-P5-WARMLIFETIME's bounded synchronized
 
 Fresh `ls-remote` detected sibling integration before our upper pushes. Product changes were pushed explicitly, without force, to phase2 through `c50c8e424`. F-P5-WARMLIFETIME then advanced phase2 to `c67bb7c27595d3efd9b53ebca81c5541acbe5c47`, merged phase2 into phase3/p3-platforms at `42dc72a4ac040fe8371bdace83170314e28f887b`, and merged phase3 into phase4 at `2f9a9b07818b4bde8112ab73558c3eb6044de74d`. Both upper integrations are two-parent merge commits and retain all three product fix commits. No dev/phase1 changes, force push, PR edit, watch or unwatch was performed.
 
-Independent scalar-leaf registry union audit retained every evidence ID/reference/proof from both parents. Phase4 is a literal union of parent scalar sets. Phase3's only missing historical scalar is superseded Linux-only qualification-gap prose; its current qualification text and archived obsolete evidence entries reflect the platform implementation. This exception is explicitly recorded in the external audit, rather than claiming literal preservation of historical prose.
+The first independent scalar-leaf audit identified one missing historical parent description: the superseded Linux-only qualification gap. Additive archive commit `d925be3a6716750de586ac85d227b90dc28db377` preserves that exact text under `inheritedParentEntries`, without changing active qualification. It was pushed atomically to phase3/p3-platforms. Merge commit `7000dd6f01d0187a8fb5d030064eb327864ab731` then integrated it into phase4. Final independent union audit: 20 parent/registry checks, zero missing scalar leaves, including every historical evidence ID/reference/proof. Contract validator and whitespace checks passed. The current phase2 remains `c67bb7c27595d3efd9b53ebca81c5541acbe5c47`; current phase3/p3-platforms is `d925be3a6716750de586ac85d227b90dc28db377`; current phase4 is `7000dd6f01d0187a8fb5d030064eb327864ab731`. Product binaries are unaffected by this metadata addition.
 
 | Head | Workflow | State | Run |
 | --- | --- | --- | --- |
 | phase2 `c67bb7c27` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546674434) |
 | phase2 `c67bb7c27` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546677209) |
 | phase2 `c67bb7c27` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546680231) |
-| phase3 `42dc72a4a` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546682979) |
-| phase3 `42dc72a4a` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546685334) |
-| phase3 `42dc72a4a` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546687943) |
-| phase4 `2f9a9b078` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546690834) |
-| phase4 `2f9a9b078` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546693381) |
-| phase4 `2f9a9b078` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42546695630) |
+| phase3 `d925be3a6` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547530648) |
+| phase3 `d925be3a6` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547536365) |
+| phase3 `d925be3a6` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547533755) |
+| phase4 `7000dd6f0` | Full CI | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547539289) |
+| phase4 `7000dd6f0` | P1 update index safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547544943) |
+| phase4 `7000dd6f0` | P1 WAL handle safety | queued | [run](https://github.com/litedb-org/LiteDB/actions/runs/42547542099) |
 
 Raw evidence and incremental step log: `/tmp/litedb-proto/phases/p5-shared-open-evidence/` and `/tmp/litedb-proto/phases/p5-shared-open.md`.
