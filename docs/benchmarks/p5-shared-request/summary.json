@@ -1,0 +1,3026 @@
+[
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.2175745,
+      "low": 0.173098,
+      "high": 0.27367349999999996
+    },
+    "v6": {
+      "median": 6.33858375,
+      "low": 5.907938000000001,
+      "high": 8.9860825
+    },
+    "ratio": 29.13293492573808,
+    "ratioLow": 21.58754135858971,
+    "ratioHigh": 51.91326589561982
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.4602329150000628,
+      "low": 0.37439062499998954,
+      "high": 0.58204062499982
+    },
+    "v6": {
+      "median": 6.638869375000098,
+      "low": 6.144488749999937,
+      "high": 9.15768896000003
+    },
+    "ratio": 14.42502080712587,
+    "ratioLow": 10.556803917255495,
+    "ratioHigh": 24.46025180251318
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.4140476875,
+      "low": 0.75233825,
+      "high": 1.64873625
+    },
+    "v6": {
+      "median": 73.62591843749999,
+      "low": 69.78827150000001,
+      "high": 84.16822925
+    },
+    "ratio": 52.06749325948739,
+    "ratioLow": 42.328341782986826,
+    "ratioHigh": 111.8755151024157
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.44334927124996426,
+      "low": 0.2764880725000296,
+      "high": 0.5126777087500045
+    },
+    "v6": {
+      "median": 19.068215833750024,
+      "low": 18.23578484374991,
+      "high": 21.53720026125001
+    },
+    "ratio": 43.0094669604164,
+    "ratioLow": 35.56968546226021,
+    "ratioHigh": 77.89558539183533
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.62194,
+      "low": 2.2033750000000003,
+      "high": 5.55617
+    },
+    "v6": {
+      "median": 15.880677500000001,
+      "low": 11.745535,
+      "high": 21.29298
+    },
+    "ratio": 6.056842452535146,
+    "ratioLow": 2.1139624957479706,
+    "ratioHigh": 9.663802121745048
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.1094666749989415,
+      "low": 4.130824999998595,
+      "high": 9.14973750000172
+    },
+    "v6": {
+      "median": 18.31468957499993,
+      "low": 13.852120849998073,
+      "high": 23.81589165000264
+    },
+    "ratio": 3.5844620857623513,
+    "ratioLow": 1.5139364216728042,
+    "ratioHigh": 5.765408035927628
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 8.62913,
+      "low": 7.50527375,
+      "high": 12.27029
+    },
+    "v6": {
+      "median": 406.37253062499997,
+      "low": 325.65755875,
+      "high": 510.8746875
+    },
+    "ratio": 47.093105634635236,
+    "ratioLow": 26.540331055745224,
+    "ratioHigh": 68.0687613160013
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.0553598937501647,
+      "low": 2.8123609375001024,
+      "high": 9.620052087500142
+    },
+    "v6": {
+      "median": 109.23795598750026,
+      "low": 95.98905573749903,
+      "high": 130.05542551250002
+    },
+    "ratio": 35.75289320611623,
+    "ratioLow": 9.978018295994763,
+    "ratioHigh": 46.24421559065809
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 5.7889475,
+      "low": 4.52522,
+      "high": 10.4605
+    },
+    "v6": {
+      "median": 15.53314,
+      "low": 11.645585,
+      "high": 23.936975
+    },
+    "ratio": 2.6832407790880812,
+    "ratioLow": 1.113291429663974,
+    "ratioHigh": 5.289682048607582
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 8.165715624998882,
+      "low": 6.385037500001545,
+      "high": 12.75990835000016
+    },
+    "v6": {
+      "median": 17.568221874998358,
+      "low": 13.46705830000019,
+      "high": 28.47715835000031
+    },
+    "ratio": 2.1514613882969704,
+    "ratioLow": 1.05541967313582,
+    "ratioHigh": 4.459982944500078
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 15.752575625,
+      "low": 14.0214,
+      "high": 20.19691875
+    },
+    "v6": {
+      "median": 785.148465625,
+      "low": 722.4049875000001,
+      "high": 871.5079225
+    },
+    "ratio": 49.84254539168416,
+    "ratioLow": 35.76807910365041,
+    "ratioHigh": 62.15555668478183
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.155389324999504,
+      "low": 4.432479162498737,
+      "high": 6.016461462500189
+    },
+    "v6": {
+      "median": 202.71646744375005,
+      "low": 185.75537292500002,
+      "high": 221.93446874999978
+    },
+    "ratio": 39.321272296689166,
+    "ratioLow": 30.874522189294947,
+    "ratioHigh": 50.07005348782912
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.21181075,
+      "low": 0.1524645,
+      "high": 0.26563549999999997
+    },
+    "v6": {
+      "median": 4.878251000000001,
+      "low": 4.4319735,
+      "high": 5.5231785
+    },
+    "ratio": 23.031177596037978,
+    "ratioLow": 16.684417180685564,
+    "ratioHigh": 36.22599687140285
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.3875394800002141,
+      "low": 0.3583287499998278,
+      "high": 0.5159512500006258
+    },
+    "v6": {
+      "median": 5.099285000000009,
+      "low": 4.580312289999711,
+      "high": 5.769114794999837
+    },
+    "ratio": 13.158104562655634,
+    "ratioLow": 8.877412914483985,
+    "ratioHigh": 16.10006117288275
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.1357533750000002,
+      "low": 0.8513626249999999,
+      "high": 1.2964968749999999
+    },
+    "v6": {
+      "median": 71.34627143750001,
+      "low": 51.659176875,
+      "high": 81.04856525
+    },
+    "ratio": 62.81845425949097,
+    "ratioLow": 39.845199684727355,
+    "ratioHigh": 95.19864141322859
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.3841499481249855,
+      "low": 0.30853552124995076,
+      "high": 0.4090942187499991
+    },
+    "v6": {
+      "median": 18.385147136249955,
+      "low": 13.541499115000022,
+      "high": 21.825980833750123
+    },
+    "ratio": 47.85929876077515,
+    "ratioLow": 33.1011744834149,
+    "ratioHigh": 70.74057711516613
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.170485,
+      "low": 1.90875,
+      "high": 2.723535
+    },
+    "v6": {
+      "median": 13.463875,
+      "low": 12.577034999999999,
+      "high": 20.253035
+    },
+    "ratio": 6.203164269736948,
+    "ratioLow": 4.617908343384608,
+    "ratioHigh": 10.610627373935822
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 4.161763550001751,
+      "low": 3.8406437499986623,
+      "high": 4.505181249999168
+    },
+    "v6": {
+      "median": 15.69434792500033,
+      "low": 14.083279200002607,
+      "high": 22.488047900003494
+    },
+    "ratio": 3.7710811141574165,
+    "ratioLow": 3.126018337221218,
+    "ratioHigh": 5.855280875767591
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 7.764260625,
+      "low": 6.162025,
+      "high": 9.025155
+    },
+    "v6": {
+      "median": 357.45545125,
+      "low": 327.8558775,
+      "high": 411.02737
+    },
+    "ratio": 46.03856935186278,
+    "ratioLow": 36.32689715578292,
+    "ratioHigh": 66.70329477728507
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.756787237500191,
+      "low": 2.4550213500006635,
+      "high": 3.5302046875003157
+    },
+    "v6": {
+      "median": 93.41419869999967,
+      "low": 83.38205885000036,
+      "high": 106.54831718750017
+    },
+    "ratio": 33.885168006184664,
+    "ratioLow": 23.61961025807881,
+    "ratioHigh": 43.40015910145603
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 3.7109475,
+      "low": 3.597575,
+      "high": 4.117295
+    },
+    "v6": {
+      "median": 15.107800000000001,
+      "low": 13.11342,
+      "high": 17.166715
+    },
+    "ratio": 4.071143555655261,
+    "ratioLow": 3.184960028368139,
+    "ratioHigh": 4.771746245734974
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.964163525001709,
+      "low": 5.271943750005903,
+      "high": 6.44809794999901
+    },
+    "v6": {
+      "median": 16.859679174999087,
+      "low": 15.137591650000104,
+      "high": 19.4905978999941
+    },
+    "ratio": 2.8268304690713952,
+    "ratioLow": 2.3476057230182783,
+    "ratioHigh": 3.6970420824335
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 16.192260625,
+      "low": 13.556615,
+      "high": 20.37316625
+    },
+    "v6": {
+      "median": 724.48063625,
+      "low": 35.91324125,
+      "high": 805.6877925
+    },
+    "ratio": 44.742402128300725,
+    "ratioLow": 1.762771716939187,
+    "ratioHigh": 59.431339792418676
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.004934374998982,
+      "low": 4.1866614499980415,
+      "high": 6.015209375000552
+    },
+    "v6": {
+      "median": 186.0621463562495,
+      "low": 14.439011462499707,
+      "high": 202.81302343749985
+    },
+    "ratio": 37.17574146140275,
+    "ratioLow": 2.400417103103478,
+    "ratioHigh": 48.44266150003477
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.3129175,
+      "low": 0.19278,
+      "high": 1.743665
+    },
+    "v6": {
+      "median": 4.2853449999999995,
+      "low": 2.577025,
+      "high": 5.03302
+    },
+    "ratio": 13.694807736863549,
+    "ratioLow": 1.4779358420338768,
+    "ratioHigh": 26.107583774250436
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.057589574999241,
+      "low": 1.6914520499994978,
+      "high": 7.173339549999014
+    },
+    "v6": {
+      "median": 6.3695864499994315,
+      "low": 4.338247899997327,
+      "high": 6.9332250000002205
+    },
+    "ratio": 3.0956545111781004,
+    "ratioLow": 0.6047738113830013,
+    "ratioHigh": 4.098978153121325
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.4107068749999998,
+      "low": 0.7156375,
+      "high": 7.244612500000001
+    },
+    "v6": {
+      "median": 31.26033375,
+      "low": 10.4258,
+      "high": 83.20751375
+    },
+    "ratio": 22.159340330711867,
+    "ratioLow": 1.4391107874989864,
+    "ratioHigh": 116.2704773715743
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.1654210999999748,
+      "low": 0.7630229124998777,
+      "high": 3.3553916624999403
+    },
+    "v6": {
+      "median": 10.629220312499665,
+      "low": 5.216677599999997,
+      "high": 24.92674531250003
+    },
+    "ratio": 9.120497571650192,
+    "ratioLow": 1.5547149557239177,
+    "ratioHigh": 32.66840995748476
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.333855,
+      "low": 0.875,
+      "high": 2.394335
+    },
+    "v6": {
+      "median": 8.248339999999999,
+      "low": 6.4079999999999995,
+      "high": 20.49772
+    },
+    "ratio": 6.183835574331542,
+    "ratioLow": 2.676317223780298,
+    "ratioHigh": 23.425965714285717
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.152340624999539,
+      "low": 2.4295604000002413,
+      "high": 5.206670799999813
+    },
+    "v6": {
+      "median": 9.94180520000043,
+      "low": 8.077950000000556,
+      "high": 23.19670835000025
+    },
+    "ratio": 3.1537851973093436,
+    "ratioLow": 1.5514616364838825,
+    "ratioHigh": 9.547697744002555
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 5.121933125,
+      "low": 4.1756925,
+      "high": 12.0609475
+    },
+    "v6": {
+      "median": 229.126475,
+      "low": 17.56726,
+      "high": 416.11841375000006
+    },
+    "ratio": 44.734374582448304,
+    "ratioLow": 1.4565406241922538,
+    "ratioHigh": 99.65255194198329
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.9573411437500354,
+      "low": 1.572946362500005,
+      "high": 3.777410412500082
+    },
+    "v6": {
+      "median": 78.42856849374994,
+      "low": 8.253515625000318,
+      "high": 109.0852525999999
+    },
+    "ratio": 40.06893164442966,
+    "ratioLow": 2.1849666103762666,
+    "ratioHigh": 69.35090426517932
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.4263575,
+      "low": 2.06317,
+      "high": 4.278090000000001
+    },
+    "v6": {
+      "median": 8.7604225,
+      "low": 6.39315,
+      "high": 15.430245
+    },
+    "ratio": 3.61052421170417,
+    "ratioLow": 1.4943935260829013,
+    "ratioHigh": 7.478901399303014
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.969106250000465,
+      "low": 3.4766937499995265,
+      "high": 7.361474999999729
+    },
+    "v6": {
+      "median": 10.269463524998912,
+      "low": 8.059399999999073,
+      "high": 17.687952099998938
+    },
+    "ratio": 2.587349110394238,
+    "ratioLow": 1.094807766106571,
+    "ratioHigh": 5.087578421309425
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 17.993060625,
+      "low": 9.408301250000001,
+      "high": 52.913778750000006
+    },
+    "v6": {
+      "median": 604.059276875,
+      "low": 74.172435,
+      "high": 718.64231125
+    },
+    "ratio": 33.57179134025177,
+    "ratioLow": 1.4017603118167021,
+    "ratioHigh": 76.38385423192098
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.327478125000162,
+      "low": 2.9419249999996566,
+      "high": 15.059007287500137
+    },
+    "v6": {
+      "median": 154.95436067499995,
+      "low": 35.06977812499983,
+      "high": 184.66248021250016
+    },
+    "ratio": 29.085874599437275,
+    "ratioLow": 2.328824035705847,
+    "ratioHigh": 62.769268493425805
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.21614250000000002,
+      "low": 0.18771,
+      "high": 0.239265
+    },
+    "v6": {
+      "median": 3.0677475000000003,
+      "low": 2.4961849999999997,
+      "high": 8.834610000000001
+    },
+    "ratio": 14.193171171796385,
+    "ratioLow": 10.432721041522996,
+    "ratioHigh": 47.06520696819563
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.133959374999961,
+      "low": 1.835960399998271,
+      "high": 2.3478666500011514
+    },
+    "v6": {
+      "median": 4.952993750001156,
+      "low": 4.235433350001472,
+      "high": 10.995872899999881
+    },
+    "ratio": 2.3210346963616617,
+    "ratioLow": 1.8039497047242419,
+    "ratioHigh": 5.9891667053441004
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.9013662499999999,
+      "low": 0.85960125,
+      "high": 1.7585775
+    },
+    "v6": {
+      "median": 27.33791875,
+      "low": 9.78642125,
+      "high": 129.231315
+    },
+    "ratio": 30.329423527894463,
+    "ratioLow": 5.564964438587438,
+    "ratioHigh": 150.3386773809368
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.9790606812504876,
+      "low": 0.7381859375001909,
+      "high": 1.2748265624999533
+    },
+    "v6": {
+      "median": 13.41448490000019,
+      "low": 5.346954162499884,
+      "high": 34.40710781250047
+    },
+    "ratio": 13.701382515807683,
+    "ratioLow": 4.194260081947484,
+    "ratioHigh": 46.61035392927892
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.6153675,
+      "low": 0.88465,
+      "high": 1.9955850000000002
+    },
+    "v6": {
+      "median": 8.211345,
+      "low": 6.21766,
+      "high": 14.67082
+    },
+    "ratio": 5.083267429857292,
+    "ratioLow": 3.1157079252449784,
+    "ratioHigh": 16.583756287797435
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.663461450000227,
+      "low": 2.6639500000015914,
+      "high": 4.171135450002339
+    },
+    "v6": {
+      "median": 10.157316675000061,
+      "low": 7.909735399999818,
+      "high": 16.398768749999704
+    },
+    "ratio": 2.772600944115143,
+    "ratioLow": 1.89630269618681,
+    "ratioHigh": 6.155809512186756
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 6.74116625,
+      "low": 3.38288875,
+      "high": 7.402025
+    },
+    "v6": {
+      "median": 345.8753575,
+      "low": 233.92871875,
+      "high": 584.6687137499999
+    },
+    "ratio": 51.307940595590566,
+    "ratioLow": 31.603340808765168,
+    "ratioHigh": 172.83119752312277
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.515387243750311,
+      "low": 1.4761869749996492,
+      "high": 2.882669274999472
+    },
+    "v6": {
+      "median": 89.83767681875001,
+      "low": 62.60698072499906,
+      "high": 152.8309666624999
+    },
+    "ratio": 35.7152470427602,
+    "ratioLow": 21.71840566934635,
+    "ratioHigh": 103.53090038782939
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 3.0198875000000003,
+      "low": 2.3646000000000003,
+      "high": 7.34962
+    },
+    "v6": {
+      "median": 10.268905,
+      "low": 7.926375,
+      "high": 17.405635
+    },
+    "ratio": 3.4004263403851964,
+    "ratioLow": 1.0784741251928671,
+    "ratioHigh": 7.360921508923284
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.2449728999988565,
+      "low": 3.62634789999845,
+      "high": 9.88425000000177
+    },
+    "v6": {
+      "median": 12.21312295000132,
+      "low": 9.980779199997869,
+      "high": 20.058483349998824
+    },
+    "ratio": 2.3285388090382666,
+    "ratioLow": 1.0097659609981617,
+    "ratioHigh": 5.53131798248243
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 18.447839375,
+      "low": 11.891845,
+      "high": 25.026495
+    },
+    "v6": {
+      "median": 695.711595625,
+      "low": 550.38558875,
+      "high": 800.5729249999999
+    },
+    "ratio": 37.71236194563841,
+    "ratioLow": 21.992116305139813,
+    "ratioHigh": 67.32117051643374
+  },
+  {
+    "platform": "macOS ARM64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 5.794753387500862,
+      "low": 3.520902612500265,
+      "high": 7.417123437500095
+    },
+    "v6": {
+      "median": 182.96667995,
+      "low": 175.64492187500065,
+      "high": 202.72391353750052
+    },
+    "ratio": 31.57454126428479,
+    "ratioLow": 23.681002932614117,
+    "ratioHigh": 57.57725670053172
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.2563825,
+      "low": 0.247905,
+      "high": 0.260175
+    },
+    "v6": {
+      "median": 1.672225,
+      "low": 1.64053,
+      "high": 1.70719
+    },
+    "ratio": 6.522383548019073,
+    "ratioLow": 6.305486691649851,
+    "ratioHigh": 6.886468606926041
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.019815749999765,
+      "low": 1.9912149999999684,
+      "high": 2.2304009499997335
+    },
+    "v6": {
+      "median": 3.4791301499996763,
+      "low": 3.4246695000000216,
+      "high": 3.5612160500001266
+    },
+    "ratio": 1.7224987724747078,
+    "ratioLow": 1.535450161999093,
+    "ratioHigh": 1.788463852472075
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.161875,
+      "low": 1.109985,
+      "high": 1.176605
+    },
+    "v6": {
+      "median": 6.205111875,
+      "low": 5.7456,
+      "high": 6.58555625
+    },
+    "ratio": 5.3406019365250135,
+    "ratioLow": 4.883202094160742,
+    "ratioHigh": 5.933013734419834
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.9575625999999282,
+      "low": 0.9397983624999995,
+      "high": 0.967721987499992
+    },
+    "v6": {
+      "median": 2.4076752000000035,
+      "low": 2.158752775000039,
+      "high": 2.5154071750000284
+    },
+    "ratio": 2.514378903269806,
+    "ratioLow": 2.2307571832453137,
+    "ratioHigh": 2.6765392188050656
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.6549450000000001,
+      "low": 0.5748800000000001,
+      "high": 1.561815
+    },
+    "v6": {
+      "median": 4.2489675,
+      "low": 3.4317300000000004,
+      "high": 5.987375
+    },
+    "ratio": 6.487518035865606,
+    "ratioLow": 2.197270483379914,
+    "ratioHigh": 10.414999652101308
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.5177696999996613,
+      "low": 2.3142573499995933,
+      "high": 3.342666799999705
+    },
+    "v6": {
+      "median": 6.042211900000183,
+      "low": 5.185299549999911,
+      "high": 7.819793550000043
+    },
+    "ratio": 2.3998270771155106,
+    "ratioLow": 1.5512463132730934,
+    "ratioHigh": 3.37896455206307
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 3.1285724999999998,
+      "low": 2.4078049999999998,
+      "high": 5.56024375
+    },
+    "v6": {
+      "median": 32.590877500000005,
+      "low": 24.70817375,
+      "high": 48.59893375
+    },
+    "ratio": 10.417171889096387,
+    "ratioLow": 4.443721329662931,
+    "ratioHigh": 20.183915952496154
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.453223475000076,
+      "low": 1.313486275000031,
+      "high": 2.068859587499894
+    },
+    "v6": {
+      "median": 8.916811593749951,
+      "low": 6.928175124999925,
+      "high": 12.941277250000027
+    },
+    "ratio": 6.135884636565952,
+    "ratioLow": 3.348789433009445,
+    "ratioHigh": 9.852617036291242
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.8305625,
+      "low": 1.7183499999999998,
+      "high": 2.2510000000000003
+    },
+    "v6": {
+      "median": 4.8530875,
+      "low": 4.0237,
+      "high": 7.198185
+    },
+    "ratio": 2.6511454812386903,
+    "ratioLow": 1.7875166592625495,
+    "ratioHigh": 4.189009805918468
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.62620847499997,
+      "low": 3.4372317500000804,
+      "high": 4.141960150000301
+    },
+    "v6": {
+      "median": 6.692434200000363,
+      "low": 5.799982599999964,
+      "high": 9.106286900000171
+    },
+    "ratio": 1.8455734815413276,
+    "ratioLow": 1.4002989864592355,
+    "ratioHigh": 2.6493083860289484
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 10.026,
+      "low": 9.075223750000001,
+      "high": 14.62997
+    },
+    "v6": {
+      "median": 29.913043125,
+      "low": 23.53216625,
+      "high": 43.72638
+    },
+    "ratio": 2.983547090065829,
+    "ratioLow": 1.6084903967677309,
+    "ratioHigh": 4.818215088085293
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.18139342499979,
+      "low": 2.938891237499952,
+      "high": 4.386514712500045
+    },
+    "v6": {
+      "median": 8.349019681249992,
+      "low": 6.8771285125002635,
+      "high": 11.788616424999887
+    },
+    "ratio": 2.624327948766834,
+    "ratioLow": 1.56778877155087,
+    "ratioHigh": 4.011246239594833
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.2543175,
+      "low": 0.24765500000000001,
+      "high": 0.25834
+    },
+    "v6": {
+      "median": 1.6261700000000001,
+      "low": 1.6146,
+      "high": 1.7139
+    },
+    "ratio": 6.394251280387706,
+    "ratioLow": 6.249903228303785,
+    "ratioHigh": 6.920514425309402
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.9908271749997652,
+      "low": 1.938100700000689,
+      "high": 2.1156992500010574
+    },
+    "v6": {
+      "median": 3.4097048499994287,
+      "low": 3.2962433000008673,
+      "high": 3.556359450000457
+    },
+    "ratio": 1.7127076085847737,
+    "ratioLow": 1.5579923753336964,
+    "ratioHigh": 1.8349714491095293
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.123636875,
+      "low": 1.07097,
+      "high": 1.150705
+    },
+    "v6": {
+      "median": 6.445815,
+      "low": 5.88482,
+      "high": 7.94535375
+    },
+    "ratio": 5.736564136879185,
+    "ratioLow": 5.1140996171912,
+    "ratioHigh": 7.41883876299056
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.9265201937500578,
+      "low": 0.9032126750000202,
+      "high": 0.9569214875000398
+    },
+    "v6": {
+      "median": 2.3826434000000063,
+      "low": 2.174250237500175,
+      "high": 2.788166337499831
+    },
+    "ratio": 2.5716043925133905,
+    "ratioLow": 2.2721302279253965,
+    "ratioHigh": 3.086943324283806
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.9000425000000001,
+      "low": 0.6146149999999999,
+      "high": 3.9734900000000004
+    },
+    "v6": {
+      "median": 3.5628425000000004,
+      "low": 3.3148400000000002,
+      "high": 4.71272
+    },
+    "ratio": 3.9585269584491845,
+    "ratioLow": 0.8342389184319075,
+    "ratioHigh": 7.667759491714326
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.697992250000425,
+      "low": 2.365935350000825,
+      "high": 5.830606199999977
+    },
+    "v6": {
+      "median": 5.350341374999346,
+      "low": 5.0481179999991355,
+      "high": 6.481123049999837
+    },
+    "ratio": 1.9830825588911543,
+    "ratioLow": 0.8657964243922279,
+    "ratioHigh": 2.739349175368455
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.639095,
+      "low": 2.42050625,
+      "high": 3.3932725
+    },
+    "v6": {
+      "median": 27.48957,
+      "low": 23.3140925,
+      "high": 59.22804125
+    },
+    "ratio": 10.41628664371688,
+    "ratioLow": 6.8706808840138835,
+    "ratioHigh": 24.46927837926467
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.327582662499971,
+      "low": 1.2914547500002982,
+      "high": 1.495671149999822
+    },
+    "v6": {
+      "median": 7.650815143750123,
+      "low": 6.548946649999721,
+      "high": 15.588313149999777
+    },
+    "ratio": 5.762967052720373,
+    "ratioLow": 4.37860063691173,
+    "ratioHigh": 12.070351787390289
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.75786,
+      "low": 1.7162700000000002,
+      "high": 4.666655
+    },
+    "v6": {
+      "median": 4.763540000000001,
+      "low": 3.85679,
+      "high": 14.710374999999999
+    },
+    "ratio": 2.7098517515615583,
+    "ratioLow": 0.8264570661426653,
+    "ratioHigh": 8.571130999201756
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.543663699999655,
+      "low": 3.4893053499999382,
+      "high": 6.522750400000632
+    },
+    "v6": {
+      "median": 6.554397249999511,
+      "low": 5.711483000000328,
+      "high": 16.520792299999698
+    },
+    "ratio": 1.8496104046216768,
+    "ratioLow": 0.8756249510942156,
+    "ratioHigh": 4.734693769348673
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 10.473746250000001,
+      "low": 9.33440875,
+      "high": 15.609897499999999
+    },
+    "v6": {
+      "median": 27.10998125,
+      "low": 24.542863750000002,
+      "high": 39.84947
+    },
+    "ratio": 2.5883748377043214,
+    "ratioLow": 1.5722629664928935,
+    "ratioHigh": 4.269094172675907
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.3051348062501873,
+      "low": 2.9996521999997583,
+      "high": 4.619479137500093
+    },
+    "v6": {
+      "median": 7.814729212499927,
+      "low": 6.946946512499963,
+      "high": 11.116441137500033
+    },
+    "ratio": 2.3644207182478167,
+    "ratioLow": 1.5038376201563315,
+    "ratioHigh": 3.7059100176683577
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.3049425,
+      "low": 0.29895,
+      "high": 0.563955
+    },
+    "v6": {
+      "median": 1.6901275,
+      "low": 1.6289349999999998,
+      "high": 1.72798
+    },
+    "ratio": 5.542446526804233,
+    "ratioLow": 2.8884130826041083,
+    "ratioHigh": 5.780163907007862
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.696096275000315,
+      "low": 2.528296149999676,
+      "high": 2.948900350000372
+    },
+    "v6": {
+      "median": 4.112877475000332,
+      "low": 4.062371250000751,
+      "high": 6.039846199999843
+    },
+    "ratio": 1.52549354900164,
+    "ratioLow": 1.377588513630255,
+    "ratioHigh": 2.388899813022544
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.4428731249999998,
+      "low": 1.3649200000000001,
+      "high": 1.4737125
+    },
+    "v6": {
+      "median": 6.526215,
+      "low": 5.6652925,
+      "high": 7.3248925
+    },
+    "ratio": 4.523069206102235,
+    "ratioLow": 3.8442318294782734,
+    "ratioHigh": 5.366536133985874
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.2757444249998695,
+      "low": 1.2354282499998703,
+      "high": 1.3155664999999317
+    },
+    "v6": {
+      "median": 2.5102251687500576,
+      "low": 2.35392828749994,
+      "high": 2.9211646874999886
+    },
+    "ratio": 1.9676552133475436,
+    "ratioLow": 1.7892887113650753,
+    "ratioHigh": 2.3644956212554598
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.003315,
+      "low": 0.9464650000000001,
+      "high": 2.1119700000000003
+    },
+    "v6": {
+      "median": 5.4575625,
+      "low": 4.89953,
+      "high": 6.472225
+    },
+    "ratio": 5.439530456536581,
+    "ratioLow": 2.3198861726255577,
+    "ratioHigh": 6.838314147908268
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.3956146750007576,
+      "low": 3.3107899999997414,
+      "high": 4.5813429999999045
+    },
+    "v6": {
+      "median": 7.875710500000466,
+      "low": 7.149552149999749,
+      "high": 8.828932299999792
+    },
+    "ratio": 2.3193769770118893,
+    "ratioLow": 1.5605799762209245,
+    "ratioHigh": 2.6667146813903875
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 4.08026,
+      "low": 3.92983,
+      "high": 5.16831875
+    },
+    "v6": {
+      "median": 43.45970125,
+      "low": 41.426992500000004,
+      "high": 53.439435
+    },
+    "ratio": 10.651208807772054,
+    "ratioLow": 8.01556453924209,
+    "ratioHigh": 13.598408837023486
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.9852264875000358,
+      "low": 1.8713023000000106,
+      "high": 2.1996003749999993
+    },
+    "v6": {
+      "median": 11.894501806250002,
+      "low": 11.353261212499888,
+      "high": 14.434603062499997
+    },
+    "ratio": 5.991508717591492,
+    "ratioLow": 5.161510855125169,
+    "ratioHigh": 7.713667141059953
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.8763925000000001,
+      "low": 1.740645,
+      "high": 1.96895
+    },
+    "v6": {
+      "median": 6.092155,
+      "low": 5.949745,
+      "high": 6.75241
+    },
+    "ratio": 3.246738089179103,
+    "ratioLow": 3.0217857233550878,
+    "ratioHigh": 3.879257401710286
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 4.180436275000332,
+      "low": 4.034044200000153,
+      "high": 4.374376400000202
+    },
+    "v6": {
+      "median": 8.409070449999945,
+      "low": 8.341873950000434,
+      "high": 9.068969200000154
+    },
+    "ratio": 2.011529394739853,
+    "ratioLow": 1.9069858620305398,
+    "ratioHigh": 2.2481085358459407
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 11.260468125,
+      "low": 10.75767875,
+      "high": 13.00104125
+    },
+    "v6": {
+      "median": 40.98144,
+      "low": 38.41212375,
+      "high": 69.02887375
+    },
+    "ratio": 3.639408197339043,
+    "ratioLow": 2.9545421025412097,
+    "ratioHigh": 6.416707112582257
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.74741580000002,
+      "low": 3.632244374999871,
+      "high": 4.221257749999996
+    },
+    "v6": {
+      "median": 11.40601281875,
+      "low": 10.7831058875,
+      "high": 18.655219737499973
+    },
+    "ratio": 3.0437008934930407,
+    "ratioLow": 2.554477012805013,
+    "ratioHigh": 5.136003476500844
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.3156525,
+      "low": 0.29658,
+      "high": 0.326435
+    },
+    "v6": {
+      "median": 1.6994449999999999,
+      "low": 1.61363,
+      "high": 1.7381900000000001
+    },
+    "ratio": 5.383911104775029,
+    "ratioLow": 4.9431893026176725,
+    "ratioHigh": 5.86077955357745
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 2.74222712499963,
+      "low": 2.585234949998494,
+      "high": 2.8033439500006807
+    },
+    "v6": {
+      "median": 4.0388284499996985,
+      "low": 3.838439800000515,
+      "high": 4.258153800000741
+    },
+    "ratio": 1.4728278387955351,
+    "ratioLow": 1.3692361224528238,
+    "ratioHigh": 1.647105149960634
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.427553125,
+      "low": 1.343775,
+      "high": 1.5087675
+    },
+    "v6": {
+      "median": 6.437500625,
+      "low": 5.621975,
+      "high": 7.48736375
+    },
+    "ratio": 4.509464840406553,
+    "ratioLow": 3.726203672865435,
+    "ratioHigh": 5.5718879648750725
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.2536295187500102,
+      "low": 1.2149208875001705,
+      "high": 1.322273162499954
+    },
+    "v6": {
+      "median": 2.5773476437500165,
+      "low": 2.3940557875000934,
+      "high": 3.0242700625002783
+    },
+    "ratio": 2.055908548101102,
+    "ratioLow": 1.8105606733889805,
+    "ratioHigh": 2.4892732470202543
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.987735,
+      "low": 0.9408,
+      "high": 1.0255100000000001
+    },
+    "v6": {
+      "median": 5.0665925000000005,
+      "low": 4.95423,
+      "high": 5.24868
+    },
+    "ratio": 5.129505889737632,
+    "ratioLow": 4.830991409152518,
+    "ratioHigh": 5.578954081632653
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.3451459000005457,
+      "low": 3.278473599999643,
+      "high": 3.5506394499989824
+    },
+    "v6": {
+      "median": 7.497198150000628,
+      "low": 7.312150149999752,
+      "high": 7.729474350000487
+    },
+    "ratio": 2.2412170871229877,
+    "ratioLow": 2.05938965444713,
+    "ratioHigh": 2.3576442250446457
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 3.998436875,
+      "low": 3.91143625,
+      "high": 4.07788875
+    },
+    "v6": {
+      "median": 40.670456875,
+      "low": 39.515055,
+      "high": 48.21315
+    },
+    "ratio": 10.171589085047142,
+    "ratioLow": 9.690076758469687,
+    "ratioHigh": 12.326201149258154
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.9321325749999119,
+      "low": 1.8245788249998895,
+      "high": 1.9757306374998507
+    },
+    "v6": {
+      "median": 11.296684056249973,
+      "low": 10.895369024999724,
+      "high": 13.165678449999518
+    },
+    "ratio": 5.846743749584827,
+    "ratioLow": 5.514602455518458,
+    "ratioHigh": 7.215735636962856
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 1.79338,
+      "low": 1.7485,
+      "high": 1.851615
+    },
+    "v6": {
+      "median": 5.9199025,
+      "low": 5.710425,
+      "high": 6.21429
+    },
+    "ratio": 3.300974974628913,
+    "ratioLow": 3.084023946662778,
+    "ratioHigh": 3.5540692021732916
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 4.090208249999705,
+      "low": 4.035100999999486,
+      "high": 4.391135199999496
+    },
+    "v6": {
+      "median": 8.335487424999144,
+      "low": 8.024146299999302,
+      "high": 8.480374250000011
+    },
+    "ratio": 2.037912721192068,
+    "ratioLow": 1.8273512279923019,
+    "ratioHigh": 2.101651049131383
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 10.929504999999999,
+      "low": 10.5829825,
+      "high": 11.372607499999999
+    },
+    "v6": {
+      "median": 38.699144375,
+      "low": 38.1577925,
+      "high": 43.367681250000004
+    },
+    "ratio": 3.5407957062099342,
+    "ratioLow": 3.3552369146653485,
+    "ratioHigh": 4.097869504178052
+  },
+  {
+    "platform": "Linux x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.6899559437500784,
+      "low": 3.6121207375000353,
+      "high": 3.7704110625000453
+    },
+    "v6": {
+      "median": 10.846910237499863,
+      "low": 10.609911024999974,
+      "high": 11.976474350000288
+    },
+    "ratio": 2.939577166462377,
+    "ratioLow": 2.8139931824740785,
+    "ratioHigh": 3.315635113096817
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.5385025,
+      "low": 0.48535000000000006,
+      "high": 0.55979
+    },
+    "v6": {
+      "median": 4.134305,
+      "low": 3.91244,
+      "high": 4.235564999999999
+    },
+    "ratio": 7.677410968379906,
+    "ratioLow": 6.98912092034513,
+    "ratioHigh": 8.726826001854329
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.0344624999997905,
+      "low": 2.771050000001196,
+      "high": 3.5236399999973855
+    },
+    "v6": {
+      "median": 6.454582500001038,
+      "low": 6.213759999999979,
+      "high": 6.781640000002653
+    },
+    "ratio": 2.127092524623878,
+    "ratioLow": 1.7634491605284848,
+    "ratioHigh": 2.4473178037205123
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.16572625,
+      "low": 2.1437525,
+      "high": 2.21942375
+    },
+    "v6": {
+      "median": 114.278794375,
+      "low": 33.10766625,
+      "high": 116.96198125000001
+    },
+    "ratio": 52.76696183324185,
+    "ratioLow": 14.917235273345167,
+    "ratioHigh": 54.55946115514734
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.3214987500003161,
+      "low": 1.2437837499987836,
+      "high": 1.6465062500003569
+    },
+    "v6": {
+      "median": 29.592955624999817,
+      "low": 9.106416249999683,
+      "high": 30.171090000000333
+    },
+    "ratio": 22.393479846267535,
+    "ratioLow": 5.530751097967413,
+    "ratioHigh": 24.257504570251733
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 13.07138,
+      "low": 11.371845,
+      "high": 20.969915
+    },
+    "v6": {
+      "median": 64.9280225,
+      "low": 43.17845,
+      "high": 85.43981
+    },
+    "ratio": 4.967189577535042,
+    "ratioLow": 2.059066524590109,
+    "ratioHigh": 7.513275989955894
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 15.579375000000084,
+      "low": 13.546514999998749,
+      "high": 23.231484999999452
+    },
+    "v6": {
+      "median": 67.17080499999923,
+      "low": 46.01597000000197,
+      "high": 88.0687499999965
+    },
+    "ratio": 4.311521161792362,
+    "ratioLow": 1.9807588709892225,
+    "ratioHigh": 6.501210828025115
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 88.996878125,
+      "low": 53.2461275,
+      "high": 135.40685375
+    },
+    "v6": {
+      "median": 378.50547125,
+      "low": 256.93714374999996,
+      "high": 536.55998
+    },
+    "ratio": 4.253019647704638,
+    "ratioLow": 1.8975194876352406,
+    "ratioHigh": 10.076976583883964
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 23.232053125000007,
+      "low": 14.24520000000058,
+      "high": 34.910159999999735
+    },
+    "v6": {
+      "median": 97.9990762499998,
+      "low": 66.17616374999997,
+      "high": 138.98690500000015
+    },
+    "ratio": 4.218270151274018,
+    "ratioLow": 1.8956133042644454,
+    "ratioHigh": 9.756753502933936
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 13.109569999999998,
+      "low": 10.4521,
+      "high": 19.86721
+    },
+    "v6": {
+      "median": 59.1366575,
+      "low": 37.410495,
+      "high": 119.12630999999999
+    },
+    "ratio": 4.510953257810898,
+    "ratioLow": 1.883027108486798,
+    "ratioHigh": 11.397356512088479
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 15.329277499998284,
+      "low": 12.932184999999663,
+      "high": 22.185754999998153
+    },
+    "v6": {
+      "median": 61.55756999999937,
+      "low": 39.83883500000047,
+      "high": 122.15204000000028
+    },
+    "ratio": 4.0156863231164195,
+    "ratioLow": 1.7956943543279815,
+    "ratioHigh": 9.445584021571255
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 52.043414375000005,
+      "low": 46.0143125,
+      "high": 90.77912125
+    },
+    "v6": {
+      "median": 388.78888374999997,
+      "low": 301.2471,
+      "high": 974.25561875
+    },
+    "ratio": 7.4704722666459356,
+    "ratioLow": 3.318462393686147,
+    "ratioHigh": 21.17288221463702
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 14.058509999999913,
+      "low": 12.42095124999949,
+      "high": 23.611142500000426
+    },
+    "v6": {
+      "median": 101.41075062499993,
+      "low": 77.02596999999969,
+      "high": 245.91771875000035
+    },
+    "ratio": 7.213477859673647,
+    "ratioLow": 3.262272039567687,
+    "ratioHigh": 19.7986220057027
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.499485,
+      "low": 0.485905,
+      "high": 0.557175
+    },
+    "v6": {
+      "median": 4.0882725,
+      "low": 3.8408749999999996,
+      "high": 4.357385
+    },
+    "ratio": 8.184975524790534,
+    "ratioLow": 6.893480504329878,
+    "ratioHigh": 8.96756567641823
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 3.0357724999987568,
+      "low": 2.6548549999972693,
+      "high": 9.285074999996823
+    },
+    "v6": {
+      "median": 6.33201750000012,
+      "low": 5.8298050000018975,
+      "high": 7.319239999998217
+    },
+    "ratio": 2.085801060521733,
+    "ratioLow": 0.6278683801696693,
+    "ratioHigh": 2.756926461145993
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.11359,
+      "low": 1.6163037500000002,
+      "high": 2.4465737499999998
+    },
+    "v6": {
+      "median": 114.647338125,
+      "low": 111.91385875,
+      "high": 115.01869124999999
+    },
+    "ratio": 54.24294121612991,
+    "ratioLow": 45.74309634034127,
+    "ratioHigh": 71.1615568855792
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.3656481250002628,
+      "low": 1.3131887499994832,
+      "high": 1.6168374999992352
+    },
+    "v6": {
+      "median": 29.734209375000376,
+      "low": 29.050844999999015,
+      "high": 29.8141012500011
+    },
+    "ratio": 21.77296540058198,
+    "ratioLow": 17.967696197059233,
+    "ratioHigh": 22.70359173425209
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 21.211732499999997,
+      "low": 14.009274999999999,
+      "high": 35.71539
+    },
+    "v6": {
+      "median": 55.142665,
+      "low": 48.653994999999995,
+      "high": 104.195455
+    },
+    "ratio": 2.5996304167988167,
+    "ratioLow": 1.3622697386196818,
+    "ratioHigh": 7.437605086630108
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 23.668292500002508,
+      "low": 16.979040000001078,
+      "high": 39.00457499999561
+    },
+    "v6": {
+      "median": 57.65902249999897,
+      "low": 50.909839999997075,
+      "high": 107.03449000000091
+    },
+    "ratio": 2.4361293701264195,
+    "ratioLow": 1.3052273996064,
+    "ratioHigh": 6.303918831688606
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 76.06245750000001,
+      "low": 48.190526250000005,
+      "high": 141.36909
+    },
+    "v6": {
+      "median": 340.402355,
+      "low": 287.70856875,
+      "high": 556.8543487500001
+    },
+    "ratio": 4.4753005120824545,
+    "ratioLow": 2.0351589498807696,
+    "ratioHigh": 11.555265984463079
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 19.9752793750001,
+      "low": 12.908939999999802,
+      "high": 37.859634999999514
+    },
+    "v6": {
+      "median": 86.65136750000002,
+      "low": 73.72507624999969,
+      "high": 143.31468249999944
+    },
+    "ratio": 4.337930192277954,
+    "ratioLow": 1.9473266514587537,
+    "ratioHigh": 11.10197138572196
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 16.793370000000003,
+      "low": 14.455455,
+      "high": 27.411655000000003
+    },
+    "v6": {
+      "median": 55.21388999999999,
+      "low": 37.4257,
+      "high": 126.25554
+    },
+    "ratio": 3.287838593444912,
+    "ratioLow": 1.3653207002641758,
+    "ratioHigh": 8.7341104102223
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 19.037339999997016,
+      "low": 17.24178999999708,
+      "high": 30.405799999999772
+    },
+    "v6": {
+      "median": 57.9376099999962,
+      "low": 40.228120000000445,
+      "high": 128.71880499999975
+    },
+    "ratio": 3.0433668779359553,
+    "ratioLow": 1.3230409987568408,
+    "ratioHigh": 7.465512861484888
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 70.129868125,
+      "low": 52.65018875,
+      "high": 104.14308875
+    },
+    "v6": {
+      "median": 312.91044750000003,
+      "low": 275.75478625,
+      "high": 424.893545
+    },
+    "ratio": 4.461871323389146,
+    "ratioLow": 2.6478452824839995,
+    "ratioHigh": 8.070123870163714
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v10.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 18.46458312500019,
+      "low": 14.553826249999702,
+      "high": 26.85139499999991
+    },
+    "v6": {
+      "median": 81.78973000000056,
+      "low": 70.36070375000065,
+      "high": 109.13887000000102
+    },
+    "ratio": 4.4295465240837775,
+    "ratioLow": 2.6203742394017473,
+    "ratioHigh": 7.4989812386968175
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.7187687500000001,
+      "low": 0.6175695,
+      "high": 0.876489
+    },
+    "v6": {
+      "median": 6.7552270000000005,
+      "low": 5.9978515,
+      "high": 9.7889255
+    },
+    "ratio": 9.398331521786387,
+    "ratioLow": 6.843042525348293,
+    "ratioHigh": 15.850726922233044
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 1.0352765000000375,
+      "low": 0.8901140000000396,
+      "high": 1.2558724999999527
+    },
+    "v6": {
+      "median": 7.005094749999898,
+      "low": 6.243061999999782,
+      "high": 10.146221999999625
+    },
+    "ratio": 6.766399845837943,
+    "ratioLow": 4.971095393839755,
+    "ratioHigh": 11.398789368551864
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 3.2889392500000003,
+      "low": 2.49223375,
+      "high": 4.68822975
+    },
+    "v6": {
+      "median": 120.9171959375,
+      "low": 119.5121815,
+      "high": 121.500172625
+    },
+    "ratio": 36.764800668635026,
+    "ratioLow": 25.491963464461186,
+    "ratioHigh": 48.751515633314895
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.9297693125000173,
+      "low": 0.7175116249999292,
+      "high": 1.3071168749999629
+    },
+    "v6": {
+      "median": 30.386199375000018,
+      "low": 29.990448750000095,
+      "high": 30.51920975000002
+    },
+    "ratio": 32.681439327456246,
+    "ratioLow": 22.943968763314256,
+    "ratioHigh": 42.53479481953067
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 17.20358,
+      "low": 14.288030000000001,
+      "high": 18.680355
+    },
+    "v6": {
+      "median": 57.56248,
+      "low": 53.392269999999996,
+      "high": 66.27765000000001
+    },
+    "ratio": 3.34595938752283,
+    "ratioLow": 2.8582042471890925,
+    "ratioHigh": 4.638683569393401
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 20.176337499999875,
+      "low": 16.917410000002064,
+      "high": 22.129384999999502
+    },
+    "v6": {
+      "median": 60.05420500000014,
+      "low": 55.756544999999846,
+      "high": 69.9725600000022
+    },
+    "ratio": 2.9764671115360017,
+    "ratioLow": 2.5195704715698652,
+    "ratioHigh": 4.1361272204193
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 57.287080625,
+      "low": 52.92029,
+      "high": 67.30662000000001
+    },
+    "v6": {
+      "median": 329.87016875,
+      "low": 291.09704125,
+      "high": 402.54281875
+    },
+    "ratio": 5.758194782333613,
+    "ratioLow": 4.324939229603269,
+    "ratioHigh": 7.606587544210358
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 15.543728749999985,
+      "low": 14.343397500000066,
+      "high": 18.228367499999365
+    },
+    "v6": {
+      "median": 84.66262374999971,
+      "low": 75.33922625000002,
+      "high": 102.67216624999946
+    },
+    "ratio": 5.446738367072945,
+    "ratioLow": 4.133075891190072,
+    "ratioHigh": 7.158148287391393
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 18.3230625,
+      "low": 14.912085,
+      "high": 43.297655
+    },
+    "v6": {
+      "median": 56.978425,
+      "low": 50.56795,
+      "high": 269.46823
+    },
+    "ratio": 3.1096562051240073,
+    "ratioLow": 1.167914290046424,
+    "ratioHigh": 18.070459630561388
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 21.63305000000122,
+      "low": 17.529619999999113,
+      "high": 46.563430000000494
+    },
+    "v6": {
+      "median": 60.050892499999264,
+      "low": 53.23473999999919,
+      "high": 273.22719000000006
+    },
+    "ratio": 2.77588654859097,
+    "ratioLow": 1.1432735947501855,
+    "ratioHigh": 15.586600850447066
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 90.82599375,
+      "low": 64.37077875,
+      "high": 188.63829124999998
+    },
+    "v6": {
+      "median": 307.10602,
+      "low": 284.76787375,
+      "high": 640.11930125
+    },
+    "ratio": 3.3812569212874704,
+    "ratioLow": 1.5095973986140527,
+    "ratioHigh": 9.944252868775493
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 1,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 24.26867124999994,
+      "low": 17.168720000000093,
+      "high": 49.27798625000008
+    },
+    "v6": {
+      "median": 78.72963812500001,
+      "low": 72.79022625000096,
+      "high": 163.2079349999998
+    },
+    "ratio": 3.244085237052284,
+    "ratioLow": 1.4771347571046662,
+    "ratioHigh": 9.506121306655295
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 0.630709,
+      "low": 0.612673,
+      "high": 0.8172365
+    },
+    "v6": {
+      "median": 7.177350000000001,
+      "low": 7.0236564999999995,
+      "high": 10.136655
+    },
+    "ratio": 11.379812243047112,
+    "ratioLow": 8.594398928584319,
+    "ratioHigh": 16.544967707080286
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.9165130000005206,
+      "low": 0.8944040000000086,
+      "high": 1.2468834999998535
+    },
+    "v6": {
+      "median": 7.449695249999877,
+      "low": 7.304510499999992,
+      "high": 10.525583000000438
+    },
+    "ratio": 8.128302871858496,
+    "ratioLow": 5.858214099393288,
+    "ratioHigh": 11.768264676813091
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 2.97045425,
+      "low": 2.6124347500000002,
+      "high": 5.900350375
+    },
+    "v6": {
+      "median": 119.2185426875,
+      "low": 118.88515225,
+      "high": 121.14175275
+    },
+    "ratio": 40.13478500384243,
+    "ratioLow": 20.148829254906747,
+    "ratioHigh": 46.37120707033926
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "read",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 0.8488110625000189,
+      "low": 0.7642947499999764,
+      "high": 1.5865133750000382
+    },
+    "v6": {
+      "median": 29.926882875000018,
+      "low": 29.844082374999918,
+      "high": 30.406026124999954
+    },
+    "ratio": 35.257413807562564,
+    "ratioLow": 18.811113001174164,
+    "ratioHigh": 39.7831152510218
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 15.959409999999998,
+      "low": 15.003440000000001,
+      "high": 16.46665
+    },
+    "v6": {
+      "median": 58.0936775,
+      "low": 56.976395000000004,
+      "high": 62.971775
+    },
+    "ratio": 3.640089295280966,
+    "ratioLow": 3.4601084616482405,
+    "ratioHigh": 4.1971557856065
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 18.669909999999845,
+      "low": 17.597434999998995,
+      "high": 19.298025000000507
+    },
+    "v6": {
+      "median": 60.94612250000182,
+      "low": 59.687205000000176,
+      "high": 65.8836449999967
+    },
+    "ratio": 3.264403658078819,
+    "ratioLow": 3.0929177985829437,
+    "ratioHigh": 3.7439345563714523
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 54.535526875,
+      "low": 52.08342625,
+      "high": 56.0130375
+    },
+    "v6": {
+      "median": 285.26711,
+      "low": 280.02116624999996,
+      "high": 318.935865
+    },
+    "ratio": 5.230849069338894,
+    "ratioLow": 4.999214089219852,
+    "ratioHigh": 6.123557683573092
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "insert",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 14.788665000000378,
+      "low": 14.218085000001679,
+      "high": 15.175939999998889
+    },
+    "v6": {
+      "median": 73.36360437499962,
+      "low": 72.1688075000003,
+      "high": 85.45166749999993
+    },
+    "ratio": 4.960799664810701,
+    "ratioLow": 4.755475278632202,
+    "ratioHigh": 6.010068690684423
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 16.52255,
+      "low": 15.708789999999999,
+      "high": 17.719125
+    },
+    "v6": {
+      "median": 50.601405,
+      "low": 48.888165,
+      "high": 53.598725
+    },
+    "ratio": 3.0625663108902685,
+    "ratioLow": 2.7590620304332187,
+    "ratioHigh": 3.412021231425209
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 1,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 19.289072500001225,
+      "low": 18.51261000000477,
+      "high": 20.243615000003956
+    },
+    "v6": {
+      "median": 53.15455250000127,
+      "low": 51.52592499999855,
+      "high": 56.28727999999796
+    },
+    "ratio": 2.7556821355717283,
+    "ratioLow": 2.545292676233394,
+    "ratioHigh": 3.040483216574187
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "latencyMs",
+    "v5": {
+      "median": 73.83604125000001,
+      "low": 71.6468425,
+      "high": 76.2469
+    },
+    "v6": {
+      "median": 293.102044375,
+      "low": 284.6705175,
+      "high": 297.55330625
+    },
+    "ratio": 3.969633791478494,
+    "ratioLow": 3.733535625710685,
+    "ratioHigh": 4.153055401569161
+  },
+  {
+    "platform": "Windows x64",
+    "framework": ".NETCoreApp,Version=v8.0",
+    "repetition": 2,
+    "scenario": "mixed",
+    "workers": 4,
+    "metric": "wallMsPerRequest",
+    "v5": {
+      "median": 19.62254687500078,
+      "low": 19.07084500000167,
+      "high": 20.250586250000424
+    },
+    "v6": {
+      "median": 75.34978937500014,
+      "low": 73.28195125000008,
+      "high": 76.22700624999936
+    },
+    "ratio": 3.8399597083391934,
+    "ratioLow": 3.618757024873714,
+    "ratioHigh": 3.997043982581406
+  }
+]

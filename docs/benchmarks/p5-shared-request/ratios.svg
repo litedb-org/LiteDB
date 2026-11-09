@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="800" viewBox="0 0 1100 800">
+<rect width="1100" height="800" fill="white"/>
+<style>text{font-family:sans-serif;font-size:13px} .title{font-size:19px;font-weight:bold}</style>
+<text x="35" y="28" class="title">Shared request v6/v5 latency ratio — each repetition shown separately</text>
+<text x="75" y="75">net8, 1 process(es); ratio (log scale)</text>
+<line x1="75" y1="330.00" x2="500" y2="330.00" stroke="#ddd"/>
+<text x="37" y="334.00">1x</text>
+<line x1="75" y1="309.31" x2="500" y2="309.31" stroke="#999"/>
+<text x="37" y="313.31">1.5x</text>
+<line x1="75" y1="212.50" x2="500" y2="212.50" stroke="#ddd"/>
+<text x="37" y="216.50">10x</text>
+<line x1="75" y1="95.00" x2="500" y2="95.00" stroke="#ddd"/>
+<text x="37" y="99.00">100x</text>
+<text x="120" y="355">read</text>
+<circle cx="111.0" cy="242.62" r="5" fill="#0072b2"><title>Linux x64 rep1: 5.54x</title></circle>
+<circle cx="119.0" cy="244.10" r="5" fill="#0072b2"><title>Linux x64 rep2: 5.38x</title></circle>
+<circle cx="141.0" cy="215.67" r="5" fill="#d55e00"><title>Windows x64 rep1: 9.40x</title></circle>
+<circle cx="149.0" cy="205.90" r="5" fill="#d55e00"><title>Windows x64 rep2: 11.38x</title></circle>
+<circle cx="171.0" cy="196.45" r="5" fill="#009e73"><title>macOS ARM64 rep1: 13.69x</title></circle>
+<circle cx="179.0" cy="194.63" r="5" fill="#009e73"><title>macOS ARM64 rep2: 14.19x</title></circle>
+<text x="260" y="355">insert</text>
+<circle cx="251.0" cy="243.57" r="5" fill="#0072b2"><title>Linux x64 rep1: 5.44x</title></circle>
+<circle cx="259.0" cy="246.57" r="5" fill="#0072b2"><title>Linux x64 rep2: 5.13x</title></circle>
+<circle cx="281.0" cy="268.37" r="5" fill="#d55e00"><title>Windows x64 rep1: 3.35x</title></circle>
+<circle cx="289.0" cy="264.07" r="5" fill="#d55e00"><title>Windows x64 rep2: 3.64x</title></circle>
+<circle cx="311.0" cy="237.03" r="5" fill="#009e73"><title>macOS ARM64 rep1: 6.18x</title></circle>
+<circle cx="319.0" cy="247.03" r="5" fill="#009e73"><title>macOS ARM64 rep2: 5.08x</title></circle>
+<text x="400" y="355">mixed</text>
+<circle cx="391.0" cy="269.90" r="5" fill="#0072b2"><title>Linux x64 rep1: 3.25x</title></circle>
+<circle cx="399.0" cy="269.06" r="5" fill="#0072b2"><title>Linux x64 rep2: 3.30x</title></circle>
+<circle cx="421.0" cy="272.11" r="5" fill="#d55e00"><title>Windows x64 rep1: 3.11x</title></circle>
+<circle cx="429.0" cy="272.88" r="5" fill="#d55e00"><title>Windows x64 rep2: 3.06x</title></circle>
+<circle cx="451.0" cy="264.49" r="5" fill="#009e73"><title>macOS ARM64 rep1: 3.61x</title></circle>
+<circle cx="459.0" cy="267.54" r="5" fill="#009e73"><title>macOS ARM64 rep2: 3.40x</title></circle>
+<text x="615" y="75">net8, 4 process(es); ratio (log scale)</text>
+<line x1="615" y1="330.00" x2="1040" y2="330.00" stroke="#ddd"/>
+<text x="577" y="334.00">1x</text>
+<line x1="615" y1="309.31" x2="1040" y2="309.31" stroke="#999"/>
+<text x="577" y="313.31">1.5x</text>
+<line x1="615" y1="212.50" x2="1040" y2="212.50" stroke="#ddd"/>
+<text x="577" y="216.50">10x</text>
+<line x1="615" y1="95.00" x2="1040" y2="95.00" stroke="#ddd"/>
+<text x="577" y="99.00">100x</text>
+<text x="660" y="355">read</text>
+<circle cx="651.0" cy="252.99" r="5" fill="#0072b2"><title>Linux x64 rep1: 4.52x</title></circle>
+<circle cx="659.0" cy="253.14" r="5" fill="#0072b2"><title>Linux x64 rep2: 4.51x</title></circle>
+<circle cx="681.0" cy="146.06" r="5" fill="#d55e00"><title>Windows x64 rep1: 36.76x</title></circle>
+<circle cx="689.0" cy="141.59" r="5" fill="#d55e00"><title>Windows x64 rep2: 40.13x</title></circle>
+<circle cx="711.0" cy="171.90" r="5" fill="#009e73"><title>macOS ARM64 rep1: 22.16x</title></circle>
+<circle cx="719.0" cy="155.88" r="5" fill="#009e73"><title>macOS ARM64 rep2: 30.33x</title></circle>
+<text x="800" y="355">insert</text>
+<circle cx="791.0" cy="209.28" r="5" fill="#0072b2"><title>Linux x64 rep1: 10.65x</title></circle>
+<circle cx="799.0" cy="211.63" r="5" fill="#0072b2"><title>Linux x64 rep2: 10.17x</title></circle>
+<circle cx="821.0" cy="240.67" r="5" fill="#d55e00"><title>Windows x64 rep1: 5.76x</title></circle>
+<circle cx="829.0" cy="245.57" r="5" fill="#d55e00"><title>Windows x64 rep2: 5.23x</title></circle>
+<circle cx="851.0" cy="136.05" r="5" fill="#009e73"><title>macOS ARM64 rep1: 44.73x</title></circle>
+<circle cx="859.0" cy="129.05" r="5" fill="#009e73"><title>macOS ARM64 rep2: 51.31x</title></circle>
+<text x="940" y="355">mixed</text>
+<circle cx="931.0" cy="264.08" r="5" fill="#0072b2"><title>Linux x64 rep1: 3.64x</title></circle>
+<circle cx="939.0" cy="265.48" r="5" fill="#0072b2"><title>Linux x64 rep2: 3.54x</title></circle>
+<circle cx="961.0" cy="267.83" r="5" fill="#d55e00"><title>Windows x64 rep1: 3.38x</title></circle>
+<circle cx="969.0" cy="259.65" r="5" fill="#d55e00"><title>Windows x64 rep2: 3.97x</title></circle>
+<circle cx="991.0" cy="150.70" r="5" fill="#009e73"><title>macOS ARM64 rep1: 33.57x</title></circle>
+<circle cx="999.0" cy="144.76" r="5" fill="#009e73"><title>macOS ARM64 rep2: 37.71x</title></circle>
+<text x="75" y="415">net10, 1 process(es); ratio (log scale)</text>
+<line x1="75" y1="670.00" x2="500" y2="670.00" stroke="#ddd"/>
+<text x="37" y="674.00">1x</text>
+<line x1="75" y1="649.31" x2="500" y2="649.31" stroke="#999"/>
+<text x="37" y="653.31">1.5x</text>
+<line x1="75" y1="552.50" x2="500" y2="552.50" stroke="#ddd"/>
+<text x="37" y="556.50">10x</text>
+<line x1="75" y1="435.00" x2="500" y2="435.00" stroke="#ddd"/>
+<text x="37" y="439.00">100x</text>
+<text x="120" y="695">read</text>
+<circle cx="111.0" cy="574.31" r="5" fill="#0072b2"><title>Linux x64 rep1: 6.52x</title></circle>
+<circle cx="119.0" cy="575.32" r="5" fill="#0072b2"><title>Linux x64 rep2: 6.39x</title></circle>
+<circle cx="141.0" cy="565.99" r="5" fill="#d55e00"><title>Windows x64 rep1: 7.68x</title></circle>
+<circle cx="149.0" cy="562.72" r="5" fill="#d55e00"><title>Windows x64 rep2: 8.18x</title></circle>
+<circle cx="171.0" cy="497.93" r="5" fill="#009e73"><title>macOS ARM64 rep1: 29.13x</title></circle>
+<circle cx="179.0" cy="509.93" r="5" fill="#009e73"><title>macOS ARM64 rep2: 23.03x</title></circle>
+<text x="260" y="695">insert</text>
+<circle cx="251.0" cy="574.58" r="5" fill="#0072b2"><title>Linux x64 rep1: 6.49x</title></circle>
+<circle cx="259.0" cy="599.79" r="5" fill="#0072b2"><title>Linux x64 rep2: 3.96x</title></circle>
+<circle cx="281.0" cy="588.21" r="5" fill="#d55e00"><title>Windows x64 rep1: 4.97x</title></circle>
+<circle cx="289.0" cy="621.25" r="5" fill="#d55e00"><title>Windows x64 rep2: 2.60x</title></circle>
+<circle cx="311.0" cy="578.09" r="5" fill="#009e73"><title>macOS ARM64 rep1: 6.06x</title></circle>
+<circle cx="319.0" cy="576.87" r="5" fill="#009e73"><title>macOS ARM64 rep2: 6.20x</title></circle>
+<text x="400" y="695">mixed</text>
+<circle cx="391.0" cy="620.25" r="5" fill="#0072b2"><title>Linux x64 rep1: 2.65x</title></circle>
+<circle cx="399.0" cy="619.13" r="5" fill="#0072b2"><title>Linux x64 rep2: 2.71x</title></circle>
+<circle cx="421.0" cy="593.12" r="5" fill="#d55e00"><title>Windows x64 rep1: 4.51x</title></circle>
+<circle cx="429.0" cy="609.26" r="5" fill="#d55e00"><title>Windows x64 rep2: 3.29x</title></circle>
+<circle cx="451.0" cy="619.63" r="5" fill="#009e73"><title>macOS ARM64 rep1: 2.68x</title></circle>
+<circle cx="459.0" cy="598.36" r="5" fill="#009e73"><title>macOS ARM64 rep2: 4.07x</title></circle>
+<text x="615" y="415">net10, 4 process(es); ratio (log scale)</text>
+<line x1="615" y1="670.00" x2="1040" y2="670.00" stroke="#ddd"/>
+<text x="577" y="674.00">1x</text>
+<line x1="615" y1="649.31" x2="1040" y2="649.31" stroke="#999"/>
+<text x="577" y="653.31">1.5x</text>
+<line x1="615" y1="552.50" x2="1040" y2="552.50" stroke="#ddd"/>
+<text x="577" y="556.50">10x</text>
+<line x1="615" y1="435.00" x2="1040" y2="435.00" stroke="#ddd"/>
+<text x="577" y="439.00">100x</text>
+<text x="660" y="695">read</text>
+<circle cx="651.0" cy="584.51" r="5" fill="#0072b2"><title>Linux x64 rep1: 5.34x</title></circle>
+<circle cx="659.0" cy="580.86" r="5" fill="#0072b2"><title>Linux x64 rep2: 5.74x</title></circle>
+<circle cx="681.0" cy="467.62" r="5" fill="#d55e00"><title>Windows x64 rep1: 52.77x</title></circle>
+<circle cx="689.0" cy="466.21" r="5" fill="#d55e00"><title>Windows x64 rep2: 54.24x</title></circle>
+<circle cx="711.0" cy="468.30" r="5" fill="#009e73"><title>macOS ARM64 rep1: 52.07x</title></circle>
+<circle cx="719.0" cy="458.72" r="5" fill="#009e73"><title>macOS ARM64 rep2: 62.82x</title></circle>
+<text x="800" y="695">insert</text>
+<circle cx="791.0" cy="550.41" r="5" fill="#0072b2"><title>Linux x64 rep1: 10.42x</title></circle>
+<circle cx="799.0" cy="550.42" r="5" fill="#0072b2"><title>Linux x64 rep2: 10.42x</title></circle>
+<circle cx="821.0" cy="596.13" r="5" fill="#d55e00"><title>Windows x64 rep1: 4.25x</title></circle>
+<circle cx="829.0" cy="593.53" r="5" fill="#d55e00"><title>Windows x64 rep2: 4.48x</title></circle>
+<circle cx="851.0" cy="473.43" r="5" fill="#009e73"><title>macOS ARM64 rep1: 47.09x</title></circle>
+<circle cx="859.0" cy="474.58" r="5" fill="#009e73"><title>macOS ARM64 rep2: 46.04x</title></circle>
+<text x="940" y="695">mixed</text>
+<circle cx="931.0" cy="614.22" r="5" fill="#0072b2"><title>Linux x64 rep1: 2.98x</title></circle>
+<circle cx="939.0" cy="621.47" r="5" fill="#0072b2"><title>Linux x64 rep2: 2.59x</title></circle>
+<circle cx="961.0" cy="567.38" r="5" fill="#d55e00"><title>Windows x64 rep1: 7.47x</title></circle>
+<circle cx="969.0" cy="593.68" r="5" fill="#d55e00"><title>Windows x64 rep2: 4.46x</title></circle>
+<circle cx="991.0" cy="470.53" r="5" fill="#009e73"><title>macOS ARM64 rep1: 49.84x</title></circle>
+<circle cx="999.0" cy="476.04" r="5" fill="#009e73"><title>macOS ARM64 rep2: 44.74x</title></circle>
+<circle cx="130" cy="760" r="5" fill="#0072b2"/><text x="142" y="765">Linux x64</text>
+<circle cx="420" cy="760" r="5" fill="#d55e00"/><text x="432" y="765">Windows x64</text>
+<circle cx="710" cy="760" r="5" fill="#009e73"/><text x="722" y="765">macOS ARM64</text>
+<text x="75" y="790">Reference: 1.5x. Two dots per OS/scenario; observed sample bounds are retained in results.md.</text></svg>

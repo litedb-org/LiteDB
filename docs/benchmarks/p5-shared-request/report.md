@@ -1,14 +1,33 @@
 # P5-SHARED-REQUEST
 
-**State: blocked by a macOS concurrent admission failure; measurements still running.** Orchestrator instructed report-only per-request Shared comparisons against NuGet 5.0.21, twice on Linux x64, Windows x64 and macOS ARM64, net8/net10. No production changes or existing threshold changes.
+**Measurements complete; qualification BLOCKED by a macOS concurrent admission failure and ratios above 1.5x.** Orchestrator instructed report-only per-request Shared comparisons against NuGet 5.0.21, twice on Linux x64, Windows x64 and macOS ARM64, net8/net10. No production changes or existing threshold changes.
 
 Product baseline verified by `git ls-remote origin refs/heads/v6/phase4`: `7000dd6f01d0187a8fb5d030064eb327864ab731`. Scratch harness starts at Shared-open report `3b1f280b69c44a90add2948f6968de921f57bb5b`.
 
+## Results
+
+Ranges below span the four **separate** median ratios (net8/net10 × repetitions 1/2); no samples are pooled. Scenario (a) = one point read, (b) = one insert, (c) = ten reads plus one update. All 72 cell medians exceed 1.5x. Exact per-runtime/repetition milliseconds, sample min/max and conservative ratio bounds are in [results.md](results.md); [summary.json](summary.json) also retains aggregate throughput separately.
+
+| Platform | Processes | (a) read | (b) insert | (c) mixed |
+| --- | ---: | ---: | ---: | ---: |
+| Linux x64 | 1 | 5.38–6.52x | 3.96–6.49x | 2.65–3.30x |
+| Linux x64 | 4 | 4.51–5.74x | 10.17–10.65x | 2.59–3.64x |
+| Windows x64 | 1 | 7.68–11.38x | 2.60–4.97x | 3.06–4.51x |
+| Windows x64 | 4 | 36.76–54.24x | 4.25–5.76x | 3.38–7.47x |
+| macOS ARM64 | 1 | 13.69–29.13x | 5.08–6.20x | 2.68–4.07x |
+| macOS ARM64 | 4 | 22.16–62.82x | 44.73–51.31x | 33.57–49.84x |
+
+![Each repetition median ratio, by runtime and concurrency](ratios.svg)
+
+Each retained job completed 144 samples. The independent audit accepted all 864 expected samples and all 2160 worker outputs, verified exact source/binary identity, actual .NET 8.0.33/.NET 10.0.14 and X64/Arm64 execution, all correctness markers, and recomputed interval overlap. The macOS8 runtime describes its OS as Darwin; macOS10 uses macOS 15.8.2; Linux uses Ubuntu 24.04.5 LTS. These descriptions are explicitly supported by the audit. [artifact-sha256.json](artifact-sha256.json) pins each raw `all.json`. Raw evidence: `/tmp/litedb-proto/phases/p5-shared-request-evidence/`, also retained in the linked GitHub run artifacts (subject to retention).
+
+Local verification: production Release net8 harness builds passed for both libraries; the evidence-audit unit check passed with complete synthetic inputs and rejected missing samples, wrong candidates, failed verification and mixed binaries. Python syntax, SVG XML, C# size and whitespace checks passed. No local timing or full suite ran.
+
 ## Method
 
-One scratch-only workflow supplies six legs: Linux x64, Windows x64 and macOS ARM64, net8/net10. Each leg builds NuGet `[5.0.21]` and an independent checkout of exact phase4 `7000dd6f01d0187a8fb5d030064eb327864ab731`, Release, `TestingEnabled=false`. No PROFILE instrumentation. Tiered compilation is disabled for optimized first JITs. The v6 one-file and durable defaults and the default 1,000-page checkpoint are asserted. v5 Shared has no equivalent per-commit durable setting; this compares defaults, not equal durability guarantees.
+The retained successful jobs supply six legs: Linux x64, Windows x64 and macOS ARM64, net8/net10. Each leg builds NuGet `[5.0.21]` and an independent checkout of exact phase4 `7000dd6f01d0187a8fb5d030064eb327864ab731`, Release, `TestingEnabled=false`. No PROFILE instrumentation. Tiered compilation is disabled for optimized first JITs. The v6 one-file and durable defaults and the default 1,000-page checkpoint are asserted. v5 Shared has no equivalent per-commit durable setting; this compares defaults, not equal durability guarantees.
 
-Both repetitions share one hosted runner allocation per leg; they do not establish independent-host reproducibility. Each leg runs two repetitions, each with six alternating v5/v6 rounds per scenario and concurrency. Each sample uses a fresh 1,000-row database with 96-character payloads; each worker warms the exact operation ten times on its own separate database, then waits at a common filesystem barrier. The timed loop is 20 complete `new LiteDatabase(shared) -> work -> dispose` requests per worker. Four-process samples use one shared file; there is no persistent anchor connection. Linux/Windows require all four measured worker intervals to overlap. The corrective macOS/Windows-net8 harness uses 200 requests for the short read scenario, 20 for insert/mixed, and a coordinated future start; it requires at least two measured intervals to overlap and records peak overlap. Four gated worker processes execute each sample, but OS scheduling does not guarantee simultaneous execution of all four.
+Both repetitions share one hosted runner allocation per leg; they do not establish independent-host reproducibility. Each leg runs two repetitions, each with six alternating v5/v6 rounds per scenario and concurrency. Each sample uses a fresh 1,000-row database with 96-character payloads; each worker warms the exact operation ten times on its own separate database, then waits at a common filesystem barrier. The timed loop is 20 complete `new LiteDatabase(shared) -> work -> dispose` requests per worker. Four-process samples use one shared file; there is no persistent anchor connection. Linux net8/net10, Windows net10 and macOS net8 require all four measured worker intervals to overlap. The corrective macOS-net10/Windows-net8 harness uses 200 requests for the short read scenario, 20 for insert/mixed, and a coordinated future start; it requires at least two measured intervals to overlap and records peak overlap. Four gated worker processes execute each sample, but OS scheduling does not guarantee simultaneous execution of all four.
 
 (a) finds one unchanged row by `_id`; (b) inserts one uniquely numbered row with an integer payload; (c) reads ten 96-character rows by `_id`, then updates one row owned by that process. Each operation is auto-committed; the mixed request has no explicit encompassing transaction. After every sample an independent reopen checks every seed payload/value and every inserted identity/value. There are no engine, format or safety machinery changes in this step; verification guards benchmark correctness and is not a new crash-safety qualification.
 
@@ -40,11 +59,18 @@ Candidate ranking, to investigate only; no implementation or claimed measured ga
 
 The first candidate is the clearest measured duplication, especially on Windows; by itself it is unlikely to bring a large request regression down to 1.5x. Gains on macOS/net10 and under four-process contention cannot be inferred from the available profile. Keeping a database facade alive across requests would amortize lifecycle cost, but changes the requested application pattern and is not an implemented fix here.
 
-## Pilot disposition
+## Hosted runs and corrections
 
-The first run [42578770514](https://github.com/litedb-org/LiteDB/actions/runs/42578770514), harness `1ae1bed23`, is superseded, not successful evidence. macOS net10 completed only ten samples before the four-process mixed sample exceeded the original 120-second harness limit. Its four-process v6 insert averaged 345.265ms/request versus v5 3.344ms/request in that one round; these are partial observations, not medians. No worker exception was printed. Linux net10 was still active and the other four jobs queued when this own superseded run was cancelled to release capacity. Final samples use 20 requests per worker and a separate 600-second measurement deadline (startup barrier remains 120 seconds); no existing tests or benchmark gates were altered.
+| Run | Harness | Disposition |
+| --- | --- | --- |
+| [42578770514](https://github.com/litedb-org/LiteDB/actions/runs/42578770514) | `1ae1bed23` | Own superseded pilot cancelled; macOS mixed4 exceeded original 120s measurement limit with N100. Partial samples excluded. |
+| [42580592723](https://github.com/litedb-org/LiteDB/actions/runs/42580592723) | `fd3ac4472` | Overall failure; retain successful Linux8/10, Windows10 and macOS8 jobs. Windows8 and macOS10 rejected short v5 reads because all-four timed intervals did not overlap. |
+| [42581524907](https://github.com/litedb-org/LiteDB/actions/runs/42581524907) | `9453f357f` | Overall failure; retain successful macOS10. macOS8 failed with actual native-lock error35, disclosed below. |
+| [42582866993](https://github.com/litedb-org/LiteDB/actions/runs/42582866993) | `287399ca2` | Success; retain Windows8 only. |
 
-The second-run macOS net10 failed a harness overlap assertion on a very short v5 read sample after one complete round. Its data are superseded. A macOS-only corrective run uses harness `9453f357f706350e71340092fe34ad6b754f7bdb`, 200 read requests, and the scheduling contract above. Linux/Windows retain harness `fd3ac44726c593b0ee7b97e4c4875f92c7d92171`; OS/runtime results are not pooled or compared across harness versions. The secondary macOS wall metric subtracts the deliberate 250ms release delay; process latency never includes that delay.
+All runs were waited to a terminal state. No pending work is described as passing. Source/batch contracts are in [measurement-identities.json](measurement-identities.json); each retained leg contains two complete repetitions on its exact harness SHA, with the product always pinned to phase4. The final workflow matrix is deliberately scoped to the last Windows8 correction; the table identifies each full historical configuration for reproduction. No PRs, other-branch pushes, local benchmarks, engine fixes, or existing threshold changes.
+
+The original pilot used 100 requests per worker. The final harness uses 20 (200 for corrected short-read cases) and an independent 600s measurement limit; the warmup/start barrier remains 120s. These are measurement-controller limits, not modified tests. The corrected start is 250ms in the future; worker latency excludes that delay, and its secondary wall metric subtracts it. Corrections retained four real worker processes and record actual overlap. No operation retries were added. The earlier macOS pilot insert4 observation 345.265ms/request v6 versus 3.344 v5 was only one round, never a final median.
 
 ## Concurrent admission blocker
 

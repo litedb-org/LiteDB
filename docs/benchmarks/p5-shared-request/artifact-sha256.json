@@ -1,0 +1,8 @@
+{
+  "shared-request-macos-15-net10.0/all.json": "c79a4491129b2fc8cdf8b58fea6ba78872e129a6d5f701ea9fe00ba72ee8c6fa",
+  "shared-request-macos-15-net8.0/all.json": "813a086c834b7ae3fbb5c5fc4b1323e59e204227fee127eee62f8ece35f3e50b",
+  "shared-request-ubuntu-24.04-net10.0/all.json": "ec72075dedc68c8bdd2063a50ba507c95b2122506dfb7e4efb4edc130a56cdd2",
+  "shared-request-ubuntu-24.04-net8.0/all.json": "6dc4b2b0bb02b6be659fbe00edc6f91eef35bdae6a202a3326fdeb427761abe0",
+  "shared-request-windows-2025-net10.0/all.json": "d980e2a1d766649770c49b9b7f4fac028c3a69a40a3ec81f02702adf9a15f561",
+  "shared-request-windows-2025-net8.0/all.json": "c1063ae8ccaf312916ca5a1851be5388ff3a1eb41458af0d4626bed393aceb76"
+}

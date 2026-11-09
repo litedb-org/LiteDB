@@ -1,0 +1,128 @@
+[
+  {
+    "run": 42578770514,
+    "sha": "1ae1bed23dfd88ab74cafb02a58b3283ccced940",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42578770514",
+    "jobs": [
+      {
+        "id": 129032332623,
+        "name": "measure (ubuntu-24.04, net10.0)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      {
+        "id": 129032332870,
+        "name": "measure (macos-15, net10.0)",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 129032332934,
+        "name": "measure (windows-2025, net8.0)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      {
+        "id": 129032333010,
+        "name": "measure (windows-2025, net10.0)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      {
+        "id": 129032333056,
+        "name": "measure (ubuntu-24.04, net8.0)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      {
+        "id": 129032333120,
+        "name": "measure (macos-15, net8.0)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      }
+    ]
+  },
+  {
+    "run": 42580592723,
+    "sha": "fd3ac44726c593b0ee7b97e4c4875f92c7d92171",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42580592723",
+    "jobs": [
+      {
+        "id": 129038081408,
+        "name": "measure (windows-2025, net10.0)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 129038081582,
+        "name": "measure (windows-2025, net8.0)",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 129038081629,
+        "name": "measure (ubuntu-24.04, net10.0)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 129038081632,
+        "name": "measure (macos-15, net8.0)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 129038081697,
+        "name": "measure (ubuntu-24.04, net8.0)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 129038081787,
+        "name": "measure (macos-15, net10.0)",
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  {
+    "run": 42581524907,
+    "sha": "9453f357f706350e71340092fe34ad6b754f7bdb",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42581524907",
+    "jobs": [
+      {
+        "id": 129041126114,
+        "name": "measure (macos-15, net8.0)",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 129041126337,
+        "name": "measure (macos-15, net10.0)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "run": 42582866993,
+    "sha": "287399ca2ac1081fec2e93bb13b56cfddd476da3",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/42582866993",
+    "jobs": [
+      {
+        "id": 129045565587,
+        "name": "measure (windows-2025, net8.0)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+]

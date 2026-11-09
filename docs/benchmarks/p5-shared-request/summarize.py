@@ -28,8 +28,8 @@ for file in files:
     assert identity not in identities, identity
     identities.add(identity)
     assert first['framework'] in ('.NETCoreApp,Version=v8.0', '.NETCoreApp,Version=v10.0')
-    assert any(name in first['os'] for name in ('Windows', 'Linux', 'Darwin'))
-    os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if 'Darwin' in first['os'] else 'Linux x64'
+    assert any(name in first['os'] for name in ('Windows', 'Linux', 'Ubuntu', 'Darwin', 'macOS'))
+    os_name = 'Windows x64' if 'Windows' in first['os'] else 'macOS ARM64' if any(n in first['os'] for n in ('Darwin', 'macOS')) else 'Linux x64'
     assert first['architecture'] == ('Arm64' if os_name == 'macOS ARM64' else 'X64')
     binaries = {'v5': set(), 'v6': set()}
     leg = f"{os_name}|{first['framework']}"

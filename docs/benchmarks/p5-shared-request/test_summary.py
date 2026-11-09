@@ -29,7 +29,7 @@ class SummaryAuditTests(unittest.TestCase):
                     rows.append(dict(repetition=rep, round=round_id, scenario=scenario, workers=workers,
                                      variant=variant, verified=True, requestsPerWorker=200 if os_name == 'Darwin' and scenario == 'read' else 20, warmupRequests=10,
                                      latencyMs=2 if variant == 'v6' else 1, wallMsPerRequest=1,
-                                     processes=[dict(start='2026-11-09T00:00:00Z', end='2026-11-09T00:00:01Z', runtime=f'.NET {version}.0.0', os=os_name, architecture=architecture, framework=runtime,
+                                     processes=[dict(start='2026-11-09T00:00:00Z', end='2026-11-09T00:00:01Z', runtime=f'.NET {version}.0.0', os='Ubuntu 24.04.5 LTS' if os_name == 'Linux' else 'macOS 15.8.2' if os_name == 'Darwin' and version == 10 else os_name, architecture=architecture, framework=runtime,
                                                      candidateCommit=CANDIDATE, harnessCommit=HARNESS,
                                                      tieredCompilation='0', requests=200 if os_name == 'Darwin' and scenario == 'read' else 20, milliseconds=100,
                                                      assemblySha256=variant) for _ in range(workers)]))
