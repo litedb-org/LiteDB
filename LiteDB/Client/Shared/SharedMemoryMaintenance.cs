@@ -39,6 +39,7 @@ namespace LiteDB.Client.Shared
                 }
                 _exclusive = true;
                 Stage("exclusive");
+                table.ProtectedSnapshot.Dispose();
                 table.StructuralBegin();
                 _structural = true;
                 settings.SharedFileHandles?.CloseIdle();
