@@ -69,7 +69,7 @@ internal sealed class ApiBoundaryFuzzer : IFuzzTarget
 
     private static void Names(FuzzContext context, LiteDatabase db)
     {
-        var names = new[] { "MiXeD", "under_score_" + context.Steps, new string('n', 60) + context.Steps % 10 };
+        var names = new[] { "MiXeD", "under_score_" + context.Steps % 10, new string('n', 60) + context.Steps % 10 };
         foreach (var name in names)
         {
             var rows = db.GetCollection(name);
