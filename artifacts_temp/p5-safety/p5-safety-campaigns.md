@@ -116,3 +116,29 @@
 - 2026-11-09T03:46:16.690671+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
 - 2026-11-09T03:49:19.057800+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
 - 2026-11-09T03:52:21.464774+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:55:23.747718+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T03:58:26.050735+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:01:28.338627+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:04:30.814590+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:07:33.231308+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:10:35.515426+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:13:37.954828+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:16:40.355333+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:19:42.569789+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:22:45.528793+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:25:47.984993+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:28:50.305481+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:31:52.735794+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:34:54.992933+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:37:57.383145+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:40:59.657649+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:44:02.146360+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:47:04.804276+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:50:07.445065+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:53:09.783701+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:56:12.106374+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T04:59:14.590672+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 3}; streaming collector active.
+- 2026-11-09T05:02:16.955412+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 14, 'in_progress:': 2, 'completed:cancelled': 1}; streaming collector active.
+- macos-shared-handle terminal cancelled at350min; partial artifact downloaded. shared529470 failed282 at crashAt22/checkpoint-after-page-write without crashmarker; no deterministic replay completed, origin unresolved and explicit blocker. shared529471 passed400;529472 interrupted; remainingmac targets unexecuted. Job log retained via jobs API. Current357110reportedsteps72failure records. Two legs remain running.
+- 2026-11-09T05:05:24.727938+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.
+- 2026-11-09T05:08:30.126891+00:00 hosted 42531054661: {'completed:failure': 5, 'completed:success': 15, 'in_progress:': 1, 'completed:cancelled': 1}; streaming collector active.

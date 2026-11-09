@@ -34,3 +34,13 @@ Classification: harness IPC sharing race, not an infrastructure flake or proven 
 ### Windows api-boundary confirmation
 
 windows-0 terminal failure repeats all ten original seeds and all ten independent hosted replays at348 steps, with identical `under_score_348` header capacity rejection. Raw originals/replays and command index are under `artifacts/p5-windows-0/evidence/`. Classification matches Linux: harness scaling defect, no product-data mismatch. Across Linux/Windows this class has20 original failures+20 independent replay failures.
+
+## macOS Shared: unproven crash boundary and campaign timeout (unresolved origin)
+
+macos-shared-handle ended cancelled at the350-minute job budget (started23:10:06, cancellation05:00:19). Downloaded partial artifact `p5-macos-shared-handle`; exact job log `macos-shared-job.log` from GitHub jobs/128885108784/logs, lines around the cancellation. No second campaign dispatched.
+
+Original shared seed529470 fails at282 steps with `SHARED_SHAREDPROCESSFUZZER_L82`: the crash child exits134 without proving the selected hook fired. Retained trace.jsonl pins round282/worker0/crashAt22 = `checkpoint-after-page-write`; child exits with `Configured shared-process crash boundary was not reached` at SharedProcessFuzzer.cs179, and the parent refuses to credit the cut at81–82. No data-integrity mismatch is reported. Source SharedCheckpointCrashScope tries to hold the mutex through commit/checkpoint, but this evidence does not explain why the cut was missed. Classification: **fault-reachability/qualification failure, origin unresolved**, not proven product corruption, not a presumed flake or confirmed harness-only defect. No deterministic replay completed for this failure; that is an explicit blocker.
+
+Raw evidence: `artifacts/p5-macos-shared-handle/evidence/shared-529470.log`, `fuzz/shared/529470/*/{run.json,trace.jsonl,processes.jsonl,shared.db,state-shared.db,worker-*.jsonl,replay.json}`. The failure run took6274seconds; commands.json records exit1. Seed529471's400step invocation passed after8578seconds. Seed529472 was running when the job budget cancelled the driver; no end-of-driver replay-index or binary-sha256 file exists. shared-legacy/shared-wake/transaction-handle in this macOS leg were not reached. Partial records and binaries are retained and will be hashed independently; absent final manifests are not represented as completed evidence.
+
+Disposition: candidate qualification remains blocked. A fresh bounded macOS reproduction with forced checkpoint-hook admission is needed outside this no-redispatch round. Linux/Windows Shared results cannot substitute for this missing macOS crash proof.
