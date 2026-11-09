@@ -1208,6 +1208,20 @@
         ".github/scripts/test_harness_campaign.py",
         ".github/workflows/fuzz.yml"
       ]
+    },
+    {
+      "id": "f-p5-macos-eagain-expanded-native-error-proof",
+      "kind": "ci-test-config-changed",
+      "subjects": [
+        ".github/workflows/shared-admission-proof.yml"
+      ],
+      "disposition": "strengthened",
+      "invariant": "Every process admission, deadline, retained-lock, committed-row and sentinel assertion remains enabled on all three hosted platforms; macOS mapped net8/net10 coverage remains unchanged.",
+      "reason": "Expand the focused filter from SharedRequestAdmission_Tests to SharedRequestAdmission to include the added Unix EINTR/EACCES/EAGAIN deadline and EINVAL propagation cases. No existing test or platform is removed or narrowed.",
+      "coveredBy": [
+        "LiteDB.Tests/Internals/SharedRequestAdmission_Tests.cs",
+        "LiteDB.Tests/Internals/SharedRequestAdmissionErrors_Tests.cs"
+      ]
     }
   ]
 }
