@@ -281,6 +281,26 @@ namespace LiteDB.Internals
             reopened.GetCollection("docs").Count().Should().Be(0);
         }
 
+        [OneFileFact]
+        public void Zero_duration_retires_disposed_facades_read_cache_while_a_peer_stays_open()
+        {
+            using (var seed = new LiteDatabase(Filename))
+                seed.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "saved" });
+            var connection = Connection;
+            connection.SharedLinger = 0;
+            using var first = new LiteDatabase(connection);
+            using var peer = new LiteDatabase(connection);
+            first.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            first.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            var table = Engine(first).MappedReaderTable;
+            table.ReadCache.Snapshot.Should().NotBeNull();
+            first.Dispose();
+            table.Closed.Should().BeFalse();
+            table.ReadCache.Snapshot.Should().BeNull();
+            peer.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("saved");
+            Engine(peer).SnapshotOpens.Should().Be(1);
+        }
+
         [OneFileTheory]
         [InlineData(false)]
         [InlineData(true)]
