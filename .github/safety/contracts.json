@@ -567,11 +567,6 @@
           "proves": "A child with mapped fast reads disabled retains a protected read engine, releases that storage before rebuild replacement, and preserves indexed payloads through two cold reopens."
         },
         {
-          "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Zero_duration_retires_disposed_facades_read_cache_while_a_peer_stays_open",
-          "model": "exception",
-          "proves": "Zero-duration disposal retains the original read-cache retirement behavior even while a peer keeps the participant active; the peer opens a fresh snapshot with intact data."
-        },
-        {
           "test": "LiteDB.Tests/Internals/SharedLingerCore_Tests.cs#Idle_release_preserves_deleted_and_replaced_paths",
           "model": "exception",
           "proves": "Delayed final close cannot recreate a deleted path or modify a replacement database; replacement bytes remain identical."

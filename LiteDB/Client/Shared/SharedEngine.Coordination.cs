@@ -83,7 +83,7 @@ namespace LiteDB
         private void RetireCoordinatedReads()
         {
 #if NET8_0_OR_GREATER
-            if (_settings.SharedOneFile && _settings.SharedLinger > 0 && System.Threading.Volatile.Read(ref _disposed) != 0) return;
+            if (_settings.SharedOneFile && System.Threading.Volatile.Read(ref _disposed) != 0) return;
             lock (_snapshotGate)
             {
                 _readCacheDemand = 0;
