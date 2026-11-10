@@ -5,7 +5,8 @@
 The owner chose default-on linger on 2026-11-09. P5-LINGER-CORE uses a
 1000 ms default on qualified one-file Shared connections, configurable through
 `SharedLinger` on `EngineSettings` or `ConnectionString`, or `shared linger=0`
-to disable it. This WIP is not integration-qualified; exclusive handoff is the
+to disable it, including retaining the original disposed-facade read-cache
+retirement behavior when another facade remains active. This WIP is not integration-qualified; exclusive handoff is the
 next step. No performance measurement or performance qualification is claimed.
 
 The process participant moves from active to idle after its last facade and
